@@ -211,7 +211,6 @@ function TransportationPageInner() {
     handleDeleteQuote,
     handleDeleteLoad,
     handleUpdateQuote,
-    handleUpdateLoad,
   } = useTransportationData({
     shipmentStatus: activeTab === "shipments" ? selectedStatus : "all",
   });
@@ -711,7 +710,6 @@ function TransportationPageInner() {
                     key={load._id}
                     load={load}
                     onDelete={handleDeleteLoad}
-                    onUpdate={handleUpdateLoad}
                   />
                 ))}
                 <PaginationBar

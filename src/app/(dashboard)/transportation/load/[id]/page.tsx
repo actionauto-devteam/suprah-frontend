@@ -571,7 +571,7 @@ export default function LoadDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* ── Balanced Details Grid ── */}
+      {/* ── Vehicles + Financials ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 items-stretch">
 
         {/* Vehicles */}
@@ -682,9 +682,16 @@ export default function LoadDetailsPage() {
           </CardContent>
         </Card>
 
+      </div>
+
+      {/* ── Documents & Status — sized to their own content, not stretched
+           to match a taller sibling; nothing is ever left stranded alone
+           in an otherwise-empty row ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 items-start">
+
         {/* Proof of Delivery */}
         {load.proofOfDelivery && (
-          <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+          <Card className="sm:col-span-2 lg:col-span-1 border-border shadow-sm bg-card overflow-hidden p-0">
             <CardHeader className="p-4 border-b border-border/50 bg-blue-500/5">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 flex items-center gap-2">
                 <FileCheck className="size-3.5" /> Proof of Delivery
@@ -720,7 +727,7 @@ export default function LoadDetailsPage() {
 
         {/* Notes & Instructions */}
         {(load.additionalInfo?.instructions || load.additionalInfo?.notes) && (
-          <Card className="md:col-span-1 lg:col-span-6 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+          <Card className="sm:col-span-2 lg:col-span-3 border-border shadow-sm bg-card overflow-hidden p-0">
             <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <FileText className="size-3.5" /> Notes & Instructions
@@ -748,8 +755,8 @@ export default function LoadDetailsPage() {
             </CardContent>
           </Card>
         )}
-        {/* Contract — dispatcher's own signature */}
-        <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+        {/* Contract — dispatcher's own agreement */}
+        <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
           <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <ScrollText className="size-3.5" /> Contract
@@ -757,14 +764,14 @@ export default function LoadDetailsPage() {
           </CardHeader>
           <CardContent className="p-4">
             {load.contract?.agreedToTerms ? (
-              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full">
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
                   <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                  <span className="text-sm font-bold tracking-tight">Terms Agreed & Signed</span>
+                  <span className="text-sm font-bold tracking-tight">Terms Agreed</span>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Signed by: <span className="text-foreground font-semibold">{load.contract.signerName}</span>
+                  Agreed by: <span className="text-foreground font-semibold">{load.contract.signerName}</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground/80 font-mono">
                   {formatDate(load.contract.signedAt || load.createdAt)}
@@ -779,7 +786,7 @@ export default function LoadDetailsPage() {
         </Card>
 
         {/* Driver Agreement — the driver's own signature, signed at accept/request time */}
-        <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+        <Card className="border-border shadow-sm bg-card overflow-hidden p-0">
           <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <FileCheck className="size-3.5" /> Driver Agreement
@@ -787,7 +794,7 @@ export default function LoadDetailsPage() {
           </CardHeader>
           <CardContent className="p-4">
             {load.driverContract?.agreedToTerms ? (
-              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full">
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
                   <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
@@ -809,7 +816,7 @@ export default function LoadDetailsPage() {
         </Card>
 
         {/* Load Journey */}
-        <div className="md:col-span-1 lg:col-span-4">
+        <div>
           <LoadTrackingTimeline load={load} />
         </div>
 

@@ -35,7 +35,6 @@ import { LocationSection } from "./LocationSection"
 import { VehicleSection } from "./VehicleSection"
 import { DatesSection } from "./DatesSection"
 import { AdditionalInfoSection } from "./AdditionalInfoSection"
-import { ContractSection } from "./ContractSection"
 import { DriverPickerSection, OrgDriver } from "./DriverPickerSection"
 import { InspectionSection } from "./InspectionSection"
 import { ReviewSection } from "./ReviewSection"
@@ -69,7 +68,6 @@ type StepKey =
   | "pricing"
   | "assignment"
   | "inspect"
-  | "contract"
   | "review"
 
 // ── Edit mode: map the fetched Load back into wizard form state ──
@@ -160,10 +158,11 @@ export function LoadFormLayout({
   const router = useRouter()
   const isEdit = mode === "edit" && !!initialLoad
 
-  // Signer-name default from the centralized user record. (The rewritten
-  // AuthProvider exposes getToken/isLoaded/isSignedIn — not a user object —
-  // so we read /api/users/me directly.) Skipped in edit mode — the contract
-  // step already seeds from initialLoad.contract.
+  // Silently attached as contract.signerName when the Review step's "I
+  // agree" checkbox is checked — no visible signer-name field. (The
+  // rewritten AuthProvider exposes getToken/isLoaded/isSignedIn — not a
+  // user object — so we read /api/users/me directly.) Skipped in edit
+  // mode — initialLoad.contract already carries whatever was recorded.
   const [signerName, setSignerName] = React.useState("")
   React.useEffect(() => {
     if (isEdit) return
@@ -248,8 +247,7 @@ export function LoadFormLayout({
     if (postType === "assign-carrier" && !isEdit) {
       base.push({ key: "assignment", label: "Driver" })
     }
-    base.push({ key: "inspect", label: "Inspect" })
-    base.push({ key: "contract", label: "Contract" })
+    base.push({ key: "inspect", label: "Post" })
     base.push({ key: "review", label: "Review" })
     return base
   }, [postType, isEdit])
@@ -285,7 +283,7 @@ export function LoadFormLayout({
         : field.startsWith("dates")
           ? "schedule"
           : field.startsWith("contract")
-            ? "contract"
+            ? "review"
             : field === "driverId"
               ? "assignment"
               : "route"
@@ -520,14 +518,6 @@ export function LoadFormLayout({
           />
         )}
 
-        {step.key === "contract" && (
-          <ContractSection
-            contract={contract}
-            onChange={setContract}
-            defaultSignerName={signerName}
-          />
-        )}
-
         {step.key === "review" && (
           <ReviewSection
             mode={isEdit ? "edit" : "create"}
@@ -540,6 +530,13 @@ export function LoadFormLayout({
             additionalInfo={additionalInfo}
             pricing={pricing}
             contract={contract}
+            onToggleAgree={() =>
+              setContract((prev) => ({
+                ...prev,
+                agreedToTerms: !prev.agreedToTerms,
+                signerName: !prev.agreedToTerms ? signerName || prev.signerName : prev.signerName,
+              }))
+            }
             selectedDriverName={selectedDriverInfo?.name ?? null}
             makeAvailable={makeAvailable}
             currentAssigneeName={currentAssigneeName}
