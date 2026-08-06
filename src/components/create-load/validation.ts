@@ -160,12 +160,6 @@ export function validateContract(contract: LoadContract): StepValidation {
       message: "You must agree to the transport terms",
     });
   }
-  if (!contract.signatureDataUrl) {
-    issues.push({
-      field: "contract.signatureDataUrl",
-      message: "A signature is required — draw one in the signature pad",
-    });
-  }
   return { valid: issues.length === 0, issues, warnings: [] };
 }
 

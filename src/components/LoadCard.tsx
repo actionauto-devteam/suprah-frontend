@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils"
 interface LoadCardProps {
   load: Load
   onDelete?: (loadId: string) => void
-  onUpdate?: (id: string, updatedLoad: Partial<Load>) => Promise<void>
   isDeleting?: boolean
 }
 
@@ -141,7 +140,7 @@ function StatTile({
   )
 }
 
-export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps) {
+export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   const router = useRouter()
   const [isExporting, setIsExporting] = React.useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
@@ -280,20 +279,19 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                     onClick={(e: React.MouseEvent<HTMLDivElement>) => { e.stopPropagation(); e.preventDefault() }}
                   >
                     <div className="flex items-center gap-1 rounded-xl border border-border/50 bg-background/40 backdrop-blur-sm p-1">
-                      {/* Edit only renders when an onUpdate handler exists —
-                          previously this button appeared on the Board tab too,
-                          where editing isn't wired up, so it did nothing */}
-                      {onUpdate && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-9 w-9 p-0 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
-                          onClick={handleEdit}
-                          title="Edit load"
-                        >
-                          <Edit3 className="size-4" />
-                        </Button>
-                      )}
+                      {/* Edit navigates to the edit wizard directly — it no
+                          longer depends on an onUpdate callback (that was
+                          only for the old modal's onSave), so it always
+                          renders regardless of which tab/list this card is in */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-9 p-0 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
+                        onClick={handleEdit}
+                        title="Edit load"
+                      >
+                        <Edit3 className="size-4" />
+                      </Button>
 
                       <Button
                         variant="ghost"

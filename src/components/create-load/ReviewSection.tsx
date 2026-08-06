@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   CheckCircle2, XCircle, MapPin, Car, Calendar, DollarSign,
-  UserCheck, FileSignature, Megaphone, ClipboardCheck, StickyNote, Globe, Lock,
+  UserCheck, ScrollText, Megaphone, ClipboardCheck, StickyNote, Globe, Lock, Check,
 } from "lucide-react"
 import {
   PostType, LocationBlock, LoadVehicle, LoadDates, LoadAdditionalInfo,
@@ -28,6 +28,7 @@ interface ReviewSectionProps {
   additionalInfo: LoadAdditionalInfo
   pricing: LoadPricingInput
   contract: LoadContract
+  onToggleAgree: () => void
   selectedDriverName: string | null
   makeAvailable: boolean
   /** Edit mode only — the load's current assignee, shown read-only */
@@ -75,6 +76,7 @@ export function ReviewSection({
   additionalInfo,
   pricing,
   contract,
+  onToggleAgree,
   selectedDriverName,
   makeAvailable,
   currentAssigneeName,
@@ -181,12 +183,6 @@ export function ReviewSection({
           </Card>
         )}
 
-        <Card icon={FileSignature} title="Contract">
-          <Row label="Terms agreed" value={contract.agreedToTerms ? "Yes" : "No"} />
-          <Row label="Signed by" value={contract.signerName || "—"} />
-          <Row label="Signature" value={contract.signatureDataUrl ? "Captured" : "Missing"} />
-        </Card>
-
         <Card icon={StickyNote} title="Notes & Visibility">
           <p className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1.5">
             {additionalInfo.visibility === "public" ? (
@@ -203,6 +199,37 @@ export function ReviewSection({
           <Row label="Carrier instructions" value={additionalInfo.instructions ? "Added" : "—"} />
         </Card>
       </div>
+
+      {/* ── Agree to terms ── */}
+      <button
+        type="button"
+        onClick={onToggleAgree}
+        aria-pressed={contract.agreedToTerms}
+        className={cn(
+          "w-full text-left rounded-xl border p-3.5 flex items-center gap-3 transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
+          contract.agreedToTerms
+            ? "border-emerald-500/40 bg-emerald-500/10"
+            : "border-border/60 bg-background/40 hover:border-emerald-500/25",
+        )}
+      >
+        <div
+          className={cn(
+            "size-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+            contract.agreedToTerms ? "border-emerald-500 bg-emerald-500" : "border-border",
+          )}
+        >
+          {contract.agreedToTerms && <Check className="size-3 text-white" />}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <ScrollText className="size-3.5 text-muted-foreground" /> I agree to the transport terms
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Vehicles are transported in the condition received, normal road wear excepted, and load details are accurate to the best of your knowledge.
+          </p>
+        </div>
+      </button>
     </div>
   )
 }
