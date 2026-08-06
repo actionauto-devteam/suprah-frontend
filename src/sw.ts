@@ -47,10 +47,8 @@ const serwist = new Serwist({
   // Was `true` (new SW takes over the instant it finishes installing), which
   // forced every open tab to hard-reload with zero warning on every deploy —
   // including mid-edit in Project Management. `false` leaves the new worker
-  // in "waiting" until the client explicitly posts SKIP_WAITING (Serwist wires
-  // that message listener automatically when this is off) — see
-  // ServiceWorkerRegistration.tsx, which now surfaces a "Refresh" toast
-  // instead of reloading out from under the user.
+  // in "waiting" until every open tab referencing the old one is closed, so
+  // a deploy never yanks the page out from under whatever the user is doing.
   skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,

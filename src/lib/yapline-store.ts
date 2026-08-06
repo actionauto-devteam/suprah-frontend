@@ -21,6 +21,7 @@
 import { io as ioClient, Socket } from "socket.io-client";
 import { useSyncExternalStore } from "react";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -32,6 +33,17 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 const LS_AUTO_LISTEN = "yapline_auto_listen";
 const LS_VOLUME = "yapline_volume";
+const LS_PTT_KEY = "yapline_ptt_key";
+const DEFAULT_PTT_KEY = "`";
+
+function loadPttKey(): string {
+  if (typeof window === "undefined") return DEFAULT_PTT_KEY;
+  try {
+    return localStorage.getItem(LS_PTT_KEY) || DEFAULT_PTT_KEY;
+  } catch {
+    return DEFAULT_PTT_KEY;
+  }
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,13 +82,28 @@ export interface YapCurrent {
   screenVersion: number;  // bumped whenever remote screen streams change
 }
 
+// A "monitor" is a listen-only channel joined alongside (not instead of) the
+// active one — receive audio only, never sends the mic, never screen-shares.
+// Lets someone scan several channels at once, like a real multi-channel radio.
+export interface YapMonitor {
+  conversationId: string;
+  conversationName: string | null;
+  volume: number;
+  deafened: boolean;
+}
+
+/** Active channel (if any) + monitors together can't exceed this. */
+export const MAX_JOINED_CHANNELS = 5;
+
 export interface YapLineState {
   ready: boolean;                 // socket connected + authed
   myUserId: string | null;
   sessions: Record<string, YapSessionSummary>;
   current: YapCurrent | null;
+  monitors: Record<string, YapMonitor>;
   autoListen: boolean;
   minimized: boolean;
+  pttKey: string;
   error: string | null;
 }
 
@@ -87,12 +114,14 @@ let state: YapLineState = {
   myUserId: null,
   sessions: {},
   current: null,
+  monitors: {},
   // Opt-in: silently pulling someone into a live audio session they never
   // asked to join — just because a teammate opened a YapLine somewhere — is
   // exactly the "auto joined into a channel for no reason" surprise. The
   // toggle lives on the full YapLine page for anyone who actually wants it.
   autoListen: false,
   minimized: false,
+  pttKey: loadPttKey(),
   error: null,
 };
 
@@ -118,11 +147,23 @@ interface Peer {
   audioEl: HTMLAudioElement | null;
 }
 
+// A monitor peer is deliberately dumber than the active-channel Peer above:
+// audio-only, recvonly, we never attach a local track and never renegotiate,
+// so there's no glare to handle and no polite/impolite side to pick.
+interface MonitorPeer {
+  pc: RTCPeerConnection;
+  audioEl: HTMLAudioElement | null;
+}
+
 let socket: Socket | null = null;
 let initPromise: Promise<void> | null = null;
 let micStream: MediaStream | null = null;
 let screenStream: MediaStream | null = null;
 const peers = new Map<string, Peer>();
+// conversationId -> userId -> MonitorPeer. Kept entirely separate from `peers`
+// (the active channel's mesh) so nothing about monitoring can ever touch or
+// regress push-to-talk / screen-share on the channel you're actually using.
+const monitorPeers = new Map<string, Map<string, MonitorPeer>>();
 const remoteScreens = new Map<string, MediaStream>();
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 let audioCtx: AudioContext | null = null;
@@ -196,6 +237,7 @@ async function ensureInit(): Promise<void> {
       hydrate();
       // If a session was live when the socket dropped, rejoin it.
       if (state.current) void rejoin(state.current.conversationId, state.current.listenOnly);
+      if (Object.keys(state.monitors).length > 0) void rejoinMonitors();
     });
 
     socket.on("disconnect", () => {
@@ -234,23 +276,29 @@ async function ensureInit(): Promise<void> {
         teardownMedia();
         setState({ current: null });
       }
+      if (state.monitors[conversationId]) {
+        teardownMonitor(conversationId);
+        const nm = { ...state.monitors };
+        delete nm[conversationId];
+        setState({ monitors: nm });
+      }
     });
 
     // ── In-session events (yap:{conv} room) ──────────────────────────────
     socket.on("yapline:peer-joined", ({ conversationId }: any) => {
       // The newcomer initiates offers toward US — nothing to do but wait for
       // their signal. Roster refresh comes via session-update.
-      if (state.current?.conversationId !== conversationId) return;
+      if (state.current?.conversationId !== conversationId && !state.monitors[conversationId]) return;
     });
 
     socket.on("yapline:peer-left", ({ conversationId, userId }: any) => {
-      if (state.current?.conversationId !== conversationId) return;
-      closePeer(userId);
+      if (state.current?.conversationId === conversationId) { closePeer(userId); return; }
+      if (state.monitors[conversationId]) closeMonitorPeer(conversationId, userId);
     });
 
     socket.on("yapline:signal", (msg: { conversationId: string; from: string; data: any }) => {
-      if (state.current?.conversationId !== msg.conversationId) return;
-      void handleSignal(msg.from, msg.data);
+      if (state.current?.conversationId === msg.conversationId) { void handleSignal(msg.from, msg.data); return; }
+      if (state.monitors[msg.conversationId]) void handleMonitorSignal(msg.conversationId, msg.from, msg.data);
     });
 
     socket.on("yapline:speaking", ({ conversationId, userId, speaking }: any) => {
@@ -264,9 +312,17 @@ async function ensureInit(): Promise<void> {
     });
 
     socket.on("yapline:replaced", ({ conversationId }: any) => {
-      if (state.current?.conversationId !== conversationId) return;
-      teardownMedia();
-      setState({ current: null, error: "YapLine session moved to another tab." });
+      if (state.current?.conversationId === conversationId) {
+        teardownMedia();
+        setState({ current: null, error: "YapLine moved to another tab or device." });
+        return;
+      }
+      if (state.monitors[conversationId]) {
+        teardownMonitor(conversationId);
+        const next = { ...state.monitors };
+        delete next[conversationId];
+        setState({ monitors: next });
+      }
     });
   })().catch((err) => {
     initPromise = null;
@@ -416,6 +472,188 @@ function closePeer(userId: string) {
   if (remoteScreens.delete(userId)) bumpScreenVersion();
 }
 
+// ─── Monitor peer lifecycle (listen-only, additional channels) ──────────────
+
+function sendMonitorSignal(conversationId: string, to: string, data: any) {
+  socket?.emit("yapline:signal", { conversationId, to, data });
+}
+
+function createMonitorPeer(conversationId: string, peerId: string, initiate: boolean): MonitorPeer {
+  let convPeers = monitorPeers.get(conversationId);
+  if (!convPeers) {
+    convPeers = new Map();
+    monitorPeers.set(conversationId, convPeers);
+  }
+  const existing = convPeers.get(peerId);
+  if (existing) return existing;
+
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const peer: MonitorPeer = { pc, audioEl: null };
+  convPeers.set(peerId, peer);
+
+  if (initiate) {
+    // recvonly only — we never send audio into a monitored channel.
+    pc.addTransceiver("audio", { direction: "recvonly" });
+  }
+
+  pc.onnegotiationneeded = async () => {
+    try {
+      await pc.setLocalDescription();
+      sendMonitorSignal(conversationId, peerId, { description: pc.localDescription });
+    } catch {
+      /* ICE restart recovers */
+    }
+  };
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) sendMonitorSignal(conversationId, peerId, { candidate: e.candidate });
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === "failed") pc.restartIce();
+  };
+
+  pc.ontrack = (e) => {
+    if (e.track.kind !== "audio") return;
+    const el = peer.audioEl || new Audio();
+    peer.audioEl = el;
+    el.autoplay = true;
+    el.srcObject = e.streams[0] || new MediaStream([e.track]);
+    const mon = state.monitors[conversationId];
+    el.volume = mon?.volume ?? defaultVolume;
+    el.muted = !!mon?.deafened;
+    void el.play().catch(() => { /* resumes on next user gesture */ });
+  };
+
+  return peer;
+}
+
+async function handleMonitorSignal(conversationId: string, from: string, data: any) {
+  const peer = createMonitorPeer(conversationId, from, false);
+  try {
+    if (data.description) {
+      await peer.pc.setRemoteDescription(data.description);
+      if (data.description.type === "offer") {
+        await peer.pc.setLocalDescription();
+        sendMonitorSignal(conversationId, from, { description: peer.pc.localDescription });
+      }
+    } else if (data.candidate) {
+      await peer.pc.addIceCandidate(data.candidate);
+    }
+  } catch {
+    /* individual peer failures shouldn't kill the monitor */
+  }
+}
+
+function closeMonitorPeer(conversationId: string, userId: string) {
+  const convPeers = monitorPeers.get(conversationId);
+  const peer = convPeers?.get(userId);
+  if (!peer) return;
+  convPeers!.delete(userId);
+  try { peer.pc.close(); } catch { /* noop */ }
+  if (peer.audioEl) {
+    peer.audioEl.srcObject = null;
+    peer.audioEl = null;
+  }
+}
+
+function teardownMonitor(conversationId: string) {
+  const convPeers = monitorPeers.get(conversationId);
+  if (!convPeers) return;
+  convPeers.forEach((peer) => {
+    try { peer.pc.close(); } catch { /* noop */ }
+    if (peer.audioEl) {
+      peer.audioEl.srcObject = null;
+      peer.audioEl = null;
+    }
+  });
+  monitorPeers.delete(conversationId);
+}
+
+function totalJoinedChannelCount(): number {
+  return (state.current ? 1 : 0) + Object.keys(state.monitors).length;
+}
+
+async function joinMonitor(conversationId: string, conversationName?: string | null): Promise<void> {
+  await ensureInit();
+  if (!socket) return;
+  if (state.current?.conversationId === conversationId || state.monitors[conversationId]) return;
+  if (totalJoinedChannelCount() >= MAX_JOINED_CHANNELS) {
+    setState({ error: `You can only be in up to ${MAX_JOINED_CHANNELS} channels at once — leave one first.` });
+    return;
+  }
+
+  setState({
+    monitors: {
+      ...state.monitors,
+      [conversationId]: {
+        conversationId,
+        conversationName: conversationName ?? state.sessions[conversationId]?.conversationName ?? null,
+        volume: defaultVolume,
+        deafened: false,
+      },
+    },
+    error: null,
+  });
+
+  socket.emit(
+    "yapline:join",
+    { conversationId, listenOnly: true },
+    (res: { ok: boolean; session?: YapSessionSummary; error?: string; movedFromAnotherDevice?: boolean }) => {
+      if (!res?.ok || !res.session) {
+        const next = { ...state.monitors };
+        delete next[conversationId];
+        setState({ monitors: next, error: res?.error || "Could not join channel" });
+        return;
+      }
+      setState({ sessions: { ...state.sessions, [conversationId]: res.session } });
+      // We are the newcomer: initiate a recvonly connection to every existing member.
+      res.session.participants
+        .filter((p) => p.userId !== state.myUserId)
+        .forEach((p) => createMonitorPeer(conversationId, p.userId, true));
+      if (res.movedFromAnotherDevice) {
+        toast.info("Moved your connection to this channel here — you were already on it from another device.");
+      }
+    }
+  );
+}
+
+function leaveMonitor(conversationId: string): void {
+  if (!state.monitors[conversationId]) return;
+  socket?.emit("yapline:leave", { conversationId });
+  teardownMonitor(conversationId);
+  const next = { ...state.monitors };
+  delete next[conversationId];
+  setState({ monitors: next });
+}
+
+function setMonitorVolume(conversationId: string, volume: number): void {
+  const mon = state.monitors[conversationId];
+  if (!mon) return;
+  const v = Math.min(1, Math.max(0, volume));
+  setState({ monitors: { ...state.monitors, [conversationId]: { ...mon, volume: v } } });
+  monitorPeers.get(conversationId)?.forEach((p) => { if (p.audioEl) p.audioEl.volume = v; });
+}
+
+function setMonitorDeafened(conversationId: string, deafened: boolean): void {
+  const mon = state.monitors[conversationId];
+  if (!mon) return;
+  setState({ monitors: { ...state.monitors, [conversationId]: { ...mon, deafened } } });
+  monitorPeers.get(conversationId)?.forEach((p) => { if (p.audioEl) p.audioEl.muted = deafened; });
+}
+
+async function rejoinMonitors(): Promise<void> {
+  const ids = Object.keys(state.monitors);
+  for (const id of ids) {
+    const name = state.monitors[id]?.conversationName;
+    teardownMonitor(id);
+    const next = { ...state.monitors };
+    delete next[id];
+    setState({ monitors: next });
+    await joinMonitor(id, name);
+  }
+}
+
 function bumpScreenVersion() {
   if (state.current) patchCurrent({ screenVersion: state.current.screenVersion + 1 });
 }
@@ -475,7 +713,14 @@ async function join(
   await ensureInit();
   if (!socket) return;
   if (state.current?.conversationId === conversationId) return;
-  if (state.current) await leave(); // one session at a time — like a real radio
+  // Promoting a monitored channel to active — drop the recvonly monitor
+  // connection first so we don't double-join the same session as both roles.
+  if (state.monitors[conversationId]) leaveMonitor(conversationId);
+  else if (!state.current && totalJoinedChannelCount() >= MAX_JOINED_CHANNELS) {
+    setState({ error: `You can only be in up to ${MAX_JOINED_CHANNELS} channels at once — leave one first.` });
+    return;
+  }
+  if (state.current) await leave(); // only one ACTIVE (talk-capable) channel at a time — monitors are separate
 
   // The full mini-player is ~320px wide — on a phone that's most of the
   // screen. Start docked to the small status pill there; the desktop-sized
@@ -504,7 +749,7 @@ async function join(
   socket.emit(
     "yapline:join",
     { conversationId, listenOnly: !!opts?.listenOnly },
-    (res: { ok: boolean; session?: YapSessionSummary; error?: string }) => {
+    (res: { ok: boolean; session?: YapSessionSummary; error?: string; movedFromAnotherDevice?: boolean }) => {
       if (!res?.ok || !res.session) {
         setState({ current: null, error: res?.error || "Could not join YapLine" });
         return;
@@ -519,6 +764,13 @@ async function join(
         .filter((p) => p.userId !== state.myUserId)
         .forEach((p) => createPeer(p.userId, true));
       startStatsLoop();
+      // You were already connected to this channel from another tab/device —
+      // the server just moved that session here rather than starting fresh.
+      // Without this, joining from your phone while still connected on your
+      // PC looks like nothing happened here and a silent disconnect there.
+      if (res.movedFromAnotherDevice) {
+        toast.info("Moved your YapLine here — you were already connected on another device.");
+      }
     }
   );
 }
@@ -641,6 +893,11 @@ function setMinimized(min: boolean): void {
   setState({ minimized: min });
 }
 
+function setPttKey(key: string): void {
+  try { localStorage.setItem(LS_PTT_KEY, key); } catch { /* ignore */ }
+  setState({ pttKey: key });
+}
+
 export const yapline = {
   ensureInit,
   join,
@@ -653,6 +910,11 @@ export const yapline = {
   setVolume,
   setAutoListen,
   setMinimized,
+  setPttKey,
+  joinMonitor,
+  leaveMonitor,
+  setMonitorVolume,
+  setMonitorDeafened,
 };
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
@@ -669,8 +931,10 @@ const serverSnapshot: YapLineState = {
   myUserId: null,
   sessions: {},
   current: null,
+  monitors: {},
   autoListen: false,
   minimized: false,
+  pttKey: DEFAULT_PTT_KEY,
   error: null,
 };
 const getServerSnapshot = () => serverSnapshot;

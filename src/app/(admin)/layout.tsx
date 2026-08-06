@@ -11,6 +11,8 @@ import { adminNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { useAuth } from "@/providers/AuthProvider";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
+import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
+import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 
 function AdminLayoutContent({
     children,
@@ -41,6 +43,7 @@ function AdminLayoutContent({
                 </div>
                 <MobileBottomNav items={adminNav} />
             </SidebarInset>
+            <ChatPopupManager />
         </SidebarProvider>
     );
 }
@@ -52,9 +55,11 @@ export default function AdminLayout({
 }>) {
     return (
         <NotificationProvider>
-            <AdminLayoutContent>
-                {children}
-            </AdminLayoutContent>
+            <SupraSpaceMessengerProvider>
+                <AdminLayoutContent>
+                    {children}
+                </AdminLayoutContent>
+            </SupraSpaceMessengerProvider>
         </NotificationProvider>
     );
 }

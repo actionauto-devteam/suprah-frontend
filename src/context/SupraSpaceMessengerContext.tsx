@@ -39,6 +39,7 @@ export interface SSConv {
   theme?: { accent?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
+  manualUnread?: boolean;
   deletedFor?: string[];
   notificationPreference?: NotifPref;
   createdBy: string;
@@ -84,6 +85,9 @@ interface MessengerCtxValue {
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
   markAllAsRead: () => void;
+  markConversationUnread: (convId: string, unread: boolean) => void;
+  archiveConversation: (convId: string, archived: boolean) => Promise<void>;
+  deleteConversation: (convId: string) => Promise<{ permanent: boolean }>;
   refreshConversations: () => void;
   refreshSpaces: () => void;
 }
@@ -407,6 +411,12 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       );
     });
 
+    s.on('conversation:manual-unread', ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
+      setConversations(prev => prev.map(conv =>
+        conv._id === conversationId ? { ...conv, manualUnread: unread, unreadCount: unread ? Math.max(conv.unreadCount || 0, 1) : conv.unreadCount } : conv
+      ));
+    });
+
     s.on('conversation:notification-preference', ({ conversationId, preference }: { conversationId: string; preference: NotifPref }) => {
       setNotifPrefs(prev => ({ ...prev, [conversationId]: preference }));
       setConversations(prev => prev.map(conv =>
@@ -495,6 +505,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const totalUnread = React.useMemo(() => {
     if (!crmUserId) return 0;
     return conversations.filter((conv) => {
+      if (conv.manualUnread) return true;
       if ((conv.unreadCount || 0) > 0) return true;
       const msg = conv.lastMessage;
       if (!msg || msg.isDeleted) return false;
@@ -528,21 +539,25 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
   }, []);
 
-  // Emit mark:read and optimistically clear unread in local state
+  // Emit mark:read and optimistically clear unread in local state.
+  // Also clears manualUnread — the backend already clears manualUnreadBy as
+  // part of the same "open this conversation" flow (getMessages / mark:read
+  // socket handler), so the local flag has to follow or a chat you just
+  // opened would keep showing as unread until the next full refetch.
   const markAsRead = React.useCallback(
     (convId: string) => {
       socket?.emit('mark:read', { conversationId: convId });
       if (!crmUserId) return;
       setConversations((prev) =>
         prev.map((conv) => {
-          if (conv._id !== convId || !conv.lastMessage) return conv;
+          if (conv._id !== convId) return conv;
           return {
             ...conv,
             unreadCount: 0,
-            lastMessage: {
-              ...conv.lastMessage,
-              readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])],
-            },
+            manualUnread: false,
+            lastMessage: conv.lastMessage
+              ? { ...conv.lastMessage, readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])] }
+              : conv.lastMessage,
           };
         })
       );
@@ -558,12 +573,56 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       prev.map((conv) => ({
         ...conv,
         unreadCount: 0,
+        manualUnread: false,
         lastMessage: conv.lastMessage
           ? { ...conv.lastMessage, readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])] }
           : conv.lastMessage,
       }))
     );
   }, [socket, crmUserId]);
+
+  // Toggle a conversation's manual unread flag (Messenger-style "Mark as unread")
+  const markConversationUnread = React.useCallback((convId: string, unread: boolean) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv._id === convId
+          ? { ...conv, manualUnread: unread, unreadCount: unread ? Math.max(conv.unreadCount || 0, 1) : 0 }
+          : conv
+      )
+    );
+    if (!crmToken) return;
+    apiClient
+      .post(`/api/supraspace/conversations/${convId}/mark-unread`, { unread }, authConfig(crmToken, true))
+      .catch(() => {
+        // Revert on failure — refetch is the simplest source of truth.
+        fetchConversations();
+      });
+  }, [crmToken, fetchConversations]);
+
+  // Toggle a conversation's archived state for the current user
+  const archiveConversation = React.useCallback(async (convId: string, archived: boolean) => {
+    setConversations((prev) => prev.filter((conv) => (archived ? conv._id !== convId : true)));
+    if (!crmToken) return;
+    try {
+      await apiClient.post(`/api/supraspace/conversations/${convId}/archive`, { archived }, authConfig(crmToken, true));
+    } catch {
+      fetchConversations();
+      throw new Error('Could not update archive state');
+    }
+  }, [crmToken, fetchConversations]);
+
+  // Delete/leave a conversation — permanent for group admins, otherwise just hides it for this user
+  const deleteConversation = React.useCallback(async (convId: string) => {
+    setConversations((prev) => prev.filter((conv) => conv._id !== convId));
+    if (!crmToken) return { permanent: false };
+    try {
+      const r = await apiClient.delete(`/api/supraspace/conversations/${convId}`, authConfig(crmToken, true));
+      return { permanent: Boolean(r.data?.data?.permanent) };
+    } catch (err) {
+      fetchConversations();
+      throw err;
+    }
+  }, [crmToken, fetchConversations]);
 
   return (
     <MessengerContext.Provider
@@ -588,6 +647,9 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         toggleMinimize,
         markAsRead,
         markAllAsRead,
+        markConversationUnread,
+        archiveConversation,
+        deleteConversation,
         refreshConversations: fetchConversations,
         refreshSpaces: fetchSpaces,
       }}
