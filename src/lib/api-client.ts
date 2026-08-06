@@ -69,6 +69,18 @@ function notifyServiceDegraded(message?: string) {
   );
 }
 
+function isExpectedSupraSpaceAvailabilityError(
+  status: number | undefined,
+  requestUrl: string
+): boolean {
+  if (status !== 404 && status !== 409) return false;
+
+  return (
+    requestUrl.includes("/api/supraspace/conversations/direct") ||
+    requestUrl.includes("/api/supraspace/session-token")
+  );
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private onAuthFailure?: () => void;
@@ -249,10 +261,21 @@ class ApiClient {
             "   Check: Is backend running on http://localhost:5000?"
           );
         } else if (error.response) {
-          console.error(
-            `[apiClient] Server responded with ${error.response.status}:`,
-            error.response.data
-          );
+          const status = error.response.status;
+          if (isExpectedSupraSpaceAvailabilityError(status, requestUrl)) {
+            // This is an expected account-availability result, not an
+            // application crash. Logging it as console.error causes the
+            // Next.js development overlay even though the caller handles it.
+            console.warn(
+              `[apiClient] Suprah Space is unavailable for this account (${status}):`,
+              error.response.data
+            );
+          } else {
+            console.error(
+              `[apiClient] Server responded with ${status}:`,
+              error.response.data
+            );
+          }
         } else {
           console.error("[apiClient] Error:", error.message);
         }

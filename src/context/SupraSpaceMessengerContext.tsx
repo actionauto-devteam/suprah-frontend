@@ -529,14 +529,36 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   const openDirectChat = React.useCallback(async (targetUserId: string): Promise<SSConv> => {
     if (!crmToken) {
-      throw new Error('Suprah Space is not available for this account yet.');
+      const unavailableError = new Error(
+        'Suprah Space is still connecting or is unavailable for this account.',
+      ) as Error & { code?: string; status?: number };
+      unavailableError.code = 'SUPRASPACE_TOKEN_UNAVAILABLE';
+      unavailableError.status = 409;
+      throw unavailableError;
     }
 
-    const response = await apiClient.post(
-      '/api/supraspace/conversations/direct',
-      { targetUserId },
-      authConfig(crmToken, true),
-    );
+    let response;
+    try {
+      response = await apiClient.post(
+        '/api/supraspace/conversations/direct',
+        { targetUserId },
+        authConfig(crmToken, true),
+      );
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 404 || status === 409) {
+        const unavailableError = new Error(
+          error?.response?.data?.message ||
+            'This user does not have an active Suprah Space account.',
+        ) as Error & { code?: string; status?: number };
+        unavailableError.name = 'SupraSpaceUnavailableError';
+        unavailableError.code = 'SUPRASPACE_ACCOUNT_UNAVAILABLE';
+        unavailableError.status = status;
+        throw unavailableError;
+      }
+      throw error;
+    }
+
     const conversation = response.data?.data as SSConv | undefined;
     if (!conversation?._id) {
       throw new Error('Could not open a direct conversation.');

@@ -243,6 +243,12 @@ export function DriverTrackerListCard({
           const shipments = driver.shipments ?? [];
           const isExpanded = expandedId === driver.id;
           const eq = driver.equipment;
+          const canMessage = Boolean(
+            driver.driver?.messagingAvailable && driver.driver?.crmUserId,
+          );
+          const messagingUnavailableReason =
+            driver.driver?.messagingUnavailableReason ||
+            "No active Suprah Space account is linked to this driver.";
 
           return (
             <div
@@ -349,21 +355,41 @@ export function DriverTrackerListCard({
                         </Button>
                       )}
                       {onMessageDriver && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1.5 text-[10px] font-semibold border-primary/30 hover:bg-primary/5"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onMessageDriver(driver);
-                          }}
+                        <span
+                          className="block"
+                          title={canMessage ? "Message driver" : messagingUnavailableReason}
                         >
-                          <MessageSquare className="size-3" />
-                          Message
-                        </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!canMessage}
+                            aria-label={
+                              canMessage
+                                ? `Message ${driver.driver?.name || "driver"}`
+                                : messagingUnavailableReason
+                            }
+                            className={`h-8 w-full gap-1.5 text-[10px] font-semibold ${
+                              canMessage
+                                ? "border-primary/30 hover:bg-primary/5"
+                                : "cursor-not-allowed border-border/40 text-muted-foreground/50"
+                            }`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (canMessage) onMessageDriver(driver);
+                            }}
+                          >
+                            <MessageSquare className="size-3" />
+                            Message
+                          </Button>
+                        </span>
                       )}
                     </div>
+                    {onMessageDriver && !canMessage && (
+                      <p className="mt-1 text-[9px] leading-snug text-muted-foreground/60">
+                        Suprah Space account not linked
+                      </p>
+                    )}
 
                     {eq?.trailerType && (
                       <div className="mt-1.5 flex flex-wrap gap-1">

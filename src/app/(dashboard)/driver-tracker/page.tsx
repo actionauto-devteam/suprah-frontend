@@ -182,6 +182,13 @@ export default function DriverTrackerPage() {
             email: item.email ?? "",
             phone: item.phone ?? "",
             avatar: item.avatar ?? null,
+            messagingAvailable: Boolean(item.messagingAvailable),
+            crmUserId: item.crmUserId ?? null,
+            messagingUnavailableReason:
+              item.messagingUnavailableReason ??
+              (item.messagingAvailable
+                ? null
+                : "No active Suprah Space account is linked to this driver."),
           },
           equipment: item.equipment
             ? {
@@ -383,15 +390,46 @@ export default function DriverTrackerPage() {
 
   const handleMessageDriver = React.useCallback(
     async (driver: DriverTrackingItem) => {
-      const targetUserId = driver.driver?.id;
-      if (!targetUserId) return;
+      const driverAccount = driver.driver;
+      if (!driverAccount?.id) {
+        toast.error("This driver account is missing a valid user ID.");
+        return;
+      }
+
+      if (!driverAccount.messagingAvailable) {
+        toast.info(
+          driverAccount.messagingUnavailableReason ||
+            "This driver does not have an active Suprah Space account.",
+        );
+        return;
+      }
+
+      const targetUserId = driverAccount.crmUserId || driverAccount.id;
+
       try {
         await openDirectChat(targetUserId);
       } catch (error: any) {
+        const status = error?.status ?? error?.response?.status;
+        const code = error?.code;
+        const backendMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message;
+
+        if (
+          code === "SUPRASPACE_ACCOUNT_UNAVAILABLE" ||
+          status === 404 ||
+          status === 409
+        ) {
+          toast.info(
+            backendMessage ||
+              "This driver does not have an active Suprah Space account.",
+          );
+          return;
+        }
+
         toast.error(
-          error.response?.data?.message ||
-            error.message ||
-            "Messaging is unavailable for this driver",
+          backendMessage || "Messaging is currently unavailable. Please try again.",
         );
       }
     },

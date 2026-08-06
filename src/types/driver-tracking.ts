@@ -19,6 +19,9 @@ export interface DriverTrackingItem {
     email: string;
     phone?: string;
     avatar?: string | null;
+    messagingAvailable: boolean;
+    crmUserId?: string | null;
+    messagingUnavailableReason?: string | null;
   } | null;
   equipment?: {
     trailerType?: string;
