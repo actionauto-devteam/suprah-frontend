@@ -4105,7 +4105,8 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
                 <input value={q} onChange={e => setQ(e.target.value)}
                   placeholder="Search people..."
-                  className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+                  className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input"
+                  style={{ fontFamily: 'Geist, sans-serif', color: 'var(--text-primary)', fontWeight: 500 }} />
               </div>
               <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
                 {list.map(u => {

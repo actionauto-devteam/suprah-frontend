@@ -2,10 +2,21 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { FileText, Settings as SettingsIcon, MapPin, Loader2 } from "lucide-react";
+import {
+  FileText,
+  Settings as SettingsIcon,
+  MapPin,
+  Loader2,
+} from "lucide-react";
 import { Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationMembersSettings } from "@/components/settings/org-members-settings";
 import { DriverRequestsSettings } from "@/components/settings/driver-requests-settings";

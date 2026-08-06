@@ -7,6 +7,8 @@ import { useCrmToken } from "@/hooks/useCrmToken";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const CRM_SUBSCRIBE_URL = "/api/crm/timeproof/push/subscribe";
+const LAST_VERIFIED_KEY = "crm_push_last_verified";
+const RESUBSCRIBE_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 
 // The auto-sync below runs silently in the background (no toast, no user
 // action) every time a component using this hook mounts — a single failed
@@ -98,7 +100,7 @@ export function useCrmWebPush() {
     try {
       setIsSupported(true);
       const registration = await getServiceWorkerRegistration();
-      const subscription = await registration.pushManager.getSubscription();
+      let subscription = await registration.pushManager.getSubscription();
       setIsSubscribed(!!subscription);
 
       // Auto-sync existing subscription to CRM backend on every mount — see
@@ -106,11 +108,35 @@ export function useCrmWebPush() {
       if (subscription) {
         const token = crmToken || localStorage.getItem("crm_token");
         if (token) {
-          postWithRetry(
+          // getSubscription() returning an object only means the browser
+          // still *thinks* it has one — iOS can silently orphan the actual
+          // push registration (PWA reinstalled, storage evicted) while this
+          // stays truthy forever, which would otherwise make isSubscribed
+          // (and CrmPushPrompt's "already subscribed, don't ask again" gate)
+          // permanently wrong with no way to self-heal. Periodically forcing
+          // a fresh subscribe cycle re-mints a live endpoint on a real device
+          // and is a no-op cost on one that was already fine (see
+          // crmPush.service.ts for the matching backend-side cleanup).
+          const lastVerified = Number(localStorage.getItem(LAST_VERIFIED_KEY) || 0);
+          if (Date.now() - lastVerified > RESUBSCRIBE_INTERVAL_MS && VAPID_PUBLIC_KEY) {
+            try {
+              await subscription.unsubscribe();
+              subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+              });
+              setIsSubscribed(!!subscription);
+            } catch {
+              // Refresh failed — fall back to re-syncing whatever we still have.
+            }
+          }
+
+          const saved = await postWithRetry(
             CRM_SUBSCRIBE_URL,
             { subscription, deviceHint: getDeviceHint() },
             { Authorization: `Bearer ${token}` },
           );
+          if (saved) localStorage.setItem(LAST_VERIFIED_KEY, String(Date.now()));
         }
       }
 
