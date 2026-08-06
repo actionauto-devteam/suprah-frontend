@@ -1627,3 +1627,54 @@ body.theme-switching *::after {
 .locator-map-moving .locator-popup {
     visibility: hidden;
 }
+
+/* ==========================================================
+   Suprah Reports calendar rendering stabilization
+   ----------------------------------------------------------
+   The Reports module uses Radix Popover + react-day-picker instead of the
+   browser-native date input. These scoped rules keep the popup on an opaque
+   themed surface from its first painted frame, remove the zoom/fade compositor
+   transition that caused a temporary black rectangle in Chromium, and keep the
+   calendar icon clearly visible in both themes.
+   ========================================================== */
+
+.report-calendar-popover {
+  isolation: isolate;
+  contain: layout paint style;
+  overflow: hidden;
+  opacity: 1 !important;
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: auto;
+}
+
+/* Do not animate report calendars. The regular Radix popover animation can
+   briefly expose an unpainted compositor surface as a black rectangle. */
+.report-calendar-popover[data-state="open"],
+.report-calendar-popover[data-state="closed"] {
+  animation: none !important;
+  transition: none !important;
+}
+
+.report-calendar-popover [data-slot="calendar"],
+.report-calendar-popover .rdp-root,
+.report-calendar-popover .rdp-months,
+.report-calendar-popover .rdp-month {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+}
+
+.report-calendar-trigger {
+  color-scheme: normal;
+}
+
+.report-calendar-trigger svg {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  color: currentColor;
+  stroke: currentColor;
+}

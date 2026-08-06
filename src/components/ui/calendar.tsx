@@ -23,6 +23,7 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  style,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
@@ -33,11 +34,16 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:--spacing(8)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
+        "isolate bg-popover text-popover-foreground group/calendar p-3 [--cell-size:--spacing(8)]",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
       )}
+      style={{
+        backgroundColor: "var(--popover)",
+        color: "var(--popover-foreground)",
+        ...style,
+      }}
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
@@ -45,7 +51,11 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn("w-fit", defaultClassNames.root, className),
+        root: cn(
+          "w-fit isolate bg-popover text-popover-foreground",
+          defaultClassNames.root,
+          className,
+        ),
         months: cn(
           "flex gap-4 flex-col md:flex-row relative",
           defaultClassNames.months

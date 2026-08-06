@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
@@ -26,6 +27,12 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -240,6 +247,112 @@ function dateFromInput(value: string): Date {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
+function parseDateInput(value?: string): Date | undefined {
+  if (!value) return undefined;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function startOfLocalDay(value: Date): Date {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function MainReportDatePicker({
+  value,
+  onChange,
+  min,
+  max,
+  placeholder = "Select date",
+  buttonRef,
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  min?: string;
+  max?: string;
+  placeholder?: string;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selectedDate = React.useMemo(() => parseDateInput(value), [value]);
+
+  const disabledMatcher = React.useMemo(() => {
+    const minimum = parseDateInput(min);
+    const maximum = parseDateInput(max);
+
+    if (!minimum && !maximum) return undefined;
+
+    return (date: Date) => {
+      const candidate = startOfLocalDay(date);
+
+      if (minimum && candidate < startOfLocalDay(minimum)) return true;
+      if (maximum && candidate > startOfLocalDay(maximum)) return true;
+
+      return false;
+    };
+  }, [max, min]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
+      <PopoverTrigger asChild>
+        <Button
+          ref={buttonRef}
+          type="button"
+          variant="outline"
+          className="report-calendar-trigger h-10 w-full justify-start gap-2 border-border bg-background px-3 text-left text-sm font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20"
+        >
+          <span
+            aria-hidden="true"
+            className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+          >
+            <Calendar className="size-3.5 stroke-[2.25]" />
+          </span>
+          <span
+            className={`min-w-0 truncate ${
+              selectedDate ? "text-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {selectedDate
+              ? format(selectedDate, "MMM d, yyyy")
+              : placeholder}
+          </span>
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        collisionPadding={12}
+        className="report-calendar-popover z-[220] w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
+      >
+        <CalendarPicker
+          className="bg-popover text-popover-foreground"
+          mode="single"
+          selected={selectedDate}
+          onSelect={(date) => {
+            if (!date) return;
+
+            onChange(formatDateInput(date));
+            setOpen(false);
+          }}
+          disabled={disabledMatcher}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function sameSharedPeriod(
   first: SharedReportPeriodState,
   second: SharedReportPeriodState,
@@ -261,7 +374,8 @@ export default function ReportsPage() {
   const defaultReferenceDate = React.useRef(formatDateInput(new Date()));
   const lastWrittenQuery = React.useRef("");
   const periodControlRef = React.useRef<HTMLDivElement | null>(null);
-  const mainCustomFromRef = React.useRef<HTMLInputElement | null>(null);
+  const mainCustomFromRef = React.useRef<HTMLButtonElement | null>(null);
+  const mainCustomToRef = React.useRef<HTMLButtonElement | null>(null);
 
   const [activeTab, setActiveTab] = React.useState<TabValue>("ALL");
   const [sharedPeriod, setSharedPeriod] =
@@ -1282,66 +1396,68 @@ export default function ReportsPage() {
 
               {sharedPeriod.period !== "all" &&
               sharedPeriod.period !== "custom" ? (
-                <label className="space-y-1.5">
+                <div className="space-y-1.5">
                   <span className="block text-xs font-bold text-foreground">
                     Reference date
                   </span>
-                  <input
-                    type="date"
+                  <MainReportDatePicker
                     value={sharedPeriod.referenceDate}
-                    onChange={(event) =>
-                      updateSharedPeriod({
-                        referenceDate: event.target.value,
-                      })
+                    onChange={(referenceDate) =>
+                      updateSharedPeriod({ referenceDate })
                     }
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    placeholder="Choose reference date"
                   />
-                </label>
+                </div>
               ) : null}
             </div>
 
             {sharedPeriod.period === "custom" ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1.5">
+                <div className="space-y-1.5">
                   <span className="block text-xs font-bold text-foreground">
                     From date
                   </span>
-                  <input
-                    ref={mainCustomFromRef}
-                    type="date"
-                    value={sharedPeriod.dateRange.from ?? ""}
+                  <MainReportDatePicker
+                    buttonRef={mainCustomFromRef}
+                    value={sharedPeriod.dateRange.from}
                     max={sharedPeriod.dateRange.to}
-                    onChange={(event) =>
+                    placeholder="Choose start date"
+                    onChange={(from) => {
                       updateSharedPeriod({
                         dateRange: {
                           ...sharedPeriod.dateRange,
-                          from: event.target.value || undefined,
+                          from,
                         },
-                      })
-                    }
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
-                </label>
+                      });
 
-                <label className="space-y-1.5">
+                      if (!sharedPeriod.dateRange.to) {
+                        window.requestAnimationFrame(() => {
+                          mainCustomToRef.current?.focus();
+                        });
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
                   <span className="block text-xs font-bold text-foreground">
                     To date
                   </span>
-                  <input
-                    type="date"
-                    value={sharedPeriod.dateRange.to ?? ""}
+                  <MainReportDatePicker
+                    buttonRef={mainCustomToRef}
+                    value={sharedPeriod.dateRange.to}
                     min={sharedPeriod.dateRange.from}
-                    onChange={(event) =>
+                    placeholder="Choose end date"
+                    onChange={(to) =>
                       updateSharedPeriod({
                         dateRange: {
                           ...sharedPeriod.dateRange,
-                          to: event.target.value || undefined,
+                          to,
                         },
                       })
                     }
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
-                </label>
+                </div>
               </div>
             ) : null}
 
@@ -2057,4 +2173,4 @@ function StatBox({
       </div>
     </div>
   );
-}
+}     

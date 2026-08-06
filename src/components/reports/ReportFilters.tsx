@@ -260,11 +260,20 @@ function ReportDatePicker({
           type="button"
           variant="outline"
           aria-invalid={ariaInvalid}
-          className={`w-full justify-start gap-2 border-border bg-background text-left font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20 ${
+          className={`report-calendar-trigger w-full justify-start gap-2 border-border bg-background text-left font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20 ${
             compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-sm"
           } ${ariaInvalid ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
         >
-          <Calendar className={compact ? "size-3.5" : "size-4"} />
+          <span
+            aria-hidden="true"
+            className={`flex shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ${
+              compact ? "size-5" : "size-6"
+            }`}
+          >
+            <Calendar
+              className={compact ? "size-3 stroke-[2.25]" : "size-3.5 stroke-[2.25]"}
+            />
+          </span>
           <span
             className={`min-w-0 truncate ${
               selectedDate ? "text-foreground" : "text-muted-foreground"
@@ -279,9 +288,10 @@ function ReportDatePicker({
         align="start"
         sideOffset={6}
         collisionPadding={12}
-        className="z-[220] w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
+        className="report-calendar-popover z-[220] w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
       >
         <CalendarPicker
+          className="bg-popover text-popover-foreground"
           mode="single"
           selected={selectedDate}
           onSelect={(date) => {
