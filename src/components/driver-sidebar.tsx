@@ -64,20 +64,147 @@ const accountItems = [
   { title: "Settings", url: "/driver/settings", icon: Settings },
 ];
 
-/* ------------------------------------------------------------------------ */
-/*  DRIVER HUD FX v2 — green digital cockpit. Self-contained, `dsb-` scoped */
-/* ------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------ *
+ *  DRIVER HUD FX v3 — green digital cockpit, light + dark
+ *  Self-contained, `dsb-` scoped. Light is the base; `.dark` overrides.
+ *  Assumes next-themes / shadcn class strategy (`.dark` on <html>).
+ * ------------------------------------------------------------------------ */
 const DSB_FX_CSS = `
+/* ============ LIGHT (base) ============ */
+.dsb-root {
+  --dsb-bg-1: #f1fbf6;
+  --dsb-bg-2: #ffffff;
+  --dsb-bg-3: #eff9f4;
+  --dsb-glow-top: rgba(16, 185, 129, 0.14);
+  --dsb-glow-bottom: rgba(34, 197, 94, 0.09);
+
+  --dsb-grid: rgba(5, 150, 105, 0.07);
+  --dsb-scan: rgba(5, 150, 105, 0.022);
+  --dsb-scan-blend: multiply;
+
+  --dsb-trace-line: rgba(5, 150, 105, 0.22);
+  --dsb-trace-node: rgba(16, 185, 129, 0.4);
+  --dsb-trace-opacity: 0.75;
+  --dsb-pulse: #059669;
+  --dsb-pulse-glow: rgba(5, 150, 105, 0.55);
+
+  --dsb-particle: #10b981;
+  --dsb-particle-glow: rgba(5, 150, 105, 0.45);
+  --dsb-particle-opacity: 0.55;
+
+  --dsb-sweep-soft: rgba(16, 185, 129, 0.05);
+  --dsb-sweep-core: rgba(16, 185, 129, 0.11);
+
+  --dsb-rail: rgba(5, 150, 105, 0.75);
+  --dsb-rail-glow: rgba(5, 150, 105, 0.5);
+
+  --dsb-edge: rgba(16, 185, 129, 0.20);
+  --dsb-divider: rgba(5, 150, 105, 0.35);
+
+  --dsb-brand: #052e22;
+  --dsb-label: rgba(4, 120, 87, 0.7);
+  --dsb-telemetry: rgba(4, 120, 87, 0.85);
+
+  --dsb-nav: rgba(6, 78, 59, 0.72);
+  --dsb-nav-hover-bg: rgba(16, 185, 129, 0.11);
+  --dsb-nav-hover-text: #064e3b;
+  --dsb-nav-active-bg: linear-gradient(90deg, rgba(16, 185, 129, 0.17), rgba(34, 197, 94, 0.05));
+  --dsb-nav-active-text: #064e3b;
+  --dsb-nav-active-ring: rgba(5, 150, 105, 0.34);
+  --dsb-nav-active-glow: rgba(16, 185, 129, 0.14);
+  --dsb-nav-bar: linear-gradient(180deg, #22c55e, #059669);
+  --dsb-nav-bar-glow: rgba(5, 150, 105, 0.55);
+  --dsb-nav-icon: #059669;
+  --dsb-nav-icon-glow: rgba(5, 150, 105, 0.4);
+  --dsb-shimmer: rgba(255, 255, 255, 0.75);
+
+  --dsb-card-bg: rgba(16, 185, 129, 0.07);
+  --dsb-card-ring: rgba(5, 150, 105, 0.22);
+  --dsb-card-bracket: rgba(5, 150, 105, 0.55);
+  --dsb-user-name: #052e22;
+  --dsb-user-sub: rgba(6, 78, 59, 0.55);
+  --dsb-chev: rgba(5, 150, 105, 0.6);
+
+  --dsb-dot: #059669;
+  --dsb-dot-ring: rgba(5, 150, 105, 0.75);
+  --dsb-dot-border: #ffffff;
+
+  --dsb-logo-glow: rgba(16, 185, 129, 0.38);
+}
+
+/* ============ DARK ============ */
+.dark .dsb-root {
+  --dsb-bg-1: #081511;
+  --dsb-bg-2: #050d0a;
+  --dsb-bg-3: #06110d;
+  --dsb-glow-top: rgba(16, 185, 129, 0.18);
+  --dsb-glow-bottom: rgba(34, 197, 94, 0.10);
+
+  --dsb-grid: rgba(16, 185, 129, 0.055);
+  --dsb-scan: rgba(16, 185, 129, 0.028);
+  --dsb-scan-blend: screen;
+
+  --dsb-trace-line: rgba(16, 185, 129, 0.22);
+  --dsb-trace-node: rgba(52, 211, 153, 0.35);
+  --dsb-trace-opacity: 0.5;
+  --dsb-pulse: #34d399;
+  --dsb-pulse-glow: rgba(52, 211, 153, 0.9);
+
+  --dsb-particle: #34d399;
+  --dsb-particle-glow: rgba(52, 211, 153, 0.9);
+  --dsb-particle-opacity: 0.9;
+
+  --dsb-sweep-soft: rgba(74, 222, 128, 0.06);
+  --dsb-sweep-core: rgba(16, 185, 129, 0.14);
+
+  --dsb-rail: rgba(52, 211, 153, 0.9);
+  --dsb-rail-glow: rgba(52, 211, 153, 0.9);
+
+  --dsb-edge: rgba(16, 185, 129, 0.15);
+  --dsb-divider: rgba(52, 211, 153, 0.4);
+
+  --dsb-brand: #ecfdf5;
+  --dsb-label: rgba(52, 211, 153, 0.55);
+  --dsb-telemetry: rgba(74, 222, 128, 0.65);
+
+  --dsb-nav: rgba(209, 250, 229, 0.68);
+  --dsb-nav-hover-bg: rgba(16, 185, 129, 0.10);
+  --dsb-nav-hover-text: #ecfdf5;
+  --dsb-nav-active-bg: linear-gradient(90deg, rgba(16, 185, 129, 0.20), rgba(34, 197, 94, 0.06));
+  --dsb-nav-active-text: #d1fae5;
+  --dsb-nav-active-ring: rgba(52, 211, 153, 0.30);
+  --dsb-nav-active-glow: rgba(16, 185, 129, 0.12);
+  --dsb-nav-bar: linear-gradient(180deg, #4ade80, #10b981);
+  --dsb-nav-bar-glow: rgba(74, 222, 128, 0.9);
+  --dsb-nav-icon: #4ade80;
+  --dsb-nav-icon-glow: rgba(74, 222, 128, 0.65);
+  --dsb-shimmer: rgba(134, 239, 172, 0.14);
+
+  --dsb-card-bg: rgba(16, 185, 129, 0.06);
+  --dsb-card-ring: rgba(52, 211, 153, 0.20);
+  --dsb-card-bracket: rgba(52, 211, 153, 0.6);
+  --dsb-user-name: #ecfdf5;
+  --dsb-user-sub: rgba(167, 243, 208, 0.45);
+  --dsb-chev: rgba(52, 211, 153, 0.6);
+
+  --dsb-dot: #10b981;
+  --dsb-dot-ring: rgba(52, 211, 153, 0.85);
+  --dsb-dot-border: #050d0a;
+
+  --dsb-logo-glow: rgba(16, 185, 129, 0.5);
+}
+
+/* ============ SHELL ============ */
 .dsb-root [data-sidebar="sidebar"] {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(130% 55% at 50% -8%, rgba(16, 185, 129, 0.18), transparent 60%),
-    radial-gradient(100% 45% at 50% 112%, rgba(34, 197, 94, 0.10), transparent 60%),
-    linear-gradient(180deg, #081511 0%, #050d0a 52%, #06110d 100%);
+    radial-gradient(130% 55% at 50% -8%, var(--dsb-glow-top), transparent 60%),
+    radial-gradient(100% 45% at 50% 112%, var(--dsb-glow-bottom), transparent 60%),
+    linear-gradient(180deg, var(--dsb-bg-1) 0%, var(--dsb-bg-2) 52%, var(--dsb-bg-3) 100%);
 }
 
-/* animated emerald energy line along the outer border */
+/* energy rail running down the right border */
 .dsb-root [data-sidebar="sidebar"]::after {
   content: "";
   position: absolute;
@@ -85,45 +212,46 @@ const DSB_FX_CSS = `
   right: 0;
   width: 2px;
   height: 55%;
-  background: linear-gradient(180deg, transparent, rgba(52, 211, 153, 0.9), rgba(16, 185, 129, 0.4), transparent);
-  filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.9));
+  background: linear-gradient(180deg, transparent, var(--dsb-rail), transparent);
+  filter: drop-shadow(0 0 6px var(--dsb-rail-glow));
   z-index: 3;
 }
 
-/* ---------- background layers ---------- */
+.dsb-edge { border-color: var(--dsb-edge) !important; }
+
+/* ============ BACKGROUND LAYERS ============ */
 .dsb-fx { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
 
-/* asphalt grid, fading top/bottom */
+/* asphalt grid */
 .dsb-fx::before {
   content: "";
   position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(16, 185, 129, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 185, 129, 0.055) 1px, transparent 1px);
+    linear-gradient(var(--dsb-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--dsb-grid) 1px, transparent 1px);
   background-size: 26px 26px;
   mask-image: linear-gradient(180deg, transparent, black 12%, black 88%, transparent);
   -webkit-mask-image: linear-gradient(180deg, transparent, black 12%, black 88%, transparent);
 }
 
-/* CRT scanlines — very faint, sells the "screen" feel */
+/* scanlines */
 .dsb-fx::after {
   content: "";
   position: absolute; inset: 0;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(16, 185, 129, 0.028) 0 1px,
-    transparent 1px 4px
-  );
-  mix-blend-mode: screen;
+  background: repeating-linear-gradient(180deg, var(--dsb-scan) 0 1px, transparent 1px 4px);
+  mix-blend-mode: var(--dsb-scan-blend);
 }
 
-/* circuit trace on the left with a traveling pulse */
-.dsb-circuit { position: absolute; top: 0; bottom: 0; left: 0; width: 30px; opacity: 0.5; }
-.dsb-circuit path { stroke: rgba(16, 185, 129, 0.22); stroke-width: 1.25; fill: none; }
-.dsb-circuit circle { fill: rgba(52, 211, 153, 0.35); }
+/* circuit trace */
+.dsb-circuit {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 30px;
+  opacity: var(--dsb-trace-opacity);
+}
+.dsb-circuit path { stroke: var(--dsb-trace-line); stroke-width: 1.25; fill: none; }
+.dsb-circuit circle { fill: var(--dsb-trace-node); }
 .dsb-circuit .dsb-pulse {
-  fill: #34d399;
-  filter: drop-shadow(0 0 5px #34d399);
+  fill: var(--dsb-pulse);
+  filter: drop-shadow(0 0 5px var(--dsb-pulse-glow));
 }
 
 /* rising data particles */
@@ -133,8 +261,8 @@ const DSB_FX_CSS = `
   bottom: -12px;
   width: 3px; height: 3px;
   border-radius: 999px;
-  background: #34d399;
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.9);
+  background: var(--dsb-particle);
+  box-shadow: 0 0 6px var(--dsb-particle-glow);
   opacity: 0;
 }
 .dsb-particles span:nth-child(1) { left: 18%; }
@@ -146,20 +274,20 @@ const DSB_FX_CSS = `
 /* headlight sweep */
 .dsb-sweep {
   position: absolute; left: -30%; right: -30%; height: 150px; top: -170px;
-  background: linear-gradient(180deg, transparent, rgba(74, 222, 128, 0.06) 35%, rgba(16, 185, 129, 0.14) 50%, rgba(74, 222, 128, 0.06) 65%, transparent);
+  background: linear-gradient(180deg, transparent, var(--dsb-sweep-soft) 35%, var(--dsb-sweep-core) 50%, var(--dsb-sweep-soft) 65%, transparent);
   transform: rotate(-6deg);
 }
 
-/* radar ping (logo + status dot) */
+/* radar ping */
 .dsb-ping {
   position: absolute; inset: 0; border-radius: 0.5rem;
-  border: 1px solid rgba(52, 211, 153, 0.75);
+  border: 1px solid var(--dsb-dot-ring);
   opacity: 0;
 }
 
-/* ---------- motion (reduced-motion safe) ---------- */
+/* ============ MOTION (reduced-motion safe) ============ */
 @media (prefers-reduced-motion: no-preference) {
-  .dsb-root [data-sidebar="sidebar"]::after { animation: dsb-border-run 4.5s linear infinite; }
+  .dsb-root [data-sidebar="sidebar"]::after { animation: dsb-rail-run 4.5s linear infinite; }
   .dsb-sweep { animation: dsb-sweep 8s ease-in-out infinite; }
   .dsb-ping { animation: dsb-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
   .dsb-status-dot::after { animation: dsb-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
@@ -170,12 +298,12 @@ const DSB_FX_CSS = `
   .dsb-particles span:nth-child(4) { animation-delay: 4.1s; animation-duration: 8s; }
   .dsb-particles span:nth-child(5) { animation-delay: 5.2s; animation-duration: 6.5s; }
   .dsb-cursor { animation: dsb-blink 1.1s steps(1) infinite; }
-  .dsb-root [data-sidebar="menu-button"] { transition: transform 180ms ease, background 180ms ease; }
+  .dsb-root [data-sidebar="menu-button"] { transition: transform 180ms ease, background 180ms ease, color 180ms ease; }
   .dsb-root [data-sidebar="menu-button"]:hover { transform: translateX(3px); }
   .dsb-root [data-sidebar="menu-button"][data-active="true"]::after { animation: dsb-shimmer 3.2s ease-in-out infinite; }
 }
 
-@keyframes dsb-border-run { to { top: 105%; } }
+@keyframes dsb-rail-run { to { top: 105%; } }
 @keyframes dsb-sweep {
   0%, 50% { transform: translateY(0) rotate(-6deg); opacity: 0; }
   56% { opacity: 1; }
@@ -193,8 +321,8 @@ const DSB_FX_CSS = `
 }
 @keyframes dsb-rise {
   0% { transform: translateY(0); opacity: 0; }
-  12% { opacity: 0.9; }
-  85% { opacity: 0.5; }
+  12% { opacity: var(--dsb-particle-opacity); }
+  85% { opacity: calc(var(--dsb-particle-opacity) * 0.55); }
   100% { transform: translateY(-105vh); opacity: 0; }
 }
 @keyframes dsb-blink { 50% { opacity: 0; } }
@@ -203,64 +331,68 @@ const DSB_FX_CSS = `
   50% { transform: translateX(220%); }
 }
 
-/* ---------- nav treatment: HUD targeting style ---------- */
+/* ============ NAV ============ */
 .dsb-root [data-sidebar="menu-button"] {
   position: relative;
   border-radius: 0.35rem;
-  color: rgba(209, 250, 229, 0.68);
+  color: var(--dsb-nav);
   overflow: hidden;
 }
 .dsb-root [data-sidebar="menu-button"]:hover {
-  background: rgba(16, 185, 129, 0.10);
-  color: #ecfdf5;
+  background: var(--dsb-nav-hover-bg);
+  color: var(--dsb-nav-hover-text);
 }
 .dsb-root [data-sidebar="menu-button"][data-active="true"] {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.20), rgba(34, 197, 94, 0.06));
-  color: #d1fae5;
+  background: var(--dsb-nav-active-bg);
+  color: var(--dsb-nav-active-text);
   box-shadow:
-    inset 0 0 0 1px rgba(52, 211, 153, 0.30),
-    0 0 20px rgba(16, 185, 129, 0.12);
+    inset 0 0 0 1px var(--dsb-nav-active-ring),
+    0 0 20px var(--dsb-nav-active-glow);
 }
 /* active item indicator bar */
 .dsb-root [data-sidebar="menu-button"][data-active="true"]::before {
   content: "";
   position: absolute; left: 0; top: 16%; bottom: 16%; width: 3px; border-radius: 999px;
-  background: linear-gradient(180deg, #4ade80, #10b981);
-  box-shadow: 0 0 12px rgba(74, 222, 128, 0.9);
+  background: var(--dsb-nav-bar);
+  box-shadow: 0 0 12px var(--dsb-nav-bar-glow);
 }
 /* scanning shimmer across the active item */
 .dsb-root [data-sidebar="menu-button"][data-active="true"]::after {
   content: "";
   position: absolute; top: 0; bottom: 0; width: 45%;
-  background: linear-gradient(105deg, transparent, rgba(134, 239, 172, 0.14), transparent);
+  background: linear-gradient(105deg, transparent, var(--dsb-shimmer), transparent);
   transform: translateX(-120%);
   pointer-events: none;
 }
 .dsb-root [data-sidebar="menu-button"][data-active="true"] svg {
-  color: #4ade80;
-  filter: drop-shadow(0 0 7px rgba(74, 222, 128, 0.65));
+  color: var(--dsb-nav-icon);
+  filter: drop-shadow(0 0 7px var(--dsb-nav-icon-glow));
 }
 
-/* HUD corner brackets on the user card */
-.dsb-hud-card { position: relative; }
-.dsb-hud-card::before,
-.dsb-hud-card::after {
-  content: "";
-  position: absolute;
-  width: 10px; height: 10px;
-  border-color: rgba(52, 211, 153, 0.6);
-  border-style: solid;
-  pointer-events: none;
+/* ============ TYPE + CHROME ============ */
+.dsb-brand {
+  color: var(--dsb-brand);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
 }
-.dsb-hud-card::before { top: -3px; left: -3px; border-width: 1.5px 0 0 1.5px; border-radius: 3px 0 0 0; }
-.dsb-hud-card::after { bottom: -3px; right: -3px; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 3px 0; }
-
-/* telemetry strip */
+.dsb-section-label {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--dsb-label);
+}
+.dsb-hr {
+  height: 1px;
+  background: linear-gradient(90deg, var(--dsb-divider), transparent);
+}
 .dsb-telemetry {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 8.5px;
   letter-spacing: 0.14em;
-  color: rgba(74, 222, 128, 0.65);
+  color: var(--dsb-telemetry);
   text-transform: uppercase;
   display: flex;
   align-items: center;
@@ -269,25 +401,49 @@ const DSB_FX_CSS = `
 .dsb-telemetry i {
   font-style: normal;
   width: 5px; height: 5px; border-radius: 999px;
-  background: #4ade80;
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.9);
+  background: var(--dsb-dot);
+  box-shadow: 0 0 6px var(--dsb-dot-ring);
 }
+
+.dsb-logo { box-shadow: 0 0 20px var(--dsb-logo-glow); }
+
+/* HUD corner brackets on the user card */
+.dsb-hud-card {
+  position: relative;
+  background: var(--dsb-card-bg) !important;
+  box-shadow: inset 0 0 0 1px var(--dsb-card-ring);
+}
+.dsb-hud-card::before,
+.dsb-hud-card::after {
+  content: "";
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--dsb-card-bracket);
+  border-style: solid;
+  pointer-events: none;
+}
+.dsb-hud-card::before { top: -3px; left: -3px; border-width: 1.5px 0 0 1.5px; border-radius: 3px 0 0 0; }
+.dsb-hud-card::after { bottom: -3px; right: -3px; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 3px 0; }
+
+.dsb-user-name { color: var(--dsb-user-name); }
+.dsb-user-sub { color: var(--dsb-user-sub); }
+.dsb-chev { color: var(--dsb-chev); }
 
 /* online status dot */
 .dsb-status-dot {
   position: absolute; right: -1px; bottom: -1px;
   width: 10px; height: 10px; border-radius: 999px;
-  background: #10b981;
-  border: 2px solid #050d0a;
+  background: var(--dsb-dot);
+  border: 2px solid var(--dsb-dot-border);
 }
 .dsb-status-dot::after {
   content: "";
   position: absolute; inset: -2px; border-radius: 999px;
-  border: 1px solid rgba(52, 211, 153, 0.85);
+  border: 1px solid var(--dsb-dot-ring);
 }
 `;
 
-/** Circuit trace SVG rendered down the left edge with a traveling pulse dot */
+/** Circuit trace rendered down the left edge with a traveling pulse dot */
 function CircuitTrace() {
   return (
     <svg
@@ -318,7 +474,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
     <Sidebar
       variant="inset"
       collapsible="icon"
-      className="dsb-root border-r border-emerald-500/15"
+      className="dsb-root dsb-edge border-r"
       {...props}
     >
       <style dangerouslySetInnerHTML={{ __html: DSB_FX_CSS }} />
@@ -332,14 +488,14 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </div>
       </div>
 
-      <SidebarHeader className="relative z-10 h-16 border-b border-emerald-500/15 flex items-center px-5 bg-transparent">
+      <SidebarHeader className="dsb-edge relative z-10 h-16 border-b flex items-center px-5 bg-transparent">
         <div className="flex items-center gap-2.5 w-full">
-          <div className="relative flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 via-green-500 to-emerald-700 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+          <div className="dsb-logo relative flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 via-green-500 to-emerald-700 text-white">
             <span className="dsb-ping" aria-hidden="true" />
             <Truck className="size-5 relative" />
           </div>
           <div className="flex min-w-0 flex-col gap-1 leading-none group-data-[collapsible=icon]:hidden">
-            <span className="font-black text-sm tracking-tight uppercase truncate text-emerald-50">
+            <span className="dsb-brand text-sm truncate">
               {organization?.name || "SUPRAH AI"}
             </span>
             <span className="dsb-telemetry">
@@ -350,7 +506,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
       </SidebarHeader>
 
       <SidebarContent className="relative z-10 p-2 bg-transparent">
-        <div className="px-4 pt-3 pb-1 font-mono text-[9px] font-bold uppercase text-emerald-400/55 tracking-[0.28em] group-data-[collapsible=icon]:hidden">
+        <div className="dsb-section-label px-4 pt-3 pb-1 group-data-[collapsible=icon]:hidden">
           // Operations
         </div>
         <SidebarMenu>
@@ -370,9 +526,9 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           ))}
         </SidebarMenu>
 
-        <div className="mx-4 mt-4 h-px bg-gradient-to-r from-emerald-400/40 via-green-500/15 to-transparent group-data-[collapsible=icon]:hidden" />
+        <div className="dsb-hr mx-4 mt-4 group-data-[collapsible=icon]:hidden" />
 
-        <div className="px-4 pt-3 pb-1 font-mono text-[9px] font-bold uppercase text-emerald-400/55 tracking-[0.28em] group-data-[collapsible=icon]:hidden">
+        <div className="dsb-section-label px-4 pt-3 pb-1 group-data-[collapsible=icon]:hidden">
           // Account
         </div>
         <SidebarMenu>
@@ -393,14 +549,14 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="relative z-10 p-4 border-t border-emerald-500/15 bg-transparent group-data-[collapsible=icon]:p-2">
+      <SidebarFooter className="dsb-edge relative z-10 p-4 border-t bg-transparent group-data-[collapsible=icon]:p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="dsb-hud-card w-full rounded-lg bg-emerald-500/[0.06] ring-1 ring-emerald-400/20 backdrop-blur-md data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+                  className="dsb-hud-card w-full rounded-lg backdrop-blur-md data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
                 >
                   <div className="relative">
                     <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
@@ -412,14 +568,14 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                     <span className="dsb-status-dot" aria-hidden="true" />
                   </div>
                   <div className="grid flex-1 min-w-0 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-semibold text-emerald-50">
+                    <span className="dsb-user-name truncate font-semibold">
                       {user?.fullName}
                     </span>
-                    <span className="truncate text-xs text-emerald-200/45">
+                    <span className="dsb-user-sub truncate text-xs">
                       {user?.primaryEmailAddress?.emailAddress}
                     </span>
                   </div>
-                  <ChevronRight className="ml-auto size-4 text-emerald-400/60 group-data-[collapsible=icon]:hidden" />
+                  <ChevronRight className="dsb-chev ml-auto size-4 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent

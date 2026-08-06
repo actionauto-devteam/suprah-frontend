@@ -1,202 +1,282 @@
 "use client"
 
 import * as React from "react"
-import { MapPin, User, Phone, Mail, Building2 } from "lucide-react"
-import { LocationBlock, LocationType } from "./types"
+import { MapPin, Building2, User, Phone, Mail } from "lucide-react"
+import { LocationBlock, LOCATION_TYPES, US_STATES, STATE_ZIP_MAP } from "./types"
 import { cn } from "@/lib/utils"
 
-// ─── Route step: pickup + delivery location editors ──────────────────────────
+// ─── Route step: pickup + delivery ───────────────────────────────────────────
+// This is the component LoadFormLayout actually renders for step "route".
+// (LocationFields.tsx is a separate, unused implementation — changes made
+// there never reach the form.)
+//
+// CHANGE IN THIS VERSION: State is a DROPDOWN, not a free-text input, and
+// picking a state auto-fills the ZIP from STATE_ZIP_MAP.
+//
+// Requires STATE_ZIP_MAP to be Record<string, string> (capital-city ZIPs).
+// An older revision of types.ts typed it Record<string, [number, number]>
+// (ZIP ranges) — with that version the field fills "84000,84799" instead of
+// "84101". Check which one your types.ts has.
+//
+// The autofill is NON-DESTRUCTIVE: it writes only when the ZIP is empty or
+// still holds a value this component put there. Once a dispatcher types a
+// real ZIP, re-picking the state won't wipe it.
 
-interface LocationSectionProps {
-  pickup: LocationBlock
-  delivery: LocationBlock
-  onPickupChange: (loc: LocationBlock) => void
-  onDeliveryChange: (loc: LocationBlock) => void
+const LOCATION_TYPE_LABELS: Record<string, string> = {
+  dealership: "Dealership",
+  auction: "Auction",
+  residence: "Residence",
+  business: "Business",
+  port: "Port",
+  other: "Other",
 }
 
-const LOCATION_TYPES: Array<{ value: LocationType; label: string }> = [
-  { value: "dealership", label: "Dealership" },
-  { value: "auction", label: "Auction" },
-  { value: "residence", label: "Residence" },
-  { value: "business", label: "Business" },
-  { value: "port", label: "Port" },
-  { value: "other", label: "Other" },
-]
+const labelClass =
+  "block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1"
 
-const inputClass = cn(
-  "w-full h-9 rounded-lg border border-border/60 bg-background/40 px-2.5 text-sm",
-  "placeholder:text-muted-foreground/50",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
-)
+const controlClass =
+  "w-full h-11 rounded-lg border border-border/60 bg-background/40 px-3 text-sm " +
+  "placeholder:text-muted-foreground/50 focus-visible:outline-none " +
+  "focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-colors"
 
-function Field({
-  label,
-  children,
-  className,
-}: {
+interface FieldProps {
   label: string
-  children: React.ReactNode
   className?: string
-}) {
+  children: React.ReactNode
+  hint?: string
+}
+
+function Field({ label, className, children, hint }: FieldProps) {
   return (
     <label className={cn("block min-w-0", className)}>
-      <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
-        {label}
-      </span>
+      <span className={labelClass}>{label}</span>
       {children}
+      {hint ? (
+        <span className="block text-[10px] text-muted-foreground mt-1">{hint}</span>
+      ) : null}
     </label>
   )
 }
 
-function LocationEditor({
-  title,
-  accent,
-  value,
-  onChange,
-}: {
+/** Input with a leading icon; icon is decorative only. */
+function IconInput({
+  icon: Icon,
+  ...props
+}: { icon: React.ComponentType<{ className?: string }> } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="relative">
+      <Icon className="size-4 text-muted-foreground/50 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <input {...props} className={cn(controlClass, "pl-9", props.className)} />
+    </div>
+  )
+}
+
+// ─── One location block ──────────────────────────────────────────────────────
+
+interface LocationCardProps {
   title: string
   accent: "emerald" | "cyan"
   value: LocationBlock
-  onChange: (loc: LocationBlock) => void
-}) {
-  const set = (patch: Partial<LocationBlock>) => onChange({ ...value, ...patch })
+  onChange: (updated: LocationBlock) => void
+}
+
+function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
+  // Remembers the ZIP this card auto-filled, so a dispatcher-typed ZIP stays
+  // distinguishable from one we supplied. Per-card, so pickup and delivery
+  // track independently.
+  const autoFilledZipRef = React.useRef<string | null>(null)
+
+  const set =
+    (key: keyof LocationBlock) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      onChange({ ...value, [key]: e.target.value })
+
+  const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextState = e.target.value
+    const stateZip = STATE_ZIP_MAP[nextState]
+    const currentZip = value.zip ?? ""
+    const zipIsOursToSet =
+      currentZip === "" || currentZip === autoFilledZipRef.current
+
+    if (stateZip && zipIsOursToSet) {
+      autoFilledZipRef.current = stateZip
+      onChange({ ...value, state: nextState, zip: stateZip })
+    } else {
+      onChange({ ...value, state: nextState })
+    }
+  }
+
+  // Typing in the ZIP hands ownership of the field back to the dispatcher.
+  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value
+    if (next !== autoFilledZipRef.current) autoFilledZipRef.current = null
+    onChange({ ...value, zip: next })
+  }
+
+  const zipWasAutoFilled = !!value.zip && value.zip === autoFilledZipRef.current
+
   const accentText =
     accent === "emerald"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-cyan-600 dark:text-cyan-400"
-  const accentBg =
+      ? "text-emerald-500 dark:text-emerald-400"
+      : "text-cyan-500 dark:text-cyan-400"
+  const accentRing =
     accent === "emerald"
-      ? "bg-emerald-500/10 border-emerald-500/25"
-      : "bg-cyan-500/10 border-cyan-500/25"
+      ? "border-emerald-500/40 bg-emerald-500/10"
+      : "border-cyan-500/40 bg-cyan-500/10"
 
   return (
-    <div className="rounded-xl border border-border/60 bg-background/40 p-4 relative overflow-hidden">
-      <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/50 to-transparent" />
-      <div className="flex items-center gap-2 mb-3">
-        <div className={cn("size-6 rounded-full border flex items-center justify-center", accentBg)}>
-          <MapPin className={cn("size-3.5", accentText)} />
-        </div>
-        <span className={cn("text-[10px] font-black uppercase tracking-widest", accentText)}>
+    <div className="rounded-xl border border-border/60 bg-background/20 p-4 sm:p-5 space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2.5">
+        <span
+          className={cn(
+            "size-8 rounded-full border flex items-center justify-center shrink-0",
+            accentRing,
+          )}
+        >
+          <MapPin className={cn("size-4", accentText)} />
+        </span>
+        <span
+          className={cn(
+            "text-[11px] font-black uppercase tracking-[0.2em]",
+            accentText,
+          )}
+        >
           {title}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Location Name" className="sm:col-span-2">
-          <div className="relative">
-            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
-            <input
-              className={cn(inputClass, "pl-8")}
-              value={value.name ?? ""}
-              onChange={(e) => set({ name: e.target.value })}
-              placeholder="Business or site name (optional)"
-              maxLength={160}
-            />
-          </div>
-        </Field>
+      <Field label="Location Name">
+        <IconInput
+          icon={Building2}
+          placeholder="Business or site name (optional)"
+          value={value.name ?? ""}
+          onChange={set("name")}
+          maxLength={160}
+        />
+      </Field>
 
-        <Field label="Address" className="sm:col-span-2">
-          <input
-            className={inputClass}
-            value={value.address}
-            onChange={(e) => set({ address: e.target.value })}
-            placeholder="Street address"
-            maxLength={240}
-          />
-        </Field>
+      <Field label="Address">
+        <input
+          className={controlClass}
+          placeholder="Street address"
+          value={value.address ?? ""}
+          onChange={set("address")}
+          maxLength={240}
+        />
+      </Field>
 
-        <Field label="City">
+      {/* City / State / ZIP */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Field label="City" className="col-span-2">
           <input
-            className={inputClass}
-            value={value.city}
-            onChange={(e) => set({ city: e.target.value })}
+            className={controlClass}
             placeholder="City"
+            value={value.city ?? ""}
+            onChange={set("city")}
             maxLength={120}
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="State">
-            <input
-              className={inputClass}
-              value={value.state}
-              onChange={(e) => set({ state: e.target.value })}
-              placeholder="UT"
-              maxLength={40}
-            />
-          </Field>
-          <Field label="ZIP">
-            <input
-              className={inputClass}
-              value={value.zip}
-              onChange={(e) => set({ zip: e.target.value.replace(/[^\d-]/g, "") })}
-              placeholder="84101"
-              maxLength={10}
-              inputMode="numeric"
-            />
-          </Field>
-        </div>
-
-        <Field label="Contact Name">
-          <div className="relative">
-            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
-            <input
-              className={cn(inputClass, "pl-8")}
-              value={value.contactName ?? ""}
-              onChange={(e) => set({ contactName: e.target.value })}
-              placeholder="On-site contact"
-              maxLength={120}
-            />
-          </div>
-        </Field>
-
-        <Field label="Location Type">
+        {/* ── State: dropdown, drives the ZIP autofill ── */}
+        <Field label="State" className="col-span-1">
           <select
-            className={inputClass}
-            value={value.locationType ?? ""}
-            onChange={(e) =>
-              set({ locationType: (e.target.value || "") as LocationType | "" })
-            }
+            className={cn(controlClass, "appearance-none cursor-pointer")}
+            value={value.state ?? ""}
+            onChange={handleStateChange}
           >
-            <option value="">Select type…</option>
-            {LOCATION_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            <option value="">UT</option>
+            {US_STATES.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
         </Field>
 
-        <Field label="Phone">
-          <div className="relative">
-            <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
-            <input
-              className={cn(inputClass, "pl-8")}
-              value={value.phone ?? ""}
-              onChange={(e) => set({ phone: e.target.value })}
-              placeholder="(555) 555-5555"
-              maxLength={30}
-              inputMode="tel"
-            />
-          </div>
+        <Field
+          label="ZIP"
+          className="col-span-1"
+          hint={zipWasAutoFilled ? `From ${value.state} — use the exact ZIP` : undefined}
+        >
+          <input
+            className={controlClass}
+            placeholder={
+              value.state ? STATE_ZIP_MAP[value.state] ?? "84101" : "84101"
+            }
+            value={value.zip ?? ""}
+            onChange={handleZipChange}
+            maxLength={10}
+            inputMode="numeric"
+          />
         </Field>
+      </div>
 
+      {/* Contact Name / Location Type */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Contact Name">
+          <IconInput
+            icon={User}
+            placeholder="On-site contact"
+            value={value.contactName ?? ""}
+            onChange={set("contactName")}
+            maxLength={120}
+          />
+        </Field>
+        <Field label="Location Type">
+          <select
+            className={cn(controlClass, "cursor-pointer")}
+            value={value.locationType ?? ""}
+            onChange={set("locationType")}
+          >
+            <option value="">Select type…</option>
+            {LOCATION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {LOCATION_TYPE_LABELS[t] ?? t}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      {/* Phone / Email */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Phone">
+          <IconInput
+            icon={Phone}
+            placeholder="(555) 555-5555"
+            value={value.phone ?? ""}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 10)
+              onChange({ ...value, phone: digits })
+            }}
+            type="tel"
+            inputMode="numeric"
+            maxLength={14}
+          />
+        </Field>
         <Field label="Email">
-          <div className="relative">
-            <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50 pointer-events-none" />
-            <input
-              className={cn(inputClass, "pl-8")}
-              value={value.email ?? ""}
-              onChange={(e) => set({ email: e.target.value })}
-              placeholder="contact@example.com"
-              maxLength={160}
-              inputMode="email"
-            />
-          </div>
+          <IconInput
+            icon={Mail}
+            placeholder="contact@example.com"
+            value={value.email ?? ""}
+            onChange={set("email")}
+            type="email"
+            maxLength={160}
+          />
         </Field>
       </div>
     </div>
   )
+}
+
+// ─── Section ─────────────────────────────────────────────────────────────────
+
+interface LocationSectionProps {
+  pickup: LocationBlock
+  delivery: LocationBlock
+  onPickupChange: (updated: LocationBlock) => void
+  onDeliveryChange: (updated: LocationBlock) => void
 }
 
 export function LocationSection({
@@ -207,13 +287,13 @@ export function LocationSection({
 }: LocationSectionProps) {
   return (
     <div className="space-y-4">
-      <LocationEditor
+      <LocationCard
         title="Origin — Pickup"
         accent="emerald"
         value={pickup}
         onChange={onPickupChange}
       />
-      <LocationEditor
+      <LocationCard
         title="Destination — Delivery"
         accent="cyan"
         value={delivery}
