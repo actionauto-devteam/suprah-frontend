@@ -10,6 +10,20 @@ import {
 import { Field, FieldRow } from "./FormField"
 import { LocationBlock, LOCATION_TYPES, US_STATES, STATE_ZIP_MAP } from "./types"
 
+// ─── LocationFields ──────────────────────────────────────────────────────────
+// FIELD-NAME ALIGNMENT (build fix + silent-strip prevention):
+// This component previously bound to `companyName` and `street`, which don't
+// exist on LocationBlock — the canonical keys are `name` and `address`,
+// matching the backend zod locationBlockSchema and the Mongoose
+// locationSchema. Binding to the canonical keys is not just a type fix:
+// the backend REQUIRES `address`, so a payload carrying `street` instead
+// would fail validation on every submit.
+//
+// `country`, `phoneExt`, and `notes` are genuinely new fields — they were
+// added to LocationBlock (types.ts), the zod schema, and the Mongoose
+// schema in the same change. Without all three, zod's strip mode discards
+// them silently (same failure mode as dates.notes and pricing.pricePerMile).
+
 interface LocationFieldsProps {
   value: LocationBlock
   onChange: (updated: LocationBlock) => void
@@ -45,7 +59,8 @@ export function LocationFields({ value, onChange }: LocationFieldsProps) {
 
       <FieldRow>
         <Field label="Company Name" icon={Building2}>
-          <Input placeholder="ABC Motors" value={value.companyName} onChange={set("companyName")} className="h-9 text-sm" />
+          {/* canonical key: `name` (backend locationSchema.name) */}
+          <Input placeholder="ABC Motors" value={value.name} onChange={set("name")} className="h-9 text-sm" />
         </Field>
         <Field label="Contact Name" required icon={User}>
           <Input placeholder="John Smith" value={value.contactName} onChange={set("contactName")} maxLength={50} className="h-9 text-sm" />
@@ -53,7 +68,9 @@ export function LocationFields({ value, onChange }: LocationFieldsProps) {
       </FieldRow>
 
       <Field label="Street Address" required icon={MapPin}>
-        <Input placeholder="1234 Main St, Suite 100" value={value.street} onChange={set("street")} maxLength={100} className="h-9 text-sm" />
+        {/* canonical key: `address` — REQUIRED by backend zod; binding to a
+            different key here breaks every submit, not just the build */}
+        <Input placeholder="1234 Main St, Suite 100" value={value.address} onChange={set("address")} maxLength={100} className="h-9 text-sm" />
       </Field>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

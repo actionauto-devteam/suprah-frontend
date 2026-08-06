@@ -31,6 +31,9 @@ export interface CreateLoadPayload {
   additionalInfo: LoadAdditionalInfo;
   contract: LoadContract;
   trailerType: string;
+  // pricePerMile: dispatcher's $/mi rate from the Pricing step — persisted
+  // on the load (pricing.pricePerMile) so cards/detail views can show it.
+  pricing?: { pricePerMile?: number; carrierPayAmount?: number; copCodAmount?: number };
 }
 
 export interface CreatedLoad {
@@ -158,6 +161,9 @@ export async function createLoad(payload: CreateLoadPayload): Promise<CreateLoad
       additionalInfo: payload.additionalInfo,
       contract: payload.contract,
       trailerType: payload.trailerType,
+      // pricePerMile rides through here — createLoadSchema (backend zod)
+      // must include it in the pricing shape or it gets stripped server-side.
+      pricing: payload.pricing,
     };
     const res = await apiClient.post<{ data: { load: CreatedLoad; warning?: string } }>("/api/loads", body);
     return { load: res.data.data.load, warning: res.data.data.warning };

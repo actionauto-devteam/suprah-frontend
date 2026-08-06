@@ -14,11 +14,13 @@
  *   - in a session, minimized          → status pill (transmit/receive glow)
  *   - in a session, expanded           → full mini-player
  *
- * Hold the mic button — or hold ` (backtick) anywhere outside a text field —
- * to talk. Release to go back to receive.
+ * Hold the mic button — or hold the configured push-to-talk key (default `,
+ * changeable on the YapLine page) anywhere outside a text field — to talk.
+ * Release to go back to receive.
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Mic,
@@ -34,6 +36,7 @@ import {
   GripHorizontal,
   PhoneOff,
   ChevronDown,
+  Headphones,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -41,6 +44,7 @@ import {
   useYapLine,
   yapline,
   getRemoteScreenStream,
+  MAX_JOINED_CHANNELS,
   type YapQuality,
 } from "@/lib/yapline-store";
 
@@ -239,21 +243,22 @@ export function YapLineDock() {
     });
   }, [otherLiveIds]);
 
-  // Keyboard PTT: hold ` outside inputs.
+  // Keyboard PTT: hold the user's configured key (default `) outside inputs.
   React.useEffect(() => {
     if (!cur) return;
     const isTyping = () => {
       const el = document.activeElement as HTMLElement | null;
       return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
     };
+    const matchesPttKey = (e: KeyboardEvent) => e.key.toLowerCase() === s.pttKey.toLowerCase();
     const down = (e: KeyboardEvent) => {
-      if (e.key === "`" && !e.repeat && !isTyping()) {
+      if (matchesPttKey(e) && !e.repeat && !isTyping()) {
         e.preventDefault();
         void yapline.startTransmit();
       }
     };
     const up = (e: KeyboardEvent) => {
-      if (e.key === "`") yapline.stopTransmit();
+      if (matchesPttKey(e)) yapline.stopTransmit();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -261,7 +266,7 @@ export function YapLineDock() {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [cur?.conversationId]);
+  }, [cur?.conversationId, s.pttKey]);
 
   // The full YapLine page already shows every live channel (with its own
   // "Live" tag and join-by-tap) and the active session's full-size controls —
@@ -271,11 +276,22 @@ export function YapLineDock() {
   const isYapLinePage = pathname === "/crm/yapline";
 
   // Nothing anywhere (or everything live has been dismissed) → zero footprint.
-  if (isYapLinePage || (!cur && joinableLive.length === 0)) return null;
+  // A monitored channel keeps the dock alive even with no active session and
+  // no other joinable pills (e.g. you dismissed its "live elsewhere" pill
+  // after already monitoring it) — otherwise the whole dock, including its
+  // mute/leave controls, would vanish while still silently receiving audio.
+  if (isYapLinePage || (!cur && joinableLive.length === 0 && Object.keys(s.monitors).length === 0)) return null;
+  if (typeof document === "undefined") return null;
 
   const q = QUALITY_META[cur?.quality || "unknown"];
 
-  return (
+  // Portaled straight to <body> — mounted deep inside the dashboard layout tree,
+  // a plain z-index here would only ever be compared within whatever stacking
+  // context an ancestor (sidebar wrapper, a modal's own container, etc.)
+  // happens to create, which is exactly why dragging/clicking could silently
+  // stop working under a Dialog/Sheet: this escapes that trap entirely, same
+  // as the SupraSpace popup's own floating menus.
+  return createPortal(
     <>
       {/* Full-screen viewer for a shared screen */}
       {expandedScreen && sharer && cur && (
@@ -337,43 +353,60 @@ export function YapLineDock() {
               </div>
             )}
             <div className="max-h-56 space-y-1 overflow-y-auto p-1.5 no-scrollbar">
-              {joinableLive.map((live) => (
-                <div
-                  key={live.conversationId}
-                  className="group/row flex items-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-1.5 pl-2.5 pr-1.5 transition-colors hover:border-emerald-400/40"
-                >
-                  <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
-                    <RadioTower className="size-3.5 text-emerald-400" />
-                    <span className="absolute -right-0.5 -top-0.5 size-2 animate-pulse rounded-full bg-rose-500" />
-                  </span>
-                  <button
-                    onClick={() => {
-                      void yapline.join(live.conversationId, live.conversationName);
-                      setLiveExpanded(false);
-                    }}
-                    className="min-w-0 flex-1 truncate text-left text-[11px] font-bold text-foreground"
-                    title={live.conversationName || "Direct YapLine"}
+              {joinableLive.map((live) => {
+                const isSpeaking = live.speakingIds.length > 0;
+                const isMonitored = !!s.monitors[live.conversationId];
+                const joinedCount = (s.current ? 1 : 0) + Object.keys(s.monitors).length;
+                const atCap = joinedCount >= MAX_JOINED_CHANNELS;
+                return (
+                  <div
+                    key={live.conversationId}
+                    className="group/row flex items-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-1.5 pl-2.5 pr-1.5 transition-colors hover:border-emerald-400/40"
                   >
-                    {live.conversationName || "Direct YapLine"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      void yapline.join(live.conversationId, live.conversationName);
-                      setLiveExpanded(false);
-                    }}
-                    className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-500 transition-colors hover:bg-emerald-500/20 active:scale-95"
-                  >
-                    <LogIn className="size-3" /> Join
-                  </button>
-                  <button
-                    onClick={() => setDismissedLive((prev) => new Set(prev).add(live.conversationId))}
-                    title="Not now — hide this channel"
-                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 opacity-0 transition-opacity hover:bg-rose-500/10 hover:text-rose-500 group-hover/row:opacity-100"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
+                      {isSpeaking ? <Mic className="size-3.5 animate-pulse text-emerald-400" /> : <RadioTower className="size-3.5 text-emerald-400" />}
+                      <span className={cn("absolute -right-0.5 -top-0.5 size-2 rounded-full", isSpeaking ? "animate-pulse bg-emerald-500" : "bg-rose-500")} />
+                    </span>
+                    <button
+                      onClick={() => {
+                        void yapline.join(live.conversationId, live.conversationName);
+                        setLiveExpanded(false);
+                      }}
+                      className="min-w-0 flex-1 truncate text-left text-[11px] font-bold text-foreground"
+                      title={live.conversationName || "Direct YapLine"}
+                    >
+                      {live.conversationName || "Direct YapLine"}
+                      {isMonitored && <span className="ml-1 text-[9px] font-black uppercase text-cyan-400">· monitoring</span>}
+                    </button>
+                    {!isMonitored && (
+                      <button
+                        onClick={() => void yapline.joinMonitor(live.conversationId, live.conversationName)}
+                        disabled={atCap}
+                        title={atCap ? `Max ${MAX_JOINED_CHANNELS} channels — leave one first` : "Listen in without switching"}
+                        className="flex shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 p-1 text-cyan-400 transition-colors hover:bg-cyan-500/20 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+                      >
+                        <Headphones className="size-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        void yapline.join(live.conversationId, live.conversationName);
+                        setLiveExpanded(false);
+                      }}
+                      className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-500 transition-colors hover:bg-emerald-500/20 active:scale-95"
+                    >
+                      <LogIn className="size-3" /> Join
+                    </button>
+                    <button
+                      onClick={() => setDismissedLive((prev) => new Set(prev).add(live.conversationId))}
+                      title="Not now — hide this channel"
+                      className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 opacity-0 transition-opacity hover:bg-rose-500/10 hover:text-rose-500 group-hover/row:opacity-100"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -382,7 +415,7 @@ export function YapLineDock() {
             className="group flex items-center gap-2 rounded-full border border-emerald-500/30 bg-card/80 py-1.5 pl-2 pr-2.5 shadow-lg shadow-emerald-500/10 backdrop-blur-xl transition-all hover:border-emerald-400/50 hover:bg-emerald-500/10 active:scale-95"
           >
             <span className="relative flex size-6 items-center justify-center rounded-full bg-emerald-500/15">
-              <RadioTower className="size-3.5 text-emerald-400" />
+              {joinableLive.some((l) => l.speakingIds.length > 0) ? <Mic className="size-3.5 animate-pulse text-emerald-400" /> : <RadioTower className="size-3.5 text-emerald-400" />}
               <span className="absolute -right-0.5 -top-0.5 size-2 animate-pulse rounded-full bg-rose-500" />
             </span>
             <span className="text-[11px] font-bold text-foreground">
@@ -391,6 +424,41 @@ export function YapLineDock() {
             <ChevronDown className="size-3.5 text-muted-foreground/50 transition-transform group-hover:translate-y-0.5" />
           </button>
         ))}
+
+        {/* ── Monitored channels (listening alongside the active one, if any) ── */}
+        {Object.values(s.monitors).length > 0 && (
+          <div className="flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-2xl border border-cyan-500/25 bg-card/85 p-1.5 shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
+            <p className="flex items-center gap-1.5 px-1.5 pt-0.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">
+              <Headphones className="size-3" /> Monitoring {Object.keys(s.monitors).length}/{MAX_JOINED_CHANNELS - (s.current ? 1 : 0)}
+            </p>
+            {Object.values(s.monitors).map((mon) => {
+              const live = s.sessions[mon.conversationId];
+              const isSpeaking = (live?.speakingIds.length ?? 0) > 0;
+              return (
+                <div key={mon.conversationId} className="flex items-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-1 pl-2 pr-1">
+                  {isSpeaking ? <Mic className="size-3.5 shrink-0 animate-pulse text-emerald-400" /> : <Headphones className="size-3.5 shrink-0 text-cyan-400" />}
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-foreground">
+                    {mon.conversationName || "Channel"}
+                  </span>
+                  <button
+                    onClick={() => yapline.setMonitorDeafened(mon.conversationId, !mon.deafened)}
+                    title={mon.deafened ? "Unmute" : "Mute"}
+                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground"
+                  >
+                    {mon.deafened ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => yapline.leaveMonitor(mon.conversationId)}
+                    title="Stop monitoring"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground/50 hover:bg-rose-500/10 hover:text-rose-500"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Current session ── */}
         {cur && (s.minimized ? (
@@ -556,12 +624,13 @@ export function YapLineDock() {
               </button>
             </div>
             <p className="hidden shrink-0 px-4 pb-2 text-center text-[9px] font-medium text-muted-foreground/40 md:block">
-              Tip: hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">`</kbd> anywhere to talk
+              Tip: hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">{s.pttKey}</kbd> anywhere to talk
             </p>
           </div>
         ))}
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 

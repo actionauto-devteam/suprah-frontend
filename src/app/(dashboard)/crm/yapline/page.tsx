@@ -11,6 +11,7 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import {
   RadioTower,
   Mic,
@@ -24,21 +25,36 @@ import {
   LogOut,
   Radio,
   Signal,
-  ChevronLeft,
-  ChevronRight,
+  Pin,
+  PinOff,
+  UserPlus,
+  X,
+  Loader2,
+  Check,
+  Keyboard,
+  Headphones,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 import {
   useYapLine,
   yapline,
   getRemoteScreenStream,
+  MAX_JOINED_CHANNELS,
   type YapQuality,
 } from "@/lib/yapline-store";
 
 const ini = (name?: string | null) =>
   (name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+
+interface CrmUserLite {
+  _id: string;
+  fullName: string;
+  username?: string;
+  avatar?: string | null;
+}
 
 interface Conv {
   _id: string;
@@ -47,6 +63,7 @@ interface Conv {
   emoji?: string | null;
   avatar?: string | null;
   members: Array<{ _id: string; fullName?: string; avatar?: string | null }>;
+  pinnedBy?: string[];
   // Recency fields — the conversations endpoint may expose any of these;
   // convRecency() tries them in order so "latest first" works regardless.
   lastMessageAt?: string | null;
@@ -54,9 +71,6 @@ interface Conv {
   updatedAt?: string;
   createdAt?: string;
 }
-
-/** Channels per page in the rail. */
-const CHANNELS_PER_PAGE = 10;
 
 // Module-level so the rail's conversations survive a route-away-and-back
 // remount within the same tab — repeat navigation renders the last known
@@ -70,17 +84,6 @@ function convRecency(c: Conv): number {
     c.lastMessageAt || c.lastMessage?.createdAt || c.updatedAt || c.createdAt;
   const ms = t ? new Date(t).getTime() : 0;
   return Number.isFinite(ms) ? ms : 0;
-}
-
-/** Compact page-number window: 1 … around current … last. */
-function pageWindow(current: number, total: number): (number | "…")[] {
-  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
-  const out: (number | "…")[] = [1];
-  if (current > 3) out.push("…");
-  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) out.push(p);
-  if (current < total - 2) out.push("…");
-  out.push(total);
-  return out;
 }
 
 const QUALITY_META: Record<YapQuality, { tone: string; label: string }> = {
@@ -115,12 +118,277 @@ function StageScreen({ userId, version }: { userId: string; version: number }) {
   );
 }
 
+/** Invite teammates into an existing group channel (adds them to the underlying SupraSpace conversation). */
+function InviteModal({
+  conv,
+  onClose,
+  onInvited,
+}: {
+  conv: Conv;
+  onClose: () => void;
+  onInvited: (memberIds: string[]) => void;
+}) {
+  const [users, setUsers] = React.useState<CrmUserLite[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQuery] = React.useState("");
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [saving, setSaving] = React.useState(false);
+  const memberIds = React.useMemo(() => new Set(conv.members.map((m) => m._id)), [conv.members]);
+
+  React.useEffect(() => {
+    apiClient
+      .get("/api/supraspace/users")
+      .then((res) => setUsers(res.data?.data || res.data || []))
+      .catch(() => toast.error("Could not load teammates"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = users.filter(
+    (u) =>
+      !memberIds.has(u._id) &&
+      (u.fullName.toLowerCase().includes(query.toLowerCase()) ||
+        (u.username || "").toLowerCase().includes(query.toLowerCase()))
+  );
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const submit = async () => {
+    if (selected.size === 0 || saving) return;
+    setSaving(true);
+    try {
+      const ids = [...selected];
+      await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { addMembers: ids });
+      onInvited(ids);
+      toast.success(`Invited ${ids.length} teammate${ids.length === 1 ? "" : "s"}`);
+      onClose();
+    } catch {
+      toast.error("Could not invite teammates");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border/50 bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
+          <h3 className="text-sm font-black">Invite to {conv.name || "channel"}</h3>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/60">
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="border-b border-border/30 p-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search teammates…"
+              className="w-full rounded-xl border border-border/40 bg-background/40 py-2 pl-8 pr-3 text-xs outline-none focus:border-emerald-500/40"
+            />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground/40" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground/50">No one left to invite.</p>
+          ) : (
+            filtered.map((u) => {
+              const isSelected = selected.has(u._id);
+              return (
+                <button
+                  key={u._id}
+                  onClick={() => toggle(u._id)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-muted/50"
+                >
+                  <Avatar className="size-8 shrink-0">
+                    {u.avatar && <AvatarImage src={resolveImageUrl(u.avatar)} />}
+                    <AvatarFallback className="bg-emerald-600 text-[10px] font-bold text-white">{ini(u.fullName)}</AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold">{u.fullName}</span>
+                  <span className={cn(
+                    "flex size-4.5 shrink-0 items-center justify-center rounded-full border-2",
+                    isSelected ? "border-emerald-500 bg-emerald-500" : "border-border"
+                  )}>
+                    {isSelected && <Check className="size-3 text-white" strokeWidth={3} />}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+        <div className="border-t border-border/30 p-3">
+          <button
+            disabled={selected.size === 0 || saving}
+            onClick={submit}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-black text-white disabled:opacity-40"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
+            Invite{selected.size > 0 ? ` (${selected.size})` : ""}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/** One channel row in the rail — join on click, pin/invite on hover. */
+function ChannelRow({
+  c,
+  s,
+  isCurrent,
+  isPinned,
+  onTogglePin,
+  onInvite,
+}: {
+  c: Conv;
+  s: ReturnType<typeof useYapLine>;
+  isCurrent: boolean;
+  isPinned: boolean;
+  onTogglePin: (c: Conv) => void;
+  onInvite: (c: Conv) => void;
+}) {
+  const live = s.sessions[c._id];
+  const name = convDisplayName(c, s.myUserId);
+  const isSpeaking = (live?.speakingIds.length ?? 0) > 0;
+  const isMonitored = !!s.monitors[c._id];
+  const joinedCount = (s.current ? 1 : 0) + Object.keys(s.monitors).length;
+  const atCap = joinedCount >= MAX_JOINED_CHANNELS;
+  return (
+    <div
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition-all",
+        isCurrent
+          ? "border-emerald-500/40 bg-emerald-500/8"
+          : isMonitored
+            ? "border-cyan-500/30 bg-cyan-500/5"
+            : "border-transparent hover:border-border/40 hover:bg-background/40"
+      )}
+    >
+      <button onClick={() => !isCurrent && yapline.join(c._id, name)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm",
+          c.type === "group" ? "bg-cyan-500/10 text-cyan-400" : "bg-emerald-500/10 text-emerald-500"
+        )}>
+          {c.emoji || (c.type === "group" ? <Hash className="size-4" /> : <Users className="size-4" />)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-bold">
+            {name}
+            {isMonitored && <span className="ml-1.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">Monitoring</span>}
+          </p>
+          <p className="truncate text-[10px] text-muted-foreground/50">
+            {live
+              ? `${live.participants.length} on the line`
+              : `${c.members?.length ?? 0} members`}
+          </p>
+        </div>
+      </button>
+      {live && (
+        <span className={cn(
+          "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-widest",
+          isSpeaking ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
+        )}>
+          {isSpeaking ? <Mic className="size-2.5 animate-pulse" /> : <span className="size-1.5 animate-pulse rounded-full bg-rose-500" />}
+          {isSpeaking ? "Talking" : "Live"}
+        </span>
+      )}
+      <span className="hidden shrink-0 items-center gap-0.5 sm:group-hover:flex">
+        {c.type === "group" && (
+          <button
+            onClick={() => onInvite(c)}
+            title="Invite people"
+            className="flex size-6.5 items-center justify-center rounded-lg text-muted-foreground/60 hover:bg-muted/60 hover:text-emerald-500"
+          >
+            <UserPlus className="size-3.5" />
+          </button>
+        )}
+        {!isCurrent && (
+          <button
+            onClick={() => isMonitored ? yapline.leaveMonitor(c._id) : void yapline.joinMonitor(c._id, name)}
+            disabled={!isMonitored && atCap}
+            title={isMonitored ? "Stop monitoring" : atCap ? `Max ${MAX_JOINED_CHANNELS} channels — leave one first` : "Listen in without switching"}
+            className={cn(
+              "flex size-6.5 items-center justify-center rounded-lg hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-30",
+              isMonitored ? "text-cyan-500" : "text-muted-foreground/60 hover:text-cyan-500"
+            )}
+          >
+            <Headphones className="size-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => onTogglePin(c)}
+          title={isPinned ? "Unpin channel" : "Pin channel"}
+          className="flex size-6.5 items-center justify-center rounded-lg text-muted-foreground/60 hover:bg-muted/60 hover:text-emerald-500"
+        >
+          {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** Push-to-talk keybind row — click to capture the next key pressed. */
+function PttKeyRow() {
+  const s = useYapLine();
+  const [capturing, setCapturing] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!capturing) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      if (e.key === "Escape") { setCapturing(false); return; }
+      yapline.setPttKey(e.key);
+      setCapturing(false);
+      toast.success(`Push-to-talk key set to "${e.key}"`);
+    };
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [capturing]);
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-xs font-bold">Push-to-talk key</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground/50">
+          Hold this key anywhere outside a text field to transmit.
+        </p>
+      </div>
+      <button
+        onClick={() => setCapturing(true)}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors",
+          capturing
+            ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+            : "border-border/40 text-muted-foreground/70 hover:border-emerald-500/30 hover:text-emerald-500"
+        )}
+      >
+        <Keyboard className="size-3.5" />
+        {capturing ? "Press a key…" : s.pttKey}
+      </button>
+    </div>
+  );
+}
+
 export default function YapLinePage() {
   const s = useYapLine();
   const [convs, setConvs] = React.useState<Conv[]>(() => convsCache ?? []);
   const [loading, setLoading] = React.useState(() => convsCache === null);
   const [query, setQuery] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const [inviteConv, setInviteConv] = React.useState<Conv | null>(null);
 
   const cur = s.current;
   const session = cur ? s.sessions[cur.conversationId] : null;
@@ -158,24 +426,38 @@ export default function YapLinePage() {
     });
   }, [convs, query, s.sessions, s.myUserId]);
 
-  // ── Pagination: 10 channels per page, latest first ──
-  const totalPages = Math.max(1, Math.ceil(filtered.length / CHANNELS_PER_PAGE));
-  // New search results shrink the list — snap back to page 1.
-  React.useEffect(() => {
-    setPage(1);
-  }, [query]);
-  // Clamp if the list shrinks under the current page (e.g. a session ends).
-  const safePage = Math.min(page, totalPages);
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
-  const paged = React.useMemo(
-    () => filtered.slice((safePage - 1) * CHANNELS_PER_PAGE, safePage * CHANNELS_PER_PAGE),
-    [filtered, safePage]
-  );
+  const pinned = filtered.filter((c) => s.myUserId && c.pinnedBy?.includes(s.myUserId));
+  const unpinned = filtered.filter((c) => !(s.myUserId && c.pinnedBy?.includes(s.myUserId)));
+
+  const togglePin = React.useCallback(async (c: Conv) => {
+    const isPinned = !!(s.myUserId && c.pinnedBy?.includes(s.myUserId));
+    const next = !isPinned;
+    setConvs((prev) => {
+      const updated = prev.map((x) => x._id === c._id
+        ? { ...x, pinnedBy: next ? [...(x.pinnedBy || []), s.myUserId!] : (x.pinnedBy || []).filter((id) => id !== s.myUserId) }
+        : x);
+      convsCache = updated;
+      return updated;
+    });
+    try {
+      await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned: next });
+    } catch {
+      toast.error("Could not update pin");
+    }
+  }, [s.myUserId]);
+
+  const handleInvited = React.useCallback((convId: string, memberIds: string[]) => {
+    setConvs((prev) => {
+      const updated = prev.map((c) => c._id === convId
+        ? { ...c, members: [...c.members, ...memberIds.map((id) => ({ _id: id }))] }
+        : c);
+      convsCache = updated;
+      return updated;
+    });
+  }, []);
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-350 flex-col gap-4 p-3 pb-24 sm:p-6 md:pb-8 lg:flex-row animate-in fade-in duration-500">
+    <div className="flex h-full w-full flex-col gap-4 overflow-hidden p-3 sm:p-6 lg:flex-row animate-in fade-in duration-500">
       {/* Ambient glow */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
@@ -223,98 +505,22 @@ export default function YapLinePage() {
           ) : filtered.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground/50">No conversations found.</p>
           ) : (
-            paged.map((c) => {
-              const live = s.sessions[c._id];
-              const isCurrent = cur?.conversationId === c._id;
-              const name = convDisplayName(c, s.myUserId);
-              return (
-                <button
-                  key={c._id}
-                  onClick={() => !isCurrent && yapline.join(c._id, name)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition-all",
-                    isCurrent
-                      ? "border-emerald-500/40 bg-emerald-500/8"
-                      : "border-transparent hover:border-border/40 hover:bg-background/40"
-                  )}
-                >
-                  <span className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm",
-                    c.type === "group" ? "bg-cyan-500/10 text-cyan-400" : "bg-emerald-500/10 text-emerald-500"
-                  )}>
-                    {c.emoji || (c.type === "group" ? <Hash className="size-4" /> : <Users className="size-4" />)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{name}</p>
-                    <p className="truncate text-xs text-muted-foreground/60">
-                      {live
-                        ? `${live.participants.length} on the line`
-                        : `${c.members?.length ?? 0} members`}
-                    </p>
-                  </div>
-                  {live && (
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-rose-500">
-                      <span className="size-1.5 animate-pulse rounded-full bg-rose-500" /> Live
-                    </span>
-                  )}
-                </button>
-              );
-            })
+            <>
+              {pinned.length > 0 && (
+                <>
+                  <p className="px-2 pb-1 pt-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">Pinned</p>
+                  {pinned.map((c) => (
+                    <ChannelRow key={c._id} c={c} s={s} isCurrent={cur?.conversationId === c._id} isPinned onTogglePin={togglePin} onInvite={setInviteConv} />
+                  ))}
+                  <p className="px-2 pb-1 pt-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">All channels</p>
+                </>
+              )}
+              {unpinned.map((c) => (
+                <ChannelRow key={c._id} c={c} s={s} isCurrent={cur?.conversationId === c._id} isPinned={false} onTogglePin={togglePin} onInvite={setInviteConv} />
+              ))}
+            </>
           )}
         </div>
-
-        {/* ── Pager: 10 channels per page, latest first ── */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between gap-2 border-t border-border/30 px-3 py-2.5">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={safePage <= 1}
-              aria-label="Previous page"
-              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-xs font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
-            >
-              <ChevronLeft className="size-3.5" />
-              <span className="hidden sm:inline">Prev</span>
-            </button>
-
-            {/* Numbered pages on ≥sm; compact "page X / Y" on phones */}
-            <div className="hidden items-center gap-1 sm:flex">
-              {pageWindow(safePage, totalPages).map((p, i) =>
-                p === "…" ? (
-                  <span key={`gap-${i}`} className="px-1 text-xs font-bold text-muted-foreground/40">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    aria-current={p === safePage ? "page" : undefined}
-                    className={cn(
-                      "size-7 rounded-lg text-xs font-black tabular-nums transition-all active:scale-95",
-                      p === safePage
-                        ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
-                        : "border border-border/40 text-muted-foreground/70 hover:border-emerald-500/30 hover:text-emerald-500"
-                    )}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-            </div>
-            <span className="text-xs font-black tabular-nums text-muted-foreground/60 sm:hidden">
-              {safePage} / {totalPages}
-            </span>
-
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safePage >= totalPages}
-              aria-label="Next page"
-              className="flex items-center gap-1 rounded-xl border border-border/40 px-2.5 py-1.5 text-xs font-black uppercase tracking-widest text-muted-foreground/70 transition-all hover:border-emerald-500/30 hover:text-emerald-500 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
-            >
-              <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="size-3.5" />
-            </button>
-          </div>
-        )}
 
         {/* Auto-listen preference */}
         <div className="border-t border-border/30 p-4">
@@ -340,11 +546,51 @@ export default function YapLinePage() {
               )} />
             </button>
           </label>
+          <div className="mt-3 border-t border-border/20 pt-3">
+            <PttKeyRow />
+          </div>
         </div>
       </aside>
 
       {/* ── Stage ── */}
       <main className="flex min-h-96 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl">
+        {Object.values(s.monitors).length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-cyan-500/20 bg-cyan-500/5 px-4 py-2">
+            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">
+              <Headphones className="size-3.5" /> Monitoring {Object.keys(s.monitors).length}/{MAX_JOINED_CHANNELS - (cur ? 1 : 0)}
+            </span>
+            {Object.values(s.monitors).map((mon) => {
+              const monLive = s.sessions[mon.conversationId];
+              const monSpeaking = (monLive?.speakingIds.length ?? 0) > 0;
+              return (
+                <span
+                  key={mon.conversationId}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold",
+                    monSpeaking ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : "border-border/40 bg-background/40 text-foreground/80"
+                  )}
+                >
+                  {monSpeaking ? <Mic className="size-3 animate-pulse" /> : <Headphones className="size-3 text-cyan-400" />}
+                  {mon.conversationName || "Channel"}
+                  <button
+                    onClick={() => yapline.setMonitorDeafened(mon.conversationId, !mon.deafened)}
+                    title={mon.deafened ? "Unmute" : "Mute"}
+                    className="text-muted-foreground/60 hover:text-foreground"
+                  >
+                    {mon.deafened ? <VolumeX className="size-3" /> : <Volume2 className="size-3" />}
+                  </button>
+                  <button
+                    onClick={() => yapline.leaveMonitor(mon.conversationId)}
+                    title="Stop monitoring"
+                    className="text-muted-foreground/60 hover:text-rose-500"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
         {!cur || !session ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
             <span className="flex size-16 items-center justify-center rounded-3xl bg-emerald-500/10">
@@ -514,13 +760,21 @@ export default function YapLinePage() {
                   aria-label="Incoming volume"
                 />
                 <span className="hidden text-[11px] font-medium text-muted-foreground/40 md:block">
-                  Hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">`</kbd> to talk from any page
+                  Hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">{s.pttKey}</kbd> to talk from any page
                 </span>
               </div>
             </div>
           </>
         )}
       </main>
+
+      {inviteConv && (
+        <InviteModal
+          conv={inviteConv}
+          onClose={() => setInviteConv(null)}
+          onInvited={(ids) => handleInvited(inviteConv._id, ids)}
+        />
+      )}
     </div>
   );
 }

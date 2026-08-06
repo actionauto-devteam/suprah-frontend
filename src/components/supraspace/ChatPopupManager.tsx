@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Star, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -11,22 +11,30 @@ import {
   useSupraSpaceMessenger,
   SSConv,
 } from '@/context/SupraSpaceMessengerContext';
-import { SSAttachment, SSMessage } from '@/hooks/useSupraSpaceSocket';
+import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
 type RequestConfigWithSkipRefresh = AxiosRequestConfig & { _skipAuthRefresh?: boolean };
 
-const POPUP_W = 400;
+const POPUP_W = 320;
 const POPUP_GAP = 8;
 const POPUP_RIGHT = 16;
-const POPUP_H = 520;
+const POPUP_H = 460;
 const POPUP_BULLET_GLYPHS = ['•', '◦', '▪'];
 const POPUP_LIST_INDENT_STEP = '  ';
 const popupBulletGlyphForDepth = (depth: number) => POPUP_BULLET_GLYPHS[((depth % POPUP_BULLET_GLYPHS.length) + POPUP_BULLET_GLYPHS.length) % POPUP_BULLET_GLYPHS.length];
-const HEADER_H = 48;
+const HEADER_H = 44;
 const MAX_VISIBLE_POPUPS = 3;
+const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+
+function fmtDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds || 0));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, '0')}`;
+}
 const TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
 const MORE_TEXT_COLORS = [
   '#ffffff', '#f3f4f6', '#94a3b8', '#64748b', '#111827',
@@ -1585,16 +1593,16 @@ function ForwardModal({ message, token, myId, onClose }: {
       onClick={onClose}
     >
       <div
-        style={{ background: '#1e1f23', borderRadius: 12, width: '100%', maxWidth: 380, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'var(--popover)', borderRadius: 12, width: '100%', maxWidth: 380, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', border: '1px solid var(--border)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Share2 style={{ width: 16, height: 16, color: '#5b7cf6' }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#e8e8ea' }}>Forward message</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--popover-foreground)' }}>Forward message</span>
           </div>
-          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', border: 'none' }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', border: 'none' }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
@@ -1611,8 +1619,8 @@ function ForwardModal({ message, token, myId, onClose }: {
                       ? <img src={resolveImageUrl(u.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : u.fullName[0]?.toUpperCase()}
                   </div>
-                  <span style={{ fontSize: 12, color: '#e8e8ea', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
-                  <button onClick={() => removeUser(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
+                  <span style={{ fontSize: 12, color: 'var(--popover-foreground)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
+                  <button onClick={() => removeUser(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--muted-foreground)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>
                     <X style={{ width: 12, height: 12 }} />
                   </button>
                 </span>
@@ -1628,17 +1636,17 @@ function ForwardModal({ message, token, myId, onClose }: {
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="Search people…"
-              style={{ width: '100%', height: 36, borderRadius: 8, paddingLeft: 32, paddingRight: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#e8e8ea', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', height: 36, borderRadius: 8, paddingLeft: 32, paddingRight: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
 
           {/* User list */}
           <div style={{ maxHeight: 200, overflowY: 'auto' }}>
             {loadingUsers && (
-              <div style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Loading…</div>
+              <div style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'var(--muted-foreground)' }}>Loading…</div>
             )}
             {!loadingUsers && filtered.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+              <div style={{ textAlign: 'center', padding: '20px 0', fontSize: 12, color: 'var(--muted-foreground)' }}>
                 {q ? 'No people found' : users.length === 0 ? 'No users available' : 'All users selected'}
               </div>
             )}
@@ -1654,8 +1662,8 @@ function ForwardModal({ message, token, myId, onClose }: {
                     : u.fullName[0]?.toUpperCase()}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#e8e8ea', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.fullName}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>@{u.username}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--popover-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.fullName}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>@{u.username}</div>
                 </div>
               </button>
             ))}
@@ -1699,12 +1707,12 @@ function PinnedMessagesModal({
       onClick={onClose}
     >
       <div
-        style={{ background: '#1e1f23', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'var(--popover)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', border: '1px solid var(--border)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8ea' }}>Pinned messages</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--popover-foreground)' }}>Pinned messages</span>
           <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', border: 'none' }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -1721,7 +1729,7 @@ function PinnedMessagesModal({
               const contentText = MEDIA_LABELS[m.type] || messagePreviewText(m.content) || '';
               return (
                 <React.Fragment key={m._id}>
-                  {idx > 0 && <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />}
+                  {idx > 0 && <div style={{ height: 1, background: 'var(--border)' }} />}
                   <div style={{ padding: '14px 20px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                     {/* Avatar */}
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#5b7cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: 2 }}>
@@ -1733,7 +1741,7 @@ function PinnedMessagesModal({
                     {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e8ea', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.sender?.fullName || 'Unknown'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--popover-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.sender?.fullName || 'Unknown'}</span>
                         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{dateStr}</span>
                       </div>
                       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
@@ -1744,7 +1752,7 @@ function PinnedMessagesModal({
                     <button
                       onClick={() => onUnpin(m._id)}
                       title="Unpin message"
-                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', marginTop: 2 }}
+                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--muted-foreground)', cursor: 'pointer', marginTop: 2 }}
                     >
                       <Pin style={{ width: 13, height: 13 }} />
                     </button>
@@ -1760,17 +1768,432 @@ function PinnedMessagesModal({
   );
 }
 
+// ─── GIF picker (Giphy) ─────────────────────────────────────────────────────────
+function PopupGifPicker({ onPick, onClose, anchorRef }: { onPick: (g: SSGif) => void; onClose: () => void; anchorRef: React.RefObject<HTMLElement | null> }) {
+  const [q, setQ] = React.useState('');
+  const [gifs, setGifs] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const run = React.useCallback(async (query: string) => {
+    if (!GIPHY_KEY) return;
+    setLoading(true);
+    try {
+      const endpoint = query.trim()
+        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
+      const r = await fetch(endpoint);
+      const d = await r.json();
+      setGifs(d?.data || []);
+    } catch { setGifs([]); } finally { setLoading(false); }
+  }, []);
+  React.useEffect(() => { run(''); }, [run]);
+  React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
+
+  React.useEffect(() => {
+    const h = (e: MouseEvent) => { if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose, anchorRef]);
+
+  return (
+    <div
+      className="absolute bottom-full left-0 z-50 mb-2 rounded-xl border bg-card shadow-xl overflow-hidden"
+      style={{ width: 280, borderColor: 'var(--border, rgba(128,128,128,0.25))' }}
+    >
+      <div className="p-2 border-b border-border/50">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder={GIPHY_KEY ? 'Search GIPHY...' : 'GIPHY key not configured'}
+            className="w-full h-8 pl-7 pr-3 rounded-lg text-[12px] outline-none border border-border/60 bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50"
+          />
+        </div>
+      </div>
+      <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto">
+        {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>}
+        {!loading && gifs.length === 0 && (
+          <p className="col-span-2 text-center py-6 text-[11px] text-muted-foreground">{GIPHY_KEY ? 'No results' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'}</p>
+        )}
+        {gifs.map((g: any) => {
+          const img = g.images?.fixed_height_small || g.images?.fixed_height;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => onPick({ url: g.images?.original?.url || img?.url, width: Number(img?.width) || undefined, height: Number(img?.height) || undefined, title: g.title })}
+              className="rounded-lg overflow-hidden bg-muted/40"
+              style={{ aspectRatio: '1' }}
+            >
+              <img src={img?.url} alt={g.title || 'GIF'} className="w-full h-full object-cover" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Voice message playback ─────────────────────────────────────────────────────
+function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: string; msgId: string; duration?: number; own: boolean; crmToken: string | null }) {
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = React.useState(false);
+  const [cur, setCur] = React.useState(0);
+  const [audioErr, setAudioErr] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
+  const total = duration || 0;
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+  const src = crmToken ? `${API_BASE}/api/supraspace/conversations/${convId}/messages/${msgId}/voice?t=${encodeURIComponent(crmToken)}` : '';
+
+  const handlePlay = React.useCallback(() => {
+    const a = audioRef.current;
+    if (!a || pending) return;
+    if (playing) { a.pause(); return; }
+    setPending(true);
+    a.play().then(() => setPending(false)).catch(() => { setPending(false); setAudioErr(true); });
+  }, [playing, pending]);
+
+  return (
+    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 180, maxWidth: 240 }}>
+      <button
+        onClick={handlePlay}
+        disabled={audioErr}
+        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
+        style={{ background: own ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)', color: own ? '#fff' : '#3b82f6' }}
+      >
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        {audioErr ? (
+          <p className="text-[10px]" style={{ color: '#f87171' }}>Unable to play audio</p>
+        ) : (
+          <>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)' }}>
+              <div style={{ width: total ? `${Math.min(100, (cur / total) * 100)}%` : '0%', height: '100%', background: own ? '#fff' : '#3b82f6', transition: 'width .1s linear' }} />
+            </div>
+            <p className="mt-1 text-[10px]" style={{ color: own ? 'rgba(255,255,255,0.75)' : 'var(--muted-foreground)' }}>
+              {fmtDuration(cur)}{total ? ` / ${fmtDuration(total)}` : ''}
+            </p>
+          </>
+        )}
+      </div>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCur(0); }}
+        onTimeUpdate={e => setCur((e.target as HTMLAudioElement).currentTime)}
+        onError={() => setAudioErr(true)}
+      />
+    </div>
+  );
+}
+
+// ─── Poll card ──────────────────────────────────────────────────────────────────
+function PopupPollCard({ poll, uid, isOwn, accentColor, onVote }: { poll: SSPoll; uid: string; isOwn: boolean; accentColor: string; onVote: (optionId: string) => void }) {
+  const totalVotes = poll.options.reduce((n, o) => n + (o.votes?.length || 0), 0);
+  return (
+    <div className="rounded-xl p-3" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <BarChart3 className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
+        <p className="text-[13px] font-bold" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{poll.question}</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {poll.options.map(o => {
+          const count = o.votes?.length || 0;
+          const pct = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
+          const mine = (o.votes || []).includes(uid);
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => !poll.closed && onVote(o.id)}
+              className="relative overflow-hidden text-left px-2.5 py-1.5 rounded-lg border"
+              style={{ borderColor: mine ? (isOwn ? '#fff' : accentColor) : isOwn ? 'rgba(255,255,255,0.3)' : 'rgba(128,128,128,0.3)' }}
+            >
+              <div className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: isOwn ? 'rgba(255,255,255,0.18)' : `${accentColor}1f` }} />
+              <div className="relative flex items-center justify-between gap-2">
+                <span className="text-[12px]" style={{ color: isOwn ? '#fff' : 'var(--foreground)', fontWeight: mine ? 700 : 500 }}>
+                  {mine && <Check className="inline h-3 w-3 mr-1" style={{ color: isOwn ? '#fff' : accentColor }} />}{o.text}
+                </span>
+                <span className="text-[10px] shrink-0" style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--muted-foreground)' }}>{pct}%</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 text-[10px]" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--muted-foreground)' }}>
+        {totalVotes} vote{totalVotes === 1 ? '' : 's'}{poll.allowMultiple ? ' · multiple choice' : ''}{poll.closed ? ' · closed' : ''}
+      </p>
+    </div>
+  );
+}
+
+// ─── Event card ─────────────────────────────────────────────────────────────────
+function PopupEventCard({ event, uid, isOwn, accentColor, onRsvp }: { event: SSEvent; uid: string; isOwn: boolean; accentColor: string; onRsvp: (r: 'going' | 'maybe' | 'declined') => void }) {
+  const mine: 'going' | 'maybe' | 'declined' | null =
+    (event.going || []).includes(uid) ? 'going' : (event.maybe || []).includes(uid) ? 'maybe' : (event.declined || []).includes(uid) ? 'declined' : null;
+  const start = new Date(event.startTime);
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+      <div className="px-3 py-2 flex items-center gap-1.5" style={{ background: isOwn ? 'rgba(255,255,255,0.15)' : `${accentColor}1f` }}>
+        <CalendarPlus className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
+        <p className="text-[13px] font-bold truncate" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{event.title}</p>
+      </div>
+      <div className="px-3 py-2 flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--muted-foreground)' }}>
+          <Clock className="h-3 w-3 shrink-0" />
+          {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </div>
+        {event.location && (
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--muted-foreground)' }}>
+            <MapPin className="h-3 w-3 shrink-0" />{event.location}
+          </div>
+        )}
+        {event.description && <p className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--muted-foreground)' }}>{event.description}</p>}
+        <div className="flex items-center gap-1 mt-1.5">
+          {(['going', 'maybe', 'declined'] as const).map(r => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => onRsvp(r)}
+              className="flex-1 h-6 rounded-md capitalize text-[10px] font-semibold transition-colors"
+              style={{
+                background: mine === r ? (isOwn ? '#fff' : accentColor) : isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(128,128,128,0.15)',
+                color: mine === r ? (isOwn ? accentColor : '#fff') : isOwn ? '#fff' : 'var(--foreground)',
+              }}
+            >
+              {r}{(event as any)[r]?.length ? ` · ${(event as any)[r].length}` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Poll creation modal ─────────────────────────────────────────────────────────
+function PopupPollModal({ accentColor, onClose, onCreate }: { accentColor: string; onClose: () => void; onCreate: (q: string, opts: string[], multi: boolean) => void }) {
+  const [question, setQuestion] = React.useState('');
+  const [opts, setOpts] = React.useState(['', '']);
+  const [multi, setMulti] = React.useState(false);
+  const valid = Boolean(question.trim()) && opts.filter(o => o.trim()).length >= 2;
+  const inputClass = 'w-full h-9 rounded-lg px-3 text-sm border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground outline-none focus:border-blue-500/50';
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-10030 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border shadow-2xl" style={{ background: 'var(--popover)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" style={{ color: accentColor }} />
+            <h2 className="font-bold text-[15px] text-popover-foreground">Create Poll</h2>
+          </div>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a question..." className={inputClass} />
+          <div className="space-y-2">
+            {opts.map((o, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input value={o} onChange={e => setOpts(p => p.map((x, idx) => idx === i ? e.target.value : x))} placeholder={`Option ${i + 1}`} className={inputClass} />
+                {opts.length > 2 && (
+                  <button onClick={() => setOpts(p => p.filter((_, idx) => idx !== i))} className="h-7 w-7 shrink-0 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {opts.length < 6 && (
+              <button onClick={() => setOpts(p => [...p, ''])} className="h-8 px-3 w-full rounded-lg flex items-center justify-center gap-1.5 text-[12px] font-medium border border-border text-muted-foreground hover:bg-muted/60">
+                <Plus className="h-3.5 w-3.5" /> Add option
+              </button>
+            )}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer text-[12px] text-muted-foreground">
+            <input type="checkbox" checked={multi} onChange={e => setMulti(e.target.checked)} /> Allow multiple answers
+          </label>
+          <button
+            disabled={!valid}
+            onClick={() => valid && onCreate(question.trim(), opts.map(o => o.trim()).filter(Boolean), multi)}
+            className="w-full h-9 rounded-lg font-semibold text-white text-[13px] disabled:opacity-40"
+            style={{ background: accentColor }}
+          >
+            Create Poll
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── Event creation modal ────────────────────────────────────────────────────────
+function PopupEventModal({ accentColor, onClose, onCreate }: {
+  accentColor: string;
+  onClose: () => void;
+  onCreate: (e: { title: string; description: string; location: string; startTime: string; endTime: string }) => void;
+}) {
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [location, setLocation] = React.useState('');
+  const [startTime, setStartTime] = React.useState('');
+  const [endTime, setEndTime] = React.useState('');
+  const valid = Boolean(title.trim()) && Boolean(startTime);
+  const inputClass = 'w-full h-9 rounded-lg px-3 text-sm border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground outline-none focus:border-blue-500/50';
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-10030 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border shadow-2xl" style={{ background: 'var(--popover)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <CalendarPlus className="h-4 w-4" style={{ color: accentColor }} />
+            <h2 className="font-bold text-[15px] text-popover-foreground">Create Event</h2>
+          </div>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-2.5">
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" className={inputClass} />
+          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location (optional)" className={inputClass} />
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className={cn(inputClass, 'h-auto py-2 resize-none')} />
+          <div>
+            <label className="text-[11px] text-muted-foreground">Starts</label>
+            <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className={cn(inputClass, 'mt-1')} />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Ends (optional)</label>
+            <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} className={cn(inputClass, 'mt-1')} />
+          </div>
+          <button
+            disabled={!valid}
+            onClick={() => valid && onCreate({ title: title.trim(), description, location, startTime, endTime })}
+            className="w-full h-9 rounded-lg font-semibold text-white text-[13px] mt-1 disabled:opacity-40"
+            style={{ background: accentColor }}
+          >
+            Create Event
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── Invite people modal ─────────────────────────────────────────────────────────
+function PopupInviteModal({ conv, crmToken, onClose, onInvited }: {
+  conv: SSConv;
+  crmToken: string | null;
+  onClose: () => void;
+  onInvited: () => void;
+}) {
+  const [users, setUsers] = React.useState<{ _id: string; fullName: string; username?: string; avatar?: string }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [query, setQuery] = React.useState('');
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [saving, setSaving] = React.useState(false);
+  const memberIds = React.useMemo(() => new Set(conv.members.map(m => m._id)), [conv.members]);
+
+  React.useEffect(() => {
+    if (!crmToken) return;
+    apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${crmToken}` } })
+      .then(r => setUsers(r.data?.data || r.data || []))
+      .catch(() => toast.error('Could not load teammates'))
+      .finally(() => setLoading(false));
+  }, [crmToken]);
+
+  const filtered = users.filter(u =>
+    !memberIds.has(u._id) &&
+    (u.fullName.toLowerCase().includes(query.toLowerCase()) || (u.username || '').toLowerCase().includes(query.toLowerCase()))
+  );
+
+  const toggle = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const submit = async () => {
+    if (selected.size === 0 || saving || !crmToken) return;
+    setSaving(true);
+    try {
+      await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { addMembers: [...selected] },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      toast.success(`Invited ${selected.size} teammate${selected.size === 1 ? '' : 's'}`);
+      onInvited();
+      onClose();
+    } catch {
+      toast.error('Could not invite teammates');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-10030 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border shadow-2xl" style={{ background: 'var(--popover)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h3 className="text-[14px] font-bold text-popover-foreground">Invite to {conv.name || 'channel'}</h3>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="border-b border-border p-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search teammates..."
+              className="w-full h-9 pl-8 pr-3 rounded-lg text-[13px] outline-none border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50" />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="py-8 text-center text-[12px] text-muted-foreground">No one left to invite.</p>
+          ) : filtered.map(u => {
+            const isSelected = selected.has(u._id);
+            return (
+              <button key={u._id} onClick={() => toggle(u._id)} className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-muted/50">
+                <Avatar className="h-8 w-8 shrink-0">
+                  {u.avatar && <AvatarImage src={resolveImageUrl(u.avatar)} />}
+                  <AvatarFallback className="text-[10px] font-semibold bg-blue-500 text-white">{initials(u.fullName)}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">{u.fullName}</span>
+                <span className={cn('flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-blue-500 bg-blue-500' : 'border-border')}>
+                  {isSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="border-t border-border p-3">
+          <button disabled={selected.size === 0 || saving} onClick={submit}
+            className="w-full h-9 rounded-lg font-semibold text-white text-[13px] flex items-center justify-center gap-2 disabled:opacity-40"
+            style={{ background: '#3b82f6' }}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+            Invite{selected.size > 0 ? ` (${selected.size})` : ''}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── Single popup ─────────────────────────────────────────────────────────────
 interface ChatPopupProps {
   conv: SSConv;
   stackIndex: number;
+  baseOffsetPx: number;
   isMinimized: boolean;
   onClose: () => void;
   onToggleMinimize: () => void;
 }
 
-function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
-  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
+function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations } = useSupraSpaceMessenger();
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1785,6 +2208,36 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
+
+  // GIF picker
+  const [gifOpen, setGifOpen] = React.useState(false);
+  const [pendingGif, setPendingGif] = React.useState<SSGif | null>(null);
+  const gifRef = React.useRef<HTMLDivElement>(null);
+
+  // "+" attach menu (file / poll / event)
+  const [attachMenuOpen, setAttachMenuOpen] = React.useState(false);
+  const [pollModalOpen, setPollModalOpen] = React.useState(false);
+  const [eventModalOpen, setEventModalOpen] = React.useState(false);
+  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const attachMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!attachMenuOpen) return;
+    const h = (e: MouseEvent) => { if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) setAttachMenuOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [attachMenuOpen]);
+
+  // Voice recording
+  const [recording, setRecording] = React.useState(false);
+  const [recPaused, setRecPaused] = React.useState(false);
+  const [recSeconds, setRecSeconds] = React.useState(0);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const recStreamRef = React.useRef<MediaStream | null>(null);
+  const recChunksRef = React.useRef<Blob[]>([]);
+  const recSecondsRef = React.useRef(0);
+  const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const recCancelRef = React.useRef(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLDivElement>(null);
   const headerRef = React.useRef<HTMLDivElement>(null);
@@ -1796,6 +2249,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   // Chat settings dropdown
   const [chatSettingsOpen, setChatSettingsOpen] = React.useState(false);
   const settingsRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => { if (!chatSettingsOpen) setConfirmDelete(false); }, [chatSettingsOpen]);
 
   React.useEffect(() => {
     if (!chatSettingsOpen) return;
@@ -1908,14 +2363,12 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     right?: number;
     boundary?: { top: number; right: number; bottom: number; left: number };
   } | null>(null);
-  const [textColorOpen, setTextColorOpen] = React.useState(false);
-  const [selectedTextColor, setSelectedTextColor] = React.useState('#ffffff');
-  const [textPalette, setTextPalette] = React.useState(TEXT_COLORS);
-  const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string } | null>(null);
+  const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string; type?: 'image' | 'video' } | null>(null);
+  const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
 
   // Reaction tooltip
-  const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
+  const [whoReactedPop, setWhoReactedPop] = React.useState<{ id: string; emoji: string; names: string[]; top: number; left?: number; right?: number } | null>(null);
 
   React.useEffect(() => {
     setMediaPreviewZoom(1);
@@ -2094,7 +2547,15 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     });
   }, []);
 
+  const clearAllPendingAttachments = React.useCallback(() => {
+    setPendingAttachments(prev => {
+      prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      return [];
+    });
+  }, []);
+
   React.useEffect(() => { pendingAttachmentsRef.current = pendingAttachments; }, [pendingAttachments]);
+  React.useEffect(() => { if (pendingAttachments.length === 0) setAttachmentsCollapsed(false); }, [pendingAttachments.length]);
   React.useEffect(() => () => {
     pendingAttachmentsRef.current.forEach(item => URL.revokeObjectURL(item.previewUrl));
   }, []);
@@ -2174,6 +2635,161 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
     } catch { /* ignored */ } finally { setSending(false); }
   };
+
+  // ── GIF ──
+  const selectGif = React.useCallback((gif: SSGif) => {
+    setPendingGif(gif);
+    setGifOpen(false);
+    setTimeout(() => inputRef.current?.focus(), 40);
+  }, []);
+
+  const sendPendingGif = React.useCallback(async (caption: string) => {
+    if (!pendingGif || !crmToken || sending) return false;
+    setSending(true);
+    const gif = pendingGif;
+    try {
+      const body: { content: string; gif: SSGif; replyTo?: string } = { content: caption.trim(), gif };
+      if (replyTo?._id) body.replyTo = replyTo._id;
+      const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      const sent: SSMessage = r.data?.data;
+      if (sent) {
+        setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+        setReplyTo(null);
+        setPendingGif(null);
+        syncComposerText('', true);
+        try { localStorage.removeItem(draftStorageKey); } catch { }
+        if (inputRef.current) inputRef.current.innerHTML = '';
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      }
+      return true;
+    } catch {
+      toast.error('Could not send GIF.');
+      return false;
+    } finally { setSending(false); }
+  }, [conv._id, crmToken, draftStorageKey, pendingGif, replyTo?._id, sending, syncComposerText]);
+
+  // ── Voice recording ──
+  const startRecording = React.useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recStreamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      recChunksRef.current = [];
+      recCancelRef.current = false;
+      mr.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        recStreamRef.current?.getTracks().forEach(t => t.stop());
+        if (recCancelRef.current) return;
+        const blob = new Blob(recChunksRef.current, { type: 'audio/webm' });
+        const seconds = recSecondsRef.current;
+        if (blob.size > 0 && crmToken) {
+          const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+          const fd = new FormData();
+          fd.append('files', file);
+          fd.append('duration', String(seconds));
+          try {
+            const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/upload`, fd,
+              { headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' } });
+            const sent: SSMessage = r.data?.data;
+            if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+          } catch {
+            toast.error('Failed to send voice note.');
+          }
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+      setRecPaused(false);
+      setRecSeconds(0);
+      recSecondsRef.current = 0;
+      recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
+    } catch {
+      toast.error('Microphone permission denied.');
+    }
+  }, [conv._id, crmToken]);
+
+  const togglePauseRecording = React.useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state === 'recording') {
+      mr.pause();
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      setRecPaused(true);
+    } else if (mr.state === 'paused') {
+      mr.resume();
+      recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
+      setRecPaused(false);
+    }
+  }, []);
+
+  const stopRecording = React.useCallback((cancel = false) => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    recCancelRef.current = cancel;
+    if (cancel) recChunksRef.current = [];
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    } else {
+      recStreamRef.current?.getTracks().forEach(t => t.stop());
+    }
+    setRecording(false);
+    setRecPaused(false);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    recStreamRef.current?.getTracks().forEach(t => t.stop());
+  }, []);
+
+  // ── Poll / Event ──
+  const handleVotePoll = React.useCallback(async (messageId: string, optionId: string) => {
+    if (!crmToken) return;
+    try {
+      await apiClient.post(`/api/supraspace/messages/${messageId}/poll/vote`, { optionId },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+    } catch {
+      toast.error('Could not record your vote.');
+    }
+  }, [crmToken]);
+
+  const handleRsvpEvent = React.useCallback(async (messageId: string, response: 'going' | 'maybe' | 'declined') => {
+    if (!crmToken) return;
+    try {
+      await apiClient.post(`/api/supraspace/messages/${messageId}/event/rsvp`, { response },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+    } catch {
+      toast.error('Could not update your RSVP.');
+    }
+  }, [crmToken]);
+
+  const handleCreatePoll = React.useCallback(async (question: string, opts: string[], multi: boolean) => {
+    if (!crmToken) return;
+    try {
+      const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/poll`,
+        { question, options: opts, allowMultiple: multi },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      const sent: SSMessage = r.data?.data;
+      if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setPollModalOpen(false);
+    } catch {
+      toast.error('Could not create poll.');
+    }
+  }, [conv._id, crmToken]);
+
+  const handleCreateEvent = React.useCallback(async (e: { title: string; description: string; location: string; startTime: string; endTime: string }) => {
+    if (!crmToken) return;
+    try {
+      const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/event`,
+        { title: e.title, description: e.description, location: e.location, startTime: e.startTime, endTime: e.endTime || undefined },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      const sent: SSMessage = r.data?.data;
+      if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setEventModalOpen(false);
+    } catch {
+      toast.error('Could not create event.');
+    }
+  }, [conv._id, crmToken]);
 
   // ── Edit message ──
   const [editingMsgId, setEditingMsgId] = React.useState<string | null>(null);
@@ -2482,7 +3098,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
   const displayName = getDisplayName(conv, crmUserId);
   const notificationPref = notifPrefs[conv._id] || conv.notificationPreference || { type: 'all' as const, muted: false };
   const avatarSrc = getAvatarSrc(conv, crmUserId);
-  const rightPx = POPUP_RIGHT + stackIndex * (POPUP_W + POPUP_GAP);
+  const rightPx = baseOffsetPx + stackIndex * (POPUP_W + POPUP_GAP);
+  // Matches the accent SupraSpace itself falls back to when a conversation has no
+  // custom theme color (see crm/supra-space/page.tsx's --accent default).
+  const accentColor = conv.theme?.accent || '#5b7cf6';
 
   const mentionOptions = React.useMemo(() => {
     if (mentionQuery === null) return [];
@@ -2646,6 +3265,24 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     return () => { socket.off('messages:read', handler); };
   }, [socket, conv._id]);
   React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, messageId, poll }: { conversationId: string; messageId: string; poll: SSPoll }) => {
+      if (conversationId !== conv._id) return;
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, poll } : m));
+    };
+    socket.on('message:poll', handler);
+    return () => { socket.off('message:poll', handler); };
+  }, [socket, conv._id]);
+  React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, messageId, event }: { conversationId: string; messageId: string; event: SSEvent }) => {
+      if (conversationId !== conv._id) return;
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, event } : m));
+    };
+    socket.on('message:event', handler);
+    return () => { socket.off('message:event', handler); };
+  }, [socket, conv._id]);
+  React.useEffect(() => {
     if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMinimized]);
   React.useEffect(() => {
@@ -2675,6 +3312,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     );
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
+      return;
+    }
+    if (pendingGif) {
+      await sendPendingGif(text);
       return;
     }
     if (!text || sending || !crmToken) return;
@@ -2725,27 +3366,6 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       }
     } finally { setSending(false); }
   };
-
-  const applyTextColor = (color: string) => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.focus();
-    document.execCommand('foreColor', false, color);
-    setSelectedTextColor(color);
-    syncComposerText(el.innerText.replace(/\n$/, ''), true);
-  };
-
-  const chooseExpandedTextColor = React.useCallback((color: string) => {
-    setTextPalette(prev => {
-      if (prev.includes(color)) return prev;
-      const replaceIndex = prev.includes(selectedTextColor) ? prev.indexOf(selectedTextColor) : prev.length - 1;
-      const next = [...prev];
-      next[replaceIndex] = color;
-      return next;
-    });
-    applyTextColor(color);
-    setTextColorOpen(false);
-  }, [selectedTextColor]);
 
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -2806,15 +3426,6 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
     return true;
   }, [conv.members, conv.type, crmUserId]);
 
-  const handleColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const inputEvent = e.nativeEvent as InputEvent;
-    if (selectedTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
-    e.preventDefault();
-    document.execCommand('insertHTML', false, `<span style="color:${selectedTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
-    const el = e.currentTarget;
-    requestAnimationFrame(() => syncComposerText(el.innerText.replace(/\n$/, '')));
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
     if (mentionQuery !== null && mentionOptions.length > 0) {
@@ -2852,14 +3463,14 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
       <div
         ref={popupShellRef}
         data-chat-popup-shell="true"
-        className="fixed bottom-0 z-50 flex flex-col shadow-2xl rounded-t-xl border border-border/60 bg-card"
-        style={{ width: POPUP_W, right: rightPx, height: isMinimized ? HEADER_H : POPUP_H, transition: 'height 0.2s ease' }}
+        className="fixed bottom-0 z-50 rounded-t-xl border border-border/60 bg-card shadow-2xl"
+        style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column', width: POPUP_W, right: rightPx, height: POPUP_H }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {draggingAttachment && !isMinimized && (
+        {draggingAttachment && (
           <div className="absolute inset-2 z-60 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-400/80 bg-blue-500/15 backdrop-blur-sm pointer-events-none">
             <div className="rounded-xl bg-background/90 px-4 py-3 text-center shadow-xl">
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-blue-500" />
@@ -2871,31 +3482,31 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         {/* Header */}
         <div
           ref={headerRef}
-          className="h-12 shrink-0 flex items-center gap-2.5 px-3 bg-linear-to-r from-blue-600 to-blue-500 cursor-pointer select-none rounded-t-xl overflow-hidden"
-          onClick={onToggleMinimize}
+          className="h-11 shrink-0 flex items-center gap-2 px-3 bg-card border-b border-border/50 select-none rounded-t-xl overflow-hidden"
         >
-          <Avatar className="h-7 w-7 shrink-0">
-            {avatarSrc && <AvatarImage src={resolveImageUrl(avatarSrc)} />}
-            <AvatarFallback className="text-[10px] font-semibold bg-blue-400 text-white">{initials(displayName)}</AvatarFallback>
-          </Avatar>
-          {/* Name + chevron toggle */}
+          {/* Avatar + name + chevron — always opens conversation options (or expands when minimized) */}
           <button
-            className="flex items-center gap-1 min-w-0 flex-1 text-left"
-            onClick={(e) => { e.stopPropagation(); setChatSettingsOpen(v => !v); }}
-            title="Chat settings"
+            type="button"
+            className="flex items-center gap-2 min-w-0 flex-1 text-left"
+            onClick={() => setChatSettingsOpen(v => !v)}
+            title="Conversation options"
           >
-            <span className="text-[14px] font-semibold text-white truncate">{displayName}</span>
+            <Avatar className="h-7 w-7 shrink-0">
+              {avatarSrc && <AvatarImage src={resolveImageUrl(avatarSrc)} />}
+              <AvatarFallback className="text-[10px] font-semibold text-white" style={{ background: accentColor }}>{initials(displayName)}</AvatarFallback>
+            </Avatar>
+            <span className="text-[14px] font-semibold text-foreground truncate min-w-0">{displayName}</span>
             <ChevronDown
-              className="h-3.5 w-3.5 shrink-0 transition-transform"
-              style={{ color: 'rgba(255,255,255,0.8)', transform: chatSettingsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              className="h-3.5 w-3.5 shrink-0 transition-transform text-muted-foreground"
+              style={{ transform: chatSettingsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
             />
           </button>
-          <button className="shrink-0 text-white/80 hover:text-white transition-colors p-0.5 rounded"
-            onClick={(e) => { e.stopPropagation(); onToggleMinimize(); }} title={isMinimized ? 'Expand' : 'Minimize'}>
+          <button className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+            onClick={() => { setChatSettingsOpen(false); onToggleMinimize(); }} title="Minimize">
             <Minus className="size-3.5" />
           </button>
-          <button className="shrink-0 text-white/80 hover:text-white transition-colors p-0.5 rounded"
-            onClick={(e) => { e.stopPropagation(); onClose(); }} title="Close">
+          <button className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+            onClick={() => onClose()} title="Close">
             <X className="size-3.5" />
           </button>
         </div>
@@ -2941,9 +3552,15 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   );
                   const seenMembers = msgSeenByMembers[msg._id] || [];
                   const imageAttachments = (msg.attachments || []).filter((a: SSAttachment) => a.mimeType?.startsWith('image/'));
+                  const videoAttachments = (msg.attachments || []).filter((a: SSAttachment) => a.mimeType?.startsWith('video/'));
+                  const fileAttachments = (msg.attachments || []).filter((a: SSAttachment) =>
+                    !a.mimeType?.startsWith('image/') && !a.mimeType?.startsWith('audio/') && !a.mimeType?.startsWith('video/'));
+                  const voiceAtt = msg.type === 'voice' ? (msg.attachments || []).find((a: SSAttachment) => a.mimeType?.startsWith('audio/')) : null;
                   const imageOnly = imageAttachments.length > 0 && !msg.content?.trim();
+                  const gifOnly = msg.type === 'gif' && !!msg.gif?.url;
                   const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
-                  const bareMessage = imageOnly || emojiOnly;
+                  const isRichCard = !!voiceAtt || (msg.type === 'poll' && !!msg.poll) || (msg.type === 'event' && !!msg.event);
+                  const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard;
                   const editableAttachmentCount = (msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
                   const canSaveThisEdit = !editSaving
                     && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
@@ -2959,7 +3576,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         <div className="shrink-0 self-end mb-0.5">
                           {showName ? (
                             <div className="h-5 w-5 rounded-full overflow-hidden flex items-center justify-center text-white ring-1 ring-white/10"
-                              style={{ fontSize: 7, background: 'var(--accent-muted,#3b82f6)' }}>
+                              style={{ fontSize: 7, background: accentColor }}>
                               {msg.sender?.avatar
                                 ? <img src={resolveImageUrl(msg.sender.avatar)} alt="" className="w-full h-full object-cover" />
                                 : msg.sender?.fullName?.[0]?.toUpperCase()}
@@ -2981,15 +3598,16 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                         style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
                       >
                         {showName && !isOwn && (
-                          <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: 'var(--accent-text,#60a5fa)' }}>
+                          <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: accentColor }}>
                             {msg.sender?.fullName}
                           </span>
                         )}
                         {/* Bubble */}
                         {editingMsgId === msg._id ? (
                           <div
-                            className="min-w-0 rounded-2xl rounded-br-sm bg-blue-500 px-3 py-1.5 text-[15px] leading-relaxed text-white"
+                            className="min-w-0 rounded-2xl rounded-br-sm px-3 py-1.5 text-[15px] leading-relaxed text-white"
                             style={{
+                              background: accentColor,
                               width: editWidth ? `${editWidth}px` : '100%',
                               minWidth: 0,
                               maxWidth: '100%',
@@ -3035,7 +3653,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   </button>
                                 ))}
                                 {editColorOpen && (
-                                  <div className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl" style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.12)', width: 210, maxHeight: 156 }}>
+                                  <div className="absolute bottom-full left-0 z-50 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl p-2 shadow-2xl" style={{ background: 'var(--popover)', border: '1px solid rgba(255,255,255,0.12)', width: 210, maxHeight: 156 }}>
                                     {MORE_TEXT_COLORS.map(color => (
                                       <button key={color} type="button" onMouseDown={e => { e.preventDefault(); chooseExpandedEditColor(color); }} className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110" style={{ background: color, borderColor: editTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)', boxShadow: editTextColor === color ? '0 0 0 2px #18181c, 0 0 0 4px #60a5fa' : undefined }} aria-pressed={editTextColor === color} title={`Use ${color}`}>
                                         {editTextColor === color && <Check className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2" style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }} />}
@@ -3223,8 +3841,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                           <div className={cn(
                             'text-[15px] leading-relaxed min-w-0',
                             bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-1.5 rounded-2xl',
-                            !bareMessage && (isOwn ? 'bg-blue-500 text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
-                          )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere' }}>
+                            !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
+                          )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}
                             {msg.replyTo && (
                               <button
@@ -3234,13 +3852,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                   jumpToPopupRepliedMessage(msg.replyTo);
                                 }}
                                 className={cn(
-                                  'mb-1 block px-2 py-1 rounded-lg text-left text-[12px] border-l-2 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-blue-400/50',
-                                  isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5 border-blue-400',
+                                  'mb-1 block px-2 py-1 rounded-lg text-left text-[12px] border-l-2 transition hover:brightness-110 focus:outline-none focus:ring-2',
+                                  isOwn ? 'bg-white/15 border-white/60' : 'bg-black/5',
                                 )}
-                                style={{ maxWidth: 180 }}
+                                style={{ maxWidth: 180, borderLeftColor: isOwn ? undefined : accentColor }}
                                 title="Jump to original message"
                               >
-                                <div className={cn('font-semibold truncate', isOwn ? 'text-white/80' : 'text-blue-400')}>
+                                <div className="font-semibold truncate" style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : accentColor }}>
                                   {msg.replyTo?.sender?.fullName || 'Reply'}
                                 </div>
                                 <div className={cn('truncate', isOwn ? 'text-white/60' : 'text-foreground/50')}>
@@ -3266,24 +3884,63 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                         'block overflow-hidden border border-white/10 bg-black/20',
                                         imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
                                       )}
-                                      style={imageAttachments.length === 1 ? { width: 280, maxWidth: '100%', height: 180 } : undefined}
                                       title="Preview image"
                                     >
-                                      <img
-                                        src={src}
-                                        alt={a.originalName || 'photo'}
-                                        className="h-full w-full object-contain"
-                                      />
+                                      {imageAttachments.length === 1 ? (
+                                        <img
+                                          src={src}
+                                          alt={a.originalName || 'photo'}
+                                          className="block rounded-2xl"
+                                          style={{ maxWidth: 280, maxHeight: 280, width: 'auto', height: 'auto' }}
+                                        />
+                                      ) : (
+                                        <img
+                                          src={src}
+                                          alt={a.originalName || 'photo'}
+                                          className="h-full w-full object-contain"
+                                        />
+                                      )}
                                     </button>
                                   );
                                 })}
                               </div>
                             )}
-                            {msg.type !== 'image'
+                            {gifOnly ? (
+                              <button type="button" onClick={() => setMediaPreview({ src: msg.gif!.url, name: msg.gif?.title || 'GIF' })} className="block">
+                                <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: 240, maxHeight: 240 }} />
+                              </button>
+                            ) : voiceAtt ? (
+                              <PopupVoicePlayer convId={conv._id} msgId={msg._id} duration={voiceAtt.duration} own={isOwn} crmToken={crmToken} />
+                            ) : msg.type === 'poll' && msg.poll ? (
+                              <PopupPollCard poll={msg.poll} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onVote={(optId) => handleVotePoll(msg._id, optId)} />
+                            ) : msg.type === 'event' && msg.event ? (
+                              <PopupEventCard event={msg.event} uid={crmUserId || ''} isOwn={isOwn} accentColor={accentColor} onRsvp={(r) => handleRsvpEvent(msg._id, r)} />
+                            ) : msg.type !== 'image'
                               ? emojiOnly
                                 ? <span className="block text-[32px] leading-none">{msg.content}</span>
                                 : renderContent(msg, isOwn)
                               : msg.content ? <span>{msg.content}</span> : null}
+                            {videoAttachments.length > 0 && (
+                              <div className="flex flex-col gap-1.5 mt-1">
+                                {videoAttachments.map((a: SSAttachment, i: number) => (
+                                  <video key={i} controls preload="metadata" className="rounded-xl block" style={{ maxWidth: 240, maxHeight: 200 }}>
+                                    <source src={a.url} type={a.mimeType || 'video/mp4'} />
+                                  </video>
+                                ))}
+                              </div>
+                            )}
+                            {fileAttachments.length > 0 && (
+                              <div className="flex flex-col gap-1 mt-1">
+                                {fileAttachments.map((a: SSAttachment, i: number) => (
+                                  <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download={a.originalName}
+                                    className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isOwn ? 'bg-white/15' : 'bg-black/5')}>
+                                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate flex-1">{a.originalName || 'Attachment'}</span>
+                                    <Download className="h-3 w-3 shrink-0 opacity-60" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                             {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
                             {!hideTime && (
                               <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
@@ -3318,43 +3975,36 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                                 return member?.fullName || '';
                               }).filter(Boolean);
                               const popId = msg._id + ':' + r.emoji;
-                              const isPopOpen = openReactPop === popId;
+                              const showWhoReacted = (el: HTMLElement) => {
+                                if (!whoArr.length) return;
+                                const rect = el.getBoundingClientRect();
+                                setWhoReactedPop({ id: popId, emoji: r.emoji, names: whoArr, top: rect.top - 6, left: isOwn ? undefined : rect.left, right: isOwn ? window.innerWidth - rect.right : undefined });
+                              };
                               return (
                                 <div key={r.emoji} className="relative"
-                                  onMouseEnter={() => setOpenReactPop(popId)}
-                                  onMouseLeave={() => setOpenReactPop(null)}
+                                  onMouseEnter={(e) => showWhoReacted(e.currentTarget)}
+                                  onMouseLeave={() => setWhoReactedPop(null)}
                                 >
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) {
                                         if (mine) handleReact(msg._id, r.emoji);
-                                        else setOpenReactPop(isPopOpen ? null : popId);
+                                        else showWhoReacted(e.currentTarget);
                                       } else {
                                         handleReact(msg._id, r.emoji);
                                       }
                                     }}
-                                    className={cn('inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] cursor-pointer transition-all border',
-                                      mine ? 'border-blue-400/60 bg-blue-500/10 text-blue-300' : 'border-white/10 bg-white/5 text-foreground/70 hover:border-white/20'
-                                    )}
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] cursor-pointer transition-all border"
+                                    style={mine
+                                      ? { borderColor: accentColor, background: `${accentColor}1a`, color: accentColor }
+                                      : { borderColor: 'var(--border)', background: 'var(--muted)', color: 'var(--muted-foreground)' }}
                                     title={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
                                     aria-label={mine ? `Remove ${r.emoji} reaction` : `React with ${r.emoji}`}
                                   >
                                     <span>{r.emoji}</span>
                                     <span style={{ fontSize: 9 }}>{r.users.length}</span>
                                   </button>
-                                  {isPopOpen && whoArr.length > 0 && (
-                                    <div
-                                      className={cn('absolute z-50 bottom-full mb-1.5 px-2.5 py-1.5 rounded-lg text-[10px] min-w-25 max-w-42.5',
-                                        isOwn ? 'right-0' : 'left-0')}
-                                      style={{ background: '#1a1b1e', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', pointerEvents: 'none' }}
-                                    >
-                                      <div className="text-sm text-center mb-1">{r.emoji}</div>
-                                      {whoArr.map((name: string, i: number) => (
-                                        <div key={i} className="text-white/70 leading-tight truncate">{name}</div>
-                                      ))}
-                                    </div>
-                                  )}
                                 </div>
                               );
                             })}
@@ -3375,10 +4025,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   {mentionOptions.map((opt, idx) => (
                     <button key={opt.id}
                       onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
-                      className={cn('w-full flex items-center gap-2 px-2 py-1 rounded-md text-left text-[13px] transition-colors',
-                        idx === mentionIdx ? 'bg-blue-500/15 text-blue-400' : 'hover:bg-muted/60 text-foreground')}
+                      className="w-full flex items-center gap-2 px-2 py-1 rounded-md text-left text-[13px] transition-colors hover:bg-muted/60 text-foreground"
+                      style={idx === mentionIdx ? { background: `${accentColor}1a`, color: accentColor } : undefined}
                     >
-                      <span className="font-semibold text-blue-400">@{opt.id === 'all' ? opt.name : opt.fullName}</span>
+                      <span className="font-semibold" style={{ color: accentColor }}>@{opt.id === 'all' ? opt.name : opt.fullName}</span>
                       {opt.id === 'all' && <span className="text-muted-foreground truncate">{opt.fullName}</span>}
                     </button>
                   ))}
@@ -3386,10 +4036,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
               )}
               {/* Reply preview */}
               {replyTo && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-blue-500/5">
-                  <div className="w-0.5 self-stretch rounded-full bg-blue-400" />
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40" style={{ background: `${accentColor}0d` }}>
+                  <div className="w-0.5 self-stretch rounded-full" style={{ background: accentColor }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-semibold text-blue-400">{replyTo.sender?.fullName}</div>
+                    <div className="text-[12px] font-semibold" style={{ color: accentColor }}>{replyTo.sender?.fullName}</div>
                     <div className="text-[12px] text-muted-foreground truncate">{messagePreviewText(replyTo.content) || '📎 Attachment'}</div>
                   </div>
                   <button onClick={() => setReplyTo(null)} className="shrink-0 text-muted-foreground hover:text-foreground p-0.5">
@@ -3399,121 +4049,173 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
               )}
               {/* ── FB Messenger-style bottom toolbar ── */}
               {pendingAttachments.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto border-b border-border/40 px-3 py-2">
-                  {pendingAttachments.map((item, index) => {
-                    const isImage = item.file.type.startsWith('image/');
-                    return (
-                      <div key={`${item.file.name}-${index}`} className="relative h-32 w-44 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
-                        {isImage ? (
-                          <button
-                            type="button"
-                            onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name })}
-                            className="block h-full w-full"
-                            title="Preview image"
-                          >
-                            <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-contain bg-black/10" />
-                          </button>
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-semibold text-muted-foreground">
-                            {item.file.name}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removePendingAttachment(index)}
-                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
-                          title="Remove attachment"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="flex min-w-0 items-center gap-1 overflow-hidden px-2 py-1.5">
-                {/* Left icon buttons */}
-                <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
-                <button title="More" onClick={() => { if (fileRef.current) { fileRef.current.accept = ''; fileRef.current.click(); } }}
-                  className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors">
-                  <Plus className="h-5 w-5" />
-                </button>
-                <button title="Photo" onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*'; fileRef.current.click(); } }}
-                  className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors">
-                  <ImageIcon className="h-4.5 w-4.5" />
-                </button>
-                <button title="GIF" onClick={() => toast.info('GIF coming soon')}
-                  className="shrink-0 h-8 px-1.5 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors font-extrabold text-[11px] tracking-tight">
-                  GIF
-                </button>
-                <div className="relative shrink-0">
-                  <button title="More text colors" onClick={() => setTextColorOpen(v => !v)}
-                    className="h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors">
-                    <Palette className="h-4 w-4" />
-                  </button>
-                  {textColorOpen && (
-                    <div
-                      className="absolute bottom-full left-0 mb-2 grid grid-cols-7 gap-1.5 overflow-y-auto rounded-xl border bg-card p-2 shadow-xl z-50"
-                      style={{ borderColor: 'rgba(255,255,255,0.12)', width: 210, maxHeight: 156 }}
+                <div className="border-b border-border/40">
+                  <div className="flex items-center justify-between px-3 pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAttachmentsCollapsed(v => !v)}
+                      className="flex items-center gap-1 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                     >
-                      {MORE_TEXT_COLORS.map(color => (
-                        <button
-                          key={color}
-                          onMouseDown={e => { e.preventDefault(); chooseExpandedTextColor(color); }}
-                          className="relative h-6 w-6 rounded-full border transition-transform hover:scale-110"
-                          style={{
-                            background: color,
-                            borderColor: selectedTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)',
-                            boxShadow: selectedTextColor === color ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px #60a5fa' : undefined,
-                          }}
-                          aria-pressed={selectedTextColor === color}
-                          title={`Text color ${color}`}
-                        >
-                          {selectedTextColor === color && (
-                            <Check
-                              className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2"
-                              style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
-                            />
-                          )}
-                        </button>
-                      ))}
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', attachmentsCollapsed && '-rotate-90')} />
+                      {pendingAttachments.length} attachment{pendingAttachments.length === 1 ? '' : 's'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAllPendingAttachments}
+                      className="py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                      title="Remove all attachments"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  {!attachmentsCollapsed && (
+                    <div className="flex items-end gap-2 overflow-x-auto px-3 pb-2 pt-1">
+                      {pendingAttachments.map((item, index) => {
+                        const isImage = item.file.type.startsWith('image/');
+                        const isVideo = item.file.type.startsWith('video/');
+                        return (
+                          <div key={`${item.file.name}-${index}`} className={cn(
+                            'relative shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted',
+                            isImage || isVideo ? 'h-18 max-w-40' : 'h-18 w-36'
+                          )}>
+                            {isImage ? (
+                              <button
+                                type="button"
+                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'image' })}
+                                className="block h-full"
+                                title="Preview image"
+                              >
+                                <img src={item.previewUrl} alt={item.file.name} className="h-full w-auto max-w-40 object-contain bg-black/10" />
+                              </button>
+                            ) : isVideo ? (
+                              <button
+                                type="button"
+                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'video' })}
+                                className="relative block h-full"
+                                title="Preview video"
+                              >
+                                <video src={item.previewUrl} className="h-full w-auto max-w-40 object-contain bg-black/20" muted preload="metadata" />
+                                <span className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                  <Play className="h-6 w-6 text-white drop-shadow" fill="white" />
+                                </span>
+                              </button>
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-semibold text-muted-foreground">
+                                {item.file.name}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removePendingAttachment(index)}
+                              className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
+                              title="Remove attachment"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-                <div className="hidden">
-                  {textPalette.map(color => (
+              )}
+              {pendingGif && (
+                <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
+                  <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
+                    <img src={pendingGif.url} alt={pendingGif.title || 'GIF'} className="h-full w-full object-cover" />
                     <button
-                      key={color}
                       type="button"
-                      onMouseDown={e => { e.preventDefault(); applyTextColor(color); }}
-                      className="relative h-5 w-5 rounded-full border transition-transform hover:scale-110"
-                      style={{
-                        background: color,
-                        borderColor: selectedTextColor === color ? '#60a5fa' : color === '#ffffff' ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.25)',
-                        boxShadow: selectedTextColor === color ? '0 0 0 2px hsl(var(--card)), 0 0 0 4px #60a5fa' : undefined,
-                      }}
-                      aria-pressed={selectedTextColor === color}
-                      title={`Text color ${color}`}
+                      onClick={() => setPendingGif(null)}
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white"
+                      title="Remove GIF"
                     >
-                      {selectedTextColor === color && (
-                        <Check
-                          className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
-                          style={{ color: color === '#ffffff' || color === '#facc15' ? '#111827' : '#ffffff' }}
-                        />
-                      )}
+                      <X className="h-3 w-3" />
                     </button>
-                  ))}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">GIF ready to send</span>
                 </div>
-
+              )}
+              {recording ? (
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <span className={cn('h-2 w-2 rounded-full bg-red-500 shrink-0', !recPaused && 'animate-pulse')} />
+                  <span className="flex-1 text-[13px] font-medium text-foreground">{fmtDuration(recSeconds)}{recPaused ? ' · paused' : ''}</span>
+                  <button
+                    type="button"
+                    onClick={() => stopRecording(true)}
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60"
+                    title="Cancel recording"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={togglePauseRecording}
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60"
+                    title={recPaused ? 'Resume recording' : 'Pause recording'}
+                  >
+                    {recPaused ? <Mic className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => stopRecording(false)}
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-white"
+                    style={{ background: accentColor }}
+                    title="Send voice message"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+              <div className="flex min-w-0 items-center gap-1 px-2 py-1.5">
+                {/* Left icon buttons */}
+                <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
+                <div className="relative shrink-0" ref={attachMenuRef}>
+                  <button title="Add" onClick={() => setAttachMenuOpen(v => !v)}
+                    className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
+                    <Plus className="h-5 w-5" />
+                  </button>
+                  {attachMenuOpen && (
+                    <div className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-xl border border-border py-1 shadow-xl" style={{ background: 'var(--popover)' }}>
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px] text-popover-foreground hover:bg-muted/60"
+                        onClick={() => { setAttachMenuOpen(false); if (fileRef.current) { fileRef.current.accept = ''; fileRef.current.click(); } }}
+                      >
+                        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" /> File
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px] text-popover-foreground hover:bg-muted/60"
+                        onClick={() => { setAttachMenuOpen(false); setPollModalOpen(true); }}
+                      >
+                        <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground" /> Poll
+                      </button>
+                      <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px] text-popover-foreground hover:bg-muted/60"
+                        onClick={() => { setAttachMenuOpen(false); setEventModalOpen(true); }}
+                      >
+                        <CalendarPlus className="h-4 w-4 shrink-0 text-muted-foreground" /> Event
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button title="Photo or video" onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*,video/*'; fileRef.current.click(); } }}
+                  className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
+                  <ImageIcon className="h-4.5 w-4.5" />
+                </button>
+                <div className="relative shrink-0" ref={gifRef}>
+                  <button title="GIF" onClick={() => setGifOpen(v => !v)}
+                    className="h-8 px-1.5 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[11px] tracking-tight" style={{ color: accentColor }}>
+                    GIF
+                  </button>
+                  {gifOpen && <PopupGifPicker onPick={selectGif} onClose={() => setGifOpen(false)} anchorRef={gifRef} />}
+                </div>
                 <button
                   type="button"
-                  onClick={() => setPasteMode(mode => mode === 'formatted' ? 'plain' : 'formatted')}
-                  className={cn('shrink-0 h-8 min-w-8 px-2 rounded-full flex items-center justify-center gap-1 text-blue-500 hover:bg-blue-500/10 transition-colors', pasteMode === 'plain' && 'bg-blue-500/10')}
-                  title={pasteMode === 'formatted' ? 'Paste mode: Keep formatting' : 'Paste mode: Text only'}
-                  aria-pressed={pasteMode === 'plain'}
+                  title={recording ? 'Stop recording' : 'Record a voice message'}
+                  onClick={() => (recording ? stopRecording() : startRecording())}
+                  className={cn('shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors', !recording && 'hover:bg-muted/60')}
+                  style={recording ? { background: '#ef4444', color: '#fff' } : { color: accentColor }}
                 >
-                  <Copy className="h-3.5 w-3.5" />
-                  <span className="text-[9px] font-bold">{pasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
+                  {recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4.5 w-4.5" />}
                 </button>
 
                 {/* Text input */}
@@ -3525,10 +4227,18 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     ref={inputRef}
                     contentEditable
                     suppressContentEditableWarning
-                    onBeforeInput={handleColorBeforeInput}
                     onInput={handleTyping}
                     onKeyDown={handleKeyDown}
                     onPaste={e => {
+                      const pastedFiles = Array.from(e.clipboardData?.items || [])
+                        .filter(item => item.kind === 'file')
+                        .map(item => item.getAsFile())
+                        .filter((f): f is File => !!f);
+                      if (pastedFiles.length > 0) {
+                        e.preventDefault();
+                        stageFiles(pastedFiles);
+                        return;
+                      }
                       const text = e.clipboardData?.getData('text/plain') || '';
                       const html = e.clipboardData?.getData('text/html') || '';
                       const shortcutPlainText = pastePlainTextShortcutRef.current;
@@ -3561,18 +4271,19 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                 </div>
 
                 {/* Right buttons */}
-                {composerHasText || pendingAttachments.length > 0 ? (
+                {composerHasText || pendingAttachments.length > 0 || pendingGif ? (
                   <button title="Send" onClick={handleSend} disabled={sending}
-                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors disabled:opacity-40">
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 ) : (
                   <button title="Like" onClick={handleSendThumbsUp} disabled={sending}
-                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-500/10 transition-colors disabled:opacity-40">
+                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
                   </button>
                 )}
               </div>
+              )}
             </div>
           </>
         )}
@@ -3667,6 +4378,28 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         document.body
       )}
 
+      {/* ── "Who reacted" tooltip (portal so it can never clip against the scrollable message list) ── */}
+      {whoReactedPop && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-9999 px-2.5 py-1.5 rounded-lg text-[10px] min-w-25 max-w-42.5 pointer-events-none"
+          style={{
+            top: whoReactedPop.top,
+            left: whoReactedPop.left,
+            right: whoReactedPop.right,
+            transform: 'translateY(-100%)',
+            background: 'var(--popover)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          }}
+        >
+          <div className="text-sm text-center mb-1">{whoReactedPop.emoji}</div>
+          {whoReactedPop.names.map((name, i) => (
+            <div key={i} className="text-popover-foreground/80 leading-tight truncate">{name}</div>
+          ))}
+        </div>,
+        document.body
+      )}
+
       {/* ── Quick-react popup (6 emoji + full-picker button) ── */}
       {quickReactMsgId && quickReactPos && typeof document !== 'undefined' && createPortal(
         <div
@@ -3676,8 +4409,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           style={{
             top: quickReactPos.top,
             left: quickReactPos.left,
-            background: '#1e1f23',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--popover)',
+            border: '1px solid var(--border)',
             boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
           }}
           onMouseEnter={handleBarEnter}
@@ -3721,8 +4454,8 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             position: 'fixed', zIndex: 9999,
             top: moreMenuPos.top, left: moreMenuPos.left,
             minWidth: 208,
-            background: '#18181c',
-            border: '1px solid rgba(255,255,255,0.09)',
+            background: 'var(--popover)',
+            border: '1px solid var(--border)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
           }}
         >
@@ -3730,24 +4463,16 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             const msg = messages.find(m => m._id === moreMenuMsgId);
             const isOwnMsg = msg?.sender?._id === crmUserId;
             const imgAtt = msg?.attachments?.find((a) => a.mimeType?.startsWith('image/'));
-            const canEditMsg = isOwnMsg && !!msg && !msg.isDeleted && !['voice', 'poll', 'event'].includes(msg.type) && (Boolean(msg.content?.trim()) || (msg.attachments || []).some((a: SSAttachment) => !a.mimeType?.startsWith('audio/')));
+            const canEditMsg = isOwnMsg && !!msg && !msg.isDeleted && !['voice', 'poll', 'event', 'gif'].includes(msg.type) && (Boolean(msg.content?.trim()) || (msg.attachments || []).some((a: SSAttachment) => !a.mimeType?.startsWith('audio/')));
             const close = () => { moreMenuMsgIdRef.current = null; setMoreMenuMsgId(null); setMoreMenuPos(null); };
             const isPinned = pinnedMsgIds.has(moreMenuMsgId);
-            const row = 'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5';
-            const ic = { color: 'rgba(255,255,255,0.5)' };
+            const row = 'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60';
+            const ic = { color: 'var(--muted-foreground)' };
             return (
               <div className="py-1">
                 <button className={row} onClick={() => { if (msg) setForwardMsg(msg); close(); }}>
                   <Share2 className="h-4 w-4 shrink-0" style={ic} />
-                  <span style={{ fontSize: 13, color: '#e8e8ea' }}>Forward message</span>
-                </button>
-                <button className={row} onClick={() => { toast.info('Mark as unread coming soon'); close(); }}>
-                  <MailOpen className="h-4 w-4 shrink-0" style={ic} />
-                  <span style={{ fontSize: 13, color: '#e8e8ea' }}>Mark as unread</span>
-                </button>
-                <button className={row} onClick={() => { toast.info('Star coming soon'); close(); }}>
-                  <Star className="h-4 w-4 shrink-0" style={ic} />
-                  <span style={{ fontSize: 13, color: '#e8e8ea' }}>Star</span>
+                  <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Forward message</span>
                 </button>
                 <button className={row} onClick={() => {
                   setPinnedMsgIds(prev => { const n = new Set(prev); isPinned ? n.delete(moreMenuMsgId) : n.add(moreMenuMsgId); return n; });
@@ -3755,7 +4480,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   close();
                 }}>
                   <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? '#5b7cf6' : 'rgba(255,255,255,0.5)' }} />
-                  <span style={{ fontSize: 13, color: '#e8e8ea' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
                 </button>
                 {msg?.content && (
                   <button className={row} onClick={() => {
@@ -3765,7 +4490,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     close();
                   }}>
                     <Copy className="h-4 w-4 shrink-0" style={ic} />
-                    <span style={{ fontSize: 13, color: '#e8e8ea' }}>Copy message</span>
+                    <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Copy message</span>
                   </button>
                 )}
                 <button className={row} onClick={() => {
@@ -3776,7 +4501,7 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   close();
                 }}>
                   <Link2 className="h-4 w-4 shrink-0" style={ic} />
-                  <span style={{ fontSize: 13, color: '#e8e8ea' }}>Copy message link</span>
+                  <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Copy message link</span>
                 </button>
                 {imgAtt && (
                   <button className={row} onClick={async () => {
@@ -3785,16 +4510,16 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                     close();
                   }}>
                     <Copy className="h-4 w-4 shrink-0" style={ic} />
-                    <span style={{ fontSize: 13, color: '#e8e8ea' }}>Copy image</span>
+                    <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Copy image</span>
                   </button>
                 )}
                 {isOwnMsg && (
                   <>
-                    <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
+                    <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />
                     {canEditMsg && (
                       <button className={row} onClick={() => { startEdit(moreMenuMsgId); close(); }}>
                         <Pencil className="h-4 w-4 shrink-0" style={ic} />
-                        <span style={{ fontSize: 13, color: '#e8e8ea' }}>Edit message</span>
+                        <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Edit message</span>
                       </button>
                     )}
                     <button className={row} onClick={() => { handleDelete(moreMenuMsgId); close(); }}>
@@ -3842,6 +4567,24 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         />
       )}
 
+      {/* ── Invite people modal ── */}
+      {inviteOpen && (
+        <PopupInviteModal
+          conv={conv}
+          crmToken={crmToken}
+          onClose={() => setInviteOpen(false)}
+          onInvited={() => refreshConversations()}
+        />
+      )}
+
+      {/* ── Poll / Event creation modals ── */}
+      {pollModalOpen && (
+        <PopupPollModal accentColor={accentColor} onClose={() => setPollModalOpen(false)} onCreate={handleCreatePoll} />
+      )}
+      {eventModalOpen && (
+        <PopupEventModal accentColor={accentColor} onClose={() => setEventModalOpen(false)} onCreate={handleCreateEvent} />
+      )}
+
       {/* ── Chat settings dropdown ── */}
       {mediaPreview && typeof document !== 'undefined' && createPortal(
         <div
@@ -3852,32 +4595,34 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             applyMediaPreviewZoom(mediaPreviewZoom + (e.deltaY < 0 ? 0.2 : -0.2));
           }}
         >
-          <div
-            className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-white shadow-2xl backdrop-blur"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => applyMediaPreviewZoom(mediaPreviewZoom - 0.25)}
-              disabled={mediaPreviewZoom <= 1}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-              title="Zoom out"
+          {mediaPreview.type !== 'video' && (
+            <div
+              className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-white shadow-2xl backdrop-blur"
+              onClick={e => e.stopPropagation()}
             >
-              <ZoomOut className="h-4 w-4" />
-            </button>
-            <span className="min-w-12 text-center text-xs font-semibold tabular-nums">
-              {Math.round(mediaPreviewZoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => applyMediaPreviewZoom(mediaPreviewZoom + 0.25)}
-              disabled={mediaPreviewZoom >= 4}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-              title="Zoom in"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => applyMediaPreviewZoom(mediaPreviewZoom - 0.25)}
+                disabled={mediaPreviewZoom <= 1}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+                title="Zoom out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <span className="min-w-12 text-center text-xs font-semibold tabular-nums">
+                {Math.round(mediaPreviewZoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => applyMediaPreviewZoom(mediaPreviewZoom + 0.25)}
+                disabled={mediaPreviewZoom >= 4}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+                title="Zoom in"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <button
             className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
             onClick={() => setMediaPreview(null)}
@@ -3885,17 +4630,27 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
           >
             <X className="h-5 w-5" />
           </button>
-          <img
-            src={mediaPreview.src}
-            alt={mediaPreview.name}
-            draggable={false}
-            className="max-h-[86vh] max-w-[92vw] rounded-xl object-contain shadow-2xl transition-transform duration-150"
-            style={{
-              transform: `scale(${mediaPreviewZoom})`,
-              cursor: mediaPreviewZoom > 1 ? 'zoom-out' : 'zoom-in',
-            }}
-            onClick={e => e.stopPropagation()}
-          />
+          {mediaPreview.type === 'video' ? (
+            <video
+              src={mediaPreview.src}
+              controls
+              autoPlay
+              className="max-h-[86vh] max-w-[92vw] rounded-xl shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={mediaPreview.src}
+              alt={mediaPreview.name}
+              draggable={false}
+              className="max-h-[86vh] max-w-[92vw] rounded-xl object-contain shadow-2xl transition-transform duration-150"
+              style={{
+                transform: `scale(${mediaPreviewZoom})`,
+                cursor: mediaPreviewZoom > 1 ? 'zoom-out' : 'zoom-in',
+              }}
+              onClick={e => e.stopPropagation()}
+            />
+          )}
         </div>,
         document.body
       )}
@@ -3909,9 +4664,9 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
             right: rightPx,
             zIndex: 10001,
             width: 260,
-            background: '#1e1f23',
+            background: 'var(--popover)',
             borderRadius: 12,
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid var(--border)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
             overflow: 'hidden',
           }}
@@ -3919,10 +4674,10 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
         >
           {(() => {
             const close = () => setChatSettingsOpen(false);
-            const row = 'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 cursor-pointer';
+            const row = 'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60 cursor-pointer';
             const ic = 'h-5 w-5 shrink-0';
-            const label = (text: string) => <span style={{ fontSize: 14, color: '#e8e8ea', fontWeight: 500 }}>{text}</span>;
-            const sep = <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />;
+            const label = (text: string) => <span style={{ fontSize: 14, color: 'var(--popover-foreground)', fontWeight: 500 }}>{text}</span>;
+            const sep = <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />;
             return (
               <div className="py-1.5">
                 {/* Open in SupraSpace */}
@@ -3938,18 +4693,18 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   setPinnedOpen(true);
                   close();
                 }}>
-                  <Pin className={ic} style={{ color: 'rgba(255,255,255,0.5)' }} />
+                  <Pin className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('View pinned messages')}
                 </button>
 
-                {/* Members — only for group chats */}
+                {/* Members / invite — only for group chats */}
                 {conv.type === 'group' && (
                   <button className={row} onClick={() => {
-                    toast.info(`${conv.members.length} members in this group.`);
+                    setInviteOpen(true);
                     close();
                   }}>
-                    <Users className={ic} style={{ color: 'rgba(255,255,255,0.5)' }} />
-                    {label(`Members (${conv.members.length})`)}
+                    <Users className={ic} style={{ color: 'var(--muted-foreground)' }} />
+                    {label(`Members (${conv.members.length}) · Invite`)}
                   </button>
                 )}
 
@@ -3961,10 +4716,46 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
                   {label(notificationPref.muted ? 'Unmute notifications' : 'Mute notifications')}
                 </button>
 
+                {/* Mark as unread */}
+                <button className={row} onClick={() => {
+                  markConversationUnread(conv._id, true);
+                  close();
+                  onClose();
+                }}>
+                  <MailOpen className={ic} style={{ color: 'var(--muted-foreground)' }} />
+                  {label('Mark as unread')}
+                </button>
+
                 {/* Archive chat */}
-                <button className={row} onClick={() => { toast.info('Archive coming soon.'); close(); }}>
-                  <Archive className={ic} style={{ color: 'rgba(255,255,255,0.5)' }} />
+                <button className={row} onClick={() => {
+                  close();
+                  onClose();
+                  archiveConversation(conv._id, true)
+                    .then(() => toast.success('Conversation archived'))
+                    .catch(() => toast.error('Could not archive conversation'));
+                }}>
+                  <Archive className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('Archive chat')}
+                </button>
+
+                {sep}
+
+                {/* Delete / leave conversation */}
+                <button
+                  className={row}
+                  onClick={() => {
+                    if (!confirmDelete) { setConfirmDelete(true); return; }
+                    close();
+                    onClose();
+                    deleteConversation(conv._id)
+                      .then(({ permanent }) => toast.success(permanent ? 'Conversation deleted for everyone' : conv.type === 'group' ? 'You left the conversation' : 'Conversation removed'))
+                      .catch(() => toast.error('Could not delete conversation'));
+                  }}
+                >
+                  <Trash2 className={ic} style={{ color: confirmDelete ? '#f87171' : 'var(--muted-foreground)' }} />
+                  {confirmDelete
+                    ? <span style={{ fontSize: 14, color: '#f87171', fontWeight: 600 }}>Click again to confirm</span>
+                    : label(conv.type === 'group' ? 'Leave conversation' : 'Delete conversation')}
                 </button>
               </div>
             );
@@ -3979,11 +4770,13 @@ function ChatPopup({ conv, stackIndex, isMinimized, onClose, onToggleMinimize }:
 function ChatOverflowDock({
   hiddenConvs,
   crmUserId,
+  baseOffsetPx,
   onOpen,
   onClose,
 }: {
   hiddenConvs: SSConv[];
   crmUserId: string | null;
+  baseOffsetPx: number;
   onOpen: (convId: string) => void;
   onClose: (convId: string) => void;
 }) {
@@ -3991,7 +4784,7 @@ function ChatOverflowDock({
   const dockRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const hiddenCount = hiddenConvs.length;
-  const rightPx = POPUP_RIGHT + MAX_VISIBLE_POPUPS * (POPUP_W + POPUP_GAP);
+  const rightPx = baseOffsetPx + MAX_VISIBLE_POPUPS * (POPUP_W + POPUP_GAP);
   const dockRight = `min(${rightPx}px, calc(100vw - 56px))`;
 
   React.useEffect(() => {
@@ -4031,7 +4824,7 @@ function ChatOverflowDock({
               return (
                 <div
                   key={conv._id}
-                  className="group flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-white/5"
+                  className="group flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/60"
                 >
                   <button
                     type="button"
@@ -4085,6 +4878,63 @@ function ChatOverflowDock({
   );
 }
 
+// ─── Minimized chat heads — grouped into a compact bubble row (Facebook-style) ──
+const MINIMIZED_BUBBLE_W = 48;
+
+function MinimizedDock({
+  conversations,
+  crmUserId,
+  onExpand,
+  onClose,
+}: {
+  conversations: SSConv[];
+  crmUserId: string | null;
+  onExpand: (convId: string) => void;
+  onClose: (convId: string) => void;
+}) {
+  if (conversations.length === 0) return null;
+  return (
+    <div className="fixed bottom-0 z-50 flex items-end gap-2 px-2 pb-2" style={{ right: POPUP_RIGHT }}>
+      {conversations.map((conv) => {
+        const name = getDisplayName(conv, crmUserId);
+        const avatar = getAvatarSrc(conv, crmUserId);
+        const accent = conv.theme?.accent || '#5b7cf6';
+        const unread = conv.unreadCount || 0;
+        return (
+          <div key={conv._id} className="group relative shrink-0">
+            <button
+              type="button"
+              onClick={() => onExpand(conv._id)}
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105"
+              style={{ borderColor: 'var(--border)' }}
+              title={`Open ${name}`}
+            >
+              <Avatar className="h-10 w-10">
+                {avatar && <AvatarImage src={resolveImageUrl(avatar)} />}
+                <AvatarFallback className="text-[11px] font-semibold text-white" style={{ background: accent }}>{initials(name)}</AvatarFallback>
+              </Avatar>
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-extrabold leading-none text-white ring-2 ring-background">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClose(conv._id); }}
+              className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full text-white opacity-0 shadow transition-opacity group-hover:opacity-100"
+              style={{ background: 'var(--muted-foreground)' }}
+              title="Close chat"
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Manager ──────────────────────────────────────────────────────────────────
 export function ChatPopupManager() {
   const { conversations, openChats, minimizedChats, crmUserId, openChatPopup, closeChatPopup, toggleMinimize } = useSupraSpaceMessenger();
@@ -4102,16 +4952,26 @@ export function ChatPopupManager() {
   if (pathname === '/crm/supra-space') return null;
   if (isMobile) return null;
 
-  const visibleChatIds = openChats.slice(0, MAX_VISIBLE_POPUPS);
-  const hiddenChatIds = openChats.slice(MAX_VISIBLE_POPUPS);
-  const hiddenConvs = hiddenChatIds
+  // Minimized chats collapse into a compact bubble row (Facebook-style) instead of
+  // each keeping a full-width header bar — they stay mounted (socket/messages alive)
+  // but render nothing visible; only expanded chats occupy popup "slots".
+  const minimizedIds = openChats.filter((id) => minimizedChats.has(id));
+  const expandedIds = openChats.filter((id) => !minimizedChats.has(id));
+  const visibleExpandedIds = expandedIds.slice(0, MAX_VISIBLE_POPUPS);
+  const hiddenExpandedIds = expandedIds.slice(MAX_VISIBLE_POPUPS);
+  const hiddenConvs = hiddenExpandedIds
     .map((convId) => conversations.find((c) => c._id === convId))
     .filter((conv): conv is SSConv => Boolean(conv));
+  const minimizedConvs = minimizedIds
+    .map((convId) => conversations.find((c) => c._id === convId))
+    .filter((conv): conv is SSConv => Boolean(conv));
+  const dockOffsetPx = minimizedConvs.length > 0 ? minimizedConvs.length * MINIMIZED_BUBBLE_W : 0;
+  const baseOffsetPx = POPUP_RIGHT + dockOffsetPx;
 
   return (
     <>
       <style>{POPUP_RICH_EDIT_CSS}</style>
-      {visibleChatIds.map((convId, index) => {
+      {visibleExpandedIds.map((convId, index) => {
         const conv = conversations.find((c) => c._id === convId);
         if (!conv) return null;
         return (
@@ -4119,15 +4979,38 @@ export function ChatPopupManager() {
             key={convId}
             conv={conv}
             stackIndex={index}
-            isMinimized={minimizedChats.has(convId)}
+            baseOffsetPx={baseOffsetPx}
+            isMinimized={false}
             onClose={() => closeChatPopup(convId)}
             onToggleMinimize={() => toggleMinimize(convId)}
           />
         );
       })}
+      {minimizedIds.map((convId) => {
+        const conv = conversations.find((c) => c._id === convId);
+        if (!conv) return null;
+        return (
+          <ChatPopup
+            key={convId}
+            conv={conv}
+            stackIndex={0}
+            baseOffsetPx={baseOffsetPx}
+            isMinimized
+            onClose={() => closeChatPopup(convId)}
+            onToggleMinimize={() => toggleMinimize(convId)}
+          />
+        );
+      })}
+      <MinimizedDock
+        conversations={minimizedConvs}
+        crmUserId={crmUserId}
+        onExpand={(convId) => toggleMinimize(convId)}
+        onClose={(convId) => closeChatPopup(convId)}
+      />
       <ChatOverflowDock
         hiddenConvs={hiddenConvs}
         crmUserId={crmUserId}
+        baseOffsetPx={baseOffsetPx}
         onOpen={openChatPopup}
         onClose={closeChatPopup}
       />

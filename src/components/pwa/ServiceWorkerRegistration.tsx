@@ -1,18 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { useEffect } from "react";
 import { playShiftAlertSound } from "@/lib/notification-sound";
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
-const UPDATE_TOAST_ID = "sw-update-available";
-const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 export function ServiceWorkerRegistration() {
-    const waitingWorkerRef = useRef<ServiceWorker | null>(null);
-    const registrationRef = useRef<globalThis.ServiceWorkerRegistration | null>(null);
-
     useEffect(() => {
         if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
@@ -36,61 +29,12 @@ export function ServiceWorkerRegistration() {
         }
 
         let cancelled = false;
-        let refreshing = false;
-
-        const handleControllerChange = () => {
-            if (refreshing) return;
-            refreshing = true;
-            window.location.reload();
-        };
-
-        // sw.ts now registers with `skipWaiting: false`, so a freshly-installed
-        // update sits in `registration.waiting` instead of taking over
-        // instantly — this surfaces it as a dismissible toast instead of
-        // yanking the page out from under whatever the user is doing.
-        const applyUpdate = () => {
-            waitingWorkerRef.current?.postMessage({ type: "SKIP_WAITING" });
-        };
-
-        const announceUpdate = (worker: ServiceWorker) => {
-            waitingWorkerRef.current = worker;
-            toast("A new version is available.", {
-                id: UPDATE_TOAST_ID,
-                duration: Infinity,
-                icon: <RefreshCw className="h-4 w-4" />,
-                action: { label: "Refresh", onClick: applyUpdate },
-                cancel: { label: "Later", onClick: () => {} },
-            });
-        };
 
         const registerServiceWorker = async () => {
             try {
                 const registration = await navigator.serviceWorker.register("/sw.js", {
                     updateViaCache: "none",
                 });
-                registrationRef.current = registration;
-                void registration.update();
-
-                // An update may have finished installing in a previous tab/session
-                // and still be waiting.
-                if (registration.waiting && navigator.serviceWorker.controller) {
-                    announceUpdate(registration.waiting);
-                }
-
-                registration.addEventListener("updatefound", () => {
-                    const nextWorker = registration.installing;
-                    if (!nextWorker) return;
-
-                    nextWorker.addEventListener("statechange", () => {
-                        if (
-                            nextWorker.state === "installed" &&
-                            navigator.serviceWorker.controller
-                        ) {
-                            announceUpdate(nextWorker);
-                        }
-                    });
-                });
-
                 if (!cancelled) {
                     console.log("[SW] Registered:", registration.scope);
                 }
@@ -112,32 +56,12 @@ export function ServiceWorkerRegistration() {
             }
         };
 
-        // Browsers only byte-diff sw.js on navigation, so a tab left open for a
-        // long session would otherwise never notice a deployed update. Poll
-        // periodically and on tab-refocus so the toast can appear without a
-        // manual reload.
-        const checkForUpdate = () => {
-            registrationRef.current?.update().catch(() => {});
-        };
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === "visible") checkForUpdate();
-        };
-
-        navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
         navigator.serviceWorker.addEventListener("message", handleSwMessage);
-        document.addEventListener("visibilitychange", handleVisibilityChange);
         registerServiceWorker();
-        const intervalId = window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
 
         return () => {
             cancelled = true;
-            navigator.serviceWorker.removeEventListener(
-                "controllerchange",
-                handleControllerChange,
-            );
             navigator.serviceWorker.removeEventListener("message", handleSwMessage);
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-            window.clearInterval(intervalId);
         };
     }, []);
 
