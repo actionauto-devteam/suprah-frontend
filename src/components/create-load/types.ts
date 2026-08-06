@@ -80,6 +80,8 @@ export interface LoadVehicle {
   color?: string;
   condition: VehicleCondition;
   imageUrl?: string;
+  /** Inspect step — set once uploaded (edit mode) or after create-mode's post-submit upload */
+  inspectionPhotoUrl?: string;
 }
 
 // Required strings (empty defaults) — DatesSection binds inputs directly

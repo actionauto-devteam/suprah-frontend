@@ -3,8 +3,8 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { getLoadById, updateLoad } from "@/lib/api/loads"
+import { useQuery } from "@tanstack/react-query"
+import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,6 @@ import { fmtDateMDT, fmtTimeMDT } from "@/lib/timezone"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { EditLoadModal } from "@/components/EditLoadModal"
 import type { Load } from "@/types/load"
 
 function LoadDetailsSkeleton() {
@@ -359,9 +358,7 @@ export default function LoadDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id as string
-  const queryClient = useQueryClient()
   const [isPrinting, setIsPrinting] = React.useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
 
   const { data: load, isLoading, isError } = useQuery({
     queryKey: ["load", id],
@@ -369,36 +366,6 @@ export default function LoadDetailsPage() {
     enabled: !!id,
     refetchOnWindowFocus: false,
   })
-
-  const handleUpdateLoad = async (
-    loadId: string,
-    updatedLoad: Partial<Load>,
-  ): Promise<void> => {
-    try {
-      const savedLoad = await updateLoad(loadId, updatedLoad)
-
-      queryClient.setQueryData<Load>(["load", id], (current) => ({
-        ...(current ?? load!),
-        ...savedLoad,
-      }))
-
-      // Keep list and board screens synchronized when the user returns.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["loads"] }),
-        queryClient.invalidateQueries({ queryKey: ["load", id] }),
-      ])
-
-      toast.success("Load updated successfully.")
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Failed to update load."
-
-      toast.error(message)
-      throw error
-    }
-  }
 
   const handlePrintBol = () => {
     if (!load) return
@@ -496,7 +463,7 @@ export default function LoadDetailsPage() {
             variant="default"
             size="sm"
             className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial"
-            onClick={() => setIsEditModalOpen(true)}
+            onClick={() => router.push(`/transportation/load/${load._id}/edit`)}
           >
             Edit Load
           </Button>
@@ -781,11 +748,8 @@ export default function LoadDetailsPage() {
             </CardContent>
           </Card>
         )}
-        {/* Contract */}
-        <Card className={cn(
-          "md:col-span-1 border-border shadow-sm bg-card overflow-hidden p-0 h-full",
-          load.proofOfDelivery ? "lg:col-span-4" : "lg:col-span-6"
-        )}>
+        {/* Contract — dispatcher's own signature */}
+        <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
           <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <ScrollText className="size-3.5" /> Contract
@@ -800,7 +764,7 @@ export default function LoadDetailsPage() {
                   <span className="text-sm font-bold tracking-tight">Terms Agreed & Signed</span>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Signed by: <span className="text-foreground font-semibold">{load.contract.signatureName}</span>
+                  Signed by: <span className="text-foreground font-semibold">{load.contract.signerName}</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground/80 font-mono">
                   {formatDate(load.contract.signedAt || load.createdAt)}
@@ -814,19 +778,42 @@ export default function LoadDetailsPage() {
           </CardContent>
         </Card>
 
+        {/* Driver Agreement — the driver's own signature, signed at accept/request time */}
+        <Card className="md:col-span-1 lg:col-span-4 border-border shadow-sm bg-card overflow-hidden p-0 h-full">
+          <CardHeader className="p-4 border-b border-border/50 bg-muted/20">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <FileCheck className="size-3.5" /> Driver Agreement
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            {load.driverContract?.agreedToTerms ? (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full">
+                <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
+                  <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                  <span className="text-sm font-bold tracking-tight">Driver Signed</span>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium mb-1">
+                  Signed by: <span className="text-foreground font-semibold">{load.driverContract.signerName}</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground/80 font-mono">
+                  {formatDate(load.driverContract.signedAt)}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-4 min-h-24 bg-muted/50 rounded-lg border border-border/50 text-sm text-muted-foreground italic">
+                <AlertCircle className="size-4 shrink-0" /> Driver hasn't signed yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Load Journey */}
-        <div className={cn("md:col-span-1", load.proofOfDelivery ? "lg:col-span-4" : "lg:col-span-6")}> 
+        <div className="md:col-span-1 lg:col-span-4">
           <LoadTrackingTimeline load={load} />
         </div>
 
       </div>
-
-      <EditLoadModal
-        load={load}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={handleUpdateLoad}
-      />
     </div>
   )
 }

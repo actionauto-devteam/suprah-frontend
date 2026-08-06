@@ -60,6 +60,8 @@ interface DriverPickerSectionProps {
   /** "Make it Available Load": publish without a driver */
   makeAvailable: boolean
   onMakeAvailableChange: (value: boolean) => void
+  /** Lifts the selected driver's display info up for the Review step */
+  onSelectDriverInfo?: (driver: OrgDriver | null) => void
 }
 
 export function DriverPickerSection({
@@ -67,6 +69,7 @@ export function DriverPickerSection({
   onSelectDriver,
   makeAvailable,
   onMakeAvailableChange,
+  onSelectDriverInfo,
 }: DriverPickerSectionProps) {
   const [drivers, setDrivers] = React.useState<OrgDriver[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -96,7 +99,10 @@ export function DriverPickerSection({
 
   const handleMakeAvailable = (value: boolean) => {
     onMakeAvailableChange(value)
-    if (value) onSelectDriver(null)
+    if (value) {
+      onSelectDriver(null)
+      onSelectDriverInfo?.(null)
+    }
   }
 
   return (
@@ -208,9 +214,11 @@ export function DriverPickerSection({
                 <button
                   key={driver.id}
                   type="button"
-                  onClick={() =>
-                    onSelectDriver(isSelected ? null : driver.id)
-                  }
+                  onClick={() => {
+                    const next = isSelected ? null : driver.id
+                    onSelectDriver(next)
+                    onSelectDriverInfo?.(next ? driver : null)
+                  }}
                   aria-pressed={isSelected}
                   className={cn(
                     "w-full text-left rounded-xl border p-3 transition-colors",

@@ -20,6 +20,22 @@ import { useParams, useRouter } from 'next/navigation';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
+import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+
+// Real driver-tracking endpoints — accept/request/pickup/start-route/drop
+// all live under /loads/:id/*, not the flat /api/driver-tracking/{action}
+// shape this page used to call (that 404'd silently).
+const ACTION_ENDPOINTS: Record<string, string> = {
+  'accept-load': 'accept',
+  'mark-picked-up': 'pickup',
+  'start-route': 'start-route',
+  'drop-load': 'drop',
+  'request-load': 'request',
+};
+
+// Actions that require the driver to review and sign the transport contract
+// before they take effect.
+const SIGNATURE_ACTIONS = new Set(['accept-load', 'request-load']);
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
 const fmtDateTime = (d?: string) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver' }) : '';
@@ -53,6 +69,7 @@ export default function LoadDetailPage() {
   const [data, setData] = React.useState<Load | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [contractAction, setContractAction] = React.useState<string | null>(null);
   const [confirmState, setConfirmState] = React.useState<{
     isOpen: boolean;
     action: string;
@@ -90,7 +107,7 @@ export default function LoadDetailPage() {
 
   React.useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  const executeAction = async (action: string) => {
+  const executeAction = async (action: string, signature?: DriverSignedContract) => {
     if (!loadId) {
       toast.error(`Cannot ${action}: Load ID is missing from URL`);
       return;
@@ -98,25 +115,27 @@ export default function LoadDetailPage() {
     setActionLoading(action);
     try {
       const token = await getToken();
-      await apiClient.post(`/api/driver-tracking/${action}`, { loadId }, { headers: { Authorization: `Bearer ${token}` } });
+      const endpoint = ACTION_ENDPOINTS[action] ?? action;
+      await apiClient.post(`/api/driver-tracking/loads/${loadId}/${endpoint}`, signature ?? {}, { headers: { Authorization: `Bearer ${token}` } });
       toast.success(action === 'accept-load' ? 'Load accepted' : action === 'start-route' ? 'Route started' : action === 'drop-load' ? 'Load dropped' : action === 'request-load' ? 'Request submitted' : action === 'mark-picked-up' ? 'Load picked up' : 'Done');
       await fetchDetail();
       setConfirmState(prev => ({ ...prev, isOpen: false }));
+      setContractAction(null);
     } catch (err: any) { toast.error(extractErr(err, `Failed to ${action}`)); }
     finally { setActionLoading(null); }
   };
 
   const handleAction = (action: string) => {
+    if (SIGNATURE_ACTIONS.has(action)) {
+      setContractAction(action);
+      return;
+    }
+
     let title = '';
     let description = '';
     let variant: ConfirmationVariant = 'primary';
 
     switch (action) {
-      case 'accept-load':
-        title = 'Accept This Load?';
-        description = 'Are you sure you want to accept this load assignment? This will be added to your active schedule.';
-        variant = 'primary';
-        break;
       case 'mark-picked-up':
         title = 'Confirm Pickup?';
         description = 'Are you sure you have picked up all vehicles for this load? The current time will be recorded as the pickup time.';
@@ -131,11 +150,6 @@ export default function LoadDetailPage() {
         title = 'Drop This Load?';
         description = 'Warning: You are about to drop this load. This action should only be taken if you cannot complete the delivery.';
         variant = 'danger';
-        break;
-      case 'request-load':
-        title = 'Submit Load Request?';
-        description = 'You are requesting to be assigned to this load. The dispatcher will review your request shortly.';
-        variant = 'primary';
         break;
       default:
         executeAction(action);
@@ -172,17 +186,17 @@ export default function LoadDetailPage() {
   const vehicles = data.vehicles || [];
   const primaryVehicle = vehicles[0];
   const vehicleName = primaryVehicle ? `${primaryVehicle.year || ''} ${primaryVehicle.make || ''} ${primaryVehicle.model || ''}`.trim() : "Unknown Vehicle";
-  
+
   const isAssigned = !!data.assignedAt;
   const isAccepted = !!data.driverAcceptedAt;
   const isMyRequest = !!data.myRequestStatus;
-  
+
   const canAccept = status === 'Assigned' && !isAccepted;
   const canMarkPickedUp = status === 'Accepted';
   const canStartRoute = status === 'Picked Up';
   const canDrop = isAccepted && (status === 'Accepted' || status === 'Picked Up' || status === 'In-Transit');
   const canRequest = !isAssigned && !isMyRequest && (status === 'Posted');
-  
+
   const getStepIdx = () => {
     if (status === 'Delivered') return 4;
     if (status === 'In-Transit') return 3;
@@ -230,7 +244,7 @@ export default function LoadDetailPage() {
               <div className="flex items-center gap-0 w-full mt-5 overflow-x-auto pb-2 scrollbar-hide">
                 {STEPS.map((step, i) => (
                   <React.Fragment key={step.key}>
-                    <div className="flex flex-col items-center gap-0.5 min-w-[70px] shrink-0">
+                    <div className="flex flex-col items-center gap-0.5 min-w-17.5 shrink-0">
                       <div className={cn('size-6 rounded-full flex items-center justify-center border-2 transition-colors',
                         i <= stepIdx ? (i === stepIdx ? 'bg-emerald-400 border-emerald-400 text-slate-950' : 'bg-emerald-400/20 border-emerald-400 text-emerald-300')
                           : 'bg-white/5 border-white/15 text-white/20')}>
@@ -238,7 +252,7 @@ export default function LoadDetailPage() {
                       </div>
                       <span className={cn('text-[10px] font-semibold whitespace-nowrap', i <= stepIdx ? 'text-emerald-400' : 'text-white/20')}>{step.label}</span>
                     </div>
-                    {i < STEPS.length - 1 && <div className={cn('flex-1 h-0.5 -mt-2.5 mx-1 rounded-full min-w-[20px]', i < stepIdx ? 'bg-emerald-400' : 'bg-white/10')} />}
+                    {i < STEPS.length - 1 && <div className={cn('flex-1 h-0.5 -mt-2.5 mx-1 rounded-full min-w-5', i < stepIdx ? 'bg-emerald-400' : 'bg-white/10')} />}
                   </React.Fragment>
                 ))}
               </div>
@@ -335,6 +349,29 @@ export default function LoadDetailPage() {
             </CardContent>
           </Card>
 
+          {isAccepted && (
+            <Card className="border-border/20 rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-border/10">
+                <div className="flex items-center gap-2"><FileText className="size-4 text-emerald-500" /><h3 className="text-sm font-black uppercase tracking-wider">Contract</h3></div>
+              </div>
+              <CardContent className="p-4">
+                {data.driverContract?.agreedToTerms ? (
+                  <div className="flex items-center gap-2 text-emerald-600">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold">Contract Signed</p>
+                      {data.driverContract.signedAt && (
+                        <p className="text-[10px] text-muted-foreground">{fmtDateTime(data.driverContract.signedAt)}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Not signed yet</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {data.pickupLocation?.contactName && (
             <Card className="border-border/20 rounded-2xl overflow-hidden">
               <div className="p-4 border-b border-border/10">
@@ -396,6 +433,19 @@ export default function LoadDetailPage() {
         description={confirmState.description}
         variant={confirmState.variant}
         isLoading={!!actionLoading}
+      />
+      <DriverContractModal
+        isOpen={!!contractAction}
+        onClose={() => setContractAction(null)}
+        onConfirm={(contract) => executeAction(contractAction!, contract)}
+        isSubmitting={!!actionLoading}
+        title={contractAction === 'request-load' ? 'Request This Load' : 'Accept This Load'}
+        description={
+          contractAction === 'request-load'
+            ? 'Review and sign the transport contract to request this load from the dispatcher.'
+            : 'Review and sign the transport contract to accept this load assignment.'
+        }
+        confirmLabel={contractAction === 'request-load' ? 'Request & Sign' : 'Accept & Sign'}
       />
     </div>
   );

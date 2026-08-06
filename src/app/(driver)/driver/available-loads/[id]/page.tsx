@@ -7,11 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
     Truck, ArrowLeft, ArrowRight, CheckCircle2, Clock, Loader2, MapPin,
-    DollarSign, Navigation, Phone, Mail, User2, AlertTriangle,
+    DollarSign, Navigation, Phone, Mail, User2,
     Calendar, Package, Car, Shield, Copy, FileText, ChevronRight,
     Timer, XCircle, Zap, Route, ExternalLink,
 } from 'lucide-react';
@@ -22,6 +19,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { useTheme } from '@/context/ThemeContext';
+import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
 
 const FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -131,12 +129,12 @@ export default function AvailableLoadDetailPage() {
         return () => { cancelled = true; mapInst.current?.remove(); mapInst.current = null; };
     }, [data, mapboxToken, theme]);
 
-    const handleRequest = async () => {
+    const handleRequest = async (contract: DriverSignedContract) => {
         setRequesting(true);
         try {
             const token = await getToken();
-            await apiClient.post('/api/driver-tracking/request-load',
-            { loadId: data._id },
+            await apiClient.post(`/api/driver-tracking/loads/${data._id}/request`,
+            contract,
             { headers: { Authorization: `Bearer ${token}` } });
             toast.success('Load request submitted — pending dispatcher approval');
             setShowConfirm(false);
@@ -383,32 +381,15 @@ export default function AvailableLoadDetailPage() {
                 )}
             </motion.div>
 
-            <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2"><Truck className="size-5 text-primary" />Confirm Request</DialogTitle>
-                        <DialogDescription>Request assignment for this load from the dispatcher.</DialogDescription>
-                    </DialogHeader>
-                    <div className="rounded-xl border p-3 space-y-2 bg-muted/20">
-                        <div className="flex items-center justify-between">
-                            <Badge variant="outline" className="text-[10px] font-bold">{data.trackingNumber || loadId.slice(-8)}</Badge>
-                            {pay > 0 && <span className="text-sm font-black text-emerald-600">${pay.toLocaleString()}</span>}
-                        </div>
-                        <p className="text-sm font-semibold">{data.origin} → {data.destination}</p>
-                        {vehicleName && <p className="text-xs text-muted-foreground">{vehicleName}</p>}
-                    </div>
-                    <div className="flex items-start gap-2 rounded-xl bg-amber-500/5 border border-amber-500/15 p-3">
-                        <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                        <p className="text-xs text-amber-700 dark:text-amber-400">Requesting a load does not guarantee assignment. Your compliance and equipment profile will be verified.</p>
-                    </div>
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={() => setShowConfirm(false)} disabled={requesting}>Cancel</Button>
-                        <Button onClick={handleRequest} disabled={requesting} className="gap-1.5">
-                            {requesting ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />}{requesting ? 'Requesting...' : 'Request Assignment'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <DriverContractModal
+                isOpen={showConfirm}
+                onClose={() => setShowConfirm(false)}
+                onConfirm={handleRequest}
+                isSubmitting={requesting}
+                title="Request This Load"
+                description="Requesting a load does not guarantee assignment — your compliance and equipment profile will be verified. Review and sign the transport contract to submit your request."
+                confirmLabel="Request & Sign"
+            />
         </div>
     );
 }

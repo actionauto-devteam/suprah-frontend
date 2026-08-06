@@ -52,6 +52,17 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
+import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+
+// Real driver-tracking endpoint — accept/pickup/start-route/drop all live
+// under /loads/:id/*, not the flat /api/driver-tracking/{action} shape this
+// page used to call (that 404'd silently).
+const ACTION_ENDPOINTS: Record<string, string> = {
+  'accept-load': 'accept',
+  'mark-picked-up': 'pickup',
+  'start-route': 'start-route',
+  'drop-load': 'drop',
+};
 
 const STATUS_THEME: Record<LoadStatus, string> = {
   Draft: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
@@ -99,6 +110,7 @@ export default function DriverLoadsPage() {
 
   // Action States
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [contractState, setContractState] = React.useState<{ action: string; loadId: string } | null>(null);
   const [confirmState, setConfirmState] = React.useState<{
     isOpen: boolean;
     action: string;
@@ -193,7 +205,7 @@ export default function DriverLoadsPage() {
     await fetchLoads(page + 1, true);
   };
 
-  const executeAction = async (action: string, id: string) => {
+  const executeAction = async (action: string, id: string, signature?: DriverSignedContract) => {
     if (!id) {
       toast.error(`Cannot ${action}: Load ID is missing`);
       return;
@@ -201,7 +213,8 @@ export default function DriverLoadsPage() {
     setActionLoading(id);
     try {
       const token = await getToken();
-      await apiClient.post(`/api/driver-tracking/${action}`, { loadId: id }, { headers: { Authorization: `Bearer ${token}` } });
+      const endpoint = ACTION_ENDPOINTS[action] ?? action;
+      await apiClient.post(`/api/driver-tracking/loads/${id}/${endpoint}`, signature ?? {}, { headers: { Authorization: `Bearer ${token}` } });
       toast.success(
         action === 'accept-load' ? 'Load accepted' :
           action === 'start-route' ? 'Route started' :
@@ -211,6 +224,7 @@ export default function DriverLoadsPage() {
       );
       await fetchLoads();
       setConfirmState(prev => ({ ...prev, isOpen: false }));
+      setContractState(null);
     } catch (err: any) {
       toast.error(extractErr(err, `Failed to ${action}`));
     } finally {
@@ -226,12 +240,12 @@ export default function DriverLoadsPage() {
     // Safety check: loadOrId might be a string (the ID) or the full Load object
     const actualLoadId = typeof loadOrId === 'string' ? loadOrId : loadOrId._id;
 
+    if (action === 'accept-load') {
+      setContractState({ action, loadId: actualLoadId });
+      return;
+    }
+
     switch (action) {
-      case 'accept-load':
-        title = 'Accept This Load?';
-        description = 'Are you sure you want to accept this load assignment? This will be added to your active schedule.';
-        variant = 'primary';
-        break;
       case 'mark-picked-up':
         title = 'Confirm Pickup?';
         description = 'Are you sure you have picked up all vehicles for this load? The current time will be recorded as the pickup time.';
@@ -514,6 +528,16 @@ export default function DriverLoadsPage() {
         isLoading={!!actionLoading}
       />
 
+      <DriverContractModal
+        isOpen={!!contractState}
+        onClose={() => setContractState(null)}
+        onConfirm={(contract) => executeAction(contractState!.action, contractState!.loadId, contract)}
+        isSubmitting={!!actionLoading && actionLoading === contractState?.loadId}
+        title="Accept This Load"
+        description="Review and sign the transport contract to accept this load assignment."
+        confirmLabel="Accept & Sign"
+      />
+
       <SubmitProofModal
         load={proofTarget}
         getToken={getToken}
@@ -772,7 +796,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               <div className="rounded-xl border border-border/20 bg-muted/20 p-3 space-y-3">
                 {load.additionalInfo?.notes && <DetailBlock label="Dispatch Notes" text={load.additionalInfo.notes} />}
                 {load.additionalInfo?.instructions && <DetailBlock label="Special Instructions" text={load.additionalInfo.instructions} />}
-                {load.contract?.signatureName && <DetailBlock label="Signed By" text={load.contract.signatureName} />}
+                {load.contract?.signerName && <DetailBlock label="Signed By" text={load.contract.signerName} />}
+                {load.driverContract?.agreedToTerms && <DetailBlock label="Driver Contract" text={`Signed by ${load.driverContract.signerName || "driver"}`} />}
                 {load.pickupLocation?.contactName && <ContactBlock label="Pick-Up Contact" contact={load.pickupLocation} />}
                 {load.deliveryLocation?.contactName && <ContactBlock label="Delivery Contact" contact={load.deliveryLocation} />}
                 {load.pricing?.carrierPayAmount != null && load.pricing.carrierPayAmount > 0 && (

@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button"
 import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
 import { generateLoadPDF } from "@/utils/pdfGenerator"
-import { EditLoadModal } from "@/components/EditLoadModal"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
 
@@ -144,7 +143,6 @@ function StatTile({
 
 export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps) {
   const router = useRouter()
-  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isExporting, setIsExporting] = React.useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
   const [imageFailed, setImageFailed] = React.useState(false)
@@ -183,7 +181,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
-    setIsEditModalOpen(true)
+    router.push(`/transportation/load/${load._id}/edit`)
   }
 
   const handleCardClick = () => {
@@ -208,7 +206,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
         <CardContent className="p-0">
           <div className="flex flex-col md:flex-row md:min-h-72 lg:min-h-80">
             {/* Hero Image / Placeholder Panel — wider, taller */}
-            <div className="relative w-full md:w-80 lg:w-96 xl:w-[26rem] h-56 md:h-auto overflow-hidden shrink-0 bg-muted/30">
+            <div className="relative w-full md:w-80 lg:w-96 xl:w-104 h-56 md:h-auto overflow-hidden shrink-0 bg-muted/30">
               {heroImage ? (
                 <img
                   src={heroImage}
@@ -224,7 +222,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
               ) : (
                 /* Honest placeholder: schematic panel instead of a random stock car */
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2.5 bg-linear-to-br from-emerald-950/40 via-card to-cyan-950/30 dark:from-emerald-950/60 dark:to-cyan-950/40">
-                  <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-[size:24px_24px]" />
+                  <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-size-[24px_24px]" />
                   <div className="size-14 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 flex items-center justify-center">
                     <Car className="size-7 text-emerald-500/70" />
                   </div>
@@ -284,7 +282,7 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
                     <div className="flex items-center gap-1 rounded-xl border border-border/50 bg-background/40 backdrop-blur-sm p-1">
                       {/* Edit only renders when an onUpdate handler exists —
                           previously this button appeared on the Board tab too,
-                          where no EditLoadModal mounts, so it did nothing */}
+                          where editing isn't wired up, so it did nothing */}
                       {onUpdate && (
                         <Button
                           variant="ghost"
@@ -478,15 +476,6 @@ export function LoadCard({ load, onDelete, onUpdate, isDeleting }: LoadCardProps
           </div>
         </CardContent>
       </Card>
-
-      {onUpdate && (
-        <EditLoadModal
-          load={load}
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={onUpdate}
-        />
-      )}
 
       <ConfirmationModal
         isOpen={isDeleteDialogOpen}

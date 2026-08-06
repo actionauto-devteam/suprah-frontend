@@ -259,7 +259,7 @@ export function generateBolHtml(load: Load): string {
       : "",
   ].filter(Boolean).join("")
 
-  const contractName = load.contract?.signatureName?.trim()
+  const contractName = load.contract?.signerName?.trim()
   const contractMeta = load.contract?.agreedToTerms
     ? `Signed${contractName ? ` by ${escapeHtml(contractName)}` : ""}${load.contract?.signedAt ? ` on ${escapeHtml(fmtDate(load.contract.signedAt))}` : ""}`
     : "No signed contract recorded"
