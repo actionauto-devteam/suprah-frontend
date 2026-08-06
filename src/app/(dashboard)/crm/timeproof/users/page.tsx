@@ -41,6 +41,7 @@ interface UserTimeproof {
     avatar?: string
     role: string
     department?: string
+    payrollLocation?: "Utah" | "Philippines"
   }
   today: HoursSummary
   thisWeek: HoursSummary
@@ -74,6 +75,7 @@ interface MergedUser {
   avatar?: string
   role: string
   department?: string
+  payrollLocation?: "Utah" | "Philippines"
   today: HoursSummary
   thisWeek: HoursSummary
   isLive: boolean
@@ -271,6 +273,16 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
       {/* Status row */}
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge user={user} />
+        {user.payrollLocation && (
+          <span className={cn(
+            "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md border",
+            user.payrollLocation === "Utah"
+              ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
+              : "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20"
+          )}>
+            {user.payrollLocation}
+          </span>
+        )}
         {user.platform && user.isOnline && (
           <span className="inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
             {user.platform === "darwin"
@@ -325,6 +337,7 @@ export default function AdminShiftBoardPage() {
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null)
   const [selectedDept, setSelectedDept] = React.useState<string>("all")
   const [searchQuery, setSearchQuery] = React.useState<string>("")
+  const [teamTab, setTeamTab] = React.useState<"all" | "Utah" | "Philippines">("all")
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")
@@ -357,6 +370,7 @@ export default function AdminShiftBoardPage() {
           avatar: u.user.avatar,
           role: u.user.role,
           department: u.user.department,
+          payrollLocation: u.user.payrollLocation,
           today: u.today,
           thisWeek: u.thisWeek,
           isLive: u.isLive,
@@ -451,18 +465,28 @@ export default function AdminShiftBoardPage() {
       ? users.filter((u) => u.fullName.toLowerCase().includes(query))
       : users
 
-    if (selectedDept === "all") return bySearch
+    const byTeam = teamTab === "all" ? bySearch : bySearch.filter((u) => u.payrollLocation === teamTab)
+
+    if (selectedDept === "all") return byTeam
     if (selectedDept.startsWith("role:")) {
       const role = selectedDept.slice(5)
-      return bySearch.filter((u) => u.role === role)
+      return byTeam.filter((u) => u.role === role)
     }
     if (selectedDept.startsWith("dept:")) {
       const dept = selectedDept.slice(5)
       const key = DEPARTMENT_KEY_BY_LABEL[dept]
-      return bySearch.filter((u) => u.department === dept || (key && u.department === key))
+      return byTeam.filter((u) => u.department === dept || (key && u.department === key))
     }
-    return bySearch
-  }, [users, selectedDept, searchQuery])
+    return byTeam
+  }, [users, selectedDept, searchQuery, teamTab])
+
+  // Team-level total rendered hours for whatever tab/filters are currently visible
+  const teamTotalSeconds = React.useMemo(
+    () => filteredUsers.reduce((sum, u) => sum + (u.today?.totalSeconds || 0), 0),
+    [filteredUsers]
+  )
+  const teamTotalHours = Math.floor(teamTotalSeconds / 3600)
+  const teamTotalMinutes = Math.floor((teamTotalSeconds % 3600) / 60)
 
   // Online = anyone on shift (any state) OR with an active tray/CRM connection
   const onlineCount = filteredUsers.filter((u) => u.isLive || u.isOnline).length
@@ -517,6 +541,28 @@ export default function AdminShiftBoardPage() {
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             </div>
+          </div>
+
+          {/* Row 1.5: Utah / Philippines / All team tabs */}
+          <div className="flex items-center gap-1 pb-3">
+            {([
+              { key: "all", label: "All Teams" },
+              { key: "Utah", label: "Utah" },
+              { key: "Philippines", label: "Philippines" },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTeamTab(t.key)}
+                className={cn(
+                  "h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors",
+                  teamTab === t.key
+                    ? "bg-emerald-600 text-white"
+                    : "text-muted-foreground hover:bg-muted/40"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {/* Row 2: search / filters / nav — wraps freely instead of overflowing */}
@@ -583,6 +629,19 @@ export default function AdminShiftBoardPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-5 space-y-5">
+
+        {/* ── Team total rendered hours (today, for the currently visible team/filters) ── */}
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-5 py-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider">
+              {teamTab === "all" ? "All Teams" : teamTab} — Rendered Hours Today
+            </p>
+            <p className="text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-400 leading-tight mt-0.5">
+              {teamTotalHours}h {teamTotalMinutes}m
+            </p>
+          </div>
+          <p className="text-[11px] text-muted-foreground font-semibold">{filteredUsers.length} employee{filteredUsers.length === 1 ? "" : "s"}</p>
+        </div>
 
         {/* ── Summary chips ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

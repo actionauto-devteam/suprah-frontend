@@ -3121,7 +3121,12 @@ function Bubble({
     if (!bubbleRef.current) return;
     const rect = bubbleRef.current.getBoundingClientRect();
     const isMobileMode = mode === 'mobile';
-    const BAR_W = isMobileMode ? 262 : 175;
+    // Both modes render the same 6 emoji + divider + reply + more-reactions + more-actions
+    // buttons (~262px) — desktop's old 175px guess undershot the real width by ~90px, so the
+    // edge-clamping below (which is otherwise correct) was clamping to a bar narrower than
+    // what actually renders, letting the real bar's right edge overflow past the viewport
+    // for messages near the edge. Mobile already used the accurate value; match it here.
+    const BAR_W = 262;
     const PAD = 8;
     const chatBoundary = bubbleRowRef.current
       ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
@@ -3158,6 +3163,7 @@ function Bubble({
     if (columnRef.current) {
       columnRef.current.style.transform = '';
       columnRef.current.style.transition = 'transform 180ms cubic-bezier(.2,.8,.2,1)';
+      columnRef.current.style.willChange = 'auto';
     }
     if (swipeCueRef.current) {
       swipeCueRef.current.style.opacity = '0';
@@ -3220,7 +3226,13 @@ function Bubble({
       active: true,
       direction: isOwn ? -1 : 1,
     };
-    if (columnRef.current) columnRef.current.style.transition = 'none';
+    if (columnRef.current) {
+      // will-change only while an actual swipe might happen — leaving it on permanently
+      // (as a static class) forces every message onto its own compositor layer at all
+      // times, which is what was making message text render slightly blurry at rest.
+      columnRef.current.style.willChange = 'transform';
+      columnRef.current.style.transition = 'none';
+    }
     longPressTimer.current = setTimeout(() => {
       if (touchMovedRef.current || !swipeStartRef.current?.active) return;
       openMobileActions();
@@ -3352,7 +3364,7 @@ function Bubble({
 
       <div
         ref={columnRef}
-        className={cn('ss4-msg-column flex flex-col gap-1 will-change-transform', isOwn && 'items-end')}
+        className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}
         style={{
           transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
         }}

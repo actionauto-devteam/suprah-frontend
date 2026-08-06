@@ -25,6 +25,7 @@ import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-c
 import { initializeSocket, getSocket } from '@/lib/socket.client';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import Link from 'next/link';
+import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
 
 const FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -79,6 +80,7 @@ export default function AvailableLoadsPage() {
   const [maxLoadCapacity, setMaxLoadCapacity] = React.useState(12);
   const [sortBy, setSortBy] = React.useState<SortMode>('newest');
   const [requestTarget, setRequestTarget] = React.useState<AvailableLoad | null>(null);
+  const [showContractModal, setShowContractModal] = React.useState(false);
   const [requesting, setRequesting] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -174,15 +176,16 @@ export default function AvailableLoadsPage() {
 
   const handleRefresh = () => { setRefreshing(true); fetchLoads(1, false); };
 
-  const handleRequest = async () => {
+  const handleRequest = async (contract: DriverSignedContract) => {
     if (!requestTarget) return;
     setRequesting(true);
     try {
       const token = await getToken();
-      await apiClient.post('/api/driver-tracking/request-load',
-        { loadId: requestTarget._id },
+      await apiClient.post(`/api/driver-tracking/loads/${requestTarget._id}/request`,
+        contract,
         { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Load request submitted — pending dispatcher approval');
+      setShowContractModal(false);
       setRequestTarget(null);
       fetchLoads();
     } catch (err: any) { toast.error(extractErr(err, 'Failed to request load')); }
@@ -399,12 +402,22 @@ export default function AvailableLoadsPage() {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setRequestTarget(null)} disabled={requesting}>Cancel</Button>
-            <Button onClick={handleRequest} disabled={requesting || atCapacity} className="gap-1.5">
-              {requesting ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />}{requesting ? 'Requesting...' : atCapacity ? 'At Capacity' : 'Request Assignment'}
+            <Button onClick={() => setShowContractModal(true)} disabled={requesting || atCapacity} className="gap-1.5">
+              {requesting ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />}{requesting ? 'Requesting...' : atCapacity ? 'At Capacity' : 'Continue to Sign'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DriverContractModal
+        isOpen={showContractModal}
+        onClose={() => setShowContractModal(false)}
+        onConfirm={handleRequest}
+        isSubmitting={requesting}
+        title="Request This Load"
+        description="Review and sign the transport contract to submit your request."
+        confirmLabel="Request & Sign"
+      />
     </div>
   );
 }

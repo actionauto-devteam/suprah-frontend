@@ -34,6 +34,8 @@ export interface LoadVehicleItem {
   licenseState?: string;
   carrierNotes?: string;
   imageUrl?: string;
+  /** Inspect step — per-vehicle condition photo, or a photo of a QR/tag */
+  inspectionPhotoUrl?: string;
 }
 
 export interface LoadPricing {
@@ -84,7 +86,15 @@ export interface Load {
   };
   contract?: {
     agreedToTerms: boolean;
-    signatureName?: string;
+    signerName?: string;
+    signatureDataUrl?: string | null;
+    signedAt?: string;
+  };
+  /** Driver's own signature — separate from the dispatcher's `contract` above */
+  driverContract?: {
+    agreedToTerms: boolean;
+    signerName?: string;
+    signatureDataUrl?: string | null;
     signedAt?: string;
   };
   assignedDriverId?: string | {

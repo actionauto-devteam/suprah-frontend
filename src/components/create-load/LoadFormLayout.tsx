@@ -3,13 +3,22 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Loader2, Truck, Megaphone, ArrowLeft, ArrowRight } from "lucide-react"
+import { Loader2, Truck, Megaphone, ArrowLeft, ArrowRight, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createLoad, assignDriverToLoad, calculateLoadRate, RateResult } from "@/lib/api/loads"
+import {
+  createLoad,
+  assignDriverToLoad,
+  calculateLoadRate,
+  RateResult,
+  updateLoad,
+  uploadVehicleInspectionPhoto,
+} from "@/lib/api/loads"
 import { apiClient } from "@/lib/api-client"
+import type { Load } from "@/types/load"
 import {
   PostType,
   LocationBlock,
+  LocationType,
   LoadVehicle,
   LoadDates,
   LoadAdditionalInfo,
@@ -27,23 +36,30 @@ import { VehicleSection } from "./VehicleSection"
 import { DatesSection } from "./DatesSection"
 import { AdditionalInfoSection } from "./AdditionalInfoSection"
 import { ContractSection } from "./ContractSection"
-import { DriverPickerSection } from "./DriverPickerSection"
+import { DriverPickerSection, OrgDriver } from "./DriverPickerSection"
+import { InspectionSection } from "./InspectionSection"
+import { ReviewSection } from "./ReviewSection"
 import { cn } from "@/lib/utils"
 
-// ─── Create Load: form orchestrator ──────────────────────────────────────────
-// Owns all form state and the submit flow for BOTH workflows:
+// ─── Create / Edit Load: form orchestrator ───────────────────────────────────
+// Owns all form state and the submit flow for BOTH workflows AND both modes:
 //
-//   load-board     → create the load; it's Posted and publicly visible
-//   assign-carrier → create the load, then either
-//        · assign the selected driver (status → Assigned), or
-//        · "Make it Available Load": skip assignment entirely — the load
-//          stays Posted + unassigned, which IS the Available Loads pool.
-//          Drivers request it from their account; the dispatcher approves
-//          from the Transportation page, and the load moves into the
-//          driver's active loads with every module synced via load:change.
+//   mode="create", postType="load-board"     → create the load; Posted + public
+//   mode="create", postType="assign-carrier" → create, then assign or publish
+//                                               as an Available Load
+//   mode="edit"                              → same steps, pre-filled from
+//                                               initialLoad, PUT instead of
+//                                               POST. Driver assignment is
+//                                               read-only here — reassignment
+//                                               has its own dedicated flow
+//                                               (driver-tracker page) with
+//                                               notification side effects
+//                                               this form doesn't replicate.
 
 interface LoadFormLayoutProps {
   postType: PostType
+  mode?: "create" | "edit"
+  initialLoad?: Load
 }
 
 type StepKey =
@@ -52,16 +68,105 @@ type StepKey =
   | "schedule"
   | "pricing"
   | "assignment"
+  | "inspect"
   | "contract"
+  | "review"
 
-export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
+// ── Edit mode: map the fetched Load back into wizard form state ──
+// Inverse of the payload createLoad() builds in lib/api/loads.ts. Backend
+// location docs use `address`/`name`; some older frontend typings reference
+// `street`/`companyName` — read both defensively so a real API response
+// (which only ever has address/name) always wins.
+function toDateInputValue(iso?: string): string {
+  return iso ? String(iso).slice(0, 10) : ""
+}
+
+function mapLocationFromLoad(loc: any): LocationBlock {
+  if (!loc) return emptyLocation()
+  return {
+    name: loc.name ?? loc.companyName ?? "",
+    address: loc.address ?? loc.street ?? "",
+    city: loc.city ?? "",
+    state: loc.state ?? "",
+    zip: loc.zip ?? "",
+    country: loc.country ?? "",
+    phone: loc.phone ?? "",
+    phoneExt: loc.phoneExt ?? "",
+    email: loc.email ?? "",
+    contactName: loc.contactName ?? "",
+    locationType: (loc.locationType as LocationType) ?? "",
+    notes: loc.notes ?? "",
+  }
+}
+
+function mapVehiclesFromLoad(vehicles?: any[]): LoadVehicle[] {
+  if (!vehicles || !vehicles.length) return [emptyVehicle()]
+  return vehicles.map((v) => ({
+    ...emptyVehicle(),
+    vehicleId: v.vehicleId ?? undefined,
+    vin: v.vin ?? "",
+    year: v.year ?? "",
+    make: v.make ?? "",
+    model: v.model ?? "",
+    color: v.color ?? "",
+    condition: v.condition === "Inoperable" ? "Inoperable" : "Operable",
+    inspectionPhotoUrl: v.inspectionPhotoUrl ?? undefined,
+  }))
+}
+
+function mapDatesFromLoad(dates?: any): LoadDates {
+  if (!dates) return emptyDates()
+  return {
+    firstAvailable: toDateInputValue(dates.firstAvailable),
+    pickupDeadline: toDateInputValue(dates.pickupDeadline),
+    deliveryDeadline: toDateInputValue(dates.deliveryDeadline),
+    notes: dates.notes ?? "",
+  }
+}
+
+function mapAdditionalInfoFromLoad(info?: any): LoadAdditionalInfo {
+  const base = emptyAdditionalInfo()
+  if (!info) return base
+  return {
+    visibility: info.visibility === "private" ? "private" : "public",
+    notes: info.notes ?? "",
+    instructions: info.instructions ?? "",
+    referenceNumber: info.referenceNumber ?? "",
+  }
+}
+
+function mapPricingFromLoad(pricing?: any): LoadPricingInput {
+  if (!pricing) return {}
+  return {
+    pricePerMile: pricing.pricePerMile ?? undefined,
+    carrierPayAmount: pricing.carrierPayAmount ?? undefined,
+    copCodAmount: pricing.copCodAmount ?? undefined,
+  }
+}
+
+function mapContractFromLoad(contract?: any): LoadContract {
+  return {
+    agreedToTerms: contract?.agreedToTerms ?? false,
+    signatureDataUrl: contract?.signatureDataUrl ?? null,
+    signerName: contract?.signerName ?? "",
+  }
+}
+
+export function LoadFormLayout({
+  postType,
+  mode = "create",
+  initialLoad,
+}: LoadFormLayoutProps) {
   const router = useRouter()
+  const isEdit = mode === "edit" && !!initialLoad
 
   // Signer-name default from the centralized user record. (The rewritten
   // AuthProvider exposes getToken/isLoaded/isSignedIn — not a user object —
-  // so we read /api/users/me directly.)
+  // so we read /api/users/me directly.) Skipped in edit mode — the contract
+  // step already seeds from initialLoad.contract.
   const [signerName, setSignerName] = React.useState("")
   React.useEffect(() => {
+    if (isEdit) return
     let cancelled = false
     apiClient
       .get("/api/users/me")
@@ -73,30 +178,60 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isEdit])
 
   // ── Form state ──
-  const [pickup, setPickup] = React.useState<LocationBlock>(emptyLocation)
-  const [delivery, setDelivery] = React.useState<LocationBlock>(emptyLocation)
-  const [vehicles, setVehicles] = React.useState<LoadVehicle[]>([
-    emptyVehicle(),
-  ])
-  const [trailerType, setTrailerType] = React.useState<string>("open_2car")
-  const [dates, setDates] = React.useState<LoadDates>(emptyDates)
-  const [additionalInfo, setAdditionalInfo] =
-    React.useState<LoadAdditionalInfo>(emptyAdditionalInfo)
-  const [pricing, setPricing] = React.useState<LoadPricingInput>({})
-  const [contract, setContract] = React.useState<LoadContract>({
-    agreedToTerms: false,
-    signatureDataUrl: null,
-    signerName: "",
-  })
+  const [pickup, setPickup] = React.useState<LocationBlock>(() =>
+    isEdit ? mapLocationFromLoad(initialLoad!.pickupLocation) : emptyLocation(),
+  )
+  const [delivery, setDelivery] = React.useState<LocationBlock>(() =>
+    isEdit ? mapLocationFromLoad(initialLoad!.deliveryLocation) : emptyLocation(),
+  )
+  const [vehicles, setVehicles] = React.useState<LoadVehicle[]>(() =>
+    isEdit ? mapVehiclesFromLoad(initialLoad!.vehicles) : [emptyVehicle()],
+  )
+  const [trailerType, setTrailerType] = React.useState<string>(
+    () => (isEdit ? initialLoad!.trailerType : undefined) || "open_2car",
+  )
+  const [dates, setDates] = React.useState<LoadDates>(() =>
+    isEdit ? mapDatesFromLoad(initialLoad!.dates) : emptyDates(),
+  )
+  const [additionalInfo, setAdditionalInfo] = React.useState<LoadAdditionalInfo>(
+    () => (isEdit ? mapAdditionalInfoFromLoad(initialLoad!.additionalInfo) : emptyAdditionalInfo()),
+  )
+  const [pricing, setPricing] = React.useState<LoadPricingInput>(() =>
+    isEdit ? mapPricingFromLoad(initialLoad!.pricing) : {},
+  )
+  const [contract, setContract] = React.useState<LoadContract>(() =>
+    isEdit
+      ? mapContractFromLoad(initialLoad!.contract)
+      : { agreedToTerms: false, signatureDataUrl: null, signerName: "" },
+  )
 
-  // ── Assignment state (assign-carrier only) ──
+  // ── Inspect step: create mode holds Files client-side (no load._id yet) ──
+  const [pendingPhotos, setPendingPhotos] = React.useState<Record<string, File>>({})
+
+  const updateVehicleAt = (index: number, updated: LoadVehicle) => {
+    setVehicles((prev) => {
+      const next = [...prev]
+      next[index] = updated
+      return next
+    })
+  }
+
+  // ── Assignment state (assign-carrier, create mode only) ──
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(
     null,
   )
+  const [selectedDriverInfo, setSelectedDriverInfo] = React.useState<OrgDriver | null>(null)
   const [makeAvailable, setMakeAvailable] = React.useState(false)
+
+  const currentAssigneeName = React.useMemo(() => {
+    if (!isEdit) return null
+    const assigned = initialLoad!.assignedDriverId
+    if (assigned && typeof assigned === "object") return assigned.name || null
+    return null
+  }, [isEdit, initialLoad])
 
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -108,34 +243,41 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
       { key: "schedule", label: "Schedule" },
       { key: "pricing", label: "Pricing" },
     ]
-    if (postType === "assign-carrier") {
+    // Assigning a driver is a dedicated, side-effect-aware flow elsewhere
+    // once a load exists — this step only applies to a brand-new load.
+    if (postType === "assign-carrier" && !isEdit) {
       base.push({ key: "assignment", label: "Driver" })
     }
-    base.push({ key: "contract", label: "Sign & Post" })
+    base.push({ key: "inspect", label: "Inspect" })
+    base.push({ key: "contract", label: "Contract" })
+    base.push({ key: "review", label: "Review" })
     return base
-  }, [postType])
+  }, [postType, isEdit])
 
   const [stepIndex, setStepIndex] = React.useState(0)
   const step = steps[stepIndex]
   const isLastStep = stepIndex === steps.length - 1
 
+  const validation = React.useMemo(
+    () =>
+      validateAll({
+        postType,
+        pickup,
+        delivery,
+        vehicles,
+        trailerType,
+        dates,
+        contract,
+        selectedDriverId,
+        makeAvailable: postType === "assign-carrier" && !isEdit ? makeAvailable : false,
+      }),
+    [postType, pickup, delivery, vehicles, trailerType, dates, contract, selectedDriverId, makeAvailable, isEdit],
+  )
+
   // ── Submit ──
   const handleSubmit = async () => {
-    const result = validateAll({
-      postType,
-      pickup,
-      delivery,
-      vehicles,
-      trailerType,
-      dates,
-      contract,
-      selectedDriverId,
-      makeAvailable: postType === "assign-carrier" ? makeAvailable : false,
-    })
-
-    if (!result.valid) {
-      // Surface the first issue and jump to the relevant step
-      const first = result.issues[0]
+    if (!validation.valid) {
+      const first = validation.issues[0]
       toast.error(first.message)
       const field = first.field
       const target: StepKey = field.startsWith("vehicles")
@@ -152,11 +294,30 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
       return
     }
 
-    // Advisory warnings (e.g. trailer capacity) — inform, don't block
-    for (const warning of result.warnings) toast.warning(warning)
+    for (const warning of validation.warnings) toast.warning(warning)
 
     setIsSubmitting(true)
     try {
+      if (isEdit) {
+        await updateLoad(initialLoad!._id, {
+          pickupLocation: pickup as any,
+          deliveryLocation: delivery as any,
+          vehicles: vehicles.map(({ id: _unused, ...v }) => ({
+            ...v,
+            year: v.year ? Number(v.year) : undefined,
+            vin: v.vin || undefined,
+          })) as any,
+          trailerType,
+          dates: dates as any,
+          additionalInfo: additionalInfo as any,
+          contract: contract as any,
+          pricing: pricing as any,
+        })
+        toast.success(`Load ${initialLoad!.loadNumber} updated.`)
+        router.push(`/transportation/load/${initialLoad!._id}`)
+        return
+      }
+
       const { load, warning } = await createLoad({
         postType,
         pickup,
@@ -170,6 +331,21 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
       })
 
       if (warning) toast.warning(warning)
+
+      // ── Inspect step: flush any photos picked before the load existed ──
+      if (Object.keys(pendingPhotos).length > 0) {
+        await Promise.all(
+          vehicles.map(async (v, index) => {
+            const file = pendingPhotos[v.id]
+            if (!file) return
+            try {
+              await uploadVehicleInspectionPhoto(load._id, index, file)
+            } catch {
+              toast.error(`Load ${load.loadNumber} was created, but a vehicle photo failed to upload.`)
+            }
+          }),
+        )
+      }
 
       // ── Assignment branch ──
       if (postType === "assign-carrier" && !makeAvailable && selectedDriverId) {
@@ -202,7 +378,7 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
       toast.error(
         err?.response?.data?.message ||
           err?.message ||
-          "Failed to create load. Please try again.",
+          `Failed to ${isEdit ? "save" : "create"} load. Please try again.`,
       )
     } finally {
       setIsSubmitting(false)
@@ -327,8 +503,20 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
           <DriverPickerSection
             selectedDriverId={selectedDriverId}
             onSelectDriver={setSelectedDriverId}
+            onSelectDriverInfo={setSelectedDriverInfo}
             makeAvailable={makeAvailable}
             onMakeAvailableChange={setMakeAvailable}
+          />
+        )}
+
+        {step.key === "inspect" && (
+          <InspectionSection
+            vehicles={vehicles}
+            mode={isEdit ? "edit" : "create"}
+            loadId={isEdit ? initialLoad!._id : undefined}
+            pendingPhotos={pendingPhotos}
+            onPendingPhotosChange={setPendingPhotos}
+            onVehicleUpdate={updateVehicleAt}
           />
         )}
 
@@ -337,6 +525,25 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
             contract={contract}
             onChange={setContract}
             defaultSignerName={signerName}
+          />
+        )}
+
+        {step.key === "review" && (
+          <ReviewSection
+            mode={isEdit ? "edit" : "create"}
+            postType={postType}
+            pickup={pickup}
+            delivery={delivery}
+            vehicles={vehicles}
+            trailerType={trailerType}
+            dates={dates}
+            additionalInfo={additionalInfo}
+            pricing={pricing}
+            contract={contract}
+            selectedDriverName={selectedDriverInfo?.name ?? null}
+            makeAvailable={makeAvailable}
+            currentAssigneeName={currentAssigneeName}
+            validation={validation}
           />
         )}
       </div>
@@ -362,18 +569,24 @@ export function LoadFormLayout({ postType }: LoadFormLayoutProps) {
           >
             {isSubmitting ? (
               <Loader2 className="size-4 animate-spin" />
+            ) : isEdit ? (
+              <Save className="size-4" />
             ) : postType === "assign-carrier" && makeAvailable ? (
               <Megaphone className="size-4" />
             ) : (
               <Truck className="size-4" />
             )}
             {isSubmitting
-              ? "Creating…"
-              : postType === "assign-carrier" && makeAvailable
-                ? "Publish as Available Load"
-                : postType === "assign-carrier"
-                  ? "Create & Assign"
-                  : "Post to Load Board"}
+              ? isEdit
+                ? "Saving…"
+                : "Creating…"
+              : isEdit
+                ? "Save Changes"
+                : postType === "assign-carrier" && makeAvailable
+                  ? "Publish as Available Load"
+                  : postType === "assign-carrier"
+                    ? "Create & Assign"
+                    : "Post to Load Board"}
           </Button>
         ) : (
           <Button

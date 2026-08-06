@@ -226,6 +226,21 @@ export async function sendLoadEmail(
   return res.data.data;
 }
 
+export async function uploadVehicleInspectionPhoto(
+  loadId: string,
+  vehicleIndex: number,
+  file: File,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("proof", file);
+  const res = await apiClient.post<{ data: { inspectionPhotoUrl: string } }>(
+    `/api/loads/${loadId}/vehicles/${vehicleIndex}/inspection-photo`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return res.data.data.inspectionPhotoUrl;
+}
+
 export async function getLoadById(loadId: string): Promise<Load> {
   const res = await apiClient.get<{ data: Load }>(`/api/loads/${loadId}`);
   return res.data.data;

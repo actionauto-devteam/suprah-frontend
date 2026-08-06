@@ -52,7 +52,7 @@ import { sharingMeta } from "@/app/(dashboard)/team-pulse/_components/locator/Lo
 import {
   DayData, toDateStr, fmtHHMM, fmtHuman, getDayColor, StatCard, MonthCalendar, MobileCalendarList,
   generatePayslipHtml, openHtmlForPrint, buildTimecardRows, generateTimecardHtml,
-  generateIdleLogHtml, type IdlePeriod,
+  generateIdleLogHtml, type IdlePeriod, computeExactPayout, PAYROLL_DE_MINIMIS_SECONDS,
 } from "@/components/crm/timeproof/shared"
 import { PulseHealthCard } from "@/components/crm/timeproof/PulseHealthCard"
 
@@ -1165,8 +1165,9 @@ export default function TimeprofClockPage() {
   const calcSeconds = payoutPeriod === 1 ? calcCutoffSummary.p1Seconds : calcCutoffSummary.p2Seconds
   const calcWholeHours = Math.floor(calcSeconds / 3600)
   const calcRemainderMins = Math.floor((calcSeconds % 3600) / 60)
+  const calcDroppedMins = Math.floor((calcSeconds % 3600) / 60) < PAYROLL_DE_MINIMIS_SECONDS / 60 ? calcRemainderMins : 0
   const rateNum = parseFloat(hourlyRate) || 0
-  const payoutUSD = calcWholeHours * rateNum
+  const payoutUSD = computeExactPayout(calcSeconds, rateNum)
   const payoutPHP = phpRate !== null ? payoutUSD * phpRate : null
   const calcPeriodLabel = payoutPeriod === 1 ? `${calcMonthShort} 1–15` : `${calcMonthShort} 16–${calcCutoffSummary.lastDay}`
   const calcPayoutDate = payoutPeriod === 1
@@ -1252,13 +1253,13 @@ export default function TimeprofClockPage() {
       periodFull,
       payDayLabel,
       renderedFull: fmtHHMM(calcSeconds),
-      calcWholeHours,
+      billedLabel: `${calcWholeHours}h ${calcRemainderMins - calcDroppedMins}m`,
       rateNum,
       payoutUSD,
       phpPayout: showPhp && payoutPHP !== null && phpRate !== null ? { amountPHP: payoutPHP, rate: phpRate } : null,
     })
     openHtmlForPrint(html)
-  }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
+  }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
 
   const timecardPreviewHtml = React.useMemo(() => {
     if (!tpData || !showTimecardModal) return ""
@@ -1791,11 +1792,11 @@ export default function TimeprofClockPage() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <span className="text-[13px] text-muted-foreground/80">Hours rendered ({calcPeriodLabel})</span>
-                          {calcRemainderMins > 0 && <p className="text-[11px] text-muted-foreground/75 mt-0.5">{calcRemainderMins}m not counted — whole hours only</p>}
+                          {calcDroppedMins > 0 && <p className="text-[11px] text-muted-foreground/75 mt-0.5">{calcDroppedMins}m not counted — below minimum</p>}
                         </div>
                         <div className="text-right shrink-0">
                           <span className="text-[13px] font-bold font-mono text-foreground/80">{fmtHHMM(calcSeconds)}</span>
-                          <p className="text-[11px] font-bold font-mono text-muted-foreground/75">{calcWholeHours}h billed</p>
+                          <p className="text-[11px] font-bold font-mono text-muted-foreground/75">{calcWholeHours}h {calcRemainderMins - calcDroppedMins}m billed</p>
                         </div>
                       </div>
                       <div className="rounded-xl bg-muted/15 border border-border/20 px-4 py-3 space-y-2">
