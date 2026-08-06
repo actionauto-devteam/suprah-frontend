@@ -232,9 +232,9 @@ export function CreateUserModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden gap-0">
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-5 border-b border-border/40 space-y-2">
+      <DialogContent className="sm:max-w-md max-h-[92dvh] sm:max-h-[85dvh] rounded-2xl p-0 overflow-hidden gap-0 flex flex-col">
+        {/* Header — pinned */}
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-5 border-b border-border/40 space-y-2">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
               <UserPlus className="h-4 w-4 text-emerald-500" />
@@ -250,8 +250,8 @@ export function CreateUserModal({
           </div>
         </DialogHeader>
 
-        {/* Form */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Form — the single scroll owner between the pinned header and footer */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
           {/* Full Name */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">
@@ -487,8 +487,8 @@ export function CreateUserModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 flex gap-2">
+        {/* Footer — pinned, always visible regardless of how tall the form gets */}
+        <div className="shrink-0 border-t border-border/40 px-6 py-4 flex gap-2">
           <Button
             variant="outline"
             onClick={handleClose}

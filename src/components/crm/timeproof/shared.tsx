@@ -32,6 +32,16 @@ export const toDateStr = (d: Date) => {
 // went further still). Below this it stays the normal orange.
 export const BREAK_OVER_LIMIT_SECONDS = 70 * 60
 
+// De-minimis cutoff for leftover minutes past a full hour, mirrors backend's
+// computeExactPayout. 0 = no cutoff (pay every exact minute) until Erik gives a number.
+export const PAYROLL_DE_MINIMIS_SECONDS = 0
+export function computeExactPayout(totalSeconds: number, hourlyRate: number) {
+  const wholeHourSeconds = Math.floor(totalSeconds / 3600) * 3600
+  const remainderSeconds = totalSeconds - wholeHourSeconds
+  const payableSeconds = wholeHourSeconds + (remainderSeconds < PAYROLL_DE_MINIMIS_SECONDS ? 0 : remainderSeconds)
+  return (payableSeconds / 3600) * hourlyRate
+}
+
 export const fmtHHMM = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
@@ -84,7 +94,7 @@ export function generatePayslipHtml(p: {
   periodFull: string
   payDayLabel: string
   renderedFull: string
-  calcWholeHours: number
+  billedLabel: string
   rateNum: number
   payoutUSD: number
   phpPayout?: { amountPHP: number; rate: number } | null
@@ -135,7 +145,7 @@ export function generatePayslipHtml(p: {
   <p class="section-title">Earnings Breakdown</p>
   <table>
     <tr><td>Hours Rendered</td><td class="amount">${p.renderedFull}</td></tr>
-    <tr><td>Hours Billed</td><td class="amount">${p.calcWholeHours} hours</td></tr>
+    <tr><td>Hours Billed</td><td class="amount">${p.billedLabel}</td></tr>
     <tr><td>Hourly Rate</td><td class="amount">$${p.rateNum.toFixed(2)} / hr</td></tr>
     <tr class="total-row"><td>Gross Pay (USD)</td><td class="amount">$${p.payoutUSD.toFixed(2)}</td></tr>
     ${phpRow}

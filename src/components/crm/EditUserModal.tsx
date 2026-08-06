@@ -36,6 +36,7 @@ interface EditUserForm {
   department: string
   screenshotExempt: boolean
   locationRequiredOverride: "default" | "required" | "exempt"
+  payrollLocation: "" | "Utah" | "Philippines"
 }
 
 interface FormErrors {
@@ -61,6 +62,7 @@ interface EditUserModalProps {
     department?: string | null
     screenshotExempt?: boolean
     locationRequiredOverride?: "default" | "required" | "exempt"
+    payrollLocation?: "Utah" | "Philippines" | null
   } | null
   onUpdated?: () => void
 }
@@ -96,6 +98,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     department: "",
     screenshotExempt: false,
     locationRequiredOverride: "default",
+    payrollLocation: "",
   })
 
   React.useEffect(() => {
@@ -111,6 +114,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         department: user.department ?? "",
         screenshotExempt: !!user.screenshotExempt,
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
+        payrollLocation: user.payrollLocation ?? "",
       })
       setErrors({})
     }
@@ -157,6 +161,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           department: form.department,
           screenshotExempt: form.screenshotExempt,
           locationRequiredOverride: form.locationRequiredOverride,
+          payrollLocation: form.payrollLocation || null,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -174,10 +179,10 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden gap-0">
+      <DialogContent className="sm:max-w-md max-h-[92dvh] sm:max-h-[85dvh] rounded-2xl p-0 overflow-hidden gap-0 flex flex-col">
 
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-5 border-b border-border/40 space-y-2">
+        {/* Header — pinned */}
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-5 border-b border-border/40 space-y-2">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <UserCog className="h-4 w-4 text-blue-500" />
@@ -191,8 +196,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           </div>
         </DialogHeader>
 
-        {/* Form */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Form — the single scroll owner between the pinned header and footer */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
 
           {/* Full Name */}
           <div className="space-y-1.5">
@@ -369,6 +374,29 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             </Select>
           </div>
 
+          {/* Payroll Location */}
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Payroll Team</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Utah (ADP) or Philippines/Online (PayPal) — drives Live Shift Board team tabs and payroll reports.
+              </p>
+            </div>
+            <Select
+              value={form.payrollLocation || "unset"}
+              onValueChange={(v) => setForm((p) => ({ ...p, payrollLocation: v === "unset" ? "" : v as EditUserForm["payrollLocation"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="unset" className="rounded-lg text-sm">Not Set</SelectItem>
+                <SelectItem value="Utah" className="rounded-lg text-sm">Utah</SelectItem>
+                <SelectItem value="Philippines" className="rounded-lg text-sm">Philippines / Online</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Role hint */}
           {form.role && (
             <div className={`rounded-xl p-3 text-xs border ${
@@ -391,8 +419,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 flex gap-2">
+        {/* Footer — pinned, always visible regardless of how tall the form gets */}
+        <div className="shrink-0 border-t border-border/40 px-6 py-4 flex gap-2">
           <Button
             variant="outline"
             onClick={handleClose}

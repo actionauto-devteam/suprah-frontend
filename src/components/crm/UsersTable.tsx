@@ -73,6 +73,7 @@ interface CrmUserRow {
   isOffboarded?: boolean
   screenshotExempt?: boolean
   locationRequiredOverride?: "default" | "required" | "exempt"
+  payrollLocation?: "Utah" | "Philippines" | null
 }
 
 interface PaginationMeta {
@@ -131,6 +132,27 @@ function RoleBadge({ role }: { role: string }) {
       className={`text-[10px] h-5 px-2 rounded-full font-semibold capitalize ${cfg.className}`}
     >
       {cfg.label}
+    </Badge>
+  )
+}
+
+function PayrollBadge({ payrollLocation }: { payrollLocation?: "Utah" | "Philippines" | null }) {
+  if (!payrollLocation) {
+    return (
+      <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full font-semibold text-muted-foreground/40 border-border/40">
+        Unset
+      </Badge>
+    )
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[10px] h-5 px-2 rounded-full font-semibold ${payrollLocation === "Utah"
+        ? "bg-sky-500/10 text-sky-600 border-sky-500/20"
+        : "bg-orange-500/10 text-orange-600 border-orange-500/20"
+        }`}
+    >
+      {payrollLocation === "Utah" ? "Utah" : "Philippines"}
     </Badge>
   )
 }
@@ -221,6 +243,9 @@ function SkeletonRow() {
       </td>
       <td className="px-5 py-3.5">
         <div className="h-5 w-16 rounded-full bg-muted/40 animate-pulse" />
+      </td>
+      <td className="px-5 py-3.5">
+        <div className="h-5 w-14 rounded-full bg-muted/40 animate-pulse" />
       </td>
       <td className="px-5 py-3.5">
         <div className="h-5 w-14 rounded-full bg-muted/40 animate-pulse" />
@@ -832,6 +857,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <RoleBadge role={u.role} />
+                          <PayrollBadge payrollLocation={u.payrollLocation} />
                           <StatusBadge isActive={u.isActive} />
                           <span className="rounded-full border border-border/35 bg-background px-2 py-1 text-[10px] font-semibold text-muted-foreground/60">
                             Joined {formatDate(u.createdAt)}
@@ -874,6 +900,9 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                     onSort={handleSort}
                   />
                 </th>
+                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                  Team
+                </th>
                 <th className="px-5 py-3 text-left">
                   <SortHeaderButton
                     label="Status"
@@ -905,7 +934,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                 : hasError
                   ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16">
+                      <td colSpan={7} className="px-6 py-16">
                         <div className="flex flex-col items-center justify-center text-center">
                           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-destructive/25 bg-destructive/5">
                             <AlertCircle className="h-6 w-6 text-destructive/70" />
@@ -931,7 +960,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                   : isEmpty
                     ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16">
+                        <td colSpan={7} className="px-6 py-16">
                           <div className="flex flex-col items-center justify-center text-center">
                             <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border/25 flex items-center justify-center mb-4">
                               <UserX className="h-6 w-6 text-muted-foreground/15" />
@@ -981,6 +1010,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
                         <td className="px-5 py-3.5">
                           <RoleBadge role={u.role} />
+                        </td>
+
+                        <td className="px-5 py-3.5">
+                          <PayrollBadge payrollLocation={u.payrollLocation} />
                         </td>
 
                         <td className="px-5 py-3.5">
