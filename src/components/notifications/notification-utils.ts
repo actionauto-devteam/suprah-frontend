@@ -54,6 +54,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   driver_request_rejected: { icon: XCircle, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   driver_assigned: { icon: Truck, gradient: 'from-violet-500 to-purple-500', bg: 'bg-violet-500' },
   driver_location_update: { icon: MapPin, gradient: 'from-blue-500 to-sky-500', bg: 'bg-blue-500' },
+  driver_dispatch_alert: { icon: AlertTriangle, gradient: 'from-red-500 to-orange-500', bg: 'bg-red-500' },
   driver_payout: { icon: DollarSign, gradient: 'from-green-500 to-emerald-600', bg: 'bg-green-500' },
   payment_received: { icon: CreditCard, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
   payment_pending: { icon: CreditCard, gradient: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500' },
@@ -214,6 +215,7 @@ const TYPE_LABELS: Record<string, string> = {
   driver_tracker_geofence_alert: 'Geofence Alert',
   driver_tracker_offline_alert: 'Driver Offline',
   driver_tracker_place_visit: 'Place Visit',
+  driver_dispatch_alert: 'Driver Dispatch Alert',
   wallet_low_balance: 'Low Balance',
   wallet_payout_failed: 'Payout Failed',
   admin_broadcast: 'Admin Broadcast',
@@ -253,7 +255,7 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type.startsWith('feed_')) return 'feeds';
   if (type.startsWith('pm_')) return 'projectManagement';
   if (type.startsWith('calendar_')) return 'calendar';
-  if (type === 'driver_location_update' || type.startsWith('driver_tracker_')) return 'driverTracker';
+  if (type === 'driver_location_update' || type.startsWith('driver_tracker_') || type === 'driver_dispatch_alert') return 'driverTracker';
   if (type.startsWith('payment_') || type.startsWith('payout_') || type.startsWith('wallet_')) return 'wallet';
   if (type.startsWith('team_') || type === 'role_changed' || type === 'board_note_posted'
     || type === 'ping' || type.startsWith('absence_')) return 'team';
@@ -320,6 +322,7 @@ const ROUTE_MAP: Record<string, string> = {
   message_received: '/crm/supra-space',
   aftermarket_inquiry: '/crm/support-center?tab=aftermarket', aftermarket_invoice: '/customer/payments', aftermarket_order: '/crm/aftermarket',
   driver_location_update: '/driver-tracker',
+  driver_dispatch_alert: '/driver/notifications',
   payment_request: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
   team_invite_sent: '/settings', team_member_joined: '/settings', team_member_left: '/settings', role_changed: '/settings',
@@ -330,6 +333,7 @@ const ROUTE_MAP: Record<string, string> = {
 };
 
 const DRIVER_ROUTE_MAP: Record<string, string> = {
+  driver_dispatch_alert: '/driver/notifications',
   driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',
   shipment_assigned: '/driver/loads', shipment_picked_up: '/driver/loads', shipment_delivered: '/driver/loads',

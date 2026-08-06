@@ -297,14 +297,23 @@ function NotificationPageView({
       setModalNotification(notification);
       setModalOpen(true);
       if (!notification.isRead) markAsRead(notification._id);
-      return;
+      return true;
+    }
+
+    if (!isCrm && notification.type === 'driver_dispatch_alert') {
+      setDetailsNotification(notification);
+      setDetailsOpen(true);
+      if (!notification.isRead) markAsRead(notification._id);
+      return true;
     }
 
     const route = getNotificationRoute(notification, pathname);
     if (!route) {
       setDetailsNotification(notification);
       setDetailsOpen(true);
+      return true;
     }
+    return false;
   }, [markAsRead, pathname, isCrm]);
 
   const clearAllFilters = () => {

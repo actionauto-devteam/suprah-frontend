@@ -81,6 +81,7 @@ interface MessengerCtxValue {
   notifPrefs: Record<string, NotifPref>;
   setNotifPrefs: React.Dispatch<React.SetStateAction<Record<string, NotifPref>>>;
   openChatPopup: (convId: string) => void;
+  openDirectChat: (targetUserId: string) => Promise<SSConv>;
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
@@ -526,6 +527,60 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
   }, []);
 
+  const openDirectChat = React.useCallback(async (targetUserId: string): Promise<SSConv> => {
+    if (!crmToken) {
+      const unavailableError = new Error(
+        'Suprah Space is still connecting or is unavailable for this account.',
+      ) as Error & { code?: string; status?: number };
+      unavailableError.code = 'SUPRASPACE_TOKEN_UNAVAILABLE';
+      unavailableError.status = 409;
+      throw unavailableError;
+    }
+
+    let response;
+    try {
+      response = await apiClient.post(
+        '/api/supraspace/conversations/direct',
+        { targetUserId },
+        authConfig(crmToken, true),
+      );
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 404 || status === 409) {
+        const unavailableError = new Error(
+          error?.response?.data?.message ||
+            'This user does not have an active Suprah Space account.',
+        ) as Error & { code?: string; status?: number };
+        unavailableError.name = 'SupraSpaceUnavailableError';
+        unavailableError.code = 'SUPRASPACE_ACCOUNT_UNAVAILABLE';
+        unavailableError.status = status;
+        throw unavailableError;
+      }
+      throw error;
+    }
+
+    const conversation = response.data?.data as SSConv | undefined;
+    if (!conversation?._id) {
+      throw new Error('Could not open a direct conversation.');
+    }
+
+    setConversations((prev) => {
+      const exists = prev.some((item) => item._id === conversation._id);
+      const next = exists
+        ? prev.map((item) => item._id === conversation._id ? { ...item, ...conversation } : item)
+        : [conversation, ...prev];
+      return sortByLastMessage(next);
+    });
+
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      window.location.assign(`/crm/supra-space?conversationId=${conversation._id}`);
+    } else {
+      openChatPopup(conversation._id);
+    }
+
+    return conversation;
+  }, [crmToken, openChatPopup]);
+
   const closeChatPopup = React.useCallback((convId: string) => {
     setOpenChats((prev) => prev.filter((id) => id !== convId));
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
@@ -643,6 +698,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         notifPrefs,
         setNotifPrefs,
         openChatPopup,
+        openDirectChat,
         closeChatPopup,
         toggleMinimize,
         markAsRead,

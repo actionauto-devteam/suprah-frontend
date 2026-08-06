@@ -10,7 +10,7 @@ interface NotificationListProps {
   isLoading: boolean;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
-  onItemClick?: (notification: Notification) => void;
+  onItemClick?: (notification: Notification) => boolean | void;
   compact?: boolean;
 }
 

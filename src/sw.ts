@@ -222,6 +222,7 @@ self.addEventListener("push", (event: any) => {
           messageId: data.data?.messageId,
           notificationId: data.data?.notificationId,
           driverRequestId: data.data?.driverRequestId,
+          alertId: data.data?.alertId,
         },
         actions: data.actions || [],
         vibrate: [100, 50, 100],
@@ -369,18 +370,44 @@ self.addEventListener("notificationclick", (event: any) => {
  */
 async function handleBackgroundAction(action: string, data: any) {
   console.log(`[SW] Handling action: ${action}`, data);
-  const requestId = data?.driverRequestId;
-  if (!requestId) return;
-
-  await (self as any).registration.showNotification("Processing Request", {
-    body: `Your request to ${action} this driver is being processed...`,
-    icon: DEFAULT_NOTIFICATION_ICON,
-  });
 
   try {
     const token = await getStoredToken("accessToken");
-
     if (!token) throw new Error("No auth token found in SW");
+
+    // Driver Dispatch Alert response actions
+    if ((action === "acknowledge" || action === "on-my-way") && data?.alertId) {
+      const response = action === "on-my-way" ? "on_my_way" : "acknowledged";
+      const result = await fetch(
+        `${API_BASE_URL}/api/driver-tracking/alerts/${data.alertId}/respond`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ response }),
+        },
+      );
+
+      if (!result.ok) throw new Error(`HTTP ${result.status}`);
+
+      await (self as any).registration.showNotification("Dispatch Response Sent", {
+        body: response === "on_my_way" ? "Your status was sent as On My Way." : "The dispatch alert was acknowledged.",
+        icon: DEFAULT_NOTIFICATION_ICON,
+        tag: `driver-alert-response:${data.alertId}`,
+      });
+      return;
+    }
+
+    // Existing driver-request approval/rejection actions
+    const requestId = data?.driverRequestId;
+    if (!requestId) return;
+
+    await (self as any).registration.showNotification("Processing Request", {
+      body: `Your request to ${action} this driver is being processed...`,
+      icon: DEFAULT_NOTIFICATION_ICON,
+    });
 
     const endpoint =
       action === "approve"
@@ -404,7 +431,7 @@ async function handleBackgroundAction(action: string, data: any) {
   } catch (err) {
     console.error("[SW] Background action failed:", err);
     await (self as any).registration.showNotification("Action Failed", {
-      body: "Could not process request in the background. Please open the app.",
+      body: "Could not process the request in the background. Please open the app.",
       icon: DEFAULT_NOTIFICATION_ICON,
     });
   }
