@@ -38,7 +38,7 @@ export interface SSConv {
   lastMessage?: SSLastMessage;
   lastMessageAt?: string;
   unreadCount?: number;
-  theme?: { accent?: string | null };
+  theme?: { accent?: string | null; emoji?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
   manualUnread?: boolean;

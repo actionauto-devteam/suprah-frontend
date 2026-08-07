@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -2917,7 +2917,7 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
   }, [playing, pending, audioErr]);
 
   return (
-    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 180, maxWidth: 240 }}>
+    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 180, maxWidth: '100%' }}>
       <button
         onClick={handlePlay}
         title={audioErr ? 'Tap to retry' : undefined}
@@ -2958,7 +2958,7 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
 function PopupPollCard({ poll, uid, isOwn, accentColor, onVote }: { poll: SSPoll; uid: string; isOwn: boolean; accentColor: string; onVote: (optionId: string) => void }) {
   const totalVotes = poll.options.reduce((n, o) => n + (o.votes?.length || 0), 0);
   return (
-    <div className="rounded-xl p-3" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+    <div className="rounded-xl p-3" style={{ minWidth: 200, maxWidth: '100%', background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
       <div className="flex items-center gap-1.5 mb-2">
         <BarChart3 className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
         <p className="text-[13px] font-bold" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{poll.question}</p>
@@ -3000,7 +3000,7 @@ function PopupEventCard({ event, uid, isOwn, accentColor, onRsvp }: { event: SSE
     (event.going || []).includes(uid) ? 'going' : (event.maybe || []).includes(uid) ? 'maybe' : (event.declined || []).includes(uid) ? 'declined' : null;
   const start = new Date(event.startTime);
   return (
-    <div className="rounded-xl overflow-hidden" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+    <div className="rounded-xl overflow-hidden" style={{ minWidth: 200, maxWidth: '100%', background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
       <div className="px-3 py-2 flex items-center gap-1.5" style={{ background: isOwn ? 'rgba(255,255,255,0.15)' : `${accentColor}1f` }}>
         <CalendarPlus className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
         <p className="text-[13px] font-bold truncate" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{event.title}</p>
@@ -3326,6 +3326,7 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
   const [nickname, setNickname] = React.useState(me?.displayNickname || '');
   const [reactions, setReactions] = React.useState<string[]>(conv.viewerQuickReactions?.length ? conv.viewerQuickReactions : DEFAULT_QUICK_REACTIONS);
   const [accent, setAccent] = React.useState(conv.theme?.accent || '');
+  const [likeEmoji, setLikeEmoji] = React.useState(conv.theme?.emoji || '');
   const [saving, setSaving] = React.useState(false);
 
   const toggleReaction = (emoji: string) => setReactions(prev => {
@@ -3343,7 +3344,7 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
           { nickname: nickname.trim() || null, quickReactions: reactions },
           { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh),
         apiClient.patch(`/api/supraspace/conversations/${conv._id}/theme`,
-          { theme: { ...conv.theme, accent: accent || null } },
+          { theme: { ...conv.theme, accent: accent || null, emoji: likeEmoji || null } },
           { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh),
       ]);
       toast.success('Channel settings saved');
@@ -3379,8 +3380,8 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
         </div>
         <div className="flex border-b border-border">
           {tabBtn('nickname', 'Nickname')}
-          {tabBtn('reactions', 'Reactions')}
-          {tabBtn('theme', 'Theme')}
+          {tabBtn('reactions', 'My Reactions')}
+          {tabBtn('theme', 'Theme & Like')}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {tab === 'nickname' && (
@@ -3436,6 +3437,19 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
                     Reset
                   </button>
                 )}
+              </div>
+              <p className="text-[12px] text-muted-foreground mt-4 mb-2">Default Like — sent when you tap the composer's Like button with nothing typed. Applies to everyone in this channel.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_REACTION_CHOICES.map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => setLikeEmoji(emoji)}
+                    className="h-9 w-9 rounded-lg text-lg flex items-center justify-center transition-colors"
+                    style={{ background: likeEmoji === emoji ? 'rgba(59,130,246,0.18)' : 'var(--muted, rgba(128,128,128,0.1))', outline: likeEmoji === emoji ? '2px solid #3b82f6' : 'none' }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -3697,11 +3711,20 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const maxLeft = Math.max(minLeft, (popupRect?.right ?? window.innerWidth) - BAR_W - PAD);
     const minTop = (popupRect?.top ?? 0) + HEADER_H + PAD;
     const maxTop = Math.max(minTop, (popupRect?.bottom ?? window.innerHeight) - BAR_H - PAD);
-    const barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
     const preferredLeft = isOwn ? rect.left - BAR_W - 6 : rect.right + 6;
-    const closeFallbackLeft = isOwn ? rect.left + 8 : rect.right - BAR_W - 8;
-    const rawLeft = preferredLeft < minLeft || preferredLeft > maxLeft ? closeFallbackLeft : preferredLeft;
-    const barLeft = Math.max(minLeft, Math.min(rawLeft, maxLeft));
+    const fitsBeside = preferredLeft >= minLeft && preferredLeft <= maxLeft;
+    let barTop: number;
+    let barLeft: number;
+    if (fitsBeside) {
+      barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
+      barLeft = preferredLeft;
+    } else {
+      // Wide bubble (long text, poll/event/voice card, image) with no room to
+      // the side — float the bar just above the bubble instead of falling
+      // back to a spot that sits on top of the bubble's own content.
+      barTop = Math.max(minTop, rect.top - BAR_H - 6);
+      barLeft = Math.max(minLeft, Math.min(rect.left + rect.width / 2 - BAR_W / 2, maxLeft));
+    }
     const pos = { top: barTop, left: barLeft, isOwn };
     if (hovMsg && hovMsg !== msgId) {
       // Bar is already visible for another message — delay switch so user can
@@ -3921,7 +3944,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setSending(true);
     try {
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`,
-        { content: '👍' },
+        { content: conv.theme?.emoji || '👍' },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
@@ -5741,7 +5764,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           'min-w-0 flex flex-col',
                           editingMsgId === msg._id
                             ? 'w-[94%] max-w-[94%]'
-                            : imageOnly || gifOnly
+                            : imageOnly || gifOnly || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
                         )}
@@ -6676,7 +6699,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 ) : (
                   <button title="Like" onClick={handleSendThumbsUp} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : conv.theme?.emoji ? (
+                      <span className="text-[18px] leading-none">{conv.theme.emoji}</span>
+                    ) : <ThumbsUp className="h-4 w-4" />}
                   </button>
                 )}
               </div>
@@ -6832,6 +6857,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             style={{ fontSize: 16, fontWeight: 700 }}
             onClick={(e) => { openEmojiPickerForMsg(quickReactMsgId, e); setQuickReactMsgId(null); setQuickReactPos(null); }}
           >+</button>
+          <button
+            title="Customize your quick reactions"
+            className="flex items-center justify-center h-6 w-6 rounded-full text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={() => { setChannelSettingsTab('reactions'); setQuickReactMsgId(null); setQuickReactPos(null); }}
+          ><Settings2 className="h-3.5 w-3.5" /></button>
         </div>,
         document.body
       )}
@@ -7220,13 +7250,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 function ChatOverflowDock({
   hiddenConvs,
   crmUserId,
-  hasMinimized,
   onOpen,
   onClose,
 }: {
   hiddenConvs: SSConv[];
   crmUserId: string | null;
-  hasMinimized: boolean;
   onOpen: (convId: string) => void;
   onClose: (convId: string) => void;
 }) {
@@ -7234,10 +7262,12 @@ function ChatOverflowDock({
   const dockRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const hiddenCount = hiddenConvs.length;
-  // Anchored to the same right edge as MinimizedDock, stacked just above it,
-  // instead of sitting to the left of the visible popup stack (where it used
-  // to overlap the stacked popups / drift off toward the opposite corner).
-  const dockBottom = hasMinimized ? 64 : 12;
+  // ChatOverflowDock only ever renders while MAX_VISIBLE_POPUPS full-height
+  // popups are on screen (hidden = overflow *beyond* those), so it must clear
+  // the full POPUP_H to avoid sitting on top of the rightmost popup — right:
+  // POPUP_RIGHT alone isn't enough, since that's the same edge the popups
+  // themselves dock to.
+  const dockBottom = POPUP_H + 12;
 
   React.useEffect(() => {
     if (!open) return;
@@ -7462,7 +7492,6 @@ export function ChatPopupManager() {
       <ChatOverflowDock
         hiddenConvs={hiddenConvs}
         crmUserId={crmUserId}
-        hasMinimized={minimizedConvs.length > 0}
         onOpen={openChatPopup}
         onClose={closeChatPopup}
       />

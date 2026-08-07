@@ -125,6 +125,7 @@ export function YapLineDock() {
   // doesn't want to join it.
   const [liveExpanded, setLiveExpanded] = React.useState(false);
   const [dismissedLive, setDismissedLive] = React.useState<Set<string>>(new Set());
+  const [monitorsMinimized, setMonitorsMinimized] = React.useState(false);
 
   // Suprah Space's chat composer sits flush against the bottom-right corner —
   // the dock's default offset would otherwise sit right on top of its Send
@@ -428,12 +429,42 @@ export function YapLineDock() {
           </button>
         ))}
 
-        {/* ── Monitored channels (listening alongside the active one, if any) ── */}
-        {Object.values(s.monitors).length > 0 && (
+        {/* ── Monitored channels (listening alongside the active one, if any) ──
+             Independent of the current session's own minimize state — you can
+             be only listening in (no active session) and still want this
+             collapsed to a small pill instead of a permanently-expanded panel. */}
+        {Object.values(s.monitors).length > 0 && (monitorsMinimized ? (
+          <button
+            onClick={() => setMonitorsMinimized(false)}
+            title={`Monitoring ${Object.keys(s.monitors).length} channel${Object.keys(s.monitors).length === 1 ? "" : "s"}`}
+            className={cn(
+              "relative flex size-11 shrink-0 items-center justify-center rounded-full border bg-card/80 shadow-lg backdrop-blur-xl transition-all active:scale-95",
+              Object.values(s.monitors).some((m) => (s.sessions[m.conversationId]?.speakingIds.length ?? 0) > 0)
+                ? "border-emerald-400/60 shadow-emerald-500/25"
+                : "border-cyan-400/50 shadow-cyan-500/20"
+            )}
+          >
+            <span className="flex size-7 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-400">
+              <Headphones className="size-4" />
+            </span>
+            <span className="absolute -bottom-0.5 -right-0.5 flex size-4.5 items-center justify-center rounded-full bg-cyan-500 text-[9px] font-black text-white ring-2 ring-card">
+              {Object.keys(s.monitors).length}
+            </span>
+          </button>
+        ) : (
           <div className="flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-1 rounded-2xl border border-cyan-500/25 bg-card/85 p-1.5 shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
-            <p className="flex items-center gap-1.5 px-1.5 pt-0.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">
-              <Headphones className="size-3" /> Monitoring {Object.keys(s.monitors).length}/{MAX_JOINED_CHANNELS - (s.current ? 1 : 0)}
-            </p>
+            <div className="flex items-center justify-between gap-2 px-1.5 pt-0.5">
+              <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">
+                <Headphones className="size-3" /> Monitoring {Object.keys(s.monitors).length}/{MAX_JOINED_CHANNELS - (s.current ? 1 : 0)}
+              </p>
+              <button
+                onClick={() => setMonitorsMinimized(true)}
+                title="Minimize"
+                className="rounded-lg p-0.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground"
+              >
+                <Minus className="size-3.5" />
+              </button>
+            </div>
             {Object.values(s.monitors).map((mon) => {
               const live = s.sessions[mon.conversationId];
               const isSpeaking = (live?.speakingIds.length ?? 0) > 0;
@@ -461,7 +492,7 @@ export function YapLineDock() {
               );
             })}
           </div>
-        )}
+        ))}
 
         {/* ── Current session ── */}
         {cur && (s.minimized ? (
