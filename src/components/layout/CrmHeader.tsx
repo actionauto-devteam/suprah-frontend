@@ -27,9 +27,15 @@ function ini(n: string) {
 
 type CrmHeaderProps = {
   showMessenger?: boolean;
+  notificationDrawerOpen: boolean;
+  onNotificationDrawerOpenChange: (open: boolean) => void;
 };
 
-export function CrmHeader({ showMessenger = false }: CrmHeaderProps) {
+export function CrmHeader({
+  showMessenger = false,
+  notificationDrawerOpen,
+  onNotificationDrawerOpenChange,
+}: CrmHeaderProps) {
   const router = useRouter();
   const { user, token } = useCrmUser();
 
@@ -66,7 +72,10 @@ export function CrmHeader({ showMessenger = false }: CrmHeaderProps) {
         <div className="flex items-center gap-1 sm:gap-3 shrink-0">
           <MountainTimeClock />
 
-          <CrmNotificationBell />
+          <CrmNotificationBell
+            open={notificationDrawerOpen}
+            onOpenChange={onNotificationDrawerOpenChange}
+          />
 
           {showMessenger && <MessengerDropdown />}
 
