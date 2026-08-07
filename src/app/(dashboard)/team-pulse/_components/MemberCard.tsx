@@ -171,25 +171,29 @@ export function MemberCard({
             <Building2 className="size-3 opacity-40 shrink-0" />
             <span className={cn("truncate max-w-28", noDept && "italic opacity-40")}>{dept}</span>
           </span>
-          {member.customStatus && (
-            <span className="text-[10px] italic text-muted-foreground/40 truncate max-w-28">"{member.customStatus}"</span>
-          )}
         </div>
+        {member.customStatus && (
+          <div className="sm:hidden mt-0.5">
+            <span className="text-[10px] italic text-muted-foreground/40 truncate block max-w-full">"{member.customStatus}"</span>
+          </div>
+        )}
       </div>
 
-      <div className="hidden sm:flex items-center gap-4 min-w-0">
-        {member.personalInfo?.jobTitle && (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 min-w-0 flex-1">
+      <div className="hidden sm:flex sm:flex-col sm:justify-center min-w-0 gap-1">
+        <div className="flex items-center gap-4 min-w-0">
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 min-w-0 flex-1 basis-0">
             <Briefcase className="size-3 opacity-40 shrink-0" />
-            <span className="truncate">{member.personalInfo.jobTitle}</span>
+            <span className={cn("truncate", !member.personalInfo?.jobTitle && "italic opacity-40")}>
+              {member.personalInfo?.jobTitle || "No title"}
+            </span>
           </span>
-        )}
-        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0 flex-1">
-          <Building2 className="size-3 opacity-40 shrink-0" />
-          <span className={cn("truncate", noDept && "italic opacity-40")}>{dept}</span>
-        </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0 flex-1 basis-0">
+            <Building2 className="size-3 opacity-40 shrink-0" />
+            <span className={cn("truncate", noDept && "italic opacity-40")}>{dept}</span>
+          </span>
+        </div>
         {member.customStatus && (
-          <span className="text-[10px] italic text-muted-foreground/40 truncate min-w-0 flex-1">"{member.customStatus}"</span>
+          <span className="text-[10px] italic text-muted-foreground/40 truncate">"{member.customStatus}"</span>
         )}
       </div>
 

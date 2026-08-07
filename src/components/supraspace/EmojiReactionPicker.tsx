@@ -144,11 +144,13 @@ export function MobileEmojiReactionSheet({
   onClose,
   host,
   quickReactions = [],
+  onCustomize,
 }: {
   onSelect: (emoji: string) => void;
   onClose: () => void;
   host?: HTMLElement | null;
   quickReactions?: string[];
+  onCustomize?: () => void;
 }) {
   const [search, setSearch] = React.useState('');
   const sheetRef = React.useRef<HTMLDivElement>(null);
@@ -215,8 +217,8 @@ export function MobileEmojiReactionSheet({
             <div key={section.label} className="mb-5">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.68)' }}>{section.label}</p>
-                {section.label === 'Your reactions' && (
-                  <button className="text-xs font-bold" style={{ color: '#5da8ff' }} type="button">
+                {section.label === 'Your reactions' && onCustomize && (
+                  <button className="text-xs font-bold" style={{ color: '#5da8ff' }} type="button" onClick={() => { onCustomize(); onClose(); }}>
                     CUSTOMIZE
                   </button>
                 )}

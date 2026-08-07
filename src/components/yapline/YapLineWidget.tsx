@@ -15,11 +15,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { RadioTower, Mic, MonitorUp, ArrowRight, Radio, Headphones } from "lucide-react";
+import { RadioTower, Mic, MonitorUp, ArrowRight, Radio, Headphones, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useYapLine, yapline } from "@/lib/yapline-store";
+import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
+import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
 
 const ini = (name?: string | null) =>
   (name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -59,8 +61,10 @@ const ACTIVITY_LABEL: Record<string, string> = {
 export function YapLineWidget() {
   const router = useRouter();
   const s = useYapLine();
+  const { conversations } = useSupraSpaceMessenger();
   const [recent, setRecent] = React.useState<RecentSession[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [inviteConv, setInviteConv] = React.useState<{ _id: string; name?: string; members: Array<{ _id: string }> } | null>(null);
 
   const liveSessions = Object.values(s.sessions);
   const cur = s.current;
@@ -176,6 +180,19 @@ export function YapLineWidget() {
                   >
                     <Mic className="size-3" /> {cur.transmitting ? "On Air" : "Talk"}
                   </button>
+                  {(() => {
+                    const liveConv = conversations.find((c) => c._id === cur.conversationId);
+                    if (!liveConv || liveConv.type !== "group") return null;
+                    return (
+                      <button
+                        onClick={() => setInviteConv(liveConv)}
+                        title="Invite people"
+                        className="rounded-lg border border-border/40 p-1.5 text-muted-foreground/60 hover:border-emerald-500/30 hover:text-emerald-500"
+                      >
+                        <UserPlus className="size-3" />
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => yapline.leave()}
                     className="rounded-lg border border-border/40 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 hover:border-rose-500/30 hover:text-rose-500"
@@ -303,6 +320,14 @@ export function YapLineWidget() {
           )}
         </div>
       </div>
+
+      {inviteConv && (
+        <YapLineInviteModal
+          conv={inviteConv}
+          onClose={() => setInviteConv(null)}
+          onInvited={() => setInviteConv(null)}
+        />
+      )}
     </div>
   );
 }

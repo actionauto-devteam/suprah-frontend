@@ -37,6 +37,7 @@ import {
   PhoneOff,
   ChevronDown,
   Headphones,
+  UserPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,8 @@ import {
   MAX_JOINED_CHANNELS,
   type YapQuality,
 } from "@/lib/yapline-store";
+import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
+import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
 
 const ini = (name?: string | null) =>
   (name || "?")
@@ -111,6 +114,8 @@ export function YapLineDock() {
   const router = useRouter();
   const pathname = usePathname();
   const [expandedScreen, setExpandedScreen] = React.useState(false);
+  const { conversations } = useSupraSpaceMessenger();
+  const [inviteConv, setInviteConv] = React.useState<{ _id: string; name?: string; members: Array<{ _id: string }> } | null>(null);
 
   // ── "Live elsewhere" join list ─────────────────────────────────────────
   // Collapsed to one small chip by default so a busy org (several channels
@@ -316,7 +321,7 @@ export function YapLineDock() {
       <div
         ref={containerRef}
         className={cn(
-          "fixed z-70 flex flex-col items-end gap-2",
+          "fixed z-70 flex flex-col items-center gap-2",
           !dockPos && (isSupraSpace
             ? "bottom-40 right-3 md:bottom-24 md:right-5"
             : "bottom-24 right-3 md:bottom-5 md:right-5")
@@ -336,22 +341,20 @@ export function YapLineDock() {
         </div>
 
         {/* ── Live-elsewhere: collapsed chip, or the full join list ── */}
-        {joinableLive.length > 0 && (liveExpanded || joinableLive.length === 1 ? (
+        {joinableLive.length > 0 && (liveExpanded ? (
           <div className="w-64 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-emerald-500/25 bg-card/85 shadow-xl shadow-emerald-500/10 backdrop-blur-xl">
-            {joinableLive.length > 1 && (
-              <div className="flex items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
-                <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                  <RadioTower className="size-3.5" /> {joinableLive.length} live channels
-                </p>
-                <button
-                  onClick={() => setLiveExpanded(false)}
-                  title="Collapse"
-                  className="rounded-lg p-1 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground"
-                >
-                  <Minus className="size-3.5" />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center justify-between gap-2 border-b border-border/30 px-3 py-2">
+              <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                <RadioTower className="size-3.5" /> {joinableLive.length} live channel{joinableLive.length === 1 ? '' : 's'}
+              </p>
+              <button
+                onClick={() => setLiveExpanded(false)}
+                title="Collapse"
+                className="rounded-lg p-1 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground"
+              >
+                <Minus className="size-3.5" />
+              </button>
+            </div>
             <div className="max-h-56 space-y-1 overflow-y-auto p-1.5 no-scrollbar">
               {joinableLive.map((live) => {
                 const isSpeaking = live.speakingIds.length > 0;
@@ -502,6 +505,15 @@ export function YapLineDock() {
                   {cur.joining ? "Connecting…" : cur.transmitting ? "Transmitting" : speaker ? "Receiving" : `Standby · ${q.label}`}
                 </p>
               </div>
+              {(() => {
+                const liveConv = conversations.find((c) => c._id === cur.conversationId);
+                if (!liveConv || liveConv.type !== "group") return null;
+                return (
+                  <button onClick={() => setInviteConv(liveConv)} title="Invite people" className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground">
+                    <UserPlus className="size-3.5" />
+                  </button>
+                );
+              })()}
               <button onClick={() => yapline.setMinimized(true)} title="Minimize" className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground">
                 <Minus className="size-3.5" />
               </button>
@@ -629,6 +641,14 @@ export function YapLineDock() {
           </div>
         ))}
       </div>
+
+      {inviteConv && (
+        <YapLineInviteModal
+          conv={inviteConv}
+          onClose={() => setInviteConv(null)}
+          onInvited={() => setInviteConv(null)}
+        />
+      )}
     </>,
     document.body
   );
