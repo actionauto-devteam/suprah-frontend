@@ -97,6 +97,7 @@ function DashboardLayoutContent({
     !pathname.startsWith("/crm/timeproof-clock");
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
+  const [crmNotificationDrawerOpen, setCrmNotificationDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -105,6 +106,12 @@ function DashboardLayoutContent({
     window.addEventListener("crm-leads:convo-state", handler);
     return () => window.removeEventListener("crm-leads:convo-state", handler);
   }, []);
+
+  React.useEffect(() => {
+    if (!showCrmHeader) {
+      setCrmNotificationDrawerOpen(false);
+    }
+  }, [showCrmHeader, pathname]);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
   const [hasResolvedOrgAccess, setHasResolvedOrgAccess] = React.useState(false);
@@ -220,8 +227,19 @@ function DashboardLayoutContent({
       {/* min-w-0 + w-full: lets this flex child shrink below its content's
           intrinsic width instead of forcing the whole page wider than the
           viewport (the classic flex-child overflow bug). */}
-      <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
-        {showCrmHeader && <CrmHeader showMessenger={showCrmMessenger} />}
+      <SidebarInset
+        className={cn(
+          "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out",
+          showCrmHeader && crmNotificationDrawerOpen && "lg:pr-[340px] xl:pr-[380px]",
+        )}
+      >
+        {showCrmHeader && (
+          <CrmHeader
+            showMessenger={showCrmMessenger}
+            notificationDrawerOpen={crmNotificationDrawerOpen}
+            onNotificationDrawerOpenChange={setCrmNotificationDrawerOpen}
+          />
+        )}
         {!isCrmRoute && (
           <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
             <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1 min-w-0">
