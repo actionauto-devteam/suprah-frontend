@@ -22,6 +22,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useUser } from "@/providers/AuthProvider";
 import { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
+import { useOptionalDriverLocationSharing } from "@/context/DriverLocationSharingContext";
 
 export interface AvailableItem {
   _id: string;
@@ -91,15 +92,11 @@ export default function DriverTrackerPage() {
   const { user } = useUser();
   const { theme } = useTheme();
   const { openDirectChat } = useSupraSpaceMessenger();
+  const driverLocationSharing = useOptionalDriverLocationSharing();
   const isDriver = user?.role === "driver";
   const [drivers, setDrivers] = React.useState<DriverTrackingItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [isSharing, setIsSharing] = React.useState(false);
-  const [shareStatus, setShareStatus] =
-    React.useState<DriverStatus>("on-route");
-  const [shareError, setShareError] = React.useState<string | null>(null);
-  const [lastShareAt, setLastShareAt] = React.useState<string | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
   const [isMapReady, setIsMapReady] = React.useState(false);
   const [isMapTransitioning, setIsMapTransitioning] = React.useState(false);
@@ -123,10 +120,6 @@ export default function DriverTrackerPage() {
   const mapInstanceRef = React.useRef<any>(null);
   const markersRef = React.useRef<Map<string, any>>(new Map());
   const popupsRef = React.useRef<Map<string, any>>(new Map());
-  const watchIdRef = React.useRef<number | null>(null);
-  const lastSentRef = React.useRef<number>(0);
-  const lastCoordsRef = React.useRef<{ lat: number; lng: number } | null>(null);
-  const hasFlownRef = React.useRef<boolean>(false);
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const locationNamesRef = React.useRef<Map<string, string>>(new Map());
 
@@ -134,14 +127,14 @@ export default function DriverTrackerPage() {
   const normalizedToken = mapboxToken?.trim();
 
   const activeDrivers = React.useMemo(
-    () => drivers.filter((d) => d.status !== "offline"),
+    () => drivers.filter((d) => d.isSharing),
     [drivers],
   );
 
   const mapDrivers = React.useMemo(() => {
     if (mapFilter === "all") return drivers;
     if (mapFilter === "sharing")
-      return drivers.filter((d) => d.status !== "offline");
+      return drivers.filter((d) => d.isSharing);
     if (mapFilter === "on-route")
       return drivers.filter((d) => d.status === "on-route");
     if (mapFilter === "with-loads")
@@ -182,13 +175,13 @@ export default function DriverTrackerPage() {
             email: item.email ?? "",
             phone: item.phone ?? "",
             avatar: item.avatar ?? null,
+
+            // Suprah Space messaging availability returned by /org-drivers
             messagingAvailable: Boolean(item.messagingAvailable),
             crmUserId: item.crmUserId ?? null,
             messagingUnavailableReason:
               item.messagingUnavailableReason ??
-              (item.messagingAvailable
-                ? null
-                : "No active Suprah Space account is linked to this driver."),
+              "Suprah Space account is not linked to this driver.",
           },
           equipment: item.equipment
             ? {
@@ -390,46 +383,29 @@ export default function DriverTrackerPage() {
 
   const handleMessageDriver = React.useCallback(
     async (driver: DriverTrackingItem) => {
-      const driverAccount = driver.driver;
-      if (!driverAccount?.id) {
-        toast.error("This driver account is missing a valid user ID.");
-        return;
-      }
-
-      if (!driverAccount.messagingAvailable) {
-        toast.info(
-          driverAccount.messagingUnavailableReason ||
-            "This driver does not have an active Suprah Space account.",
+      if (!driver.driver?.messagingAvailable) {
+        toast.error(
+          driver.driver?.messagingUnavailableReason ||
+            "Suprah Space is not linked to this driver.",
         );
         return;
       }
 
-      const targetUserId = driverAccount.crmUserId || driverAccount.id;
+      const targetUserId =
+        driver.driver.crmUserId ?? driver.driver.id;
+
+      if (!targetUserId) {
+        toast.error("Messaging is unavailable for this driver");
+        return;
+      }
 
       try {
         await openDirectChat(targetUserId);
       } catch (error: any) {
-        const status = error?.status ?? error?.response?.status;
-        const code = error?.code;
-        const backendMessage =
-          error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message;
-
-        if (
-          code === "SUPRASPACE_ACCOUNT_UNAVAILABLE" ||
-          status === 404 ||
-          status === 409
-        ) {
-          toast.info(
-            backendMessage ||
-              "This driver does not have an active Suprah Space account.",
-          );
-          return;
-        }
-
         toast.error(
-          backendMessage || "Messaging is currently unavailable. Please try again.",
+          error.response?.data?.message ||
+            error.message ||
+            "Messaging is unavailable for this driver",
         );
       }
     },
@@ -480,6 +456,7 @@ export default function DriverTrackerPage() {
                 coords: data.coords,
                 status: data.status,
                 lastSeenAt: data.lastSeenAt,
+                isSharing: data.status !== "offline",
               };
               return updated;
             });
@@ -535,7 +512,13 @@ export default function DriverTrackerPage() {
       socketRef.current?.off("driver:dispatch_alert_acknowledged");
       socketRef.current = null;
     };
-  }, [isSignedIn]);
+  }, [
+    isSignedIn,
+    getToken,
+    fetchDrivers,
+    fetchAvailableLoads,
+    fetchLoadRequests,
+  ]);
 
   React.useEffect(() => {
     if (!normalizedToken || !mapRef.current || mapInstanceRef.current) return;
@@ -693,7 +676,9 @@ export default function DriverTrackerPage() {
       }
 
       mapDrivers.forEach((driver) => {
-        if (!driver.coords || driver.status === "offline") return;
+        // Keep a driver's last known location visible even after the heartbeat
+        // becomes stale. Offline drivers use the gray map pin/status styling.
+        if (!driver.coords) return;
         const position = [driver.coords.lng, driver.coords.lat] as [
           number,
           number,
@@ -781,103 +766,6 @@ export default function DriverTrackerPage() {
 
     updateMarkers();
   }, [mapDrivers]);
-
-  const sendLocationUpdate = React.useCallback(
-    async (
-      coords: { lat: number; lng: number },
-      statusOverride?: DriverStatus,
-    ) => {
-      if (!isSignedIn) return;
-      const token = await getToken();
-      await apiClient.post(
-        "/api/driver-tracking/heartbeat",
-        {
-          lat: coords.lat,
-          lng: coords.lng,
-          status: statusOverride ?? shareStatus,
-        },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-    },
-    [getToken, isSignedIn, shareStatus],
-  );
-
-  React.useEffect(() => {
-    if (!isSharing) {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      setShareError("Geolocation is not supported on this device");
-      setIsSharing(false);
-      return;
-    }
-
-    setShareError(null);
-    hasFlownRef.current = false;
-
-    const watchId = navigator.geolocation.watchPosition(
-      async (position) => {
-        const now = Date.now();
-        if (now - lastSentRef.current < LOCATION_INTERVAL_MS) return;
-
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        lastCoordsRef.current = coords;
-        lastSentRef.current = now;
-
-        if (!hasFlownRef.current && mapInstanceRef.current) {
-          mapInstanceRef.current.flyTo({
-            center: [coords.lng, coords.lat],
-            zoom: 15,
-            essential: true,
-          });
-          hasFlownRef.current = true;
-        }
-
-        try {
-          await sendLocationUpdate(coords);
-          setLastShareAt(new Date().toLocaleTimeString());
-        } catch (err: any) {
-          setShareError(
-            err.response?.data?.message ||
-            err.message ||
-            "Failed to send location",
-          );
-        }
-      },
-      (error) => {
-        setShareError(error.message);
-        setIsSharing(false);
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
-    );
-
-    watchIdRef.current = watchId;
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [isSharing, sendLocationUpdate]);
-
-  const handleStopSharing = async () => {
-    setIsSharing(false);
-    toast.success("Location sharing stopped");
-    if (lastCoordsRef.current) {
-      try {
-        await sendLocationUpdate(lastCoordsRef.current, "offline");
-      } catch (err: any) {
-        setShareError(
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to update status",
-        );
-      }
-    }
-  };
 
   const zoomMap = (delta: number) => {
     const map = mapInstanceRef.current;
@@ -1033,23 +921,25 @@ export default function DriverTrackerPage() {
         ))}
       </div>
 
-      {isDriver && (
+      {isDriver && driverLocationSharing && (
         <DriverTrackerShareCard
-          shareStatus={shareStatus}
-          onStatusChange={setShareStatus}
-          isSharing={isSharing}
+          shareStatus={driverLocationSharing.shareStatus}
+          onStatusChange={driverLocationSharing.setShareStatus}
+          isSharing={driverLocationSharing.isSharing}
           onToggleSharing={() =>
-            isSharing ? handleStopSharing() : setIsSharing(true)
+            driverLocationSharing.isSharing
+              ? void driverLocationSharing.stopSharing()
+              : driverLocationSharing.startSharing()
           }
-          lastShareAt={lastShareAt}
-          shareError={shareError}
+          lastShareAt={driverLocationSharing.lastShareAt}
+          shareError={driverLocationSharing.shareError}
           hasActiveLoad={drivers.some(
             (d) => d.driver?.id === user?.id && (d.shipments?.length ?? 0) > 0,
           )}
         />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] items-start gap-3 sm:gap-4">
         <DriverTrackerMap
           mapboxToken={normalizedToken}
           mapRef={mapRef}

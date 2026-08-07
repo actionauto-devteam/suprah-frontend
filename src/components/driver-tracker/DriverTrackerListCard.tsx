@@ -102,24 +102,65 @@ export function DriverTrackerListCard({
   const [filter, setFilter] = React.useState<DriverFilter>("all");
   const [query, setQuery] = React.useState("");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const listScrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!expandedId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      listScrollRef.current?.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [expandedId]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    return drivers.filter((d) => {
-      if (filter === "active" && d.status === "offline") return false;
-      if (filter === "offline" && d.status !== "offline") return false;
-      if (filter === "sharing" && !d.isSharing) return false;
-      if (filter === "not-sharing" && d.isSharing) return false;
-      if (!q) return true;
-      const name = d.driver?.name?.toLowerCase() || "";
-      const email = d.driver?.email?.toLowerCase() || "";
-      const tracking =
-        d.shipments
-          ?.map((s) => s.trackingNumber?.toLowerCase() || "")
-          .join(" ") || "";
-      return name.includes(q) || email.includes(q) || tracking.includes(q);
-    });
-  }, [drivers, filter, query]);
+    const originalOrder = new Map(
+      drivers.map((driver, index) => [driver.id, index]),
+    );
+
+    return drivers
+      .filter((d) => {
+        if (filter === "active" && d.status === "offline") return false;
+        if (filter === "offline" && d.status !== "offline") return false;
+        if (filter === "sharing" && !d.isSharing) return false;
+        if (filter === "not-sharing" && d.isSharing) return false;
+        if (!q) return true;
+
+        const name = d.driver?.name?.toLowerCase() || "";
+        const email = d.driver?.email?.toLowerCase() || "";
+        const tracking =
+          d.shipments
+            ?.map((s) => s.trackingNumber?.toLowerCase() || "")
+            .join(" ") || "";
+
+        return name.includes(q) || email.includes(q) || tracking.includes(q);
+      })
+      .sort((a, b) => {
+        // Keep the driver whose details are open at the top of the panel.
+        if (a.id === expandedId && b.id !== expandedId) return -1;
+        if (b.id === expandedId && a.id !== expandedId) return 1;
+
+        // Then prioritize drivers who are currently active/sharing.
+        const aActivePriority =
+          a.status !== "offline" || a.isSharing ? 0 : 1;
+        const bActivePriority =
+          b.status !== "offline" || b.isSharing ? 0 : 1;
+
+        if (aActivePriority !== bActivePriority) {
+          return aActivePriority - bActivePriority;
+        }
+
+        return (
+          (originalOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (originalOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+        );
+      });
+  }, [drivers, filter, query, expandedId]);
 
   const counts = React.useMemo(
     () => ({
@@ -133,7 +174,7 @@ export function DriverTrackerListCard({
   );
 
   return (
-    <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden flex flex-col h-full">
+    <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden flex flex-col min-h-0 h-[60vh] min-h-80 max-h-105 sm:h-120 lg:h-150 lg:max-h-none">
       <CardHeader className="py-4 px-5 border-b border-border/30 shrink-0 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -207,7 +248,10 @@ export function DriverTrackerListCard({
         </div>
       </CardHeader>
 
-      <CardContent className="p-2 flex-1 overflow-y-auto space-y-1.5">
+      <CardContent
+        ref={listScrollRef}
+        className="p-2 min-h-0 flex-1 overflow-y-scroll overscroll-contain space-y-1.5 [scrollbar-gutter:stable]"
+      >
         {error && (
           <div className="rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2">
             <p className="text-[11px] text-destructive font-medium">{error}</p>
@@ -243,12 +287,6 @@ export function DriverTrackerListCard({
           const shipments = driver.shipments ?? [];
           const isExpanded = expandedId === driver.id;
           const eq = driver.equipment;
-          const canMessage = Boolean(
-            driver.driver?.messagingAvailable && driver.driver?.crmUserId,
-          );
-          const messagingUnavailableReason =
-            driver.driver?.messagingUnavailableReason ||
-            "No active Suprah Space account is linked to this driver.";
 
           return (
             <div
@@ -355,41 +393,21 @@ export function DriverTrackerListCard({
                         </Button>
                       )}
                       {onMessageDriver && (
-                        <span
-                          className="block"
-                          title={canMessage ? "Message driver" : messagingUnavailableReason}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5 text-[10px] font-semibold border-primary/30 hover:bg-primary/5"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onMessageDriver(driver);
+                          }}
                         >
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={!canMessage}
-                            aria-label={
-                              canMessage
-                                ? `Message ${driver.driver?.name || "driver"}`
-                                : messagingUnavailableReason
-                            }
-                            className={`h-8 w-full gap-1.5 text-[10px] font-semibold ${
-                              canMessage
-                                ? "border-primary/30 hover:bg-primary/5"
-                                : "cursor-not-allowed border-border/40 text-muted-foreground/50"
-                            }`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (canMessage) onMessageDriver(driver);
-                            }}
-                          >
-                            <MessageSquare className="size-3" />
-                            Message
-                          </Button>
-                        </span>
+                          <MessageSquare className="size-3" />
+                          Message
+                        </Button>
                       )}
                     </div>
-                    {onMessageDriver && !canMessage && (
-                      <p className="mt-1 text-[9px] leading-snug text-muted-foreground/60">
-                        Suprah Space account not linked
-                      </p>
-                    )}
 
                     {eq?.trailerType && (
                       <div className="mt-1.5 flex flex-wrap gap-1">

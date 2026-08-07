@@ -34,6 +34,7 @@ import { resolveImageUrl } from "@/lib/utils";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
+import { DriverLocationSharingProvider } from "@/context/DriverLocationSharingContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,8 +114,9 @@ function DriverLayoutContent({
   }
 
   return (
-    <SidebarProvider>
-      <DriverSidebar />
+    <DriverLocationSharingProvider>
+      <SidebarProvider>
+        <DriverSidebar />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-[#050505]/80 backdrop-blur-xl sticky top-0 z-40">
           <div className="flex items-center gap-2">
@@ -205,7 +207,8 @@ function DriverLayoutContent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarProvider>
+      </SidebarProvider>
+    </DriverLocationSharingProvider>
   );
 }
 
