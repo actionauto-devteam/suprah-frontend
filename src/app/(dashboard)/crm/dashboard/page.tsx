@@ -165,9 +165,11 @@ export default function CrmDashboardPage() {
       const t = localStorage.getItem("crm_token");
       if (!t) { router.replace("/crm"); return; }
       try {
-        const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } });
+        const [res, profileRes] = await Promise.all([
+          apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } }),
+          apiClient.get("/api/profile").catch(() => null),
+        ]);
         const data = res.data?.data || res.data;
-        const profileRes = await apiClient.get("/api/profile").catch(() => null);
         const profile = profileRes?.data?.data || profileRes?.data;
         const profileAvatar = profile?.avatarUrl || profile?.avatar;
         setUser({ ...data, avatar: withAvatarCacheBust(profileAvatar || data.avatarUrl || data.avatar) });

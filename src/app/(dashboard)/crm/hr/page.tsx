@@ -372,16 +372,16 @@ function OnboardingTab({ token }: { token: string }) {
             <p className="text-sm font-semibold truncate">{emp.fullName}</p>
             <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">{emp.email}</p>
           </div>
-          <div className="shrink-0 text-right space-y-1">
+          <div className="shrink-0 min-w-28 text-right space-y-1.5">
             {emp.hireDate ? (
-              <p className="text-[11px] text-muted-foreground/70">
+              <p className="text-xs text-muted-foreground/70">
                 Hired {formatDate(emp.hireDate)}
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground/50 italic">No hire date set</p>
+              <p className="text-xs text-muted-foreground/50 italic">No hire date set</p>
             )}
             {emp.birthday && (
-              <p className="text-[10px] text-pink-500/80">
+              <p className="text-[11px] text-pink-500/80">
                 🎂 {formatDate(emp.birthday)}
               </p>
             )}
@@ -529,7 +529,7 @@ function OffboardingTab({
                 <p className="text-[11px] text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               {emp.offboardedAt && (
-                <p className="text-[11px] text-muted-foreground/60 shrink-0">
+                <p className="text-xs text-muted-foreground/60 shrink-0 min-w-24 text-right">
                   {formatDate(emp.offboardedAt)}
                 </p>
               )}

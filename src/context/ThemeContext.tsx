@@ -79,6 +79,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const rafId = window.requestAnimationFrame(() => {
       setThemeState(saved);
+      applyThemeToDOM(saved);
     });
 
     return () => window.cancelAnimationFrame(rafId);
@@ -96,10 +97,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return () => window.cancelAnimationFrame(rafId);
     }
   }, [user?.theme, hasLocalSave]);
-
-  useEffect(() => {
-    applyThemeToDOM(theme);
-  }, [theme]);
 
   const setTheme = useCallback(async (newTheme: Theme) => {
     if (newTheme === theme) return;

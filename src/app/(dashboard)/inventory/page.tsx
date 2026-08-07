@@ -375,23 +375,10 @@ function InventoryContent() {
   };
 
   const currentSortValue = React.useMemo(() => {
-    if (filters.sortBy === "price" && filters.sortOrder === "asc")
-      return "price-asc";
-    if (filters.sortBy === "price" && filters.sortOrder === "desc")
-      return "price-desc";
-    if (filters.sortBy === "mileage" && filters.sortOrder === "asc")
-      return "mileage-asc";
-    if (filters.sortBy === "mileage" && filters.sortOrder === "desc")
-      return "mileage-desc";
-    if (filters.sortBy === "year" && filters.sortOrder === "desc")
-      return "year-desc";
-    if (filters.sortBy === "make" && filters.sortOrder === "asc")
-      return "make-asc";
-    if (filters.sortBy === "demand" && filters.sortOrder === "desc")
-      return "demand-desc";
-    if (filters.sortBy === "low-performing" && filters.sortOrder === "desc")
-      return "low-performing-desc";
-    return "make-asc";
+    const value = `${filters.sortBy}-${filters.sortOrder}`;
+    return INVENTORY_SORT_OPTIONS.some((o) => o.value === value)
+      ? (value as SortOption)
+      : "make-asc";
   }, [filters.sortBy, filters.sortOrder]);
 
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {

@@ -1483,7 +1483,8 @@ export function VehicleDetailView({
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
                   src={`https://maps.google.com/maps?q=${encodeURIComponent(locationMapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
-                  className="w-full"
+                  className="w-full bg-white"
+                  style={{ colorScheme: "light" }}
                 />
                 <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-3.5 py-3 dark:bg-zinc-900/40">
                   <div>

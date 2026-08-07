@@ -180,11 +180,10 @@ function RangePresets({
                     : { min: preset.min, max: preset.max },
                 )
               }
-              className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                active
+              className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${active
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-background text-muted-foreground hover:border-primary/35 hover:text-foreground"
-              }`}
+                }`}
             >
               {preset.label}
             </button>
@@ -260,24 +259,21 @@ function ReportDatePicker({
           type="button"
           variant="outline"
           aria-invalid={ariaInvalid}
-          className={`report-calendar-trigger w-full justify-start gap-2 border-border bg-background text-left font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20 ${
-            compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-sm"
-          } ${ariaInvalid ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
+          className={`report-calendar-trigger w-full justify-start gap-2 border-border bg-background text-left font-normal text-foreground shadow-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/20 ${compact ? "h-8 px-2 text-xs" : "h-10 px-3 text-sm"
+            } ${ariaInvalid ? "border-destructive focus-visible:ring-destructive/20" : ""}`}
         >
           <span
             aria-hidden="true"
-            className={`flex shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ${
-              compact ? "size-5" : "size-6"
-            }`}
+            className={`flex shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ${compact ? "size-5" : "size-6"
+              }`}
           >
             <Calendar
               className={compact ? "size-3 stroke-[2.25]" : "size-3.5 stroke-[2.25]"}
             />
           </span>
           <span
-            className={`min-w-0 truncate ${
-              selectedDate ? "text-foreground" : "text-muted-foreground"
-            }`}
+            className={`min-w-0 truncate ${selectedDate ? "text-foreground" : "text-muted-foreground"
+              }`}
           >
             {selectedDate ? format(selectedDate, "MMM d, yyyy") : placeholder}
           </span>
@@ -288,7 +284,7 @@ function ReportDatePicker({
         align="start"
         sideOffset={6}
         collisionPadding={12}
-        className="report-calendar-popover z-[220] w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
+        className="report-calendar-popover z-220 w-auto overflow-hidden rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
       >
         <CalendarPicker
           className="bg-popover text-popover-foreground"
@@ -355,7 +351,7 @@ function MultiSelectDropdown({
       ? placeholder
       : selected.length === 1
         ? options.find((option) => option.value === selected[0])?.label ??
-          selected[0]
+        selected[0]
         : `${selected.length} selected`;
 
   return (
@@ -380,7 +376,7 @@ function MultiSelectDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+0.4rem)] z-[90] w-full min-w-60 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
+        <div className="absolute left-0 top-[calc(100%+0.4rem)] z-90 w-full min-w-60 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
           <label className="relative mb-1 block">
             <span className="sr-only">Search {label || placeholder}</span>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -589,9 +585,9 @@ export default function ReportFilters({
 
   const customRangeError =
     filters.period === "custom" &&
-    filters.dateRange.from &&
-    filters.dateRange.to &&
-    filters.dateRange.from > filters.dateRange.to
+      filters.dateRange.from &&
+      filters.dateRange.to &&
+      filters.dateRange.from > filters.dateRange.to
       ? "The end date must be on or after the start date."
       : undefined;
 
@@ -601,11 +597,10 @@ export default function ReportFilters({
 
   return (
     <section
-      className={`min-w-0 scroll-mt-24 space-y-3 rounded-xl border bg-card p-3 shadow-sm transition-all duration-300 sm:p-4 ${
-        periodAttention
+      className={`min-w-0 scroll-mt-24 space-y-3 rounded-xl border bg-card p-3 shadow-sm transition-all duration-300 sm:p-4 ${periodAttention
           ? "border-primary ring-4 ring-primary/20"
           : "border-border/80"
-      }`}
+        }`}
     >
       {periodAttention ? (
         <div
@@ -718,38 +713,37 @@ export default function ReportFilters({
           {(customRangeError ||
             filters.dateRange.from ||
             filters.dateRange.to) && (
-            <div
-              className={`mt-3 flex min-w-0 flex-wrap items-center gap-2 ${
-                customRangeError ? "justify-between" : "justify-end"
-              }`}
-            >
-              {customRangeError && (
-                <p
-                  className="text-xs font-semibold text-destructive"
-                  role="alert"
-                  aria-live="polite"
-                >
-                  {customRangeError}
-                </p>
-              )}
+              <div
+                className={`mt-3 flex min-w-0 flex-wrap items-center gap-2 ${customRangeError ? "justify-between" : "justify-end"
+                  }`}
+              >
+                {customRangeError && (
+                  <p
+                    className="text-xs font-semibold text-destructive"
+                    role="alert"
+                    aria-live="polite"
+                  >
+                    {customRangeError}
+                  </p>
+                )}
 
-              {(filters.dateRange.from || filters.dateRange.to) && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 shrink-0"
-                  onClick={() =>
-                    updateImmediate({
-                      dateRange: { from: undefined, to: undefined },
-                    })
-                  }
-                >
-                  Clear dates
-                </Button>
-              )}
-            </div>
-          )}
+                {(filters.dateRange.from || filters.dateRange.to) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={() =>
+                      updateImmediate({
+                        dateRange: { from: undefined, to: undefined },
+                      })
+                    }
+                  >
+                    Clear dates
+                  </Button>
+                )}
+              </div>
+            )}
         </div>
       )}
 
@@ -809,7 +803,7 @@ export default function ReportFilters({
       </div>
 
       {advancedOpen && (
-        <div className="fixed inset-0 z-[100] flex justify-end bg-black/45 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-100 flex justify-end bg-black/45 backdrop-blur-[1px]">
           <button
             type="button"
             aria-label="Close advanced filters"
@@ -853,7 +847,7 @@ export default function ReportFilters({
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         {(config.sort.options ?? []).map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
@@ -878,7 +872,7 @@ export default function ReportFilters({
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="desc">
                           {arrangeOrderLabels.descending}
                         </SelectItem>
@@ -964,7 +958,7 @@ export default function ReportFilters({
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="read">Read</SelectItem>
                         <SelectItem value="unread">Unread</SelectItem>
@@ -987,7 +981,7 @@ export default function ReportFilters({
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="pending">Pending Reply</SelectItem>
                         <SelectItem value="not-pending">Not Pending</SelectItem>
@@ -1010,7 +1004,7 @@ export default function ReportFilters({
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent position="popper" className="z-[200]">
+                      <SelectContent position="popper" className="z-200">
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="has-appointment">
                           Has Appointment

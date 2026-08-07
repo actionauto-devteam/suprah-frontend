@@ -51,7 +51,7 @@ function LabelRail({ labels, activeLabel, searching, collapsed, onToggleCollapse
           style={{ color: 'var(--text-secondary)' }}
           title={name}
         >
-          <Icon className="h-[18px] w-[18px]" />
+          <Icon className="h-4.5 w-4.5" />
           {unread > 0 && (
             <span
               className="absolute rounded-full"
@@ -181,7 +181,7 @@ function MessageRow({ msg, onOpen, onAction }: {
   return (
     <div
       onClick={onOpen}
-      className={cn('sm5-msg-row flex items-center gap-2.5 px-3 sm:px-4 py-3 lg:py-2.5 group', msg.isUnread && 'bg-emerald-500/[0.04]')}
+      className={cn('sm5-msg-row flex items-center gap-2.5 px-3 sm:px-4 py-3 lg:py-2.5 group', msg.isUnread && 'bg-emerald-500/4')}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onAction(msg.isStarred ? 'unstar' : 'star'); }}
@@ -221,7 +221,7 @@ function MessageRow({ msg, onOpen, onAction }: {
         {msg.attachments.length > 0 && <Paperclip className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)' }} />}
         <span
           className="sm5-mono group-hover:hidden"
-          style={{ fontSize: 11, minWidth: 64, textAlign: 'right', color: msg.isUnread ? 'var(--accent-text)' : 'var(--text-tertiary)', fontWeight: msg.isUnread ? 700 : 400 }}
+          style={{ fontSize: 12.5, minWidth: 88, textAlign: 'right', color: msg.isUnread ? 'var(--accent-text)' : 'var(--text-tertiary)', fontWeight: msg.isUnread ? 700 : 400 }}
         >
           {fmtListDate(msg.internalDate)}
         </span>
