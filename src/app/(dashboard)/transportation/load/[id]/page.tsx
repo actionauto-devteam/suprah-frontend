@@ -787,8 +787,17 @@ export default function LoadDetailsPage() {
           </CardHeader>
           <CardContent className="p-4">
             {load.driverContract?.agreedToTerms ? (
-              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full">
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 shadow-sm relative overflow-hidden h-full space-y-3">
                 <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50" />
+                {load.driverContract.signatureDataUrl && (
+                  <div className="rounded-xl border border-border/50 bg-white overflow-hidden h-24">
+                    <img
+                      src={load.driverContract.signatureDataUrl}
+                      alt="Driver signature"
+                      className="w-full h-full object-contain p-2"
+                    />
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2.5">
                   <div className="size-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
                   <span className="text-sm font-bold tracking-tight">Driver Signed</span>
