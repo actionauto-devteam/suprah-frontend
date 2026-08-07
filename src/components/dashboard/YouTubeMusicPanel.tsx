@@ -71,6 +71,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
   const [index, setIndex] = React.useState(-1);
   const [playing, setPlaying] = React.useState(false);
   const [playerReady, setPlayerReady] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const playerRef = React.useRef<any>(null);
@@ -104,9 +105,16 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
           onStateChange: (e: any) => {
             const YTP = (window as any).YT?.PlayerState;
             if (!YTP) return;
-            if (e.data === YTP.PLAYING) setPlaying(true);
+            if (e.data === YTP.PLAYING) { setPlaying(true); setErrorMsg(null); }
             else if (e.data === YTP.PAUSED) setPlaying(false);
             else if (e.data === YTP.ENDED) advanceRef.current();
+          },
+          onError: () => {
+            // 100 = unavailable, 101/150 = embedding disabled, 2/5 = param/HTML5.
+            // Skip to the next result rather than dead-ending on a blocked track.
+            setErrorMsg("That track can't be played here — skipping…");
+            advanceRef.current();
+            window.setTimeout(() => setErrorMsg(null), 2600);
           },
         },
       });
@@ -172,11 +180,16 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
 
   // ── Pieces ──────────────────────────────────────────────────────────────────
   const playerBox = (
-    <div className="overflow-hidden rounded-xl border border-border/40 bg-black aspect-video">
+    <div className="relative overflow-hidden rounded-xl border border-border/40 bg-black aspect-video">
       <div ref={wrapRef} className="size-full" />
       {!track && (
         <div className="pointer-events-none -mt-[56.25%] flex aspect-video items-center justify-center text-muted-foreground/40">
           <Music2 className="size-6" />
+        </div>
+      )}
+      {errorMsg && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-black/70 px-3 py-1.5 text-center text-[11px] font-medium text-amber-300">
+          {errorMsg}
         </div>
       )}
     </div>
