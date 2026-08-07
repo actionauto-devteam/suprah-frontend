@@ -351,7 +351,7 @@ export function NoteCard({
 
           <ReactionBar noteId={note._id} myUserId={myUserId} reactions={reactions} />
 
-          <div className="px-3.5 pb-3.5 pt-1 border-t border-black/[0.07] dark:border-white/[0.07] flex items-center gap-2 flex-wrap">
+          <div className="px-3.5 pb-2.5 pt-2.5 border-t border-black/[0.07] dark:border-white/[0.07] flex items-center gap-2 flex-wrap">
             <Avatar className="size-5 shrink-0">
               <AvatarImage src={note.userAvatar} />
               <AvatarFallback className="text-[8px] font-black">
@@ -381,7 +381,7 @@ export function NoteCard({
             )}
           </div>
 
-          <div className="px-3.5 pb-3 pt-0 flex items-center justify-between gap-2">
+          <div className="px-3.5 pb-3.5 pt-2 flex items-center justify-between gap-2">
             <div className="relative">
               <button
                 onClick={() => setShowReactionPicker((v) => !v)}

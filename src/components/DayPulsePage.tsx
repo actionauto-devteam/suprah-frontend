@@ -1603,7 +1603,7 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
     <div
       className={`relative rounded-3xl border transition-all duration-300 ${open ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5" : "border-border/40 shadow-sm"}`}
     >
-      <div className="absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
+      <div className="daypulse-blur-layer absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
       {previewAttachment && (
         <AttachmentPreviewModal
           attachment={previewAttachment.attachment}
@@ -2154,7 +2154,7 @@ export default function DayPulsePage({ currentUser, token }: {
       </section>
 
       <section className="relative rounded-3xl border border-border/40 p-4 sm:p-5 space-y-4">
-        <div className="absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
+        <div className="daypulse-blur-layer absolute inset-0 -z-10 rounded-3xl bg-card/60 backdrop-blur-xl" aria-hidden />
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-0.5">
             <p className="text-[11px] font-medium text-muted-foreground/50">Viewing reports for</p>

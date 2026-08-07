@@ -474,6 +474,19 @@ body.theme-switching *::after {
   color-scheme: dark;
 }
 
+/* DayPulse decorative backdrop-blur layers sit directly behind native
+   <input type="date"> triggers. Same Chromium compositor gap as the Reports
+   calendar below: an un-isolated backdrop-filter layer can paint one black
+   frame beside the native popup the moment it opens. Isolating the layer's
+   compositing forces it to be pre-painted so no flash occurs. */
+.daypulse-blur-layer {
+  isolation: isolate;
+  contain: layout paint style;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
 /* Native select dropdowns also respect dark theme */
 .dark select {
   color-scheme: dark;

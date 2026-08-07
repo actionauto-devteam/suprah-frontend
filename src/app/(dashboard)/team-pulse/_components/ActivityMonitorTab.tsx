@@ -176,7 +176,7 @@ function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: 
         {person.avatar ? (
           <img src={person.avatar} alt={person.name} className="size-9 rounded-full object-cover" />
         ) : (
-          <div className="size-9 text-[11px] rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-primary">
+          <div className="size-9 text-xs rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-primary">
             {initials}
           </div>
         )}
@@ -192,18 +192,18 @@ function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: 
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-          <span className={cn("text-[12px] font-bold truncate", isOffline && "text-muted-foreground/70")}>
+          <span className={cn("text-sm font-bold truncate", isOffline && "text-muted-foreground/70")}>
             {person.name}
           </span>
-          {person.isMe && <span className="text-[9px] font-black text-primary bg-primary/10 px-1 rounded shrink-0">You</span>}
+          {person.isMe && <span className="text-[10px] font-black text-primary bg-primary/10 px-1 rounded shrink-0">You</span>}
           <DepartmentBadge department={person.department} />
           {isOnsite && (
-            <span className="text-[8px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 rounded shrink-0 uppercase tracking-wide">
+            <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 rounded shrink-0 uppercase tracking-wide">
               On-Site
             </span>
           )}
           {isOffsite && (
-            <span className="text-[8px] font-black text-muted-foreground/60 bg-muted/50 border border-border/30 px-1 rounded shrink-0 uppercase tracking-wide">
+            <span className="text-[9px] font-black text-muted-foreground/60 bg-muted/50 border border-border/30 px-1 rounded shrink-0 uppercase tracking-wide">
               Off-Site
             </span>
           )}
@@ -212,19 +212,19 @@ function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: 
         {person.hasPresence && person.onlineStatus && (
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             <span className={cn(
-              "text-[10px] font-semibold px-1.5 py-px rounded border leading-none",
+              "text-[11px] font-semibold px-1.5 py-px rounded border leading-none",
               S.badge[person.onlineStatus] ?? "bg-muted/60 text-muted-foreground border-border/30",
             )}>
               {S.label[person.onlineStatus] ?? person.onlineStatus}
             </span>
-            {person.lastActive && <span className="text-[9px] text-muted-foreground/40 shrink-0">{timeAgo(person.lastActive)}</span>}
+            {person.lastActive && <span className="text-[10px] text-muted-foreground/40 shrink-0">{timeAgo(person.lastActive)}</span>}
           </div>
         )}
 
         {person.customStatus ? (
-          <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{person.customStatus}</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">{person.customStatus}</p>
         ) : person.jobTitle ? (
-          <span className="text-[9px] text-muted-foreground/50 truncate block mt-0.5">{person.jobTitle}</span>
+          <span className="text-[10px] text-muted-foreground/50 truncate block mt-0.5">{person.jobTitle}</span>
         ) : null}
 
         <div className="flex items-center gap-x-2 gap-y-1 mt-1.5 flex-wrap">
@@ -234,38 +234,38 @@ function RosterCard({ person, isAdmin, isSelected, onSelect, isShiftGoverned }: 
               <span className={cn("relative inline-flex size-2 rounded-full", meta.color)} />
             </span>
             <WhereIcon className="size-3 shrink-0 text-muted-foreground/60" />
-            <span className="text-[10px] font-bold truncate text-foreground/80" style={place && !isLastSeen ? { color: place.color || undefined } : undefined}>
+            <span className="text-[11px] font-bold truncate text-foreground/80" style={place && !isLastSeen ? { color: place.color || undefined } : undefined}>
               {where}
             </span>
             {isShiftGoverned && sharing && (
-              <span className="text-[8px] font-black text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1 rounded uppercase tracking-wide shrink-0">
+              <span className="text-[9px] font-black text-violet-600 dark:text-violet-400 bg-violet-500/10 border border-violet-500/20 px-1 rounded uppercase tracking-wide shrink-0">
                 Via Shift
               </span>
             )}
           </span>
-          {loc && !isLastSeen && <span className="text-[9px] text-muted-foreground/40 shrink-0">{timeAgo(loc.lastSeenAt)}</span>}
+          {loc && !isLastSeen && <span className="text-[10px] text-muted-foreground/40 shrink-0">{timeAgo(loc.lastSeenAt)}</span>}
           {typeof person.distanceMi === "number" && (
-            <span className="text-[9px] text-muted-foreground/40 font-semibold shrink-0">{formatDistanceMi(person.distanceMi)}</span>
+            <span className="text-[10px] text-muted-foreground/40 font-semibold shrink-0">{formatDistanceMi(person.distanceMi)}</span>
           )}
           {loc && typeof loc.batteryLevel === "number" && loc.batteryLevel <= 20 && (
-            <span className="text-[9px] flex items-center gap-0.5 font-semibold text-red-500 shrink-0">
+            <span className="text-[10px] flex items-center gap-0.5 font-semibold text-red-500 shrink-0">
               <BatteryLow className="size-2.5" /> {loc.batteryLevel}%
             </span>
           )}
           {loc?.connectivity === "offline" && (
-            <span className="text-[9px] text-red-500 flex items-center gap-0.5 font-semibold shrink-0">
+            <span className="text-[10px] text-red-500 flex items-center gap-0.5 font-semibold shrink-0">
               <WifiOff className="size-2.5" /> Offline
             </span>
           )}
           {stationary && (
-            <span className="text-[9px] flex items-center gap-0.5 font-semibold text-sky-600 dark:text-sky-400 shrink-0">
+            <span className="text-[10px] flex items-center gap-0.5 font-semibold text-sky-600 dark:text-sky-400 shrink-0">
               <Anchor className="size-2.5" /> {formatStationaryDuration(stationaryMinutes(loc!)!)}
             </span>
           )}
         </div>
 
         {canSelect && (
-          <p className="text-[9px] font-bold text-primary/70 mt-1.5 flex items-center gap-1">
+          <p className="text-[10px] font-bold text-primary/70 mt-1.5 flex items-center gap-1">
             <Navigation className="size-2.5" /> Tap for details
           </p>
         )}
@@ -318,7 +318,7 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
           {event.userAvatar ? (
             <img src={event.userAvatar} alt={userName} className="size-7 rounded-full object-cover" />
           ) : (
-            <div className="size-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[9px] font-black text-primary">
+            <div className="size-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-black text-primary">
               {initials}
             </div>
           )}
@@ -332,7 +332,7 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-foreground/90 leading-snug">
+        <p className="text-xs text-foreground/90 leading-snug">
           <span className="font-semibold">{userName}</span>
           {" · "}
           <span className="text-muted-foreground/80">{description.replace(userName, "").trim()}</span>
@@ -340,13 +340,13 @@ function EventItem({ event, myUserId, index }: { event: ActivityEvent; myUserId?
         {chips.length > 0 && (
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {chips.map((c) => (
-              <span key={c} className="text-[9px] font-bold px-1.5 py-px rounded-full bg-muted/60 text-muted-foreground/70">{c}</span>
+              <span key={c} className="text-[10px] font-bold px-1.5 py-px rounded-full bg-muted/60 text-muted-foreground/70">{c}</span>
             ))}
           </div>
         )}
       </div>
 
-      <span className="text-[9px] text-muted-foreground/40 shrink-0 tabular-nums mt-0.5">
+      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums mt-0.5">
         {timeAgo(event.createdAt)}
       </span>
     </motion.div>
@@ -847,7 +847,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             ))}
           </div>
 
-          <div className="flex-1 min-h-0 space-y-2 pr-0.5 overflow-y-auto">
+          <div className="flex-1 min-h-0 space-y-2 p-2 pr-2.5 overflow-y-auto rounded-2xl border border-border/40 bg-muted/25">
             {rosterPeople.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
                 <User2 className="size-8" />
@@ -857,7 +857,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
               <>
                 {sharingRosterPeople.length > 0 && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-background/95 backdrop-blur-sm py-1 z-10">
+                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-muted/90 backdrop-blur-sm py-1 z-10">
                       <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Currently Sharing</span>
                       <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{sharingRosterPeople.length}</span>
                       <span className="flex-1 h-px bg-border/30" />
@@ -876,7 +876,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
                 )}
                 <div className="space-y-2">
                   {sharingRosterPeople.length > 0 && (
-                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-background/95 backdrop-blur-sm py-1 z-10">
+                    <div className="flex items-center gap-2 sm:sticky sm:top-0 bg-muted/90 backdrop-blur-sm py-1 z-10">
                       <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Everyone Else</span>
                       <span className="text-[9px] font-bold text-muted-foreground/30 tabular-nums">{restRosterPeople.length}</span>
                       <span className="flex-1 h-px bg-border/30" />
@@ -929,7 +929,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
             )}
           </div>
 
-          <div className="flex-1 min-h-0 rounded-2xl border border-border/40 bg-card overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 rounded-2xl border border-border/40 bg-muted/25 overflow-hidden flex flex-col">
             {eventsLoading ? (
               <div className="space-y-0 divide-y divide-border/30 px-3">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -958,7 +958,7 @@ export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
               <div className="px-3 overflow-y-auto flex-1">
                 {eventGroups.map((group) => (
                   <div key={group.label} className="divide-y divide-border/30">
-                    <div className="flex items-center gap-2 sticky top-0 bg-card/95 backdrop-blur-sm py-1.5 z-10">
+                    <div className="flex items-center gap-2 sticky top-0 bg-muted/90 backdrop-blur-sm py-1.5 z-10">
                       <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{group.label}</span>
                       <span className="flex-1 h-px bg-border/30" />
                     </div>

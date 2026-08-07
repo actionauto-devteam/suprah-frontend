@@ -382,6 +382,7 @@ export default function Pulse360Page() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (department !== "all") params.set("department", department);
@@ -572,9 +573,21 @@ export default function Pulse360Page() {
               Department and org-wide analytics are available to admins and managers.
             </p>
           </div>
-        ) : !overview ? (
+        ) : loading ? (
           <div className="flex items-center justify-center rounded-2xl border border-border/40 py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+          </div>
+        ) : !overview ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-border/40 py-16 text-center">
+            <AlertTriangle className="h-5 w-5 text-muted-foreground/40" />
+            <p className="text-sm font-semibold text-muted-foreground/70">Could not load the operations overview</p>
+            <Button
+              onClick={() => void loadOverview()}
+              size="sm"
+              className="h-8 gap-1.5 rounded-xl border border-border/40 bg-card text-xs font-bold text-muted-foreground hover:bg-muted/50"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </Button>
           </div>
         ) : (
           <>
