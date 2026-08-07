@@ -196,7 +196,7 @@ function insertPreselectedTypographyText(
   fontFamily: SS4FontFamilyId | null,
   fontSize: SS4FontSize | null,
   inlineFormats: SS4InlineTypingPreferences,
-  color?: string,
+  color?: string | null,
 ): boolean {
   const inputEvent = event.nativeEvent as InputEvent;
   if (
@@ -210,7 +210,7 @@ function insertPreselectedTypographyText(
     return false;
   }
 
-  const normalizedColor = color && color.toLowerCase() !== '#ffffff'
+  const normalizedColor = color
     ? color.toLowerCase()
     : null;
   const hasExplicitInlineChoice = Object.values(inlineFormats)
@@ -318,6 +318,373 @@ function insertPreselectedTypographyText(
   selection.removeAllRanges();
   selection.addRange(range);
   return true;
+}
+
+
+type SS4CaretFormattingSnapshot = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  boldExplicit: boolean;
+  italicExplicit: boolean;
+  underlineExplicit: boolean;
+  strikeExplicit: boolean;
+  fontFamily: SS4FontFamilyId;
+  fontSize: SS4FontSize;
+  color: string;
+  fontFamilyExplicit: boolean;
+  fontSizeExplicit: boolean;
+  colorExplicit: boolean;
+};
+
+function ss4TypingPreferencesFromCaretSnapshot(
+  caret: SS4CaretFormattingSnapshot | null,
+): SS4InlineTypingPreferences {
+  if (!caret) return createSS4InlineTypingPreferences();
+
+  return {
+    // Preserve active inherited formatting, and preserve explicit OFF states.
+    // Plain inherited "off" remains null so ordinary typing does not create
+    // unnecessary wrappers.
+    bold: caret.bold ? true : caret.boldExplicit ? false : null,
+    italic: caret.italic ? true : caret.italicExplicit ? false : null,
+    underline: caret.underline
+      ? true
+      : caret.underlineExplicit
+        ? false
+        : null,
+    strike: caret.strike ? true : caret.strikeExplicit ? false : null,
+  };
+}
+
+function getRichEditorCaretFormattingSnapshot(
+  root: HTMLElement | null,
+): SS4CaretFormattingSnapshot | null {
+  if (!root) return null;
+
+  const selection = window.getSelection();
+  if (
+    !selection
+    || selection.rangeCount === 0
+    || !selection.anchorNode
+    || !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+
+  const anchorElement = selection.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection.anchorNode.parentElement;
+  const effectiveElement = anchorElement && root.contains(anchorElement)
+    ? anchorElement
+    : root;
+
+  const typingSpan = effectiveElement.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+
+  const ancestors: HTMLElement[] = [];
+  let current: HTMLElement | null = effectiveElement;
+  while (current) {
+    ancestors.push(current);
+    if (current === root) break;
+    current = current.parentElement;
+  }
+
+  const firstInlineStyle = (
+    getter: (element: HTMLElement) => string | null | undefined,
+  ): string | null => {
+    for (const element of ancestors) {
+      const value = getter(element)?.trim();
+      if (value) return value;
+    }
+    return null;
+  };
+
+  const dataBoolean = (
+    key: 'ss4Bold' | 'ss4Italic' | 'ss4Underline' | 'ss4Strike',
+  ): boolean | null => {
+    const raw = typingSpan?.dataset[key];
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return null;
+  };
+
+  const hasAncestorTag = (tags: string[]): boolean =>
+    ancestors.some(element => tags.includes(element.tagName.toLowerCase()));
+
+  const hasInlineWeight = ancestors.some(element => {
+    const value = element.style.fontWeight.trim();
+    return value === 'bold' || Number.parseInt(value || '0', 10) >= 600;
+  });
+  const hasInlineItalic = ancestors.some(
+    element => element.style.fontStyle.trim() === 'italic',
+  );
+  const hasInlineUnderline = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('underline')
+  ));
+  const hasInlineStrike = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('line-through')
+  ));
+
+  const boldData = dataBoolean('ss4Bold');
+  const italicData = dataBoolean('ss4Italic');
+  const underlineData = dataBoolean('ss4Underline');
+  const strikeData = dataBoolean('ss4Strike');
+
+  const bold = boldData ?? (
+    hasAncestorTag(['b', 'strong'])
+    || hasInlineWeight
+    || document.queryCommandState('bold')
+  );
+  const italic = italicData ?? (
+    hasAncestorTag(['i', 'em'])
+    || hasInlineItalic
+    || document.queryCommandState('italic')
+  );
+  const underline = underlineData ?? (
+    hasAncestorTag(['u'])
+    || hasInlineUnderline
+    || document.queryCommandState('underline')
+  );
+  const strike = strikeData ?? (
+    hasAncestorTag(['s', 'strike', 'del'])
+    || hasInlineStrike
+    || document.queryCommandState('strikeThrough')
+  );
+
+  const explicitFontFamilyValue =
+    typingSpan?.dataset.ss4FontFamily
+    || firstInlineStyle(element =>
+      element.style.fontFamily || element.getAttribute('face')
+    );
+  const explicitFontSizeValue =
+    typingSpan?.dataset.ss4FontSize
+    || firstInlineStyle(element =>
+      element.style.fontSize || element.getAttribute('size')
+    );
+  const explicitColorValue =
+    typingSpan?.dataset.ss4TextColor
+    || firstInlineStyle(element =>
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+    );
+
+  const computed = window.getComputedStyle(effectiveElement);
+  const queryFontFamily = String(
+    document.queryCommandValue('fontName') || '',
+  );
+  const queryFontSize = String(
+    document.queryCommandValue('fontSize') || '',
+  );
+  const queryColor = String(
+    document.queryCommandValue('foreColor') || '',
+  );
+
+  const fontFamily =
+    ss4FontFamilyIdFromCss(explicitFontFamilyValue)
+    || ss4FontFamilyIdFromCss(queryFontFamily)
+    || ss4FontFamilyIdFromCss(computed.fontFamily)
+    || SS4_DEFAULT_FONT_FAMILY;
+
+  const fontSize =
+    ss4FontSizeFromCss(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(queryFontSize)
+    || ss4FontSizeFromCss(computed.fontSize)
+    || SS4_DEFAULT_FONT_SIZE;
+
+  const color =
+    cssColorToHex(explicitColorValue)
+    || cssColorToHex(queryColor)
+    || cssColorToHex(computed.color)
+    || '#ffffff';
+
+  return {
+    bold,
+    italic,
+    underline,
+    strike,
+    boldExplicit: boldData !== null,
+    italicExplicit: italicData !== null,
+    underlineExplicit: underlineData !== null,
+    strikeExplicit: strikeData !== null,
+    fontFamily,
+    fontSize,
+    color,
+    fontFamilyExplicit: Boolean(explicitFontFamilyValue),
+    fontSizeExplicit: Boolean(explicitFontSizeValue),
+    colorExplicit: Boolean(explicitColorValue),
+  };
+}
+
+function insertTypingStyleCaretMarker(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  const normalizedColor = color?.toLowerCase() || null;
+  const hasExplicitInlineChoice = Object.values(inlineFormats).some(
+    value => value !== null,
+  );
+  if (
+    !fontFamily
+    && !fontSize
+    && !normalizedColor
+    && !hasExplicitInlineChoice
+  ) {
+    return false;
+  }
+
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+
+  const liveRange = selection.getRangeAt(0);
+  if (
+    !root.contains(liveRange.startContainer)
+    || !root.contains(liveRange.endContainer)
+  ) {
+    return false;
+  }
+
+  const anchorElement = liveRange.startContainer instanceof HTMLElement
+    ? liveRange.startContainer
+    : liveRange.startContainer.parentElement;
+  const existingTypingSpan = anchorElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+  const existingSpanIsMarkerOnly = Boolean(
+    existingTypingSpan
+    && stripSupraSpaceTypingMarkers(existingTypingSpan.textContent || '').trim() === '',
+  );
+
+  let span: HTMLElement;
+  let marker: Text;
+
+  if (existingTypingSpan && existingSpanIsMarkerOnly) {
+    // Update the existing empty caret-format run instead of nesting another
+    // span. This is important when a user changes formatting on a new line.
+    span = existingTypingSpan;
+    span.removeAttribute('style');
+    marker = Array.from(span.childNodes)
+      .find((node): node is Text => node.nodeType === Node.TEXT_NODE)
+      || document.createTextNode('\u200B');
+
+    if (!marker.parentNode) span.appendChild(marker);
+    marker.data = '\u200B';
+  } else {
+    span = document.createElement('span');
+    marker = document.createTextNode('\u200B');
+    span.appendChild(marker);
+
+    const insertionRange = liveRange.cloneRange();
+
+    // When the caret is at the end of an existing typing run, create a sibling
+    // run rather than nesting it. A sibling can truly turn underline/bold/etc.
+    // off without inheriting the previous run's inline style.
+    if (
+      existingTypingSpan
+      && existingTypingSpan.parentNode
+      && liveRange.collapsed
+    ) {
+      const contentsRange = document.createRange();
+      contentsRange.selectNodeContents(existingTypingSpan);
+      const atEnd = liveRange.compareBoundaryPoints(
+        Range.END_TO_END,
+        contentsRange,
+      ) === 0;
+
+      if (atEnd) {
+        insertionRange.setStartAfter(existingTypingSpan);
+        insertionRange.collapse(true);
+      }
+    }
+
+    insertionRange.insertNode(span);
+  }
+
+  span.dataset.ss4TypingStyle = 'true';
+  span.dataset.ss4FontFamily = fontFamily || '';
+  span.dataset.ss4FontSize = fontSize ? String(fontSize) : '';
+  span.dataset.ss4TextColor = normalizedColor || '';
+  span.dataset.ss4Bold = inlineFormats.bold === null
+    ? ''
+    : String(inlineFormats.bold);
+  span.dataset.ss4Italic = inlineFormats.italic === null
+    ? ''
+    : String(inlineFormats.italic);
+  span.dataset.ss4Underline = inlineFormats.underline === null
+    ? ''
+    : String(inlineFormats.underline);
+  span.dataset.ss4Strike = inlineFormats.strike === null
+    ? ''
+    : String(inlineFormats.strike);
+
+  if (fontFamily) span.style.fontFamily = ss4FontFamilyCss(fontFamily);
+  if (fontSize) span.style.fontSize = `${fontSize}px`;
+  if (normalizedColor) span.style.color = normalizedColor;
+
+  if (inlineFormats.bold !== null) {
+    span.style.fontWeight = inlineFormats.bold ? '700' : '400';
+  }
+  if (inlineFormats.italic !== null) {
+    span.style.fontStyle = inlineFormats.italic ? 'italic' : 'normal';
+  }
+
+  if (
+    inlineFormats.underline !== null
+    || inlineFormats.strike !== null
+  ) {
+    const decorations: string[] = [];
+    if (inlineFormats.underline) decorations.push('underline');
+    if (inlineFormats.strike) decorations.push('line-through');
+    span.style.textDecorationLine = decorations.length
+      ? decorations.join(' ')
+      : 'none';
+  }
+
+  const nextRange = document.createRange();
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return true;
+}
+
+function insertSoftLineBreakWithCaretFormatting(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  root.focus();
+
+  const inserted = document.execCommand('insertLineBreak');
+  if (!inserted) {
+    document.execCommand('insertHTML', false, '<br>');
+  }
+
+  insertTypingStyleCaretMarker(
+    root,
+    fontFamily,
+    fontSize,
+    inlineFormats,
+    color,
+  );
+  return true;
+}
+
+function stripSupraSpaceTypingMarkers(value: string): string {
+  return value.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
 }
 
 function clipboardElementIsHidden(element: HTMLElement): boolean {
@@ -475,6 +842,7 @@ if (typeof document !== 'undefined') {
       --sidebar-bg:#111316; --sidebar-border:rgba(255,255,255,0.055);
       --input-bg:var(--surface-1); --input-border:var(--border-2); --input-focus:rgba(91,124,246,0.35);
       --scrollbar:rgba(255,255,255,0.07);
+      --editor-caret:#f8fafc;
       --shadow-sm:0 1px 3px rgba(0,0,0,0.4),0 1px 2px rgba(0,0,0,0.3);
       --shadow-md:0 4px 16px rgba(0,0,0,0.5),0 2px 6px rgba(0,0,0,0.3);
       --shadow-lg:0 20px 60px rgba(0,0,0,0.7),0 8px 24px rgba(0,0,0,0.4);
@@ -493,6 +861,7 @@ if (typeof document !== 'undefined') {
       --sidebar-bg:#ffffff; --sidebar-border:rgba(0,0,0,0.08);
       --input-bg:#ffffff; --input-border:rgba(0,0,0,0.1); --input-focus:rgba(74,108,240,0.3);
       --scrollbar:rgba(0,0,0,0.1);
+      --editor-caret:#111827;
       --shadow-sm:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
       --shadow-md:0 4px 16px rgba(0,0,0,0.1),0 2px 6px rgba(0,0,0,0.06);
       --shadow-lg:0 20px 60px rgba(0,0,0,0.2),0 8px 24px rgba(0,0,0,0.1);
@@ -520,6 +889,13 @@ if (typeof document !== 'undefined') {
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.55; }
     .ss4-rich-edit { white-space:pre-wrap; }
+    .ss4-rich-edit,
+    .ss4-composer-editor {
+      caret-color:var(--editor-caret)!important;
+    }
+    .ss4-bubble-own .ss4-rich-edit {
+      caret-color:#ffffff!important;
+    }
     .ss4-rich-edit ul,
     .ss4-rich-edit ol {
       display:block!important;
@@ -3400,6 +3776,7 @@ function Bubble({
   const editFileInputRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<File[]>([]);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editTextColorChosen, setEditTextColorChosen] = React.useState(false);
   const [editFontFamily, setEditFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
   const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
   const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
@@ -3526,6 +3903,8 @@ function Bubble({
     const maxResponsiveWidth = Math.max(280, Math.min(560, rowWidth - 72));
     setEditWidth(Math.min(Math.max(measuredWidth, 360), maxResponsiveWidth));
     setEditDraft(message.content || '');
+    setEditTextColor('#ffffff');
+    setEditTextColorChosen(false);
     setEditFontFamily(SS4_DEFAULT_FONT_FAMILY);
     setEditFontFamilyChosen(false);
     setEditFontSize(SS4_DEFAULT_FONT_SIZE);
@@ -3612,53 +3991,86 @@ function Bubble({
         return;
       }
 
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      if (!caret) return;
+
       const blockValue = String(document.queryCommandValue('formatBlock') || '')
         .toLowerCase()
         .replace(/[<>]/g, '');
       const fontValue = String(document.queryCommandValue('fontName') || '')
         .toLowerCase();
-      const useTypingPreference = (
-        format: SS4InlineTypingFormat,
-        browserState: boolean,
-      ): boolean => (
-        selection.isCollapsed
-        && editTypingFormats[format] !== null
-          ? editTypingFormats[format] === true
-          : browserState
-      );
 
       setEditActiveFormats({
-        bold: useTypingPreference(
-          'bold',
-          document.queryCommandState('bold'),
-        ),
-        italic: useTypingPreference(
-          'italic',
-          document.queryCommandState('italic'),
-        ),
-        underline: useTypingPreference(
-          'underline',
-          document.queryCommandState('underline'),
-        ),
-        strike: useTypingPreference(
-          'strike',
-          document.queryCommandState('strikeThrough'),
-        ),
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
         list: document.queryCommandState('insertUnorderedList'),
         numbered: document.queryCommandState('insertOrderedList'),
         quote: blockValue.includes('blockquote'),
         code: /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue),
       });
 
-      setEditTextColor(getActiveSelectionColor(root));
+      setEditFontFamily(caret.fontFamily);
+      setEditFontSize(caret.fontSize);
+      setEditTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(root);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setEditFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setEditFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setEditTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+
+      setEditTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
     } catch {
       // Browser formatting-state detection is best effort.
     }
-  }, [editTypingFormats]);
+  }, []);
 
   const focusEditComposer = React.useCallback(() => {
     editAreaRef.current?.focus();
   }, []);
+
+  React.useEffect(() => {
+    if (!editMode) return;
+
+    const handleEditSelectionChange = () => {
+      const root = editAreaRef.current;
+      const selection = window.getSelection();
+      if (
+        root
+        && selection?.anchorNode
+        && root.contains(selection.anchorNode)
+      ) {
+        refreshEditActiveFormats();
+      }
+    };
+
+    document.addEventListener('selectionchange', handleEditSelectionChange);
+    return () => {
+      document.removeEventListener(
+        'selectionchange',
+        handleEditSelectionChange,
+      );
+    };
+  }, [editMode, refreshEditActiveFormats]);
 
   const applyEditFormat = React.useCallback((format: RichTextFormat) => {
     const root = editAreaRef.current;
@@ -3675,25 +4087,45 @@ function Bubble({
     );
 
     if (inlineFormat && range.collapsed) {
-      const command = ss4InlineCommandForFormat(inlineFormat);
-      const currentValue = editTypingFormats[inlineFormat]
-        ?? document.queryCommandState(command);
-      const nextValue = !currentValue;
-
-      setEditTypingFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-      setEditActiveFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-
       root.focus();
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+      const command = ss4InlineCommandForFormat(inlineFormat);
+      const currentValue = caretBefore
+        ? caretBefore[inlineFormat]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [inlineFormat]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        root,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      const liveRange = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+      editSelectionRangeRef.current = liveRange;
+
+      setEditTypingFormats(nextTypingFormats);
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      requestAnimationFrame(refreshEditActiveFormats);
       return;
     }
 
@@ -3772,27 +4204,60 @@ function Bubble({
     const root = editAreaRef.current;
     if (!root) return;
 
-    root.focus();
-    const nextRange = executeRichEditorCommandPreservingSelection(
+    const range = getRichEditorSelectionRange(
       root,
       editSelectionRangeRef.current,
-      () => {
-        applyTextColorToRichEditorSelection(root, color);
-      },
+    );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+      setEditTextColor(color);
+      setEditTextColorChosen(true);
+      requestAnimationFrame(refreshEditActiveFormats);
+      return;
+    }
+
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
     );
 
-    if (nextRange) editSelectionRangeRef.current = nextRange;
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
     setEditTextColor(color);
-    syncEditDraft();
+    setEditTextColorChosen(true);
     requestAnimationFrame(refreshEditActiveFormats);
   }, [refreshEditActiveFormats, syncEditDraft]);
 
   const applyEditFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
     setEditFontFamilyChosen(true);
+    setEditFontFamily(fontFamily);
+
     const root = editAreaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
-    setEditFontFamily(fontFamily);
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
 
     if (!range.collapsed) {
       const nextRange = executeRichEditorCommandPreservingSelection(
@@ -3800,26 +4265,60 @@ function Bubble({
         range,
         () => {
           document.execCommand('styleWithCSS', false, 'true');
-          document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
         },
       );
       if (nextRange) editSelectionRangeRef.current = nextRange;
       syncEditDraft();
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+      requestAnimationFrame(refreshEditActiveFormats);
+      return;
     }
-  }, [syncEditDraft]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    // The selected name must update before the user types.
+    setEditFontFamily(fontFamily);
+    setEditFontFamilyChosen(true);
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [refreshEditActiveFormats, syncEditDraft]);
 
   const applyEditFontSize = React.useCallback((fontSize: SS4FontSize) => {
     setEditFontSizeChosen(true);
+    setEditFontSize(fontSize);
+
     const root = editAreaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
-    setEditFontSize(fontSize);
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
 
     if (!range.collapsed) {
       const nextRange = executeRichEditorCommandPreservingSelection(
@@ -3833,14 +4332,35 @@ function Bubble({
       );
       if (nextRange) editSelectionRangeRef.current = nextRange;
       syncEditDraft();
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+      requestAnimationFrame(refreshEditActiveFormats);
+      return;
     }
-  }, [syncEditDraft]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setEditFontSize(fontSize);
+    setEditFontSizeChosen(true);
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [refreshEditActiveFormats, syncEditDraft]);
 
   const handleEditTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inserted = insertPreselectedTypographyText(
@@ -3848,7 +4368,7 @@ function Bubble({
       editFontFamilyChosen ? editFontFamily : null,
       editFontSizeChosen ? editFontSize : null,
       editTypingFormats,
-      editTextColor,
+      editTextColorChosen ? editTextColor : null,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
@@ -3862,6 +4382,7 @@ function Bubble({
     editFontSize,
     editFontSizeChosen,
     editTextColor,
+    editTextColorChosen,
     editTypingFormats,
     refreshEditActiveFormats,
     rememberEditSelection,
@@ -3956,12 +4477,7 @@ function Bubble({
     if (!bubbleRef.current) return;
     const rect = bubbleRef.current.getBoundingClientRect();
     const isMobileMode = mode === 'mobile';
-    // Both modes render the same 6 emoji + divider + reply + more-reactions + more-actions
-    // buttons (~262px) — desktop's old 175px guess undershot the real width by ~90px, so the
-    // edge-clamping below (which is otherwise correct) was clamping to a bar narrower than
-    // what actually renders, letting the real bar's right edge overflow past the viewport
-    // for messages near the edge. Mobile already used the accurate value; match it here.
-    const BAR_W = 262;
+    const BAR_W = isMobileMode ? 262 : 175;
     const PAD = 8;
     const chatBoundary = bubbleRowRef.current
       ?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]')
@@ -3998,7 +4514,6 @@ function Bubble({
     if (columnRef.current) {
       columnRef.current.style.transform = '';
       columnRef.current.style.transition = 'transform 180ms cubic-bezier(.2,.8,.2,1)';
-      columnRef.current.style.willChange = 'auto';
     }
     if (swipeCueRef.current) {
       swipeCueRef.current.style.opacity = '0';
@@ -4061,13 +4576,7 @@ function Bubble({
       active: true,
       direction: isOwn ? -1 : 1,
     };
-    if (columnRef.current) {
-      // will-change only while an actual swipe might happen — leaving it on permanently
-      // (as a static class) forces every message onto its own compositor layer at all
-      // times, which is what was making message text render slightly blurry at rest.
-      columnRef.current.style.willChange = 'transform';
-      columnRef.current.style.transition = 'none';
-    }
+    if (columnRef.current) columnRef.current.style.transition = 'none';
     longPressTimer.current = setTimeout(() => {
       if (touchMovedRef.current || !swipeStartRef.current?.active) return;
       openMobileActions();
@@ -4199,7 +4708,7 @@ function Bubble({
 
       <div
         ref={columnRef}
-        className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}
+        className={cn('ss4-msg-column flex flex-col gap-1 will-change-transform', isOwn && 'items-end')}
         style={{
           transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
         }}
@@ -4273,7 +4782,7 @@ function Bubble({
                   <Strikethrough className="h-3.5 w-3.5" style={editFormatIconStyle('strike')} />
                 </button>
                 <select
-                  value={editFontFamilyChosen ? editFontFamily : ''}
+                  value={editFontFamily}
                   onPointerDown={() => rememberEditSelection()}
                   onChange={event => applyEditFontFamily(event.target.value as SS4FontFamilyId)}
                   className="h-8 max-w-36 rounded-lg px-2 outline-none"
@@ -4287,7 +4796,7 @@ function Bubble({
                   ))}
                 </select>
                 <select
-                  value={editFontSizeChosen ? editFontSize : ''}
+                  value={editFontSize}
                   onPointerDown={() => rememberEditSelection()}
                   onChange={event => applyEditFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
                   className="h-8 w-18 rounded-lg px-2 outline-none"
@@ -4397,7 +4906,16 @@ function Bubble({
                 ref={editAreaRef}
                 contentEditable
                 suppressContentEditableWarning
-                onInput={() => { syncEditDraft(); rememberEditSelection(); refreshEditActiveFormats(); }}
+                onBeforeInput={handleEditTypographyBeforeInput}
+                onInput={() => {
+                  normalizeRichEditorFontSizeElements(
+                    editAreaRef.current,
+                    editFontSize,
+                  );
+                  syncEditDraft();
+                  rememberEditSelection();
+                  refreshEditActiveFormats();
+                }}
                 onFocus={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onSelect={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onMouseUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
@@ -4426,14 +4944,32 @@ function Bubble({
                     e.preventDefault();
                     e.stopPropagation();
 
-                    const inserted = document.execCommand('insertLineBreak');
-                    if (!inserted) {
-                      document.execCommand('insertHTML', false, '<br>');
-                    }
+                    const caret = getRichEditorCaretFormattingSnapshot(
+                      editAreaRef.current,
+                    );
+                    insertSoftLineBreakWithCaretFormatting(
+                      editAreaRef.current!,
+                      editFontFamilyChosen
+                        ? editFontFamily
+                        : caret?.fontFamilyExplicit
+                          ? caret.fontFamily
+                          : null,
+                      editFontSizeChosen
+                        ? editFontSize
+                        : caret?.fontSizeExplicit
+                          ? caret.fontSize
+                          : null,
+                      ss4TypingPreferencesFromCaretSnapshot(caret),
+                      editTextColorChosen
+                        ? editTextColor
+                        : caret?.colorExplicit
+                          ? caret.color
+                          : null,
+                    );
 
                     syncEditDraft();
                     rememberEditSelection();
-                    refreshEditActiveFormats();
+                    requestAnimationFrame(refreshEditActiveFormats);
                     return;
                   }
 
@@ -4459,9 +4995,31 @@ function Bubble({
 
                   if (e.key === 'Enter' && e.shiftKey) {
                     e.preventDefault();
-                    document.execCommand('insertLineBreak');
+                    const caret = getRichEditorCaretFormattingSnapshot(
+                      editAreaRef.current,
+                    );
+                    insertSoftLineBreakWithCaretFormatting(
+                      editAreaRef.current!,
+                      editFontFamilyChosen
+                        ? editFontFamily
+                        : caret?.fontFamilyExplicit
+                          ? caret.fontFamily
+                          : null,
+                      editFontSizeChosen
+                        ? editFontSize
+                        : caret?.fontSizeExplicit
+                          ? caret.fontSize
+                          : null,
+                      ss4TypingPreferencesFromCaretSnapshot(caret),
+                      editTextColorChosen
+                        ? editTextColor
+                        : caret?.colorExplicit
+                          ? caret.color
+                          : null,
+                    );
                     syncEditDraft();
                     rememberEditSelection();
+                    requestAnimationFrame(refreshEditActiveFormats);
                     return;
                   }
 
@@ -6636,6 +7194,7 @@ export default function SupraSpacePage() {
       createSS4InlineTypingPreferences,
     );
   const [activeTextColor, setActiveTextColor] = React.useState('#ffffff');
+  const [activeTextColorChosen, setActiveTextColorChosen] = React.useState(false);
   const [activeFontFamily, setActiveFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
   const [activeFontFamilyChosen, setActiveFontFamilyChosen] = React.useState(false);
   const [activeFontSize, setActiveFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
@@ -8078,6 +8637,9 @@ export default function SupraSpacePage() {
         return;
       }
 
+      const caret = getRichEditorCaretFormattingSnapshot(el);
+      if (!caret) return;
+
       const cursor = getCaretOffset(el);
       const value = el.innerText.replace(/\n$/, '');
       const lineStart = value.lastIndexOf(
@@ -8099,33 +8661,12 @@ export default function SupraSpacePage() {
       const fontValue = String(
         document.queryCommandValue('fontName') || '',
       ).toLowerCase();
-      const useTypingPreference = (
-        format: SS4InlineTypingFormat,
-        browserState: boolean,
-      ): boolean => (
-        selection.isCollapsed
-        && activeTypingFormats[format] !== null
-          ? activeTypingFormats[format] === true
-          : browserState
-      );
 
       setActiveFormats({
-        bold: useTypingPreference(
-          'bold',
-          document.queryCommandState('bold'),
-        ),
-        italic: useTypingPreference(
-          'italic',
-          document.queryCommandState('italic'),
-        ),
-        underline: useTypingPreference(
-          'underline',
-          document.queryCommandState('underline'),
-        ),
-        strike: useTypingPreference(
-          'strike',
-          document.queryCommandState('strikeThrough'),
-        ),
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
         list:
           document.queryCommandState('insertUnorderedList')
           || /^[•◦▪]\s/.test(line.trimStart()),
@@ -8140,11 +8681,38 @@ export default function SupraSpacePage() {
           || beforeCursor.split('`').length % 2 === 0,
       });
 
-      setActiveTextColor(getActiveSelectionColor(el));
+      setActiveFontFamily(caret.fontFamily);
+      setActiveFontSize(caret.fontSize);
+      setActiveTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(el);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setActiveFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setActiveFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setActiveTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+
+      setActiveTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
     } catch {
       // Browser formatting-state detection is best effort.
     }
-  }, [activeTypingFormats]);
+  }, []);
 
   React.useEffect(() => {
     document.addEventListener('selectionchange', refreshActiveFormats);
@@ -8838,17 +9406,47 @@ export default function SupraSpacePage() {
       focusComposerAtSavedCaret();
     }
 
-    const inserted = document.execCommand('insertLineBreak');
-    if (!inserted) {
-      document.execCommand('insertHTML', false, '<br>');
-    }
+    const caret = getRichEditorCaretFormattingSnapshot(el);
 
-    const nextText = el.innerText.replace(/\n$/, '');
+    insertSoftLineBreakWithCaretFormatting(
+      el,
+      activeFontFamilyChosen
+        ? activeFontFamily
+        : caret?.fontFamilyExplicit
+          ? caret.fontFamily
+          : null,
+      activeFontSizeChosen
+        ? activeFontSize
+        : caret?.fontSizeExplicit
+          ? caret.fontSize
+          : null,
+      {
+        bold: caret?.bold ? true : null,
+        italic: caret?.italic ? true : null,
+        underline: caret?.underline ? true : null,
+        strike: caret?.strike ? true : null,
+      },
+      activeTextColorChosen
+        ? activeTextColor
+        : caret?.colorExplicit
+          ? caret.color
+          : null,
+    );
+
+    const nextText = stripSupraSpaceTypingMarkers(
+      el.innerText.replace(/\n$/, ''),
+    );
     syncComposerText(nextText, true);
     saveComposerSelection();
-    refreshActiveFormats();
+    requestAnimationFrame(refreshActiveFormats);
     return true;
   }, [
+    activeFontFamily,
+    activeFontFamilyChosen,
+    activeFontSize,
+    activeFontSizeChosen,
+    activeTextColor,
+    activeTextColorChosen,
     focusComposerAtSavedCaret,
     refreshActiveFormats,
     saveComposerSelection,
@@ -8872,25 +9470,45 @@ export default function SupraSpacePage() {
     );
 
     if (inlineFormat && range.collapsed) {
-      const command = ss4InlineCommandForFormat(inlineFormat);
-      const currentValue = activeTypingFormats[inlineFormat]
-        ?? document.queryCommandState(command);
-      const nextValue = !currentValue;
-
-      setActiveTypingFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-      setActiveFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-
       el.focus();
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      composerSelectionRangeRef.current = range.cloneRange();
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(el);
+      const command = ss4InlineCommandForFormat(inlineFormat);
+      const currentValue = caretBefore
+        ? caretBefore[inlineFormat]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [inlineFormat]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        el,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      const liveRange = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+      composerSelectionRangeRef.current = liveRange;
+
+      setActiveTypingFormats(nextTypingFormats);
+      setActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      requestAnimationFrame(refreshActiveFormats);
       return;
     }
 
@@ -9048,24 +9666,51 @@ export default function SupraSpacePage() {
   }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
 
   const applyTextColor = React.useCallback((color: string) => {
-    const el = textareaRef.current;
-    if (!el) return;
+    const root = textareaRef.current;
+    if (!root) return;
 
-    el.focus();
-    const nextRange = executeRichEditorCommandPreservingSelection(
-      el,
+    const range = getRichEditorSelectionRange(
+      root,
       composerSelectionRangeRef.current,
-      () => {
-        applyTextColorToRichEditorSelection(el, color);
-      },
     );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
 
-    if (nextRange) {
-      composerSelectionRangeRef.current = nextRange;
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) composerSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      setActiveTextColor(color);
+      setActiveTextColorChosen(true);
+      saveComposerSelection();
+      requestAnimationFrame(refreshActiveFormats);
+      return;
     }
 
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
+    );
+
+    composerSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
     setActiveTextColor(color);
-    syncComposerText(el.innerText.replace(/\n$/, ''), true);
+    setActiveTextColorChosen(true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -9076,10 +9721,14 @@ export default function SupraSpacePage() {
 
   const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
     setActiveFontFamilyChosen(true);
+    setActiveFontFamily(fontFamily);
+
     const root = textareaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, composerSelectionRangeRef.current);
-    setActiveFontFamily(fontFamily);
+    const range = getRichEditorSelectionRange(
+      root,
+      composerSelectionRangeRef.current,
+    );
 
     if (!range.collapsed) {
       const nextRange = executeRichEditorCommandPreservingSelection(
@@ -9087,27 +9736,65 @@ export default function SupraSpacePage() {
         range,
         () => {
           document.execCommand('styleWithCSS', false, 'true');
-          document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
         },
       );
       if (nextRange) composerSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      composerSelectionRangeRef.current = range.cloneRange();
+      saveComposerSelection();
+      requestAnimationFrame(refreshActiveFormats);
+      return;
     }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    composerSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setActiveFontFamily(fontFamily);
+    setActiveFontFamilyChosen(true);
     saveComposerSelection();
-  }, [saveComposerSelection, syncComposerText]);
+    requestAnimationFrame(refreshActiveFormats);
+  }, [
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
 
   const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
     setActiveFontSizeChosen(true);
+    setActiveFontSize(fontSize);
+
     const root = textareaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, composerSelectionRangeRef.current);
-    setActiveFontSize(fontSize);
+    const range = getRichEditorSelectionRange(
+      root,
+      composerSelectionRangeRef.current,
+    );
 
     if (!range.collapsed) {
       const nextRange = executeRichEditorCommandPreservingSelection(
@@ -9121,15 +9808,41 @@ export default function SupraSpacePage() {
       );
       if (nextRange) composerSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      composerSelectionRangeRef.current = range.cloneRange();
+      saveComposerSelection();
+      requestAnimationFrame(refreshActiveFormats);
+      return;
     }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    composerSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setActiveFontSize(fontSize);
+    setActiveFontSizeChosen(true);
     saveComposerSelection();
-  }, [saveComposerSelection, syncComposerText]);
+    requestAnimationFrame(refreshActiveFormats);
+  }, [
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inserted = insertPreselectedTypographyText(
@@ -9137,7 +9850,7 @@ export default function SupraSpacePage() {
       activeFontFamilyChosen ? activeFontFamily : null,
       activeFontSizeChosen ? activeFontSize : null,
       activeTypingFormats,
-      activeTextColor,
+      activeTextColorChosen ? activeTextColor : null,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
@@ -9153,6 +9866,7 @@ export default function SupraSpacePage() {
     activeFontSize,
     activeFontSizeChosen,
     activeTextColor,
+    activeTextColorChosen,
     activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
@@ -10063,7 +10777,7 @@ export default function SupraSpacePage() {
                               <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
                             <select
-                              value={activeFontFamilyChosen ? activeFontFamily : ''}
+                              value={activeFontFamily}
                               onPointerDown={() => saveComposerSelection()}
                               onChange={event => applyComposerFontFamily(event.target.value as SS4FontFamilyId)}
                               className="h-9 max-w-36 rounded-lg px-2 outline-none"
@@ -10075,7 +10789,7 @@ export default function SupraSpacePage() {
                               {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                             </select>
                             <select
-                              value={activeFontSizeChosen ? activeFontSize : ''}
+                              value={activeFontSize}
                               onPointerDown={() => saveComposerSelection()}
                               onChange={event => applyComposerFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
                               className="h-9 w-18 rounded-lg px-2 outline-none"
@@ -10210,6 +10924,10 @@ export default function SupraSpacePage() {
                               suppressContentEditableWarning
                               onBeforeInput={handleComposerTypographyBeforeInput}
                               onInput={event => {
+                                normalizeRichEditorFontSizeElements(
+                                  textareaRef.current,
+                                  activeFontSize,
+                                );
                                 handleTyping(event);
                                 saveComposerSelection();
                                 refreshActiveFormats();

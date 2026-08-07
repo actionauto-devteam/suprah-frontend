@@ -237,7 +237,7 @@ function insertPreselectedTypographyText(
   fontFamily: SS4FontFamilyId | null,
   fontSize: SS4FontSize | null,
   inlineFormats: SS4InlineTypingPreferences,
-  color?: string,
+  color?: string | null,
 ): boolean {
   const inputEvent = event.nativeEvent as InputEvent;
   if (
@@ -251,7 +251,7 @@ function insertPreselectedTypographyText(
     return false;
   }
 
-  const normalizedColor = color && color.toLowerCase() !== '#ffffff'
+  const normalizedColor = color
     ? color.toLowerCase()
     : null;
   const hasExplicitInlineChoice = Object.values(inlineFormats)
@@ -359,6 +359,373 @@ function insertPreselectedTypographyText(
   selection.removeAllRanges();
   selection.addRange(range);
   return true;
+}
+
+
+type SS4CaretFormattingSnapshot = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  boldExplicit: boolean;
+  italicExplicit: boolean;
+  underlineExplicit: boolean;
+  strikeExplicit: boolean;
+  fontFamily: SS4FontFamilyId;
+  fontSize: SS4FontSize;
+  color: string;
+  fontFamilyExplicit: boolean;
+  fontSizeExplicit: boolean;
+  colorExplicit: boolean;
+};
+
+function ss4TypingPreferencesFromCaretSnapshot(
+  caret: SS4CaretFormattingSnapshot | null,
+): SS4InlineTypingPreferences {
+  if (!caret) return createSS4InlineTypingPreferences();
+
+  return {
+    // Preserve active inherited formatting, and preserve explicit OFF states.
+    // Plain inherited "off" remains null so ordinary typing does not create
+    // unnecessary wrappers.
+    bold: caret.bold ? true : caret.boldExplicit ? false : null,
+    italic: caret.italic ? true : caret.italicExplicit ? false : null,
+    underline: caret.underline
+      ? true
+      : caret.underlineExplicit
+        ? false
+        : null,
+    strike: caret.strike ? true : caret.strikeExplicit ? false : null,
+  };
+}
+
+function getRichEditorCaretFormattingSnapshot(
+  root: HTMLElement | null,
+): SS4CaretFormattingSnapshot | null {
+  if (!root) return null;
+
+  const selection = window.getSelection();
+  if (
+    !selection
+    || selection.rangeCount === 0
+    || !selection.anchorNode
+    || !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+
+  const anchorElement = selection.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection.anchorNode.parentElement;
+  const effectiveElement = anchorElement && root.contains(anchorElement)
+    ? anchorElement
+    : root;
+
+  const typingSpan = effectiveElement.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+
+  const ancestors: HTMLElement[] = [];
+  let current: HTMLElement | null = effectiveElement;
+  while (current) {
+    ancestors.push(current);
+    if (current === root) break;
+    current = current.parentElement;
+  }
+
+  const firstInlineStyle = (
+    getter: (element: HTMLElement) => string | null | undefined,
+  ): string | null => {
+    for (const element of ancestors) {
+      const value = getter(element)?.trim();
+      if (value) return value;
+    }
+    return null;
+  };
+
+  const dataBoolean = (
+    key: 'ss4Bold' | 'ss4Italic' | 'ss4Underline' | 'ss4Strike',
+  ): boolean | null => {
+    const raw = typingSpan?.dataset[key];
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return null;
+  };
+
+  const hasAncestorTag = (tags: string[]): boolean =>
+    ancestors.some(element => tags.includes(element.tagName.toLowerCase()));
+
+  const hasInlineWeight = ancestors.some(element => {
+    const value = element.style.fontWeight.trim();
+    return value === 'bold' || Number.parseInt(value || '0', 10) >= 600;
+  });
+  const hasInlineItalic = ancestors.some(
+    element => element.style.fontStyle.trim() === 'italic',
+  );
+  const hasInlineUnderline = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('underline')
+  ));
+  const hasInlineStrike = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('line-through')
+  ));
+
+  const boldData = dataBoolean('ss4Bold');
+  const italicData = dataBoolean('ss4Italic');
+  const underlineData = dataBoolean('ss4Underline');
+  const strikeData = dataBoolean('ss4Strike');
+
+  const bold = boldData ?? (
+    hasAncestorTag(['b', 'strong'])
+    || hasInlineWeight
+    || document.queryCommandState('bold')
+  );
+  const italic = italicData ?? (
+    hasAncestorTag(['i', 'em'])
+    || hasInlineItalic
+    || document.queryCommandState('italic')
+  );
+  const underline = underlineData ?? (
+    hasAncestorTag(['u'])
+    || hasInlineUnderline
+    || document.queryCommandState('underline')
+  );
+  const strike = strikeData ?? (
+    hasAncestorTag(['s', 'strike', 'del'])
+    || hasInlineStrike
+    || document.queryCommandState('strikeThrough')
+  );
+
+  const explicitFontFamilyValue =
+    typingSpan?.dataset.ss4FontFamily
+    || firstInlineStyle(element =>
+      element.style.fontFamily || element.getAttribute('face')
+    );
+  const explicitFontSizeValue =
+    typingSpan?.dataset.ss4FontSize
+    || firstInlineStyle(element =>
+      element.style.fontSize || element.getAttribute('size')
+    );
+  const explicitColorValue =
+    typingSpan?.dataset.ss4TextColor
+    || firstInlineStyle(element =>
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+    );
+
+  const computed = window.getComputedStyle(effectiveElement);
+  const queryFontFamily = String(
+    document.queryCommandValue('fontName') || '',
+  );
+  const queryFontSize = String(
+    document.queryCommandValue('fontSize') || '',
+  );
+  const queryColor = String(
+    document.queryCommandValue('foreColor') || '',
+  );
+
+  const fontFamily =
+    ss4FontFamilyIdFromCss(explicitFontFamilyValue)
+    || ss4FontFamilyIdFromCss(queryFontFamily)
+    || ss4FontFamilyIdFromCss(computed.fontFamily)
+    || SS4_DEFAULT_FONT_FAMILY;
+
+  const fontSize =
+    ss4FontSizeFromCss(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(queryFontSize)
+    || ss4FontSizeFromCss(computed.fontSize)
+    || SS4_DEFAULT_FONT_SIZE;
+
+  const color =
+    cssColorToHex(explicitColorValue)
+    || cssColorToHex(queryColor)
+    || cssColorToHex(computed.color)
+    || '#ffffff';
+
+  return {
+    bold,
+    italic,
+    underline,
+    strike,
+    boldExplicit: boldData !== null,
+    italicExplicit: italicData !== null,
+    underlineExplicit: underlineData !== null,
+    strikeExplicit: strikeData !== null,
+    fontFamily,
+    fontSize,
+    color,
+    fontFamilyExplicit: Boolean(explicitFontFamilyValue),
+    fontSizeExplicit: Boolean(explicitFontSizeValue),
+    colorExplicit: Boolean(explicitColorValue),
+  };
+}
+
+function insertTypingStyleCaretMarker(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  const normalizedColor = color?.toLowerCase() || null;
+  const hasExplicitInlineChoice = Object.values(inlineFormats).some(
+    value => value !== null,
+  );
+  if (
+    !fontFamily
+    && !fontSize
+    && !normalizedColor
+    && !hasExplicitInlineChoice
+  ) {
+    return false;
+  }
+
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+
+  const liveRange = selection.getRangeAt(0);
+  if (
+    !root.contains(liveRange.startContainer)
+    || !root.contains(liveRange.endContainer)
+  ) {
+    return false;
+  }
+
+  const anchorElement = liveRange.startContainer instanceof HTMLElement
+    ? liveRange.startContainer
+    : liveRange.startContainer.parentElement;
+  const existingTypingSpan = anchorElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+  const existingSpanIsMarkerOnly = Boolean(
+    existingTypingSpan
+    && stripSupraSpaceTypingMarkers(existingTypingSpan.textContent || '').trim() === '',
+  );
+
+  let span: HTMLElement;
+  let marker: Text;
+
+  if (existingTypingSpan && existingSpanIsMarkerOnly) {
+    // Update the existing empty caret-format run instead of nesting another
+    // span. This is important when a user changes formatting on a new line.
+    span = existingTypingSpan;
+    span.removeAttribute('style');
+    marker = Array.from(span.childNodes)
+      .find((node): node is Text => node.nodeType === Node.TEXT_NODE)
+      || document.createTextNode('\u200B');
+
+    if (!marker.parentNode) span.appendChild(marker);
+    marker.data = '\u200B';
+  } else {
+    span = document.createElement('span');
+    marker = document.createTextNode('\u200B');
+    span.appendChild(marker);
+
+    const insertionRange = liveRange.cloneRange();
+
+    // When the caret is at the end of an existing typing run, create a sibling
+    // run rather than nesting it. A sibling can truly turn underline/bold/etc.
+    // off without inheriting the previous run's inline style.
+    if (
+      existingTypingSpan
+      && existingTypingSpan.parentNode
+      && liveRange.collapsed
+    ) {
+      const contentsRange = document.createRange();
+      contentsRange.selectNodeContents(existingTypingSpan);
+      const atEnd = liveRange.compareBoundaryPoints(
+        Range.END_TO_END,
+        contentsRange,
+      ) === 0;
+
+      if (atEnd) {
+        insertionRange.setStartAfter(existingTypingSpan);
+        insertionRange.collapse(true);
+      }
+    }
+
+    insertionRange.insertNode(span);
+  }
+
+  span.dataset.ss4TypingStyle = 'true';
+  span.dataset.ss4FontFamily = fontFamily || '';
+  span.dataset.ss4FontSize = fontSize ? String(fontSize) : '';
+  span.dataset.ss4TextColor = normalizedColor || '';
+  span.dataset.ss4Bold = inlineFormats.bold === null
+    ? ''
+    : String(inlineFormats.bold);
+  span.dataset.ss4Italic = inlineFormats.italic === null
+    ? ''
+    : String(inlineFormats.italic);
+  span.dataset.ss4Underline = inlineFormats.underline === null
+    ? ''
+    : String(inlineFormats.underline);
+  span.dataset.ss4Strike = inlineFormats.strike === null
+    ? ''
+    : String(inlineFormats.strike);
+
+  if (fontFamily) span.style.fontFamily = ss4FontFamilyCss(fontFamily);
+  if (fontSize) span.style.fontSize = `${fontSize}px`;
+  if (normalizedColor) span.style.color = normalizedColor;
+
+  if (inlineFormats.bold !== null) {
+    span.style.fontWeight = inlineFormats.bold ? '700' : '400';
+  }
+  if (inlineFormats.italic !== null) {
+    span.style.fontStyle = inlineFormats.italic ? 'italic' : 'normal';
+  }
+
+  if (
+    inlineFormats.underline !== null
+    || inlineFormats.strike !== null
+  ) {
+    const decorations: string[] = [];
+    if (inlineFormats.underline) decorations.push('underline');
+    if (inlineFormats.strike) decorations.push('line-through');
+    span.style.textDecorationLine = decorations.length
+      ? decorations.join(' ')
+      : 'none';
+  }
+
+  const nextRange = document.createRange();
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return true;
+}
+
+function insertSoftLineBreakWithCaretFormatting(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  root.focus();
+
+  const inserted = document.execCommand('insertLineBreak');
+  if (!inserted) {
+    document.execCommand('insertHTML', false, '<br>');
+  }
+
+  insertTypingStyleCaretMarker(
+    root,
+    fontFamily,
+    fontSize,
+    inlineFormats,
+    color,
+  );
+  return true;
+}
+
+function stripSupraSpaceTypingMarkers(value: string): string {
+  return value.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
 }
 
 function clipboardElementIsHidden(element: HTMLElement): boolean {
@@ -2882,10 +3249,19 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [composerFontFamilyChosen, setComposerFontFamilyChosen] = React.useState(false);
   const [composerFontSize, setComposerFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [composerFontSizeChosen, setComposerFontSizeChosen] = React.useState(false);
+  const [composerTextColor, setComposerTextColor] = React.useState('#ffffff');
+  const [composerTextColorChosen, setComposerTextColorChosen] = React.useState(false);
   const [composerTypingFormats, setComposerTypingFormats] =
     React.useState<SS4InlineTypingPreferences>(
       createSS4InlineTypingPreferences,
     );
+  const [composerActiveFormats, setComposerActiveFormats] =
+    React.useState<Record<SS4InlineTypingFormat, boolean>>({
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+    });
   const headerRef = React.useRef<HTMLDivElement>(null);
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
@@ -3448,6 +3824,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<PendingPopupAttachment[]>([]);
   const [editColorOpen, setEditColorOpen] = React.useState(false);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editTextColorChosen, setEditTextColorChosen] = React.useState(false);
   const [editFontFamily, setEditFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
   const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
   const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
@@ -3479,6 +3856,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const maxResponsiveWidth = Math.max(280, Math.min(348, (popupBody?.getBoundingClientRect().width || POPUP_W) - 28));
     setEditWidth(Math.min(Math.max(width, 300), maxResponsiveWidth));
     setEditDraft(msg.content || '');
+    setEditTextColor('#ffffff');
+    setEditTextColorChosen(false);
     setEditFontFamily(SS4_DEFAULT_FONT_FAMILY);
     setEditFontFamilyChosen(false);
     setEditFontSize(SS4_DEFAULT_FONT_SIZE);
@@ -3559,6 +3938,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         return;
       }
 
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      if (!caret) return;
+
       const blockValue = String(
         document.queryCommandValue('formatBlock') || '',
       )
@@ -3567,42 +3949,77 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const fontValue = String(
         document.queryCommandValue('fontName') || '',
       ).toLowerCase();
-      const useTypingPreference = (
-        format: SS4InlineTypingFormat,
-        browserState: boolean,
-      ): boolean => (
-        selection.isCollapsed
-        && editTypingFormats[format] !== null
-          ? editTypingFormats[format] === true
-          : browserState
-      );
 
       setEditActiveFormats({
-        bold: useTypingPreference(
-          'bold',
-          document.queryCommandState('bold'),
-        ),
-        italic: useTypingPreference(
-          'italic',
-          document.queryCommandState('italic'),
-        ),
-        underline: useTypingPreference(
-          'underline',
-          document.queryCommandState('underline'),
-        ),
-        strike: useTypingPreference(
-          'strike',
-          document.queryCommandState('strikeThrough'),
-        ),
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
         list: document.queryCommandState('insertUnorderedList'),
         numbered: document.queryCommandState('insertOrderedList'),
         quote: blockValue.includes('blockquote'),
         code: /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue),
       });
+
+      setEditFontFamily(caret.fontFamily);
+      setEditFontSize(caret.fontSize);
+      setEditTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(root);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setEditFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setEditFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setEditTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+
+      setEditTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
     } catch {
       // Formatting-state detection is best effort.
     }
-  }, [editTypingFormats]);
+  }, []);
+
+  React.useEffect(() => {
+    if (!editingMsgId) return;
+
+    const handlePopupEditSelectionChange = () => {
+      const root = editAreaRef.current;
+      const selection = window.getSelection();
+      if (
+        root
+        && selection?.anchorNode
+        && root.contains(selection.anchorNode)
+      ) {
+        refreshPopupEditFormats();
+      }
+    };
+
+    document.addEventListener(
+      'selectionchange',
+      handlePopupEditSelectionChange,
+    );
+    return () => {
+      document.removeEventListener(
+        'selectionchange',
+        handlePopupEditSelectionChange,
+      );
+    };
+  }, [editingMsgId, refreshPopupEditFormats]);
 
   const popupEditButtonClass = React.useCallback((active: boolean) => cn(
     'h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/10',
@@ -3632,24 +4049,43 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     );
 
     if (inlineFormat && range.collapsed) {
-      const currentValue = editTypingFormats[inlineFormat]
-        ?? document.queryCommandState(command);
-      const nextValue = !currentValue;
-
-      setEditTypingFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-      setEditActiveFormats(previous => ({
-        ...previous,
-        [inlineFormat]: nextValue,
-      }));
-
       root.focus();
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+      const currentValue = caretBefore
+        ? caretBefore[inlineFormat]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [inlineFormat]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        root,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      editSelectionRangeRef.current = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+
+      setEditTypingFormats(nextTypingFormats);
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      requestAnimationFrame(refreshPopupEditFormats);
       return;
     }
 
@@ -3715,65 +4151,163 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const root = editAreaRef.current;
     if (!root) return;
 
-    root.focus();
-    const nextRange = executeRichEditorCommandPreservingSelection(
+    const range = getRichEditorSelectionRange(
       root,
       editSelectionRangeRef.current,
-      () => {
-        applyTextColorToRichEditorSelection(root, color);
-      },
+    );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+      setEditTextColor(color);
+      setEditTextColorChosen(true);
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
+    }
+
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
     );
 
-    if (nextRange) editSelectionRangeRef.current = nextRange;
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
     setEditTextColor(color);
-    syncEditDraft();
+    setEditTextColorChosen(true);
     requestAnimationFrame(refreshPopupEditFormats);
   }, [refreshPopupEditFormats, syncEditDraft]);
 
   const applyEditFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
     setEditFontFamilyChosen(true);
+    setEditFontFamily(fontFamily);
+
     const root = editAreaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
-    setEditFontFamily(fontFamily);
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
     if (!range.collapsed) {
-      const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
-        document.execCommand('styleWithCSS', false, 'true');
-        document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
-      });
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
+        },
+      );
       if (nextRange) editSelectionRangeRef.current = nextRange;
       syncEditDraft();
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
     }
-  }, [syncEditDraft]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    // The selected name must update before the user types.
+    setEditFontFamily(fontFamily);
+    setEditFontFamilyChosen(true);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
 
   const applyEditFontSize = React.useCallback((fontSize: SS4FontSize) => {
     setEditFontSizeChosen(true);
+    setEditFontSize(fontSize);
+
     const root = editAreaRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
-    setEditFontSize(fontSize);
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
     if (!range.collapsed) {
-      const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
-        document.execCommand('styleWithCSS', false, 'true');
-        document.execCommand('fontSize', false, '7');
-        normalizeRichEditorFontSizeElements(root, fontSize);
-      });
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
       if (nextRange) editSelectionRangeRef.current = nextRange;
       syncEditDraft();
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      editSelectionRangeRef.current = range.cloneRange();
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
     }
-  }, [syncEditDraft]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setEditFontSize(fontSize);
+    setEditFontSizeChosen(true);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
 
   const handleEditTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inserted = insertPreselectedTypographyText(
@@ -3781,7 +4315,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       editFontFamilyChosen ? editFontFamily : null,
       editFontSizeChosen ? editFontSize : null,
       editTypingFormats,
-      editTextColor,
+      editTextColorChosen ? editTextColor : null,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
@@ -3795,6 +4329,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     editFontSize,
     editFontSizeChosen,
     editTextColor,
+    editTextColorChosen,
     editTypingFormats,
     refreshPopupEditFormats,
     rememberEditSelection,
@@ -4212,20 +4747,43 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const command = ss4InlineCommandForFormat(format);
 
     if (range.collapsed) {
-      const currentValue = composerTypingFormats[format]
-        ?? document.queryCommandState(command);
-      const nextValue = !currentValue;
-
-      setComposerTypingFormats(previous => ({
-        ...previous,
-        [format]: nextValue,
-      }));
-
       root.focus();
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      inputSelectionRangeRef.current = range.cloneRange();
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+      const currentValue = caretBefore
+        ? caretBefore[format]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [format]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        root,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      inputSelectionRangeRef.current = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+
+      setComposerTypingFormats(nextTypingFormats);
+      setComposerActiveFormats(previous => ({
+        ...previous,
+        [format]: nextValue,
+      }));
+      requestAnimationFrame(refreshComposerCaretFormats);
       return;
     }
 
@@ -4244,53 +4802,269 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       ...previous,
       [format]: nextValue,
     }));
+    setComposerActiveFormats(previous => ({
+      ...previous,
+      [format]: nextValue,
+    }));
     syncComposerText(root.innerText.replace(/\n$/, ''), true);
   }, [composerTypingFormats, syncComposerText]);
 
+  const refreshComposerCaretFormats = React.useCallback(() => {
+    try {
+      const root = inputRef.current;
+      const selection = window.getSelection();
+      if (
+        !root
+        || !selection?.anchorNode
+        || !root.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      if (!caret) return;
+
+      setComposerActiveFormats({
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
+      });
+      setComposerFontFamily(caret.fontFamily);
+      setComposerFontSize(caret.fontSize);
+      setComposerTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(root);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setComposerFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setComposerFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setComposerTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+      setComposerTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
+    } catch {
+      // Caret formatting detection is best effort.
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const handleComposerSelectionChange = () => {
+      const root = inputRef.current;
+      const selection = window.getSelection();
+      if (
+        root
+        && selection?.anchorNode
+        && root.contains(selection.anchorNode)
+      ) {
+        refreshComposerCaretFormats();
+      }
+    };
+
+    document.addEventListener(
+      'selectionchange',
+      handleComposerSelectionChange,
+    );
+    return () => {
+      document.removeEventListener(
+        'selectionchange',
+        handleComposerSelectionChange,
+      );
+    };
+  }, [refreshComposerCaretFormats]);
+
   const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
     setComposerFontFamilyChosen(true);
+    setComposerFontFamily(fontFamily);
+
     const root = inputRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, inputSelectionRangeRef.current);
-    setComposerFontFamily(fontFamily);
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+
     if (!range.collapsed) {
-      const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
-        document.execCommand('styleWithCSS', false, 'true');
-        document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
-      });
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
+        },
+      );
       if (nextRange) inputSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      inputSelectionRangeRef.current = range.cloneRange();
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
     }
-  }, [syncComposerText]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerFontFamily(fontFamily);
+    setComposerFontFamilyChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
 
   const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
     setComposerFontSizeChosen(true);
+    setComposerFontSize(fontSize);
+
     const root = inputRef.current;
     if (!root) return;
-    const range = getRichEditorSelectionRange(root, inputSelectionRangeRef.current);
-    setComposerFontSize(fontSize);
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+
     if (!range.collapsed) {
-      const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
-        document.execCommand('styleWithCSS', false, 'true');
-        document.execCommand('fontSize', false, '7');
-        normalizeRichEditorFontSizeElements(root, fontSize);
-      });
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
       if (nextRange) inputSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-    } else {
-      root.focus();
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      inputSelectionRangeRef.current = range.cloneRange();
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
     }
-  }, [syncComposerText]);
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerFontSize(fontSize);
+    setComposerFontSizeChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
+
+  const applyComposerTextColor = React.useCallback((color: string) => {
+    const root = inputRef.current;
+    if (!root) return;
+
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) inputSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      setComposerTextColor(color);
+      setComposerTextColorChosen(true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerTextColor(color);
+    setComposerTextColorChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inserted = insertPreselectedTypographyText(
@@ -4298,6 +5072,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       composerFontFamilyChosen ? composerFontFamily : null,
       composerFontSizeChosen ? composerFontSize : null,
       composerTypingFormats,
+      composerTextColorChosen ? composerTextColor : null,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
@@ -4311,6 +5086,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     composerFontFamilyChosen,
     composerFontSize,
     composerFontSizeChosen,
+    composerTextColor,
+    composerTextColorChosen,
     composerTypingFormats,
     rememberComposerSelection,
     syncComposerText,
@@ -4376,12 +5153,73 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [conv.members, conv.type, crmUserId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+      pastePlainTextShortcutRef.current = true;
+      window.setTimeout(() => {
+        pastePlainTextShortcutRef.current = false;
+      }, 750);
+    }
+
+    if (
+      e.key === 'Enter'
+      && e.altKey
+      && !e.ctrlKey
+      && !e.metaKey
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      const root = inputRef.current;
+      if (!root) return;
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      insertSoftLineBreakWithCaretFormatting(
+        root,
+        composerFontFamilyChosen
+          ? composerFontFamily
+          : caret?.fontFamilyExplicit
+            ? caret.fontFamily
+            : null,
+        composerFontSizeChosen
+          ? composerFontSize
+          : caret?.fontSizeExplicit
+            ? caret.fontSize
+            : null,
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+        composerTextColorChosen
+          ? composerTextColor
+          : caret?.colorExplicit
+            ? caret.color
+            : null,
+      );
+      const nextText = stripSupraSpaceTypingMarkers(
+        root.innerText.replace(/\n$/, ''),
+      );
+      syncComposerText(nextText, true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
     if (mentionQuery !== null && mentionOptions.length > 0) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
-      if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIdx(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionOptions[mentionIdx].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMentionQuery(null);
+        setMentionAnchor(-1);
+        return;
+      }
     }
 
     if (e.ctrlKey || e.metaKey) {
@@ -4408,7 +5246,43 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      const root = inputRef.current;
+      if (!root) return;
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      insertSoftLineBreakWithCaretFormatting(
+        root,
+        composerFontFamilyChosen
+          ? composerFontFamily
+          : caret?.fontFamilyExplicit
+            ? caret.fontFamily
+            : null,
+        composerFontSizeChosen
+          ? composerFontSize
+          : caret?.fontSizeExplicit
+            ? caret.fontSize
+            : null,
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+        composerTextColorChosen
+          ? composerTextColor
+          : caret?.colorExplicit
+            ? caret.color
+            : null,
+      );
+      const nextText = stripSupraSpaceTypingMarkers(
+        root.innerText.replace(/\n$/, ''),
+      );
+      syncComposerText(nextText, true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const toggleMuteNotifications = React.useCallback(async () => {
@@ -4595,7 +5469,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className={popupEditButtonClass(editActiveFormats.underline)} title="Underline" aria-pressed={editActiveFormats.underline}><Underline className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className={popupEditButtonClass(editActiveFormats.strike)} title="Strikethrough" aria-pressed={editActiveFormats.strike}><Strikethrough className="h-3.5 w-3.5" /></button>
                               <select
-                                value={editFontFamilyChosen ? editFontFamily : ''}
+                                value={editFontFamily}
                                 onPointerDown={() => rememberEditSelection()}
                                 onChange={event => applyEditFontFamily(event.target.value as SS4FontFamilyId)}
                                 className="h-7 max-w-28 rounded-md px-1.5 text-[9px] outline-none"
@@ -4607,7 +5481,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id} style={{ color: '#111827' }}>{option.label}</option>)}
                               </select>
                               <select
-                                value={editFontSizeChosen ? editFontSize : ''}
+                                value={editFontSize}
                                 onPointerDown={() => rememberEditSelection()}
                                 onChange={event => applyEditFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
                                 className="h-7 w-14 rounded-md px-1 text-[9px] outline-none"
@@ -4665,7 +5539,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               ref={editAreaRef}
                               contentEditable
                               suppressContentEditableWarning
-                              onInput={() => { syncEditDraft(); rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onBeforeInput={handleEditTypographyBeforeInput}
+                              onInput={() => {
+                                normalizeRichEditorFontSizeElements(
+                                  editAreaRef.current,
+                                  editFontSize,
+                                );
+                                syncEditDraft();
+                                rememberEditSelection();
+                                refreshPopupEditFormats();
+                              }}
                               onFocus={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onSelect={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onMouseUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
@@ -4694,14 +5577,32 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   e.preventDefault();
                                   e.stopPropagation();
 
-                                  const inserted = document.execCommand('insertLineBreak');
-                                  if (!inserted) {
-                                    document.execCommand('insertHTML', false, '<br>');
-                                  }
+                                  const caret = getRichEditorCaretFormattingSnapshot(
+                                    editAreaRef.current,
+                                  );
+                                  insertSoftLineBreakWithCaretFormatting(
+                                    editAreaRef.current!,
+                                    editFontFamilyChosen
+                                      ? editFontFamily
+                                      : caret?.fontFamilyExplicit
+                                        ? caret.fontFamily
+                                        : null,
+                                    editFontSizeChosen
+                                      ? editFontSize
+                                      : caret?.fontSizeExplicit
+                                        ? caret.fontSize
+                                        : null,
+                                    ss4TypingPreferencesFromCaretSnapshot(caret),
+                                    editTextColorChosen
+                                      ? editTextColor
+                                      : caret?.colorExplicit
+                                        ? caret.color
+                                        : null,
+                                  );
 
                                   syncEditDraft();
                                   rememberEditSelection();
-                                  refreshPopupEditFormats();
+                                  requestAnimationFrame(refreshPopupEditFormats);
                                   return;
                                 }
 
@@ -4727,9 +5628,31 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
                                 if (e.key === 'Enter' && e.shiftKey) {
                                   e.preventDefault();
-                                  document.execCommand('insertLineBreak');
+                                  const caret = getRichEditorCaretFormattingSnapshot(
+                                    editAreaRef.current,
+                                  );
+                                  insertSoftLineBreakWithCaretFormatting(
+                                    editAreaRef.current!,
+                                    editFontFamilyChosen
+                                      ? editFontFamily
+                                      : caret?.fontFamilyExplicit
+                                        ? caret.fontFamily
+                                        : null,
+                                    editFontSizeChosen
+                                      ? editFontSize
+                                      : caret?.fontSizeExplicit
+                                        ? caret.fontSize
+                                        : null,
+                                    ss4TypingPreferencesFromCaretSnapshot(caret),
+                                    editTextColorChosen
+                                      ? editTextColor
+                                      : caret?.colorExplicit
+                                        ? caret.color
+                                        : null,
+                                  );
                                   syncEditDraft();
                                   rememberEditSelection();
+                                  requestAnimationFrame(refreshPopupEditFormats);
                                   return;
                                 }
 
@@ -4781,7 +5704,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 });
                               }}
                               className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
-                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
+                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--foreground)' }}
                             />
                             {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
                               <div className="mt-1.5 space-y-1.5 rounded-xl border border-white/15 bg-black/15 p-2">
@@ -5191,7 +6114,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               <>
               <div className="flex items-center gap-1 overflow-x-auto px-2 pt-1.5 no-scrollbar">
                 <select
-                  value={composerFontFamilyChosen ? composerFontFamily : ''}
+                  value={composerFontFamily}
                   onPointerDown={() => rememberComposerSelection()}
                   onChange={event => applyComposerFontFamily(event.target.value as SS4FontFamilyId)}
                   className="h-7 w-24 shrink-0 rounded-md border border-border bg-muted/60 px-1.5 text-[10px] text-foreground outline-none"
@@ -5202,7 +6125,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
                 <select
-                  value={composerFontSizeChosen ? composerFontSize : ''}
+                  value={composerFontSize}
                   onPointerDown={() => rememberComposerSelection()}
                   onChange={event => applyComposerFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
                   className="h-7 w-14 shrink-0 rounded-md border border-border bg-muted/60 px-1 text-[10px] text-foreground outline-none"
@@ -5220,10 +6143,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   }}
                   className={cn(
                     'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
-                    composerTypingFormats.bold === true && 'bg-primary/15 text-primary',
+                    composerActiveFormats.bold && 'bg-primary/15 text-primary',
                   )}
                   title="Bold before typing or selected text"
-                  aria-pressed={composerTypingFormats.bold === true}
+                  aria-pressed={composerActiveFormats.bold}
                 >
                   <Bold className="h-3.5 w-3.5" />
                 </button>
@@ -5235,10 +6158,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   }}
                   className={cn(
                     'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
-                    composerTypingFormats.italic === true && 'bg-primary/15 text-primary',
+                    composerActiveFormats.italic && 'bg-primary/15 text-primary',
                   )}
                   title="Italic before typing or selected text"
-                  aria-pressed={composerTypingFormats.italic === true}
+                  aria-pressed={composerActiveFormats.italic}
                 >
                   <Italic className="h-3.5 w-3.5" />
                 </button>
@@ -5250,10 +6173,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   }}
                   className={cn(
                     'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
-                    composerTypingFormats.underline === true && 'bg-primary/15 text-primary',
+                    composerActiveFormats.underline && 'bg-primary/15 text-primary',
                   )}
                   title="Underline before typing or selected text"
-                  aria-pressed={composerTypingFormats.underline === true}
+                  aria-pressed={composerActiveFormats.underline}
                 >
                   <Underline className="h-3.5 w-3.5" />
                 </button>
@@ -5265,13 +6188,54 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   }}
                   className={cn(
                     'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
-                    composerTypingFormats.strike === true && 'bg-primary/15 text-primary',
+                    composerActiveFormats.strike && 'bg-primary/15 text-primary',
                   )}
                   title="Strikethrough before typing or selected text"
-                  aria-pressed={composerTypingFormats.strike === true}
+                  aria-pressed={composerActiveFormats.strike}
                 >
                   <Strikethrough className="h-3.5 w-3.5" />
                 </button>
+                {TEXT_COLORS.map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onMouseDown={event => {
+                      event.preventDefault();
+                      rememberComposerSelection();
+                      applyComposerTextColor(color);
+                    }}
+                    className="relative h-5 w-5 shrink-0 rounded-full border transition-transform hover:scale-110"
+                    style={{
+                      background: color,
+                      borderColor:
+                        composerTextColor === color
+                          ? '#60a5fa'
+                          : color === '#ffffff'
+                            ? 'rgba(255,255,255,0.45)'
+                            : 'rgba(255,255,255,0.25)',
+                      boxShadow:
+                        composerTextColor === color
+                          ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px #60a5fa'
+                          : undefined,
+                    }}
+                    aria-pressed={
+                      composerTextColor === color
+                    }
+                    title={`Text color ${color}`}
+                  >
+                    {composerTextColor === color && (
+                      <Check
+                        className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          color:
+                            color === '#ffffff' || color === '#facc15'
+                              ? '#111827'
+                              : '#ffffff',
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
               </div>
               <div className="flex min-w-0 items-center gap-1 px-2 py-1.5">
                 {/* Left icon buttons */}
@@ -5335,11 +6299,30 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     contentEditable
                     suppressContentEditableWarning
                     onBeforeInput={handleComposerTypographyBeforeInput}
-                    onInput={event => { handleTyping(event); rememberComposerSelection(); }}
-                    onFocus={rememberComposerSelection}
-                    onSelect={rememberComposerSelection}
-                    onMouseUp={rememberComposerSelection}
-                    onKeyUp={rememberComposerSelection}
+                    onInput={event => {
+                      normalizeRichEditorFontSizeElements(
+                        inputRef.current,
+                        composerFontSize,
+                      );
+                      handleTyping(event);
+                      rememberComposerSelection();
+                    }}
+                    onFocus={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onSelect={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onMouseUp={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onKeyUp={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
                     onKeyDown={handleKeyDown}
                     onPaste={e => {
                       const pastedFiles = Array.from(e.clipboardData?.items || [])
@@ -5378,7 +6361,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                     className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
-                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4' }}
+                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4', caretColor: 'var(--foreground)' }}
                   />
                 </div>
 
