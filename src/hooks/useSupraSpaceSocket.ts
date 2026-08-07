@@ -63,7 +63,7 @@ export interface SSConversation {
   name?: string;
   emoji?: string | null;
   avatar?: string;
-  members: Array<{ _id: string; fullName: string; username: string; avatar?: string; role: string }>;
+  members: Array<{ _id: string; fullName: string; username: string; avatar?: string; role: string; displayNickname?: string }>;
   admins: string[];
   pinnedBy?: string[];
   archivedBy?: string[];
@@ -74,7 +74,8 @@ export interface SSConversation {
   unreadCount?: number;
   mentionCount?: number;
   unreadMentionCount?: number;
-  notificationPreference?: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
+  notificationPreference?: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null };
+  viewerQuickReactions?: string[];
   createdBy: string;
   spaceId?: string | null;
 }

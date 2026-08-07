@@ -3744,7 +3744,7 @@ function Bubble({
   nameFor: (id: string) => string;
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
-  members?: Array<{ _id: string; fullName: string; avatar?: string }>;
+  members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
   hideTime?: boolean;
   onEditSave?: (id: string, content: string, replacementFiles?: File[]) => Promise<void>;
   onForward?: (m: SSMessage) => void;
@@ -4685,6 +4685,7 @@ function Bubble({
     );
   }
 
+  const senderDisplayName = members.find(m => m._id === message.sender?._id)?.displayNickname || message.sender?.fullName;
   const aColor = getAvaColor(message.sender?.fullName || '');
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
   const isLightTheme =
@@ -4702,7 +4703,7 @@ function Bubble({
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
             ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
-            : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(message.sender?.fullName || '')}</span>}
+            : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(senderDisplayName || '')}</span>}
         </div>
       ) : <div className="w-7 sm:w-8 shrink-0" />}
 
@@ -4737,7 +4738,7 @@ function Bubble({
         )}
         {showAvatar && !isOwn && (
           <div className="flex items-center gap-1.5 px-1">
-            <span className="ss4-msg-sender font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message.sender?.fullName || 'Deleted User'}</span>
+            <span className="ss4-msg-sender font-semibold" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{senderDisplayName || 'Deleted User'}</span>
             {isPinned && <span className="px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 9, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>Pinned</span>}
           </div>
         )}
@@ -6426,70 +6427,147 @@ function ScheduleMeetingModal({
   );
 }
 
-function ThemeModal({ current, onClose, onApply }: { current?: SSConversation['theme']; onClose: () => void; onApply: (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => void }) {
+const CHANNEL_QUICK_REACTION_CHOICES = ['❤️', '😂', '😮', '😢', '👌', '👍', '🔥', '🎉', '👏', '🙏', '💯', '😍', '🤔', '😅', '🙌', '✅'];
+
+function ThemeModal({ current, conv, uid, token, onClose, onApply, onMemberSettingsSaved, initialTab }: {
+  current?: SSConversation['theme'];
+  conv?: SSConversation;
+  uid?: string;
+  token?: string;
+  onClose: () => void;
+  onApply: (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => void;
+  onMemberSettingsSaved?: (settings: { nickname: string | null; quickReactions: string[] }) => void;
+  initialTab?: 'theme' | 'nickname' | 'reactions';
+}) {
   const [accent, setAccent] = React.useState<string | null>(current?.accent || null);
   const [wallpaper, setWallpaper] = React.useState<string | null>(current?.wallpaper || null);
   const [emoji, setEmoji] = React.useState<string | null>(current?.emoji || null);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const emojiBtnRef = React.useRef<HTMLButtonElement>(null);
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><Palette className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Chat Theme</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-4 py-4 space-y-4">
-          <div>
-            <p className="ss4-section-label mb-2">Presets</p>
-            <div className="grid grid-cols-4 gap-2">
-              {SS4_THEME_PRESETS.map(p => (
-                <button key={p.name} onClick={() => { setAccent(p.accent); setWallpaper(p.wallpaper); }}
-                  className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
-                  style={{ border: `1px solid ${accent === p.accent ? 'var(--accent)' : 'var(--border-2)'}`, background: accent === p.accent ? 'var(--accent-muted)' : 'transparent' }}>
-                  <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#4a6cf0,#5b7cf6)' }} />
-                  <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{p.name}</span>
-                </button>
-              ))}
-            </div>
+  const [tab, setTab] = React.useState<'theme' | 'nickname' | 'reactions'>(initialTab || 'theme');
+  const me = conv?.members?.find(m => m._id === uid);
+  const [nickname, setNickname] = React.useState(me?.displayNickname || '');
+  const [reactions, setReactions] = React.useState<string[]>(conv?.viewerQuickReactions?.length ? conv.viewerQuickReactions : SS4_REACTIONS.slice(0, 6));
+  const [savingSettings, setSavingSettings] = React.useState(false);
+
+  const toggleReaction = (e: string) => setReactions(prev => {
+    if (prev.includes(e)) return prev.filter(x => x !== e);
+    if (prev.length >= 8) return prev;
+    return [...prev, e];
+  });
+
+  const saveMemberSettings = async () => {
+    if (!conv || !token || savingSettings) return;
+    setSavingSettings(true);
+    try {
+      await apiClient.patch(`/api/supraspace/conversations/${conv._id}/member-settings`,
+        { nickname: nickname.trim() || null, quickReactions: reactions },
+        { headers: { Authorization: `Bearer ${token}` } });
+      onMemberSettingsSaved?.({ nickname: nickname.trim() || null, quickReactions: reactions });
+      onClose();
+    } catch { } finally { setSavingSettings(false); }
+  };
+
+  if (conv) {
+    return (
+      <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="ss4-modal w-full max-w-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Channel settings</h2>
+            <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
           </div>
-          <div>
-            <p className="ss4-section-label mb-2">Custom color</p>
-            <div className="flex items-center gap-3">
-              <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
-              <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
-            </div>
-          </div>
-          <div>
-            <p className="ss4-section-label mb-2">Default reaction (double-click a message)</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {SS4_REACTIONS.slice(0, 8).map(e => (
-                <button key={e} onClick={() => setEmoji(e)}
-                  className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all hover:scale-110"
-                  style={{ border: `1px solid ${emoji === e ? 'var(--accent)' : 'var(--border-2)'}`, background: emoji === e ? 'var(--accent-muted)' : 'transparent' }}>
-                  {e}
-                </button>
-              ))}
-              <button ref={emojiBtnRef} onClick={() => setPickerOpen(v => !v)}
-                className="h-9 w-9 flex items-center justify-center rounded-lg transition-all hover:scale-110"
-                style={{ border: '1px solid var(--border-2)' }}
-                title="More emojis">
-                <SmilePlus className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+          <div className="flex" style={{ borderBottom: '1px solid var(--border-1)' }}>
+            {(['theme', 'nickname', 'reactions'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} className="flex-1 py-2 text-xs font-semibold capitalize"
+                style={{ color: tab === t ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent' }}>
+                {t}
               </button>
-              {pickerOpen && (
-                <EmojiReactionPicker
-                  onSelect={e => setEmoji(e)}
-                  onClose={() => setPickerOpen(false)}
-                  position={emojiBtnRef.current ? { top: emojiBtnRef.current.getBoundingClientRect().bottom + 6, left: emojiBtnRef.current.getBoundingClientRect().left } : { top: 200, left: 200 }}
-                />
-              )}
-            </div>
+            ))}
           </div>
-          <button onClick={() => onApply({ accent, wallpaper, emoji })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
+          <div className="px-4 py-4 space-y-4 max-h-[50vh] overflow-y-auto">
+            {tab === 'theme' && (
+              <>
+                <div>
+                  <p className="ss4-section-label mb-2">Presets</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {SS4_THEME_PRESETS.map(p => (
+                      <button key={p.name} onClick={() => { setAccent(p.accent); setWallpaper(p.wallpaper); }}
+                        className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
+                        style={{ border: `1px solid ${accent === p.accent ? 'var(--accent)' : 'var(--border-2)'}`, background: accent === p.accent ? 'var(--accent-muted)' : 'transparent' }}>
+                        <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#4a6cf0,#5b7cf6)' }} />
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="ss4-section-label mb-2">Custom color</p>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
+                    <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="ss4-section-label mb-2">Default reaction (double-click a message)</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {SS4_REACTIONS.slice(0, 8).map(e => (
+                      <button key={e} onClick={() => setEmoji(e)}
+                        className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all hover:scale-110"
+                        style={{ border: `1px solid ${emoji === e ? 'var(--accent)' : 'var(--border-2)'}`, background: emoji === e ? 'var(--accent-muted)' : 'transparent' }}>
+                        {e}
+                      </button>
+                    ))}
+                    <button ref={emojiBtnRef} onClick={() => setPickerOpen(v => !v)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg transition-all hover:scale-110"
+                      style={{ border: '1px solid var(--border-2)' }}
+                      title="More emojis">
+                      <SmilePlus className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                    </button>
+                    {pickerOpen && (
+                      <EmojiReactionPicker
+                        onSelect={e => setEmoji(e)}
+                        onClose={() => setPickerOpen(false)}
+                        position={emojiBtnRef.current ? { top: emojiBtnRef.current.getBoundingClientRect().bottom + 6, left: emojiBtnRef.current.getBoundingClientRect().left } : { top: 200, left: 200 }}
+                      />
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => onApply({ accent, wallpaper, emoji })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
+              </>
+            )}
+            {tab === 'nickname' && (
+              <div>
+                <p className="ss4-section-label mb-2">Display name others see for you in {conv.name || 'this channel'}</p>
+                <input value={nickname} onChange={e => setNickname(e.target.value.slice(0, 32))} placeholder="Your real name"
+                  className="w-full h-9 px-3 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--border-2)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+                <button onClick={saveMemberSettings} disabled={savingSettings} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-3" style={{ fontSize: 13 }}>Save</button>
+              </div>
+            )}
+            {tab === 'reactions' && (
+              <div>
+                <p className="ss4-section-label mb-2">Pick up to 8 emoji for your quick-react bar</p>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {CHANNEL_QUICK_REACTION_CHOICES.map(e => {
+                    const active = reactions.includes(e);
+                    return (
+                      <button key={e} onClick={() => toggleReaction(e)}
+                        className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all"
+                        style={{ border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`, background: active ? 'var(--accent-muted)' : 'transparent' }}>
+                        {e}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={saveMemberSettings} disabled={savingSettings} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-3" style={{ fontSize: 13 }}>Save</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }
 
 function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
@@ -6625,15 +6703,26 @@ function ForwardMessageModal({ users, message, token, onClose }: {
   );
 }
 
+const NOTIF_MUTE_DURATIONS: { label: string; ms: number | null }[] = [
+  { label: '15 minutes', ms: 15 * 60 * 1000 },
+  { label: '1 hour', ms: 60 * 60 * 1000 },
+  { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
+  { label: '24 hours', ms: 24 * 60 * 60 * 1000 },
+  { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: 'Until I turn it back on', ms: null },
+];
+
 function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
   conv: SSConversation;
   convName: string;
-  prefs: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
-  onSave: (p: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => void;
+  prefs: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null };
+  onSave: (p: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil: string | null }) => void;
   onClose: () => void;
 }) {
   const [type, setType] = React.useState<'all' | 'main' | 'foryou' | 'none'>(prefs.type);
   const [muted, setMuted] = React.useState(prefs.muted);
+  const [muteDurationLabel, setMuteDurationLabel] = React.useState(prefs.muteUntil ? '' : 'Until I turn it back on');
+  const [muteUntil, setMuteUntil] = React.useState<string | null>(prefs.muteUntil ?? null);
   const isDM = conv.type === 'direct';
 
   const options = isDM
@@ -6681,11 +6770,36 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
           </div>
         </label>
 
+        {muted && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, paddingLeft: 32 }}>
+            {NOTIF_MUTE_DURATIONS.map(opt => {
+              const active = muteDurationLabel === opt.label;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => {
+                    setMuteDurationLabel(opt.label);
+                    setMuteUntil(opt.ms ? new Date(Date.now() + opt.ms).toISOString() : null);
+                  }}
+                  style={{
+                    padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                    border: `1px solid ${active ? '#5865f2' : 'rgba(255,255,255,0.15)'}`,
+                    background: active ? 'rgba(88,101,242,0.2)' : 'transparent',
+                    color: active ? '#c7cdff' : 'rgba(255,255,255,0.6)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
           <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={() => { onSave({ type, muted }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#5865f2', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => { onSave({ type, muted, muteUntil: muted ? muteUntil : null }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#5865f2', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             Save
           </button>
         </div>
@@ -6812,7 +6926,7 @@ interface ConvRowProps {
   setManualUnread: React.Dispatch<React.SetStateAction<Set<string>>>;
   setConvos: React.Dispatch<React.SetStateAction<SSConversation[]>>;
   togglePinConv: (c: SSConversation) => void;
-  saveNotificationPref: (conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => void;
+  saveNotificationPref: (conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => void;
   setNotifModalConv: (c: SSConversation | null) => void;
   handleMoveToSpace: (convId: string, spaceId: string | null) => void;
   toggleArchiveConv: (c: SSConversation) => void;
@@ -7440,7 +7554,7 @@ export default function SupraSpacePage() {
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceSocket(token || null);
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
-  const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }) => {
+  const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
       notifPrefs[conversationId] ||
       convos.find(conv => conv._id === conversationId)?.notificationPreference ||
@@ -11652,7 +11766,19 @@ export default function SupraSpacePage() {
           <ManageMembersModal users={allUsers} existingIds={safeMembers(activeConv).map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
         )}
         {themeOpen && activeConv && (
-          <ThemeModal current={activeConv.theme} onClose={() => setThemeOpen(false)} onApply={applyTheme} />
+          <ThemeModal
+            current={activeConv.theme}
+            conv={activeConv}
+            uid={uid}
+            token={token}
+            onClose={() => setThemeOpen(false)}
+            onApply={applyTheme}
+            onMemberSettingsSaved={(settings) => patchConv(activeConv._id, (c) => ({
+              ...c,
+              viewerQuickReactions: settings.quickReactions,
+              members: c.members.map(m => m._id === uid ? { ...m, displayNickname: settings.nickname || undefined } : m),
+            }))}
+          />
         )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}

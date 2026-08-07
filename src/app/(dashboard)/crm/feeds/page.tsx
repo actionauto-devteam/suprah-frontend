@@ -1301,8 +1301,10 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
     }
   }, [isEditing])
 
+  const hasAttachments = !!post.attachments?.length
+
   const handleSave = async () => {
-    if (!editContent.trim()) { setEditError("Content cannot be empty"); return }
+    if (!editContent.trim() && !hasAttachments) { setEditError("Content cannot be empty"); return }
     if (editContent.trim().length > 5000) { setEditError("Post content cannot exceed 5000 characters"); return }
     setEditLoading(true); setEditError("")
     try {
@@ -1450,7 +1452,7 @@ function PostCard({ post, currentUser, token, onUpdated, onDeleted, reactionStat
                   <Button variant="ghost" size="sm" className="h-8 rounded-xl text-xs gap-1.5 font-medium" onClick={() => { setIsEditing(false); setEditError("") }} disabled={editLoading}>
                     <X className="h-3.5 w-3.5" /> Cancel
                   </Button>
-                  <Button size="sm" className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 font-semibold px-4" onClick={handleSave} disabled={editLoading || !editContent.trim()}>
+                  <Button size="sm" className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5 font-semibold px-4" onClick={handleSave} disabled={editLoading || (!editContent.trim() && !hasAttachments)}>
                     {editLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save
                   </Button>
                 </div>

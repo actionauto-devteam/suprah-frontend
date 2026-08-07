@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ExternalLink, Users, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -810,6 +810,16 @@ type PopupEditFormatState = {
 };
 
 const AVATAR_COLORS = ['#5b7cf6', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
+const DEFAULT_QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👌', '👍'];
+const QUICK_REACTION_CHOICES = ['❤️', '😂', '😮', '😢', '👌', '👍', '🔥', '🎉', '👏', '🙏', '💯', '😍', '🤔', '😅', '🙌', '✅'];
+const MUTE_DURATION_OPTIONS: { label: string; ms: number | null }[] = [
+  { label: '15 minutes', ms: 15 * 60 * 1000 },
+  { label: '1 hour', ms: 60 * 60 * 1000 },
+  { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
+  { label: '24 hours', ms: 24 * 60 * 60 * 1000 },
+  { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: 'Until I turn it back on', ms: null },
+];
 async function copyImageToClipboard(url: string): Promise<void> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
   const res = await fetch(proxyUrl);
@@ -2773,10 +2783,26 @@ function PinnedMessagesModal({
 }
 
 // ─── GIF picker (Giphy) ─────────────────────────────────────────────────────────
-function PopupGifPicker({ onPick, onClose, anchorRef }: { onPick: (g: SSGif) => void; onClose: () => void; anchorRef: React.RefObject<HTMLElement | null> }) {
+function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (g: SSGif) => void; onClose: () => void; anchorRef: React.RefObject<HTMLElement | null>; boundaryRef?: React.RefObject<HTMLElement | null> }) {
   const [q, setQ] = React.useState('');
   const [gifs, setGifs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const PICKER_W = 280;
+  const PICKER_H = 320;
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    const anchor = anchorRef.current?.getBoundingClientRect();
+    if (!anchor) return;
+    const boundary = boundaryRef?.current?.getBoundingClientRect();
+    const minLeft = (boundary?.left ?? 8) + 8;
+    const maxLeft = (boundary?.right ?? window.innerWidth) - PICKER_W - 8;
+    const minTop = (boundary?.top ?? 8) + 8;
+    const spaceAbove = anchor.top - minTop;
+    const top = spaceAbove >= PICKER_H + 8 ? anchor.top - PICKER_H - 8 : anchor.bottom + 8;
+    const left = Math.max(minLeft, Math.min(anchor.left, maxLeft));
+    setPos({ top, left });
+  }, [anchorRef, boundaryRef]);
 
   const run = React.useCallback(async (query: string) => {
     if (!GIPHY_KEY) return;
@@ -2793,16 +2819,24 @@ function PopupGifPicker({ onPick, onClose, anchorRef }: { onPick: (g: SSGif) => 
   React.useEffect(() => { run(''); }, [run]);
   React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
 
+  const panelRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    const h = (e: MouseEvent) => { if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) onClose(); };
+    const h = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (anchorRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      onClose();
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [onClose, anchorRef]);
 
-  return (
+  if (!pos || typeof document === 'undefined') return null;
+  return createPortal(
     <div
-      className="absolute bottom-full left-0 z-50 mb-2 rounded-xl border bg-card shadow-xl overflow-hidden"
-      style={{ width: 280, borderColor: 'var(--border, rgba(128,128,128,0.25))' }}
+      ref={panelRef}
+      className="fixed z-9998 rounded-xl border bg-card shadow-xl overflow-hidden"
+      style={{ width: PICKER_W, top: pos.top, left: pos.left, borderColor: 'var(--border, rgba(128,128,128,0.25))' }}
     >
       <div className="p-2 border-b border-border/50">
         <div className="relative">
@@ -2836,13 +2870,16 @@ function PopupGifPicker({ onPick, onClose, anchorRef }: { onPick: (g: SSGif) => 
           );
         })}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // ─── Voice message playback ─────────────────────────────────────────────────────
 function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: string; msgId: string; duration?: number; own: boolean; crmToken: string | null }) {
   const audioRef = React.useRef<HTMLAudioElement>(null);
+  const retriesRef = React.useRef(0);
+  const retryTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [playing, setPlaying] = React.useState(false);
   const [cur, setCur] = React.useState(0);
   const [audioErr, setAudioErr] = React.useState(false);
@@ -2851,27 +2888,47 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
   const src = crmToken ? `${API_BASE}/api/supraspace/conversations/${convId}/messages/${msgId}/voice?t=${encodeURIComponent(crmToken)}` : '';
 
+  React.useEffect(() => () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); }, []);
+
+  const handleError = React.useCallback(() => {
+    // Right after sending a fresh recording, an error here is often a transient
+    // race (signing/storage propagation) rather than a real failure — retry a
+    // couple times before giving up instead of disabling playback forever.
+    if (retriesRef.current < 2) {
+      retriesRef.current += 1;
+      retryTimerRef.current = setTimeout(() => audioRef.current?.load(), 600);
+    } else {
+      setAudioErr(true);
+    }
+  }, []);
+
   const handlePlay = React.useCallback(() => {
     const a = audioRef.current;
     if (!a || pending) return;
     if (playing) { a.pause(); return; }
+    if (audioErr) {
+      // Let the user retry instead of being permanently locked out.
+      retriesRef.current = 0;
+      setAudioErr(false);
+      a.load();
+    }
     setPending(true);
     a.play().then(() => setPending(false)).catch(() => { setPending(false); setAudioErr(true); });
-  }, [playing, pending]);
+  }, [playing, pending, audioErr]);
 
   return (
-    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 180, maxWidth: 240 }}>
+    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 180, maxWidth: '100%' }}>
       <button
         onClick={handlePlay}
-        disabled={audioErr}
-        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
+        title={audioErr ? 'Tap to retry' : undefined}
+        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
         style={{ background: own ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)', color: own ? '#fff' : '#3b82f6' }}
       >
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
       <div className="flex-1 min-w-0">
         {audioErr ? (
-          <p className="text-[10px]" style={{ color: '#f87171' }}>Unable to play audio</p>
+          <p className="text-[10px]" style={{ color: '#f87171' }}>Couldn't play — tap to retry</p>
         ) : (
           <>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)' }}>
@@ -2891,7 +2948,7 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
         onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setCur(0); }}
         onTimeUpdate={e => setCur((e.target as HTMLAudioElement).currentTime)}
-        onError={() => setAudioErr(true)}
+        onError={handleError}
       />
     </div>
   );
@@ -2901,7 +2958,7 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
 function PopupPollCard({ poll, uid, isOwn, accentColor, onVote }: { poll: SSPoll; uid: string; isOwn: boolean; accentColor: string; onVote: (optionId: string) => void }) {
   const totalVotes = poll.options.reduce((n, o) => n + (o.votes?.length || 0), 0);
   return (
-    <div className="rounded-xl p-3" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+    <div className="rounded-xl p-3" style={{ minWidth: 200, maxWidth: '100%', background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
       <div className="flex items-center gap-1.5 mb-2">
         <BarChart3 className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
         <p className="text-[13px] font-bold" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{poll.question}</p>
@@ -2943,7 +3000,7 @@ function PopupEventCard({ event, uid, isOwn, accentColor, onRsvp }: { event: SSE
     (event.going || []).includes(uid) ? 'going' : (event.maybe || []).includes(uid) ? 'maybe' : (event.declined || []).includes(uid) ? 'declined' : null;
   const start = new Date(event.startTime);
   return (
-    <div className="rounded-xl overflow-hidden" style={{ minWidth: 220, maxWidth: 260, background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
+    <div className="rounded-xl overflow-hidden" style={{ minWidth: 200, maxWidth: '100%', background: isOwn ? accentColor : 'var(--muted, rgba(128,128,128,0.12))' }}>
       <div className="px-3 py-2 flex items-center gap-1.5" style={{ background: isOwn ? 'rgba(255,255,255,0.15)' : `${accentColor}1f` }}>
         <CalendarPlus className="h-3.5 w-3.5 shrink-0" style={{ color: isOwn ? '#fff' : accentColor }} />
         <p className="text-[13px] font-bold truncate" style={{ color: isOwn ? '#fff' : 'var(--foreground)' }}>{event.title}</p>
@@ -3087,26 +3144,31 @@ function PopupEventModal({ accentColor, onClose, onCreate }: {
 }
 
 // ─── Invite people modal ─────────────────────────────────────────────────────────
-function PopupInviteModal({ conv, crmToken, onClose, onInvited }: {
+function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
   conv: SSConv;
   crmToken: string | null;
+  crmUserId: string | null;
   onClose: () => void;
   onInvited: () => void;
 }) {
+  const [view, setView] = React.useState<'list' | 'invite'>('list');
   const [users, setUsers] = React.useState<{ _id: string; fullName: string; username?: string; avatar?: string }[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [saving, setSaving] = React.useState(false);
+  const [removingId, setRemovingId] = React.useState<string | null>(null);
   const memberIds = React.useMemo(() => new Set(conv.members.map(m => m._id)), [conv.members]);
+  const viewerIsAdmin = !!crmUserId && (conv.admins?.includes(crmUserId) || conv.createdBy === crmUserId);
 
   React.useEffect(() => {
-    if (!crmToken) return;
+    if (!crmToken || view !== 'invite') return;
+    setLoading(true);
     apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${crmToken}` } })
       .then(r => setUsers(r.data?.data || r.data || []))
       .catch(() => toast.error('Could not load teammates'))
       .finally(() => setLoading(false));
-  }, [crmToken]);
+  }, [crmToken, view]);
 
   const filtered = users.filter(u =>
     !memberIds.has(u._id) &&
@@ -3127,11 +3189,26 @@ function PopupInviteModal({ conv, crmToken, onClose, onInvited }: {
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       toast.success(`Invited ${selected.size} teammate${selected.size === 1 ? '' : 's'}`);
       onInvited();
-      onClose();
+      setSelected(new Set());
+      setView('list');
     } catch {
       toast.error('Could not invite teammates');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const removeMember = async (memberId: string) => {
+    if (!crmToken || removingId) return;
+    setRemovingId(memberId);
+    try {
+      await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [memberId] },
+        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      onInvited();
+    } catch {
+      toast.error('Could not remove member');
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -3140,43 +3217,248 @@ function PopupInviteModal({ conv, crmToken, onClose, onInvited }: {
     <div className="fixed inset-0 z-10030 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="flex max-h-[70vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border shadow-2xl" style={{ background: 'var(--popover)' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="text-[14px] font-bold text-popover-foreground">Invite to {conv.name || 'channel'}</h3>
+          <div className="flex items-center gap-1.5">
+            {view === 'invite' && (
+              <button onClick={() => setView('list')} className="h-7 w-7 -ml-1.5 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+            <h3 className="text-[14px] font-bold text-popover-foreground">
+              {view === 'invite' ? `Invite to ${conv.name || 'channel'}` : `Members (${conv.members.length})`}
+            </h3>
+          </div>
           <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60"><X className="h-4 w-4" /></button>
         </div>
-        <div className="border-b border-border p-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search teammates..."
-              className="w-full h-9 pl-8 pr-3 rounded-lg text-[13px] outline-none border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50" />
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {loading ? (
-            <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
-          ) : filtered.length === 0 ? (
-            <p className="py-8 text-center text-[12px] text-muted-foreground">No one left to invite.</p>
-          ) : filtered.map(u => {
-            const isSelected = selected.has(u._id);
-            return (
-              <button key={u._id} onClick={() => toggle(u._id)} className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-muted/50">
-                <Avatar className="h-8 w-8 shrink-0">
-                  {u.avatar && <AvatarImage src={resolveImageUrl(u.avatar)} />}
-                  <AvatarFallback className="text-[10px] font-semibold bg-blue-500 text-white">{initials(u.fullName)}</AvatarFallback>
-                </Avatar>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">{u.fullName}</span>
-                <span className={cn('flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-blue-500 bg-blue-500' : 'border-border')}>
-                  {isSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-                </span>
+
+        {view === 'list' ? (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {conv.members.map(m => (
+                <div key={m._id} className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    {m.avatar && <AvatarImage src={resolveImageUrl(m.avatar)} />}
+                    <AvatarFallback className="text-[10px] font-semibold bg-blue-500 text-white">{initials(m.fullName)}</AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+                    {m.displayNickname || m.fullName}{m._id === crmUserId && ' (you)'}
+                  </span>
+                  {conv.admins?.includes(m._id) && (
+                    <span className="shrink-0 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-400">Admin</span>
+                  )}
+                  {viewerIsAdmin && m._id !== crmUserId && (
+                    <button
+                      onClick={() => removeMember(m._id)}
+                      disabled={removingId === m._id}
+                      title="Remove from channel"
+                      className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-40"
+                    >
+                      {removingId === m._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-border p-3">
+              <button onClick={() => setView('invite')}
+                className="w-full h-9 rounded-lg font-semibold text-white text-[13px] flex items-center justify-center gap-2"
+                style={{ background: '#3b82f6' }}>
+                <UserPlus className="h-4 w-4" /> Invite people
               </button>
-            );
-          })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="border-b border-border p-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search teammates..."
+                  className="w-full h-9 pl-8 pr-3 rounded-lg text-[13px] outline-none border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50" />
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {loading ? (
+                <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+              ) : filtered.length === 0 ? (
+                <p className="py-8 text-center text-[12px] text-muted-foreground">No one left to invite.</p>
+              ) : filtered.map(u => {
+                const isSelected = selected.has(u._id);
+                return (
+                  <button key={u._id} onClick={() => toggle(u._id)} className="w-full flex items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-muted/50">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      {u.avatar && <AvatarImage src={resolveImageUrl(u.avatar)} />}
+                      <AvatarFallback className="text-[10px] font-semibold bg-blue-500 text-white">{initials(u.fullName)}</AvatarFallback>
+                    </Avatar>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">{u.fullName}</span>
+                    <span className={cn('flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border-2', isSelected ? 'border-blue-500 bg-blue-500' : 'border-border')}>
+                      {isSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t border-border p-3">
+              <button disabled={selected.size === 0 || saving} onClick={submit}
+                className="w-full h-9 rounded-lg font-semibold text-white text-[13px] flex items-center justify-center gap-2 disabled:opacity-40"
+                style={{ background: '#3b82f6' }}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                Invite{selected.size > 0 ? ` (${selected.size})` : ''}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── Channel settings — nickname, personal quick-reactions, theme color ───────
+function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onClose, onSaved }: {
+  conv: SSConv;
+  crmToken: string | null;
+  crmUserId: string | null;
+  initialTab?: 'nickname' | 'reactions' | 'theme';
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const me = conv.members.find(m => m._id === crmUserId);
+  const [tab, setTab] = React.useState<'nickname' | 'reactions' | 'theme'>(initialTab || 'nickname');
+  const [nickname, setNickname] = React.useState(me?.displayNickname || '');
+  const [reactions, setReactions] = React.useState<string[]>(conv.viewerQuickReactions?.length ? conv.viewerQuickReactions : DEFAULT_QUICK_REACTIONS);
+  const [accent, setAccent] = React.useState(conv.theme?.accent || '');
+  const [likeEmoji, setLikeEmoji] = React.useState(conv.theme?.emoji || '');
+  const [saving, setSaving] = React.useState(false);
+
+  const toggleReaction = (emoji: string) => setReactions(prev => {
+    if (prev.includes(emoji)) return prev.filter(e => e !== emoji);
+    if (prev.length >= 8) { toast.error('Pick up to 8 quick reactions'); return prev; }
+    return [...prev, emoji];
+  });
+
+  const save = async () => {
+    if (!crmToken || saving) return;
+    setSaving(true);
+    try {
+      await Promise.all([
+        apiClient.patch(`/api/supraspace/conversations/${conv._id}/member-settings`,
+          { nickname: nickname.trim() || null, quickReactions: reactions },
+          { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh),
+        apiClient.patch(`/api/supraspace/conversations/${conv._id}/theme`,
+          { theme: { ...conv.theme, accent: accent || null, emoji: likeEmoji || null } },
+          { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh),
+      ]);
+      toast.success('Channel settings saved');
+      onSaved();
+      onClose();
+    } catch {
+      toast.error('Could not save channel settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (typeof document === 'undefined') return null;
+  const tabBtn = (id: typeof tab, label: string) => (
+    <button
+      onClick={() => setTab(id)}
+      className="flex-1 py-2 text-[12px] font-semibold text-center transition-colors"
+      style={{
+        color: tab === id ? 'var(--popover-foreground)' : 'var(--muted-foreground)',
+        borderBottom: tab === id ? '2px solid #3b82f6' : '2px solid transparent',
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-10030 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="flex max-h-[75vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border shadow-2xl" style={{ background: 'var(--popover)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h3 className="text-[14px] font-bold text-popover-foreground">Channel settings</h3>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex border-b border-border">
+          {tabBtn('nickname', 'Nickname')}
+          {tabBtn('reactions', 'My Reactions')}
+          {tabBtn('theme', 'Theme & Like')}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {tab === 'nickname' && (
+            <div>
+              <p className="text-[12px] text-muted-foreground mb-2">Set a display name others will see for you in {conv.name || 'this channel'}.</p>
+              <input
+                value={nickname}
+                onChange={e => setNickname(e.target.value.slice(0, 32))}
+                placeholder="Your real name"
+                className="w-full h-9 px-3 rounded-lg text-[13px] outline-none border border-border bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50"
+              />
+            </div>
+          )}
+          {tab === 'reactions' && (
+            <div>
+              <p className="text-[12px] text-muted-foreground mb-2">Pick up to 8 emoji for your quick-react bar in this channel.</p>
+              <div className="grid grid-cols-6 gap-1.5">
+                {QUICK_REACTION_CHOICES.map(emoji => {
+                  const active = reactions.includes(emoji);
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => toggleReaction(emoji)}
+                      className="h-10 rounded-lg text-xl flex items-center justify-center transition-colors"
+                      style={{ background: active ? 'rgba(59,130,246,0.18)' : 'var(--muted, rgba(128,128,128,0.1))', outline: active ? '2px solid #3b82f6' : 'none' }}
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {tab === 'theme' && (
+            <div>
+              <p className="text-[12px] text-muted-foreground mb-2">Accent color for this channel — applies to everyone.</p>
+              <div className="flex flex-wrap gap-2">
+                {AVATAR_COLORS.map(color => (
+                  <button
+                    key={color}
+                    onClick={() => setAccent(color)}
+                    className="h-8 w-8 rounded-full transition-transform"
+                    style={{ background: color, outline: accent === color ? '2px solid var(--popover-foreground)' : 'none', outlineOffset: 2, transform: accent === color ? 'scale(1.1)' : undefined }}
+                    title={color}
+                  />
+                ))}
+                <label className="h-8 w-8 rounded-full flex items-center justify-center cursor-pointer border border-dashed border-border text-muted-foreground">
+                  <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="sr-only" />
+                  <Palette className="h-4 w-4" />
+                </label>
+                {accent && (
+                  <button onClick={() => setAccent('')} className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-muted-foreground hover:bg-muted/60">
+                    Reset
+                  </button>
+                )}
+              </div>
+              <p className="text-[12px] text-muted-foreground mt-4 mb-2">Default Like — sent when you tap the composer's Like button with nothing typed. Applies to everyone in this channel.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_REACTION_CHOICES.map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => setLikeEmoji(emoji)}
+                    className="h-9 w-9 rounded-lg text-lg flex items-center justify-center transition-colors"
+                    style={{ background: likeEmoji === emoji ? 'rgba(59,130,246,0.18)' : 'var(--muted, rgba(128,128,128,0.1))', outline: likeEmoji === emoji ? '2px solid #3b82f6' : 'none' }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="border-t border-border p-3">
-          <button disabled={selected.size === 0 || saving} onClick={submit}
+          <button disabled={saving} onClick={save}
             className="w-full h-9 rounded-lg font-semibold text-white text-[13px] flex items-center justify-center gap-2 disabled:opacity-40"
             style={{ background: '#3b82f6' }}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-            Invite{selected.size > 0 ? ` (${selected.size})` : ''}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
           </button>
         </div>
       </div>
@@ -3223,6 +3505,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [pollModalOpen, setPollModalOpen] = React.useState(false);
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [channelSettingsTab, setChannelSettingsTab] = React.useState<'nickname' | 'reactions' | 'theme' | null>(null);
   const attachMenuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -3270,6 +3553,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // Chat settings dropdown
   const [chatSettingsOpen, setChatSettingsOpen] = React.useState(false);
+  const [muteMenuOpen, setMuteMenuOpen] = React.useState(false);
   const settingsRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => { if (!chatSettingsOpen) setConfirmDelete(false); }, [chatSettingsOpen]);
@@ -3427,11 +3711,20 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const maxLeft = Math.max(minLeft, (popupRect?.right ?? window.innerWidth) - BAR_W - PAD);
     const minTop = (popupRect?.top ?? 0) + HEADER_H + PAD;
     const maxTop = Math.max(minTop, (popupRect?.bottom ?? window.innerHeight) - BAR_H - PAD);
-    const barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
     const preferredLeft = isOwn ? rect.left - BAR_W - 6 : rect.right + 6;
-    const closeFallbackLeft = isOwn ? rect.left + 8 : rect.right - BAR_W - 8;
-    const rawLeft = preferredLeft < minLeft || preferredLeft > maxLeft ? closeFallbackLeft : preferredLeft;
-    const barLeft = Math.max(minLeft, Math.min(rawLeft, maxLeft));
+    const fitsBeside = preferredLeft >= minLeft && preferredLeft <= maxLeft;
+    let barTop: number;
+    let barLeft: number;
+    if (fitsBeside) {
+      barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
+      barLeft = preferredLeft;
+    } else {
+      // Wide bubble (long text, poll/event/voice card, image) with no room to
+      // the side — float the bar just above the bubble instead of falling
+      // back to a spot that sits on top of the bubble's own content.
+      barTop = Math.max(minTop, rect.top - BAR_H - 6);
+      barLeft = Math.max(minLeft, Math.min(rect.left + rect.width / 2 - BAR_W / 2, maxLeft));
+    }
     const pos = { top: barTop, left: barLeft, isOwn };
     if (hovMsg && hovMsg !== msgId) {
       // Bar is already visible for another message — delay switch so user can
@@ -3651,7 +3944,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setSending(true);
     try {
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`,
-        { content: '👍' },
+        { content: conv.theme?.emoji || '👍' },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (sent) setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
@@ -3765,15 +4058,43 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   // ── Poll / Event ──
+  const applyPollVote = React.useCallback((messageId: string, poll: SSPoll) => {
+    setMessages(prev => prev.map(m => (m._id === messageId ? { ...m, poll } : m)));
+  }, []);
+
   const handleVotePoll = React.useCallback(async (messageId: string, optionId: string) => {
-    if (!crmToken) return;
+    if (!crmToken || !crmUserId) return;
+    const target = messages.find(m => m._id === messageId);
+    const prevPoll = target?.poll;
+    if (!prevPoll) return;
+
+    // Optimistic toggle — mirrors the backend's toggle semantics exactly, so
+    // the click registers instantly instead of waiting on a socket round-trip.
+    const optimisticPoll: SSPoll = {
+      ...prevPoll,
+      options: prevPoll.options.map(o => {
+        const hasVoted = o.votes.includes(crmUserId);
+        if (o.id === optionId) {
+          return { ...o, votes: hasVoted ? o.votes.filter(v => v !== crmUserId) : [...o.votes, crmUserId] };
+        }
+        if (!prevPoll.allowMultiple) {
+          return { ...o, votes: o.votes.filter(v => v !== crmUserId) };
+        }
+        return o;
+      }),
+    };
+    applyPollVote(messageId, optimisticPoll);
+
     try {
-      await apiClient.post(`/api/supraspace/messages/${messageId}/poll/vote`, { optionId },
+      const r = await apiClient.post(`/api/supraspace/messages/${messageId}/poll/vote`, { optionId },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      const confirmedPoll: SSPoll | undefined = r.data?.data?.poll;
+      if (confirmedPoll) applyPollVote(messageId, confirmedPoll);
     } catch {
+      applyPollVote(messageId, prevPoll);
       toast.error('Could not record your vote.');
     }
-  }, [crmToken]);
+  }, [crmToken, crmUserId, messages, applyPollVote]);
 
   const handleRsvpEvent = React.useCallback(async (messageId: string, response: 'going' | 'maybe' | 'declined') => {
     if (!crmToken) return;
@@ -5285,10 +5606,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     }
   };
 
-  const toggleMuteNotifications = React.useCallback(async () => {
+  const setMutePref = React.useCallback(async (muted: boolean, muteUntil: string | null) => {
     if (!crmToken) return;
-    const next = { type: notificationPref.type, muted: !notificationPref.muted };
-    setNotifPrefs(prev => ({ ...prev, [conv._id]: next }));
+    const prev = notificationPref;
+    const next = { type: notificationPref.type, muted, muteUntil };
+    setNotifPrefs(p => ({ ...p, [conv._id]: next }));
     try {
       await apiClient.patch(
         `/api/supraspace/conversations/${conv._id}/notifications`,
@@ -5296,11 +5618,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh,
       ).then((res) => {
         const saved = res.data?.data || next;
-        setNotifPrefs(prev => ({ ...prev, [conv._id]: saved }));
+        setNotifPrefs(p => ({ ...p, [conv._id]: saved }));
         toast.success(saved.muted ? 'Conversation muted' : 'Conversation unmuted');
       });
     } catch {
-      setNotifPrefs(prev => ({ ...prev, [conv._id]: notificationPref }));
+      setNotifPrefs(p => ({ ...p, [conv._id]: prev }));
       toast.error('Could not save notification settings');
     }
   }, [conv._id, crmToken, notificationPref, setNotifPrefs]);
@@ -5413,9 +5735,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const canSaveThisEdit = !editSaving
                     && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
                     && (editDraft.trim() !== (msg.content || '').trim() || editReplacementFiles.length > 0);
+                  const senderColor = msg.sender?._id ? stringToColor(msg.sender._id) : accentColor;
+                  const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
                     <div key={msg._id}
-                      className={cn('flex gap-1.5', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end')}
+                      className={cn('flex gap-2', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end', showName && 'mt-1.5')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
                     >
@@ -5424,10 +5748,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         <div className="shrink-0 self-end mb-0.5">
                           {showName ? (
                             <div className="h-5 w-5 rounded-full overflow-hidden flex items-center justify-center text-white ring-1 ring-white/10"
-                              style={{ fontSize: 7, background: accentColor }}>
+                              style={{ fontSize: 7, background: senderColor }}>
                               {msg.sender?.avatar
                                 ? <img src={resolveImageUrl(msg.sender.avatar)} alt="" className="w-full h-full object-cover" />
-                                : msg.sender?.fullName?.[0]?.toUpperCase()}
+                                : senderDisplayName?.[0]?.toUpperCase()}
                             </div>
                           ) : (
                             <div className="h-5 w-5" /> /* spacer to keep alignment */
@@ -5435,19 +5759,20 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         </div>
                       )}
                       <div
+                        data-popup-bubble-id={msg._id}
                         className={cn(
                           'min-w-0 flex flex-col',
                           editingMsgId === msg._id
                             ? 'w-[94%] max-w-[94%]'
-                            : imageOnly
+                            : imageOnly || gifOnly || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
                         )}
                         style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
                       >
                         {showName && !isOwn && (
-                          <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: accentColor }}>
-                            {msg.sender?.fullName}
+                          <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: senderColor }}>
+                            {senderDisplayName}
                           </span>
                         )}
                         {/* Bubble */}
@@ -5816,7 +6141,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 260 } : undefined}>
+                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : undefined}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
@@ -5836,7 +6161,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                           src={src}
                                           alt={a.originalName || 'photo'}
                                           className="block rounded-2xl"
-                                          style={{ maxWidth: 280, maxHeight: 280, width: 'auto', height: 'auto' }}
+                                          style={{ maxWidth: '100%', maxHeight: 240, width: 'auto', height: 'auto' }}
                                         />
                                       ) : (
                                         <img
@@ -5852,7 +6177,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             )}
                             {gifOnly ? (
                               <button type="button" onClick={() => setMediaPreview({ src: msg.gif!.url, name: msg.gif?.title || 'GIF' })} className="block">
-                                <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: 240, maxHeight: 240 }} />
+                                <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto' }} />
                               </button>
                             ) : voiceAtt ? (
                               <PopupVoicePlayer convId={conv._id} msgId={msg._id} duration={voiceAtt.duration} own={isOwn} crmToken={crmToken} />
@@ -6277,7 +6602,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     className="h-8 px-1.5 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[11px] tracking-tight" style={{ color: accentColor }}>
                     GIF
                   </button>
-                  {gifOpen && <PopupGifPicker onPick={selectGif} onClose={() => setGifOpen(false)} anchorRef={gifRef} />}
+                  {gifOpen && <PopupGifPicker onPick={selectGif} onClose={() => setGifOpen(false)} anchorRef={gifRef} boundaryRef={popupShellRef} />}
                 </div>
                 <button
                   type="button"
@@ -6374,7 +6699,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 ) : (
                   <button title="Like" onClick={handleSendThumbsUp} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className="h-4 w-4" />}
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : conv.theme?.emoji ? (
+                      <span className="text-[18px] leading-none">{conv.theme.emoji}</span>
+                    ) : <ThumbsUp className="h-4 w-4" />}
                   </button>
                 )}
               </div>
@@ -6413,8 +6740,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 setQuickReactMsgId(null); setQuickReactPos(null);
               } else {
                 const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const shell = popupShellRef.current?.getBoundingClientRect();
+                const qMinLeft = (shell?.left ?? 8) + 8;
+                const qMaxLeft = (shell?.right ?? window.innerWidth) - 240 - 8;
                 setQuickReactMsgId(hovMsg);
-                setQuickReactPos({ top: btn.top - 52, left: Math.max(8, Math.min(btn.left - 4, window.innerWidth - 240 - 8)) });
+                setQuickReactPos({ top: btn.top - 52, left: Math.max(qMinLeft, Math.min(btn.left - 4, qMaxLeft)) });
               }
             }}
           >
@@ -6454,13 +6784,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 return;
               }
 
+              const shell = popupShellRef.current?.getBoundingClientRect();
               const ddH = 220;
               const top = btn.bottom + 4 + ddH > window.innerHeight - 8
                 ? btn.top - ddH - 4
                 : btn.bottom + 4;
               const left = Math.max(
-                8,
-                Math.min(btn.left, window.innerWidth - 208 - 8),
+                (shell?.left ?? 8) + 8,
+                Math.min(btn.left, (shell?.right ?? window.innerWidth) - 208 - 8),
               );
 
               moreMenuMsgIdRef.current = messageId;
@@ -6512,7 +6843,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           onMouseEnter={handleBarEnter}
           onMouseLeave={handleBarLeave}
         >
-          {['❤️', '😂', '😮', '😢', '👌', '👍'].map(emoji => (
+          {(conv.viewerQuickReactions?.length ? conv.viewerQuickReactions : DEFAULT_QUICK_REACTIONS).map(emoji => (
             <button key={emoji}
               title={emoji}
               className="text-xl leading-none hover:scale-125 transition-transform"
@@ -6526,6 +6857,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             style={{ fontSize: 16, fontWeight: 700 }}
             onClick={(e) => { openEmojiPickerForMsg(quickReactMsgId, e); setQuickReactMsgId(null); setQuickReactPos(null); }}
           >+</button>
+          <button
+            title="Customize your quick reactions"
+            className="flex items-center justify-center h-6 w-6 rounded-full text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={() => { setChannelSettingsTab('reactions'); setQuickReactMsgId(null); setQuickReactPos(null); }}
+          ><Settings2 className="h-3.5 w-3.5" /></button>
         </div>,
         document.body
       )}
@@ -6663,13 +6999,26 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         />
       )}
 
-      {/* ── Invite people modal ── */}
+      {/* ── Members / invite modal ── */}
       {inviteOpen && (
         <PopupInviteModal
           conv={conv}
           crmToken={crmToken}
+          crmUserId={crmUserId}
           onClose={() => setInviteOpen(false)}
           onInvited={() => refreshConversations()}
+        />
+      )}
+
+      {/* ── Channel settings modal ── */}
+      {channelSettingsTab && (
+        <PopupChannelSettingsModal
+          conv={conv}
+          crmToken={crmToken}
+          crmUserId={crmUserId}
+          initialTab={channelSettingsTab}
+          onClose={() => setChannelSettingsTab(null)}
+          onSaved={() => refreshConversations()}
         />
       )}
 
@@ -6769,7 +7118,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           onMouseDown={e => e.stopPropagation()}
         >
           {(() => {
-            const close = () => setChatSettingsOpen(false);
+            const close = () => { setChatSettingsOpen(false); setMuteMenuOpen(false); };
             const row = 'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60 cursor-pointer';
             const ic = 'h-5 w-5 shrink-0';
             const label = (text: string) => <span style={{ fontSize: 14, color: 'var(--popover-foreground)', fontWeight: 500 }}>{text}</span>;
@@ -6800,17 +7149,52 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     close();
                   }}>
                     <Users className={ic} style={{ color: 'var(--muted-foreground)' }} />
-                    {label(`Members (${conv.members.length}) · Invite`)}
+                    {label(`Members (${conv.members.length})`)}
                   </button>
                 )}
 
+                {/* Channel settings — nickname, quick reactions, theme */}
+                <button className={row} onClick={() => {
+                  setChannelSettingsTab('nickname');
+                  close();
+                }}>
+                  <Palette className={ic} style={{ color: 'var(--muted-foreground)' }} />
+                  {label('Channel settings')}
+                </button>
+
                 {sep}
 
-                {/* Mute notifications */}
-                <button className={row} onClick={() => { void toggleMuteNotifications(); close(); }}>
-                  <BellOff className={ic} style={{ color: notificationPref.muted ? '#f87171' : 'rgba(255,255,255,0.5)' }} />
-                  {label(notificationPref.muted ? 'Unmute notifications' : 'Mute notifications')}
-                </button>
+                {/* Mute notifications — with duration options */}
+                {notificationPref.muted ? (
+                  <button className={row} onClick={() => { void setMutePref(false, null); close(); }}>
+                    <BellOff className={ic} style={{ color: '#f87171' }} />
+                    {label('Unmute notifications')}
+                  </button>
+                ) : (
+                  <>
+                    <button className={row} onClick={() => setMuteMenuOpen(v => !v)}>
+                      <BellOff className={ic} style={{ color: 'rgba(255,255,255,0.5)' }} />
+                      {label('Mute notifications')}
+                      <ChevronDown className={cn('h-4 w-4 ml-auto shrink-0 transition-transform', muteMenuOpen && 'rotate-180')} style={{ color: 'var(--muted-foreground)' }} />
+                    </button>
+                    {muteMenuOpen && (
+                      <div className="pb-1">
+                        {MUTE_DURATION_OPTIONS.map(opt => (
+                          <button
+                            key={opt.label}
+                            className="w-full flex items-center gap-2 pl-11 pr-4 py-2 text-left transition-colors hover:bg-muted/60"
+                            onClick={() => {
+                              void setMutePref(true, opt.ms ? new Date(Date.now() + opt.ms).toISOString() : null);
+                              close();
+                            }}
+                          >
+                            <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {/* Mark as unread */}
                 <button className={row} onClick={() => {
@@ -6866,13 +7250,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 function ChatOverflowDock({
   hiddenConvs,
   crmUserId,
-  baseOffsetPx,
   onOpen,
   onClose,
 }: {
   hiddenConvs: SSConv[];
   crmUserId: string | null;
-  baseOffsetPx: number;
   onOpen: (convId: string) => void;
   onClose: (convId: string) => void;
 }) {
@@ -6880,8 +7262,12 @@ function ChatOverflowDock({
   const dockRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const hiddenCount = hiddenConvs.length;
-  const rightPx = baseOffsetPx + MAX_VISIBLE_POPUPS * (POPUP_W + POPUP_GAP);
-  const dockRight = `min(${rightPx}px, calc(100vw - 56px))`;
+  // ChatOverflowDock only ever renders while MAX_VISIBLE_POPUPS full-height
+  // popups are on screen (hidden = overflow *beyond* those), so it must clear
+  // the full POPUP_H to avoid sitting on top of the rightmost popup — right:
+  // POPUP_RIGHT alone isn't enough, since that's the same edge the popups
+  // themselves dock to.
+  const dockBottom = POPUP_H + 12;
 
   React.useEffect(() => {
     if (!open) return;
@@ -6901,7 +7287,7 @@ function ChatOverflowDock({
         <div
           ref={panelRef}
           className="fixed z-52 w-72 overflow-hidden rounded-2xl border bg-card shadow-2xl"
-          style={{ borderColor: 'rgba(255,255,255,0.12)', right: dockRight, bottom: 64 }}
+          style={{ borderColor: 'rgba(255,255,255,0.12)', right: POPUP_RIGHT, bottom: dockBottom + 48 }}
         >
           <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
             <span className="text-xs font-bold text-foreground">Hidden chats</span>
@@ -6954,8 +7340,8 @@ function ChatOverflowDock({
       )}
       <div
         ref={dockRef}
-        className="fixed bottom-3 z-51"
-        style={{ right: dockRight }}
+        className="fixed z-51"
+        style={{ right: POPUP_RIGHT, bottom: dockBottom }}
       >
         <button
           type="button"
@@ -7106,7 +7492,6 @@ export function ChatPopupManager() {
       <ChatOverflowDock
         hiddenConvs={hiddenConvs}
         crmUserId={crmUserId}
-        baseOffsetPx={baseOffsetPx}
         onOpen={openChatPopup}
         onClose={closeChatPopup}
       />

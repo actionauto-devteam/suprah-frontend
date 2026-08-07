@@ -14,6 +14,7 @@ export interface SSMember {
   username: string;
   avatar?: string;
   role: string;
+  displayNickname?: string;
 }
 
 export interface SSLastMessage {
@@ -33,15 +34,17 @@ export interface SSConv {
   name?: string;
   avatar?: string;
   members: SSMember[];
+  admins?: string[];
   lastMessage?: SSLastMessage;
   lastMessageAt?: string;
   unreadCount?: number;
-  theme?: { accent?: string | null };
+  theme?: { accent?: string | null; emoji?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
   manualUnread?: boolean;
   deletedFor?: string[];
   notificationPreference?: NotifPref;
+  viewerQuickReactions?: string[];
   createdBy: string;
   spaceId?: string | null;
 }
@@ -58,7 +61,7 @@ export interface SSSpace {
 
 // ─── Context shape ─────────────────────────────────────────────────────────────
 
-export type NotifPref = { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean };
+export type NotifPref = { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null };
 type SupraSpaceRequestConfig = {
   headers: { Authorization: string };
   _skipAuthRefresh?: boolean;

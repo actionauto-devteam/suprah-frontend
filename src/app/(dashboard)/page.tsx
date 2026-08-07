@@ -57,7 +57,7 @@ import { MyTasksSummary } from "./components/MyTasksSummary";
 import { WhoIsOut } from "./components/WhoIsOut";
 import { InventorySnapshot } from "./components/InventorySnapshot";
 import { StoriesRail } from "@/components/dashboard/StoriesRail";
-import { SpotifyPanel } from "@/components/dashboard/SpotifyPanel";
+import { YouTubeMusicPanel } from "@/components/dashboard/YouTubeMusicPanel";
 // Suprah YapLine — live PTT channels + recent voice activity, embedded
 // directly below the Feeds section per the dashboard layout spec.
 import { YapLineWidget } from "@/components/yapline/YapLineWidget";
@@ -105,7 +105,7 @@ function greeting(): string {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 px-1">
-      <span className="shrink-0 text-xs font-black uppercase tracking-[0.25em] text-muted-foreground/45">
+      <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground/45">
         {children}
       </span>
       <span className="h-px flex-1 bg-linear-to-r from-border/50 via-border/20 to-transparent" />
@@ -190,7 +190,7 @@ function LatestPosts() {
       {loading ? (
         <PanelSkeleton rows={4} />
       ) : posts.length === 0 ? (
-        <p className="text-sm text-muted-foreground/60 text-center py-6">Nothing posted yet.</p>
+        <p className="text-xs text-muted-foreground/60 text-center py-6">Nothing posted yet.</p>
       ) : (
         <div className="space-y-3">
           {posts.slice(0, 5).map((post) => {
@@ -203,19 +203,19 @@ function LatestPosts() {
               >
                 <Avatar className="size-9 shrink-0 ring-1 ring-border/40">
                   <AvatarImage src={post.authorAvatar} />
-                  <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">
+                  <AvatarFallback className="bg-emerald-600 text-white text-[10px] font-bold">
                     {ini(post.authorName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold truncate">{post.authorName}</span>
-                    <span className="text-xs text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
+                    <span className="text-xs font-bold truncate">{post.authorName}</span>
+                    <span className="text-[10px] text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
                   </div>
-                  <p className="mt-0.5 text-sm text-foreground/70 line-clamp-2 leading-relaxed">
+                  <p className="mt-0.5 text-xs text-foreground/70 line-clamp-2 leading-relaxed">
                     {stripMentions(post.content)}
                   </p>
-                  <div className="mt-1.5 flex items-center gap-3 text-xs font-medium text-muted-foreground/60">
+                  <div className="mt-1.5 flex items-center gap-3 text-[10px] font-medium text-muted-foreground/60">
                     <span className="flex items-center gap-1">
                       <Heart className="size-3" /> {reactions[post._id] ?? 0}
                     </span>
@@ -239,7 +239,7 @@ function LatestPosts() {
           {posts.length >= 5 && (
             <button
               onClick={() => router.push("/crm/feeds")}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-2.5 text-xs font-bold text-muted-foreground/70 hover:border-emerald-500/30 hover:text-emerald-600 transition-colors"
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/30 bg-background/40 py-2.5 text-[11px] font-bold text-muted-foreground/70 hover:border-emerald-500/30 hover:text-emerald-600 transition-colors"
             >
               View all posts in Feeds
               <ArrowRight className="size-3" />
@@ -299,16 +299,16 @@ function CalendarSummary() {
         <div className="space-y-4">
           {next ? (
             <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/6 p-3.5">
-              <p className="text-[11px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">Next up</p>
-              <p className="text-base font-bold truncate">{next.item.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">Next up</p>
+              <p className="text-sm font-bold truncate">{next.item.title}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 {sameDay(next.start, now) ? "Today" : next.start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
                 {" · "}
                 {next.item.allDay ? "All day" : fmtTime(next.start)}
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground/60 text-center py-2">Nothing scheduled soon.</p>
+            <p className="text-xs text-muted-foreground/60 text-center py-2">Nothing scheduled soon.</p>
           )}
 
           <div className="grid grid-cols-3 gap-2">
@@ -319,7 +319,7 @@ function CalendarSummary() {
             ].map((c) => (
               <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
                 <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
               </div>
             ))}
           </div>
@@ -327,9 +327,9 @@ function CalendarSummary() {
           {today.length > 0 && (
             <div className="space-y-1.5">
               {today.slice(0, 3).map((o, i) => (
-                <div key={`${o.item.id}-${i}`} className="flex items-center gap-2.5 text-sm">
+                <div key={`${o.item.id}-${i}`} className="flex items-center gap-2.5 text-xs">
                   <span className={`size-2 rounded-full shrink-0 ${CAL_TYPE_DOT[o.item.type] ?? "bg-muted-foreground"}`} />
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground/70 w-14 shrink-0">
+                  <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70 w-14 shrink-0">
                     {o.item.allDay ? "All day" : fmtTime(o.start)}
                   </span>
                   <span className="truncate font-medium text-foreground/80">{o.item.title}</span>
@@ -383,7 +383,7 @@ function LeadsSummary() {
           ].map((c) => (
             <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-3 text-center">
               <p className={`text-2xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
                 {c.label}
               </p>
             </div>
@@ -413,7 +413,7 @@ function TeamPulseSnapshot() {
       {isLoading ? (
         <PanelSkeleton rows={2} />
       ) : members.length === 0 ? (
-        <p className="text-sm text-muted-foreground/60 text-center py-6">No teammates yet.</p>
+        <p className="text-xs text-muted-foreground/60 text-center py-6">No teammates yet.</p>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
@@ -424,7 +424,7 @@ function TeamPulseSnapshot() {
             ].map((c) => (
               <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
                 <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
               </div>
             ))}
           </div>
@@ -438,21 +438,21 @@ function TeamPulseSnapshot() {
                 {shown.map((m) => (
                   <Avatar key={m._id} className="size-7 ring-2 ring-card">
                     <AvatarImage src={m.avatar} />
-                    <AvatarFallback className="bg-emerald-600 text-white text-xs font-bold">{ini(m.name)}</AvatarFallback>
+                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(m.name)}</AvatarFallback>
                   </Avatar>
                 ))}
                 {extra > 0 && (
-                  <div className="flex size-7 items-center justify-center rounded-full bg-muted ring-2 ring-card text-xs font-black text-muted-foreground">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-muted ring-2 ring-card text-[9px] font-black text-muted-foreground">
                     +{extra}
                   </div>
                 )}
               </div>
-              <span className="text-sm font-medium text-muted-foreground/70 truncate">
+              <span className="text-[11px] font-medium text-muted-foreground/70 truncate">
                 {online.length} {online.length === 1 ? "person" : "people"} online now
               </span>
             </button>
           ) : (
-            <p className="text-sm text-muted-foreground/50 text-center py-2">Nobody's online right now.</p>
+            <p className="text-xs text-muted-foreground/50 text-center py-2">Nobody's online right now.</p>
           )}
         </div>
       )}
@@ -508,11 +508,11 @@ function ReviewsSummary() {
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
               <p className="text-lg font-black tabular-nums">{data?.total ?? 0}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">Total</p>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Total</p>
             </div>
             <div className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
               <p className="text-lg font-black tabular-nums text-rose-500">{data?.pending ?? 0}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60">Needs reply</p>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Needs reply</p>
             </div>
           </div>
         </div>
@@ -560,7 +560,7 @@ function AftermarketSummary() {
           ].map((c) => (
             <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-3 text-center">
               <p className={`text-2xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
                 {c.label}
               </p>
             </div>
@@ -629,9 +629,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-425 min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
+    <div className="relative mx-auto w-full max-w-[1700px] min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
       {/* ── Digital backdrop: subtle grid + ambient glow ── */}
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(to_right,rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,120,120,0.05)_1px,transparent_1px)] bg-size-[48px_48px] mask-[radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent_80%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(to_right,rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,120,120,0.05)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent_80%)]" />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
@@ -647,7 +647,7 @@ export default function Dashboard() {
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge
                 variant="outline"
-                className="border-emerald-500/25 bg-emerald-500/8 px-2 py-0.5 text-[11px] font-black uppercase tracking-widest text-emerald-500"
+                className="border-emerald-500/25 bg-emerald-500/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-500"
               >
                 Suprah AI
               </Badge>
@@ -656,27 +656,27 @@ export default function Dashboard() {
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400/70" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-green-500" />
                 </span>
-                <span className="text-[11px] font-black uppercase tracking-widest text-green-500">Live</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Live</span>
               </span>
               <div className="size-1 shrink-0 rounded-full bg-border" />
-              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 <Clock className="size-3 shrink-0" />
                 <span className="whitespace-nowrap">
                   {currentTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver" })}
                 </span>
                 <span className="whitespace-nowrap font-black tabular-nums text-primary/70">
                   {currentTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })}
-                  <span className="ml-0.5 text-[11px] font-bold text-muted-foreground/50">MST</span>
+                  <span className="ml-0.5 text-[8px] font-bold text-muted-foreground/50">MST</span>
                 </span>
               </span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+            <h1 className="text-xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Welcome to{" "}
               <span className="bg-linear-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(34,197,94,0.25)]">
                 Suprah AI
               </span>
             </h1>
-            <p className="mt-1 text-sm font-medium text-muted-foreground/70 sm:text-base">
+            <p className="mt-1 text-xs font-medium text-muted-foreground/70 sm:text-sm">
               {greeting()}, {firstName}. Here's your intelligent workspace.
             </p>
           </div>
@@ -685,7 +685,7 @@ export default function Dashboard() {
 
           {/* Embedded compact Spotify */}
           <div className="min-w-0 flex-1 basis-[16rem]">
-            <SpotifyPanel compact bare />
+            <YouTubeMusicPanel compact bare />
           </div>
         </div>
       </div>
@@ -703,8 +703,8 @@ export default function Dashboard() {
             <Clock className="h-5 w-5 text-emerald-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-black tracking-tight text-foreground">Timeproof Clock</p>
-            <p className="text-xs text-muted-foreground/60 font-medium mt-0.5">
+            <p className="text-sm font-black tracking-tight text-foreground">Timeproof Clock</p>
+            <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
               Clock in, track your shift, share your location
             </p>
           </div>
@@ -718,15 +718,15 @@ export default function Dashboard() {
             <Bell className="h-5 w-5 text-amber-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-black tracking-tight text-foreground">Enable Admin Alerts</p>
-            <p className="text-xs text-muted-foreground/60 font-medium mt-0.5">
+            <p className="text-sm font-black tracking-tight text-foreground">Enable Admin Alerts</p>
+            <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
               Get push notifications for Lot Tech clock-in, clock-out, and location events — even on lock screen.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 mt-0.5">
             <button
               onClick={() => pushSubscribe()}
-              className="text-sm font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors active:scale-95"
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors active:scale-95"
             >
               Enable
             </button>
@@ -752,7 +752,7 @@ export default function Dashboard() {
             <button
               key={item.href + item.label}
               onClick={() => router.push(item.href)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-xs font-black uppercase tracking-wide transition-all active:scale-95 ${active
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${active
                 ? "bg-primary/10 border-primary/30 text-primary"
                 : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
                 }`}
@@ -793,7 +793,7 @@ export default function Dashboard() {
           <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
             <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
           </Panel>
-          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/transportation")}>
+          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/loads")}>
             <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
           </Panel>
         </div>
