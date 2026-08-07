@@ -91,6 +91,713 @@ const POPUP_RICH_EDIT_CSS = `
 `;
 type PendingPopupAttachment = { file: File; previewUrl: string };
 type PasteMode = 'formatted' | 'plain';
+
+type SS4InlineTypingFormat = 'bold' | 'italic' | 'underline' | 'strike';
+type SS4InlineTypingPreferences = Record<
+  SS4InlineTypingFormat,
+  boolean | null
+>;
+
+function createSS4InlineTypingPreferences(): SS4InlineTypingPreferences {
+  return {
+    bold: null,
+    italic: null,
+    underline: null,
+    strike: null,
+  };
+}
+
+function ss4InlineCommandForFormat(
+  format: SS4InlineTypingFormat,
+): 'bold' | 'italic' | 'underline' | 'strikeThrough' {
+  return format === 'strike' ? 'strikeThrough' : format;
+}
+
+type SS4FontFamilyId =
+  | 'default'
+  | 'arial'
+  | 'aptos'
+  | 'calibri'
+  | 'georgia'
+  | 'times'
+  | 'verdana'
+  | 'trebuchet'
+  | 'tahoma'
+  | 'courier';
+type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
+
+const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
+const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
+const SS4_FONT_FAMILIES: Array<{
+  id: SS4FontFamilyId;
+  label: string;
+  css: string;
+}> = [
+  { id: 'default', label: 'Default', css: "'Geist', sans-serif" },
+  { id: 'arial', label: 'Arial', css: 'Arial, Helvetica, sans-serif' },
+  { id: 'aptos', label: 'Aptos', css: 'Aptos, Arial, sans-serif' },
+  { id: 'calibri', label: 'Calibri', css: 'Calibri, Arial, sans-serif' },
+  { id: 'georgia', label: 'Georgia', css: 'Georgia, serif' },
+  { id: 'times', label: 'Times New Roman', css: "'Times New Roman', Times, serif" },
+  { id: 'verdana', label: 'Verdana', css: 'Verdana, sans-serif' },
+  { id: 'trebuchet', label: 'Trebuchet MS', css: "'Trebuchet MS', sans-serif" },
+  { id: 'tahoma', label: 'Tahoma', css: 'Tahoma, sans-serif' },
+  { id: 'courier', label: 'Courier New', css: "'Courier New', monospace" },
+];
+const SS4_FONT_SIZES: SS4FontSize[] = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+
+function ss4FontFamilyOption(id: SS4FontFamilyId) {
+  return SS4_FONT_FAMILIES.find(option => option.id === id)
+    || SS4_FONT_FAMILIES[0];
+}
+
+function ss4FontFamilyCss(id: SS4FontFamilyId): string {
+  return ss4FontFamilyOption(id).css;
+}
+
+function ss4FontFamilyIdFromCss(value?: string | null): SS4FontFamilyId | null {
+  const normalized = (value || '')
+    .toLowerCase()
+    .replace(/["']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return null;
+  if (normalized.includes('courier')) return 'courier';
+  if (normalized.includes('trebuchet')) return 'trebuchet';
+  if (normalized.includes('times new roman') || normalized === 'times') return 'times';
+  if (normalized.includes('georgia')) return 'georgia';
+  if (normalized.includes('verdana')) return 'verdana';
+  if (normalized.includes('tahoma')) return 'tahoma';
+  if (normalized.includes('calibri')) return 'calibri';
+  if (normalized.includes('aptos')) return 'aptos';
+  if (normalized.includes('arial') || normalized.includes('helvetica')) return 'arial';
+  if (normalized.includes('geist')) return 'default';
+  return null;
+}
+
+function ss4FontSizeFromCss(value?: string | null): SS4FontSize | null {
+  const raw = (value || '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const numeric = Number.parseFloat(raw);
+  if (!Number.isFinite(numeric)) return null;
+
+  let pixels = numeric;
+  if (raw.endsWith('pt')) pixels = numeric * (96 / 72);
+  else if (raw.endsWith('em') || raw.endsWith('rem')) pixels = numeric * 16;
+  else if (raw.endsWith('%')) pixels = (numeric / 100) * 16;
+
+  return SS4_FONT_SIZES.reduce((closest, candidate) => (
+    Math.abs(candidate - pixels) < Math.abs(closest - pixels)
+      ? candidate
+      : closest
+  ), SS4_DEFAULT_FONT_SIZE);
+}
+
+function ss4FontSizeFromLegacyAttribute(value?: string | null): SS4FontSize | null {
+  const legacy = Number.parseInt(value || '', 10);
+  const mapping: Record<number, SS4FontSize> = {
+    1: 10,
+    2: 12,
+    3: 16,
+    4: 18,
+    5: 24,
+    6: 32,
+    7: 36,
+  };
+  return mapping[legacy] || null;
+}
+
+function normalizeRichEditorFontSizeElements(
+  root: HTMLElement | null,
+  selectedSize: SS4FontSize,
+): void {
+  if (!root) return;
+
+  root.querySelectorAll<HTMLElement>('font[size]').forEach(element => {
+    const resolved = element.getAttribute('size') === '7'
+      ? selectedSize
+      : ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (resolved) element.style.fontSize = `${resolved}px`;
+    element.removeAttribute('size');
+  });
+}
+
+function stripSupraSpaceTypographyTags(value: string): string {
+  return value
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '');
+}
+
+function insertPreselectedTypographyText(
+  event: React.FormEvent<HTMLDivElement>,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  const inputEvent = event.nativeEvent as InputEvent;
+  if (
+    ![
+      'insertText',
+      'insertCompositionText',
+      'insertReplacementText',
+    ].includes(inputEvent.inputType)
+    || !inputEvent.data
+  ) {
+    return false;
+  }
+
+  const normalizedColor = color
+    ? color.toLowerCase()
+    : null;
+  const hasExplicitInlineChoice = Object.values(inlineFormats)
+    .some(value => value !== null);
+  const hasExplicitTypography = Boolean(
+    fontFamily
+    || fontSize
+    || normalizedColor
+    || hasExplicitInlineChoice,
+  );
+  if (!hasExplicitTypography) return false;
+
+  const root = event.currentTarget;
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+
+  const range = selection.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer)
+    || !root.contains(range.endContainer)
+  ) {
+    return false;
+  }
+
+  const anchorElement = range.startContainer instanceof HTMLElement
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  const activeTypingSpan = anchorElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+
+  const desiredFamily = fontFamily || '';
+  const desiredSize = fontSize ? String(fontSize) : '';
+  const desiredColor = normalizedColor || '';
+  const desiredBold = inlineFormats.bold === null
+    ? ''
+    : String(inlineFormats.bold);
+  const desiredItalic = inlineFormats.italic === null
+    ? ''
+    : String(inlineFormats.italic);
+  const desiredUnderline = inlineFormats.underline === null
+    ? ''
+    : String(inlineFormats.underline);
+  const desiredStrike = inlineFormats.strike === null
+    ? ''
+    : String(inlineFormats.strike);
+
+  if (
+    range.collapsed
+    && activeTypingSpan
+    && (activeTypingSpan.dataset.ss4FontFamily || '') === desiredFamily
+    && (activeTypingSpan.dataset.ss4FontSize || '') === desiredSize
+    && (activeTypingSpan.dataset.ss4TextColor || '') === desiredColor
+    && (activeTypingSpan.dataset.ss4Bold || '') === desiredBold
+    && (activeTypingSpan.dataset.ss4Italic || '') === desiredItalic
+    && (activeTypingSpan.dataset.ss4Underline || '') === desiredUnderline
+    && (activeTypingSpan.dataset.ss4Strike || '') === desiredStrike
+  ) {
+    // The caret is already inside the correct persistent formatting run.
+    // Let the browser append the next character to that same span.
+    return false;
+  }
+
+  event.preventDefault();
+  range.deleteContents();
+
+  const span = document.createElement('span');
+  span.dataset.ss4TypingStyle = 'true';
+  span.dataset.ss4FontFamily = desiredFamily;
+  span.dataset.ss4FontSize = desiredSize;
+  span.dataset.ss4TextColor = desiredColor;
+  span.dataset.ss4Bold = desiredBold;
+  span.dataset.ss4Italic = desiredItalic;
+  span.dataset.ss4Underline = desiredUnderline;
+  span.dataset.ss4Strike = desiredStrike;
+
+  if (fontFamily) span.style.fontFamily = ss4FontFamilyCss(fontFamily);
+  if (fontSize) span.style.fontSize = `${fontSize}px`;
+  if (normalizedColor) span.style.color = normalizedColor;
+
+  if (inlineFormats.bold !== null) {
+    span.style.fontWeight = inlineFormats.bold ? '700' : '400';
+  }
+  if (inlineFormats.italic !== null) {
+    span.style.fontStyle = inlineFormats.italic ? 'italic' : 'normal';
+  }
+
+  if (
+    inlineFormats.underline !== null
+    || inlineFormats.strike !== null
+  ) {
+    const decorations: string[] = [];
+    if (inlineFormats.underline) decorations.push('underline');
+    if (inlineFormats.strike) decorations.push('line-through');
+    span.style.textDecorationLine = decorations.length
+      ? decorations.join(' ')
+      : 'none';
+  }
+
+  const textNode = document.createTextNode(inputEvent.data);
+  span.appendChild(textNode);
+  range.insertNode(span);
+  range.setStart(textNode, textNode.data.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+
+type SS4CaretFormattingSnapshot = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  boldExplicit: boolean;
+  italicExplicit: boolean;
+  underlineExplicit: boolean;
+  strikeExplicit: boolean;
+  fontFamily: SS4FontFamilyId;
+  fontSize: SS4FontSize;
+  color: string;
+  fontFamilyExplicit: boolean;
+  fontSizeExplicit: boolean;
+  colorExplicit: boolean;
+};
+
+function ss4TypingPreferencesFromCaretSnapshot(
+  caret: SS4CaretFormattingSnapshot | null,
+): SS4InlineTypingPreferences {
+  if (!caret) return createSS4InlineTypingPreferences();
+
+  return {
+    // Preserve active inherited formatting, and preserve explicit OFF states.
+    // Plain inherited "off" remains null so ordinary typing does not create
+    // unnecessary wrappers.
+    bold: caret.bold ? true : caret.boldExplicit ? false : null,
+    italic: caret.italic ? true : caret.italicExplicit ? false : null,
+    underline: caret.underline
+      ? true
+      : caret.underlineExplicit
+        ? false
+        : null,
+    strike: caret.strike ? true : caret.strikeExplicit ? false : null,
+  };
+}
+
+function getRichEditorCaretFormattingSnapshot(
+  root: HTMLElement | null,
+): SS4CaretFormattingSnapshot | null {
+  if (!root) return null;
+
+  const selection = window.getSelection();
+  if (
+    !selection
+    || selection.rangeCount === 0
+    || !selection.anchorNode
+    || !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+
+  const anchorElement = selection.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection.anchorNode.parentElement;
+  const effectiveElement = anchorElement && root.contains(anchorElement)
+    ? anchorElement
+    : root;
+
+  const typingSpan = effectiveElement.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+
+  const ancestors: HTMLElement[] = [];
+  let current: HTMLElement | null = effectiveElement;
+  while (current) {
+    ancestors.push(current);
+    if (current === root) break;
+    current = current.parentElement;
+  }
+
+  const firstInlineStyle = (
+    getter: (element: HTMLElement) => string | null | undefined,
+  ): string | null => {
+    for (const element of ancestors) {
+      const value = getter(element)?.trim();
+      if (value) return value;
+    }
+    return null;
+  };
+
+  const dataBoolean = (
+    key: 'ss4Bold' | 'ss4Italic' | 'ss4Underline' | 'ss4Strike',
+  ): boolean | null => {
+    const raw = typingSpan?.dataset[key];
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return null;
+  };
+
+  const hasAncestorTag = (tags: string[]): boolean =>
+    ancestors.some(element => tags.includes(element.tagName.toLowerCase()));
+
+  const hasInlineWeight = ancestors.some(element => {
+    const value = element.style.fontWeight.trim();
+    return value === 'bold' || Number.parseInt(value || '0', 10) >= 600;
+  });
+  const hasInlineItalic = ancestors.some(
+    element => element.style.fontStyle.trim() === 'italic',
+  );
+  const hasInlineUnderline = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('underline')
+  ));
+  const hasInlineStrike = ancestors.some(element => (
+    `${element.style.textDecoration} ${element.style.textDecorationLine}`
+      .toLowerCase()
+      .includes('line-through')
+  ));
+
+  const boldData = dataBoolean('ss4Bold');
+  const italicData = dataBoolean('ss4Italic');
+  const underlineData = dataBoolean('ss4Underline');
+  const strikeData = dataBoolean('ss4Strike');
+
+  const bold = boldData ?? (
+    hasAncestorTag(['b', 'strong'])
+    || hasInlineWeight
+    || document.queryCommandState('bold')
+  );
+  const italic = italicData ?? (
+    hasAncestorTag(['i', 'em'])
+    || hasInlineItalic
+    || document.queryCommandState('italic')
+  );
+  const underline = underlineData ?? (
+    hasAncestorTag(['u'])
+    || hasInlineUnderline
+    || document.queryCommandState('underline')
+  );
+  const strike = strikeData ?? (
+    hasAncestorTag(['s', 'strike', 'del'])
+    || hasInlineStrike
+    || document.queryCommandState('strikeThrough')
+  );
+
+  const explicitFontFamilyValue =
+    typingSpan?.dataset.ss4FontFamily
+    || firstInlineStyle(element =>
+      element.style.fontFamily || element.getAttribute('face')
+    );
+  const explicitFontSizeValue =
+    typingSpan?.dataset.ss4FontSize
+    || firstInlineStyle(element =>
+      element.style.fontSize || element.getAttribute('size')
+    );
+  const explicitColorValue =
+    typingSpan?.dataset.ss4TextColor
+    || firstInlineStyle(element =>
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+    );
+
+  const computed = window.getComputedStyle(effectiveElement);
+  const queryFontFamily = String(
+    document.queryCommandValue('fontName') || '',
+  );
+  const queryFontSize = String(
+    document.queryCommandValue('fontSize') || '',
+  );
+  const queryColor = String(
+    document.queryCommandValue('foreColor') || '',
+  );
+
+  const fontFamily =
+    ss4FontFamilyIdFromCss(explicitFontFamilyValue)
+    || ss4FontFamilyIdFromCss(queryFontFamily)
+    || ss4FontFamilyIdFromCss(computed.fontFamily)
+    || SS4_DEFAULT_FONT_FAMILY;
+
+  const fontSize =
+    ss4FontSizeFromCss(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(explicitFontSizeValue)
+    || ss4FontSizeFromLegacyAttribute(queryFontSize)
+    || ss4FontSizeFromCss(computed.fontSize)
+    || SS4_DEFAULT_FONT_SIZE;
+
+  const color =
+    cssColorToHex(explicitColorValue)
+    || cssColorToHex(queryColor)
+    || cssColorToHex(computed.color)
+    || '#ffffff';
+
+  return {
+    bold,
+    italic,
+    underline,
+    strike,
+    boldExplicit: boldData !== null,
+    italicExplicit: italicData !== null,
+    underlineExplicit: underlineData !== null,
+    strikeExplicit: strikeData !== null,
+    fontFamily,
+    fontSize,
+    color,
+    fontFamilyExplicit: Boolean(explicitFontFamilyValue),
+    fontSizeExplicit: Boolean(explicitFontSizeValue),
+    colorExplicit: Boolean(explicitColorValue),
+  };
+}
+
+function insertTypingStyleCaretMarker(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  const normalizedColor = color?.toLowerCase() || null;
+  const hasExplicitInlineChoice = Object.values(inlineFormats).some(
+    value => value !== null,
+  );
+  if (
+    !fontFamily
+    && !fontSize
+    && !normalizedColor
+    && !hasExplicitInlineChoice
+  ) {
+    return false;
+  }
+
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+
+  const liveRange = selection.getRangeAt(0);
+  if (
+    !root.contains(liveRange.startContainer)
+    || !root.contains(liveRange.endContainer)
+  ) {
+    return false;
+  }
+
+  const anchorElement = liveRange.startContainer instanceof HTMLElement
+    ? liveRange.startContainer
+    : liveRange.startContainer.parentElement;
+  const existingTypingSpan = anchorElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+  const existingSpanIsMarkerOnly = Boolean(
+    existingTypingSpan
+    && stripSupraSpaceTypingMarkers(existingTypingSpan.textContent || '').trim() === '',
+  );
+
+  let span: HTMLElement;
+  let marker: Text;
+
+  if (existingTypingSpan && existingSpanIsMarkerOnly) {
+    // Update the existing empty caret-format run instead of nesting another
+    // span. This is important when a user changes formatting on a new line.
+    span = existingTypingSpan;
+    span.removeAttribute('style');
+    marker = Array.from(span.childNodes)
+      .find((node): node is Text => node.nodeType === Node.TEXT_NODE)
+      || document.createTextNode('\u200B');
+
+    if (!marker.parentNode) span.appendChild(marker);
+    marker.data = '\u200B';
+  } else {
+    span = document.createElement('span');
+    marker = document.createTextNode('\u200B');
+    span.appendChild(marker);
+
+    const insertionRange = liveRange.cloneRange();
+
+    // When the caret is at the end of an existing typing run, create a sibling
+    // run rather than nesting it. A sibling can truly turn underline/bold/etc.
+    // off without inheriting the previous run's inline style.
+    if (
+      existingTypingSpan
+      && existingTypingSpan.parentNode
+      && liveRange.collapsed
+    ) {
+      const contentsRange = document.createRange();
+      contentsRange.selectNodeContents(existingTypingSpan);
+      const atEnd = liveRange.compareBoundaryPoints(
+        Range.END_TO_END,
+        contentsRange,
+      ) === 0;
+
+      if (atEnd) {
+        insertionRange.setStartAfter(existingTypingSpan);
+        insertionRange.collapse(true);
+      }
+    }
+
+    insertionRange.insertNode(span);
+  }
+
+  span.dataset.ss4TypingStyle = 'true';
+  span.dataset.ss4FontFamily = fontFamily || '';
+  span.dataset.ss4FontSize = fontSize ? String(fontSize) : '';
+  span.dataset.ss4TextColor = normalizedColor || '';
+  span.dataset.ss4Bold = inlineFormats.bold === null
+    ? ''
+    : String(inlineFormats.bold);
+  span.dataset.ss4Italic = inlineFormats.italic === null
+    ? ''
+    : String(inlineFormats.italic);
+  span.dataset.ss4Underline = inlineFormats.underline === null
+    ? ''
+    : String(inlineFormats.underline);
+  span.dataset.ss4Strike = inlineFormats.strike === null
+    ? ''
+    : String(inlineFormats.strike);
+
+  if (fontFamily) span.style.fontFamily = ss4FontFamilyCss(fontFamily);
+  if (fontSize) span.style.fontSize = `${fontSize}px`;
+  if (normalizedColor) span.style.color = normalizedColor;
+
+  if (inlineFormats.bold !== null) {
+    span.style.fontWeight = inlineFormats.bold ? '700' : '400';
+  }
+  if (inlineFormats.italic !== null) {
+    span.style.fontStyle = inlineFormats.italic ? 'italic' : 'normal';
+  }
+
+  if (
+    inlineFormats.underline !== null
+    || inlineFormats.strike !== null
+  ) {
+    const decorations: string[] = [];
+    if (inlineFormats.underline) decorations.push('underline');
+    if (inlineFormats.strike) decorations.push('line-through');
+    span.style.textDecorationLine = decorations.length
+      ? decorations.join(' ')
+      : 'none';
+  }
+
+  const nextRange = document.createRange();
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return true;
+}
+
+function insertSoftLineBreakWithCaretFormatting(
+  root: HTMLElement,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string | null,
+): boolean {
+  root.focus();
+
+  const inserted = document.execCommand('insertLineBreak');
+  if (!inserted) {
+    document.execCommand('insertHTML', false, '<br>');
+  }
+
+  insertTypingStyleCaretMarker(
+    root,
+    fontFamily,
+    fontSize,
+    inlineFormats,
+    color,
+  );
+  return true;
+}
+
+function stripSupraSpaceTypingMarkers(value: string): string {
+  return value.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+}
+
+function clipboardElementIsHidden(element: HTMLElement): boolean {
+  const style = element.style;
+  return Boolean(
+    element.hidden
+    || element.getAttribute('aria-hidden') === 'true'
+    || style.display === 'none'
+    || style.visibility === 'hidden'
+    || style.opacity === '0'
+    || (element.tagName.toLowerCase() === 'input'
+      && (element as HTMLInputElement).type === 'hidden')
+  );
+}
+
+function clipboardControlValue(element: HTMLElement): string {
+  const tag = element.tagName.toLowerCase();
+  if (tag === 'input') return (element as HTMLInputElement).value || '';
+  if (tag === 'textarea') return (element as HTMLTextAreaElement).value || '';
+  if (tag === 'select') {
+    const select = element as HTMLSelectElement;
+    return select.selectedOptions?.[0]?.textContent || select.value || '';
+  }
+  return '';
+}
+
+function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
+  const className = String(element.className || '').toLowerCase();
+  const rawStyle = (element.getAttribute('style') || '').toLowerCase();
+  const text = (element.textContent || '')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .trim();
+  const markerOnly = /^(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])$/u.test(text);
+
+  return Boolean(
+    element.hasAttribute('data-list-marker')
+    || element.hasAttribute('data-marker')
+    || className.includes('ss4-list-marker')
+    || className.includes('list-marker')
+    || className.includes('bullet-marker')
+    || className.includes('ql-ui')
+    || className.includes('mso-list-ignore')
+    || rawStyle.includes('mso-list:ignore')
+    || (element.getAttribute('aria-hidden') === 'true' && markerOnly)
+  );
+}
+
+function stripLeadingSemanticListMarker(root: HTMLElement): void {
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest('ul ul, ul ol, ol ul, ol ol')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return node.textContent?.trim()
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_SKIP;
+      },
+    },
+  );
+
+  const firstText = walker.nextNode() as Text | null;
+  if (!firstText) return;
+  firstText.data = firstText.data.replace(
+    /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
+    '',
+  );
+}
 type PopupEditFormatState = {
   bold: boolean;
   italic: boolean;
@@ -155,7 +862,7 @@ const MEDIA_LABELS: Record<string, string> = {
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
 };
 // Renders message content with markdown formatting (bold, italic, underline, strike, code, bullets, quotes, links, @mentions)
-const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
   return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
@@ -300,6 +1007,10 @@ function messagePreviewText(content?: string | null): string {
   return normalizeMessageMarkdownForDisplay(content)
     .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
     .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -325,6 +1036,22 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
     const k = `${keyPrefix}-${i}`;
     const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
     if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
+    const fontMatch = part.match(/^\{\s*font\s*:\s*([a-z-]+)\s*\}([\s\S]*)\{\s*\/\s*font\s*\}$/i);
+    if (fontMatch) {
+      const family = fontMatch[1].toLowerCase() as SS4FontFamilyId;
+      const resolved = SS4_FONT_FAMILIES.some(option => option.id === family)
+        ? family
+        : SS4_DEFAULT_FONT_FAMILY;
+      return <span key={k} style={{ fontFamily: ss4FontFamilyCss(resolved) }}>{renderInlineMd(fontMatch[2], isOwn, `${k}-font`)}</span>;
+    }
+    const sizeMatch = part.match(/^\{\s*size\s*:\s*(\d{1,3})\s*\}([\s\S]*)\{\s*\/\s*size\s*\}$/i);
+    if (sizeMatch) {
+      const numericSize = Number.parseInt(sizeMatch[1], 10) as SS4FontSize;
+      const resolved = SS4_FONT_SIZES.includes(numericSize)
+        ? numericSize
+        : SS4_DEFAULT_FONT_SIZE;
+      return <span key={k} style={{ fontSize: `${resolved}px` }}>{renderInlineMd(sizeMatch[2], isOwn, `${k}-size`)}</span>;
+    }
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
       return <strong key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strong`)}</strong>;
     if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
@@ -339,7 +1066,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
       return <a key={k} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isOwn ? 'rgba(255,255,255,0.85)' : '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
     if (/^@/.test(part))
       return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)' } : { color: '#60a5fa' }}>{part}</span>;
-    return part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
+    return stripSupraSpaceTypographyTags(part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''));
   });
 }
 
@@ -416,8 +1143,8 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
-    || /<font\b[^>]*color\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 function getCopiedElementVisibleText(element: HTMLElement): string {
@@ -435,33 +1162,55 @@ function getCopiedElementVisibleText(element: HTMLElement): string {
     const select = element as HTMLSelectElement;
     return select.selectedOptions?.[0]?.textContent || select.value || '';
   }
-  if (element.textContent?.trim()) return '';
-  return element.getAttribute('data-value')
-    || element.getAttribute('data-text')
-    || element.getAttribute('data-label')
-    || element.getAttribute('aria-valuetext')
-    || '';
+  // Empty metadata-only elements are not visible copied text. Returning
+  // data-label/data-text here can insert UI labels that the user never selected.
+  return '';
 }
 
 function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
+
+    const element = node as HTMLElement;
+    if (
+      clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
+
+    const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
-    if (tag === 'img') return el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
-    const visibleValue = getCopiedElementVisibleText(el);
-    if (visibleValue) return visibleValue;
-    const inner = Array.from(el.childNodes).map(walk).join('');
-    if (['div', 'p', 'li', 'section', 'article'].includes(tag)) return `${inner}\n`;
+    if (tag === 'img') {
+      return element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '';
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
+
+    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'li') {
+      inner = inner.replace(
+        /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
+        '',
+      );
+      return `${inner}\n`;
+    }
+    if (['div', 'p', 'section', 'article', 'header', 'footer'].includes(tag)) {
+      return `${inner}\n`;
+    }
     return inner;
   };
+
   return Array.from(doc.body.childNodes)
     .map(walk)
     .join('')
-    .replace(/ /g, ' ')
+    .replace(/\u00A0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trimEnd();
 }
@@ -631,7 +1380,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 }
 
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}/m.test(text)
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(text)
     || text.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
@@ -956,14 +1705,29 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
 
 function htmlToMarkdown(el: HTMLElement): string {
   const walk = (node: Node, listDepth = 0): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const element = node as HTMLElement;
-    if (element.hasAttribute('data-rich-editor-selection-marker')) return '';
+    if (
+      element.hasAttribute('data-rich-editor-selection-marker')
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
+
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
-    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    if (tag === 'img') {
+      return element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '';
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
 
     if (tag === 'ul' || tag === 'ol') {
       return Array.from(element.children)
@@ -980,8 +1744,23 @@ function htmlToMarkdown(el: HTMLElement): string {
         : [];
       const itemIndex = Math.max(0, siblings.indexOf(element));
       const startAt = ordered ? Number(parent?.getAttribute('start') || 1) : 1;
-      const marker = ordered ? `${startAt + itemIndex}.` : popupBulletGlyphForDepth(listDepth);
-      const indent = POPUP_LIST_INDENT_STEP.repeat(listDepth);
+      const marginLeft = element.style.marginLeft.trim();
+      const marginMatch = marginLeft.match(/^([\d.]+)(em|rem|px|pt)$/i);
+      let marginDepth = 0;
+      if (marginMatch) {
+        const marginValue = Number.parseFloat(marginMatch[1]);
+        const marginUnit = marginMatch[2].toLowerCase();
+        if (Number.isFinite(marginValue)) {
+          marginDepth = marginUnit === 'em' || marginUnit === 'rem'
+            ? Math.max(0, Math.round(marginValue / 1.1))
+            : marginUnit === 'px'
+              ? Math.max(0, Math.round(marginValue / 18))
+              : Math.max(0, Math.round(marginValue / 13.5));
+        }
+      }
+      const visualDepth = Math.max(listDepth, marginDepth);
+      const marker = ordered ? `${startAt + itemIndex}.` : popupBulletGlyphForDepth(visualDepth);
+      const indent = POPUP_LIST_INDENT_STEP.repeat(visualDepth);
 
       let ownContent = '';
       let nestedContent = '';
@@ -990,47 +1769,106 @@ function htmlToMarkdown(el: HTMLElement): string {
           child.nodeType === Node.ELEMENT_NODE
           && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
         ) {
-          nestedContent += walk(child, listDepth + 1);
+          nestedContent += walk(child, visualDepth + 1);
         } else {
-          ownContent += walk(child, listDepth);
+          ownContent += walk(child, visualDepth);
         }
       });
 
-      const itemText = ownContent.replace(/\n+/g, ' ').trim();
+      const itemText = ownContent
+        .replace(/^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u, '')
+        .replace(/\n+/g, ' ')
+        .trim();
       return `${indent}${marker}${itemText ? ` ${itemText}` : ''}\n${nestedContent}`;
     }
 
-    let inner = Array.from(element.childNodes).map(child => walk(child, listDepth)).join('');
-    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
+    let inner = Array.from(element.childNodes)
+      .map(child => walk(child, listDepth))
+      .join('');
+    if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
+      inner = clipboardControlValue(element);
+    }
 
     const href = tag === 'a' ? element.getAttribute('href') : null;
-    const fontFamily = `${element.style?.fontFamily || ''} ${element.getAttribute('face') || ''}`.toLowerCase();
-    const isMonospace = /(monospace|courier|consolas|menlo|monaco)/i.test(fontFamily);
+    const rawFontFamily = `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`;
+    const hasExplicitFontFamily = Boolean(
+      element.style.fontFamily.trim()
+      || element.getAttribute('face'),
+    );
+    const hasExplicitFontSize = Boolean(
+      element.style.fontSize.trim()
+      || element.getAttribute('size'),
+    );
+    const fontFamily = ss4FontFamilyIdFromCss(rawFontFamily);
+    const fontSize = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    const isMonospace = !fontFamily
+      && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
 
-    if (tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)) inner = `**${inner}**`;
-    else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
-    else if (tag === 'u') inner = `__${inner}__`;
-    else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
-    else if (tag === 'blockquote') inner = inner.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
-    else if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
+    if (
+      tag === 'strong'
+      || tag === 'b'
+      || /^h[1-6]$/.test(tag)
+      || fontWeight === 'bold'
+      || Number.parseInt(fontWeight || '0', 10) >= 600
+    ) inner = `**${inner}**`;
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') inner = `_${inner}_`;
+    if (tag === 'u' || decoration.includes('underline')) inner = `__${inner}__`;
+    if (
+      tag === 's'
+      || tag === 'strike'
+      || tag === 'del'
+      || decoration.includes('line-through')
+    ) inner = `~~${inner}~~`;
+    if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
+    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner)
+      ? inner
+      : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'blockquote') inner = inner
+      .split('\n')
+      .map(line => line ? `> ${line}` : '>')
+      .join('\n');
+    else if (href && /^(?:https?:|mailto:)/i.test(href)) {
+      inner = `[${inner || href}](${href})`;
+    }
 
-    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (
+      fontFamily
+      && hasExplicitFontFamily
+      && inner.trim()
+    ) inner = `{font:${fontFamily}}${inner}{/font}`;
+    if (
+      fontSize
+      && hasExplicitFontSize
+      && inner.trim()
+    ) inner = `{size:${fontSize}}${inner}{/size}`;
+
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color'),
+    );
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    if (['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag) || /^h[1-6]$/.test(tag)) inner = `\n${inner}`;
+
+    if (
+      ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
+      || /^h[1-6]$/.test(tag)
+    ) inner = `\n${inner}`;
     return inner;
   };
 
-  const rootColor = cssColorToHex(el.style.color);
-  let markdown = normalizeListExitLineSpacing(
-    Array.from(el.childNodes).map(child => walk(child, 0)).join('')
-      .replace(/\u00a0/g, ' ')
+  const markdown = normalizeListExitLineSpacing(
+    Array.from(el.childNodes)
+      .map(child => walk(child, 0))
+      .join('')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
-  if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
-  return markdown;
+  return canonicalizeColorMarkup(markdown);
 }
 
 function htmlAppearsToContainLists(html: string): boolean {
@@ -1224,12 +2062,21 @@ function clipboardHtmlToListAwareText(html: string): string {
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
     const element = node as HTMLElement;
     const tag = element.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'ul' || tag === 'ol') return '';
+    if (
+      tag === 'script'
+      || tag === 'style'
+      || tag === 'ul'
+      || tag === 'ol'
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
     if (tag === 'br') return '\n';
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
 
     let inner = Array.from(element.childNodes).map(renderInline).join('');
-    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
     const style = (element.getAttribute('style') || '').toLowerCase();
     const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim() || '';
     const href = tag === 'a' ? element.getAttribute('href') : null;
@@ -1244,7 +2091,18 @@ function clipboardHtmlToListAwareText(html: string): string {
     if (isItalic && !/^_[\s\S]*_$/.test(inner)) inner = `_${inner}_`;
     if (isUnderline && !/^__[\s\S]*__$/.test(inner)) inner = `__${inner}__`;
     if (isStrike && !/^~~[\s\S]*~~$/.test(inner)) inner = `~~${inner}~~`;
-    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    const rawFontFamily = `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`;
+    const fontFamily = ss4FontFamilyIdFromCss(rawFontFamily);
+    const fontSize = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (fontFamily && inner.trim()) inner = `{font:${fontFamily}}${inner}{/font}`;
+    if (fontSize && inner.trim()) inner = `{size:${fontSize}}${inner}{/size}`;
+
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color'),
+    );
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
     return inner;
   };
@@ -1342,68 +2200,169 @@ function stripRichTextMarkupForPlainPaste(value: string): string {
 // Converts source HTML (from another app's clipboard) into the editor's HTML dialect
 function clipboardHtmlToEditorHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return escapeHtmlText(node.textContent || '');
-    if (node.nodeType !== Node.ELEMENT_NODE) return '';
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style') return '';
-    if (tag === 'br') return '<br>';
-    if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
-    const visibleValue = getCopiedElementVisibleText(el);
-    if (visibleValue) return escapeHtmlText(visibleValue);
-    const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
-    const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
-    const wrapColor = (inner: string): string =>
-      elColor && inner.trim() ? `<span style="color:${elColor}">${inner}</span>` : inner;
 
-    switch (tag) {
-      case 'strong': case 'b': return wrapColor(`<strong>${childHtml()}</strong>`);
-      case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
-      case 'u': return wrapColor(`<u>${childHtml()}</u>`);
-      case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
-      case 'code': {
-        const codeText = childHtml().replace(/<[^>]*>/g, '');
-        return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
-      }
-      case 'pre': {
-        const codeText = childHtml().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
-        return codeText.split('\n').map(line => line ? `\`${line.replace(/`/g, '')}\`` : '').join('<br>');
-      }
-      case 'a': {
-        const href = el.getAttribute('href') || '';
-        const inner = childHtml();
-        return /^https?:\/\//i.test(href) ? `<a href="${escapeHtmlText(href)}">${inner || escapeHtmlText(href)}</a>` : inner;
-      }
-      case 'font': return wrapColor(childHtml());
-      case 'li': return `• ${childHtml()}<br>`;
-      case 'ul': return Array.from(el.children).map(li => walk(li)).join('');
-      case 'ol': { let i = 1; return Array.from(el.children).map(li => walk(li).replace('• ', `${i++}. `)).join(''); }
-      case 'blockquote': return `&gt; ${childHtml()}<br>`;
-      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
-        return `<strong>${childHtml()}</strong><br>`;
-      case 'div': case 'p': case 'section': case 'article':
-        return `${childHtml()}<br>`;
-      default: {
-        const inner = childHtml();
-        if (!inner) return inner;
-        const fw = el.style?.fontWeight;
-        const fi = el.style?.fontStyle;
-        const td = `${el.style?.textDecoration || ''} ${el.style?.textDecorationLine || ''}`;
-        let result = inner;
-        if (fw === 'bold' || Number.parseInt(fw || '0', 10) >= 600) result = `<strong>${result}</strong>`;
-        if (fi === 'italic') result = `<em>${result}</em>`;
-        if (td.includes('underline')) result = `<u>${result}</u>`;
-        if (td.includes('line-through')) result = `<s>${result}</s>`;
-        return wrapColor(result);
-      }
+  const escapeAttribute = (value: string): string =>
+    escapeHtmlText(value).replace(/"/g, '&quot;');
+
+  const safeTypographyStyles = (element: HTMLElement): string[] => {
+    const styles: string[] = [];
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+      || '',
+    );
+    if (color) styles.push(`color:${color}`);
+
+    const familyId = ss4FontFamilyIdFromCss(
+      `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`,
+    );
+    if (familyId && familyId !== SS4_DEFAULT_FONT_FAMILY) {
+      styles.push(`font-family:${ss4FontFamilyCss(familyId)}`);
     }
+
+    const size = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (size && size !== SS4_DEFAULT_FONT_SIZE) {
+      styles.push(`font-size:${size}px`);
+    }
+
+    return styles;
   };
+
+  const wrapStyles = (
+    element: HTMLElement,
+    inner: string,
+    extraStyles: string[] = [],
+  ): string => {
+    if (!inner) return inner;
+    const styles = [...safeTypographyStyles(element), ...extraStyles];
+    return styles.length
+      ? `<span style="${escapeAttribute([...new Set(styles)].join(';'))}">${inner}</span>`
+      : inner;
+  };
+
+  const cleanListItemClone = (element: HTMLElement): HTMLElement => {
+    const clone = element.cloneNode(true) as HTMLElement;
+    Array.from(clone.querySelectorAll<HTMLElement>('*')).forEach(child => {
+      if (
+        clipboardElementIsHidden(child)
+        || clipboardElementIsDecorativeMarker(child)
+      ) child.remove();
+    });
+    stripLeadingSemanticListMarker(clone);
+    return clone;
+  };
+
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return escapeHtmlText(
+        (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''),
+      );
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (
+      ['script', 'style', 'meta', 'link', 'iframe', 'object'].includes(tag)
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
+
+    if (tag === 'br') return '<br>';
+    if (tag === 'img') {
+      return escapeHtmlText(
+        element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '',
+      );
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return escapeHtmlText(clipboardControlValue(element));
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      const listItems = Array.from(element.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && child.tagName.toLowerCase() === 'li'
+        );
+      const startValue = tag === 'ol'
+        ? Number.parseInt(element.getAttribute('start') || '1', 10)
+        : 1;
+      const startAttribute = tag === 'ol' && Number.isFinite(startValue) && startValue > 1
+        ? ` start="${startValue}"`
+        : '';
+      return `<${tag}${startAttribute}>${listItems.map(walk).join('')}</${tag}>`;
+    }
+
+    if (tag === 'li') {
+      const cleanClone = cleanListItemClone(element);
+      const nestedLists = Array.from(cleanClone.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && ['ul', 'ol'].includes(child.tagName.toLowerCase())
+        );
+      nestedLists.forEach(list => list.remove());
+
+      const own = Array.from(cleanClone.childNodes).map(walk).join('').trim() || '<br>';
+      const nested = Array.from(element.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && ['ul', 'ol'].includes(child.tagName.toLowerCase())
+        )
+        .map(walk)
+        .join('');
+      return `<li>${wrapStyles(element, own)}${nested}</li>`;
+    }
+
+    const inner = Array.from(element.childNodes).map(walk).join('');
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    let formatted = inner;
+
+    if (
+      tag === 'strong'
+      || tag === 'b'
+      || fontWeight === 'bold'
+      || Number.parseInt(fontWeight || '0', 10) >= 600
+    ) formatted = `<strong>${formatted}</strong>`;
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') {
+      formatted = `<em>${formatted}</em>`;
+    }
+    if (tag === 'u' || decoration.includes('underline')) formatted = `<u>${formatted}</u>`;
+    if (
+      tag === 's'
+      || tag === 'strike'
+      || tag === 'del'
+      || decoration.includes('line-through')
+    ) formatted = `<s>${formatted}</s>`;
+
+    if (tag === 'code') return `<code>${wrapStyles(element, formatted)}</code>`;
+    if (tag === 'pre') return `<pre>${wrapStyles(element, formatted)}</pre>`;
+    if (tag === 'blockquote') return `<blockquote>${wrapStyles(element, formatted || '<br>')}</blockquote>`;
+    if (tag === 'a') {
+      const href = element.getAttribute('href') || '';
+      if (!/^(?:https?:|mailto:)/i.test(href)) return wrapStyles(element, formatted);
+      return `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${wrapStyles(element, formatted || escapeHtmlText(href))}</a>`;
+    }
+    if (/^h[1-6]$/.test(tag)) {
+      return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
+    }
+    if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
+      return `<div>${wrapStyles(element, formatted || '<br>')}</div>`;
+    }
+    return wrapStyles(element, formatted);
+  };
+
   return Array.from(doc.body.childNodes)
-    .map(n => walk(n))
+    .map(walk)
     .join('')
-    .replace(/(<br>)+$/g, '')
-    .replace(/^(<br>)+/g, '');
+    .replace(/^(?:<div><br><\/div>)+/gi, '')
+    .replace(/(?:<div><br><\/div>)+$/gi, '')
+    .trim();
 }
 
 function clipboardPayloadToPlainText(text: string, html: string): string {
@@ -1422,25 +2381,21 @@ function clipboardPayloadToPlainText(text: string, html: string): string {
 }
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
-  if (html) {
-    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
-    const markerPreservedListText = listAwareText
-      ? applyPopupSourceBulletMarkers(listAwareText, text)
-      : '';
-
-    if (markerPreservedListText && popupPlainTextHasListMarkers(markerPreservedListText)) {
-      return sanitizePastedEditorHtmlForTheme(
-        markdownTextToEditorHtml(markerPreservedListText),
-      );
+  // Formatted paste uses the source HTML exactly once. Combining the HTML and
+  // text/plain list representations creates duplicate bullets and extra text.
+  if (html.trim()) {
+    const hasSemanticList = /<(?:ul|ol|li)\b/i.test(html);
+    const hasOfficePseudoList = /mso-list\s*:|MsoListParagraph/i.test(html);
+    if (!hasSemanticList && hasOfficePseudoList) {
+      const officeListText = clipboardHtmlToListAwareText(html);
+      if (officeListText.trim()) {
+        return sanitizePastedEditorHtmlForTheme(
+          markdownTextToEditorHtml(officeListText),
+        );
+      }
     }
 
     const editorHtml = clipboardHtmlToEditorHtml(html);
-    if (shouldPreferPlainTextLayout(text, editorHtml)) {
-      return sanitizePastedEditorHtmlForTheme(
-        markdownTextToEditorHtml(text),
-      );
-    }
-
     if (editorHtml.trim()) {
       return sanitizePastedEditorHtmlForTheme(editorHtml);
     }
@@ -1450,7 +2405,6 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
   const editorHtml = hasMarkdownSyntax(normalizedText)
     ? markdownTextToEditorHtml(normalizedText)
     : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
-
   return sanitizePastedEditorHtmlForTheme(editorHtml);
 }
 
@@ -1460,6 +2414,8 @@ function markdownTextToEditorHtml(text: string): string {
   );
   const lines = source.split('\n');
   let activeColor: string | null = null;
+  let activeFontFamily: SS4FontFamilyId = SS4_DEFAULT_FONT_FAMILY;
+  let activeFontSize: SS4FontSize = SS4_DEFAULT_FONT_SIZE;
 
   const depthFromIndent = (indent: string, marker?: string): number => {
     const expanded = indent.replace(/\t/g, '    ').length;
@@ -1477,55 +2433,103 @@ function markdownTextToEditorHtml(text: string): string {
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
       .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
 
-  const renderColoredInline = (value: string): string => {
-    const colorTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}/g;
-    let result = activeColor ? `<span style="color:${activeColor}">` : '';
+  const renderStyledInline = (value: string): string => {
+    const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
+    let result = '';
     let cursor = 0;
     let match: RegExpExecArray | null;
 
-    while ((match = colorTag.exec(value)) !== null) {
-      result += applyInlineMarkdown(value.slice(cursor, match.index));
-
-      if (match[1]) {
-        if (activeColor) result += '</span>';
-        activeColor = match[1].toLowerCase();
-        result += `<span style="color:${activeColor}">`;
-      } else if (activeColor) {
-        result += '</span>';
-        activeColor = null;
+    const wrap = (html: string): string => {
+      if (!html) return html;
+      const styles: string[] = [];
+      if (activeColor) styles.push(`color:${activeColor}`);
+      if (activeFontFamily !== SS4_DEFAULT_FONT_FAMILY) {
+        styles.push(`font-family:${ss4FontFamilyCss(activeFontFamily)}`);
       }
+      if (activeFontSize !== SS4_DEFAULT_FONT_SIZE) {
+        styles.push(`font-size:${activeFontSize}px`);
+      }
+      return styles.length
+        ? `<span style="${styles.join(';')}">${html}</span>`
+        : html;
+    };
 
+    while ((match = styleTag.exec(value)) !== null) {
+      result += wrap(applyInlineMarkdown(value.slice(cursor, match.index)));
+      if (match[1]) activeColor = match[1].toLowerCase();
+      else if (match[0].toLowerCase() === '{/color}') activeColor = null;
+      else if (match[2]) {
+        const family = match[2].toLowerCase() as SS4FontFamilyId;
+        activeFontFamily = SS4_FONT_FAMILIES.some(option => option.id === family)
+          ? family
+          : SS4_DEFAULT_FONT_FAMILY;
+      } else if (match[0].toLowerCase() === '{/font}') {
+        activeFontFamily = SS4_DEFAULT_FONT_FAMILY;
+      } else if (match[3]) {
+        const size = Number.parseInt(match[3], 10) as SS4FontSize;
+        activeFontSize = SS4_FONT_SIZES.includes(size)
+          ? size
+          : SS4_DEFAULT_FONT_SIZE;
+      } else if (match[0].toLowerCase() === '{/size}') {
+        activeFontSize = SS4_DEFAULT_FONT_SIZE;
+      }
       cursor = match.index + match[0].length;
     }
 
-    result += applyInlineMarkdown(value.slice(cursor));
-    if (activeColor) result += '</span>';
+    result += wrap(applyInlineMarkdown(value.slice(cursor)));
     return result;
   };
 
-  return lines.map(line => {
-    let marker = '';
-    let rest = line;
-    const bulletMatch = line.match(POPUP_SOURCE_BULLET_RE);
-    const numberedMatch = !bulletMatch && line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
-    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.*)$/);
+  const stack: Array<{ tag: 'ul' | 'ol'; depth: number; start?: number; items: string[] }> = [];
+  const output: string[] = [];
+  const flushListsToDepth = (targetDepth: number) => {
+    while (stack.length > targetDepth) {
+      const list = stack.pop()!;
+      const html = `<${list.tag}${list.tag === 'ol' && list.start && list.start > 1 ? ` start="${list.start}"` : ''}>${list.items.join('')}</${list.tag}>`;
+      if (stack.length) {
+        const parent = stack[stack.length - 1];
+        const lastIndex = Math.max(0, parent.items.length - 1);
+        const parentItem = parent.items[lastIndex] || '<li>';
+        parent.items[lastIndex] = `${parentItem.replace(/<\/li>$/, '')}${html}</li>`;
+      } else output.push(html);
+    }
+  };
 
-    if (bulletMatch) {
-      const depth = depthFromIndent(bulletMatch[1], bulletMatch[2]);
-      marker = `${'&nbsp;'.repeat(depth * POPUP_LIST_INDENT_STEP.length)}${escapeHtmlText(bulletMatch[2])} `;
-      rest = bulletMatch[3];
-    } else if (numberedMatch) {
-      const depth = depthFromIndent(numberedMatch[1]);
-      marker = `${'&nbsp;'.repeat(depth * POPUP_LIST_INDENT_STEP.length)}${numberedMatch[2]}. `;
-      rest = numberedMatch[3];
-    } else if (quoteMatch) {
-      rest = quoteMatch[1];
+  lines.forEach(line => {
+    const bulletMatch = line.match(POPUP_SOURCE_BULLET_RE);
+    const numberedMatch = bulletMatch
+      ? null
+      : line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
+    const quoteMatch = bulletMatch || numberedMatch
+      ? null
+      : line.match(/^\s*>\s?(.*)$/);
+
+    if (bulletMatch || numberedMatch) {
+      const indent = bulletMatch?.[1] ?? numberedMatch?.[1] ?? '';
+      const marker = bulletMatch?.[2];
+      const rest = bulletMatch?.[3] ?? numberedMatch?.[3] ?? '';
+      const depth = depthFromIndent(indent, marker);
+      const tag: 'ul' | 'ol' = bulletMatch ? 'ul' : 'ol';
+      flushListsToDepth(depth + 1);
+      while (stack.length <= depth) {
+        stack.push({ tag, depth: stack.length, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
+      }
+      if (stack[depth].tag !== tag) {
+        flushListsToDepth(depth);
+        stack.push({ tag, depth, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
+      }
+      stack[depth].items.push(`<li>${renderStyledInline(rest) || '<br>'}</li>`);
+      return;
     }
 
-    const rendered = renderColoredInline(rest) || '<br>';
-    if (quoteMatch) return `<blockquote>${rendered}</blockquote>`;
-    return `<div>${marker}${rendered}</div>`;
-  }).join('');
+    flushListsToDepth(0);
+    const rendered = renderStyledInline(quoteMatch ? quoteMatch[1] : line) || '<br>';
+    if (quoteMatch) output.push(`<blockquote>${rendered}</blockquote>`);
+    else output.push(`<div>${rendered}</div>`);
+  });
+
+  flushListsToDepth(0);
+  return output.join('');
 }
 
 // ─── Forward modal
@@ -2240,6 +3244,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const recCancelRef = React.useRef(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLDivElement>(null);
+  const inputSelectionRangeRef = React.useRef<Range | null>(null);
+  const [composerFontFamily, setComposerFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
+  const [composerFontFamilyChosen, setComposerFontFamilyChosen] = React.useState(false);
+  const [composerFontSize, setComposerFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
+  const [composerFontSizeChosen, setComposerFontSizeChosen] = React.useState(false);
+  const [composerTextColor, setComposerTextColor] = React.useState('#ffffff');
+  const [composerTextColorChosen, setComposerTextColorChosen] = React.useState(false);
+  const [composerTypingFormats, setComposerTypingFormats] =
+    React.useState<SS4InlineTypingPreferences>(
+      createSS4InlineTypingPreferences,
+    );
+  const [composerActiveFormats, setComposerActiveFormats] =
+    React.useState<Record<SS4InlineTypingFormat, boolean>>({
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+    });
   const headerRef = React.useRef<HTMLDivElement>(null);
   const popupShellRef = React.useRef<HTMLDivElement>(null);
   const dragDepthRef = React.useRef(0);
@@ -2802,6 +3824,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<PendingPopupAttachment[]>([]);
   const [editColorOpen, setEditColorOpen] = React.useState(false);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editTextColorChosen, setEditTextColorChosen] = React.useState(false);
+  const [editFontFamily, setEditFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
+  const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
+  const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
+  const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
   const editPastePlainTextShortcutRef = React.useRef(false);
   const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
@@ -2815,6 +3842,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     quote: false,
     code: false,
   });
+  const [editTypingFormats, setEditTypingFormats] =
+    React.useState<SS4InlineTypingPreferences>(
+      createSS4InlineTypingPreferences,
+    );
 
   const startEdit = (msgId: string) => {
     const msg = messages.find(m => m._id === msgId);
@@ -2825,6 +3856,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const maxResponsiveWidth = Math.max(280, Math.min(348, (popupBody?.getBoundingClientRect().width || POPUP_W) - 28));
     setEditWidth(Math.min(Math.max(width, 300), maxResponsiveWidth));
     setEditDraft(msg.content || '');
+    setEditTextColor('#ffffff');
+    setEditTextColorChosen(false);
+    setEditFontFamily(SS4_DEFAULT_FONT_FAMILY);
+    setEditFontFamilyChosen(false);
+    setEditFontSize(SS4_DEFAULT_FONT_SIZE);
+    setEditFontSizeChosen(false);
+    setEditTypingFormats(createSS4InlineTypingPreferences());
     setEditReplacementFiles(prev => {
       prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
       return [];
@@ -2892,44 +3930,174 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     try {
       const root = editAreaRef.current;
       const selection = window.getSelection();
-      if (!root || !selection?.anchorNode || !root.contains(selection.anchorNode)) return;
+      if (
+        !root
+        || !selection?.anchorNode
+        || !root.contains(selection.anchorNode)
+      ) {
+        return;
+      }
 
-      const blockValue = String(document.queryCommandValue('formatBlock') || '')
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      if (!caret) return;
+
+      const blockValue = String(
+        document.queryCommandValue('formatBlock') || '',
+      )
         .toLowerCase()
         .replace(/[<>]/g, '');
-      const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
+      const fontValue = String(
+        document.queryCommandValue('fontName') || '',
+      ).toLowerCase();
 
       setEditActiveFormats({
-        bold: document.queryCommandState('bold'),
-        italic: document.queryCommandState('italic'),
-        underline: document.queryCommandState('underline'),
-        strike: document.queryCommandState('strikeThrough'),
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
         list: document.queryCommandState('insertUnorderedList'),
         numbered: document.queryCommandState('insertOrderedList'),
         quote: blockValue.includes('blockquote'),
         code: /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue),
       });
+
+      setEditFontFamily(caret.fontFamily);
+      setEditFontSize(caret.fontSize);
+      setEditTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(root);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setEditFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setEditFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setEditTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+
+      setEditTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
     } catch {
       // Formatting-state detection is best effort.
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!editingMsgId) return;
+
+    const handlePopupEditSelectionChange = () => {
+      const root = editAreaRef.current;
+      const selection = window.getSelection();
+      if (
+        root
+        && selection?.anchorNode
+        && root.contains(selection.anchorNode)
+      ) {
+        refreshPopupEditFormats();
+      }
+    };
+
+    document.addEventListener(
+      'selectionchange',
+      handlePopupEditSelectionChange,
+    );
+    return () => {
+      document.removeEventListener(
+        'selectionchange',
+        handlePopupEditSelectionChange,
+      );
+    };
+  }, [editingMsgId, refreshPopupEditFormats]);
 
   const popupEditButtonClass = React.useCallback((active: boolean) => cn(
     'h-7 w-7 rounded-md flex items-center justify-center transition-colors hover:bg-white/10',
     active && 'bg-white/20 ring-1 ring-white/30',
   ), []);
 
-  const applyEditCommand = React.useCallback((command: string, value?: string) => {
+  const applyEditCommand = React.useCallback((
+    command: string,
+    value?: string,
+  ) => {
     const root = editAreaRef.current;
     if (!root) return;
+
+    const inlineFormat: SS4InlineTypingFormat | null =
+      command === 'bold'
+        ? 'bold'
+        : command === 'italic'
+          ? 'italic'
+          : command === 'underline'
+            ? 'underline'
+            : command === 'strikeThrough'
+              ? 'strike'
+              : null;
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
+    if (inlineFormat && range.collapsed) {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+      const currentValue = caretBefore
+        ? caretBefore[inlineFormat]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [inlineFormat]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        root,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      editSelectionRangeRef.current = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+
+      setEditTypingFormats(nextTypingFormats);
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
+    }
 
     root.focus();
     const nextRange = executeRichEditorCommandPreservingSelection(
       root,
-      editSelectionRangeRef.current,
+      range,
       () => {
         if (command === 'formatBlock' && value === 'blockquote') {
-          const blockValue = String(document.queryCommandValue('formatBlock') || '')
+          const blockValue = String(
+            document.queryCommandValue('formatBlock') || '',
+          )
             .toLowerCase()
             .replace(/[<>]/g, '');
           document.execCommand(
@@ -2939,9 +4107,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           );
         } else if (command === 'fontName' && value === 'monospace') {
           document.execCommand('styleWithCSS', false, 'true');
-          const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
-          const isCodeActive = /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue);
-          document.execCommand('fontName', false, isCodeActive ? 'Geist' : 'monospace');
+          const fontValue = String(
+            document.queryCommandValue('fontName') || '',
+          ).toLowerCase();
+          const isCodeActive =
+            /(monospace|courier|consolas|menlo|monaco)/i.test(
+              fontValue,
+            );
+          document.execCommand(
+            'fontName',
+            false,
+            isCodeActive ? 'Geist' : 'monospace',
+          );
         } else {
           document.execCommand(command, false, value);
         }
@@ -2949,28 +4126,215 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     );
 
     if (nextRange) editSelectionRangeRef.current = nextRange;
+
+    if (inlineFormat) {
+      const nextValue = document.queryCommandState(command);
+      setEditTypingFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+    }
+
     syncEditDraft();
     requestAnimationFrame(refreshPopupEditFormats);
-  }, [refreshPopupEditFormats, syncEditDraft]);
+  }, [
+    editTypingFormats,
+    refreshPopupEditFormats,
+    syncEditDraft,
+  ]);
 
   const applyEditColor = React.useCallback((color: string) => {
     const root = editAreaRef.current;
     if (!root) return;
 
-    root.focus();
-    const nextRange = executeRichEditorCommandPreservingSelection(
+    const range = getRichEditorSelectionRange(
       root,
       editSelectionRangeRef.current,
-      () => {
-        applyTextColorToRichEditorSelection(root, color);
-      },
+    );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+      setEditTextColor(color);
+      setEditTextColorChosen(true);
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
+    }
+
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
     );
 
-    if (nextRange) editSelectionRangeRef.current = nextRange;
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
     setEditTextColor(color);
-    syncEditDraft();
+    setEditTextColorChosen(true);
     requestAnimationFrame(refreshPopupEditFormats);
   }, [refreshPopupEditFormats, syncEditDraft]);
+
+  const applyEditFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
+    setEditFontFamilyChosen(true);
+    setEditFontFamily(fontFamily);
+
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
+        },
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
+    }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    // The selected name must update before the user types.
+    setEditFontFamily(fontFamily);
+    setEditFontFamilyChosen(true);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
+
+  const applyEditFontSize = React.useCallback((fontSize: SS4FontSize) => {
+    setEditFontSizeChosen(true);
+    setEditFontSize(fontSize);
+
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+      requestAnimationFrame(refreshPopupEditFormats);
+      return;
+    }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    editSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setEditFontSize(fontSize);
+    setEditFontSizeChosen(true);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
+
+  const handleEditTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inserted = insertPreselectedTypographyText(
+      event,
+      editFontFamilyChosen ? editFontFamily : null,
+      editFontSizeChosen ? editFontSize : null,
+      editTypingFormats,
+      editTextColorChosen ? editTextColor : null,
+    );
+    if (!inserted) return;
+    requestAnimationFrame(() => {
+      syncEditDraft();
+      rememberEditSelection();
+      refreshPopupEditFormats();
+    });
+  }, [
+    editFontFamily,
+    editFontFamilyChosen,
+    editFontSize,
+    editFontSizeChosen,
+    editTextColor,
+    editTextColorChosen,
+    editTypingFormats,
+    refreshPopupEditFormats,
+    rememberEditSelection,
+    syncEditDraft,
+  ]);
 
   const chooseExpandedEditColor = React.useCallback((color: string) => {
     setEditPalette(prev => {
@@ -2984,13 +4348,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setEditColorOpen(false);
   }, [applyEditColor, editTextColor]);
 
-  const handleEditColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const inputEvent = e.nativeEvent as InputEvent;
-    if (editTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
-    e.preventDefault();
-    document.execCommand('insertHTML', false, `<span style="color:${editTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
-    syncEditDraft();
-  };
+  const handleEditColorBeforeInput = handleEditTypographyBeforeInput;
 
   const cancelEdit = React.useCallback(() => {
     editSelectionRangeRef.current = null;
@@ -3367,6 +4725,374 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     } finally { setSending(false); }
   };
 
+  const rememberComposerSelection = React.useCallback(() => {
+    const root = inputRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return;
+    inputSelectionRangeRef.current = range.cloneRange();
+  }, []);
+
+  const applyComposerInlineFormat = React.useCallback((
+    format: SS4InlineTypingFormat,
+  ) => {
+    const root = inputRef.current;
+    if (!root) return;
+
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+    const command = ss4InlineCommandForFormat(format);
+
+    if (range.collapsed) {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+      const currentValue = caretBefore
+        ? caretBefore[format]
+        : document.queryCommandState(command);
+      const nextValue = !currentValue;
+      const nextTypingFormats = {
+        ...ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+        [format]: nextValue,
+      };
+
+      document.execCommand('styleWithCSS', false, 'true');
+      document.execCommand(command, false);
+
+      insertTypingStyleCaretMarker(
+        root,
+        caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+        caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+        nextTypingFormats,
+        caretBefore?.colorExplicit ? caretBefore.color : null,
+      );
+
+      const liveSelection = window.getSelection();
+      inputSelectionRangeRef.current = liveSelection?.rangeCount
+        ? liveSelection.getRangeAt(0).cloneRange()
+        : range.cloneRange();
+
+      setComposerTypingFormats(nextTypingFormats);
+      setComposerActiveFormats(previous => ({
+        ...previous,
+        [format]: nextValue,
+      }));
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    root.focus();
+    const nextRange = executeRichEditorCommandPreservingSelection(
+      root,
+      range,
+      () => {
+        document.execCommand(command, false);
+      },
+    );
+    if (nextRange) inputSelectionRangeRef.current = nextRange;
+
+    const nextValue = document.queryCommandState(command);
+    setComposerTypingFormats(previous => ({
+      ...previous,
+      [format]: nextValue,
+    }));
+    setComposerActiveFormats(previous => ({
+      ...previous,
+      [format]: nextValue,
+    }));
+    syncComposerText(root.innerText.replace(/\n$/, ''), true);
+  }, [composerTypingFormats, syncComposerText]);
+
+  const refreshComposerCaretFormats = React.useCallback(() => {
+    try {
+      const root = inputRef.current;
+      const selection = window.getSelection();
+      if (
+        !root
+        || !selection?.anchorNode
+        || !root.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      if (!caret) return;
+
+      setComposerActiveFormats({
+        bold: caret.bold,
+        italic: caret.italic,
+        underline: caret.underline,
+        strike: caret.strike,
+      });
+      setComposerFontFamily(caret.fontFamily);
+      setComposerFontSize(caret.fontSize);
+      setComposerTextColor(caret.color);
+
+      const rootStyle = window.getComputedStyle(root);
+      const rootFamily =
+        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
+        || SS4_DEFAULT_FONT_FAMILY;
+      const rootSize =
+        ss4FontSizeFromCss(rootStyle.fontSize)
+        || SS4_DEFAULT_FONT_SIZE;
+      const rootColor =
+        cssColorToHex(rootStyle.color)
+        || '#ffffff';
+
+      setComposerFontFamilyChosen(
+        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
+      );
+      setComposerFontSizeChosen(
+        caret.fontSizeExplicit || caret.fontSize !== rootSize,
+      );
+      setComposerTextColorChosen(
+        caret.colorExplicit || caret.color !== rootColor,
+      );
+      setComposerTypingFormats(
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+      );
+    } catch {
+      // Caret formatting detection is best effort.
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const handleComposerSelectionChange = () => {
+      const root = inputRef.current;
+      const selection = window.getSelection();
+      if (
+        root
+        && selection?.anchorNode
+        && root.contains(selection.anchorNode)
+      ) {
+        refreshComposerCaretFormats();
+      }
+    };
+
+    document.addEventListener(
+      'selectionchange',
+      handleComposerSelectionChange,
+    );
+    return () => {
+      document.removeEventListener(
+        'selectionchange',
+        handleComposerSelectionChange,
+      );
+    };
+  }, [refreshComposerCaretFormats]);
+
+  const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
+    setComposerFontFamilyChosen(true);
+    setComposerFontFamily(fontFamily);
+
+    const root = inputRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand(
+            'fontName',
+            false,
+            ss4FontFamilyCss(fontFamily),
+          );
+        },
+      );
+      if (nextRange) inputSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand(
+      'fontName',
+      false,
+      ss4FontFamilyCss(fontFamily),
+    );
+
+    insertTypingStyleCaretMarker(
+      root,
+      fontFamily,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerFontFamily(fontFamily);
+    setComposerFontFamilyChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
+
+  const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
+    setComposerFontSizeChosen(true);
+    setComposerFontSize(fontSize);
+
+    const root = inputRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
+      if (nextRange) inputSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('fontSize', false, '7');
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      fontSize,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      caretBefore?.colorExplicit ? caretBefore.color : null,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerFontSize(fontSize);
+    setComposerFontSizeChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
+
+  const applyComposerTextColor = React.useCallback((color: string) => {
+    const root = inputRef.current;
+    if (!root) return;
+
+    const range = getRichEditorSelectionRange(
+      root,
+      inputSelectionRangeRef.current,
+    );
+    root.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => applyTextColorToRichEditorSelection(root, color),
+      );
+      if (nextRange) inputSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      setComposerTextColor(color);
+      setComposerTextColorChosen(true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    const caretBefore = getRichEditorCaretFormattingSnapshot(root);
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+
+    insertTypingStyleCaretMarker(
+      root,
+      caretBefore?.fontFamilyExplicit ? caretBefore.fontFamily : null,
+      caretBefore?.fontSizeExplicit ? caretBefore.fontSize : null,
+      ss4TypingPreferencesFromCaretSnapshot(caretBefore),
+      color,
+    );
+
+    inputSelectionRangeRef.current = window.getSelection()?.rangeCount
+      ? window.getSelection()!.getRangeAt(0).cloneRange()
+      : range.cloneRange();
+
+    setComposerTextColor(color);
+    setComposerTextColorChosen(true);
+    rememberComposerSelection();
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [
+    refreshComposerCaretFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
+
+  const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inserted = insertPreselectedTypographyText(
+      event,
+      composerFontFamilyChosen ? composerFontFamily : null,
+      composerFontSizeChosen ? composerFontSize : null,
+      composerTypingFormats,
+      composerTextColorChosen ? composerTextColor : null,
+    );
+    if (!inserted) return;
+    requestAnimationFrame(() => {
+      const root = inputRef.current;
+      if (!root) return;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      rememberComposerSelection();
+    });
+  }, [
+    composerFontFamily,
+    composerFontFamilyChosen,
+    composerFontSize,
+    composerFontSizeChosen,
+    composerTextColor,
+    composerTextColorChosen,
+    composerTypingFormats,
+    rememberComposerSelection,
+    syncComposerText,
+  ]);
+
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = (el.innerText || '').replace(/\n$/, '');
@@ -3427,14 +5153,136 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [conv.members, conv.type, crmUserId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pastePlainTextShortcutRef.current = true; window.setTimeout(() => { pastePlainTextShortcutRef.current = false; }, 750); }
-    if (mentionQuery !== null && mentionOptions.length > 0) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1)); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionOptions[mentionIdx].name); return; }
-      if (e.key === 'Escape') { setMentionQuery(null); setMentionAnchor(-1); return; }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
+      pastePlainTextShortcutRef.current = true;
+      window.setTimeout(() => {
+        pastePlainTextShortcutRef.current = false;
+      }, 750);
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+
+    if (
+      e.key === 'Enter'
+      && e.altKey
+      && !e.ctrlKey
+      && !e.metaKey
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      const root = inputRef.current;
+      if (!root) return;
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      insertSoftLineBreakWithCaretFormatting(
+        root,
+        composerFontFamilyChosen
+          ? composerFontFamily
+          : caret?.fontFamilyExplicit
+            ? caret.fontFamily
+            : null,
+        composerFontSizeChosen
+          ? composerFontSize
+          : caret?.fontSizeExplicit
+            ? caret.fontSize
+            : null,
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+        composerTextColorChosen
+          ? composerTextColor
+          : caret?.colorExplicit
+            ? caret.color
+            : null,
+      );
+      const nextText = stripSupraSpaceTypingMarkers(
+        root.innerText.replace(/\n$/, ''),
+      );
+      syncComposerText(nextText, true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    if (mentionQuery !== null && mentionOptions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIdx(i => Math.min(i + 1, mentionOptions.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIdx(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionOptions[mentionIdx].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMentionQuery(null);
+        setMentionAnchor(-1);
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase();
+      if (key === 'b') {
+        e.preventDefault();
+        applyComposerInlineFormat('bold');
+        return;
+      }
+      if (key === 'i') {
+        e.preventDefault();
+        applyComposerInlineFormat('italic');
+        return;
+      }
+      if (key === 'u') {
+        e.preventDefault();
+        applyComposerInlineFormat('underline');
+        return;
+      }
+      if (e.shiftKey && key === 'x') {
+        e.preventDefault();
+        applyComposerInlineFormat('strike');
+        return;
+      }
+    }
+
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      const root = inputRef.current;
+      if (!root) return;
+      const caret = getRichEditorCaretFormattingSnapshot(root);
+      insertSoftLineBreakWithCaretFormatting(
+        root,
+        composerFontFamilyChosen
+          ? composerFontFamily
+          : caret?.fontFamilyExplicit
+            ? caret.fontFamily
+            : null,
+        composerFontSizeChosen
+          ? composerFontSize
+          : caret?.fontSizeExplicit
+            ? caret.fontSize
+            : null,
+        ss4TypingPreferencesFromCaretSnapshot(caret),
+        composerTextColorChosen
+          ? composerTextColor
+          : caret?.colorExplicit
+            ? caret.color
+            : null,
+      );
+      const nextText = stripSupraSpaceTypingMarkers(
+        root.innerText.replace(/\n$/, ''),
+      );
+      syncComposerText(nextText, true);
+      rememberComposerSelection();
+      requestAnimationFrame(refreshComposerCaretFormats);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const toggleMuteNotifications = React.useCallback(async () => {
@@ -3620,6 +5468,30 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className={popupEditButtonClass(editActiveFormats.italic)} title="Italic" aria-pressed={editActiveFormats.italic}><Italic className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className={popupEditButtonClass(editActiveFormats.underline)} title="Underline" aria-pressed={editActiveFormats.underline}><Underline className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className={popupEditButtonClass(editActiveFormats.strike)} title="Strikethrough" aria-pressed={editActiveFormats.strike}><Strikethrough className="h-3.5 w-3.5" /></button>
+                              <select
+                                value={editFontFamily}
+                                onPointerDown={() => rememberEditSelection()}
+                                onChange={event => applyEditFontFamily(event.target.value as SS4FontFamilyId)}
+                                className="h-7 max-w-28 rounded-md px-1.5 text-[9px] outline-none"
+                                style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                                aria-label="Font family"
+                                title="Choose a font before typing or apply it to selected text"
+                              >
+                                <option value="" disabled>Font</option>
+                  {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id} style={{ color: '#111827' }}>{option.label}</option>)}
+                              </select>
+                              <select
+                                value={editFontSize}
+                                onPointerDown={() => rememberEditSelection()}
+                                onChange={event => applyEditFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
+                                className="h-7 w-14 rounded-md px-1 text-[9px] outline-none"
+                                style={{ background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                                aria-label="Font size"
+                                title="Choose a size before typing or apply it to selected text"
+                              >
+                                <option value="" disabled>Size</option>
+                  {SS4_FONT_SIZES.map(size => <option key={size} value={size} style={{ color: '#111827' }}>{size}</option>)}
+                              </select>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('insertUnorderedList'); }} className={popupEditButtonClass(editActiveFormats.list)} title="Bullet list" aria-pressed={editActiveFormats.list}><List className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('insertOrderedList'); }} className={popupEditButtonClass(editActiveFormats.numbered)} title="Numbered list" aria-pressed={editActiveFormats.numbered}><ListOrdered className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('formatBlock', 'blockquote'); }} className={popupEditButtonClass(editActiveFormats.quote)} title="Quote" aria-pressed={editActiveFormats.quote}><TextQuote className="h-3.5 w-3.5" /></button>
@@ -3667,7 +5539,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               ref={editAreaRef}
                               contentEditable
                               suppressContentEditableWarning
-                              onInput={() => { syncEditDraft(); rememberEditSelection(); refreshPopupEditFormats(); }}
+                              onBeforeInput={handleEditTypographyBeforeInput}
+                              onInput={() => {
+                                normalizeRichEditorFontSizeElements(
+                                  editAreaRef.current,
+                                  editFontSize,
+                                );
+                                syncEditDraft();
+                                rememberEditSelection();
+                                refreshPopupEditFormats();
+                              }}
                               onFocus={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onSelect={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onMouseUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
@@ -3696,14 +5577,32 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   e.preventDefault();
                                   e.stopPropagation();
 
-                                  const inserted = document.execCommand('insertLineBreak');
-                                  if (!inserted) {
-                                    document.execCommand('insertHTML', false, '<br>');
-                                  }
+                                  const caret = getRichEditorCaretFormattingSnapshot(
+                                    editAreaRef.current,
+                                  );
+                                  insertSoftLineBreakWithCaretFormatting(
+                                    editAreaRef.current!,
+                                    editFontFamilyChosen
+                                      ? editFontFamily
+                                      : caret?.fontFamilyExplicit
+                                        ? caret.fontFamily
+                                        : null,
+                                    editFontSizeChosen
+                                      ? editFontSize
+                                      : caret?.fontSizeExplicit
+                                        ? caret.fontSize
+                                        : null,
+                                    ss4TypingPreferencesFromCaretSnapshot(caret),
+                                    editTextColorChosen
+                                      ? editTextColor
+                                      : caret?.colorExplicit
+                                        ? caret.color
+                                        : null,
+                                  );
 
                                   syncEditDraft();
                                   rememberEditSelection();
-                                  refreshPopupEditFormats();
+                                  requestAnimationFrame(refreshPopupEditFormats);
                                   return;
                                 }
 
@@ -3729,10 +5628,56 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
                                 if (e.key === 'Enter' && e.shiftKey) {
                                   e.preventDefault();
-                                  document.execCommand('insertLineBreak');
+                                  const caret = getRichEditorCaretFormattingSnapshot(
+                                    editAreaRef.current,
+                                  );
+                                  insertSoftLineBreakWithCaretFormatting(
+                                    editAreaRef.current!,
+                                    editFontFamilyChosen
+                                      ? editFontFamily
+                                      : caret?.fontFamilyExplicit
+                                        ? caret.fontFamily
+                                        : null,
+                                    editFontSizeChosen
+                                      ? editFontSize
+                                      : caret?.fontSizeExplicit
+                                        ? caret.fontSize
+                                        : null,
+                                    ss4TypingPreferencesFromCaretSnapshot(caret),
+                                    editTextColorChosen
+                                      ? editTextColor
+                                      : caret?.colorExplicit
+                                        ? caret.color
+                                        : null,
+                                  );
                                   syncEditDraft();
                                   rememberEditSelection();
+                                  requestAnimationFrame(refreshPopupEditFormats);
                                   return;
+                                }
+
+                                if (e.ctrlKey || e.metaKey) {
+                                  const key = e.key.toLowerCase();
+                                  if (key === 'b') {
+                                    e.preventDefault();
+                                    applyEditCommand('bold');
+                                    return;
+                                  }
+                                  if (key === 'i') {
+                                    e.preventDefault();
+                                    applyEditCommand('italic');
+                                    return;
+                                  }
+                                  if (key === 'u') {
+                                    e.preventDefault();
+                                    applyEditCommand('underline');
+                                    return;
+                                  }
+                                  if (e.shiftKey && key === 'x') {
+                                    e.preventDefault();
+                                    applyEditCommand('strikeThrough');
+                                    return;
+                                  }
                                 }
 
                                 if (e.key === 'Escape') cancelEdit();
@@ -3759,7 +5704,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 });
                               }}
                               className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
-                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
+                              style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--foreground)' }}
                             />
                             {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
                               <div className="mt-1.5 space-y-1.5 rounded-xl border border-white/15 bg-black/15 p-2">
@@ -4166,6 +6111,132 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                 </div>
               ) : (
+              <>
+              <div className="flex items-center gap-1 overflow-x-auto px-2 pt-1.5 no-scrollbar">
+                <select
+                  value={composerFontFamily}
+                  onPointerDown={() => rememberComposerSelection()}
+                  onChange={event => applyComposerFontFamily(event.target.value as SS4FontFamilyId)}
+                  className="h-7 w-24 shrink-0 rounded-md border border-border bg-muted/60 px-1.5 text-[10px] text-foreground outline-none"
+                  aria-label="Font family"
+                  title="Choose a font before typing or apply it to selected text"
+                >
+                  <option value="" disabled>Font</option>
+                  {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+                <select
+                  value={composerFontSize}
+                  onPointerDown={() => rememberComposerSelection()}
+                  onChange={event => applyComposerFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
+                  className="h-7 w-14 shrink-0 rounded-md border border-border bg-muted/60 px-1 text-[10px] text-foreground outline-none"
+                  aria-label="Font size"
+                  title="Choose a size before typing or apply it to selected text"
+                >
+                  <option value="" disabled>Size</option>
+                  {SS4_FONT_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerInlineFormat('bold');
+                  }}
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
+                    composerActiveFormats.bold && 'bg-primary/15 text-primary',
+                  )}
+                  title="Bold before typing or selected text"
+                  aria-pressed={composerActiveFormats.bold}
+                >
+                  <Bold className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerInlineFormat('italic');
+                  }}
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
+                    composerActiveFormats.italic && 'bg-primary/15 text-primary',
+                  )}
+                  title="Italic before typing or selected text"
+                  aria-pressed={composerActiveFormats.italic}
+                >
+                  <Italic className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerInlineFormat('underline');
+                  }}
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
+                    composerActiveFormats.underline && 'bg-primary/15 text-primary',
+                  )}
+                  title="Underline before typing or selected text"
+                  aria-pressed={composerActiveFormats.underline}
+                >
+                  <Underline className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerInlineFormat('strike');
+                  }}
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted',
+                    composerActiveFormats.strike && 'bg-primary/15 text-primary',
+                  )}
+                  title="Strikethrough before typing or selected text"
+                  aria-pressed={composerActiveFormats.strike}
+                >
+                  <Strikethrough className="h-3.5 w-3.5" />
+                </button>
+                {TEXT_COLORS.map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onMouseDown={event => {
+                      event.preventDefault();
+                      rememberComposerSelection();
+                      applyComposerTextColor(color);
+                    }}
+                    className="relative h-5 w-5 shrink-0 rounded-full border transition-transform hover:scale-110"
+                    style={{
+                      background: color,
+                      borderColor:
+                        composerTextColor === color
+                          ? '#60a5fa'
+                          : color === '#ffffff'
+                            ? 'rgba(255,255,255,0.45)'
+                            : 'rgba(255,255,255,0.25)',
+                      boxShadow:
+                        composerTextColor === color
+                          ? '0 0 0 2px rgba(0,0,0,0.35), 0 0 0 4px #60a5fa'
+                          : undefined,
+                    }}
+                    aria-pressed={
+                      composerTextColor === color
+                    }
+                    title={`Text color ${color}`}
+                  >
+                    {composerTextColor === color && (
+                      <Check
+                        className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          color:
+                            color === '#ffffff' || color === '#facc15'
+                              ? '#111827'
+                              : '#ffffff',
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
               <div className="flex min-w-0 items-center gap-1 px-2 py-1.5">
                 {/* Left icon buttons */}
                 <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
@@ -4227,7 +6298,31 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     ref={inputRef}
                     contentEditable
                     suppressContentEditableWarning
-                    onInput={handleTyping}
+                    onBeforeInput={handleComposerTypographyBeforeInput}
+                    onInput={event => {
+                      normalizeRichEditorFontSizeElements(
+                        inputRef.current,
+                        composerFontSize,
+                      );
+                      handleTyping(event);
+                      rememberComposerSelection();
+                    }}
+                    onFocus={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onSelect={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onMouseUp={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
+                    onKeyUp={() => {
+                      rememberComposerSelection();
+                      refreshComposerCaretFormats();
+                    }}
                     onKeyDown={handleKeyDown}
                     onPaste={e => {
                       const pastedFiles = Array.from(e.clipboardData?.items || [])
@@ -4266,7 +6361,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                     className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
-                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4' }}
+                    style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4', caretColor: 'var(--foreground)' }}
                   />
                 </div>
 
@@ -4283,6 +6378,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                 )}
               </div>
+              </>
               )}
             </div>
           </>
