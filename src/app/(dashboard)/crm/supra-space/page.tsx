@@ -51,6 +51,346 @@ const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
 
+type SS4InlineTypingFormat = 'bold' | 'italic' | 'underline' | 'strike';
+type SS4InlineTypingPreferences = Record<
+  SS4InlineTypingFormat,
+  boolean | null
+>;
+
+function createSS4InlineTypingPreferences(): SS4InlineTypingPreferences {
+  return {
+    bold: null,
+    italic: null,
+    underline: null,
+    strike: null,
+  };
+}
+
+function ss4InlineCommandForFormat(
+  format: SS4InlineTypingFormat,
+): 'bold' | 'italic' | 'underline' | 'strikeThrough' {
+  return format === 'strike' ? 'strikeThrough' : format;
+}
+
+type SS4FontFamilyId =
+  | 'default'
+  | 'arial'
+  | 'aptos'
+  | 'calibri'
+  | 'georgia'
+  | 'times'
+  | 'verdana'
+  | 'trebuchet'
+  | 'tahoma'
+  | 'courier';
+type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
+
+const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
+const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
+const SS4_FONT_FAMILIES: Array<{
+  id: SS4FontFamilyId;
+  label: string;
+  css: string;
+}> = [
+  { id: 'default', label: 'Default', css: "'Geist', sans-serif" },
+  { id: 'arial', label: 'Arial', css: 'Arial, Helvetica, sans-serif' },
+  { id: 'aptos', label: 'Aptos', css: 'Aptos, Arial, sans-serif' },
+  { id: 'calibri', label: 'Calibri', css: 'Calibri, Arial, sans-serif' },
+  { id: 'georgia', label: 'Georgia', css: 'Georgia, serif' },
+  { id: 'times', label: 'Times New Roman', css: "'Times New Roman', Times, serif" },
+  { id: 'verdana', label: 'Verdana', css: 'Verdana, sans-serif' },
+  { id: 'trebuchet', label: 'Trebuchet MS', css: "'Trebuchet MS', sans-serif" },
+  { id: 'tahoma', label: 'Tahoma', css: 'Tahoma, sans-serif' },
+  { id: 'courier', label: 'Courier New', css: "'Courier New', monospace" },
+];
+const SS4_FONT_SIZES: SS4FontSize[] = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+
+function ss4FontFamilyOption(id: SS4FontFamilyId) {
+  return SS4_FONT_FAMILIES.find(option => option.id === id)
+    || SS4_FONT_FAMILIES[0];
+}
+
+function ss4FontFamilyCss(id: SS4FontFamilyId): string {
+  return ss4FontFamilyOption(id).css;
+}
+
+function ss4FontFamilyIdFromCss(value?: string | null): SS4FontFamilyId | null {
+  const normalized = (value || '')
+    .toLowerCase()
+    .replace(/["']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return null;
+  if (normalized.includes('courier')) return 'courier';
+  if (normalized.includes('trebuchet')) return 'trebuchet';
+  if (normalized.includes('times new roman') || normalized === 'times') return 'times';
+  if (normalized.includes('georgia')) return 'georgia';
+  if (normalized.includes('verdana')) return 'verdana';
+  if (normalized.includes('tahoma')) return 'tahoma';
+  if (normalized.includes('calibri')) return 'calibri';
+  if (normalized.includes('aptos')) return 'aptos';
+  if (normalized.includes('arial') || normalized.includes('helvetica')) return 'arial';
+  if (normalized.includes('geist')) return 'default';
+  return null;
+}
+
+function ss4FontSizeFromCss(value?: string | null): SS4FontSize | null {
+  const raw = (value || '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const numeric = Number.parseFloat(raw);
+  if (!Number.isFinite(numeric)) return null;
+
+  let pixels = numeric;
+  if (raw.endsWith('pt')) pixels = numeric * (96 / 72);
+  else if (raw.endsWith('em') || raw.endsWith('rem')) pixels = numeric * 16;
+  else if (raw.endsWith('%')) pixels = (numeric / 100) * 16;
+
+  return SS4_FONT_SIZES.reduce((closest, candidate) => (
+    Math.abs(candidate - pixels) < Math.abs(closest - pixels)
+      ? candidate
+      : closest
+  ), SS4_DEFAULT_FONT_SIZE);
+}
+
+function ss4FontSizeFromLegacyAttribute(value?: string | null): SS4FontSize | null {
+  const legacy = Number.parseInt(value || '', 10);
+  const mapping: Record<number, SS4FontSize> = {
+    1: 10,
+    2: 12,
+    3: 16,
+    4: 18,
+    5: 24,
+    6: 32,
+    7: 36,
+  };
+  return mapping[legacy] || null;
+}
+
+function normalizeRichEditorFontSizeElements(
+  root: HTMLElement | null,
+  selectedSize: SS4FontSize,
+): void {
+  if (!root) return;
+
+  root.querySelectorAll<HTMLElement>('font[size]').forEach(element => {
+    const resolved = element.getAttribute('size') === '7'
+      ? selectedSize
+      : ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (resolved) element.style.fontSize = `${resolved}px`;
+    element.removeAttribute('size');
+  });
+}
+
+function stripSupraSpaceTypographyTags(value: string): string {
+  return value
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '');
+}
+
+function insertPreselectedTypographyText(
+  event: React.FormEvent<HTMLDivElement>,
+  fontFamily: SS4FontFamilyId | null,
+  fontSize: SS4FontSize | null,
+  inlineFormats: SS4InlineTypingPreferences,
+  color?: string,
+): boolean {
+  const inputEvent = event.nativeEvent as InputEvent;
+  if (
+    ![
+      'insertText',
+      'insertCompositionText',
+      'insertReplacementText',
+    ].includes(inputEvent.inputType)
+    || !inputEvent.data
+  ) {
+    return false;
+  }
+
+  const normalizedColor = color && color.toLowerCase() !== '#ffffff'
+    ? color.toLowerCase()
+    : null;
+  const hasExplicitInlineChoice = Object.values(inlineFormats)
+    .some(value => value !== null);
+  const hasExplicitTypography = Boolean(
+    fontFamily
+    || fontSize
+    || normalizedColor
+    || hasExplicitInlineChoice,
+  );
+  if (!hasExplicitTypography) return false;
+
+  const root = event.currentTarget;
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+
+  const range = selection.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer)
+    || !root.contains(range.endContainer)
+  ) {
+    return false;
+  }
+
+  const anchorElement = range.startContainer instanceof HTMLElement
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  const activeTypingSpan = anchorElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+
+  const desiredFamily = fontFamily || '';
+  const desiredSize = fontSize ? String(fontSize) : '';
+  const desiredColor = normalizedColor || '';
+  const desiredBold = inlineFormats.bold === null
+    ? ''
+    : String(inlineFormats.bold);
+  const desiredItalic = inlineFormats.italic === null
+    ? ''
+    : String(inlineFormats.italic);
+  const desiredUnderline = inlineFormats.underline === null
+    ? ''
+    : String(inlineFormats.underline);
+  const desiredStrike = inlineFormats.strike === null
+    ? ''
+    : String(inlineFormats.strike);
+
+  if (
+    range.collapsed
+    && activeTypingSpan
+    && (activeTypingSpan.dataset.ss4FontFamily || '') === desiredFamily
+    && (activeTypingSpan.dataset.ss4FontSize || '') === desiredSize
+    && (activeTypingSpan.dataset.ss4TextColor || '') === desiredColor
+    && (activeTypingSpan.dataset.ss4Bold || '') === desiredBold
+    && (activeTypingSpan.dataset.ss4Italic || '') === desiredItalic
+    && (activeTypingSpan.dataset.ss4Underline || '') === desiredUnderline
+    && (activeTypingSpan.dataset.ss4Strike || '') === desiredStrike
+  ) {
+    // The caret is already inside the correct persistent formatting run.
+    // Let the browser append the next character to that same span.
+    return false;
+  }
+
+  event.preventDefault();
+  range.deleteContents();
+
+  const span = document.createElement('span');
+  span.dataset.ss4TypingStyle = 'true';
+  span.dataset.ss4FontFamily = desiredFamily;
+  span.dataset.ss4FontSize = desiredSize;
+  span.dataset.ss4TextColor = desiredColor;
+  span.dataset.ss4Bold = desiredBold;
+  span.dataset.ss4Italic = desiredItalic;
+  span.dataset.ss4Underline = desiredUnderline;
+  span.dataset.ss4Strike = desiredStrike;
+
+  if (fontFamily) span.style.fontFamily = ss4FontFamilyCss(fontFamily);
+  if (fontSize) span.style.fontSize = `${fontSize}px`;
+  if (normalizedColor) span.style.color = normalizedColor;
+
+  if (inlineFormats.bold !== null) {
+    span.style.fontWeight = inlineFormats.bold ? '700' : '400';
+  }
+  if (inlineFormats.italic !== null) {
+    span.style.fontStyle = inlineFormats.italic ? 'italic' : 'normal';
+  }
+
+  if (
+    inlineFormats.underline !== null
+    || inlineFormats.strike !== null
+  ) {
+    const decorations: string[] = [];
+    if (inlineFormats.underline) decorations.push('underline');
+    if (inlineFormats.strike) decorations.push('line-through');
+    span.style.textDecorationLine = decorations.length
+      ? decorations.join(' ')
+      : 'none';
+  }
+
+  const textNode = document.createTextNode(inputEvent.data);
+  span.appendChild(textNode);
+  range.insertNode(span);
+  range.setStart(textNode, textNode.data.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+function clipboardElementIsHidden(element: HTMLElement): boolean {
+  const style = element.style;
+  return Boolean(
+    element.hidden
+    || element.getAttribute('aria-hidden') === 'true'
+    || style.display === 'none'
+    || style.visibility === 'hidden'
+    || style.opacity === '0'
+    || (element.tagName.toLowerCase() === 'input'
+      && (element as HTMLInputElement).type === 'hidden')
+  );
+}
+
+function clipboardControlValue(element: HTMLElement): string {
+  const tag = element.tagName.toLowerCase();
+  if (tag === 'input') return (element as HTMLInputElement).value || '';
+  if (tag === 'textarea') return (element as HTMLTextAreaElement).value || '';
+  if (tag === 'select') {
+    const select = element as HTMLSelectElement;
+    return select.selectedOptions?.[0]?.textContent || select.value || '';
+  }
+  return '';
+}
+
+function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
+  const className = String(element.className || '').toLowerCase();
+  const rawStyle = (element.getAttribute('style') || '').toLowerCase();
+  const text = (element.textContent || '')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .trim();
+  const markerOnly = /^(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])$/u.test(text);
+
+  return Boolean(
+    element.hasAttribute('data-list-marker')
+    || element.hasAttribute('data-marker')
+    || className.includes('ss4-list-marker')
+    || className.includes('list-marker')
+    || className.includes('bullet-marker')
+    || className.includes('ql-ui')
+    || className.includes('mso-list-ignore')
+    || rawStyle.includes('mso-list:ignore')
+    || (element.getAttribute('aria-hidden') === 'true' && markerOnly)
+  );
+}
+
+function stripLeadingSemanticListMarker(root: HTMLElement): void {
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest('ul ul, ul ol, ol ul, ol ol')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return node.textContent?.trim()
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_SKIP;
+      },
+    },
+  );
+
+  const firstText = walker.nextNode() as Text | null;
+  if (!firstText) return;
+  firstText.data = firstText.data.replace(
+    /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
+    '',
+  );
+}
+
 const SS4_BULLET_GLYPHS = ['•', '◦', '▪'];
 const SS4_LIST_INDENT_STEP = '  ';
 function ss4BulletGlyphForDepth(depth: number): string {
@@ -493,12 +833,9 @@ function getCopiedElementVisibleText(element: HTMLElement): string {
     const select = element as HTMLSelectElement;
     return select.selectedOptions?.[0]?.textContent || select.value || '';
   }
-  if (element.textContent?.trim()) return '';
-  return element.getAttribute('data-value')
-    || element.getAttribute('data-text')
-    || element.getAttribute('data-label')
-    || element.getAttribute('aria-valuetext')
-    || '';
+  // Empty metadata-only elements are not visible copied text. Returning
+  // data-label/data-text here can insert UI labels that the user never selected.
+  return '';
 }
 
 function getActiveSelectionColor(root: HTMLElement): string {
@@ -824,14 +1161,29 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
 
 function htmlToMarkdown(el: HTMLElement): string {
   const walk = (node: Node, listDepth = 0): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const element = node as HTMLElement;
-    if (element.hasAttribute('data-rich-editor-selection-marker')) return '';
+    if (
+      element.hasAttribute('data-rich-editor-selection-marker')
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
+
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
-    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    if (tag === 'img') {
+      return element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '';
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
 
     if (tag === 'ul' || tag === 'ol') {
       return Array.from(element.children)
@@ -848,8 +1200,23 @@ function htmlToMarkdown(el: HTMLElement): string {
         : [];
       const itemIndex = Math.max(0, siblings.indexOf(element));
       const startAt = ordered ? Number(parent?.getAttribute('start') || 1) : 1;
-      const marker = ordered ? `${startAt + itemIndex}.` : ss4BulletGlyphForDepth(listDepth);
-      const indent = SS4_LIST_INDENT_STEP.repeat(listDepth);
+      const marginLeft = element.style.marginLeft.trim();
+      const marginMatch = marginLeft.match(/^([\d.]+)(em|rem|px|pt)$/i);
+      let marginDepth = 0;
+      if (marginMatch) {
+        const marginValue = Number.parseFloat(marginMatch[1]);
+        const marginUnit = marginMatch[2].toLowerCase();
+        if (Number.isFinite(marginValue)) {
+          marginDepth = marginUnit === 'em' || marginUnit === 'rem'
+            ? Math.max(0, Math.round(marginValue / 1.1))
+            : marginUnit === 'px'
+              ? Math.max(0, Math.round(marginValue / 18))
+              : Math.max(0, Math.round(marginValue / 13.5));
+        }
+      }
+      const visualDepth = Math.max(listDepth, marginDepth);
+      const marker = ordered ? `${startAt + itemIndex}.` : ss4BulletGlyphForDepth(visualDepth);
+      const indent = SS4_LIST_INDENT_STEP.repeat(visualDepth);
 
       let ownContent = '';
       let nestedContent = '';
@@ -858,72 +1225,152 @@ function htmlToMarkdown(el: HTMLElement): string {
           child.nodeType === Node.ELEMENT_NODE
           && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
         ) {
-          nestedContent += walk(child, listDepth + 1);
+          nestedContent += walk(child, visualDepth + 1);
         } else {
-          ownContent += walk(child, listDepth);
+          ownContent += walk(child, visualDepth);
         }
       });
 
-      const itemText = ownContent.replace(/\n+/g, ' ').trim();
+      const itemText = ownContent
+        .replace(/^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u, '')
+        .replace(/\n+/g, ' ')
+        .trim();
       return `${indent}${marker}${itemText ? ` ${itemText}` : ''}\n${nestedContent}`;
     }
 
-    let inner = Array.from(element.childNodes).map(child => walk(child, listDepth)).join('');
-    if (!inner.trim()) inner = getCopiedElementVisibleText(element);
+    let inner = Array.from(element.childNodes)
+      .map(child => walk(child, listDepth))
+      .join('');
+    if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
+      inner = clipboardControlValue(element);
+    }
 
     const href = tag === 'a' ? element.getAttribute('href') : null;
-    const fontFamily = `${element.style?.fontFamily || ''} ${element.getAttribute('face') || ''}`.toLowerCase();
-    const isMonospace = /(monospace|courier|consolas|menlo|monaco)/i.test(fontFamily);
+    const rawFontFamily = `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`;
+    const hasExplicitFontFamily = Boolean(
+      element.style.fontFamily.trim()
+      || element.getAttribute('face'),
+    );
+    const hasExplicitFontSize = Boolean(
+      element.style.fontSize.trim()
+      || element.getAttribute('size'),
+    );
+    const fontFamily = ss4FontFamilyIdFromCss(rawFontFamily);
+    const fontSize = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    const isMonospace = !fontFamily
+      && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
 
-    if (tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)) inner = `**${inner}**`;
-    else if (tag === 'em' || tag === 'i') inner = `_${inner}_`;
-    else if (tag === 'u') inner = `__${inner}__`;
-    else if (tag === 's' || tag === 'strike' || tag === 'del') inner = `~~${inner}~~`;
-    else if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner) ? inner : '`' + inner.replace(/`/g, '') + '`';
-    else if (tag === 'blockquote') inner = inner.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
-    else if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
+    if (
+      tag === 'strong'
+      || tag === 'b'
+      || /^h[1-6]$/.test(tag)
+      || fontWeight === 'bold'
+      || Number.parseInt(fontWeight || '0', 10) >= 600
+    ) inner = `**${inner}**`;
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') inner = `_${inner}_`;
+    if (tag === 'u' || decoration.includes('underline')) inner = `__${inner}__`;
+    if (
+      tag === 's'
+      || tag === 'strike'
+      || tag === 'del'
+      || decoration.includes('line-through')
+    ) inner = `~~${inner}~~`;
+    if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
+    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner)
+      ? inner
+      : '`' + inner.replace(/`/g, '') + '`';
+    else if (tag === 'blockquote') inner = inner
+      .split('\n')
+      .map(line => line ? `> ${line}` : '>')
+      .join('\n');
+    else if (href && /^(?:https?:|mailto:)/i.test(href)) {
+      inner = `[${inner || href}](${href})`;
+    }
 
-    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    if (
+      fontFamily
+      && hasExplicitFontFamily
+      && inner.trim()
+    ) inner = `{font:${fontFamily}}${inner}{/font}`;
+    if (
+      fontSize
+      && hasExplicitFontSize
+      && inner.trim()
+    ) inner = `{size:${fontSize}}${inner}{/size}`;
+
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color'),
+    );
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    if (['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag) || /^h[1-6]$/.test(tag)) inner = `\n${inner}`;
+
+    if (
+      ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
+      || /^h[1-6]$/.test(tag)
+    ) inner = `\n${inner}`;
     return inner;
   };
 
-  const rootColor = cssColorToHex(el.style.color);
-  let markdown = normalizeListExitLineSpacing(
-    Array.from(el.childNodes).map(child => walk(child, 0)).join('')
-      .replace(/\u00a0/g, ' ')
+  const markdown = normalizeListExitLineSpacing(
+    Array.from(el.childNodes)
+      .map(child => walk(child, 0))
+      .join('')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
-  if (rootColor && rootColor !== '#ffffff' && markdown) markdown = `{color:${rootColor}}${markdown}{/color}`;
-  return markdown;
+  return canonicalizeColorMarkup(markdown);
 }
 
 function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'br') return '\n';
-    if (tag === 'img') return el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '';
-    const visibleValue = getCopiedElementVisibleText(el);
-    if (visibleValue) return visibleValue;
+    const element = node as HTMLElement;
+    if (
+      clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
 
-    const inner = Array.from(el.childNodes).map(walk).join('');
-    if (tag === 'li') return `• ${inner.trimStart()}\n`;
-    if (['div', 'p', 'section', 'article'].includes(tag)) return `${inner}\n`;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'br') return '\n';
+    if (tag === 'img') {
+      return element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '';
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
+
+    let inner = Array.from(element.childNodes).map(walk).join('');
+    if (tag === 'li') {
+      inner = inner.replace(
+        /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
+        '',
+      );
+      return `${inner}\n`;
+    }
+    if (['div', 'p', 'section', 'article', 'header', 'footer'].includes(tag)) {
+      return `${inner}\n`;
+    }
     return inner;
   };
 
   return Array.from(doc.body.childNodes)
     .map(walk)
     .join('')
-    .replace(/\u00a0/g, ' ')
+    .replace(/\u00A0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trimEnd();
 }
@@ -1312,8 +1759,8 @@ function escapeHtmlText(s: string): string {
 
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
-    || /<font\b[^>]*color\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 function htmlAppearsToContainLists(html: string): boolean {
@@ -1364,7 +1811,18 @@ function clipboardHtmlToListAwareText(html: string): string {
     if (isUnderline && !/^__[\s\S]*__$/.test(inner)) inner = `__${inner}__`;
     if (isStrike && !/^~~[\s\S]*~~$/.test(inner)) inner = `~~${inner}~~`;
 
-    const color = cssColorToHex(element.style?.color || element.getAttribute('color'));
+    const rawFontFamily = `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`;
+    const fontFamily = ss4FontFamilyIdFromCss(rawFontFamily);
+    const fontSize = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (fontFamily && inner.trim()) inner = `{font:${fontFamily}}${inner}{/font}`;
+    if (fontSize && inner.trim()) inner = `{size:${fontSize}}${inner}{/size}`;
+
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color'),
+    );
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
     return inner;
   };
@@ -1375,12 +1833,19 @@ function clipboardHtmlToListAwareText(html: string): string {
 
     const element = node as HTMLElement;
     const tag = element.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'ul' || tag === 'ol') return '';
+    if (
+      tag === 'script'
+      || tag === 'style'
+      || tag === 'ul'
+      || tag === 'ol'
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
     if (tag === 'br') return '\n';
     if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
-
-    const visibleValue = getCopiedElementVisibleText(element);
-    if (visibleValue) return visibleValue;
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return clipboardControlValue(element);
+    }
 
     const inner = Array.from(element.childNodes).map(renderInline).join('');
     return wrapInlineStyle(element, inner);
@@ -1515,80 +1980,178 @@ function clipboardHtmlToListAwareText(html: string): string {
 function clipboardHtmlToEditorHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  const walk = (node: Node, listMarker?: string): string => {
-    if (node.nodeType === Node.TEXT_NODE) return escapeHtmlText(node.textContent || '');
-    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+  const escapeAttribute = (value: string): string =>
+    escapeHtmlText(value).replace(/"/g, '&quot;');
 
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style') return '';
-    if (tag === 'br') return '<br>';
-    if (tag === 'img') return escapeHtmlText(el.getAttribute('alt') || el.getAttribute('aria-label') || el.getAttribute('title') || '');
-    const visibleValue = getCopiedElementVisibleText(el);
-    if (visibleValue) return escapeHtmlText(visibleValue);
+  const safeTypographyStyles = (element: HTMLElement): string[] => {
+    const styles: string[] = [];
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color')
+      || '',
+    );
+    if (color) styles.push(`color:${color}`);
 
-    const childHtml = (): string => Array.from(el.childNodes).map(c => walk(c)).join('');
-    const elColor = cssColorToHex(el.style?.color || el.getAttribute('color') || '');
-    const wrapColor = (inner: string): string =>
-      elColor && inner.trim() ? `<span style="color:${elColor}">${inner}</span>` : inner;
-
-    switch (tag) {
-      case 'strong': case 'b': return wrapColor(`<strong>${childHtml()}</strong>`);
-      case 'em': case 'i': return wrapColor(`<em>${childHtml()}</em>`);
-      case 'u': return wrapColor(`<u>${childHtml()}</u>`);
-      case 's': case 'strike': case 'del': return wrapColor(`<s>${childHtml()}</s>`);
-      case 'code': {
-        const codeText = childHtml().replace(/<[^>]*>/g, '');
-        return isSerialLikeText(codeText) ? escapeHtmlText(codeText) : '`' + codeText.replace(/`/g, '') + '`';
-      }
-      case 'pre': {
-        const codeText = childHtml().replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
-        return codeText.split('\n').map(line => line ? `\`${line.replace(/`/g, '')}\`` : '').join('<br>');
-      }
-      case 'a': {
-        const href = el.getAttribute('href') || '';
-        const inner = childHtml();
-        return /^https?:\/\//i.test(href) ? `<a href="${escapeHtmlText(href)}">${inner || escapeHtmlText(href)}</a>` : inner;
-      }
-      case 'font': return wrapColor(childHtml());
-      case 'li': return `${listMarker || '\u2022 '}${childHtml()}<br>`;
-      case 'ul': return Array.from(el.children).map(li => walk(li, '\u2022 ')).join('');
-      case 'ol': {
-        let i = 1;
-        return Array.from(el.children).map(li => walk(li, `${i++}. `)).join('');
-      }
-      case 'blockquote': return `&gt; ${childHtml()}<br>`;
-      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
-        return `<strong>${childHtml()}</strong><br>`;
-      case 'div': case 'p': case 'section': case 'article':
-        return `${childHtml()}<br>`;
-      default: {
-        const inner = childHtml();
-        if (!inner) return inner;
-        const fw = el.style?.fontWeight;
-        const fi = el.style?.fontStyle;
-        const td = `${el.style?.textDecoration || ''} ${el.style?.textDecorationLine || ''}`;
-        let result = inner;
-        if (fw === 'bold' || Number.parseInt(fw || '0', 10) >= 600) result = `<strong>${result}</strong>`;
-        if (fi === 'italic') result = `<em>${result}</em>`;
-        if (td.includes('underline')) result = `<u>${result}</u>`;
-        if (td.includes('line-through')) result = `<s>${result}</s>`;
-        return wrapColor(result);
-      }
+    const familyId = ss4FontFamilyIdFromCss(
+      `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`,
+    );
+    if (familyId && familyId !== SS4_DEFAULT_FONT_FAMILY) {
+      styles.push(`font-family:${ss4FontFamilyCss(familyId)}`);
     }
+
+    const size = ss4FontSizeFromCss(element.style.fontSize)
+      || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+    if (size && size !== SS4_DEFAULT_FONT_SIZE) {
+      styles.push(`font-size:${size}px`);
+    }
+
+    return styles;
   };
 
-  return normalizeEditorHtmlListArtifacts(Array.from(doc.body.childNodes)
-    .map(n => walk(n))
+  const wrapStyles = (
+    element: HTMLElement,
+    inner: string,
+    extraStyles: string[] = [],
+  ): string => {
+    if (!inner) return inner;
+    const styles = [...safeTypographyStyles(element), ...extraStyles];
+    return styles.length
+      ? `<span style="${escapeAttribute([...new Set(styles)].join(';'))}">${inner}</span>`
+      : inner;
+  };
+
+  const cleanListItemClone = (element: HTMLElement): HTMLElement => {
+    const clone = element.cloneNode(true) as HTMLElement;
+    Array.from(clone.querySelectorAll<HTMLElement>('*')).forEach(child => {
+      if (
+        clipboardElementIsHidden(child)
+        || clipboardElementIsDecorativeMarker(child)
+      ) child.remove();
+    });
+    stripLeadingSemanticListMarker(clone);
+    return clone;
+  };
+
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return escapeHtmlText(
+        (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''),
+      );
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (
+      ['script', 'style', 'meta', 'link', 'iframe', 'object'].includes(tag)
+      || clipboardElementIsHidden(element)
+      || clipboardElementIsDecorativeMarker(element)
+    ) return '';
+
+    if (tag === 'br') return '<br>';
+    if (tag === 'img') {
+      return escapeHtmlText(
+        element.getAttribute('alt')
+        || element.getAttribute('aria-label')
+        || element.getAttribute('title')
+        || '',
+      );
+    }
+    if (['input', 'textarea', 'select'].includes(tag)) {
+      return escapeHtmlText(clipboardControlValue(element));
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      const listItems = Array.from(element.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && child.tagName.toLowerCase() === 'li'
+        );
+      const startValue = tag === 'ol'
+        ? Number.parseInt(element.getAttribute('start') || '1', 10)
+        : 1;
+      const startAttribute = tag === 'ol' && Number.isFinite(startValue) && startValue > 1
+        ? ` start="${startValue}"`
+        : '';
+      return `<${tag}${startAttribute}>${listItems.map(walk).join('')}</${tag}>`;
+    }
+
+    if (tag === 'li') {
+      const cleanClone = cleanListItemClone(element);
+      const nestedLists = Array.from(cleanClone.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && ['ul', 'ol'].includes(child.tagName.toLowerCase())
+        );
+      nestedLists.forEach(list => list.remove());
+
+      const own = Array.from(cleanClone.childNodes).map(walk).join('').trim() || '<br>';
+      const nested = Array.from(element.children)
+        .filter((child): child is HTMLElement =>
+          child instanceof HTMLElement
+          && ['ul', 'ol'].includes(child.tagName.toLowerCase())
+        )
+        .map(walk)
+        .join('');
+      return `<li>${wrapStyles(element, own)}${nested}</li>`;
+    }
+
+    const inner = Array.from(element.childNodes).map(walk).join('');
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    let formatted = inner;
+
+    if (
+      tag === 'strong'
+      || tag === 'b'
+      || fontWeight === 'bold'
+      || Number.parseInt(fontWeight || '0', 10) >= 600
+    ) formatted = `<strong>${formatted}</strong>`;
+    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') {
+      formatted = `<em>${formatted}</em>`;
+    }
+    if (tag === 'u' || decoration.includes('underline')) formatted = `<u>${formatted}</u>`;
+    if (
+      tag === 's'
+      || tag === 'strike'
+      || tag === 'del'
+      || decoration.includes('line-through')
+    ) formatted = `<s>${formatted}</s>`;
+
+    if (tag === 'code') return `<code>${wrapStyles(element, formatted)}</code>`;
+    if (tag === 'pre') return `<pre>${wrapStyles(element, formatted)}</pre>`;
+    if (tag === 'blockquote') return `<blockquote>${wrapStyles(element, formatted || '<br>')}</blockquote>`;
+    if (tag === 'a') {
+      const href = element.getAttribute('href') || '';
+      if (!/^(?:https?:|mailto:)/i.test(href)) return wrapStyles(element, formatted);
+      return `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${wrapStyles(element, formatted || escapeHtmlText(href))}</a>`;
+    }
+    if (/^h[1-6]$/.test(tag)) {
+      return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
+    }
+    if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
+      return `<div>${wrapStyles(element, formatted || '<br>')}</div>`;
+    }
+    return wrapStyles(element, formatted);
+  };
+
+  return Array.from(doc.body.childNodes)
+    .map(walk)
     .join('')
-    .replace(/(<br>)+$/g, '')
-    .replace(/^(<br>)+/g, ''));
+    .replace(/^(?:<div><br><\/div>)+/gi, '')
+    .replace(/(?:<div><br><\/div>)+$/gi, '')
+    .trim();
 }
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
   return value
     .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
     .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '')
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
@@ -1613,46 +2176,35 @@ function clipboardPayloadToPlainText(text: string, html: string): string {
 }
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
-  if (html) {
+  // Formatted paste uses the source HTML exactly once. Combining the HTML and
+  // text/plain list representations creates duplicate bullets and extra text.
+  if (html.trim()) {
+    const hasSemanticList = /<(?:ul|ol|li)\b/i.test(html);
+    const hasOfficePseudoList = /mso-list\s*:|MsoListParagraph/i.test(html);
+    if (!hasSemanticList && hasOfficePseudoList) {
+      const officeListText = clipboardHtmlToListAwareText(html);
+      if (officeListText.trim()) {
+        return sanitizePastedEditorHtmlForTheme(
+          markdownTextToEditorHtml(officeListText),
+        );
+      }
+    }
+
     const editorHtml = clipboardHtmlToEditorHtml(html);
-    const listAwareText = htmlAppearsToContainLists(html) ? clipboardHtmlToListAwareText(html) : '';
-    const markerPreservedListText = listAwareText
-      ? applySourceBulletMarkers(listAwareText, text)
-      : '';
-
-    if (markerPreservedListText && plainTextHasListMarkers(markerPreservedListText)) {
-      return sanitizePastedEditorHtmlForTheme(
-        markdownTextToEditorHtml(markerPreservedListText),
-      );
-    }
-
-    if (
-      shouldUsePlainTextListLayout(text, editorHtml)
-      || shouldPreferPlainTextLayout(text, editorHtml)
-    ) {
-      return sanitizePastedEditorHtmlForTheme(
-        markdownTextToEditorHtml(text),
-      );
-    }
-
     if (editorHtml.trim()) {
       return sanitizePastedEditorHtmlForTheme(editorHtml);
     }
   }
 
-  const sourceText = html && htmlAppearsToContainLists(html) && !plainTextHasListMarkers(text)
-    ? clipboardHtmlToListAwareText(html)
-    : text;
-  const normalizedText = normalizeMessageMarkdownText(sourceText || '');
+  const normalizedText = normalizeMessageMarkdownText(text || '');
   const editorHtml = hasMarkdownSyntax(normalizedText)
     ? markdownTextToEditorHtml(normalizedText)
     : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
-
   return sanitizePastedEditorHtmlForTheme(editorHtml);
 }
 
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}/m.test(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{color:#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(text);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -1661,6 +2213,8 @@ function markdownTextToEditorHtml(text: string): string {
   );
   const lines = source.split('\n');
   let activeColor: string | null = null;
+  let activeFontFamily: SS4FontFamilyId = SS4_DEFAULT_FONT_FAMILY;
+  let activeFontSize: SS4FontSize = SS4_DEFAULT_FONT_SIZE;
 
   const depthFromIndent = (indent: string, marker?: string): number => {
     const expanded = indent.replace(/\t/g, '    ').length;
@@ -1678,55 +2232,103 @@ function markdownTextToEditorHtml(text: string): string {
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
       .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
 
-  const renderColoredInline = (value: string): string => {
-    const colorTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}/g;
-    let result = activeColor ? `<span style="color:${activeColor}">` : '';
+  const renderStyledInline = (value: string): string => {
+    const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
+    let result = '';
     let cursor = 0;
     let match: RegExpExecArray | null;
 
-    while ((match = colorTag.exec(value)) !== null) {
-      result += applyInlineMarkdown(value.slice(cursor, match.index));
-
-      if (match[1]) {
-        if (activeColor) result += '</span>';
-        activeColor = match[1].toLowerCase();
-        result += `<span style="color:${activeColor}">`;
-      } else if (activeColor) {
-        result += '</span>';
-        activeColor = null;
+    const wrap = (html: string): string => {
+      if (!html) return html;
+      const styles: string[] = [];
+      if (activeColor) styles.push(`color:${activeColor}`);
+      if (activeFontFamily !== SS4_DEFAULT_FONT_FAMILY) {
+        styles.push(`font-family:${ss4FontFamilyCss(activeFontFamily)}`);
       }
+      if (activeFontSize !== SS4_DEFAULT_FONT_SIZE) {
+        styles.push(`font-size:${activeFontSize}px`);
+      }
+      return styles.length
+        ? `<span style="${styles.join(';')}">${html}</span>`
+        : html;
+    };
 
+    while ((match = styleTag.exec(value)) !== null) {
+      result += wrap(applyInlineMarkdown(value.slice(cursor, match.index)));
+      if (match[1]) activeColor = match[1].toLowerCase();
+      else if (match[0].toLowerCase() === '{/color}') activeColor = null;
+      else if (match[2]) {
+        const family = match[2].toLowerCase() as SS4FontFamilyId;
+        activeFontFamily = SS4_FONT_FAMILIES.some(option => option.id === family)
+          ? family
+          : SS4_DEFAULT_FONT_FAMILY;
+      } else if (match[0].toLowerCase() === '{/font}') {
+        activeFontFamily = SS4_DEFAULT_FONT_FAMILY;
+      } else if (match[3]) {
+        const size = Number.parseInt(match[3], 10) as SS4FontSize;
+        activeFontSize = SS4_FONT_SIZES.includes(size)
+          ? size
+          : SS4_DEFAULT_FONT_SIZE;
+      } else if (match[0].toLowerCase() === '{/size}') {
+        activeFontSize = SS4_DEFAULT_FONT_SIZE;
+      }
       cursor = match.index + match[0].length;
     }
 
-    result += applyInlineMarkdown(value.slice(cursor));
-    if (activeColor) result += '</span>';
+    result += wrap(applyInlineMarkdown(value.slice(cursor)));
     return result;
   };
 
-  return lines.map(line => {
-    let marker = '';
-    let rest = line;
-    const bulletMatch = line.match(SS4_SOURCE_BULLET_RE);
-    const numberedMatch = !bulletMatch && line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
-    const quoteMatch = !bulletMatch && !numberedMatch && line.match(/^\s*>\s?(.*)$/);
+  const stack: Array<{ tag: 'ul' | 'ol'; depth: number; start?: number; items: string[] }> = [];
+  const output: string[] = [];
+  const flushListsToDepth = (targetDepth: number) => {
+    while (stack.length > targetDepth) {
+      const list = stack.pop()!;
+      const html = `<${list.tag}${list.tag === 'ol' && list.start && list.start > 1 ? ` start="${list.start}"` : ''}>${list.items.join('')}</${list.tag}>`;
+      if (stack.length) {
+        const parent = stack[stack.length - 1];
+        const lastIndex = Math.max(0, parent.items.length - 1);
+        const parentItem = parent.items[lastIndex] || '<li>';
+        parent.items[lastIndex] = `${parentItem.replace(/<\/li>$/, '')}${html}</li>`;
+      } else output.push(html);
+    }
+  };
 
-    if (bulletMatch) {
-      const depth = depthFromIndent(bulletMatch[1], bulletMatch[2]);
-      marker = `${'&nbsp;'.repeat(depth * SS4_LIST_INDENT_STEP.length)}${escapeHtmlText(bulletMatch[2])} `;
-      rest = bulletMatch[3];
-    } else if (numberedMatch) {
-      const depth = depthFromIndent(numberedMatch[1]);
-      marker = `${'&nbsp;'.repeat(depth * SS4_LIST_INDENT_STEP.length)}${numberedMatch[2]}. `;
-      rest = numberedMatch[3];
-    } else if (quoteMatch) {
-      rest = quoteMatch[1];
+  lines.forEach(line => {
+    const bulletMatch = line.match(SS4_SOURCE_BULLET_RE);
+    const numberedMatch = bulletMatch
+      ? null
+      : line.match(/^([ \t]*)(\d+)\.\s+(.+)$/);
+    const quoteMatch = bulletMatch || numberedMatch
+      ? null
+      : line.match(/^\s*>\s?(.*)$/);
+
+    if (bulletMatch || numberedMatch) {
+      const indent = bulletMatch?.[1] ?? numberedMatch?.[1] ?? '';
+      const marker = bulletMatch?.[2];
+      const rest = bulletMatch?.[3] ?? numberedMatch?.[3] ?? '';
+      const depth = depthFromIndent(indent, marker);
+      const tag: 'ul' | 'ol' = bulletMatch ? 'ul' : 'ol';
+      flushListsToDepth(depth + 1);
+      while (stack.length <= depth) {
+        stack.push({ tag, depth: stack.length, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
+      }
+      if (stack[depth].tag !== tag) {
+        flushListsToDepth(depth);
+        stack.push({ tag, depth, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
+      }
+      stack[depth].items.push(`<li>${renderStyledInline(rest) || '<br>'}</li>`);
+      return;
     }
 
-    const rendered = renderColoredInline(rest) || '<br>';
-    if (quoteMatch) return `<blockquote>${rendered}</blockquote>`;
-    return `<div>${marker}${rendered}</div>`;
-  }).join('');
+    flushListsToDepth(0);
+    const rendered = renderStyledInline(quoteMatch ? quoteMatch[1] : line) || '<br>';
+    if (quoteMatch) output.push(`<blockquote>${rendered}</blockquote>`);
+    else output.push(`<div>${rendered}</div>`);
+  });
+
+  flushListsToDepth(0);
+  return output.join('');
 }
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
@@ -1934,6 +2536,10 @@ function messagePreviewText(content?: string | null): string {
   return normalizeMessageMarkdownForDisplay(content)
     .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
     .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -1967,7 +2573,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
 
     const pushPlain = (plain: string) => {
       if (!plain) return;
-      plain = plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, '');
+      plain = stripSupraSpaceTypographyTags(plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''));
       const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -1996,7 +2602,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
     };
 
     const findNextToken = (from: number) => {
-      const candidates: Array<{ start: number; end: number; type: 'color' | 'bold' | 'strike' | 'underline' | 'italic' | 'code' | 'link'; color?: string; contentStart?: number; contentEnd?: number; linkText?: string; linkHref?: string }> = [];
+      const candidates: Array<{ start: number; end: number; type: 'color' | 'font' | 'size' | 'bold' | 'strike' | 'underline' | 'italic' | 'code' | 'link'; color?: string; fontFamily?: SS4FontFamilyId; fontSize?: SS4FontSize; contentStart?: number; contentEnd?: number; linkText?: string; linkHref?: string }> = [];
       const linkRe = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
       linkRe.lastIndex = from;
       const linkMatch = linkRe.exec(text);
@@ -2019,6 +2625,40 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
           type: 'color',
           color: colorStart[1],
           contentStart: colorStart.index + colorStart[0].length,
+          contentEnd: close.index,
+        });
+      }
+      const fontRe = /\{\s*font\s*:\s*([a-z-]+)\s*\}/gi;
+      fontRe.lastIndex = from;
+      const fontStart = fontRe.exec(text);
+      if (fontStart) {
+        const family = fontStart[1].toLowerCase() as SS4FontFamilyId;
+        const closeRe = /\{\s*\/\s*font\s*\}/gi;
+        closeRe.lastIndex = fontStart.index + fontStart[0].length;
+        const close = closeRe.exec(text);
+        if (close && SS4_FONT_FAMILIES.some(option => option.id === family)) candidates.push({
+          start: fontStart.index,
+          end: close.index + close[0].length,
+          type: 'font',
+          fontFamily: family,
+          contentStart: fontStart.index + fontStart[0].length,
+          contentEnd: close.index,
+        });
+      }
+      const sizeRe = /\{\s*size\s*:\s*(\d{1,3})\s*\}/gi;
+      sizeRe.lastIndex = from;
+      const sizeStart = sizeRe.exec(text);
+      if (sizeStart) {
+        const fontSize = Number.parseInt(sizeStart[1], 10) as SS4FontSize;
+        const closeRe = /\{\s*\/\s*size\s*\}/gi;
+        closeRe.lastIndex = sizeStart.index + sizeStart[0].length;
+        const close = closeRe.exec(text);
+        if (close && SS4_FONT_SIZES.includes(fontSize)) candidates.push({
+          start: sizeStart.index,
+          end: close.index + close[0].length,
+          type: 'size',
+          fontSize,
+          contentStart: sizeStart.index + sizeStart[0].length,
           contentEnd: close.index,
         });
       }
@@ -2051,6 +2691,20 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
           <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
+            {renderInline(inner, key)}
+          </span>
+        );
+      } else if (token.type === 'font') {
+        const inner = text.slice(token.contentStart, token.contentEnd);
+        nodes.push(
+          <span key={key} style={{ fontFamily: ss4FontFamilyCss(token.fontFamily || SS4_DEFAULT_FONT_FAMILY) }}>
+            {renderInline(inner, key)}
+          </span>
+        );
+      } else if (token.type === 'size') {
+        const inner = text.slice(token.contentStart, token.contentEnd);
+        nodes.push(
+          <span key={key} style={{ fontSize: `${token.fontSize || SS4_DEFAULT_FONT_SIZE}px` }}>
             {renderInline(inner, key)}
           </span>
         );
@@ -2746,6 +3400,10 @@ function Bubble({
   const editFileInputRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<File[]>([]);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
+  const [editFontFamily, setEditFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
+  const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
+  const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
+  const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
   const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
@@ -2760,6 +3418,10 @@ function Bubble({
     quote: false,
     code: false,
   });
+  const [editTypingFormats, setEditTypingFormats] =
+    React.useState<SS4InlineTypingPreferences>(
+      createSS4InlineTypingPreferences,
+    );
   const [moreActionsOpen, setMoreActionsOpen_] = React.useState(false);
   const moreActionsOpenRef = React.useRef(false);
   const moreActionsRef = React.useRef<HTMLDivElement>(null);
@@ -2864,6 +3526,11 @@ function Bubble({
     const maxResponsiveWidth = Math.max(280, Math.min(560, rowWidth - 72));
     setEditWidth(Math.min(Math.max(measuredWidth, 360), maxResponsiveWidth));
     setEditDraft(message.content || '');
+    setEditFontFamily(SS4_DEFAULT_FONT_FAMILY);
+    setEditFontFamilyChosen(false);
+    setEditFontSize(SS4_DEFAULT_FONT_SIZE);
+    setEditFontSizeChosen(false);
+    setEditTypingFormats(createSS4InlineTypingPreferences());
     setEditReplacementFiles([]);
     if (editFileInputRef.current) editFileInputRef.current.value = '';
     setEditMode(true);
@@ -2937,18 +3604,46 @@ function Bubble({
     try {
       const root = editAreaRef.current;
       const selection = window.getSelection();
-      const insideEdit = !!root && !!selection?.anchorNode && root.contains(selection.anchorNode);
-      if (!insideEdit) return;
+      if (
+        !root
+        || !selection?.anchorNode
+        || !root.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
       const blockValue = String(document.queryCommandValue('formatBlock') || '')
         .toLowerCase()
         .replace(/[<>]/g, '');
-      const fontValue = String(document.queryCommandValue('fontName') || '').toLowerCase();
+      const fontValue = String(document.queryCommandValue('fontName') || '')
+        .toLowerCase();
+      const useTypingPreference = (
+        format: SS4InlineTypingFormat,
+        browserState: boolean,
+      ): boolean => (
+        selection.isCollapsed
+        && editTypingFormats[format] !== null
+          ? editTypingFormats[format] === true
+          : browserState
+      );
 
       setEditActiveFormats({
-        bold: document.queryCommandState('bold'),
-        italic: document.queryCommandState('italic'),
-        underline: document.queryCommandState('underline'),
-        strike: document.queryCommandState('strikeThrough'),
+        bold: useTypingPreference(
+          'bold',
+          document.queryCommandState('bold'),
+        ),
+        italic: useTypingPreference(
+          'italic',
+          document.queryCommandState('italic'),
+        ),
+        underline: useTypingPreference(
+          'underline',
+          document.queryCommandState('underline'),
+        ),
+        strike: useTypingPreference(
+          'strike',
+          document.queryCommandState('strikeThrough'),
+        ),
         list: document.queryCommandState('insertUnorderedList'),
         numbered: document.queryCommandState('insertOrderedList'),
         quote: blockValue.includes('blockquote'),
@@ -2956,8 +3651,10 @@ function Bubble({
       });
 
       setEditTextColor(getActiveSelectionColor(root));
-    } catch { }
-  }, []);
+    } catch {
+      // Browser formatting-state detection is best effort.
+    }
+  }, [editTypingFormats]);
 
   const focusEditComposer = React.useCallback(() => {
     editAreaRef.current?.focus();
@@ -2967,10 +3664,43 @@ function Bubble({
     const root = editAreaRef.current;
     if (!root) return;
 
+    const inlineFormat = (
+      ['bold', 'italic', 'underline', 'strike'] as RichTextFormat[]
+    ).includes(format)
+      ? format as SS4InlineTypingFormat
+      : null;
+    const range = getRichEditorSelectionRange(
+      root,
+      editSelectionRangeRef.current,
+    );
+
+    if (inlineFormat && range.collapsed) {
+      const command = ss4InlineCommandForFormat(inlineFormat);
+      const currentValue = editTypingFormats[inlineFormat]
+        ?? document.queryCommandState(command);
+      const nextValue = !currentValue;
+
+      setEditTypingFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editSelectionRangeRef.current = range.cloneRange();
+      return;
+    }
+
     root.focus();
     const nextRange = executeRichEditorCommandPreservingSelection(
       root,
-      editSelectionRangeRef.current,
+      range,
       () => {
         const commandMap: Partial<Record<RichTextFormat, string>> = {
           bold: 'bold',
@@ -2985,7 +3715,9 @@ function Bubble({
         if (command) {
           document.execCommand(command, false);
         } else if (format === 'quote') {
-          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+          const currentBlock = String(
+            document.queryCommandValue('formatBlock') || '',
+          )
             .toLowerCase()
             .replace(/[<>]/g, '');
           document.execCommand(
@@ -2995,18 +3727,46 @@ function Bubble({
           );
         } else if (format === 'code') {
           document.execCommand('styleWithCSS', false, 'true');
-          const currentFont = String(document.queryCommandValue('fontName') || '').toLowerCase();
-          const codeIsActive = /(monospace|courier|consolas|menlo|monaco)/i.test(currentFont);
-          document.execCommand('fontName', false, codeIsActive ? 'Geist' : 'monospace');
+          const currentFont = String(
+            document.queryCommandValue('fontName') || '',
+          ).toLowerCase();
+          const codeIsActive =
+            /(monospace|courier|consolas|menlo|monaco)/i.test(
+              currentFont,
+            );
+          document.execCommand(
+            'fontName',
+            false,
+            codeIsActive ? 'Geist' : 'monospace',
+          );
         }
       },
       { normalizeListExit: format === 'list' || format === 'numbered' },
     );
 
     if (nextRange) editSelectionRangeRef.current = nextRange;
+
+    if (inlineFormat) {
+      const nextValue = document.queryCommandState(
+        ss4InlineCommandForFormat(inlineFormat),
+      );
+      setEditTypingFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      setEditActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+    }
+
     syncEditDraft();
     requestAnimationFrame(refreshEditActiveFormats);
-  }, [refreshEditActiveFormats, syncEditDraft]);
+  }, [
+    editTypingFormats,
+    refreshEditActiveFormats,
+    syncEditDraft,
+  ]);
 
   const applyEditTextColor = React.useCallback((color: string) => {
     const root = editAreaRef.current;
@@ -3027,6 +3787,87 @@ function Bubble({
     requestAnimationFrame(refreshEditActiveFormats);
   }, [refreshEditActiveFormats, syncEditDraft]);
 
+  const applyEditFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
+    setEditFontFamilyChosen(true);
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
+    setEditFontFamily(fontFamily);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
+        },
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+    } else {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editSelectionRangeRef.current = range.cloneRange();
+    }
+  }, [syncEditDraft]);
+
+  const applyEditFontSize = React.useCallback((fontSize: SS4FontSize) => {
+    setEditFontSizeChosen(true);
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
+    setEditFontSize(fontSize);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
+      if (nextRange) editSelectionRangeRef.current = nextRange;
+      syncEditDraft();
+    } else {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editSelectionRangeRef.current = range.cloneRange();
+    }
+  }, [syncEditDraft]);
+
+  const handleEditTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inserted = insertPreselectedTypographyText(
+      event,
+      editFontFamilyChosen ? editFontFamily : null,
+      editFontSizeChosen ? editFontSize : null,
+      editTypingFormats,
+      editTextColor,
+    );
+    if (!inserted) return;
+    requestAnimationFrame(() => {
+      syncEditDraft();
+      rememberEditSelection();
+      refreshEditActiveFormats();
+    });
+  }, [
+    editFontFamily,
+    editFontFamilyChosen,
+    editFontSize,
+    editFontSizeChosen,
+    editTextColor,
+    editTypingFormats,
+    refreshEditActiveFormats,
+    rememberEditSelection,
+    syncEditDraft,
+  ]);
+
   const chooseExpandedEditTextColor = React.useCallback((color: string) => {
     setEditTextPalette(prev => {
       if (prev.includes(color)) return prev;
@@ -3039,13 +3880,7 @@ function Bubble({
     setEditColorPickerOpen(false);
   }, [applyEditTextColor, editTextColor]);
 
-  const handleEditColorBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const inputEvent = e.nativeEvent as InputEvent;
-    if (editTextColor === '#ffffff' || inputEvent.inputType !== 'insertText' || !inputEvent.data) return;
-    e.preventDefault();
-    document.execCommand('insertHTML', false, `<span style="color:${editTextColor}">${escapeHtmlText(inputEvent.data)}</span>`);
-    syncEditDraft();
-  };
+  const handleEditColorBeforeInput = handleEditTypographyBeforeInput;
 
   const cancelEdit = () => {
     editSelectionRangeRef.current = null;
@@ -3437,6 +4272,32 @@ function Bubble({
                 <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('strike'); }} className={editFormatButtonClass('strike')} title="Strikethrough" aria-pressed={editActiveFormats.strike}>
                   <Strikethrough className="h-3.5 w-3.5" style={editFormatIconStyle('strike')} />
                 </button>
+                <select
+                  value={editFontFamilyChosen ? editFontFamily : ''}
+                  onPointerDown={() => rememberEditSelection()}
+                  onChange={event => applyEditFontFamily(event.target.value as SS4FontFamilyId)}
+                  className="h-8 max-w-36 rounded-lg px-2 outline-none"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit', border: '1px solid rgba(255,255,255,0.18)', fontSize: 11 }}
+                  aria-label="Font family"
+                  title="Choose a font before typing or apply it to selected text"
+                >
+                  <option value="" disabled>Font</option>
+                  {SS4_FONT_FAMILIES.map(option => (
+                    <option key={option.id} value={option.id} style={{ color: '#111827' }}>{option.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={editFontSizeChosen ? editFontSize : ''}
+                  onPointerDown={() => rememberEditSelection()}
+                  onChange={event => applyEditFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
+                  className="h-8 w-18 rounded-lg px-2 outline-none"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit', border: '1px solid rgba(255,255,255,0.18)', fontSize: 11 }}
+                  aria-label="Font size"
+                  title="Choose a size before typing or apply it to selected text"
+                >
+                  <option value="" disabled>Size</option>
+                  {SS4_FONT_SIZES.map(size => <option key={size} value={size} style={{ color: '#111827' }}>{size}</option>)}
+                </select>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
                 <button type="button" onMouseDown={e => { e.preventDefault(); applyEditFormat('list'); }} className={editFormatButtonClass('list')} title="Bullet list" aria-pressed={editActiveFormats.list}>
                   <List className="h-3.5 w-3.5" style={editFormatIconStyle('list')} />
@@ -5770,7 +6631,15 @@ export default function SupraSpacePage() {
     quote: false,
     code: false,
   });
+  const [activeTypingFormats, setActiveTypingFormats] =
+    React.useState<SS4InlineTypingPreferences>(
+      createSS4InlineTypingPreferences,
+    );
   const [activeTextColor, setActiveTextColor] = React.useState('#ffffff');
+  const [activeFontFamily, setActiveFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
+  const [activeFontFamilyChosen, setActiveFontFamilyChosen] = React.useState(false);
+  const [activeFontSize, setActiveFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
+  const [activeFontSizeChosen, setActiveFontSizeChosen] = React.useState(false);
   const [textPalette, setTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [textColorPickerOpen, setTextColorPickerOpen] = React.useState(false);
   const autrixRef = React.useRef<HTMLDivElement>(null);
@@ -7211,22 +8080,52 @@ export default function SupraSpacePage() {
 
       const cursor = getCaretOffset(el);
       const value = el.innerText.replace(/\n$/, '');
-      const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+      const lineStart = value.lastIndexOf(
+        '\n',
+        Math.max(cursor - 1, 0),
+      ) + 1;
       const lineEndRaw = value.indexOf('\n', cursor);
       const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
       const line = value.slice(lineStart, lineEnd);
-      const beforeCursor = line.slice(0, Math.max(0, cursor - lineStart));
-      const blockValue = String(document.queryCommandValue('formatBlock') || '')
+      const beforeCursor = line.slice(
+        0,
+        Math.max(0, cursor - lineStart),
+      );
+      const blockValue = String(
+        document.queryCommandValue('formatBlock') || '',
+      )
         .toLowerCase()
         .replace(/[<>]/g, '');
-      const fontValue = String(document.queryCommandValue('fontName') || '')
-        .toLowerCase();
+      const fontValue = String(
+        document.queryCommandValue('fontName') || '',
+      ).toLowerCase();
+      const useTypingPreference = (
+        format: SS4InlineTypingFormat,
+        browserState: boolean,
+      ): boolean => (
+        selection.isCollapsed
+        && activeTypingFormats[format] !== null
+          ? activeTypingFormats[format] === true
+          : browserState
+      );
 
       setActiveFormats({
-        bold: document.queryCommandState('bold'),
-        italic: document.queryCommandState('italic'),
-        underline: document.queryCommandState('underline'),
-        strike: document.queryCommandState('strikeThrough'),
+        bold: useTypingPreference(
+          'bold',
+          document.queryCommandState('bold'),
+        ),
+        italic: useTypingPreference(
+          'italic',
+          document.queryCommandState('italic'),
+        ),
+        underline: useTypingPreference(
+          'underline',
+          document.queryCommandState('underline'),
+        ),
+        strike: useTypingPreference(
+          'strike',
+          document.queryCommandState('strikeThrough'),
+        ),
         list:
           document.queryCommandState('insertUnorderedList')
           || /^[•◦▪]\s/.test(line.trimStart()),
@@ -7245,7 +8144,7 @@ export default function SupraSpacePage() {
     } catch {
       // Browser formatting-state detection is best effort.
     }
-  }, []);
+  }, [activeTypingFormats]);
 
   React.useEffect(() => {
     document.addEventListener('selectionchange', refreshActiveFormats);
@@ -7956,17 +8855,51 @@ export default function SupraSpacePage() {
     syncComposerText,
   ]);
 
-  const applyFormat = React.useCallback((type: RichTextFormat | 'link' | 'codeblock') => {
+  const applyFormat = React.useCallback((
+    type: RichTextFormat | 'link' | 'codeblock',
+  ) => {
     const el = textareaRef.current;
     if (!el) return;
 
+    const inlineFormat = (
+      ['bold', 'italic', 'underline', 'strike'] as RichTextFormat[]
+    ).includes(type as RichTextFormat)
+      ? type as SS4InlineTypingFormat
+      : null;
+    const range = getRichEditorSelectionRange(
+      el,
+      composerSelectionRangeRef.current,
+    );
+
+    if (inlineFormat && range.collapsed) {
+      const command = ss4InlineCommandForFormat(inlineFormat);
+      const currentValue = activeTypingFormats[inlineFormat]
+        ?? document.queryCommandState(command);
+      const nextValue = !currentValue;
+
+      setActiveTypingFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      setActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+
+      el.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      composerSelectionRangeRef.current = range.cloneRange();
+      return;
+    }
+
     el.focus();
-    const currentSelection = window.getSelection();
-    const selectedText = currentSelection?.toString() || '';
+    const selectedText = range.toString();
 
     const nextRange = executeRichEditorCommandPreservingSelection(
       el,
-      composerSelectionRangeRef.current,
+      range,
       () => {
         const commandMap: Partial<Record<RichTextFormat, string>> = {
           bold: 'bold',
@@ -7984,7 +8917,9 @@ export default function SupraSpacePage() {
         }
 
         if (type === 'quote') {
-          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+          const currentBlock = String(
+            document.queryCommandValue('formatBlock') || '',
+          )
             .toLowerCase()
             .replace(/[<>]/g, '');
           document.execCommand(
@@ -7997,10 +8932,13 @@ export default function SupraSpacePage() {
 
         if (type === 'code') {
           document.execCommand('styleWithCSS', false, 'true');
-          const currentFont = String(document.queryCommandValue('fontName') || '')
-            .toLowerCase();
-          const codeIsActive = /(monospace|courier|consolas|menlo|monaco)/i
-            .test(currentFont);
+          const currentFont = String(
+            document.queryCommandValue('fontName') || '',
+          ).toLowerCase();
+          const codeIsActive =
+            /(monospace|courier|consolas|menlo|monaco)/i.test(
+              currentFont,
+            );
           document.execCommand(
             'fontName',
             false,
@@ -8010,7 +8948,9 @@ export default function SupraSpacePage() {
         }
 
         if (type === 'codeblock') {
-          const currentBlock = String(document.queryCommandValue('formatBlock') || '')
+          const currentBlock = String(
+            document.queryCommandValue('formatBlock') || '',
+          )
             .toLowerCase()
             .replace(/[<>]/g, '');
           document.execCommand(
@@ -8038,11 +8978,26 @@ export default function SupraSpacePage() {
       composerSelectionRangeRef.current = nextRange;
     }
 
+    if (inlineFormat) {
+      const nextValue = document.queryCommandState(
+        ss4InlineCommandForFormat(inlineFormat),
+      );
+      setActiveTypingFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+      setActiveFormats(previous => ({
+        ...previous,
+        [inlineFormat]: nextValue,
+      }));
+    }
+
     const nextText = el.innerText.replace(/\n$/, '');
     syncComposerText(nextText, true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
+    activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
     syncComposerText,
@@ -8114,6 +9069,91 @@ export default function SupraSpacePage() {
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
+    refreshActiveFormats,
+    saveComposerSelection,
+    syncComposerText,
+  ]);
+
+  const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
+    setActiveFontFamilyChosen(true);
+    const root = textareaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, composerSelectionRangeRef.current);
+    setActiveFontFamily(fontFamily);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontName', false, ss4FontFamilyCss(fontFamily));
+        },
+      );
+      if (nextRange) composerSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+    } else {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      composerSelectionRangeRef.current = range.cloneRange();
+    }
+    saveComposerSelection();
+  }, [saveComposerSelection, syncComposerText]);
+
+  const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
+    setActiveFontSizeChosen(true);
+    const root = textareaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, composerSelectionRangeRef.current);
+    setActiveFontSize(fontSize);
+
+    if (!range.collapsed) {
+      const nextRange = executeRichEditorCommandPreservingSelection(
+        root,
+        range,
+        () => {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontSize', false, '7');
+          normalizeRichEditorFontSizeElements(root, fontSize);
+        },
+      );
+      if (nextRange) composerSelectionRangeRef.current = nextRange;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+    } else {
+      root.focus();
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      composerSelectionRangeRef.current = range.cloneRange();
+    }
+    saveComposerSelection();
+  }, [saveComposerSelection, syncComposerText]);
+
+  const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inserted = insertPreselectedTypographyText(
+      event,
+      activeFontFamilyChosen ? activeFontFamily : null,
+      activeFontSizeChosen ? activeFontSize : null,
+      activeTypingFormats,
+      activeTextColor,
+    );
+    if (!inserted) return;
+    requestAnimationFrame(() => {
+      const root = textareaRef.current;
+      if (!root) return;
+      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      saveComposerSelection();
+      refreshActiveFormats();
+    });
+  }, [
+    activeFontFamily,
+    activeFontFamilyChosen,
+    activeFontSize,
+    activeFontSizeChosen,
+    activeTextColor,
+    activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
     syncComposerText,
@@ -9022,6 +10062,30 @@ export default function SupraSpacePage() {
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={formatButtonClass('strike')} title="Strikethrough" aria-pressed={activeFormats.strike}>
                               <Strikethrough className="h-3.5 w-3.5" style={formatIconStyle('strike')} />
                             </button>
+                            <select
+                              value={activeFontFamilyChosen ? activeFontFamily : ''}
+                              onPointerDown={() => saveComposerSelection()}
+                              onChange={event => applyComposerFontFamily(event.target.value as SS4FontFamilyId)}
+                              className="h-9 max-w-36 rounded-lg px-2 outline-none"
+                              style={{ background: 'var(--surface-2)', color: 'var(--text-primary)', border: '1px solid var(--border-2)', fontSize: 11 }}
+                              aria-label="Font family"
+                              title="Choose a font before typing or apply it to selected text"
+                            >
+                              <option value="" disabled>Font</option>
+                              {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                            <select
+                              value={activeFontSizeChosen ? activeFontSize : ''}
+                              onPointerDown={() => saveComposerSelection()}
+                              onChange={event => applyComposerFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
+                              className="h-9 w-18 rounded-lg px-2 outline-none"
+                              style={{ background: 'var(--surface-2)', color: 'var(--text-primary)', border: '1px solid var(--border-2)', fontSize: 11 }}
+                              aria-label="Font size"
+                              title="Choose a size before typing or apply it to selected text"
+                            >
+                              <option value="" disabled>Size</option>
+                              {SS4_FONT_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+                            </select>
                             <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'var(--border-1)' }} />
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={formatButtonClass('list')} title="Bullet list (Tab to nest)" aria-pressed={activeFormats.list}>
                               <List className="h-3.5 w-3.5" style={formatIconStyle('list')} />
@@ -9144,6 +10208,7 @@ export default function SupraSpacePage() {
                               ref={textareaRef}
                               contentEditable
                               suppressContentEditableWarning
+                              onBeforeInput={handleComposerTypographyBeforeInput}
                               onInput={event => {
                                 handleTyping(event);
                                 saveComposerSelection();

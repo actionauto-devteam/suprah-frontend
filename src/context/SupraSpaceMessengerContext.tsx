@@ -155,9 +155,13 @@ function stripChatFormatting(content?: string | null): string {
   if (!content) return '';
   return content
     .replace(/\r\n?/g, '\n')
-    .replace(/ /g, ' ')
+    .replace(/ /g, ' ')
     .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
     .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
+    .replace(/\{\s*\/\s*font\s*\}/gi, '')
+    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*size\s*\}/gi, '')
     .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
