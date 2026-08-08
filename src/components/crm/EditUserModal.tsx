@@ -37,6 +37,7 @@ interface EditUserForm {
   screenshotExempt: boolean
   locationRequiredOverride: "default" | "required" | "exempt"
   payrollLocation: "" | "Utah" | "Philippines"
+  hourlyTrackingExempt: boolean
 }
 
 interface FormErrors {
@@ -63,6 +64,7 @@ interface EditUserModalProps {
     screenshotExempt?: boolean
     locationRequiredOverride?: "default" | "required" | "exempt"
     payrollLocation?: "Utah" | "Philippines" | null
+    hourlyTrackingExempt?: boolean
   } | null
   onUpdated?: () => void
 }
@@ -99,6 +101,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     screenshotExempt: false,
     locationRequiredOverride: "default",
     payrollLocation: "",
+    hourlyTrackingExempt: false,
   })
 
   React.useEffect(() => {
@@ -115,6 +118,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         screenshotExempt: !!user.screenshotExempt,
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
+        hourlyTrackingExempt: !!user.hourlyTrackingExempt,
       })
       setErrors({})
     }
@@ -162,6 +166,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           screenshotExempt: form.screenshotExempt,
           locationRequiredOverride: form.locationRequiredOverride,
           payrollLocation: form.payrollLocation || null,
+          hourlyTrackingExempt: form.hourlyTrackingExempt,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -348,6 +353,18 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             <Switch
               checked={form.screenshotExempt}
               onCheckedChange={(checked) => setForm((p) => ({ ...p, screenshotExempt: checked }))}
+            />
+          </div>
+
+          {/* Hourly Tracking Exemption — commission-based roles (sales, finance managers, etc.) */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Exempt from Hourly Tracking Reports</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">Hides this account from the Payroll Status report — for commission-based roles that don&apos;t clock in/out.</p>
+            </div>
+            <Switch
+              checked={form.hourlyTrackingExempt}
+              onCheckedChange={(checked) => setForm((p) => ({ ...p, hourlyTrackingExempt: checked }))}
             />
           </div>
 

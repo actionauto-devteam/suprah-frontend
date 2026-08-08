@@ -14,6 +14,7 @@ import {
   Search,
   X,
   Wallet,
+  AlertTriangle,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -31,6 +32,9 @@ interface PayrollRow {
   totalSeconds: number
   hourlyRate: number | null
   payout: number | null
+  otPremiumSeconds: number
+  otPremiumPay: number
+  flaggedWeeks: { weekEndingDate: string; weekTotalSeconds: number }[]
   status: "open" | "paid" | "auto-locked" | "unlocked"
   lockedAt: string | null
   lockedByName: string | null
@@ -271,8 +275,20 @@ export default function PayrollStatusPage() {
                   <p className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
                     {row.payout != null ? `$${row.payout.toFixed(2)}` : "—"}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{row.hourlyRate != null ? `$${row.hourlyRate}/hr` : "no rate"}</p>
+                  {row.otPremiumPay > 0 ? (
+                    <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400">+${row.otPremiumPay.toFixed(2)} OT</p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">{row.hourlyRate != null ? `$${row.hourlyRate}/hr` : "no rate"}</p>
+                  )}
                 </div>
+                {row.flaggedWeeks.length > 0 && (
+                  <span
+                    title={`Over 43h this week: ${row.flaggedWeeks.map((w) => `${fmtHHMM(w.weekTotalSeconds)} (week ending ${w.weekEndingDate})`).join(", ")}`}
+                    className="shrink-0 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" /> OT Watch
+                  </span>
+                )}
                 <div className="shrink-0"><StatusBadge row={row} /></div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {row.status !== "paid" && (
