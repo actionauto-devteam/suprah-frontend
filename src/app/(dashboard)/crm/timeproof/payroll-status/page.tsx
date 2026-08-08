@@ -29,6 +29,7 @@ interface PayrollRow {
   avatar?: string
   role: string
   department?: string
+  payrollLocation?: "Utah" | "Philippines" | null
   totalSeconds: number
   hourlyRate: number | null
   payout: number | null
@@ -86,6 +87,7 @@ export default function PayrollStatusPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [teamTab, setTeamTab] = React.useState<"all" | "Utah" | "Philippines">("all")
   const [busyUserId, setBusyUserId] = React.useState<string | null>(null)
   const [unlockTarget, setUnlockTarget] = React.useState<PayrollRow | null>(null)
   const [unlockReason, setUnlockReason] = React.useState("")
@@ -129,11 +131,12 @@ export default function PayrollStatusPage() {
 
   const filteredRows = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return q ? rows.filter((r) => r.fullName.toLowerCase().includes(q)) : rows
-  }, [rows, searchQuery])
+    const byTeam = teamTab === "all" ? rows : rows.filter((r) => r.payrollLocation === teamTab)
+    return q ? byTeam.filter((r) => r.fullName.toLowerCase().includes(q)) : byTeam
+  }, [rows, searchQuery, teamTab])
 
-  const paidCount = rows.filter((r) => r.status === "paid").length
-  const notPaidCount = rows.length - paidCount
+  const paidCount = filteredRows.filter((r) => r.status === "paid").length
+  const notPaidCount = filteredRows.length - paidCount
 
   const markPaid = async (row: PayrollRow) => {
     const token = localStorage.getItem("crm_token")
@@ -217,6 +220,28 @@ export default function PayrollStatusPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
+        {/* Utah / Philippines / All team tabs */}
+        <div className="flex items-center gap-1">
+          {([
+            { key: "all", label: "All Teams" },
+            { key: "Utah", label: "Utah" },
+            { key: "Philippines", label: "Philippines" },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTeamTab(t.key)}
+              className={cn(
+                "h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors",
+                teamTab === t.key
+                  ? "bg-emerald-600 text-white"
+                  : "text-muted-foreground hover:bg-muted/40"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Period selector */}
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
           <button onClick={goPrevPeriod} className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-muted/40 text-muted-foreground">

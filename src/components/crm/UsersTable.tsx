@@ -74,6 +74,7 @@ interface CrmUserRow {
   screenshotExempt?: boolean
   locationRequiredOverride?: "default" | "required" | "exempt"
   payrollLocation?: "Utah" | "Philippines" | null
+  hourlyTrackingExempt?: boolean
 }
 
 interface PaginationMeta {
@@ -153,6 +154,14 @@ function PayrollBadge({ payrollLocation }: { payrollLocation?: "Utah" | "Philipp
         }`}
     >
       {payrollLocation === "Utah" ? "Utah" : "Philippines"}
+    </Badge>
+  )
+}
+
+function HourlyExemptBadge() {
+  return (
+    <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full font-semibold bg-amber-500/10 text-amber-600 border-amber-500/20">
+      Exempt
     </Badge>
   )
 }
@@ -284,6 +293,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
   const [, forceDepartmentsTick] = React.useReducer((c) => c + 1, 0)
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
   const [dateJoinedFilter, setDateJoinedFilter] = React.useState<DateJoinedFilter>("all")
+  const [exemptOnly, setExemptOnly] = React.useState(false)
   const [sortBy, setSortBy] = React.useState<SortField>("createdAt")
   const [sortOrder, setSortOrder] = React.useState<SortOrder>("desc")
   const [page, setPage] = React.useState(1)
@@ -299,7 +309,8 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     roleFilter !== "all" ||
     departmentFilter !== "all" ||
     statusFilter !== "all" ||
-    dateJoinedFilter !== "all"
+    dateJoinedFilter !== "all" ||
+    exemptOnly
 
   const clearFilters = () => {
     setSearchTerm("")
@@ -307,6 +318,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     setDepartmentFilter("all")
     setStatusFilter("all")
     setDateJoinedFilter("all")
+    setExemptOnly(false)
     setSortBy("createdAt")
     setSortOrder("desc")
     setPage(1)
@@ -346,6 +358,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
     if (dateJoinedFilter !== "all") {
       params.set("dateJoined", dateJoinedFilter)
+    }
+
+    if (exemptOnly) {
+      params.set("hourlyTrackingExempt", "true")
     }
 
     try {
@@ -391,7 +407,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     } finally {
       setLoading(false)
     }
-  }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, departmentFilter, statusFilter, dateJoinedFilter])
+  }, [token, pageSize, sortBy, sortOrder, searchTerm, roleFilter, departmentFilter, statusFilter, dateJoinedFilter, exemptOnly])
 
   const buildUserQueryParams = React.useCallback((targetPage: number, limit: number) => {
     const params = new URLSearchParams({
@@ -406,9 +422,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     if (departmentFilter !== "all") params.set("department", departmentFilter)
     if (statusFilter !== "all") params.set("status", statusFilter)
     if (dateJoinedFilter !== "all") params.set("dateJoined", dateJoinedFilter)
+    if (exemptOnly) params.set("hourlyTrackingExempt", "true")
 
     return params
-  }, [dateJoinedFilter, roleFilter, departmentFilter, searchTerm, sortBy, sortOrder, statusFilter])
+  }, [dateJoinedFilter, roleFilter, departmentFilter, searchTerm, sortBy, sortOrder, statusFilter, exemptOnly])
 
   const exportUsers = React.useCallback(async () => {
     if (!token) return
@@ -647,17 +664,27 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                 Search by name, email, or employee ID.
               </p>
             </div>
-            {hasFilters && (
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
-                variant="ghost"
-                onClick={clearFilters}
-                className="h-8 rounded-xl border border-border/40 text-xs font-semibold gap-2"
+                variant={exemptOnly ? "default" : "ghost"}
+                onClick={() => { setExemptOnly((v) => !v); setPage(1) }}
+                className={`h-8 rounded-xl border text-xs font-semibold gap-2 ${exemptOnly ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/15" : "border-border/40"}`}
               >
-                <Filter className="h-3.5 w-3.5" />
-                Reset Filters
+                Exempt from Hourly Tracking
               </Button>
-            )}
+              {hasFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="h-8 rounded-xl border border-border/40 text-xs font-semibold gap-2"
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  Reset Filters
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,1fr))]">
@@ -858,6 +885,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <RoleBadge role={u.role} />
                           <PayrollBadge payrollLocation={u.payrollLocation} />
+                          {u.hourlyTrackingExempt && <HourlyExemptBadge />}
                           <StatusBadge isActive={u.isActive} />
                           <span className="rounded-full border border-border/35 bg-background px-2 py-1 text-[10px] font-semibold text-muted-foreground/60">
                             Joined {formatDate(u.createdAt)}
@@ -1013,7 +1041,10 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                         </td>
 
                         <td className="px-5 py-3.5">
-                          <PayrollBadge payrollLocation={u.payrollLocation} />
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <PayrollBadge payrollLocation={u.payrollLocation} />
+                            {u.hourlyTrackingExempt && <HourlyExemptBadge />}
+                          </div>
                         </td>
 
                         <td className="px-5 py-3.5">
