@@ -119,41 +119,103 @@ export async function generateBillingRevenuePdf(
     ],
   }) + 7;
 
-  drawSectionTitle(doc, { title: "Financial Breakdown", y: cursorY, left, right });
+  drawSectionTitle(doc, {
+    title: "Customer Payment Status Breakdown",
+    y: cursorY,
+    left,
+    right,
+  });
   autoTable(doc, {
     startY: cursorY + 3,
-    head: [["Payment Status", "Transactions", "Amount", "Share", "Payout Status", "Payouts", "Amount", "Share"]],
-    body: Array.from({ length: Math.max(paymentBreakdown.length, payoutBreakdown.length, 1) }).map((_, index) => [
-      paymentBreakdown[index]?.status ?? "",
-      paymentBreakdown[index]?.count ?? "",
-      paymentBreakdown[index] ? formatCurrencyValue(paymentBreakdown[index].amount) : "",
-      paymentBreakdown[index] ? `${paymentBreakdown[index].percentage.toFixed(1)}%` : "",
-      payoutBreakdown[index]?.status ?? "",
-      payoutBreakdown[index]?.count ?? "",
-      payoutBreakdown[index] ? formatCurrencyValue(payoutBreakdown[index].amount) : "",
-      payoutBreakdown[index] ? `${payoutBreakdown[index].percentage.toFixed(1)}%` : "",
+    head: [["Payment Status", "Transactions", "Amount", "Share"]],
+    body: paymentBreakdown.map((item) => [
+      item.status,
+      item.count,
+      formatCurrencyValue(item.amount),
+      `${item.percentage.toFixed(1)}%`,
     ]),
-    margin: { top: 34, left, right, bottom: 18 },
+    margin: {
+      top: 34,
+      left,
+      right: pageWidth - right,
+      bottom: 18,
+    },
+    tableWidth: contentWidth,
     styles: TABLE_BODY_STYLES,
     headStyles: TABLE_HEAD_STYLES_SECONDARY,
     alternateRowStyles: TABLE_ALTERNATE_ROW,
     bodyStyles: TABLE_BODY_ROW,
     columnStyles: {
-      0: { cellWidth: 34 },
-      1: { cellWidth: 25, halign: "center" },
-      2: { cellWidth: 35, halign: "right" },
-      3: { cellWidth: 24, halign: "center" },
-      4: { cellWidth: 34 },
-      5: { cellWidth: 25, halign: "center" },
-      6: { cellWidth: 35, halign: "right" },
-      7: { cellWidth: 24, halign: "center" },
+      0: { cellWidth: contentWidth * 0.34 },
+      1: { cellWidth: contentWidth * 0.18, halign: "center" },
+      2: { cellWidth: contentWidth * 0.28, halign: "right" },
+      3: { cellWidth: contentWidth * 0.20, halign: "center" },
     },
     didDrawPage: (data: { pageNumber: number }) => {
       if (data.pageNumber > 1) drawHeader(true);
     },
   });
 
-  cursorY = getLastAutoTableY(doc, cursorY) + 8;
+  cursorY = getLastAutoTableY(doc, cursorY) + 7;
+  cursorY = ensurePdfSectionSpace(doc, {
+    currentY: cursorY,
+    pageHeight,
+    minHeight: payouts.length > 0 ? 47 : 45,
+    topY: 35,
+    onNewPage: () => drawHeader(true),
+  });
+
+  drawSectionTitle(doc, {
+    title: "Driver Payout Status Breakdown",
+    y: cursorY,
+    left,
+    right,
+  });
+
+  if (payouts.length === 0) {
+    drawEmptyState(doc, {
+      y: cursorY + 4,
+      message: "No driver payout records are available for this period.",
+      sub: "Driver payout status activity will appear here when matching settlements are recorded.",
+      left,
+      contentWidth,
+      pageWidth,
+    });
+    cursorY += 46;
+  } else {
+    autoTable(doc, {
+      startY: cursorY + 3,
+      head: [["Payout Status", "Payouts", "Amount", "Share"]],
+      body: payoutBreakdown.map((item) => [
+        item.status,
+        item.count,
+        formatCurrencyValue(item.amount),
+        `${item.percentage.toFixed(1)}%`,
+      ]),
+      margin: {
+        top: 34,
+        left,
+        right: pageWidth - right,
+        bottom: 18,
+      },
+      tableWidth: contentWidth,
+      styles: TABLE_BODY_STYLES,
+      headStyles: TABLE_HEAD_STYLES_PRIMARY,
+      alternateRowStyles: TABLE_ALTERNATE_ROW,
+      bodyStyles: TABLE_BODY_ROW,
+      columnStyles: {
+        0: { cellWidth: contentWidth * 0.34 },
+        1: { cellWidth: contentWidth * 0.18, halign: "center" },
+        2: { cellWidth: contentWidth * 0.28, halign: "right" },
+        3: { cellWidth: contentWidth * 0.20, halign: "center" },
+      },
+      didDrawPage: (data: { pageNumber: number }) => {
+        if (data.pageNumber > 1) drawHeader(true);
+      },
+    });
+    cursorY = getLastAutoTableY(doc, cursorY) + 8;
+  }
+
   const hasAnalytics = analyticsModel.charts.some(hasReportAnalyticsChartData);
 
   if (hasAnalytics) {
@@ -222,7 +284,7 @@ export async function generateBillingRevenuePdf(
         formatDateTimeValue(payment.paidAt || payment.createdAt),
         formatDateTimeValue(payment.dueDate),
       ]),
-      margin: { top: 34, left, right, bottom: 18 },
+      margin: { top: 34, left, right: pageWidth - right, bottom: 18 },
       styles: { ...TABLE_BODY_STYLES, fontSize: 6.35, minCellHeight: 8.5 },
       headStyles: TABLE_HEAD_STYLES_PRIMARY,
       alternateRowStyles: TABLE_ALTERNATE_ROW,
@@ -245,26 +307,22 @@ export async function generateBillingRevenuePdf(
     });
   }
 
-  cursorY = getLastAutoTableY(doc, cursorY + 40) + 8;
-  cursorY = ensurePdfSectionSpace(doc, {
-    currentY: cursorY,
-    pageHeight,
-    minHeight: 76,
-    topY: 35,
-    onNewPage: () => drawHeader(true),
-  });
-  drawSectionTitle(doc, { title: "Driver Payouts", y: cursorY, left, right });
-
-  if (sortedPayouts.length === 0) {
-    drawEmptyState(doc, {
-      y: cursorY + 4,
-      message: "No driver payout records match the selected filters.",
-      sub: "Payout activity will appear here when matching settlements are available.",
-      left,
-      contentWidth,
-      pageWidth,
-    });
+  if (sortedPayments.length === 0) {
+    cursorY += 50;
   } else {
+    cursorY = getLastAutoTableY(doc, cursorY) + 8;
+  }
+
+  if (sortedPayouts.length > 0) {
+    cursorY = ensurePdfSectionSpace(doc, {
+      currentY: cursorY,
+      pageHeight,
+      minHeight: 76,
+      topY: 35,
+      onNewPage: () => drawHeader(true),
+    });
+    drawSectionTitle(doc, { title: "Driver Payouts", y: cursorY, left, right });
+
     autoTable(doc, {
       startY: cursorY + 3,
       showHead: "everyPage",
@@ -292,7 +350,7 @@ export async function generateBillingRevenuePdf(
         displayText(payout.failureReason),
         displayText(payout.notes),
       ]),
-      margin: { top: 34, left, right, bottom: 18 },
+      margin: { top: 34, left, right: pageWidth - right, bottom: 18 },
       styles: { ...TABLE_BODY_STYLES, fontSize: 6.35, minCellHeight: 8.5 },
       headStyles: TABLE_HEAD_STYLES_SECONDARY,
       alternateRowStyles: TABLE_ALTERNATE_ROW,

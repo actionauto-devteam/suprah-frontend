@@ -188,7 +188,7 @@ export async function generateLeadReportPdf(
             `${item.percentage.toFixed(1)}%`,
           ])
         : [["No breakdown data", 0, "0.0%"]],
-    margin: { top: 34, left, right, bottom: 18 },
+    margin: { top: 34, left, right: pageWidth - right, bottom: 18 },
     styles: TABLE_BODY_STYLES,
     headStyles: TABLE_HEAD_STYLES_SECONDARY,
     alternateRowStyles: TABLE_ALTERNATE_ROW,
@@ -275,7 +275,7 @@ export async function generateLeadReportPdf(
         formatDateValue(lead.createdAt),
         formatDateValue(lead.updatedAt),
       ]),
-      margin: { top: 34, left, right, bottom: 18 },
+      margin: { top: 34, left, right: pageWidth - right, bottom: 18 },
       styles: { ...TABLE_BODY_STYLES, fontSize: 6.35, minCellHeight: 8.5 },
       headStyles: { ...TABLE_HEAD_STYLES_PRIMARY, fontSize: 6.6 },
       alternateRowStyles: TABLE_ALTERNATE_ROW,

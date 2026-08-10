@@ -135,25 +135,41 @@ function drawDonut(context: CanvasRenderingContext2D, chart: ReportAnalyticsChar
   context.textAlign = "left";
 
   const legendX = 650;
-  const legendY = 145;
-  const rowHeight = 44;
-  data.slice(0, 7).forEach((item, index) => {
-    const y = legendY + index * rowHeight;
-    context.fillStyle = SUPRAH_ANALYTICS_COLORS[index % SUPRAH_ANALYTICS_COLORS.length];
+  const legendItems = data.slice(0, 8);
+  const legendTop = 138;
+  const legendBottom = CANVAS_HEIGHT - 48;
+  const availableLegendHeight = Math.max(1, legendBottom - legendTop);
+  const rowHeight =
+    legendItems.length > 1
+      ? Math.min(40, availableLegendHeight / (legendItems.length - 1))
+      : 40;
+
+  legendItems.forEach((item, index) => {
+    const y = legendTop + index * rowHeight;
+    context.fillStyle =
+      SUPRAH_ANALYTICS_COLORS[index % SUPRAH_ANALYTICS_COLORS.length];
     context.beginPath();
     context.arc(legendX, y, 8, 0, Math.PI * 2);
     context.fill();
 
     context.fillStyle = "#334155";
-    context.font = "600 22px Arial, Helvetica, sans-serif";
-    context.fillText(truncate(context, item.label, 460), legendX + 22, y + 7);
+    context.font = "600 21px Arial, Helvetica, sans-serif";
+    context.fillText(
+      truncate(context, item.label, 455),
+      legendX + 22,
+      y + 7,
+    );
 
     const value = Number(item.value || 0);
     const share = total > 0 ? (value / total) * 100 : 0;
     context.fillStyle = "#0F172A";
-    context.font = "700 22px Arial, Helvetica, sans-serif";
+    context.font = "700 21px Arial, Helvetica, sans-serif";
     context.textAlign = "right";
-    context.fillText(`${value.toLocaleString("en-US")} (${share.toFixed(1)}%)`, CANVAS_WIDTH - 92, y + 7);
+    context.fillText(
+      `${value.toLocaleString("en-US")} (${share.toFixed(1)}%)`,
+      CANVAS_WIDTH - 92,
+      y + 7,
+    );
     context.textAlign = "left";
   });
 }
