@@ -13,8 +13,11 @@ interface TransportationSidebarProps {
   setActiveTab: (tab: string) => void;
   selectedStatus: string;
   setSelectedStatus: (status: string) => void;
+  selectedQuoteStatus: string;
+  setSelectedQuoteStatus: (status: string) => void;
   stats: LoadStats;
   loadStats?: LoadStats;
+  quoteStats?: Record<string, number>;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
 }
@@ -30,6 +33,13 @@ const PIPELINE_STATUSES = [
 ] as const;
 
 const TERMINAL_STATUSES = ["Delivered", "Cancelled"] as const;
+
+const QUOTE_STATUSES = [
+  { key: "pending", label: "Pending" },
+  { key: "accepted", label: "Accepted" },
+  { key: "booked", label: "Booked" },
+  { key: "rejected", label: "Rejected" },
+] as const;
 
 const VIEWS = [
   { key: "shipments", label: "My Loads", icon: Truck },
@@ -83,6 +93,30 @@ const STATUS_THEME: Record<
     glow: "shadow-[0_0_8px_rgba(239,68,68,0.55)]",
     bar: "bg-red-500",
   },
+  pending: {
+    active: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30",
+    dot: "bg-amber-500",
+    glow: "shadow-[0_0_8px_rgba(245,158,11,0.55)]",
+    bar: "bg-amber-500",
+  },
+  accepted: {
+    active: "bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/30",
+    dot: "bg-violet-500",
+    glow: "shadow-[0_0_8px_rgba(139,92,246,0.55)]",
+    bar: "bg-violet-500",
+  },
+  booked: {
+    active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+    dot: "bg-emerald-500",
+    glow: "shadow-[0_0_8px_rgba(16,185,129,0.55)]",
+    bar: "bg-emerald-500",
+  },
+  rejected: {
+    active: "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/30",
+    dot: "bg-red-500",
+    glow: "shadow-[0_0_8px_rgba(239,68,68,0.55)]",
+    bar: "bg-red-500",
+  },
 };
 
 function SectionLabel({
@@ -93,7 +127,7 @@ function SectionLabel({
   children: React.ReactNode;
 }) {
   return (
-    <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5 select-none">
+    <p className="text-[10px] sm:text-[11px] font-black text-muted-foreground/70 uppercase tracking-[0.18em] mb-2 flex items-center gap-1.5 select-none">
       <Icon className="size-3" /> {children}
     </p>
   );
@@ -101,12 +135,14 @@ function SectionLabel({
 
 function StatusRow({
   status,
+  label,
   count,
   total,
   isActive,
   onSelect,
 }: {
   status: string;
+  label?: string;
   count: number;
   total: number;
   isActive: boolean;
@@ -147,10 +183,10 @@ function StatusRow({
               isActive && "font-semibold",
             )}
           >
-            {status}
+            {label ?? status}
           </span>
         </span>
-        <span className="text-muted-foreground font-mono text-[11px] tabular-nums shrink-0">
+        <span className="text-muted-foreground font-mono text-xs tabular-nums shrink-0">
           {count}
         </span>
       </span>
@@ -174,8 +210,11 @@ export function TransportationSidebar({
   setActiveTab,
   selectedStatus,
   setSelectedStatus,
+  selectedQuoteStatus,
+  setSelectedQuoteStatus,
   stats,
   loadStats,
+  quoteStats,
   isSidebarOpen,
   setIsSidebarOpen,
 }: TransportationSidebarProps) {
@@ -187,9 +226,15 @@ export function TransportationSidebar({
   ) as unknown as Record<string, number | undefined>;
 
   const total = Number(currentStats.all ?? 0);
+  const quoteTotal = Number(quoteStats?.all ?? 0);
 
   const selectStatus = (status: string) => {
     setSelectedStatus(status);
+    setIsSidebarOpen(false);
+  };
+
+  const selectQuoteStatus = (status: string) => {
+    setSelectedQuoteStatus(status);
     setIsSidebarOpen(false);
   };
 
@@ -219,13 +264,13 @@ export function TransportationSidebar({
         // Mobile: fixed drawer, dynamic-viewport height so iOS/Android browser
         // chrome doesn't hide the footer. Desktop: sticky column that stays in
         // view while long load lists scroll.
-        "fixed lg:sticky inset-y-0 lg:inset-y-auto lg:top-0 left-0 z-50",
-        "h-dvh lg:h-dvh lg:self-start shrink-0",
-        "w-[280px] sm:w-80 lg:w-64 xl:w-72",
+        "fixed xl:sticky inset-y-0 xl:inset-y-auto xl:top-0 left-0 z-50",
+        "h-dvh xl:h-dvh xl:self-start shrink-0",
+        "w-[280px] sm:w-80 xl:w-64 2xl:w-72",
         "flex flex-col",
         "bg-card/40 backdrop-blur-md border-r border-border/60",
         "transform transition-transform duration-300 ease-in-out",
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
     >
       {/* ── Header ── */}
@@ -240,14 +285,14 @@ export function TransportationSidebar({
               <p className="text-sm font-black tracking-tight text-foreground leading-none">
                 Transport
               </p>
-              <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mt-1">
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-[0.18em] mt-1">
                 Dispatch Console
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="xl:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close sidebar"
           >
             <X className="size-4" />
@@ -280,7 +325,7 @@ export function TransportationSidebar({
                 )}
               >
                 <Icon className="size-3.5" />
-                <span className="text-[9px] font-black uppercase tracking-wider leading-none">
+                <span className="text-[10px] font-black uppercase tracking-wider leading-none">
                   {label}
                 </span>
               </button>
@@ -288,6 +333,64 @@ export function TransportationSidebar({
           })}
         </div>
 
+        {activeTab === "drafts" ? (
+          <>
+            <div>
+              <SectionLabel icon={Gauge}>Overview</SectionLabel>
+              <button
+                onClick={() => selectQuoteStatus("all")}
+                aria-pressed={selectedQuoteStatus === "all"}
+                className={cn(
+                  "w-full text-left rounded-xl border p-3 transition-colors relative overflow-hidden",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
+                  selectedQuoteStatus === "all"
+                    ? "border-emerald-500/40 bg-linear-to-br from-emerald-500/10 to-cyan-500/10"
+                    : "border-border/60 bg-background/40 hover:border-emerald-500/25",
+                )}
+              >
+                <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
+                <span className="flex items-end justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                      Total Quotes
+                    </span>
+                    <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
+                      {quoteTotal}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                      selectedQuoteStatus === "all"
+                        ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                        : "border-border/60 text-muted-foreground",
+                    )}
+                  >
+                    {selectedQuoteStatus === "all" ? "Showing All" : "Show All"}
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div>
+              <SectionLabel icon={Radio}>Quote Status</SectionLabel>
+              <div className="space-y-1">
+                {QUOTE_STATUSES.map(({ key, label }) => (
+                  <StatusRow
+                    key={key}
+                    status={key}
+                    label={label}
+                    count={Number(quoteStats?.[key] ?? 0)}
+                    total={quoteTotal}
+                    isActive={selectedQuoteStatus === key}
+                    onSelect={() => selectQuoteStatus(key)}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         {/* Overview: total loads, doubles as "Show All" */}
         <div>
           <SectionLabel icon={Gauge}>Overview</SectionLabel>
@@ -305,8 +408,8 @@ export function TransportationSidebar({
             <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
             <span className="flex items-end justify-between gap-2">
               <span className="min-w-0">
-                <span className="block text-[9px] font-black text-muted-foreground/70 uppercase tracking-[0.2em]">
-                  Total Loads
+                <span className="block text-[10px] font-black text-muted-foreground/80 uppercase tracking-[0.18em]">
+                  {activeTab === "load-board" ? "Total Vehicles" : "Total Loads"}
                 </span>
                 <span className="block text-2xl font-black tracking-tight font-mono tabular-nums text-foreground leading-none mt-1">
                   {total}
@@ -314,7 +417,7 @@ export function TransportationSidebar({
               </span>
               <span
                 className={cn(
-                  "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
+                  "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0",
                   selectedStatus === "all"
                     ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                     : "border-border/60 text-muted-foreground",
@@ -359,6 +462,8 @@ export function TransportationSidebar({
             ))}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Pinned footer: support ── */}

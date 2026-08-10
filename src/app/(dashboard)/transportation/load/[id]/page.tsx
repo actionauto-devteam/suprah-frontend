@@ -357,14 +357,29 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
 export default function LoadDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  const id = params?.id as string
+  const rawId = params?.id
+  const id = Array.isArray(rawId) ? rawId[0] : rawId
   const [isPrinting, setIsPrinting] = React.useState(false)
 
-  const { data: load, isLoading, isError } = useQuery({
-    queryKey: ["load", id],
-    queryFn: () => getLoadById(id),
-    enabled: !!id,
+  const {
+    data: load,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    // Use a detail-specific cache namespace so no list/edit query can seed
+    // this screen with a different record.
+    queryKey: ["transportation-load-detail", id],
+    queryFn: ({ signal }) => {
+      if (!id) throw new Error("Load ID is missing")
+      return getLoadById(id, { signal })
+    },
+    enabled: typeof id === "string" && id.length > 0,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const handlePrintBol = () => {
@@ -414,8 +429,12 @@ export default function LoadDetailsPage() {
       <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
         <AlertCircle className="size-12 text-destructive opacity-80" />
         <h2 className="text-xl font-semibold">Load Not Found</h2>
-        <p className="text-muted-foreground text-sm">We could not find the details for this load. It may have been deleted.</p>
-        <Button variant="outline" onClick={() => router.push("/transportation")}>Back to Transportation</Button>
+        <p className="text-muted-foreground text-sm text-center max-w-lg">
+          {error instanceof Error
+            ? error.message
+            : "We could not find the details for this load. It may have been deleted."}
+        </p>
+        <Button variant="outline" onClick={() => router.replace("/transportation")}>Back to Transportation</Button>
       </div>
     )
   }
@@ -440,12 +459,21 @@ export default function LoadDetailsPage() {
   }
 
   return (
-    <div className="container mx-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in zoom-in-[0.98] duration-300">
+    <div
+      key={id}
+      data-load-id={id}
+      className="container mx-auto p-3 sm:p-4 md:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in zoom-in-[0.98] duration-300"
+    >
 
       {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div className="space-y-1 min-w-0">
-          <Button variant="ghost" size="sm" className="pl-0 text-muted-foreground hover:text-foreground mb-2 -ml-1" onClick={() => router.back()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="pl-0 text-muted-foreground hover:text-foreground mb-2 -ml-1"
+            onClick={() => router.replace("/transportation")}
+          >
             <ArrowLeft className="size-4 mr-2" /> Back to Loads
           </Button>
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap">

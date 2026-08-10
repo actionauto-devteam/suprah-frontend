@@ -1,0 +1,107 @@
+.scope {
+  min-width: 0;
+
+  /* Local-only values used by the rules below. */
+  --transport-border-soft: oklch(0.84 0.018 238.46);
+  --transport-border-medium: oklch(0.78 0.022 238.46);
+  --transport-border-strong: oklch(0.70 0.026 238.46);
+  --transport-input-border: oklch(0.76 0.024 238.46);
+  --transport-divider: oklch(0.80 0.020 238.46);
+}
+
+/* Balanced dark-mode contrast: visible, but not bright outlines everywhere. */
+:global(.dark) .scope {
+  --transport-border-soft: oklch(0.94 0.008 238.46 / 20%);
+  --transport-border-medium: oklch(0.94 0.008 238.46 / 28%);
+  --transport-border-strong: oklch(0.96 0.006 238.46 / 38%);
+  --transport-input-border: oklch(0.95 0.008 238.46 / 32%);
+  --transport-divider: oklch(0.95 0.008 238.46 / 26%);
+}
+
+/*
+ * FORM CONTROLS
+ * Create/Edit Load inputs were especially hard to distinguish from their
+ * surrounding panels. Only actual form controls inside Transportation are
+ * strengthened.
+ */
+.scope
+  :global(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
+  ),
+.scope :global(textarea),
+.scope :global(select),
+.scope :global([role="combobox"]) {
+  border-color: var(--transport-input-border) !important;
+}
+
+.scope
+  :global(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
+  ):hover:not(:disabled),
+.scope :global(textarea):hover:not(:disabled),
+.scope :global(select):hover:not(:disabled),
+.scope :global([role="combobox"]):hover:not([aria-disabled="true"]) {
+  border-color: var(--transport-border-strong) !important;
+}
+
+/*
+ * NEUTRAL CARDS / INFORMATION TILES
+ * Only neutral border-border utilities are strengthened. Colored status
+ * chips and accent borders keep their original component-specific styling.
+ */
+.scope :global([class*="border-border/30"]),
+.scope :global([class*="border-border/40"]),
+.scope :global([class*="border-border/50"]) {
+  border-color: var(--transport-border-soft) !important;
+}
+
+.scope :global([class*="border-border/60"]),
+.scope :global([class*="border-border/70"]) {
+  border-color: var(--transport-border-medium) !important;
+}
+
+/* Exact neutral border-border cards / panels. */
+.scope :global([class~="border-border"]) {
+  border-color: var(--transport-border-medium) !important;
+}
+
+/*
+ * BUTTONS
+ * Strengthen only neutral outline-style controls. Status pills, primary
+ * green CTAs, destructive buttons, and colored filter badges are untouched.
+ */
+.scope :global(button[class*="border-border"]),
+.scope :global([role="button"][class*="border-border"]),
+.scope :global(button[class*="border-input"]),
+.scope :global([role="button"][class*="border-input"]) {
+  border-color: var(--transport-border-strong) !important;
+}
+
+/*
+ * SEPARATORS / PROGRESS RAILS
+ * Improve neutral divider lines without touching emerald/violet/amber status
+ * colors or active journey segments.
+ */
+.scope :global([class*="bg-border"]) {
+  background-color: var(--transport-divider) !important;
+}
+
+.scope :global(hr),
+.scope :global([role="separator"]) {
+  border-color: var(--transport-divider) !important;
+}
+
+/*
+ * Disabled form controls stay bounded, but remain visually disabled.
+ */
+.scope :global(input:disabled),
+.scope :global(textarea:disabled),
+.scope :global(select:disabled),
+.scope :global(button[class*="border-input"]:disabled),
+.scope :global(button[class*="border-border"]:disabled) {
+  border-color: color-mix(
+    in oklab,
+    var(--transport-border-medium) 68%,
+    transparent
+  ) !important;
+}

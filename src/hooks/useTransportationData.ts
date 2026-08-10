@@ -20,8 +20,12 @@ export interface TransportationPagination {
 export const PER_PAGE_OPTIONS = [3, 5, 7] as const;
 export type PerPageOption = (typeof PER_PAGE_OPTIONS)[number];
 
+type TransportationView = "shipments" | "drafts" | "load-board";
+
 interface TransportationFilters {
   shipmentStatus?: string;
+  quoteStatus?: string;
+  activeView?: string;
 }
 
 const LOADS_LIMIT_STORAGE_KEY = "transportation:loads:limit";
@@ -83,7 +87,12 @@ function extractPaginatedItems<T>(
 
 export function useTransportationData(filters: TransportationFilters = {}) {
   const shipmentStatus = filters.shipmentStatus || "all";
-  const [isLoading, setIsLoading] = React.useState(true);
+  const quoteStatus = filters.quoteStatus || "all";
+  const activeView: TransportationView =
+    filters.activeView === "drafts" || filters.activeView === "load-board"
+      ? filters.activeView
+      : "shipments";
+  const [isLoading, setIsLoading] = React.useState(activeView !== "load-board");
   const [isSilentRefreshing, setIsSilentRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -112,6 +121,13 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     Delivered: 0,
     Cancelled: 0,
   });
+  const [quoteStats, setQuoteStats] = React.useState<Record<string, number>>({
+    all: 0,
+    pending: 0,
+    accepted: 0,
+    booked: 0,
+    rejected: 0,
+  });
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const [hasNewEntries, setHasNewEntries] = React.useState(false);
   const [deletingLoadId, setDeletingLoadId] = React.useState<string | null>(
@@ -124,8 +140,24 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   const loadsPageRef = React.useRef(loadsPage);
   const loadsLimitRef = React.useRef(loadsLimit);
   const shipmentStatusRef = React.useRef(shipmentStatus);
+  const quoteStatusRef = React.useRef(quoteStatus);
+  const activeViewRef = React.useRef<TransportationView>(activeView);
   const quotesPageRef = React.useRef(quotesPage);
   const quotesLimitRef = React.useRef(quotesLimit);
+  const loadsRequestIdRef = React.useRef(0);
+  const quotesRequestIdRef = React.useRef(0);
+  const hasLoadedLoadsRef = React.useRef(false);
+  const hasLoadedQuotesRef = React.useRef(false);
+  const loadSnapshotRef = React.useRef<{
+    items: Load[];
+    complete: boolean;
+    total: number;
+  } | null>(null);
+  const quoteSnapshotRef = React.useRef<{
+    items: Quote[];
+    complete: boolean;
+    total: number;
+  } | null>(null);
 
   React.useEffect(() => {
     loadsPageRef.current = loadsPage;
@@ -144,6 +176,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   React.useEffect(() => {
     shipmentStatusRef.current = shipmentStatus;
   }, [shipmentStatus]);
+  React.useEffect(() => {
+    quoteStatusRef.current = quoteStatus;
+  }, [quoteStatus]);
+  React.useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
   React.useEffect(() => {
     quotesPageRef.current = quotesPage;
   }, [quotesPage]);
@@ -205,6 +243,80 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     return { headers: { Authorization: `Bearer ${token}` } };
   }, [getToken]);
 
+  const paginateItems = React.useCallback(
+    <T,>(items: T[], page: number, limit: number) => {
+      const total = items.length;
+      const totalPages = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+      const boundedPage = Math.max(1, Math.min(page, totalPages));
+      const start = (boundedPage - 1) * limit;
+      return {
+        items: items.slice(start, start + limit),
+        pagination: {
+          page: boundedPage,
+          limit,
+          total,
+          totalPages,
+          hasMore: boundedPage < totalPages,
+        } satisfies TransportationPagination,
+      };
+    },
+    [],
+  );
+
+  const getLoadSnapshotItems = React.useCallback(
+    (status: string) => {
+      const snapshot = loadSnapshotRef.current;
+      if (!snapshot?.complete) return null;
+      return status && status !== "all"
+        ? snapshot.items.filter((load) => load.status === status)
+        : snapshot.items;
+    },
+    [],
+  );
+
+  const getQuoteSnapshotItems = React.useCallback(
+    (status: string) => {
+      const snapshot = quoteSnapshotRef.current;
+      if (!snapshot?.complete) return null;
+      return status && status !== "all"
+        ? snapshot.items.filter(
+            (quote) => String(quote.status).toLowerCase() === status.toLowerCase(),
+          )
+        : snapshot.items;
+    },
+    [],
+  );
+
+  const applyLoadSnapshot = React.useCallback(
+    (status: string, page: number, limit: number) => {
+      const matching = getLoadSnapshotItems(status);
+      if (!matching) return false;
+      const next = paginateItems(matching, page, limit);
+      setLoads(next.items);
+      setLoadsPagination(next.pagination);
+      setLoadsPage(next.pagination.page);
+      loadsPageRef.current = next.pagination.page;
+      hasLoadedLoadsRef.current = true;
+      return true;
+    },
+    [getLoadSnapshotItems, paginateItems],
+  );
+
+  const applyQuoteSnapshot = React.useCallback(
+    (status: string, page: number, limit: number) => {
+      const matching = getQuoteSnapshotItems(status);
+      if (!matching) return false;
+      const next = paginateItems(matching, page, limit);
+      setQuotes(next.items);
+      setQuotesPagination(next.pagination);
+      setQuotesPage(next.pagination.page);
+      quotesPageRef.current = next.pagination.page;
+      hasLoadedQuotesRef.current = true;
+      return true;
+    },
+    [getQuoteSnapshotItems, paginateItems],
+  );
+
   // ── Fetch shipments (specific page+limit, no loading state) ───────────────
 
   const fetchLoads = React.useCallback(
@@ -213,13 +325,19 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       limit: number,
       status: string = shipmentStatusRef.current,
     ) => {
+      const requestId = ++loadsRequestIdRef.current;
       const config = await getAuthConfig();
       if (!config) return;
       const params: Record<string, string | number> = { page, limit };
       if (status && status !== "all") {
         params.status = status;
       }
-      const res = await apiClient.get("/api/loads", { ...config, params });
+      const res = await apiClient.get("/api/loads", {
+        ...config,
+        params,
+        timeout: 15_000,
+      });
+      if (requestId !== loadsRequestIdRef.current) return;
       const raw = res.data?.data ?? res.data;
       const { items, pagination } = extractPaginatedItems<Load>(
         raw,
@@ -227,6 +345,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       );
       setLoads(items);
       setLoadsPagination(pagination);
+      hasLoadedLoadsRef.current = true;
     },
     [getAuthConfig],
   );
@@ -234,20 +353,100 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   // ── Fetch quotes (specific page+limit, no loading state) ──────────────────
 
   const fetchQuotes = React.useCallback(
-    async (page: number, limit: number) => {
+    async (
+      page: number,
+      limit: number,
+      status: string = quoteStatusRef.current,
+    ) => {
+      const requestId = ++quotesRequestIdRef.current;
       const config = await getAuthConfig();
       if (!config) return;
       const res = await apiClient.get("/api/quotes", {
         ...config,
-        params: { page, limit },
+        params: {
+          page,
+          limit,
+          ...(status && status !== "all" ? { status } : {}),
+        },
+        timeout: 15_000,
       });
+      if (requestId !== quotesRequestIdRef.current) return;
       const raw = res.data?.data ?? res.data;
       const { items, pagination } = extractPaginatedItems<Quote>(raw, "quotes");
       setQuotes(items);
       setQuotesPagination(pagination);
+      hasLoadedQuotesRef.current = true;
     },
     [getAuthConfig],
   );
+
+  const refreshLoadSnapshot = React.useCallback(async () => {
+    try {
+      const config = await getAuthConfig();
+      if (!config) return false;
+
+      const res = await apiClient.get("/api/loads", {
+        ...config,
+        params: { page: 1, limit: 100 },
+        timeout: 15_000,
+      });
+
+      const raw = res.data?.data ?? res.data;
+      const { items, pagination } = extractPaginatedItems<Load>(raw, "loads");
+      const total = Number(pagination?.total ?? items.length);
+      loadSnapshotRef.current = {
+        items,
+        total,
+        complete: total <= items.length,
+      };
+
+      return loadSnapshotRef.current.complete;
+    } catch {
+      return false;
+    }
+  }, [getAuthConfig]);
+
+  const refreshQuoteSnapshot = React.useCallback(async () => {
+    try {
+      const config = await getAuthConfig();
+      if (!config) return false;
+
+      const res = await apiClient.get("/api/quotes", {
+        ...config,
+        params: { page: 1, limit: 100 },
+        timeout: 15_000,
+      });
+
+      const raw = res.data?.data ?? res.data;
+      const { items, pagination } = extractPaginatedItems<Quote>(raw, "quotes");
+      const total = Number(pagination?.total ?? items.length);
+      quoteSnapshotRef.current = {
+        items,
+        total,
+        complete: total <= items.length,
+      };
+
+      const nextQuoteStats: Record<string, number> = {
+        all: total,
+        pending: 0,
+        accepted: 0,
+        booked: 0,
+        rejected: 0,
+      };
+
+      for (const quote of items) {
+        const status = String(quote.status || "").toLowerCase();
+        if (status in nextQuoteStats) {
+          nextQuoteStats[status] += 1;
+        }
+      }
+
+      setQuoteStats(nextQuoteStats);
+      return quoteSnapshotRef.current.complete;
+    } catch {
+      return false;
+    }
+  }, [getAuthConfig]);
 
   // ── Fetch stats (silent) ───────────────────────────────────────────────────
 
@@ -255,7 +454,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     try {
       const config = await getAuthConfig();
       if (!config) return;
-      const res = await apiClient.get("/api/loads/stats", config);
+      const res = await apiClient.get("/api/loads/stats", { ...config, timeout: 10_000 });
       const data = res.data?.data ?? res.data;
       if (data && typeof data === "object") setStats(data);
     } catch {
@@ -263,94 +462,108 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     }
   }, [getAuthConfig]);
 
+  const refreshVehicles = React.useCallback(async () => {
+    try {
+      const config = await getAuthConfig();
+      if (!config) return;
+      const res = await apiClient.get("/api/vehicles", {
+        ...config,
+        params: { status: "all", page: 1, limit: 1000 },
+        timeout: 15_000,
+      });
+      const vehiclesResponse = res.data?.data ?? res.data;
+      const vehicleData = vehiclesResponse?.vehicles || vehiclesResponse || [];
+      setVehicles(transformVehicles(vehicleData));
+    } catch {
+      // Vehicle inventory is secondary to the active Transportation list.
+      // Keep the last known vehicle data instead of blocking the page.
+    }
+  }, [getAuthConfig, transformVehicles]);
+
   // ── Core fetch (initial + full refresh) ───────────────────────────────────
 
   const fetchData = React.useCallback(
     async (options?: { silent?: boolean }) => {
       const silent = options?.silent ?? false;
+      const view = activeViewRef.current;
+
       if (!isSignedIn) {
         if (silent) setIsSilentRefreshing(false);
         else setIsLoading(false);
-        setError(isLoaded ? "Please sign in to view transportation records." : null);
+        setError(
+          isLoaded ? "Please sign in to view transportation records." : null,
+        );
         return;
       }
 
-      if (silent) setIsSilentRefreshing(true);
-      else setIsLoading(true);
+      if (silent) {
+        setIsSilentRefreshing(true);
+      } else {
+        setIsLoading(view !== "load-board");
+      }
       setError(null);
 
       try {
-        const config = await getAuthConfig();
-        if (!config) {
-          throw new Error("Authentication is required to load transportation records.");
-        }
+        // Warm both datasets concurrently. The active tab awaits only its own
+        // snapshot, while the inactive tab is already being prepared in memory.
+        const loadSnapshotPromise = loadSnapshotRef.current?.complete
+          ? Promise.resolve(true)
+          : refreshLoadSnapshot();
+        const quoteSnapshotPromise = quoteSnapshotRef.current?.complete
+          ? Promise.resolve(true)
+          : refreshQuoteSnapshot();
 
-        const [loadsResult, quotesResult, vehiclesResult, statsResult] =
-          await Promise.allSettled([
-            apiClient.get("/api/loads", {
-              ...config,
-              params: {
-                page: loadsPageRef.current,
-                limit: loadsLimitRef.current,
-                ...(shipmentStatusRef.current !== "all"
-                  ? { status: shipmentStatusRef.current }
-                  : {}),
-              },
-            }),
-            apiClient.get("/api/quotes", {
-              ...config,
-              params: {
-                page: quotesPageRef.current,
-                limit: quotesLimitRef.current,
-              },
-            }),
-            apiClient.get("/api/vehicles", {
-              ...config,
-              params: { status: "all", page: 1, limit: 1000 },
-            }),
-            apiClient.get("/api/loads/stats", config),
-          ]);
+        if (view === "shipments") {
+          const snapshotReady = await loadSnapshotPromise;
 
-        if (loadsResult.status === "rejected" && quotesResult.status === "rejected") {
-          throw loadsResult.reason || quotesResult.reason || new Error("Failed to load transportation data");
-        }
+          if (snapshotReady) {
+            applyLoadSnapshot(
+              shipmentStatusRef.current,
+              loadsPageRef.current,
+              loadsLimitRef.current,
+            );
+          } else {
+            await fetchLoads(
+              loadsPageRef.current,
+              loadsLimitRef.current,
+              shipmentStatusRef.current,
+            );
+          }
 
-        const rawLoads =
-          loadsResult.status === "fulfilled"
-            ? loadsResult.value.data?.data ?? loadsResult.value.data
-            : [];
-        const rawQuotes =
-          quotesResult.status === "fulfilled"
-            ? quotesResult.value.data?.data ?? quotesResult.value.data
-            : [];
+          void quoteSnapshotPromise;
+        } else if (view === "drafts") {
+          const snapshotReady = await quoteSnapshotPromise;
 
-        const { items: loadsData, pagination: loadsPag } =
-          extractPaginatedItems<Load>(rawLoads, "loads");
-        const { items: quotesData, pagination: quotesPag } =
-          extractPaginatedItems<Quote>(rawQuotes, "quotes");
+          if (snapshotReady) {
+            applyQuoteSnapshot(
+              quoteStatusRef.current,
+              quotesPageRef.current,
+              quotesLimitRef.current,
+            );
+          } else {
+            await fetchQuotes(
+              quotesPageRef.current,
+              quotesLimitRef.current,
+              quoteStatusRef.current,
+            );
+          }
 
-        setLoads(loadsData);
-        setLoadsPagination(loadsPag);
-        setQuotes(quotesData);
-        setQuotesPagination(quotesPag);
-
-        if (vehiclesResult.status === "fulfilled") {
-          const vehiclesResponse =
-            vehiclesResult.value.data?.data ?? vehiclesResult.value.data;
-          const vehicleData =
-            vehiclesResponse?.vehicles || vehiclesResponse || [];
-          setVehicles(transformVehicles(vehicleData));
-        } else if (!silent) {
-          setVehicles([]);
-        }
-
-        if (statsResult.status === "fulfilled") {
-          const statsData = statsResult.value.data?.data ?? statsResult.value.data;
-          if (statsData && typeof statsData === "object") setStats(statsData);
+          void loadSnapshotPromise;
+        } else {
+          // Board has its own hook, but prewarming both private datasets makes
+          // later My Loads/Quotes tab switches immediate as well.
+          void loadSnapshotPromise;
+          void quoteSnapshotPromise;
         }
 
         setLastUpdated(new Date());
         isInitializedRef.current = true;
+
+        // Secondary data never blocks the active result list.
+        void refreshStats();
+        if (!silent) {
+          void refreshVehicles();
+        }
       } catch (err) {
         const axiosError = err as AxiosError;
         const msg =
@@ -358,17 +571,24 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           axiosError.message ||
           "Failed to load data";
         setError(msg);
-        if (!silent) {
-          setLoads([]);
-          setQuotes([]);
-          setVehicles([]);
-        }
       } finally {
+        isInitializedRef.current = true;
         if (silent) setIsSilentRefreshing(false);
         else setIsLoading(false);
       }
     },
-    [getAuthConfig, transformVehicles, isSignedIn],
+    [
+      applyLoadSnapshot,
+      applyQuoteSnapshot,
+      fetchLoads,
+      fetchQuotes,
+      isLoaded,
+      isSignedIn,
+      refreshLoadSnapshot,
+      refreshQuoteSnapshot,
+      refreshStats,
+      refreshVehicles,
+    ],
   );
 
   // ── Initial fetch ──────────────────────────────────────────────────────────
@@ -384,19 +604,86 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn]);
 
-  React.useEffect(() => {
-    if (!isLoaded || !isSignedIn || !isInitializedRef.current) return;
-    setLoadsPage(1);
-    fetchLoads(1, loadsLimitRef.current, shipmentStatus).catch(
-      () => { },
-    );
-  }, [shipmentStatus, isLoaded, isSignedIn, fetchLoads]);
+  // Status changes are applied from the warm snapshot before paint. If the
+  // organization has more than 100 records, fall back to a silent server
+  // request without showing a temporary empty/loading notice.
+  React.useLayoutEffect(() => {
+    if (
+      activeView !== "shipments" ||
+      !isLoaded ||
+      !isSignedIn ||
+      !isInitializedRef.current
+    ) {
+      return;
+    }
+
+    if (applyLoadSnapshot(shipmentStatus, 1, loadsLimitRef.current)) {
+      setIsLoading(false);
+      return;
+    }
+
+    // This only occurs on a first visit before the warm snapshot is ready, or
+    // for very large datasets where the 100-record snapshot is incomplete.
+    // Never show a false empty state; retain existing cards when possible.
+    const showInitialSkeleton = !hasLoadedLoadsRef.current;
+    if (showInitialSkeleton) setIsLoading(true);
+
+    void fetchLoads(1, loadsLimitRef.current, shipmentStatus)
+      .catch(() => { })
+      .finally(() => {
+        if (activeViewRef.current === "shipments") {
+          setIsLoading(false);
+        }
+      });
+  }, [
+    activeView,
+    shipmentStatus,
+    isLoaded,
+    isSignedIn,
+    applyLoadSnapshot,
+    fetchLoads,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (
+      activeView !== "drafts" ||
+      !isLoaded ||
+      !isSignedIn ||
+      !isInitializedRef.current
+    ) {
+      return;
+    }
+
+    if (applyQuoteSnapshot(quoteStatus, 1, quotesLimitRef.current)) {
+      setIsLoading(false);
+      return;
+    }
+
+    const showInitialSkeleton = !hasLoadedQuotesRef.current;
+    if (showInitialSkeleton) setIsLoading(true);
+
+    void fetchQuotes(1, quotesLimitRef.current, quoteStatus)
+      .catch(() => { })
+      .finally(() => {
+        if (activeViewRef.current === "drafts") {
+          setIsLoading(false);
+        }
+      });
+  }, [
+    activeView,
+    quoteStatus,
+    isLoaded,
+    isSignedIn,
+    applyQuoteSnapshot,
+    fetchQuotes,
+  ]);
 
   // ── Socket realtime ────────────────────────────────────────────────────────
 
   React.useEffect(() => {
     if (!isSignedIn) return;
     let cancelled = false;
+    let cleanup: (() => void) | undefined;
 
     const connectSocket = async () => {
       try {
@@ -404,55 +691,86 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         if (cancelled || !token) return;
         const sock = initializeSocket(token);
 
-        sock.on("load:change", () => {
+        const handleLoadChange = () => {
           if (cancelled) return;
-          setIsSilentRefreshing(true);
-          Promise.all([
-            fetchLoads(
-              loadsPageRef.current,
-              loadsLimitRef.current,
-              shipmentStatusRef.current,
-            ),
+
+          void Promise.all([
+            refreshLoadSnapshot(),
             refreshStats(),
           ])
+            .then(([snapshotComplete]) => {
+              if (
+                !cancelled &&
+                snapshotComplete &&
+                activeViewRef.current === "shipments"
+              ) {
+                applyLoadSnapshot(
+                  shipmentStatusRef.current,
+                  loadsPageRef.current,
+                  loadsLimitRef.current,
+                );
+              }
+            })
             .catch(() => { })
             .finally(() => {
-              if (!cancelled) setIsSilentRefreshing(false);
-              setLastUpdated(new Date());
-              setHasNewEntries(true);
+              if (!cancelled) {
+                setLastUpdated(new Date());
+                setHasNewEntries(true);
+              }
             });
-        });
+        };
 
-        sock.on("quote:change", () => {
+        const handleQuoteChange = () => {
           if (cancelled) return;
-          setIsSilentRefreshing(true);
-          fetchQuotes(quotesPageRef.current, quotesLimitRef.current)
+
+          void refreshQuoteSnapshot()
+            .then((snapshotComplete) => {
+              if (
+                !cancelled &&
+                snapshotComplete &&
+                activeViewRef.current === "drafts"
+              ) {
+                applyQuoteSnapshot(
+                  quoteStatusRef.current,
+                  quotesPageRef.current,
+                  quotesLimitRef.current,
+                );
+              }
+            })
             .catch(() => { })
             .finally(() => {
-              if (!cancelled) setIsSilentRefreshing(false);
-              setLastUpdated(new Date());
-              setHasNewEntries(true);
+              if (!cancelled) {
+                setLastUpdated(new Date());
+                setHasNewEntries(true);
+              }
             });
-        });
+        };
+
+        sock.on("load:change", handleLoadChange);
+        sock.on("quote:change", handleQuoteChange);
+
+        cleanup = () => {
+          sock.off("load:change", handleLoadChange);
+          sock.off("quote:change", handleQuoteChange);
+        };
       } catch { }
     };
 
-    connectSocket();
+    void connectSocket();
 
     return () => {
       cancelled = true;
-      const { getSocket } = require("@/lib/socket.client");
-      const sock = getSocket();
-      if (sock) {
-        // BUG FIX: cleanup previously called sock.off("shipment:change") — a
-        // stale event name from the pre-migration era — so "load:change"
-        // handlers leaked across remounts and fired with stale closures.
-        sock.off("load:change");
-        sock.off("quote:change");
-      }
+      cleanup?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn]);
+  }, [
+    isSignedIn,
+    getToken,
+    applyLoadSnapshot,
+    applyQuoteSnapshot,
+    refreshLoadSnapshot,
+    refreshQuoteSnapshot,
+    refreshStats,
+  ]);
 
   const dismissNewEntries = React.useCallback(
     () => setHasNewEntries(false),
@@ -463,46 +781,92 @@ export function useTransportationData(filters: TransportationFilters = {}) {
 
   const changeLoadsPage = React.useCallback(
     async (page: number) => {
-      setLoadsPage(page);
+      setError(null);
+      if (applyLoadSnapshot(shipmentStatusRef.current, page, loadsLimitRef.current)) {
+        return;
+      }
+
       try {
         await fetchLoads(page, loadsLimitRef.current);
-      } catch { }
+        setLoadsPage(page);
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Failed to load the selected shipments page",
+        );
+      }
     },
-    [fetchLoads],
+    [applyLoadSnapshot, fetchLoads],
   );
 
   const changeLoadsLimit = React.useCallback(
     async (limit: PerPageOption) => {
-      setLoadsPage(1);
-      setLoadsLimit(limit);
+      setError(null);
       loadsLimitRef.current = limit;
+      setLoadsLimit(limit);
+
+      if (applyLoadSnapshot(shipmentStatusRef.current, 1, limit)) {
+        return;
+      }
+
       try {
         await fetchLoads(1, limit);
-      } catch { }
+        setLoadsPage(1);
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Failed to update shipment page size",
+        );
+      }
     },
-    [fetchLoads],
+    [applyLoadSnapshot, fetchLoads],
   );
 
   const changeQuotesPage = React.useCallback(
     async (page: number) => {
-      setQuotesPage(page);
+      setError(null);
+      if (applyQuoteSnapshot(quoteStatusRef.current, page, quotesLimitRef.current)) {
+        return;
+      }
+
       try {
         await fetchQuotes(page, quotesLimitRef.current);
-      } catch { }
+        setQuotesPage(page);
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Failed to load the selected quotes page",
+        );
+      }
     },
-    [fetchQuotes],
+    [applyQuoteSnapshot, fetchQuotes],
   );
 
   const changeQuotesLimit = React.useCallback(
     async (limit: PerPageOption) => {
-      setQuotesPage(1);
-      setQuotesLimit(limit);
+      setError(null);
       quotesLimitRef.current = limit;
+      setQuotesLimit(limit);
+
+      if (applyQuoteSnapshot(quoteStatusRef.current, 1, limit)) {
+        return;
+      }
+
       try {
         await fetchQuotes(1, limit);
-      } catch { }
+        setQuotesPage(1);
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Failed to update quote page size",
+        );
+      }
     },
-    [fetchQuotes],
+    [applyQuoteSnapshot, fetchQuotes],
   );
 
   // ── Mutation handlers ──────────────────────────────────────────────────────
@@ -561,8 +925,41 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     async (quoteId: string) => {
       try {
         const config = await getAuthConfig();
-        await apiClient.post(`/api/quotes/${quoteId}/convert-to-load`, {}, config ?? undefined);
-        setQuotes((prev) => prev.filter((q) => q._id !== quoteId));
+        await apiClient.post(
+          `/api/quotes/${quoteId}/convert-to-load`,
+          {},
+          config ?? undefined,
+        );
+
+        // Keep the warm quote snapshot authoritative immediately. Converted
+        // quotes remain in quote history as "booked" instead of disappearing
+        // from the All/Booked views.
+        if (quoteSnapshotRef.current) {
+          quoteSnapshotRef.current = {
+            ...quoteSnapshotRef.current,
+            items: quoteSnapshotRef.current.items.map((quote) =>
+              quote._id === quoteId
+                ? ({ ...quote, status: "booked" } as Quote)
+                : quote,
+            ),
+          };
+        }
+
+        setQuotes((prev) => {
+          const updated = prev.map((quote) =>
+            quote._id === quoteId
+              ? ({ ...quote, status: "booked" } as Quote)
+              : quote,
+          );
+
+          return quoteStatusRef.current === "all" ||
+            quoteStatusRef.current === "booked"
+            ? updated
+            : updated.filter((quote) => quote._id !== quoteId);
+        });
+
+        void refreshQuoteSnapshot();
+        void refreshLoadSnapshot();
         return true;
       } catch (err) {
         const axiosError = err as AxiosError;
@@ -574,7 +971,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         );
       }
     },
-    [getAuthConfig],
+    [getAuthConfig, refreshLoadSnapshot, refreshQuoteSnapshot],
   );
 
   const handleDeleteQuote = React.useCallback(
@@ -663,21 +1060,20 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         );
       }
 
-      /*
-       * Refresh in the background so the local page and pagination match the
-       * server without keeping the confirmation button in a loading state.
-       */
-      void fetchQuotes(
-        quotesPageRef.current,
-        quotesLimitRef.current,
-      ).catch((refreshError) => {
-        console.error(
-          "Quote deleted, but the quote list could not be refreshed:",
-          refreshError,
-        );
-      });
+      if (quoteSnapshotRef.current) {
+        quoteSnapshotRef.current = {
+          ...quoteSnapshotRef.current,
+          items: quoteSnapshotRef.current.items.filter(
+            (quote) => quote._id !== quoteId,
+          ),
+          total: Math.max(0, quoteSnapshotRef.current.total - 1),
+        };
+      }
+
+      // Rebuild counts/history silently so instant quote filtering stays fresh.
+      void refreshQuoteSnapshot();
     },
-    [getAuthConfig, fetchQuotes],
+    [getAuthConfig, refreshQuoteSnapshot],
   );
 
   const handleDeleteLoad = React.useCallback(
@@ -703,14 +1099,19 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         });
 
         setLoads((prev) => prev.filter((s) => s._id !== loadId));
+        if (loadSnapshotRef.current) {
+          loadSnapshotRef.current = {
+            ...loadSnapshotRef.current,
+            items: loadSnapshotRef.current.items.filter(
+              (load) => load._id !== loadId,
+            ),
+            total: Math.max(0, loadSnapshotRef.current.total - 1),
+          };
+        }
         toast.success("Load deleted.");
 
-        // Reconcile pagination + stats with the server in the background
-        void fetchLoads(
-          loadsPageRef.current,
-          loadsLimitRef.current,
-          shipmentStatusRef.current,
-        ).catch(() => { });
+        // Reconcile the warm snapshot and counts silently.
+        void refreshLoadSnapshot();
         void refreshStats();
       } catch (err) {
         const axiosError = err as AxiosError;
@@ -719,6 +1120,15 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         // Already gone on the server — a successful final state for the user
         if (status === 404) {
           setLoads((prev) => prev.filter((s) => s._id !== loadId));
+          if (loadSnapshotRef.current) {
+            loadSnapshotRef.current = {
+              ...loadSnapshotRef.current,
+              items: loadSnapshotRef.current.items.filter(
+                (load) => load._id !== loadId,
+              ),
+              total: Math.max(0, loadSnapshotRef.current.total - 1),
+            };
+          }
           void refreshStats();
           return;
         }
@@ -732,7 +1142,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setDeletingLoadId(null);
       }
     },
-    [getAuthConfig, fetchLoads, refreshStats],
+    [getAuthConfig, refreshLoadSnapshot, refreshStats],
   );
 
   const handleUpdateQuote = React.useCallback(
@@ -745,9 +1155,18 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           config ?? undefined,
         );
         const data = response.data?.data ?? response.data;
+        if (quoteSnapshotRef.current) {
+          quoteSnapshotRef.current = {
+            ...quoteSnapshotRef.current,
+            items: quoteSnapshotRef.current.items.map((quote) =>
+              quote._id === quoteId ? { ...quote, ...data } : quote,
+            ),
+          };
+        }
         setQuotes((prev) =>
           prev.map((q) => (q._id === quoteId ? { ...q, ...data } : q)),
         );
+        void refreshQuoteSnapshot();
         return data;
       } catch (err) {
         const axiosError = err as AxiosError;
@@ -759,7 +1178,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         );
       }
     },
-    [getAuthConfig],
+    [getAuthConfig, refreshQuoteSnapshot],
   );
 
   const handleUpdateLoad = React.useCallback(
@@ -772,9 +1191,18 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           config ?? undefined,
         );
         const data = response.data?.data ?? response.data;
+        if (loadSnapshotRef.current) {
+          loadSnapshotRef.current = {
+            ...loadSnapshotRef.current,
+            items: loadSnapshotRef.current.items.map((load) =>
+              load._id === loadId ? { ...load, ...data } : load,
+            ),
+          };
+        }
         setLoads((prev) =>
           prev.map((s) => (s._id === loadId ? { ...s, ...data } : s)),
         );
+        void refreshLoadSnapshot();
         return data;
       } catch (err) {
         const axiosError = err as AxiosError;
@@ -786,7 +1214,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         );
       }
     },
-    [getAuthConfig],
+    [getAuthConfig, refreshLoadSnapshot],
   );
 
   // ── Return ─────────────────────────────────────────────────────────────────
@@ -809,6 +1237,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     changeQuotesLimit,
     vehicles,
     stats,
+    quoteStats,
     lastUpdated,
     hasNewEntries,
     dismissNewEntries,

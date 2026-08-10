@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import type { AxiosRequestConfig } from "axios";
 import type {
   LocationBlock,
   LoadVehicle,
@@ -118,7 +119,10 @@ export interface LoadStats {
   Cancelled: number
 }
 
-export async function getLoads(query?: LoadsQuery): Promise<LoadsResult> {
+export async function getLoads(
+  query?: LoadsQuery,
+  config?: AxiosRequestConfig,
+): Promise<LoadsResult> {
   const params = new URLSearchParams()
   if (query?.status) params.set("status", query.status)
   if (query?.postType) params.set("postType", query.postType)
@@ -126,12 +130,20 @@ export async function getLoads(query?: LoadsQuery): Promise<LoadsResult> {
   if (query?.page) params.set("page", String(query.page))
   if (query?.limit) params.set("limit", String(query.limit))
   const qs = params.toString()
-  const res = await apiClient.get<{ data: LoadsResult }>(`/api/loads${qs ? `?${qs}` : ""}`)
+  const res = await apiClient.get<{ data: LoadsResult }>(
+    `/api/loads${qs ? `?${qs}` : ""}`,
+    config,
+  )
   return res.data.data
 }
 
-export async function getLoadStats(): Promise<LoadStats> {
-  const res = await apiClient.get<{ data: LoadStats }>("/api/loads/stats")
+export async function getLoadStats(
+  config?: AxiosRequestConfig,
+): Promise<LoadStats> {
+  const res = await apiClient.get<{ data: LoadStats }>(
+    "/api/loads/stats",
+    config,
+  )
   return res.data.data
 }
 
@@ -241,9 +253,40 @@ export async function uploadVehicleInspectionPhoto(
   return res.data.data.inspectionPhotoUrl;
 }
 
-export async function getLoadById(loadId: string): Promise<Load> {
-  const res = await apiClient.get<{ data: Load }>(`/api/loads/${loadId}`);
-  return res.data.data;
+export async function getLoadById(
+  loadId: string,
+  config?: AxiosRequestConfig,
+): Promise<Load> {
+  const normalizedId = String(loadId || "").trim();
+  if (!normalizedId) {
+    throw new Error("Load ID is required");
+  }
+
+  const res = await apiClient.get<{ data: Load }>(
+    `/api/loads/${encodeURIComponent(normalizedId)}`,
+    {
+      ...config,
+      params: {
+        ...config?.params,
+        // Use a unique URL to avoid stale detail responses without adding
+        // custom request headers that trigger a CORS preflight.
+        _detailRequest: Date.now(),
+      },
+    },
+  );
+
+  const load = res.data.data;
+
+  // Never render a response that belongs to a different route ID.
+  if (!load || String(load._id) !== normalizedId) {
+    throw new Error(
+      `Load detail response mismatch: requested ${normalizedId}, received ${
+        load?._id ?? "no record"
+      }`,
+    );
+  }
+
+  return load;
 }
 
 export async function confirmLoadDelivery(loadId: string): Promise<Load> {

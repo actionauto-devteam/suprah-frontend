@@ -97,7 +97,7 @@ function PaginationBar({
 
   return (
     <div className="flex flex-col gap-2 pt-2">
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="text-foreground font-medium">
           Page {pagination.page} of {totalPages}
         </span>
@@ -175,6 +175,7 @@ function TransportationPageInner() {
     searchParams.get("search") || "",
   );
   const [selectedStatus, setSelectedStatus] = React.useState("all");
+  const [selectedQuoteStatus, setSelectedQuoteStatus] = React.useState("all");
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = React.useState(false);
   const [isQuoteResultModalOpen, setIsQuoteResultModalOpen] =
@@ -203,6 +204,7 @@ function TransportationPageInner() {
     changeQuotesLimit,
     vehicles,
     stats,
+    quoteStats,
     hasNewEntries,
     dismissNewEntries,
     fetchData,
@@ -213,6 +215,8 @@ function TransportationPageInner() {
     handleUpdateQuote,
   } = useTransportationData({
     shipmentStatus: activeTab === "shipments" ? selectedStatus : "all",
+    quoteStatus: activeTab === "drafts" ? selectedQuoteStatus : "all",
+    activeView: activeTab,
   });
 
   const {
@@ -231,21 +235,25 @@ function TransportationPageInner() {
   } = useLoadsData(
     activeTab === "load-board" ? searchQuery : undefined,
     activeTab === "load-board" ? selectedStatus : undefined,
+    activeTab === "load-board",
   );
 
   // Refetch when tab becomes visible again (covers navigation back from create-load page
   // and browser tab switching) — catches socket events missed while page was hidden
   React.useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        fetchData({ silent: true });
-        fetchBoardLoads();
+      if (document.visibilityState !== "visible") return;
+
+      if (activeTab === "load-board") {
+        void fetchBoardLoads();
+      } else {
+        void fetchData({ silent: true });
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibility);
-  }, [fetchData, fetchBoardLoads]);
+  }, [activeTab, fetchData, fetchBoardLoads]);
 
   // Handle create-load from sidebar
   React.useEffect(() => {
@@ -310,39 +318,40 @@ function TransportationPageInner() {
     setActiveTab("drafts");
   };
 
+  const handleManualRefresh = React.useCallback(() => {
+    if (activeTab === "load-board") {
+      void fetchBoardLoads();
+      return;
+    }
+    void fetchData({ silent: true });
+  }, [activeTab, fetchBoardLoads, fetchData]);
+
   const filteredLoads = React.useMemo(() => {
-    let filtered = loads;
+    if (!searchQuery) return loads;
 
-    if (selectedStatus !== "all") {
-      filtered = filtered.filter((s) => s.status === selectedStatus);
-    }
+    const query = searchQuery.toLowerCase();
+    return loads.filter((s) => {
+      const pickup = s.pickupLocation;
+      const delivery = s.deliveryLocation;
+      const vehicles = s.vehicles || [];
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((s) => {
-        const pickup = s.pickupLocation;
-        const delivery = s.deliveryLocation;
-        const vehicles = s.vehicles || [];
-        
-        return (
-          s.loadNumber?.toLowerCase().includes(query) ||
-          pickup.city.toLowerCase().includes(query) ||
-          pickup.state.toLowerCase().includes(query) ||
-          pickup.contactName?.toLowerCase().includes(query) ||
-          delivery.city.toLowerCase().includes(query) ||
-          delivery.state.toLowerCase().includes(query) ||
-          delivery.contactName?.toLowerCase().includes(query) ||
-          vehicles.some(v => 
-            v.make?.toLowerCase().includes(query) || 
-            v.model?.toLowerCase().includes(query) || 
-            v.vin?.toLowerCase().includes(query)
-          )
-        );
-      });
-    }
-
-    return filtered;
-  }, [loads, selectedStatus, searchQuery]);
+      return (
+        s.loadNumber?.toLowerCase().includes(query) ||
+        pickup.city.toLowerCase().includes(query) ||
+        pickup.state.toLowerCase().includes(query) ||
+        pickup.contactName?.toLowerCase().includes(query) ||
+        delivery.city.toLowerCase().includes(query) ||
+        delivery.state.toLowerCase().includes(query) ||
+        delivery.contactName?.toLowerCase().includes(query) ||
+        vehicles.some(
+          (v) =>
+            v.make?.toLowerCase().includes(query) ||
+            v.model?.toLowerCase().includes(query) ||
+            v.vin?.toLowerCase().includes(query),
+        )
+      );
+    });
+  }, [loads, searchQuery]);
 
   const filteredQuotes = React.useMemo(() => {
     if (!searchQuery) return quotes;
@@ -408,7 +417,7 @@ function TransportationPageInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden h-8 w-8 -ml-1 border-none hover:bg-secondary"
+                className="xl:hidden h-8 w-8 -ml-1 border-none hover:bg-secondary"
                 onClick={() => setIsSidebarOpen(true)}
               >
                 <Menu className="size-5" />
@@ -421,7 +430,7 @@ function TransportationPageInner() {
                   Transport
                 </h1>
                 {vehicles.length > 0 && (
-                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                  <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
                     {vehicles.length} vehicles
                   </p>
                 )}
@@ -431,7 +440,7 @@ function TransportationPageInner() {
               <Button
                 variant="outline"
                 size="sm"
-                className="flex gap-1 sm:gap-2 text-[10px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4 border-border"
+                className="flex gap-1 sm:gap-2 text-[11px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4 border-border"
                 onClick={() => {
                   const params = new URLSearchParams();
                   if (searchQuery) params.set("search", searchQuery);
@@ -449,7 +458,7 @@ function TransportationPageInner() {
               </Button>
               <Button
                 size="sm"
-                className="gap-1 sm:gap-2 bg-green-500 hover:bg-green-600 text-white text-[10px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4"
+                className="gap-1 sm:gap-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4"
                 onClick={() => setIsQuoteModalOpen(true)}
               >
                 <Plus className="size-3.5 sm:size-4" />
@@ -476,7 +485,7 @@ function TransportationPageInner() {
           </div>
 
           { }
-          <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground border-t border-border pt-2">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground border-t border-border pt-2">
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
@@ -492,12 +501,24 @@ function TransportationPageInner() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 gap-1 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => fetchData()}
-              disabled={isLoading || isSilentRefreshing}
+              className="h-6 px-2 gap-1 text-[11px] sm:text-xs text-muted-foreground hover:text-foreground"
+              onClick={handleManualRefresh}
+              disabled={
+                activeTab === "load-board"
+                  ? isBoardLoading
+                  : isLoading || isSilentRefreshing
+              }
             >
               <RefreshCw
-                className={`w-3 h-3 ${isLoading || isSilentRefreshing ? "animate-spin" : ""}`}
+                className={`w-3 h-3 ${
+                  activeTab === "load-board"
+                    ? isBoardLoading
+                      ? "animate-spin"
+                      : ""
+                    : isLoading || isSilentRefreshing
+                      ? "animate-spin"
+                      : ""
+                }`}
               />
               Refresh
             </Button>
@@ -506,7 +527,7 @@ function TransportationPageInner() {
       </div>
 
       {/* ── Mobile Tab Bar (always visible on small screens) ── */}
-      <div className="lg:hidden border-b border-border bg-card px-3">
+      <div className="xl:hidden border-b border-border bg-card px-3">
         <div className="flex">
           {(
             [
@@ -529,11 +550,11 @@ function TransportationPageInner() {
         </div>
       </div>
 
-      <div className="flex relative">
+      <div className="flex relative min-w-0">
         {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/50 dark:bg-black/70 z-40 xl:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -543,14 +564,17 @@ function TransportationPageInner() {
           setActiveTab={setActiveTab}
           selectedStatus={selectedStatus}
           setSelectedStatus={setSelectedStatus}
+          selectedQuoteStatus={selectedQuoteStatus}
+          setSelectedQuoteStatus={setSelectedQuoteStatus}
           stats={stats}
           loadStats={boardStats}
+          quoteStats={quoteStats}
           isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
         />
 
         {/* Main Content */}
-        <div className="flex-1 p-3 sm:p-4 md:p-6 bg-background">
+        <div className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background">
           {activeTab === "load-board" ? (
             boardError && !isBoardLoading && boardLoads.length === 0 ? (
               <Card className="border-border">
@@ -570,7 +594,7 @@ function TransportationPageInner() {
                   </Button>
                 </CardContent>
               </Card>
-            ) : isBoardLoading ? (
+            ) : isBoardLoading && boardLoads.length === 0 ? (
               <div className="space-y-3 sm:space-y-4">
                 {[...Array(3)].map((_, i) => (
                   <Card key={i} className="border-border overflow-hidden">
@@ -604,20 +628,39 @@ function TransportationPageInner() {
                 <CardContent className="p-6 sm:p-8 md:p-12 text-center">
                   <Truck className="size-10 sm:size-12 md:size-16 text-muted-foreground/50 mx-auto mb-3 sm:mb-4" />
                   <h3 className="text-sm sm:text-base md:text-lg font-medium text-foreground mb-2">
-                    No Loads Found
+                    {selectedStatus !== "all"
+                      ? `No ${selectedStatus} loads found`
+                      : "No Loads Found"}
                   </h3>
                   <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 px-2 sm:px-4">
                     {searchQuery
-                      ? "No loads match your search criteria."
-                      : "No loads have been posted yet. Create a load to get started."}
+                      ? selectedStatus !== "all"
+                        ? `No ${selectedStatus} Board loads match your search.`
+                        : "No Board loads match your search criteria."
+                      : selectedStatus !== "all"
+                        ? `There are no Board loads with ${selectedStatus} status.`
+                        : "No loads have been posted yet. Create a load to get started."}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                    <Button
-                      className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
-                      onClick={() => router.push("/transportation/create-load")}
-                    >
-                      Create Load
-                    </Button>
+                    {searchQuery || selectedStatus !== "all" ? (
+                      <Button
+                        variant="outline"
+                        className="text-xs sm:text-sm h-8 sm:h-9"
+                        onClick={() => {
+                          setSearchQuery("");
+                          setSelectedStatus("all");
+                        }}
+                      >
+                        Clear Filters
+                      </Button>
+                    ) : (
+                      <Button
+                        className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
+                        onClick={() => router.push("/transportation/create-load")}
+                      >
+                        Create Load
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       className="text-xs sm:text-sm h-8 sm:h-9"
@@ -651,7 +694,7 @@ function TransportationPageInner() {
               </div>
             )
           ) : activeTab === "shipments" ? (
-            isLoading ? (
+            isLoading && loads.length === 0 ? (
               <div className="space-y-3 sm:space-y-4">
                 {[...Array(3)].map((_, i) => (
                   <Card key={i} className="border-border overflow-hidden">
@@ -683,19 +726,38 @@ function TransportationPageInner() {
                 <CardContent className="p-6 sm:p-8 md:p-12 text-center">
                   <Truck className="size-10 sm:size-12 md:size-16 text-muted-foreground/50 mx-auto mb-3 sm:mb-4" />
                   <h3 className="text-sm sm:text-base md:text-lg font-medium text-foreground mb-2">
-                    No Shipments Found
+                    {selectedStatus !== "all"
+                      ? `No ${selectedStatus} loads found`
+                      : "No Shipments Found"}
                   </h3>
                   <p className="text-xs sm:text-sm md:text-base text-muted-foreground mb-4 sm:mb-6 px-2 sm:px-4">
                     {searchQuery
-                      ? "No shipments match your search criteria."
-                      : "You don't have any shipments yet. Start by creating a quote."}
+                      ? selectedStatus !== "all"
+                        ? `No ${selectedStatus} loads match your search.`
+                        : "No shipments match your search criteria."
+                      : selectedStatus !== "all"
+                        ? `There are no loads with ${selectedStatus} status.`
+                        : "You don't have any shipments yet. Start by creating a quote."}
                   </p>
-                  <Button
-                    className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9 md:h-10"
-                    onClick={() => setIsQuoteModalOpen(true)}
-                  >
-                    Create New Quote
-                  </Button>
+                  {searchQuery || selectedStatus !== "all" ? (
+                    <Button
+                      variant="outline"
+                      className="text-xs sm:text-sm h-8 sm:h-9 md:h-10"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSelectedStatus("all");
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  ) : (
+                    <Button
+                      className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9 md:h-10"
+                      onClick={() => setIsQuoteModalOpen(true)}
+                    >
+                      Create New Quote
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -719,19 +781,19 @@ function TransportationPageInner() {
                 />
               </div>
             )
-          ) : isLoading ? (
+          ) : isLoading && quotes.length === 0 ? (
             <div className="space-y-3 sm:space-y-4">
               {[...Array(3)].map((_, i) => (
                 <Card key={i} className="border-border overflow-hidden">
                   <CardContent className="p-0">
-                    <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-100 dark:divide-gray-700">
-                      <div className="w-full lg:w-1/3 p-4 sm:p-6 space-y-3">
+                    <div className="flex flex-col 2xl:flex-row divide-y 2xl:divide-y-0 2xl:divide-x divide-gray-100 dark:divide-gray-700">
+                      <div className="w-full 2xl:w-1/3 p-4 sm:p-6 space-y-3">
                         <Skeleton className="h-4 w-24" />
                         <Skeleton className="h-40 w-full rounded-lg" />
                         <Skeleton className="h-4 w-3/4" />
                         <Skeleton className="h-4 w-1/2" />
                       </div>
-                      <div className="w-full lg:w-2/3 p-4 sm:p-6 space-y-4">
+                      <div className="w-full 2xl:w-2/3 p-4 sm:p-6 space-y-4">
                         <Skeleton className="h-4 w-32" />
                         <Skeleton className="h-24 w-full rounded-lg" />
                         <div className="grid grid-cols-3 gap-3">
@@ -751,19 +813,41 @@ function TransportationPageInner() {
               <CardContent className="p-6 sm:p-8 md:p-12 text-center">
                 <Package className="size-10 sm:size-12 md:size-16 text-muted-foreground/50 mx-auto mb-3 sm:mb-4" />
                 <h3 className="text-sm sm:text-base md:text-lg font-medium text-foreground mb-2">
-                  No Drafts Found
+                  {selectedQuoteStatus !== "all"
+                    ? `No ${
+                        selectedQuoteStatus.charAt(0).toUpperCase() +
+                        selectedQuoteStatus.slice(1)
+                      } quotes found`
+                    : "No Quotes Found"}
                 </h3>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground mb-4 sm:mb-6 px-2 sm:px-4">
                   {searchQuery
-                    ? "No quotes match your search criteria."
-                    : "You don't have any draft quotes yet. Create a new quote to get started."}
+                    ? selectedQuoteStatus !== "all"
+                      ? `No ${selectedQuoteStatus} quotes match your search criteria.`
+                      : "No quotes match your search criteria."
+                    : selectedQuoteStatus !== "all"
+                      ? `There are no quotes with ${selectedQuoteStatus} status.`
+                      : "You don't have any quotes yet. Create a new quote to get started."}
                 </p>
-                <Button
-                  className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9 md:h-10"
-                  onClick={() => setIsQuoteModalOpen(true)}
-                >
-                  Create New Quote
-                </Button>
+                {searchQuery || selectedQuoteStatus !== "all" ? (
+                  <Button
+                    variant="outline"
+                    className="text-xs sm:text-sm h-8 sm:h-9 md:h-10"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedQuoteStatus("all");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                ) : (
+                  <Button
+                    className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9 md:h-10"
+                    onClick={() => setIsQuoteModalOpen(true)}
+                  >
+                    Create New Quote
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
