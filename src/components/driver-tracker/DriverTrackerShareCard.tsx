@@ -12,6 +12,7 @@ interface DriverTrackerShareCardProps {
   shareStatus: DriverStatus;
   onStatusChange: (status: DriverStatus) => void;
   isSharing: boolean;
+  isStarting?: boolean;
   onToggleSharing: () => void;
   lastShareAt: string | null;
   shareError: string | null;
@@ -29,6 +30,7 @@ export function DriverTrackerShareCard({
   shareStatus,
   onStatusChange,
   isSharing,
+  isStarting = false,
   onToggleSharing,
   lastShareAt,
   shareError,
@@ -42,18 +44,42 @@ export function DriverTrackerShareCard({
       <CardHeader className="py-4 px-5 border-b border-border/10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className={`size-8 rounded-lg flex items-center justify-center ${isSharing ? "bg-emerald-500/10" : "bg-muted/60"}`}>
-              {isSharing ? <Wifi className="size-4 text-emerald-500" /> : <WifiOff className="size-4 text-muted-foreground" />}
+            <div
+              className={`size-8 rounded-lg flex items-center justify-center ${
+                isSharing
+                  ? "bg-emerald-500/10"
+                  : isStarting
+                    ? "bg-amber-500/10"
+                    : "bg-muted/60"
+              }`}
+            >
+              {isSharing ? (
+                <Wifi className="size-4 text-emerald-500" />
+              ) : isStarting ? (
+                <Wifi className="size-4 text-amber-500 animate-pulse" />
+              ) : (
+                <WifiOff className="size-4 text-muted-foreground" />
+              )}
             </div>
             <div>
               <CardTitle className="text-sm font-bold">Driver GPS</CardTitle>
               <p className="text-[10px] text-muted-foreground/60 font-medium">Live location broadcast</p>
             </div>
           </div>
-          {isSharing && (
-            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200/50 text-[10px] font-bold gap-1.5 animate-pulse">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              LIVE
+          {(isSharing || isStarting) && (
+            <Badge
+              className={
+                isSharing
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-200/50 text-[10px] font-bold gap-1.5 animate-pulse"
+                  : "bg-amber-500/10 text-amber-600 border-amber-200/50 text-[10px] font-bold gap-1.5"
+              }
+            >
+              <span
+                className={`size-1.5 rounded-full ${
+                  isSharing ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
+                }`}
+              />
+              {isSharing ? "LIVE" : "CONNECTING"}
             </Badge>
           )}
         </div>
@@ -91,15 +117,24 @@ export function DriverTrackerShareCard({
         </div>
         <Button
           size="sm"
-          className={`w-full h-11 sm:h-9 text-xs font-bold transition-all duration-300 ${isSharing
-            ? "bg-rose-500/10 text-rose-600 border border-rose-200/50 hover:bg-rose-500/20 shadow-none"
-            : "bg-primary text-primary-foreground shadow-sm hover:shadow-md"
-            }`}
-          variant={isSharing ? "outline" : "default"}
+          className={`w-full h-11 sm:h-9 text-xs font-bold transition-all duration-300 ${
+            isSharing || isStarting
+              ? "bg-rose-500/10 text-rose-600 border border-rose-200/50 hover:bg-rose-500/20 shadow-none"
+              : "bg-primary text-primary-foreground shadow-sm hover:shadow-md"
+          }`}
+          variant={isSharing || isStarting ? "outline" : "default"}
           onClick={onToggleSharing}
         >
-          <Navigation2 className={`size-3.5 mr-2 ${isSharing ? "animate-pulse" : ""}`} />
-          {isSharing ? "Stop Sharing" : "Start Sharing"}
+          <Navigation2
+            className={`size-3.5 mr-2 ${
+              isSharing || isStarting ? "animate-pulse" : ""
+            }`}
+          />
+          {isSharing
+            ? "Stop Sharing"
+            : isStarting
+              ? "Cancel GPS Connection"
+              : "Start Sharing"}
         </Button>
         {lastShareAt && (
           <p className="text-[10px] text-muted-foreground/60 text-center font-medium">

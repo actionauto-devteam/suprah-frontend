@@ -12,9 +12,11 @@ const STATUS_KEY_PREFIX = "driver-gps-sharing-status";
 
 interface DriverLocationSharingContextValue {
   isSharing: boolean;
+  isStarting: boolean;
   shareStatus: DriverStatus;
   setShareStatus: (status: DriverStatus) => void;
   lastShareAt: string | null;
+  lastCoords: { lat: number; lng: number } | null;
   shareError: string | null;
   startSharing: () => void;
   stopSharing: () => Promise<void>;
@@ -45,10 +47,18 @@ export function DriverLocationSharingProvider({
   const { user } = useUser();
   const userId = user?.id ?? null;
 
+  // sharingEnabled is the user's persisted intent. isSharing means the
+  // backend has actually confirmed at least one successful heartbeat.
+  const [sharingEnabled, setSharingEnabled] = React.useState(false);
   const [isSharing, setIsSharing] = React.useState(false);
+  const [isStarting, setIsStarting] = React.useState(false);
   const [shareStatus, setShareStatusState] =
     React.useState<DriverStatus>("idle");
   const [lastShareAt, setLastShareAt] = React.useState<string | null>(null);
+  const [lastCoords, setLastCoords] = React.useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [shareError, setShareError] = React.useState<string | null>(null);
 
   const watchIdRef = React.useRef<number | null>(null);
@@ -63,6 +73,11 @@ export function DriverLocationSharingProvider({
   }, [shareStatus]);
 
   React.useEffect(() => {
+    // React Strict Mode intentionally mounts/cleans up/mounts effects in
+    // development. Reset the flag on every setup so successful heartbeats
+    // are still allowed to update UI state after the Strict Mode probe.
+    mountedRef.current = true;
+
     return () => {
       mountedRef.current = false;
     };
@@ -91,6 +106,17 @@ export function DriverLocationSharingProvider({
       if (mountedRef.current) {
         setLastShareAt(new Date().toLocaleTimeString());
         setShareError(null);
+
+        if ((statusOverride ?? statusRef.current) === "offline") {
+          setIsSharing(false);
+          setIsStarting(false);
+        } else {
+          // "LIVE" is only true after the server accepted the heartbeat.
+          setIsSharing(false);
+          setIsStarting(true);
+          setSharingEnabled(true);
+          setIsStarting(false);
+        }
       }
     },
     [getToken, isSignedIn],
@@ -117,7 +143,7 @@ export function DriverLocationSharingProvider({
         localStorage.setItem(storageKey(STATUS_KEY_PREFIX, userId), status);
       }
 
-      if (isSharing && lastCoordsRef.current) {
+      if (sharingEnabled && lastCoordsRef.current) {
         void sendHeartbeat(lastCoordsRef.current, status).catch((error: any) => {
           if (mountedRef.current) {
             setShareError(
@@ -129,7 +155,7 @@ export function DriverLocationSharingProvider({
         });
       }
     },
-    [isSharing, sendHeartbeat, userId],
+    [sharingEnabled, sendHeartbeat, userId],
   );
 
   const startSharing = React.useCallback(() => {
@@ -140,11 +166,15 @@ export function DriverLocationSharingProvider({
 
     persistEnabled(true);
     setShareError(null);
-    setIsSharing(true);
+    setIsSharing(false);
+    setIsStarting(true);
+    setSharingEnabled(true);
   }, [persistEnabled]);
 
   const stopSharing = React.useCallback(async () => {
     persistEnabled(false);
+    setSharingEnabled(false);
+    setIsStarting(false);
     setIsSharing(false);
 
     const coords = lastCoordsRef.current;
@@ -185,10 +215,14 @@ export function DriverLocationSharingProvider({
     );
 
     if (storedEnabled === "true") {
-      setIsSharing(true);
+      setIsSharing(false);
+      setIsStarting(true);
+      setSharingEnabled(true);
       return;
     }
     if (storedEnabled === "false") {
+      setSharingEnabled(false);
+      setIsStarting(false);
       setIsSharing(false);
       return;
     }
@@ -224,11 +258,13 @@ export function DriverLocationSharingProvider({
   // only on watchPosition callbacks can make lastSeenAt go stale when the
   // browser decides there has been no meaningful position change.
   React.useEffect(() => {
-    if (!isSharing || !isSignedIn) return;
+    if (!sharingEnabled || !isSignedIn) return;
 
     if (!navigator.geolocation) {
       setShareError("Geolocation is not supported on this device");
       persistEnabled(false);
+      setSharingEnabled(false);
+      setIsStarting(false);
       setIsSharing(false);
       return;
     }
@@ -243,6 +279,7 @@ export function DriverLocationSharingProvider({
         lng: position.coords.longitude,
       };
       lastCoordsRef.current = coords;
+      if (mountedRef.current) setLastCoords(coords);
 
       const now = Date.now();
       if (!force && now - lastPositionSendRef.current < POSITION_SEND_THROTTLE_MS) {
@@ -252,6 +289,8 @@ export function DriverLocationSharingProvider({
 
       void sendHeartbeat(coords).catch((error: any) => {
         if (!cancelled && mountedRef.current) {
+          setIsSharing(false);
+          setIsStarting(true);
           setShareError(
             error?.response?.data?.message ||
               error?.message ||
@@ -268,6 +307,8 @@ export function DriverLocationSharingProvider({
 
       if (error.code === error.PERMISSION_DENIED) {
         persistEnabled(false);
+        setSharingEnabled(false);
+        setIsStarting(false);
         setIsSharing(false);
       }
     };
@@ -291,6 +332,8 @@ export function DriverLocationSharingProvider({
       if (!coords) return;
       void sendHeartbeat(coords).catch((error: any) => {
         if (!cancelled && mountedRef.current) {
+          setIsSharing(false);
+          setIsStarting(true);
           setShareError(
             error?.response?.data?.message ||
               error?.message ||
@@ -327,23 +370,27 @@ export function DriverLocationSharingProvider({
         heartbeatTimerRef.current = null;
       }
     };
-  }, [isSharing, isSignedIn, persistEnabled, sendHeartbeat]);
+  }, [sharingEnabled, isSignedIn, persistEnabled, sendHeartbeat]);
 
   const value = React.useMemo<DriverLocationSharingContextValue>(
     () => ({
       isSharing,
+      isStarting,
       shareStatus,
       setShareStatus,
       lastShareAt,
+      lastCoords,
       shareError,
       startSharing,
       stopSharing,
     }),
     [
       isSharing,
+      isStarting,
       shareStatus,
       setShareStatus,
       lastShareAt,
+      lastCoords,
       shareError,
       startSharing,
       stopSharing,

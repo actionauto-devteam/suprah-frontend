@@ -15,6 +15,23 @@ import {
 import { Vehicle } from "@/types/inventory";
 import { resolveImageUrl } from "@/lib/utils";
 
+const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
+
+function normalizeImageSrc(raw?: string): string | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return resolveImageUrl(trimmed)?.trim() || undefined;
+}
+
+function rawImageSignature(vehicle: Vehicle) {
+  return [vehicle.image, ...(vehicle.images || [])]
+    .filter((value): value is string => Boolean(value))
+    .join("\u001f");
+}
+
 interface PremiumVehicleCardProps {
   vehicle: Vehicle;
   shippingPrice?: number;
@@ -38,51 +55,41 @@ function PremiumVehicleCardComponent({
   onVehicleClick,
   onCreateLoad,
 }: PremiumVehicleCardProps) {
-  const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
+  const imageSignature = rawImageSignature(vehicle);
 
   const imageCandidates = React.useMemo(() => {
-    const rawCandidates = [vehicle.image, ...(vehicle.images || [])]
-      .map((source) => resolveImageUrl(source)?.trim())
-      .filter((source): source is string =>
-        Boolean(source && source.length > 0),
-      );
+    const realCandidates = [vehicle.image, ...(vehicle.images || [])]
+      .map((source) => normalizeImageSrc(source))
+      .filter((source): source is string => Boolean(source));
 
-    const uniqueCandidates = Array.from(new Set(rawCandidates));
-    return uniqueCandidates.length > 0 ? uniqueCandidates : [FALLBACK_IMAGE];
-  }, [vehicle.image, vehicle.images]);
+    const uniqueCandidates = Array.from(new Set(realCandidates));
+    return uniqueCandidates.length > 0
+      ? [...uniqueCandidates, FALLBACK_IMAGE]
+      : [FALLBACK_IMAGE];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageSignature]);
 
-  const imgRef = React.useRef<HTMLImageElement | null>(null);
   const [imageIndex, setImageIndex] = React.useState(0);
-  const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
+  const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
 
   React.useEffect(() => {
     setImageIndex(0);
-    setImgLoaded(false);
     setImgError(false);
-  }, [vehicle.id]);
-
-  const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
-
-  React.useLayoutEffect(() => {
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setImgLoaded(true);
-    }
-  }, [activeImageSrc]);
-  const safeEngine = vehicle.engine?.trim() || "Unknown";
-  const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
-  const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
+  }, [imageSignature]);
 
   const handleImageError = () => {
     if (imageIndex < imageCandidates.length - 1) {
       setImageIndex((prev) => prev + 1);
-      setImgLoaded(false);
       return;
     }
 
     setImgError(true);
-    setImgLoaded(true);
   };
+
+  const safeEngine = vehicle.engine?.trim() || "Unknown";
+  const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
+  const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
 
   // Mocking "Retail Price" vs "One Time Payment" for the UI showcase
   const retailPrice = vehicle.price + 0; // Mock markup
@@ -94,7 +101,7 @@ function PremiumVehicleCardComponent({
       onClick={() => onVehicleClick?.(vehicle)}
     >
       {/* Premium Image Header */}
-      <div className="relative aspect-16/10 overflow-hidden bg-muted dark:bg-zinc-900">
+      <div className="relative aspect-16/10 overflow-hidden bg-zinc-950">
         {imgError ? (
           /* ── Unified fallback: single flex layout, no absolute layer conflicts ── */
           <div className="absolute inset-0 flex flex-col bg-zinc-300 dark:bg-zinc-800">
@@ -144,23 +151,15 @@ function PremiumVehicleCardComponent({
           </div>
         ) : (
           <>
-            {/* Loading skeleton */}
-            {!imgLoaded && (
-              <div className="absolute inset-0 z-10 bg-muted/70 animate-pulse flex items-center justify-center">
-                <TruckIcon className="w-10 h-10 text-muted-foreground/40" />
-              </div>
-            )}
-
             <img
-              ref={imgRef}
               key={`${vehicle.id}-${imageIndex}`}
               src={activeImageSrc}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-              loading="lazy"
+              loading="eager"
+              fetchPriority="high"
               decoding="async"
-              onLoad={() => setImgLoaded(true)}
               onError={handleImageError}
-              className={`h-full w-full object-cover transition-all duration-700 group-hover:scale-110 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
 
             {/* Sleek Overlay Gradient */}
@@ -303,30 +302,24 @@ function PremiumVehicleCardComponent({
 export const PremiumVehicleCard = React.memo(
   PremiumVehicleCardComponent,
   (prev, next) => {
-    const prevVehicle = prev.vehicle;
-    const nextVehicle = next.vehicle;
-
-    if (prevVehicle === nextVehicle) {
-      return (
-        prev.shippingPrice === next.shippingPrice &&
-        prev.onCheckAvailability === next.onCheckAvailability &&
-        prev.onApplyNow === next.onApplyNow &&
-        prev.onCallUs === next.onCallUs &&
-        prev.onVideo === next.onVideo &&
-        prev.onGetQuote === next.onGetQuote &&
-        prev.onVehicleClick === next.onVehicleClick &&
-        prev.onCreateLoad === next.onCreateLoad
-      );
-    }
+    const a = prev.vehicle;
+    const b = next.vehicle;
 
     return (
-      prevVehicle.id === nextVehicle.id &&
-      prevVehicle.price === nextVehicle.price &&
-      prevVehicle.mileage === nextVehicle.mileage &&
-      prevVehicle.location === nextVehicle.location &&
-      prevVehicle.status === nextVehicle.status &&
-      prevVehicle.image === nextVehicle.image &&
-      prevVehicle.stockNumber === nextVehicle.stockNumber &&
+      a.id === b.id &&
+      a.year === b.year &&
+      a.make === b.make &&
+      a.model === b.model &&
+      a.trim === b.trim &&
+      a.price === b.price &&
+      a.mileage === b.mileage &&
+      a.engine === b.engine &&
+      a.location === b.location &&
+      a.status === b.status &&
+      a.image === b.image &&
+      rawImageSignature(a) === rawImageSignature(b) &&
+      a.stockNumber === b.stockNumber &&
+      a.featured === b.featured &&
       prev.shippingPrice === next.shippingPrice &&
       prev.onCheckAvailability === next.onCheckAvailability &&
       prev.onApplyNow === next.onApplyNow &&

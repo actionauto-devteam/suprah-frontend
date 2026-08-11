@@ -1,5 +1,3 @@
-// Type definitions for car inventory and shipping quotes
-
 export interface Vehicle {
   id: string;
   stockNumber: string;
@@ -23,6 +21,7 @@ export interface Vehicle {
   interiorColor?: string;
   status?: string;
   daysOnLot?: number;
+  leadCount?: number;
   images?: string[];
   bodyStyle?: string;
   driveTrain?: string;

@@ -1,8 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Search, X, LayoutGrid, List, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Search, X, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
 import type { FilterOptions } from "@/types/inventory";
 import { useAuth } from "@/providers/AuthProvider";
@@ -20,24 +27,66 @@ interface ShopInventoryFiltersProps {
   sortOptions: Array<{ value: string; label: string }>;
 }
 
-const CHEVRON_SVG =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")";
-
-const SELECT_STYLE: React.CSSProperties = {
-  appearance: "none",
-  WebkitAppearance: "none",
-  backgroundImage: CHEVRON_SVG,
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 10px center",
-};
 
 function pillSelectCls(active: boolean) {
   return cn(
-    "h-8 rounded-full border pl-3.5 pr-8 text-xs font-medium cursor-pointer shrink-0 outline-none transition-all duration-150",
+    "h-8 rounded-full border px-3.5 text-xs font-medium cursor-pointer shrink-0 outline-none transition-all duration-150",
     "bg-card text-foreground dark:bg-zinc-900",
+    "focus:ring-0 focus:ring-offset-0 data-[state=open]:border-primary/50 data-[state=open]:ring-2 data-[state=open]:ring-primary/10",
     active
       ? "border-primary bg-primary/10 text-primary font-semibold dark:bg-primary/15"
       : "border-border/60 hover:border-border dark:border-zinc-700 dark:hover:border-zinc-500 text-muted-foreground hover:text-foreground",
+  );
+}
+
+interface PillSelectOption {
+  value: string;
+  label: string;
+}
+
+function PillSelect({
+  value,
+  onValueChange,
+  options,
+  active,
+  ariaLabel,
+  className,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: PillSelectOption[];
+  active: boolean;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className={cn(
+          pillSelectCls(active),
+          "w-auto gap-2 whitespace-nowrap [&>svg]:h-3 [&>svg]:w-3 [&>svg]:shrink-0 [&>svg]:opacity-60",
+          className,
+        )}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        sideOffset={4}
+        className="z-[100] min-w-[var(--radix-select-trigger-width)] border-border bg-popover text-popover-foreground shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="text-xs focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-primary/10 data-[state=checked]:text-primary"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -70,9 +119,6 @@ export function ShopInventoryFilters({
   const { getToken } = useAuth();
   const [filterOptions, setFilterOptions] = React.useState<FilterOptions | null>(null);
   const fetchSeqRef = React.useRef(0);
-  const onFilterChangeRef = React.useRef(onFilterChange);
-  onFilterChangeRef.current = onFilterChange;
-
   const [priceMin, setPriceMin] = React.useState(filters.minPrice ? String(filters.minPrice) : "");
   const [priceMax, setPriceMax] = React.useState(filters.maxPrice ? String(filters.maxPrice) : "");
   const [mileMin, setMileMin] = React.useState(filters.minMileage ? String(filters.minMileage) : "");
@@ -84,25 +130,41 @@ export function ShopInventoryFilters({
   React.useEffect(() => { if (!filters.minMileage) setMileMin(""); }, [filters.minMileage]);
   React.useEffect(() => { if (!filters.maxMileage) setMileMax(""); }, [filters.maxMileage]);
 
-  React.useEffect(() => {
-    const t = setTimeout(() => onFilterChangeRef.current("minPrice", priceMin ? Number(priceMin) : undefined), 600);
-    return () => clearTimeout(t);
-  }, [priceMin]);
+  // Range filters are intentionally applied on every keystroke. The Inventory
+  // page filters the already-loaded vehicle collection locally, so there is no
+  // network request or loading state to wait for here. This keeps the range
+  // controls feeling immediate while preserving their local input values.
+  const handleMinPriceChange = React.useCallback(
+    (rawValue: string) => {
+      setPriceMin(rawValue);
+      onFilterChange("minPrice", rawValue === "" ? undefined : Number(rawValue));
+    },
+    [onFilterChange],
+  );
 
-  React.useEffect(() => {
-    const t = setTimeout(() => onFilterChangeRef.current("maxPrice", priceMax ? Number(priceMax) : undefined), 600);
-    return () => clearTimeout(t);
-  }, [priceMax]);
+  const handleMaxPriceChange = React.useCallback(
+    (rawValue: string) => {
+      setPriceMax(rawValue);
+      onFilterChange("maxPrice", rawValue === "" ? undefined : Number(rawValue));
+    },
+    [onFilterChange],
+  );
 
-  React.useEffect(() => {
-    const t = setTimeout(() => onFilterChangeRef.current("minMileage", mileMin ? Number(mileMin) : undefined), 600);
-    return () => clearTimeout(t);
-  }, [mileMin]);
+  const handleMinMileageChange = React.useCallback(
+    (rawValue: string) => {
+      setMileMin(rawValue);
+      onFilterChange("minMileage", rawValue === "" ? undefined : Number(rawValue));
+    },
+    [onFilterChange],
+  );
 
-  React.useEffect(() => {
-    const t = setTimeout(() => onFilterChangeRef.current("maxMileage", mileMax ? Number(mileMax) : undefined), 600);
-    return () => clearTimeout(t);
-  }, [mileMax]);
+  const handleMaxMileageChange = React.useCallback(
+    (rawValue: string) => {
+      setMileMax(rawValue);
+      onFilterChange("maxMileage", rawValue === "" ? undefined : Number(rawValue));
+    },
+    [onFilterChange],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -191,71 +253,105 @@ export function ShopInventoryFilters({
           className="flex items-center gap-2 overflow-x-auto flex-1 pb-0.5"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
         >
-          <select
+          <PillSelect
             value={filters.make || "all"}
-            onChange={(e) => onFilterChange("make", e.target.value === "all" ? undefined : e.target.value)}
-            className={pillSelectCls(!!filters.make)}
-            style={SELECT_STYLE}
-            aria-label="Filter by make"
-          >
-            <option value="all">All Makes</option>
-            {(filterOptions?.makes ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+            onValueChange={(value) =>
+              onFilterChange("make", value === "all" ? undefined : value)
+            }
+            active={!!filters.make}
+            ariaLabel="Filter by make"
+            options={[
+              { value: "all", label: "All Makes" },
+              ...(filterOptions?.makes ?? []).map((make) => ({
+                value: make,
+                label: make,
+              })),
+            ]}
+          />
 
-          <select
+          <PillSelect
             value={filters.model || "all"}
-            onChange={(e) => onFilterChange("model", e.target.value === "all" ? undefined : e.target.value)}
-            className={pillSelectCls(!!filters.model)}
-            style={SELECT_STYLE}
-            aria-label="Filter by model"
-          >
-            <option value="all">All Models</option>
-            {(filterOptions?.models ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+            onValueChange={(value) =>
+              onFilterChange("model", value === "all" ? undefined : value)
+            }
+            active={!!filters.model}
+            ariaLabel="Filter by model"
+            options={[
+              { value: "all", label: "All Models" },
+              ...(filterOptions?.models ?? []).map((model) => ({
+                value: model,
+                label: model,
+              })),
+            ]}
+          />
 
-          <select
+          <PillSelect
             value={filters.year ? String(filters.year) : "all"}
-            onChange={(e) => onFilterChange("year", e.target.value === "all" ? undefined : Number(e.target.value))}
-            className={pillSelectCls(!!filters.year)}
-            style={SELECT_STYLE}
-            aria-label="Filter by year"
-          >
-            <option value="all">All Years</option>
-            {(filterOptions?.years ?? []).map((y) => <option key={y} value={String(y)}>{y}</option>)}
-          </select>
+            onValueChange={(value) =>
+              onFilterChange("year", value === "all" ? undefined : Number(value))
+            }
+            active={!!filters.year}
+            ariaLabel="Filter by year"
+            options={[
+              { value: "all", label: "All Years" },
+              ...(filterOptions?.years ?? []).map((year) => ({
+                value: String(year),
+                label: String(year),
+              })),
+            ]}
+          />
 
-          <select
+          <PillSelect
             value={filters.bodyStyle || "all"}
-            onChange={(e) => onFilterChange("bodyStyle", e.target.value === "all" ? undefined : e.target.value)}
-            className={pillSelectCls(!!filters.bodyStyle)}
-            style={SELECT_STYLE}
-            aria-label="Filter by body style"
-          >
-            <option value="all">All Styles</option>
-            {(filterOptions?.bodyStyles ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+            onValueChange={(value) =>
+              onFilterChange("bodyStyle", value === "all" ? undefined : value)
+            }
+            active={!!filters.bodyStyle}
+            ariaLabel="Filter by body style"
+            options={[
+              { value: "all", label: "All Styles" },
+              ...(filterOptions?.bodyStyles ?? []).map((style) => ({
+                value: style,
+                label: style,
+              })),
+            ]}
+          />
 
-          <select
-            value={filters.status && filters.status !== "all" ? filters.status : "all"}
-            onChange={(e) => onFilterChange("status", e.target.value === "all" ? "all" : e.target.value)}
-            className={pillSelectCls(!!(filters.status && filters.status !== "all"))}
-            style={SELECT_STYLE}
-            aria-label="Filter by status"
-          >
-            <option value="all">All Statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <PillSelect
+            value={
+              filters.status && filters.status !== "all"
+                ? filters.status
+                : "all"
+            }
+            onValueChange={(value) =>
+              onFilterChange("status", value === "all" ? "all" : value)
+            }
+            active={!!(filters.status && filters.status !== "all")}
+            ariaLabel="Filter by status"
+            options={[
+              { value: "all", label: "All Statuses" },
+              ...STATUSES.map((status) => ({
+                value: status,
+                label: status,
+              })),
+            ]}
+          />
 
-          <select
+          <PillSelect
             value={filters.location || "all"}
-            onChange={(e) => onFilterChange("location", e.target.value === "all" ? undefined : e.target.value)}
-            className={pillSelectCls(!!filters.location)}
-            style={SELECT_STYLE}
-            aria-label="Filter by location"
-          >
-            <option value="all">All Locations</option>
-            {(filterOptions?.locations ?? []).map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
+            onValueChange={(value) =>
+              onFilterChange("location", value === "all" ? undefined : value)
+            }
+            active={!!filters.location}
+            ariaLabel="Filter by location"
+            options={[
+              { value: "all", label: "All Locations" },
+              ...(filterOptions?.locations ?? []).map((location) => ({
+                value: location,
+                label: location,
+              })),
+            ]}
+          />
 
           {/* Range toggle pill */}
           <button
@@ -276,34 +372,26 @@ export function ShopInventoryFilters({
             )}
           </button>
 
-          {/* Sort select — mobile (always reachable, not gated behind Range) */}
-          <select
+          {/* Sort — mobile */}
+          <PillSelect
             value={currentSortValue}
-            onChange={(e) => onSortChange(e.target.value)}
-            className={cn(pillSelectCls(!!currentSortValue), "sm:hidden min-w-30")}
-            style={SELECT_STYLE}
-            aria-label="Sort by"
-          >
-            <option value="" disabled>Sort by</option>
-            {sortOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onValueChange={onSortChange}
+            active={!!currentSortValue}
+            ariaLabel="Sort by"
+            className="sm:hidden min-w-30"
+            options={sortOptions}
+          />
         </div>
 
-        {/* Sort select — desktop */}
-        <select
+        {/* Sort — desktop */}
+        <PillSelect
           value={currentSortValue}
-          onChange={(e) => onSortChange(e.target.value)}
-          className={cn(pillSelectCls(!!currentSortValue), "hidden sm:block shrink-0 min-w-37")}
-          style={SELECT_STYLE}
-          aria-label="Sort by"
-        >
-          <option value="" disabled>Sort by</option>
-          {sortOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+          onValueChange={onSortChange}
+          active={!!currentSortValue}
+          ariaLabel="Sort by"
+          className="hidden sm:flex min-w-37"
+          options={sortOptions}
+        />
       </div>
 
       {/* Row 3 — Price + Mileage ranges (collapsible) */}
@@ -318,7 +406,7 @@ export function ShopInventoryFilters({
               placeholder="Min $"
               className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
               value={priceMin}
-              onChange={(e) => setPriceMin(e.target.value)}
+              onChange={(e) => handleMinPriceChange(e.target.value)}
             />
             <span className="text-muted-foreground/50 text-xs">—</span>
             <Input
@@ -326,7 +414,7 @@ export function ShopInventoryFilters({
               placeholder="Max $"
               className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
               value={priceMax}
-              onChange={(e) => setPriceMax(e.target.value)}
+              onChange={(e) => handleMaxPriceChange(e.target.value)}
             />
           </div>
 
@@ -341,7 +429,7 @@ export function ShopInventoryFilters({
               placeholder="Min"
               className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
               value={mileMin}
-              onChange={(e) => setMileMin(e.target.value)}
+              onChange={(e) => handleMinMileageChange(e.target.value)}
             />
             <span className="text-muted-foreground/50 text-xs">—</span>
             <Input
@@ -349,7 +437,7 @@ export function ShopInventoryFilters({
               placeholder="Max"
               className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
               value={mileMax}
-              onChange={(e) => setMileMax(e.target.value)}
+              onChange={(e) => handleMaxMileageChange(e.target.value)}
             />
           </div>
         </div>

@@ -184,6 +184,7 @@ export default function DriverDashboardPage() {
   });
   const {
     isSharing,
+    isStarting,
     status,
     lastShareAt,
     error: locationError,
@@ -620,10 +621,22 @@ export default function DriverDashboardPage() {
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight">Command Center</h1>
         </div>
         <div className="flex items-center gap-2">
-          {isSharing && (
-            <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-200/50 text-[10px] font-bold gap-1.5 animate-pulse">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              GPS LIVE
+          {(isSharing || isStarting) && (
+            <Badge
+              className={cn(
+                "text-[10px] font-bold gap-1.5",
+                isSharing
+                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-200/50 animate-pulse"
+                  : "bg-amber-500/10 text-amber-600 border-amber-200/50",
+              )}
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  isSharing ? "bg-emerald-500" : "bg-amber-500 animate-pulse",
+                )}
+              />
+              {isSharing ? "GPS LIVE" : "GPS CONNECTING"}
             </Badge>
           )}
           <Badge variant="outline" className={cn(
@@ -790,18 +803,43 @@ export default function DriverDashboardPage() {
           <CardHeader className="py-3.5 px-5 border-b border-border/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className={cn("size-8 rounded-lg flex items-center justify-center", isSharing ? "bg-emerald-500/10" : "bg-muted/60")}>
-                  {isSharing ? <Wifi className="size-4 text-emerald-500" /> : <WifiOff className="size-4 text-muted-foreground" />}
+                <div
+                  className={cn(
+                    "size-8 rounded-lg flex items-center justify-center",
+                    isSharing
+                      ? "bg-emerald-500/10"
+                      : isStarting
+                        ? "bg-amber-500/10"
+                        : "bg-muted/60",
+                  )}
+                >
+                  {isSharing ? (
+                    <Wifi className="size-4 text-emerald-500" />
+                  ) : isStarting ? (
+                    <Wifi className="size-4 text-amber-500 animate-pulse" />
+                  ) : (
+                    <WifiOff className="size-4 text-muted-foreground" />
+                  )}
                 </div>
                 <div>
                   <CardTitle className="text-sm font-bold">GPS Broadcast</CardTitle>
                   <p className="text-[10px] text-muted-foreground/60 font-medium">Share location with dispatch</p>
                 </div>
               </div>
-              {isSharing && (
+              {(isSharing || isStarting) && (
                 <span className="relative flex size-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500" />
+                  <span
+                    className={cn(
+                      "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                      isSharing ? "bg-emerald-400" : "bg-amber-400",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "relative inline-flex rounded-full size-2.5",
+                      isSharing ? "bg-emerald-500" : "bg-amber-500",
+                    )}
+                  />
                 </span>
               )}
             </div>
@@ -854,12 +892,24 @@ export default function DriverDashboardPage() {
               )}
               variant={isSharing ? "outline" : "default"}
               onClick={() => {
-                if (isSharing) { stopSharing(); toast.success("Sharing stopped"); }
-                else { startSharing(); toast.success("Sharing started"); }
+                if (isSharing || isStarting) {
+                  void stopSharing();
+                } else {
+                  startSharing();
+                }
               }}
             >
-              <Navigation2 className={cn("size-3.5 mr-2", isSharing && "animate-pulse")} />
-              {isSharing ? "Stop Sharing" : "Start Sharing"}
+              <Navigation2
+                className={cn(
+                  "size-3.5 mr-2",
+                  (isSharing || isStarting) && "animate-pulse",
+                )}
+              />
+              {isSharing
+                ? "Stop Sharing"
+                : isStarting
+                  ? "Cancel GPS Connection"
+                  : "Start Sharing"}
             </Button>
             {lastShareAt && (
               <p className="text-[10px] text-muted-foreground/60 text-center font-medium">Last: {lastShareAt}</p>
