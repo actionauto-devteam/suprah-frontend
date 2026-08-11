@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasteDateInput } from "@/components/ui/paste-date-input";
 import {
   Dialog,
   DialogContent,
@@ -392,10 +393,9 @@ export function CreateUserModal({
                   Optional
                 </span>
               </Label>
-              <Input
-                type="date"
+              <PasteDateInput
                 value={form.hireDate}
-                onChange={(e) => setForm((p) => ({ ...p, hireDate: e.target.value }))}
+                onChange={(v) => setForm((p) => ({ ...p, hireDate: v }))}
                 className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30"
               />
             </div>
@@ -407,10 +407,9 @@ export function CreateUserModal({
                   Optional
                 </span>
               </Label>
-              <Input
-                type="date"
+              <PasteDateInput
                 value={form.birthday}
-                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
+                onChange={(v) => setForm((p) => ({ ...p, birthday: v }))}
                 className="h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30"
               />
             </div>
