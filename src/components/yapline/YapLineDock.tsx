@@ -38,6 +38,7 @@ import {
   ChevronDown,
   Headphones,
   UserPlus,
+  Megaphone,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ import {
 } from "@/lib/yapline-store";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
+import { YapLineSummonMenu } from "@/components/yapline/YapLineSummonMenu";
 
 const ini = (name?: string | null) =>
   (name || "?")
@@ -536,6 +538,22 @@ export function YapLineDock() {
                   {cur.joining ? "Connecting…" : cur.transmitting ? "Transmitting" : speaker ? "Receiving" : `Standby · ${q.label}`}
                 </p>
               </div>
+              {(() => {
+                const liveConv = conversations.find((c) => c._id === cur.conversationId);
+                return (
+                  <YapLineSummonMenu
+                    conversationId={cur.conversationId}
+                    members={liveConv?.members || []}
+                    activeParticipantIds={(session?.participants || []).map((p) => p.userId)}
+                    myUserId={s.myUserId}
+                    trigger={
+                      <button title="Summon channel members" className="rounded-lg p-1.5 text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground">
+                        <Megaphone className="size-3.5" />
+                      </button>
+                    }
+                  />
+                );
+              })()}
               {(() => {
                 const liveConv = conversations.find((c) => c._id === cur.conversationId);
                 if (!liveConv || liveConv.type !== "group") return null;

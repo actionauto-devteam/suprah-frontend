@@ -33,6 +33,7 @@ import {
   Check,
   Keyboard,
   Headphones,
+  Megaphone,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, resolveImageUrl } from "@/lib/utils";
@@ -46,6 +47,7 @@ import {
   type YapQuality,
 } from "@/lib/yapline-store";
 import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
+import { YapLineSummonMenu } from "@/components/yapline/YapLineSummonMenu";
 
 const ini = (name?: string | null) =>
   (name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -285,6 +287,21 @@ export default function YapLinePage() {
       .catch(() => { })
       .finally(() => setLoading(false));
     return () => controller.abort();
+  }, []);
+
+  // Deep-link auto-join for "Summon" push/bell notifications
+  // (?join=<conversationId>) — reads window.location directly instead of
+  // useSearchParams() so this page doesn't need a Suspense boundary just for
+  // a one-time value read on mount. Strips the param afterward so a refresh
+  // or remount doesn't rejoin the channel repeatedly.
+  React.useEffect(() => {
+    const joinId = new URLSearchParams(window.location.search).get("join");
+    if (!joinId) return;
+    void yapline.join(joinId);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("join");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = React.useMemo(() => {
@@ -574,6 +591,20 @@ export default function YapLinePage() {
                     </p>
                   </div>
                 ))}
+                <YapLineSummonMenu
+                  conversationId={cur.conversationId}
+                  members={convs.find((c) => c._id === cur.conversationId)?.members || []}
+                  activeParticipantIds={(session?.participants || []).map((p) => p.userId)}
+                  myUserId={s.myUserId}
+                  trigger={
+                    <button className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/40 p-4 text-muted-foreground/60 transition-colors hover:border-emerald-500/40 hover:text-emerald-500">
+                      <span className="flex size-14 items-center justify-center rounded-full border border-dashed border-current">
+                        <Megaphone className="size-5" />
+                      </span>
+                      <p className="text-sm font-bold">Summon</p>
+                    </button>
+                  }
+                />
                 {(() => {
                   const liveConv = convs.find((c) => c._id === cur.conversationId);
                   if (!liveConv || liveConv.type !== "group") return null;

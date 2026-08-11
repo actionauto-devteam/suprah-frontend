@@ -15,9 +15,6 @@ export function setSoundEnabled(val: boolean): void {
 }
 
 // ── Shared AudioContext (singleton) ────────────────────────────────────────────
-// Created lazily; unlocked on first user gesture via unlockAudio().
-// Browsers block audio.play() in socket event handlers (no user gesture) —
-// using a pre-unlocked context bypasses that restriction entirely.
 
 let _ctx: AudioContext | null = null;
 let _notifBuf: AudioBuffer | null = null;
@@ -142,10 +139,6 @@ export function stopCallSound(): void {
 }
 
 // ─── Shift Alerts dedicated warning sound ─────────────────────────────────────
-// Plain HTML Audio (not the shared AudioContext buffer above) since this file
-// is user-supplied and may change — see public/sounds/warning_sound.wav. Capped
-// at 5s and never looped: even if the source file runs longer, playback is cut
-// off so it can't turn into a continuous alarm.
 const SHIFT_ALERT_SOUND_MAX_MS = 5000;
 let _shiftAlertAudio: HTMLAudioElement | null = null;
 let _shiftAlertStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -168,14 +161,30 @@ export function playShiftAlertSound(soundFile = '/sounds/warning_sound.wav'): vo
   } catch {}
 }
 
+// ─── YapLine "summon/ping" sound ──────────────────────────────────────────────
+const PING_SOUND_MAX_MS = 6000;
+let _pingAudio: HTMLAudioElement | null = null;
+let _pingStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function playPingSound(soundFile = '/sounds/ElevenLabs.wav'): void {
+  if (!isSoundEnabled() || typeof window === 'undefined') return;
+
+  if (_pingStopTimer) { clearTimeout(_pingStopTimer); _pingStopTimer = null; }
+  if (_pingAudio) { try { _pingAudio.pause(); } catch {} }
+
+  try {
+    const audio = new Audio(soundFile);
+    audio.loop = false;
+    audio.volume = 0.8;
+    _pingAudio = audio;
+    audio.play().catch(() => {});
+    _pingStopTimer = setTimeout(() => {
+      try { audio.pause(); audio.currentTime = 0; } catch {}
+    }, PING_SOUND_MAX_MS);
+  } catch {}
+}
+
 // ─── Over-break alarm (repeating, until the user resumes) ─────────────────────
-// Deliberately DOES loop, unlike playShiftAlertSound above — once a break has
-// gone past the admin-escalation limit (1h05m — see BREAK_ADMIN_NOTIFY_SECONDS
-// in crmTimeproof.controller.ts), the point is a persistent nudge for the
-// affected user specifically, not a one-off ping. Only reachable while the
-// TimeProof Clock page itself is open (same fundamental limitation as any
-// other in-app sound); the caller is responsible for stopping it the moment
-// the user resumes their shift.
 let _overBreakAudio: HTMLAudioElement | null = null;
 
 export function playOverBreakAlarm(soundFile = '/sounds/warning_sound.wav'): void {

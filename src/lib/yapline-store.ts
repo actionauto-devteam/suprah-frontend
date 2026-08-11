@@ -792,6 +792,28 @@ async function leave(): Promise<void> {
   setState({ current: null });
 }
 
+async function pingChannel(conversationId: string, targetUserId?: string, targetName?: string): Promise<void> {
+  await ensureInit();
+  if (!socket) return;
+  socket.emit(
+    "yapline:ping-channel",
+    { conversationId, targetUserId },
+    (res: { ok: boolean; notified?: number; error?: string }) => {
+      if (!res?.ok) {
+        toast.error(res?.error || "Could not ping the channel.");
+        return;
+      }
+      if (targetUserId) {
+        toast.success(res.notified ? `Pinged ${targetName || "them"} to join.` : "They're already in the channel.");
+        return;
+      }
+      toast.success(
+        res.notified ? `Pinged ${res.notified} member${res.notified === 1 ? "" : "s"} to join.` : "Everyone's already here."
+      );
+    }
+  );
+}
+
 async function ensureMic(): Promise<boolean> {
   if (micStream?.getAudioTracks().some((t) => t.readyState === "live")) return true;
   try {
@@ -902,6 +924,7 @@ export const yapline = {
   ensureInit,
   join,
   leave,
+  pingChannel,
   startTransmit,
   stopTransmit,
   startScreenShare,

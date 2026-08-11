@@ -15,6 +15,7 @@ import {
   X,
   Wallet,
   AlertTriangle,
+  TrendingUp,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -195,6 +196,14 @@ export default function PayrollStatusPage() {
               </div>
               <span className="text-sm font-black tracking-tight text-foreground truncate">Payroll Status</span>
             </div>
+            <button
+              onClick={() => router.push("/crm/timeproof/overtime-report")}
+              className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
+              title="Weekly Overtime Report"
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">OT Report</span>
+            </button>
             <button onClick={fetchData} className="shrink-0 h-9 w-9 rounded-xl border border-border flex items-center justify-center hover:bg-muted/30 transition-colors text-muted-foreground" title="Refresh">
               <RefreshCw className="h-3.5 w-3.5" />
             </button>

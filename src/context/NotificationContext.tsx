@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Notification } from '@/types/notification';
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from '@/lib/socket.client';
-import { playShiftAlertSound } from '@/lib/notification-sound';
+import { playShiftAlertSound, playPingSound } from '@/lib/notification-sound';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -269,6 +269,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 });
                 if (notification.type === 'driver_dispatch_alert') {
                     playShiftAlertSound(notification.metadata?.soundFile);
+                } else if (notification.type === 'ping') {
+                    playPingSound();
                 }
                 fetchRef.current?.();
             };

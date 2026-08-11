@@ -38,6 +38,7 @@ interface EditUserForm {
   locationRequiredOverride: "default" | "required" | "exempt"
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
+  otWarningExempt: boolean
 }
 
 interface FormErrors {
@@ -65,6 +66,7 @@ interface EditUserModalProps {
     locationRequiredOverride?: "default" | "required" | "exempt"
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
+    otWarningExempt?: boolean
   } | null
   onUpdated?: () => void
 }
@@ -102,6 +104,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     locationRequiredOverride: "default",
     payrollLocation: "",
     hourlyTrackingExempt: false,
+    otWarningExempt: false,
   })
 
   React.useEffect(() => {
@@ -119,6 +122,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
+        otWarningExempt: !!user.otWarningExempt,
       })
       setErrors({})
     }
@@ -167,6 +171,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           locationRequiredOverride: form.locationRequiredOverride,
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
+          otWarningExempt: form.otWarningExempt,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -365,6 +370,18 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             <Switch
               checked={form.hourlyTrackingExempt}
               onCheckedChange={(checked) => setForm((p) => ({ ...p, hourlyTrackingExempt: checked }))}
+            />
+          </div>
+
+          {/* OT Warning Flag Exemption — hides the 43h heads-up badge only, OT pay still computes normally */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Exempt from OT Warning Flag</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">Hides the 43h+ overtime warning badge on Payroll Status for this person. Their overtime pay still calculates and pays out normally — this only silences the heads-up alert.</p>
+            </div>
+            <Switch
+              checked={form.otWarningExempt}
+              onCheckedChange={(checked) => setForm((p) => ({ ...p, otWarningExempt: checked }))}
             />
           </div>
 
