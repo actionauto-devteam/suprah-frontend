@@ -15,13 +15,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { RadioTower, Mic, MonitorUp, ArrowRight, Radio, Headphones, UserPlus } from "lucide-react";
+import { RadioTower, Mic, MonitorUp, ArrowRight, Radio, Headphones, UserPlus, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { useYapLine, yapline } from "@/lib/yapline-store";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
+import { YapLineSummonMenu } from "@/components/yapline/YapLineSummonMenu";
 
 const ini = (name?: string | null) =>
   (name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -180,6 +181,25 @@ export function YapLineWidget() {
                   >
                     <Mic className="size-3" /> {cur.transmitting ? "On Air" : "Talk"}
                   </button>
+                  {(() => {
+                    const liveConv = conversations.find((c) => c._id === cur.conversationId);
+                    return (
+                      <YapLineSummonMenu
+                        conversationId={cur.conversationId}
+                        members={liveConv?.members || []}
+                        activeParticipantIds={(s.sessions[cur.conversationId]?.participants || []).map((p) => p.userId)}
+                        myUserId={s.myUserId}
+                        trigger={
+                          <button
+                            title="Summon channel members"
+                            className="rounded-lg border border-border/40 p-1.5 text-muted-foreground/60 hover:border-emerald-500/30 hover:text-emerald-500"
+                          >
+                            <Megaphone className="size-3" />
+                          </button>
+                        }
+                      />
+                    );
+                  })()}
                   {(() => {
                     const liveConv = conversations.find((c) => c._id === cur.conversationId);
                     if (!liveConv || liveConv.type !== "group") return null;
