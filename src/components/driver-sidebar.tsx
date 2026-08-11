@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User as UserIcon, Settings as SettingsIcon } from "lucide-react";
 import { useOrg } from "@/hooks/useOrg";
+import { DriverDispatchChatSidebarItem } from "@/components/dispatch-chat/DriverDispatchChatSidebarItem";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -524,6 +525,8 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+
+          <DriverDispatchChatSidebarItem />
         </SidebarMenu>
 
         <div className="dsb-hr mx-4 mt-4 group-data-[collapsible=icon]:hidden" />

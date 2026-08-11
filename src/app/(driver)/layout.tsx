@@ -32,8 +32,6 @@ import { driverNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { resolveImageUrl } from "@/lib/utils";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
-import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
-import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 import { DriverLocationSharingProvider } from "@/context/DriverLocationSharingContext";
 import {
   AlertDialog,
@@ -189,8 +187,6 @@ function DriverLayoutContent({
         </main>
         <MobileBottomNav items={driverNav} />
       </SidebarInset>
-      <ChatPopupManager />
-
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
@@ -219,9 +215,7 @@ export default function DriverLayout({
     <ProfileProvider>
       <ProfileToastProvider>
         <NotificationProvider>
-          <SupraSpaceMessengerProvider>
-            <DriverLayoutContent>{children}</DriverLayoutContent>
-          </SupraSpaceMessengerProvider>
+          <DriverLayoutContent>{children}</DriverLayoutContent>
         </NotificationProvider>
       </ProfileToastProvider>
     </ProfileProvider>

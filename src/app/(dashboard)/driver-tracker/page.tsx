@@ -21,7 +21,6 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useUser } from "@/providers/AuthProvider";
 import { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
-import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useOptionalDriverLocationSharing } from "@/context/DriverLocationSharingContext";
 
 export interface AvailableItem {
@@ -45,6 +44,7 @@ import { DriverAssignLoadModal } from "@/components/driver-tracker/DriverAssignL
 import { DriverTrackerAvailableLoadsCard } from "@/components/driver-tracker/DriverTrackerAvailableLoadsCard";
 import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTrackerRequestsCard";
 import { DriverDispatchAlertDialog } from "@/components/driver-tracker/DriverDispatchAlertDialog";
+import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
 import {
@@ -91,7 +91,6 @@ export default function DriverTrackerPage() {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const { theme } = useTheme();
-  const { openDirectChat } = useSupraSpaceMessenger();
   const driverLocationSharing = useOptionalDriverLocationSharing();
   const isDriver = user?.role === "driver";
   const [drivers, setDrivers] = React.useState<DriverTrackingItem[]>([]);
@@ -112,6 +111,8 @@ export default function DriverTrackerPage() {
   const [loadsTab, setLoadsTab] = React.useState("assigned");
   const [alertDriver, setAlertDriver] = React.useState<DriverTrackingItem | null>(null);
   const [alertDialogOpen, setAlertDialogOpen] = React.useState(false);
+  const [chatDriver, setChatDriver] = React.useState<DriverTrackingItem | null>(null);
+  const [chatDialogOpen, setChatDialogOpen] = React.useState(false);
   const [mapFilter, setMapFilter] = React.useState<
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
@@ -382,34 +383,17 @@ export default function DriverTrackerPage() {
   );
 
   const handleMessageDriver = React.useCallback(
-    async (driver: DriverTrackingItem) => {
-      // Prefer the already-linked CRM id, but fall back to the driver's main
-      // User id. The backend direct-message endpoint can safely provision a
-      // missing Suprah Space identity for an active driver in this same org.
-      // This removes the old dead-end where the UI refused to even attempt a
-      // message when older driver onboarding had not created a CrmUser yet.
-      const targetUserId = driver.driver?.crmUserId ?? driver.driver?.id;
-
-      if (!targetUserId) {
-        toast.error("Messaging is unavailable for this driver");
+    (driver: DriverTrackingItem) => {
+      const driverId = driver.driver?.id;
+      if (!driverId) {
+        toast.error("Dispatch Chat is unavailable for this driver");
         return;
       }
 
-      try {
-        await openDirectChat(targetUserId);
-        // Refresh the directory so a newly provisioned CRM identity is
-        // reflected in messagingAvailable/crmUserId without waiting 10s.
-        void fetchDrivers();
-      } catch (error: any) {
-        toast.error(
-          error.response?.data?.message ||
-            error.message ||
-            driver.driver?.messagingUnavailableReason ||
-            "Messaging is unavailable for this driver",
-        );
-      }
+      setChatDriver(driver);
+      setChatDialogOpen(true);
     },
-    [openDirectChat, fetchDrivers],
+    [],
   );
 
   React.useEffect(() => {
@@ -1105,6 +1089,13 @@ export default function DriverTrackerPage() {
         open={alertDialogOpen}
         onOpenChange={setAlertDialogOpen}
         driver={alertDriver}
+      />
+
+      <DispatchChatDialog
+        open={chatDialogOpen}
+        onOpenChange={setChatDialogOpen}
+        driverId={chatDriver?.driver?.id ?? null}
+        participantName={chatDriver?.driver?.name || "Driver"}
       />
     </div>
   );

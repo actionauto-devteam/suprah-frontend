@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
+import { initializeSocket } from "@/lib/socket.client";
 import { useDriverLocationSharing } from "@/hooks/useDriverLocationSharing";
 import { useTheme } from "@/context/ThemeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -246,8 +247,64 @@ export default function DriverDashboardPage() {
     fetchData();
   }, [fetchData]);
 
-  const activeLoads = loads.filter(
-    (l) => l.status !== "Delivered" && l.status !== "Cancelled",
+  // Keep the Driver Command Center synchronized with dispatcher-side load
+  // changes without requiring a browser refresh. The backend already emits
+  // "driver:loads_updated" directly to this driver's user socket whenever a
+  // load is assigned, reassigned, removed, approved, dropped, accepted, picked
+  // up, or moved into route.
+  React.useEffect(() => {
+    let cancelled = false;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    let fallbackTimer: number | null = null;
+
+    const refreshFromRealtimeEvent = () => {
+      if (cancelled) return;
+      void fetchData();
+    };
+
+    const connect = async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        socket = initializeSocket(token);
+        socket.on("driver:loads_updated", refreshFromRealtimeEvent);
+
+        // Fallback only. Socket.IO remains the primary update path, while this
+        // protects the dashboard from becoming stale after a temporary socket
+        // reconnect or a missed event.
+        fallbackTimer = window.setInterval(
+          refreshFromRealtimeEvent,
+          15_000,
+        );
+      } catch {
+        // If the socket cannot connect temporarily, keep the dashboard usable
+        // and synchronized through the fallback until the component remounts.
+        fallbackTimer = window.setInterval(
+          refreshFromRealtimeEvent,
+          15_000,
+        );
+      }
+    };
+
+    void connect();
+
+    return () => {
+      cancelled = true;
+
+      if (fallbackTimer !== null) {
+        window.clearInterval(fallbackTimer);
+      }
+
+      socket?.off(
+        "driver:loads_updated",
+        refreshFromRealtimeEvent,
+      );
+    };
+  }, [fetchData, getToken]);
+
+  const activeLoads = loads.filter((l) =>
+    ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(l.status),
   );
   const completedCount = loads.filter((l) => l.status === "Delivered").length;
   const currentLoad = activeLoads[0];
@@ -439,7 +496,20 @@ export default function DriverDashboardPage() {
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load dropped");
-        fetchData();
+
+        // The load has already been dropped successfully, so clear the
+        // confirmation state immediately instead of leaving the destructive
+        // modal mounted while the refreshed load data removes the card.
+        setConfirmState({
+          isOpen: false,
+          action: "",
+          title: "",
+          description: "",
+          variant: "primary",
+          load: null,
+        });
+
+        await fetchData();
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Failed to drop load");
       } finally {
@@ -883,35 +953,80 @@ export default function DriverDashboardPage() {
                 })}
               </div>
             </TooltipProvider>
-            <Button
-              size="sm"
-              className={cn(
-                "w-full h-10 text-xs font-bold transition-all duration-300",
-                isSharing
-                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800 hover:bg-rose-500/20 shadow-none"
-                  : "bg-primary text-primary-foreground shadow-sm hover:shadow-md",
-              )}
-              variant={isSharing ? "outline" : "default"}
-              onClick={() => {
-                if (isSharing || isStarting) {
-                  void stopSharing();
-                } else {
-                  startSharing();
-                }
-              }}
-            >
-              <Navigation2
+            {hasActiveLoad ? (
+              <div
                 className={cn(
-                  "size-3.5 mr-2",
-                  (isSharing || isStarting) && "animate-pulse",
+                  "w-full rounded-lg border px-3 py-2.5",
+                  isSharing
+                    ? "border-emerald-500/20 bg-emerald-500/5"
+                    : isStarting
+                      ? "border-amber-500/20 bg-amber-500/5"
+                      : "border-destructive/20 bg-destructive/5",
                 )}
-              />
-              {isSharing
-                ? "Stop Sharing"
-                : isStarting
-                  ? "Cancel GPS Connection"
-                  : "Start Sharing"}
-            </Button>
+              >
+                <div className="flex items-start gap-2.5">
+                  <Navigation2
+                    className={cn(
+                      "size-4 mt-0.5 shrink-0",
+                      isSharing
+                        ? "text-emerald-500"
+                        : isStarting
+                          ? "text-amber-500 animate-pulse"
+                          : "text-destructive",
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold">
+                      GPS Required While Loads Are Active
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                      {isSharing
+                        ? "Location sharing is automatic and cannot be turned off until you have no active loads."
+                        : isStarting
+                          ? "Connecting automatically because you have an active load…"
+                          : "Location permission is required while you have an active load."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">
+                    No active loads. You can choose whether to share your location.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className={cn(
+                    "w-full h-10 text-xs font-bold transition-all duration-300",
+                    isSharing || isStarting
+                      ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800 hover:bg-rose-500/20 shadow-none"
+                      : "bg-primary text-primary-foreground shadow-sm hover:shadow-md",
+                  )}
+                  variant={isSharing || isStarting ? "outline" : "default"}
+                  onClick={() => {
+                    if (isSharing || isStarting) {
+                      void stopSharing();
+                    } else {
+                      startSharing();
+                    }
+                  }}
+                >
+                  <Navigation2
+                    className={cn(
+                      "size-3.5 mr-2",
+                      (isSharing || isStarting) && "animate-pulse",
+                    )}
+                  />
+                  {isSharing
+                    ? "Turn Off GPS"
+                    : isStarting
+                      ? "Stop Connecting"
+                      : "Turn On GPS"}
+                </Button>
+              </div>
+            )}
             {lastShareAt && (
               <p className="text-[10px] text-muted-foreground/60 text-center font-medium">Last: {lastShareAt}</p>
             )}
