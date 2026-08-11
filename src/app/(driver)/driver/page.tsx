@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { US_STATES, AVAILABLE_DAYS } from "@/components/driver-profile/driver-profile-constants";
 import { ConfirmationModal, ConfirmationVariant } from "@/components/ui/confirmation-modal";
+import { DriverAcceptLoadDialog } from "@/components/driver/DriverAcceptLoadDialog";
 import Link from "next/link";
 
 type DriverStatus = "on-route" | "idle" | "on-break" | "waiting" | "offline";
@@ -154,6 +155,7 @@ export default function DriverDashboardPage() {
   } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [accepting, setAccepting] = React.useState<string | null>(null);
+  const [acceptDialogLoad, setAcceptDialogLoad] = React.useState<any | null>(null);
   const [dropping, setDropping] = React.useState<string | null>(null);
   const [startingRoute, setStartingRoute] = React.useState<string | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
@@ -401,17 +403,22 @@ export default function DriverDashboardPage() {
   };
 
   const acceptLoad = React.useCallback(
-    async (load: any) => {
+    async (load: any, signatureDataUrl: string, signerName: string) => {
       setAccepting(load._id);
       try {
         const token = await getToken();
         await apiClient.post(
-          "/api/driver-tracking/accept-load",
-          { loadId: load._id },
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/accept`,
+          {
+            agreedToTerms: true,
+            signatureDataUrl,
+            signerName,
+          },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load accepted");
-        fetchData();
+        setAcceptDialogLoad(null);
+        await fetchData();
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Failed to accept load");
       } finally {
@@ -427,8 +434,8 @@ export default function DriverDashboardPage() {
       try {
         const token = await getToken();
         await apiClient.post(
-          "/api/driver-tracking/drop-load",
-          { loadId: load._id },
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/drop`,
+          {},
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Load dropped");
@@ -448,8 +455,8 @@ export default function DriverDashboardPage() {
       try {
         const token = await getToken();
         await apiClient.post(
-          "/api/driver-tracking/start-route",
-          { loadId: load._id },
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/start-route`,
+          {},
           { headers: { Authorization: `Bearer ${token}` } },
         );
         toast.success("Route started");
@@ -470,11 +477,6 @@ export default function DriverDashboardPage() {
     let variant: ConfirmationVariant = 'primary';
 
     switch (action) {
-      case 'accept-load':
-        title = 'Accept This Load?';
-        description = 'Are you sure you want to accept this load assignment? This will be added to your active schedule.';
-        variant = 'primary';
-        break;
       case 'start-route':
         title = 'Start Route?';
         description = 'Are you ready to begin the delivery route? This will notify the organization that you are in transit.';
@@ -501,7 +503,6 @@ export default function DriverDashboardPage() {
 
   const executeConfirmedAction = () => {
     const { action, load } = confirmState;
-    if (action === 'accept-load') acceptLoad(load);
     if (action === 'start-route') startRoute(load);
     if (action === 'drop-load') dropLoad(load);
   };
@@ -962,12 +963,17 @@ export default function DriverDashboardPage() {
                   <Clock className="size-3" />
                   Pickup: {new Date(currentLoad.dates?.pickupDeadline || currentLoad.requestedPickupDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
                 </p>
-                {(currentLoad.status === "Assigned" || currentLoad.status === "Posted") && !currentLoad.driverAcceptedAt && (
-                  <Button size="sm" className="w-full h-9 text-xs font-bold shadow-sm" disabled={accepting === currentLoad._id} onClick={() => handleAction('accept-load', currentLoad)}>
+                {currentLoad.status === "Assigned" && (
+                  <Button
+                    size="sm"
+                    className="w-full h-9 text-xs font-bold shadow-sm"
+                    disabled={accepting === currentLoad._id}
+                    onClick={() => setAcceptDialogLoad(currentLoad)}
+                  >
                     {accepting === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Accepting...</> : <><CheckCircle2 className="size-3.5 mr-2" />Accept Load</>}
                   </Button>
                 )}
-                {currentLoad.driverAcceptedAt && currentLoad.status === "Picked Up" && (
+                {currentLoad.status === "Picked Up" && (
                   <Button size="sm" className="w-full h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm" disabled={startingRoute === currentLoad._id} onClick={() => handleAction('start-route', currentLoad)}>
                     {startingRoute === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Starting...</> : <><Navigation2 className="size-3.5 mr-2" />Start Route</>}
                   </Button>
@@ -981,9 +987,11 @@ export default function DriverDashboardPage() {
                     <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">In Transit</span>
                   </div>
                 )}
-                <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10" disabled={dropping === currentLoad._id} onClick={() => handleAction('drop-load', currentLoad)}>
-                  {dropping === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Dropping...</> : <><XCircle className="size-3.5 mr-2" />Drop Load</>}
-                </Button>
+                {["Assigned", "Accepted"].includes(currentLoad.status) && (
+                  <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10" disabled={dropping === currentLoad._id} onClick={() => handleAction('drop-load', currentLoad)}>
+                    {dropping === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Dropping...</> : <><XCircle className="size-3.5 mr-2" />Drop Load</>}
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-3">
@@ -1154,6 +1162,16 @@ export default function DriverDashboardPage() {
           Save Logistics
         </Button>
       </div>
+
+      <DriverAcceptLoadDialog
+        open={!!acceptDialogLoad}
+        onOpenChange={(open) => {
+          if (!open && !accepting) setAcceptDialogLoad(null);
+        }}
+        load={acceptDialogLoad}
+        isSubmitting={!!accepting}
+        onAccept={acceptLoad}
+      />
 
       <ConfirmationModal
         isOpen={confirmState.isOpen}

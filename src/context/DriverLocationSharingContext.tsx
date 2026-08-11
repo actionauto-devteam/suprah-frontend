@@ -112,9 +112,8 @@ export function DriverLocationSharingProvider({
           setIsStarting(false);
         } else {
           // "LIVE" is only true after the server accepted the heartbeat.
-          setIsSharing(false);
-          setIsStarting(true);
           setSharingEnabled(true);
+          setIsSharing(true);
           setIsStarting(false);
         }
       }

@@ -383,16 +383,12 @@ export default function DriverTrackerPage() {
 
   const handleMessageDriver = React.useCallback(
     async (driver: DriverTrackingItem) => {
-      if (!driver.driver?.messagingAvailable) {
-        toast.error(
-          driver.driver?.messagingUnavailableReason ||
-            "Suprah Space is not linked to this driver.",
-        );
-        return;
-      }
-
-      const targetUserId =
-        driver.driver.crmUserId ?? driver.driver.id;
+      // Prefer the already-linked CRM id, but fall back to the driver's main
+      // User id. The backend direct-message endpoint can safely provision a
+      // missing Suprah Space identity for an active driver in this same org.
+      // This removes the old dead-end where the UI refused to even attempt a
+      // message when older driver onboarding had not created a CrmUser yet.
+      const targetUserId = driver.driver?.crmUserId ?? driver.driver?.id;
 
       if (!targetUserId) {
         toast.error("Messaging is unavailable for this driver");
@@ -401,15 +397,19 @@ export default function DriverTrackerPage() {
 
       try {
         await openDirectChat(targetUserId);
+        // Refresh the directory so a newly provisioned CRM identity is
+        // reflected in messagingAvailable/crmUserId without waiting 10s.
+        void fetchDrivers();
       } catch (error: any) {
         toast.error(
           error.response?.data?.message ||
             error.message ||
+            driver.driver?.messagingUnavailableReason ||
             "Messaging is unavailable for this driver",
         );
       }
     },
-    [openDirectChat],
+    [openDirectChat, fetchDrivers],
   );
 
   React.useEffect(() => {
