@@ -25,11 +25,78 @@ import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// STUN only — fine on most office/LAN networks. For strict NATs in
-// production, add a TURN server here (e.g. coturn on the EC2 box).
-const ICE_SERVERS: RTCIceServer[] = [
+/* ─── ICE configuration ──────────────────────────────────────────────────────
+ * Fetched from the API rather than hard-coded, because TURN credentials are
+ * per-user and short-lived. STUN alone only connects peers who can reach each
+ * other directly — fine inside one office, useless for a distributed team
+ * behind home routers, hotspots and CGNAT. TURN relays the media through a
+ * server both ends can reach, which is what makes remote calls work at all.
+ *
+ * The fallback below is STUN-only and exists purely so a failed fetch can't
+ * take the whole feature down; `iceHasTurn` tells the UI when we're running
+ * without a relay so remote users get a warning instead of silence.
+ * ------------------------------------------------------------------------ */
+
+const FALLBACK_ICE: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
+
+let iceServers: RTCIceServer[] = FALLBACK_ICE;
+let iceExpiresAt = 0;
+let iceHasTurn = false;
+let iceFetch: Promise<void> | null = null;
+
+/** Load (or refresh) ICE servers. Cheap no-op while the cached set is valid. */
+function loadIceConfig(force = false): Promise<void> {
+  if (!force && Date.now() < iceExpiresAt) return Promise.resolve();
+  if (iceFetch) return iceFetch;
+  iceFetch = apiClient
+    .get("/api/crm/yapline/ice")
+    .then((res) => {
+      const d = res.data?.data || {};
+      if (Array.isArray(d.iceServers) && d.iceServers.length) {
+        iceServers = d.iceServers;
+        iceHasTurn = !!d.hasTurn;
+          // Refresh well before expiry (10 minutes early, or halfway through a
+        // short TTL). Credentials are rotated into every LIVE peer connection
+        // too, so a session that runs all day never hits an expired relay.
+        const ttlMs = (d.ttl || 86400) * 1000;
+        iceExpiresAt = Date.now() + Math.max(30_000, ttlMs - Math.min(600_000, ttlMs / 2));
+        rotateIceIntoLivePeers();
+      }
+      setState({ relayReady: iceHasTurn });
+    })
+    .catch(() => {
+      // Keep whatever we had; try again on the next peer.
+      iceExpiresAt = Date.now() + 30_000;
+    })
+    .finally(() => {
+      iceFetch = null;
+    });
+  return iceFetch;
+}
+
+/**
+ * Peer-connection config. `iceCandidatePoolSize` pre-gathers candidates so the
+ * first offer already carries relay routes — noticeably faster connects for
+ * remote users, who need the TURN path more often than not.
+ */
+function rtcConfig(): RTCConfiguration {
+  return { iceServers, iceCandidatePoolSize: 4 };
+}
+
+/**
+ * Push fresh credentials into every open connection. Existing media keeps
+ * flowing untouched — this only ensures that if a route dies later, the
+ * recovery path has valid credentials to rebuild with.
+ */
+function rotateIceIntoLivePeers() {
+  const apply = (pc: RTCPeerConnection) => {
+    try { pc.setConfiguration(rtcConfig()); } catch { /* older impls */ }
+  };
+  peers.forEach((p) => apply(p.pc));
+  monitorPeers.forEach((m) => m.forEach((p) => apply(p.pc)));
+}
 
 const LS_AUTO_LISTEN = "yapline_auto_listen";
 const LS_VOLUME = "yapline_volume";
@@ -80,6 +147,13 @@ export interface YapCurrent {
   quality: YapQuality;
   screenSharing: boolean; // me
   screenVersion: number;  // bumped whenever remote screen streams change
+  /**
+   * Open-mic model: the mic is LIVE unless muted. `micMuted` is the single
+   * source of truth for whether this user's voice is going out; `transmitting`
+   * is now derived voice-activity (are they actually making sound right now),
+   * used only for the speaking rings.
+   */
+  micMuted: boolean;
 }
 
 // A "monitor" is a listen-only channel joined alongside (not instead of) the
@@ -97,6 +171,19 @@ export const MAX_JOINED_CHANNELS = 5;
 
 export interface YapLineState {
   ready: boolean;                 // socket connected + authed
+  /**
+   * Browsers refuse to play audio in a tab the user hasn't interacted with.
+   * When that happens we surface it instead of leaving people staring at a
+   * "connected" session they cannot hear — the UI shows a tap-to-enable
+   * prompt, and any click anywhere in the app clears it.
+   */
+  audioBlocked: boolean;
+  /**
+   * True when a TURN relay is configured. Without one, peers on different
+   * networks frequently cannot connect at all — the UI warns instead of
+   * leaving remote users guessing why they hear nothing.
+   */
+  relayReady: boolean;
   myUserId: string | null;
   sessions: Record<string, YapSessionSummary>;
   current: YapCurrent | null;
@@ -111,6 +198,8 @@ export interface YapLineState {
 
 let state: YapLineState = {
   ready: false,
+  audioBlocked: false,
+  relayReady: false,
   myUserId: null,
   sessions: {},
   current: null,
@@ -120,7 +209,9 @@ let state: YapLineState = {
   // exactly the "auto joined into a channel for no reason" surprise. The
   // toggle lives on the full YapLine page for anyone who actually wants it.
   autoListen: false,
-  minimized: false,
+  // The dock lives as a single orb by default — it expands only when the user
+  // taps it, so it never occupies the corner of the screen uninvited.
+  minimized: true,
   pttKey: loadPttKey(),
   error: null,
 };
@@ -145,6 +236,15 @@ interface Peer {
   makingOffer: boolean;
   ignoreOffer: boolean;
   audioEl: HTMLAudioElement | null;
+  /**
+   * Senders are cached at negotiation time instead of being re-discovered by
+   * scanning transceivers for `receiver.track.kind`. That scan was unreliable:
+   * on the answering side a transceiver's receiver track can be absent or
+   * still kind-less at the moment we attach, so the mic silently landed on no
+   * sender at all — the classic "I'm talking and nobody hears me".
+   */
+  audioSender: RTCRtpSender | null;
+  videoSender: RTCRtpSender | null;
 }
 
 // A monitor peer is deliberately dumber than the active-channel Peer above:
@@ -158,6 +258,91 @@ interface MonitorPeer {
 let socket: Socket | null = null;
 let initPromise: Promise<void> | null = null;
 let micStream: MediaStream | null = null;
+
+/* ─── Audio sink ────────────────────────────────────────────────────────────
+ * Every remote voice needs a real, DOM-attached <audio> element. Detached
+ * elements are unreliable across browsers, and autoplay policy blocks play()
+ * outright on tabs the user hasn't clicked yet — which is why a listener could
+ * be fully connected, see the speaking rings light up, and still hear nothing.
+ * We keep one hidden container, retry every blocked element on the first user
+ * gesture, and expose `audioBlocked` so the UI can ask for that one tap.
+ * ------------------------------------------------------------------------ */
+
+let audioRoot: HTMLDivElement | null = null;
+const pendingPlay = new Set<HTMLAudioElement>();
+let unlockBound = false;
+
+function getAudioRoot(): HTMLDivElement | null {
+  if (typeof document === "undefined") return null;
+  if (audioRoot?.isConnected) return audioRoot;
+  audioRoot = document.createElement("div");
+  audioRoot.id = "yapline-audio-sink";
+  audioRoot.style.cssText = "position:fixed;width:0;height:0;overflow:hidden;pointer-events:none;";
+  document.body.appendChild(audioRoot);
+  return audioRoot;
+}
+
+function createSink(): HTMLAudioElement {
+  const el = document.createElement("audio");
+  el.autoplay = true;
+  // iOS Safari refuses inline playback without this and hijacks the session.
+  el.setAttribute("playsinline", "");
+  (el as any).playsInline = true;
+  getAudioRoot()?.appendChild(el);
+  return el;
+}
+
+function bindUnlockOnce() {
+  if (unlockBound || typeof window === "undefined") return;
+  unlockBound = true;
+  const unlock = () => {
+    void resumeAudio();
+  };
+  ["pointerdown", "keydown", "touchstart"].forEach((evt) =>
+    window.addEventListener(evt, unlock, { passive: true })
+  );
+}
+
+/** Retry every element the browser refused to start. Safe to call anytime. */
+async function resumeAudio(): Promise<void> {
+  if (audioCtx?.state === "suspended") {
+    try { await audioCtx.resume(); } catch { /* noop */ }
+  }
+  const els = Array.from(pendingPlay);
+  await Promise.all(
+    els.map(async (el) => {
+      try {
+        await el.play();
+        pendingPlay.delete(el);
+      } catch {
+        /* still blocked — stays queued for the next gesture */
+      }
+    })
+  );
+  if (pendingPlay.size === 0 && state.audioBlocked) setState({ audioBlocked: false });
+}
+
+/** Start (or restart) playback on a sink, tracking blocked ones. */
+function playSink(el: HTMLAudioElement) {
+  bindUnlockOnce();
+  el.play()
+    .then(() => {
+      pendingPlay.delete(el);
+      if (pendingPlay.size === 0 && state.audioBlocked) setState({ audioBlocked: false });
+    })
+    .catch(() => {
+      pendingPlay.add(el);
+      if (!state.audioBlocked) setState({ audioBlocked: true });
+    });
+}
+
+function destroySink(el: HTMLAudioElement | null) {
+  if (!el) return;
+  pendingPlay.delete(el);
+  try { el.pause(); } catch { /* noop */ }
+  el.srcObject = null;
+  el.remove();
+}
 let screenStream: MediaStream | null = null;
 const peers = new Map<string, Peer>();
 // conversationId -> userId -> MonitorPeer. Kept entirely separate from `peers`
@@ -296,6 +481,9 @@ async function ensureInit(): Promise<void> {
       if (state.monitors[conversationId]) closeMonitorPeer(conversationId, userId);
     });
 
+    // Warm the relay credentials during startup so the first join is instant.
+    void loadIceConfig();
+
     socket.on("yapline:signal", (msg: { conversationId: string; from: string; data: any }) => {
       if (state.current?.conversationId === msg.conversationId) { void handleSignal(msg.from, msg.data); return; }
       if (state.monitors[msg.conversationId]) void handleMonitorSignal(msg.conversationId, msg.from, msg.data);
@@ -359,15 +547,24 @@ function createPeer(peerId: string, initiate: boolean): Peer {
   const existing = peers.get(peerId);
   if (existing) return existing;
 
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection(rtcConfig());
   const polite = (state.myUserId || "") > peerId;
-  const peer: Peer = { pc, polite, makingOffer: false, ignoreOffer: false, audioEl: null };
+  const peer: Peer = {
+    pc,
+    polite,
+    makingOffer: false,
+    ignoreOffer: false,
+    audioEl: null,
+    audioSender: null,
+    videoSender: null,
+  };
   peers.set(peerId, peer);
 
   if (initiate) {
-    // Fixed media slots — replaceTrack() later, never renegotiate.
-    pc.addTransceiver("audio", { direction: "sendrecv" });
-    pc.addTransceiver("video", { direction: "sendrecv" });
+    // Fixed media slots — replaceTrack() later, never renegotiate. Senders are
+    // captured here so attaching the mic later can never miss its target.
+    peer.audioSender = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
+    peer.videoSender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
     attachLocalTracks(peer);
   }
 
@@ -388,39 +585,82 @@ function createPeer(peerId: string, initiate: boolean): Peer {
   };
 
   pc.oniceconnectionstatechange = () => {
-    if (pc.iceConnectionState === "failed") pc.restartIce();
+    if (pc.iceConnectionState === "failed") {
+      // Expired TURN credentials look exactly like a dead path, so refresh
+      // them before retrying — this is the usual cause of a long session
+      // dropping a peer that reconnects fine afterwards.
+      void loadIceConfig(true).then(() => {
+        try {
+          pc.setConfiguration(rtcConfig());
+        } catch {
+          /* not supported everywhere — restartIce still helps */
+        }
+        pc.restartIce();
+      });
+    }
   };
 
   pc.ontrack = (e) => {
     if (e.track.kind === "audio") {
-      const el = peer.audioEl || new Audio();
+      const el = peer.audioEl || createSink();
       peer.audioEl = el;
-      el.autoplay = true;
       el.srcObject = e.streams[0] || new MediaStream([e.track]);
       el.volume = state.current?.volume ?? defaultVolume;
       el.muted = !!state.current?.deafened;
-      void el.play().catch(() => { /* resumes on next user gesture */ });
-    } else {
-      remoteScreens.set(peerId, e.streams[0] || new MediaStream([e.track]));
-      bumpScreenVersion();
-      e.track.onended = () => {
-        remoteScreens.delete(peerId);
-        bumpScreenVersion();
-      };
+      playSink(el);
+      // A remote that unmutes after a reconnect needs the sink kicked again;
+      // some browsers pause the element when the track goes silent.
+      e.track.onunmute = () => playSink(el);
+      return;
     }
+
+    /* Video. The screen transceiver is negotiated up-front and sits EMPTY
+     * until someone actually shares, so ontrack fires immediately with a
+     * muted, frameless track. Registering that as a screen is what painted
+     * everyone a black rectangle. Only publish the stream once real frames
+     * arrive (unmute), and pull it the moment they stop. */
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    const publish = () => {
+      remoteScreens.set(peerId, stream);
+      bumpScreenVersion();
+    };
+    const retract = () => {
+      if (remoteScreens.delete(peerId)) bumpScreenVersion();
+    };
+    if (!e.track.muted) publish();
+    e.track.onunmute = publish;
+    e.track.onmute = retract;
+    e.track.onended = retract;
   };
 
   return peer;
 }
 
+/** Late-bind senders on the answering side, where the remote offer created them. */
+function captureSenders(peer: Peer) {
+  if (peer.audioSender && peer.videoSender) return;
+  peer.pc.getTransceivers().forEach((t) => {
+    // mid ordering is stable: the offer always declares audio first, then
+    // video, so it disambiguates even before receiver tracks materialise.
+    const kind =
+      t.sender.track?.kind ||
+      t.receiver.track?.kind ||
+      (t.mid === "0" ? "audio" : t.mid === "1" ? "video" : null);
+    if (kind === "audio" && !peer.audioSender) peer.audioSender = t.sender;
+    if (kind === "video" && !peer.videoSender) peer.videoSender = t.sender;
+  });
+}
+
 function attachLocalTracks(peer: Peer) {
+  captureSenders(peer);
   const micTrack = micStream?.getAudioTracks()[0] || null;
   const screenTrack = screenStream?.getVideoTracks()[0] || null;
-  peer.pc.getTransceivers().forEach((t) => {
-    const kind = t.receiver.track?.kind || (t as any).kind;
-    if (kind === "audio" && micTrack) void t.sender.replaceTrack(micTrack);
-    if (kind === "video" && screenTrack) void t.sender.replaceTrack(screenTrack);
-  });
+  if (micTrack && peer.audioSender && peer.audioSender.track !== micTrack) {
+    void peer.audioSender.replaceTrack(micTrack).catch(() => { /* peer closing */ });
+  }
+  if (screenTrack && peer.videoSender && peer.videoSender.track !== screenTrack) {
+    void peer.videoSender.replaceTrack(screenTrack).catch(() => { /* peer closing */ });
+  }
 }
 
 async function handleSignal(from: string, data: any) {
@@ -444,6 +684,7 @@ async function handleSignal(from: string, data: any) {
         pc.getTransceivers().forEach((t) => {
           try { t.direction = "sendrecv"; } catch { /* older impls: read-only */ }
         });
+        captureSenders(peer);
         attachLocalTracks(peer);
         await pc.setLocalDescription();
         sendSignal(from, { description: pc.localDescription });
@@ -465,10 +706,8 @@ function closePeer(userId: string) {
   if (!peer) return;
   peers.delete(userId);
   try { peer.pc.close(); } catch { /* noop */ }
-  if (peer.audioEl) {
-    peer.audioEl.srcObject = null;
-    peer.audioEl = null;
-  }
+  destroySink(peer.audioEl);
+  peer.audioEl = null;
   if (remoteScreens.delete(userId)) bumpScreenVersion();
 }
 
@@ -487,7 +726,7 @@ function createMonitorPeer(conversationId: string, peerId: string, initiate: boo
   const existing = convPeers.get(peerId);
   if (existing) return existing;
 
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection(rtcConfig());
   const peer: MonitorPeer = { pc, audioEl: null };
   convPeers.set(peerId, peer);
 
@@ -515,14 +754,14 @@ function createMonitorPeer(conversationId: string, peerId: string, initiate: boo
 
   pc.ontrack = (e) => {
     if (e.track.kind !== "audio") return;
-    const el = peer.audioEl || new Audio();
+    const el = peer.audioEl || createSink();
     peer.audioEl = el;
-    el.autoplay = true;
     el.srcObject = e.streams[0] || new MediaStream([e.track]);
     const mon = state.monitors[conversationId];
     el.volume = mon?.volume ?? defaultVolume;
     el.muted = !!mon?.deafened;
-    void el.play().catch(() => { /* resumes on next user gesture */ });
+    playSink(el);
+    e.track.onunmute = () => playSink(el);
   };
 
   return peer;
@@ -660,12 +899,105 @@ function bumpScreenVersion() {
 
 function teardownMedia() {
   [...peers.keys()].forEach(closePeer);
+  stopVad();
   micStream?.getTracks().forEach((t) => t.stop());
   micStream = null;
   screenStream?.getTracks().forEach((t) => t.stop());
   screenStream = null;
   remoteScreens.clear();
+  stopWatchdog();
   if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+}
+
+/* ─── Session watchdog ───────────────────────────────────────────────────────
+ * Discord-style "always on" means the line must repair itself without anyone
+ * noticing. Every few seconds we check that each person on the roster has a
+ * healthy connection to us, and fix what doesn't:
+ *
+ *   - roster member with NO peer  → build one (a lost signal, a race on join)
+ *   - peer stuck failed/closed    → tear down and rebuild from scratch
+ *   - stale peer not on roster    → close it
+ *   - credentials near expiry     → refresh in the background
+ *   - audio sink paused/blocked   → nudge it back into playing
+ *
+ * Rebuilds are deliberately one-sided: only the peer with the lower userId
+ * re-initiates, so both ends can't rebuild simultaneously and glare forever.
+ * ------------------------------------------------------------------------ */
+
+let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+const peerRetry = new Map<string, number>();
+
+function peerIsDead(pc: RTCPeerConnection): boolean {
+  return (
+    pc.connectionState === "failed" ||
+    pc.connectionState === "closed" ||
+    pc.iceConnectionState === "failed" ||
+    pc.iceConnectionState === "closed"
+  );
+}
+
+function startWatchdog() {
+  if (watchdogTimer) return;
+  watchdogTimer = setInterval(() => {
+    const cur = state.current;
+    if (!cur) return;
+
+    // Keep credentials ahead of expiry so recovery never stalls on auth.
+    void loadIceConfig();
+
+    const roster = (state.sessions[cur.conversationId]?.participants || [])
+      .map((p) => p.userId)
+      .filter((id) => id !== state.myUserId);
+
+    // Drop connections to people who have left.
+    peers.forEach((_p, id) => {
+      if (!roster.includes(id)) closePeer(id);
+    });
+
+    roster.forEach((id) => {
+      const peer = peers.get(id);
+      if (!peer) {
+        // Missing entirely — only one side initiates to avoid dueling offers.
+        if ((state.myUserId || "") < id) createPeer(id, true);
+        return;
+      }
+      if (!peerIsDead(peer.pc)) {
+        peerRetry.delete(id);
+        return;
+      }
+      // Dead. Rebuild, with a light backoff so a genuinely unreachable peer
+      // doesn't spin.
+      const attempts = peerRetry.get(id) || 0;
+      peerRetry.set(id, attempts + 1);
+      if (attempts > 0 && attempts % 3 !== 0) return;
+      closePeer(id);
+      if ((state.myUserId || "") < id) createPeer(id, true);
+    });
+
+    // Sinks that the browser paused (tab restore, device change, autoplay).
+    peers.forEach((p) => {
+      if (p.audioEl && p.audioEl.paused && p.audioEl.srcObject) playSink(p.audioEl);
+    });
+  }, 4000);
+}
+
+function stopWatchdog() {
+  if (watchdogTimer) clearInterval(watchdogTimer);
+  watchdogTimer = null;
+  peerRetry.clear();
+}
+
+/* Audio must survive backgrounded tabs, sleeping laptops and device changes —
+ * all of which routinely pause elements or suspend the audio context. */
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void resumeAudio();
+  });
+  if (typeof navigator !== "undefined" && navigator.mediaDevices) {
+    navigator.mediaDevices.addEventListener?.("devicechange", () => {
+      void resumeAudio();
+    });
+  }
 }
 
 // ─── Connection quality sampling ─────────────────────────────────────────────
@@ -703,7 +1035,7 @@ function startStatsLoop() {
 
 // ─── Public actions ──────────────────────────────────────────────────────────
 
-const MOBILE_DOCK_BREAKPOINT = 768;
+
 
 async function join(
   conversationId: string,
@@ -722,11 +1054,10 @@ async function join(
   }
   if (state.current) await leave(); // only one ACTIVE (talk-capable) channel at a time — monitors are separate
 
-  // The full mini-player is ~320px wide — on a phone that's most of the
-  // screen. Start docked to the small status pill there; the desktop-sized
-  // player still opens automatically on wider screens.
-  const startMinimized =
-    typeof window !== "undefined" && window.innerWidth < MOBILE_DOCK_BREAKPOINT;
+  // Joining never pops the panel open. The dock stays an orb until the user
+  // taps it — same on desktop and mobile — so starting a line from the page,
+  // the widget, or an auto-listen never throws a panel over their work.
+  const startMinimized = true;
 
   setState({
     current: {
@@ -741,10 +1072,18 @@ async function join(
       quality: "unknown",
       screenSharing: false,
       screenVersion: 0,
+      // Open-mic model: you join muted, then unmute to hold the floor for as
+      // long as you like. Nobody is ever live the instant they connect.
+      micMuted: true,
     },
     minimized: startMinimized,
     error: null,
   });
+
+  // Credentials must be in hand BEFORE any peer connection is constructed —
+  // an RTCPeerConnection built without TURN can never acquire a relay
+  // candidate later, no matter how the network turns out.
+  await loadIceConfig();
 
   socket.emit(
     "yapline:join",
@@ -759,11 +1098,23 @@ async function join(
         joining: false,
         conversationName: res.session.conversationName ?? state.current?.conversationName ?? null,
       });
-      // We are the newcomer: initiate a peer connection to every existing member.
-      res.session.participants
-        .filter((p) => p.userId !== state.myUserId)
-        .forEach((p) => createPeer(p.userId, true));
-      startStatsLoop();
+      // Grab the mic BEFORE building peer connections. Attaching it after
+      // negotiation relies on replaceTrack landing on a live sender, and any
+      // hiccup there ends with a connected user whose voice goes nowhere.
+      // With the track in hand first, every offer carries real audio from the
+      // first packet. It stays disabled (muted) until the user unmutes.
+      const negotiate = () => {
+        res.session!.participants
+          .filter((p) => p.userId !== state.myUserId)
+          .forEach((p) => createPeer(p.userId, true));
+        startStatsLoop();
+        startWatchdog();
+      };
+      if (opts?.listenOnly) {
+        negotiate();
+      } else {
+        void ensureMic().finally(negotiate);
+      }
       // You were already connected to this channel from another tab/device —
       // the server just moved that session here rather than starting fresh.
       // Without this, joining from your phone while still connected on your
@@ -785,7 +1136,7 @@ async function rejoin(conversationId: string, listenOnly: boolean) {
 async function leave(): Promise<void> {
   const cur = state.current;
   if (!cur) return;
-  if (cur.transmitting) stopTransmit();
+  if (!cur.micMuted) micStream?.getAudioTracks().forEach((t) => (t.enabled = false));
   if (cur.screenSharing) stopScreenShare(true);
   socket?.emit("yapline:leave", { conversationId: cur.conversationId });
   teardownMedia();
@@ -821,8 +1172,11 @@ async function ensureMic(): Promise<boolean> {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const track = micStream.getAudioTracks()[0];
-    track.enabled = false; // PTT: closed until the button is held
+    // Open-mic: the track is live but disabled while muted. Toggling
+    // `enabled` is instant and never renegotiates, so unmuting is immediate.
+    track.enabled = !(state.current?.micMuted ?? true);
     peers.forEach((peer) => attachLocalTracks(peer));
+    startVad();
     patchCurrent({ micReady: true, listenOnly: false });
     return true;
   } catch {
@@ -831,28 +1185,130 @@ async function ensureMic(): Promise<boolean> {
   }
 }
 
-async function startTransmit(): Promise<void> {
-  if (!state.current || state.current.transmitting) return;
-  if (!(await ensureMic())) return;
-  micStream?.getAudioTracks().forEach((t) => (t.enabled = true));
-  chirp("out");
-  patchCurrent({ transmitting: true });
+/* ─── Voice activity detection ───────────────────────────────────────────────
+ * With an open mic there's no button press to announce "I'm talking", so the
+ * speaking rings are driven by actual sound. A cheap RMS meter on the mic
+ * stream flips `speaking` with a short hang-time so normal pauses between
+ * words don't strobe everyone's UI.
+ * ------------------------------------------------------------------------ */
+
+let vadTimer: ReturnType<typeof setInterval> | null = null;
+let vadAnalyser: AnalyserNode | null = null;
+let vadSource: MediaStreamAudioSourceNode | null = null;
+/**
+ * Derived from the DOM signature rather than written as a bare Float32Array.
+ * TypeScript 5.7 made typed arrays generic over their backing buffer, so a
+ * plain `Float32Array` annotation widens to `ArrayBufferLike` and stops
+ * matching getFloatTimeDomainData. Reading the parameter type off AnalyserNode
+ * keeps this correct on both old and new TypeScript.
+ */
+type TimeDomainBuffer = Parameters<AnalyserNode["getFloatTimeDomainData"]>[0];
+let vadBuf: TimeDomainBuffer | null = null;
+let vadSpeaking = false;
+let vadQuietSince = 0;
+
+const VAD_THRESHOLD = 0.012; // RMS floor — above room tone, below whispering
+const VAD_HANG_MS = 450;     // keep "speaking" through short pauses
+
+function startVad() {
+  if (vadTimer != null || !micStream) return;
+  try {
+    audioCtx = audioCtx || new AudioContext();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    vadSource = audioCtx.createMediaStreamSource(micStream);
+    vadAnalyser = audioCtx.createAnalyser();
+    vadAnalyser.fftSize = 1024;
+    vadBuf = new Float32Array(vadAnalyser.fftSize);
+    vadSource.connect(vadAnalyser);
+  } catch {
+    return; // no analyser: rings just won't animate, audio is unaffected
+  }
+
+  // setInterval, NOT requestAnimationFrame: rAF is frozen in background tabs,
+  // which would leave the speaking flag stuck on whatever it was when the user
+  // switched away — everyone else would see them "talking" forever.
+  const tick = () => {
+    const cur = state.current;
+    if (!vadAnalyser || !vadBuf || !cur) return;
+
+    // Muted mic can't be "speaking" — bail out and settle the flag.
+    if (cur.micMuted) {
+      if (vadSpeaking) emitSpeaking(false);
+      return;
+    }
+    vadAnalyser.getFloatTimeDomainData(vadBuf);
+    let sum = 0;
+    for (let i = 0; i < vadBuf.length; i++) sum += vadBuf[i] * vadBuf[i];
+    const rms = Math.sqrt(sum / vadBuf.length);
+
+    const now = Date.now();
+    if (rms > VAD_THRESHOLD) {
+      vadQuietSince = 0;
+      if (!vadSpeaking) emitSpeaking(true);
+    } else if (vadSpeaking) {
+      if (!vadQuietSince) vadQuietSince = now;
+      else if (now - vadQuietSince > VAD_HANG_MS) emitSpeaking(false);
+    }
+  };
+  vadTimer = setInterval(tick, 120);
+}
+
+function stopVad() {
+  if (vadTimer != null) clearInterval(vadTimer);
+  vadTimer = null;
+  try { vadSource?.disconnect(); } catch { /* noop */ }
+  vadSource = null;
+  vadAnalyser = null;
+  vadBuf = null;
+  if (vadSpeaking) emitSpeaking(false);
+}
+
+function emitSpeaking(speaking: boolean) {
+  vadSpeaking = speaking;
+  if (!speaking) vadQuietSince = 0;
+  patchCurrent({ transmitting: speaking });
+  if (!state.current) return;
   socket?.emit("yapline:speaking", {
     conversationId: state.current.conversationId,
-    speaking: true,
+    speaking,
   });
 }
 
-function stopTransmit(): void {
-  if (!state.current) return;
-  micStream?.getAudioTracks().forEach((t) => (t.enabled = false));
-  if (state.current.transmitting) {
-    socket?.emit("yapline:speaking", {
-      conversationId: state.current.conversationId,
-      speaking: false,
-    });
+/**
+ * Open-mic control. `muted: false` opens the mic and keeps it open until the
+ * user closes it again — no holding anything down, so people can talk
+ * continuously.
+ */
+async function setMicMuted(muted: boolean): Promise<void> {
+  const cur = state.current;
+  if (!cur) return;
+  if (!muted) {
+    // Any click that unmutes is also a user gesture — good moment to clear a
+    // blocked audio sink so the user isn't left mute AND deaf.
+    void resumeAudio();
+    if (!(await ensureMic())) return;
   }
-  patchCurrent({ transmitting: false });
+  micStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  patchCurrent({ micMuted: muted });
+  chirp(muted ? "in" : "out");
+  if (muted && vadSpeaking) emitSpeaking(false);
+}
+
+async function toggleMic(): Promise<void> {
+  await setMicMuted(!(state.current?.micMuted ?? true));
+}
+
+/**
+ * Legacy push-to-talk entry points, kept so any caller still wired to
+ * press/release keeps working: press unmutes, release is a no-op in open-mic
+ * mode (the mic stays live until explicitly muted).
+ */
+async function startTransmit(): Promise<void> {
+  await setMicMuted(false);
+}
+
+function stopTransmit(): void {
+  /* open-mic: releasing a button no longer closes the mic */
 }
 
 async function startScreenShare(): Promise<void> {
@@ -867,7 +1323,18 @@ async function startScreenShare(): Promise<void> {
   }
   const track = screenStream.getVideoTracks()[0];
   track.onended = () => stopScreenShare(false);
-  peers.forEach((peer) => attachLocalTracks(peer));
+  // Make sure every peer's video slot can actually send before the track goes
+  // on it — a slot left recvonly accepts replaceTrack without complaint and
+  // then quietly transmits nothing, which is what showed up as a black frame.
+  peers.forEach((peer) => {
+    captureSenders(peer);
+    peer.pc.getTransceivers().forEach((t) => {
+      if (t.sender === peer.videoSender && t.direction !== "sendrecv") {
+        try { t.direction = "sendrecv"; } catch { /* read-only impls */ }
+      }
+    });
+    attachLocalTracks(peer);
+  });
   patchCurrent({ screenSharing: true });
   socket?.emit("yapline:screen", {
     conversationId: state.current.conversationId,
@@ -880,10 +1347,9 @@ function stopScreenShare(silent: boolean): void {
   screenStream?.getTracks().forEach((t) => t.stop());
   screenStream = null;
   peers.forEach((peer) => {
-    peer.pc.getTransceivers().forEach((t) => {
-      const kind = t.receiver.track?.kind || (t as any).kind;
-      if (kind === "video") void t.sender.replaceTrack(null);
-    });
+    if (peer.videoSender) {
+      void peer.videoSender.replaceTrack(null).catch(() => { /* peer closing */ });
+    }
   });
   if (cur) {
     patchCurrent({ screenSharing: false });
@@ -896,6 +1362,7 @@ function stopScreenShare(silent: boolean): void {
 function setDeafened(deafened: boolean): void {
   patchCurrent({ deafened });
   peers.forEach((p) => { if (p.audioEl) p.audioEl.muted = deafened; });
+  if (!deafened) void resumeAudio();
 }
 
 function setVolume(volume: number): void {
@@ -927,6 +1394,9 @@ export const yapline = {
   pingChannel,
   startTransmit,
   stopTransmit,
+  setMicMuted,
+  toggleMic,
+  resumeAudio,
   startScreenShare,
   stopScreenShare: () => stopScreenShare(false),
   setDeafened,
@@ -951,12 +1421,14 @@ function subscribe(cb: () => void) {
 const getSnapshot = () => state;
 const serverSnapshot: YapLineState = {
   ready: false,
+  audioBlocked: false,
+  relayReady: false,
   myUserId: null,
   sessions: {},
   current: null,
   monitors: {},
   autoListen: false,
-  minimized: false,
+  minimized: true,
   pttKey: DEFAULT_PTT_KEY,
   error: null,
 };

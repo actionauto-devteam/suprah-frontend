@@ -15,7 +15,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { RadioTower, Mic, MonitorUp, ArrowRight, Radio, Headphones, UserPlus, Megaphone } from "lucide-react";
+import { RadioTower, Mic, MicOff, MonitorUp, ArrowRight, Radio, Headphones, UserPlus, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
@@ -71,25 +71,18 @@ export function YapLineWidget() {
   const cur = s.current;
   const curSession = cur ? s.sessions[cur.conversationId] : null;
 
-  // Hold-to-talk on a channel you haven't joined yet: joining and transmitting
-  // are one gesture, like keying a real radio. Press → auto-join → mic opens;
-  // release → transmission stops but you stay on the line. If the press is
-  // released before the join settles, we skip the transmit but keep the join.
-  const holdRef = React.useRef(false);
+  // Talk on a channel you haven't joined yet: one tap joins the line AND
+  // opens your mic, so you can start speaking immediately and keep speaking —
+  // no button to hold down.
   const talkDown = React.useCallback(
     async (conversationId: string, conversationName?: string | null) => {
-      holdRef.current = true;
       if (s.current?.conversationId !== conversationId) {
         await yapline.join(conversationId, conversationName);
       }
-      if (holdRef.current) await yapline.startTransmit();
+      await yapline.setMicMuted(false);
     },
     [s.current?.conversationId]
   );
-  const talkUp = React.useCallback(() => {
-    holdRef.current = false;
-    yapline.stopTransmit();
-  }, []);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -169,17 +162,16 @@ export function YapLineWidget() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onPointerDown={(e) => { e.preventDefault(); void yapline.startTransmit(); }}
-                    onPointerUp={() => yapline.stopTransmit()}
-                    onPointerLeave={() => cur.transmitting && yapline.stopTransmit()}
+                    onClick={() => void yapline.toggleMic()}
                     className={cn(
                       "flex select-none items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition-all active:scale-95",
-                      cur.transmitting
-                        ? "bg-emerald-500 text-white"
-                        : "border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                      cur.micMuted
+                        ? "border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+                        : "bg-emerald-500 text-white"
                     )}
                   >
-                    <Mic className="size-3" /> {cur.transmitting ? "On Air" : "Talk"}
+                    {cur.micMuted ? <MicOff className="size-3" /> : <Mic className="size-3" />}
+                    {cur.micMuted ? "Talk" : cur.transmitting ? "On Air" : "Live"}
                   </button>
                   {(() => {
                     const liveConv = conversations.find((c) => c._id === cur.conversationId);
@@ -268,11 +260,8 @@ export function YapLineWidget() {
                     {/* One-press talk: auto-joins this line, then transmits
                         while held — release to stop talking, stay connected. */}
                     <button
-                      onPointerDown={(e) => { e.preventDefault(); void talkDown(live.conversationId, live.conversationName); }}
-                      onPointerUp={talkUp}
-                      onPointerLeave={talkUp}
-                      onContextMenu={(e) => e.preventDefault()}
-                      title="Hold to talk on this line"
+                      onClick={() => void talkDown(live.conversationId, live.conversationName)}
+                      title="Join this line with your mic open"
                       className="flex select-none items-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/8 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-500 transition-all hover:bg-emerald-500/15 active:scale-95"
                     >
                       <Mic className="size-3" /> Talk

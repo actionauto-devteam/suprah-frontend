@@ -4,7 +4,7 @@
  * Suprah YapLine — full page.  Save as: app/(dashboard)/crm/yapline/page.tsx
  *
  * Left rail: your SupraSpace conversations/channels (live ones surface first,
- * with a pulsing LIVE tag). Main stage: the active session — big hold-to-talk,
+ * with a pulsing LIVE tag). Main stage: the active session — big mic toggle,
  * participant grid with speaking rings, screen-share viewer, and the
  * auto-listen preference. All realtime state comes from the same singleton
  * store as the dock and Dashboard widget.
@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import {
   RadioTower,
   Mic,
+  MicOff,
   MonitorUp,
   MonitorX,
   Volume2,
@@ -217,7 +218,7 @@ function ChannelRow({
   );
 }
 
-/** Push-to-talk keybind row — click to capture the next key pressed. */
+/** Mic keybind row — click to capture the next key pressed. */
 function PttKeyRow() {
   const s = useYapLine();
   const [capturing, setCapturing] = React.useState(false);
@@ -229,7 +230,7 @@ function PttKeyRow() {
       if (e.key === "Escape") { setCapturing(false); return; }
       yapline.setPttKey(e.key);
       setCapturing(false);
-      toast.success(`Push-to-talk key set to "${e.key}"`);
+      toast.success(`Mic toggle key set to "${e.key}"`);
     };
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
@@ -238,9 +239,9 @@ function PttKeyRow() {
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-bold">Push-to-talk key</p>
+        <p className="text-xs font-bold">Mic toggle key</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground/50">
-          Hold this key anywhere outside a text field to transmit.
+          Press this key anywhere outside a text field to mute/unmute.
         </p>
       </div>
       <button
@@ -373,7 +374,7 @@ export default function YapLinePage() {
                 )}
               </h1>
               <p className="truncate text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                Push-to-talk · Screen share
+                Open mic · Screen share
               </p>
             </div>
           </div>
@@ -490,7 +491,7 @@ export default function YapLinePage() {
             <h2 className="text-lg font-black tracking-tight">The line is yours</h2>
             <p className="max-w-sm text-xs leading-relaxed text-muted-foreground/60">
               Pick a channel or teammate on the left to open a YapLine. Everyone in that
-              conversation can tune in instantly — hold the mic to talk, release to listen.
+              conversation can tune in instantly — unmute to talk for as long as you like.
               Share your screen mid-session for demos and troubleshooting.
             </p>
             {s.error && <p className="text-[11px] font-medium text-rose-500">{s.error}</p>}
@@ -501,7 +502,7 @@ export default function YapLinePage() {
             <div className="flex items-center gap-3 border-b border-border/30 px-5 py-3.5">
               <span className={cn(
                 "flex size-9 items-center justify-center rounded-xl",
-                cur.transmitting ? "bg-emerald-500 text-white" : "bg-emerald-500/10 text-emerald-500"
+                !cur.micMuted ? "bg-emerald-500 text-white" : "bg-emerald-500/10 text-emerald-500"
               )}>
                 <RadioTower className={cn("size-4.5", cur.transmitting && "animate-pulse")} />
               </span>
@@ -639,20 +640,26 @@ export default function YapLinePage() {
                   {cur.deafened ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
                 </button>
 
+                {/* Open mic: tap once to go live, tap again to mute. The
+                    ring/label reflect real voice activity, so people can see
+                    when they're actually being heard. */}
                 <button
-                  onPointerDown={(e) => { e.preventDefault(); void yapline.startTransmit(); }}
-                  onPointerUp={() => yapline.stopTransmit()}
-                  onPointerLeave={() => cur.transmitting && yapline.stopTransmit()}
-                  onContextMenu={(e) => e.preventDefault()}
+                  onClick={() => void yapline.toggleMic()}
                   className={cn(
                     "flex flex-1 select-none items-center justify-center gap-2.5 rounded-2xl py-4 text-xs font-black uppercase tracking-widest transition-all active:scale-[0.99]",
-                    cur.transmitting
-                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/40"
-                      : "border border-emerald-500/30 bg-emerald-500/8 text-emerald-500 hover:bg-emerald-500/15"
+                    cur.micMuted
+                      ? "border border-border/50 bg-background/60 text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-500"
+                      : cur.transmitting
+                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/40"
+                        : "bg-emerald-600/80 text-white shadow-lg shadow-emerald-500/25"
                   )}
                 >
-                  <Mic className="size-5" />
-                  {cur.transmitting ? "On Air — release to stop" : "Hold to Talk"}
+                  {cur.micMuted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
+                  {cur.micMuted
+                    ? "Mic Muted — tap to talk"
+                    : cur.transmitting
+                      ? "On Air — speaking"
+                      : "Mic Live — tap to mute"}
                 </button>
 
                 <button
@@ -680,7 +687,7 @@ export default function YapLinePage() {
                   aria-label="Incoming volume"
                 />
                 <span className="hidden text-[11px] font-medium text-muted-foreground/40 md:block">
-                  Hold <kbd className="rounded border border-border/40 bg-muted/30 px-1">{s.pttKey}</kbd> to talk from any page
+                  Press <kbd className="rounded border border-border/40 bg-muted/30 px-1">{s.pttKey}</kbd> to mute/unmute from any page
                 </span>
               </div>
             </div>
