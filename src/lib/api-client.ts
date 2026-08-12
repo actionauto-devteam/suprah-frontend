@@ -675,6 +675,10 @@ class ApiClient {
     return this.post("/api/locator/resume", {}, config);
   }
 
+  async reportLocationPermissionDenied(config?: AxiosRequestConfig) {
+    return this.post("/api/locator/permission-denied", {}, config);
+  }
+
   async stopLocationSharing(config?: AxiosRequestConfig) {
     return this.post("/api/locator/off-duty", {}, config);
   }

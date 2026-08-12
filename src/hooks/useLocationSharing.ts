@@ -137,6 +137,17 @@ export function useLocationSharing({
     [resolveAuthHeaders],
   );
 
+  // Best-effort — lets the admin know fast instead of waiting on the connection-lost cron,
+  // since OS-level permission revokes never touch a guarded endpoint on their own.
+  const reportPermissionDeniedToServer = useCallback(async () => {
+    try {
+      const headers = await resolveAuthHeaders();
+      await apiClient.reportLocationPermissionDenied(headers);
+    } catch {
+      // best-effort
+    }
+  }, [resolveAuthHeaders]);
+
   const startWatch = useCallback(() => {
     if (runtime.watchId !== null || !navigator.geolocation) return;
     runtime.awaitingFirstFix = true;
@@ -157,6 +168,7 @@ export function useLocationSharing({
           runtime.sharingState = "declined_permission";
           runtime.awaitingFirstFix = false;
           clearWatch();
+          reportPermissionDeniedToServer();
         } else if (err.code === err.TIMEOUT) {
           // Usually transient (indoors/weak GPS) — the browser keeps the watch running and
           // can still succeed later, so don't kill it. Just let the UI know it's taking a while.
@@ -171,7 +183,7 @@ export function useLocationSharing({
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
     );
     runtime.watchId = id;
-  }, [sendPing]);
+  }, [sendPing, reportPermissionDeniedToServer]);
 
   const setPausedState = useCallback(
     async (reason: "manual" | "break") => {
@@ -235,6 +247,35 @@ export function useLocationSharing({
       runtime.listeners.delete(sync);
     };
   }, []);
+
+  // Faster than waiting for watchPosition's own error callback (which only fires on the next
+  // fix attempt) — reacts the moment the OS/browser permission actually flips to denied.
+  useEffect(() => {
+    if (!("permissions" in navigator)) return;
+    let cancelled = false;
+    let permissionStatus: PermissionStatus | null = null;
+    const handleChange = () => {
+      if (permissionStatus?.state === "denied") {
+        runtime.error = "Location permission was denied — check your browser/device location settings.";
+        runtime.sharingState = "declined_permission";
+        clearWatch();
+        notifyListeners();
+        reportPermissionDeniedToServer();
+      }
+    };
+    navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((status) => {
+        if (cancelled) return;
+        permissionStatus = status;
+        status.addEventListener("change", handleChange);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      permissionStatus?.removeEventListener("change", handleChange);
+    };
+  }, [reportPermissionDeniedToServer]);
 
   useEffect(() => {
     if (!eligible) {
