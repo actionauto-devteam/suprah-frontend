@@ -39,6 +39,19 @@ function placeIconSvg(icon?: string) {
 const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
 
+// ThemeContext's React state deliberately starts as 'dark' on every load (so the first
+// client render matches the server-rendered markup) and only corrects itself to the real
+// saved theme a moment later via an effect — fine for CSS-driven dark mode, but this map
+// picks its tile set from that same value in JS, so a light-mode user would briefly see
+// the dark basemap load before flipping to light. The blocking inline script in
+// app/layout.tsx already applies the correct 'light'/'dark' class to <html> synchronously
+// before any paint, so reading that directly (instead of the React state) gives the real
+// theme immediately, with no flash.
+function getDomTheme(): "light" | "dark" {
+  if (typeof document === "undefined") return "dark";
+  return document.documentElement.classList.contains("light") ? "light" : "dark";
+}
+
 const TILE_URL = {
   light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
   dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -305,8 +318,11 @@ export function LocatorLiveMapSection({
   myUserId, placePickMode, onPlacePicked, draftPlace,
 }: Props) {
   const { theme } = useTheme();
-  const themeRef = React.useRef(theme);
-  themeRef.current = theme;
+  // The map is initialized below with the theme read directly from the DOM (already
+  // correct), not this context value (still 'dark' on first render regardless of the real
+  // saved theme). This lets the tile-sync effect further down skip its first run, which
+  // would otherwise immediately swap the correctly-initialized tiles to the stale value.
+  const skippedFirstThemeSyncRef = React.useRef(false);
 
   const { data: locations = [], isLoading } = useActiveEmployeeLocations(true);
   const { data: places = [] } = usePlaces();
@@ -455,7 +471,7 @@ export function LocatorLiveMapSection({
         });
         mapInstanceRef.current = map;
 
-        const tileLayer = L.tileLayer(TILE_URL[themeRef.current], {
+        const tileLayer = L.tileLayer(TILE_URL[getDomTheme()], {
           subdomains: "abcd",
           maxZoom: MAX_ZOOM,
           attribution: TILE_ATTRIBUTION,
@@ -565,6 +581,10 @@ export function LocatorLiveMapSection({
   }, [isMaximized]);
 
   React.useEffect(() => {
+    if (!skippedFirstThemeSyncRef.current) {
+      skippedFirstThemeSyncRef.current = true;
+      return;
+    }
     tileLayerRef.current?.setUrl(TILE_URL[theme]);
   }, [theme]);
 

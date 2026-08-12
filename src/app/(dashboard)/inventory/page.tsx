@@ -412,7 +412,12 @@ function InventoryContent() {
           .join(" ")
           .toLowerCase();
 
-        if (!haystack.includes(search)) return false;
+        // A single .includes(search) check requires the whole typed phrase to appear as one
+        // exact, adjacent substring — so "2024 acura" would never match a vehicle whose
+        // haystack has make before year ("acura ... 2024"), even though it's a real match.
+        // Matching each typed word independently (any order) is what users actually expect.
+        const searchTerms = search.split(/\s+/).filter(Boolean);
+        if (!searchTerms.every((term: string) => haystack.includes(term))) return false;
       }
 
       if (

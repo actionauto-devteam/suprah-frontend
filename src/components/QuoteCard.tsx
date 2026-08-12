@@ -136,6 +136,16 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                     await onConvertToLoad(quote._id)
                 } catch (error) {
                     console.error("Error converting quote to load:", error)
+                    // Re-thrown below so the confirm dialog stays open (AlertDialog only
+                    // auto-closes on success) — but nothing was ever telling the user WHY
+                    // it failed, so clicking "Yes, Convert to Load" on a failing request
+                    // looked like the button did nothing at all. Swap the dialog to show
+                    // the actual error instead of just logging it to the console.
+                    showAlert({
+                        type: "error",
+                        title: "Conversion Failed",
+                        message: error instanceof Error ? error.message : "Could not convert this quote into a load. Please try again.",
+                    })
                     throw error
                 } finally {
                     setIsConvertingToLoad(false)

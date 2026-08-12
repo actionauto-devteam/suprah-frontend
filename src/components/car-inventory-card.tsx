@@ -335,7 +335,7 @@ export function CarInventoryCard({
     return (
       <div
         className={cn(
-          "group relative flex h-22 sm:h-25 overflow-hidden rounded-2xl border border-border/40 bg-card",
+          "group relative flex h-22 sm:h-25 overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm",
           "transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
         )}
       >
