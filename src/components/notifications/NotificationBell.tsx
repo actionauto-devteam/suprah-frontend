@@ -16,7 +16,8 @@ import { NotificationList } from './NotificationList';
 import { NotificationDriverModal } from './NotificationDriverModal';
 import { NotificationDetailsModal } from './NotificationDetailsModal';
 import { NotificationErrorBoundary } from './NotificationErrorBoundary';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { getNotificationRoute } from './notification-utils';
 
 function useNotificationsPath() {
   const pathname = usePathname();
@@ -136,6 +137,9 @@ function NotificationDropdownContent({ onNotificationClick }: { onNotificationCl
 
 export function NotificationBell() {
   const { unreadCount, markAsRead } = useNotifications();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [modalNotification, setModalNotification] = useState<Notification | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsNotification, setDetailsNotification] = useState<Notification | null>(null);
@@ -156,12 +160,28 @@ export function NotificationBell() {
       return true;
     }
 
+    if (notification.type === 'driver_tracker_offline_alert') {
+      const route = getNotificationRoute(notification, pathname);
+
+      if (!notification.isRead) {
+        markAsRead(notification._id);
+      }
+
+      setDropdownOpen(false);
+
+      if (route) {
+        router.push(route);
+      }
+
+      return true;
+    }
+
     return false;
-  }, [markAsRead]);
+  }, [markAsRead, pathname, router]);
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"

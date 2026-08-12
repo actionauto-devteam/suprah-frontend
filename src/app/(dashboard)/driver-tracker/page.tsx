@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin,
   Clock,
@@ -88,6 +89,9 @@ const LOCATION_INTERVAL_MS = 10000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 
 export default function DriverTrackerPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const { theme } = useTheme();
@@ -147,6 +151,82 @@ export default function DriverTrackerPage() {
     () => drivers.filter((d) => d.shipments && d.shipments.length > 0),
     [drivers],
   );
+
+  const handledDispatchChatDeepLinkRef = React.useRef<string | null>(null);
+
+  // GPS-offline notifications deep-link to:
+  // /driver-tracker?driverId=<id>&openDispatchChat=1
+  //
+  // Keep the parameters in the URL while the dialog is open. The previous
+  // implementation removed them immediately after setChatDialogOpen(true),
+  // which could cause an App Router refresh/remount before the dialog state
+  // became visible.
+  React.useEffect(() => {
+    const targetDriverId = searchParams.get("driverId");
+    const shouldOpenChat =
+      searchParams.get("openDispatchChat") === "1";
+
+    if (!shouldOpenChat || !targetDriverId) {
+      handledDispatchChatDeepLinkRef.current = null;
+      return;
+    }
+
+    if (isLoading) return;
+
+    const deepLinkKey = `${targetDriverId}:dispatch-chat`;
+
+    // A deep link is single-use for the lifetime of these query params.
+    // Do NOT key this guard to chatDialogOpen: on close, React commits
+    // chatDialogOpen=false before router.replace() removes the query params.
+    // The old condition therefore reopened the exact same chat once.
+    if (handledDispatchChatDeepLinkRef.current === deepLinkKey) {
+      return;
+    }
+
+    const targetDriver = drivers.find(
+      (item) =>
+        String(item.driver?.id ?? item.id) ===
+        String(targetDriverId),
+    );
+
+    if (!targetDriver) {
+      toast.error(
+        "The driver linked to this notification is not available in Driver Tracker.",
+      );
+      return;
+    }
+
+    handledDispatchChatDeepLinkRef.current = deepLinkKey;
+    setMapFilter("all");
+    setChatDriver(targetDriver);
+    setChatDialogOpen(true);
+  }, [
+    drivers,
+    isLoading,
+    searchParams,
+  ]);
+
+  const clearDispatchChatDeepLink = React.useCallback(() => {
+    if (
+      searchParams.get("openDispatchChat") !== "1" &&
+      !searchParams.get("driverId")
+    ) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("driverId");
+    nextParams.delete("openDispatchChat");
+
+    // Keep the handled key until the URL has actually changed. Clearing it
+    // here creates a one-render race where the old query params can reopen the
+    // same dialog before router.replace() completes.
+    const cleanedUrl = nextParams.toString()
+      ? `${pathname}?${nextParams.toString()}`
+      : pathname;
+
+    router.replace(cleanedUrl, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const initialLoadDone = React.useRef(false);
 
@@ -427,7 +507,7 @@ export default function DriverTrackerPage() {
           "driver:location",
           (data: {
             driverId: string;
-            coords: { lat: number; lng: number };
+            coords: { lat: number; lng: number } | null;
             status: DriverStatus;
             lastSeenAt: string;
           }) => {
@@ -437,7 +517,7 @@ export default function DriverTrackerPage() {
               const updated = [...prev];
               updated[idx] = {
                 ...updated[idx],
-                coords: data.coords,
+                coords: data.coords ?? updated[idx].coords,
                 status: data.status,
                 lastSeenAt: data.lastSeenAt,
                 isSharing: data.status !== "offline",
@@ -1094,7 +1174,14 @@ export default function DriverTrackerPage() {
 
       <DispatchChatDialog
         open={chatDialogOpen}
-        onOpenChange={setChatDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setChatDialogOpen(nextOpen);
+
+          if (!nextOpen) {
+            setChatDriver(null);
+            clearDispatchChatDeepLink();
+          }
+        }}
         driverId={chatDriver?.driver?.id ?? null}
         participantName={chatDriver?.driver?.name || "Driver"}
       />

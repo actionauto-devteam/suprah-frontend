@@ -30,6 +30,10 @@ interface DriverLocationSharingContextValue {
   shareError: string | null;
   hasActiveLoad: boolean;
   isLocationRequired: boolean;
+  isLoadPolicyResolved: boolean;
+  locationPermissionState: "unknown" | "prompt" | "granted" | "denied" | "unsupported";
+  isLocationAccessBlocked: boolean;
+  isRecoveringLocationAccess: boolean;
   startSharing: () => void;
   stopSharing: () => Promise<void>;
 }
@@ -63,6 +67,8 @@ export function DriverLocationSharingProvider({
   const [manualSharingEnabled, setManualSharingEnabled] =
     React.useState(false);
   const [hasActiveLoad, setHasActiveLoad] = React.useState(false);
+  const [isLoadPolicyResolved, setIsLoadPolicyResolved] =
+    React.useState(false);
   const [isSharing, setIsSharing] = React.useState(false);
   const [isStarting, setIsStarting] = React.useState(false);
   const [shareStatus, setShareStatusState] =
@@ -73,6 +79,11 @@ export function DriverLocationSharingProvider({
     lng: number;
   } | null>(null);
   const [shareError, setShareError] = React.useState<string | null>(null);
+  const [locationPermissionState, setLocationPermissionState] = React.useState<
+    "unknown" | "prompt" | "granted" | "denied" | "unsupported"
+  >("unknown");
+  const [isRecoveringLocationAccess, setIsRecoveringLocationAccess] =
+    React.useState(false);
 
   const watchIdRef = React.useRef<number | null>(null);
   const heartbeatTimerRef = React.useRef<number | null>(null);
@@ -83,6 +94,11 @@ export function DriverLocationSharingProvider({
   const hasActiveLoadRef = React.useRef(false);
   const sharingEnabledRef = React.useRef(false);
   const isSharingRef = React.useRef(false);
+  const locationPermissionStateRef = React.useRef<
+    "unknown" | "prompt" | "granted" | "denied" | "unsupported"
+  >("unknown");
+  const locationOfflineSignaledRef = React.useRef(false);
+  const autoReloadTimerRef = React.useRef<number | null>(null);
   const mountedRef = React.useRef(true);
 
   React.useEffect(() => {
@@ -104,6 +120,10 @@ export function DriverLocationSharingProvider({
   React.useEffect(() => {
     isSharingRef.current = isSharing;
   }, [isSharing]);
+
+  React.useEffect(() => {
+    locationPermissionStateRef.current = locationPermissionState;
+  }, [locationPermissionState]);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -155,10 +175,17 @@ export function DriverLocationSharingProvider({
       coords: { lat: number; lng: number },
       statusOverride?: DriverStatus,
     ) => {
-      await postLocation(
-        coords,
-        statusOverride ?? statusRef.current,
-      );
+      const nextStatus = statusOverride ?? statusRef.current;
+
+      if (
+        hasActiveLoadRef.current &&
+        locationOfflineSignaledRef.current &&
+        nextStatus !== "offline"
+      ) {
+        return;
+      }
+
+      await postLocation(coords, nextStatus);
 
       if (!mountedRef.current) return;
 
@@ -194,6 +221,42 @@ export function DriverLocationSharingProvider({
       }
     }
   }, [postLocation]);
+
+  const signalActiveLoadLocationOffline = React.useCallback(() => {
+    if (
+      !hasActiveLoadRef.current ||
+      locationOfflineSignaledRef.current
+    ) {
+      return;
+    }
+
+    locationOfflineSignaledRef.current = true;
+    setIsSharing(false);
+    setIsStarting(false);
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        await apiClient.post(
+          "/api/driver-tracking/location-offline",
+          {
+            lat: lastCoordsRef.current?.lat,
+            lng: lastCoordsRef.current?.lng,
+          },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+      } catch (error: any) {
+        if (!mountedRef.current) return;
+        setShareError(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Failed to publish the required Offline GPS state",
+        );
+      }
+    })();
+  }, [getToken]);
 
   const setShareStatus = React.useCallback(
     (status: DriverStatus) => {
@@ -292,8 +355,13 @@ export function DriverLocationSharingProvider({
       );
 
       await applyLoadPolicy(nextHasActiveLoad);
+
+      if (mountedRef.current) {
+        setIsLoadPolicyResolved(true);
+      }
     } catch (error: any) {
-      // Do not shut GPS off just because load-state verification failed.
+      // Keep the first policy check fail-closed so a transient API failure
+      // cannot create a click-through window while requirements are unknown.
       if (mountedRef.current && hasActiveLoadRef.current) {
         setShareError(
           error?.response?.data?.message ||
@@ -306,6 +374,7 @@ export function DriverLocationSharingProvider({
 
   const startSharing = React.useCallback(() => {
     if (!navigator.geolocation) {
+      setLocationPermissionState("unsupported");
       setShareError("Geolocation is not supported on this device");
       setIsSharing(false);
       setIsStarting(false);
@@ -409,10 +478,154 @@ export function DriverLocationSharingProvider({
     };
   }, [getToken, isSignedIn, refreshActiveLoadState]);
 
+  const clearLocationRecoveryReload = React.useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      autoReloadTimerRef.current !== null
+    ) {
+      window.clearTimeout(autoReloadTimerRef.current);
+      autoReloadTimerRef.current = null;
+    }
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(
+        "driver-location-permission-auto-reload",
+      );
+    }
+  }, []);
+
+  const scheduleLocationRecoveryReload = React.useCallback(() => {
+    if (
+      typeof window === "undefined" ||
+      !hasActiveLoadRef.current
+    ) {
+      return;
+    }
+
+    const guardKey =
+      "driver-location-permission-auto-reload";
+
+    if (sessionStorage.getItem(guardKey) === "pending") {
+      return;
+    }
+
+    sessionStorage.setItem(guardKey, "pending");
+
+    if (autoReloadTimerRef.current !== null) {
+      window.clearTimeout(autoReloadTimerRef.current);
+    }
+
+    // Reload is a fallback only. Give the browser a short opportunity to
+    // activate the restored permission and return a live GPS fix first.
+    autoReloadTimerRef.current = window.setTimeout(() => {
+      window.location.reload();
+    }, 2_500);
+  }, []);
+
+  const recoverFromRestoredLocationPermission = React.useCallback(() => {
+    const wasDenied =
+      locationPermissionStateRef.current === "denied";
+
+    locationPermissionStateRef.current = "granted";
+    setLocationPermissionState("granted");
+
+    // Normal Prompt -> Granted flows do not need special recovery.
+    if (!hasActiveLoadRef.current || !wasDenied) {
+      setIsRecoveringLocationAccess(false);
+      clearLocationRecoveryReload();
+      return;
+    }
+
+    setShareError(null);
+    setIsRecoveringLocationAccess(true);
+    setIsStarting(true);
+
+    // First try to recover WITHOUT reloading the page.
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+
+        lastCoordsRef.current = coords;
+        locationOfflineSignaledRef.current = false;
+        setLastCoords(coords);
+        locationPermissionStateRef.current = "granted";
+        setLocationPermissionState("granted");
+
+        clearLocationRecoveryReload();
+
+        void sendHeartbeat(coords)
+          .then(() => {
+            if (!mountedRef.current) return;
+            setIsRecoveringLocationAccess(false);
+            setIsStarting(false);
+            setIsSharing(true);
+            setShareError(null);
+          })
+          .catch((error: any) => {
+            if (!mountedRef.current) return;
+
+            // Permission is granted but the active GPS connection could not
+            // recover cleanly. Only now arm the one-time reload fallback.
+            setShareError(
+              error?.response?.data?.message ||
+                error?.message ||
+                "GPS is reconnecting. The Driver Portal may refresh once to apply location access.",
+            );
+            scheduleLocationRecoveryReload();
+          });
+      },
+      (error) => {
+        if (!mountedRef.current) return;
+
+        // If the browser says the permission is granted but geolocation still
+        // cannot initialize, this is the Chrome/settings case where one reload
+        // may be required to apply the new permission.
+        setShareError(
+          error.message ||
+            "Location access was restored but GPS could not reconnect yet.",
+        );
+        scheduleLocationRecoveryReload();
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 2_000,
+      },
+    );
+  }, [
+    clearLocationRecoveryReload,
+    scheduleLocationRecoveryReload,
+    sendHeartbeat,
+  ]);
+
+  // After a successful non-reload recovery (or after the refreshed page
+  // mounts with working location), clear the reload guard so a completely new
+  // future permission incident can use the fallback again.
+  React.useEffect(() => {
+    if (
+      !hasActiveLoad ||
+      locationPermissionState !== "granted" ||
+      isRecoveringLocationAccess
+    ) {
+      return;
+    }
+
+    clearLocationRecoveryReload();
+  }, [
+    clearLocationRecoveryReload,
+    hasActiveLoad,
+    isRecoveringLocationAccess,
+    locationPermissionState,
+  ]);
+
   React.useEffect(() => {
     if (!sharingEnabled || !isSignedIn) return;
 
     if (!navigator.geolocation) {
+      setLocationPermissionState("unsupported");
       setShareError(
         hasActiveLoadRef.current
           ? "Location access is required while you have an active load, but geolocation is not supported on this device."
@@ -432,12 +645,28 @@ export function DriverLocationSharingProvider({
     ) => {
       if (cancelled) return;
 
+      if (
+        hasActiveLoadRef.current &&
+        (locationPermissionStateRef.current === "denied" ||
+          locationOfflineSignaledRef.current)
+      ) {
+        return;
+      }
+
       const coords = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       };
       lastCoordsRef.current = coords;
-      if (mountedRef.current) setLastCoords(coords);
+      locationOfflineSignaledRef.current = false;
+
+      if (mountedRef.current) {
+        setLastCoords(coords);
+        locationPermissionStateRef.current = "granted";
+        setLocationPermissionState("granted");
+        setIsRecoveringLocationAccess(false);
+        clearLocationRecoveryReload();
+      }
 
       const now = Date.now();
       if (
@@ -471,6 +700,12 @@ export function DriverLocationSharingProvider({
       setIsStarting(false);
 
       if (error.code === error.PERMISSION_DENIED) {
+        locationPermissionStateRef.current = "denied";
+        setLocationPermissionState("denied");
+        setIsRecoveringLocationAccess(false);
+
+        signalActiveLoadLocationOffline();
+
         setShareError(
           hasActiveLoadRef.current
             ? "Location permission is required while you have an active load. Enable location access for this site."
@@ -518,6 +753,14 @@ export function DriverLocationSharingProvider({
       );
 
     heartbeatTimerRef.current = window.setInterval(() => {
+      if (
+        hasActiveLoadRef.current &&
+        (locationPermissionStateRef.current === "denied" ||
+          locationOfflineSignaledRef.current)
+      ) {
+        return;
+      }
+
       const coords = lastCoordsRef.current;
       if (!coords) return;
 
@@ -542,18 +785,36 @@ export function DriverLocationSharingProvider({
 
     let permissionStatus: PermissionStatus | null = null;
     const handlePermissionChange = () => {
-      if (permissionStatus?.state === "granted") {
-        setShareError(null);
-        setIsStarting(true);
-        refreshWhenVisible();
-      } else if (permissionStatus?.state === "denied") {
-        setIsSharing(false);
-        setIsStarting(false);
+      if (!permissionStatus) return;
+
+      if (permissionStatus.state === "granted") {
+        const previousPermissionState =
+          locationPermissionStateRef.current;
+
+        recoverFromRestoredLocationPermission();
+
+        // Prompt -> Granted does not need recovery/reload logic.
+        if (previousPermissionState !== "denied") {
+          setShareError(null);
+          setIsStarting(true);
+          refreshWhenVisible();
+        }
+      } else if (permissionStatus.state === "denied") {
+        locationPermissionStateRef.current = "denied";
+        setLocationPermissionState("denied");
+        setIsRecoveringLocationAccess(false);
+
+        signalActiveLoadLocationOffline();
+
         setShareError(
           hasActiveLoadRef.current
             ? "Location permission is required while you have an active load. Enable location access for this site."
             : "Location permission is blocked. Enable it if you want to share your location.",
         );
+      } else {
+        locationPermissionStateRef.current =
+          permissionStatus.state;
+        setLocationPermissionState(permissionStatus.state);
       }
     };
 
@@ -565,6 +826,8 @@ export function DriverLocationSharingProvider({
         .then((permission) => {
           if (cancelled) return;
           permissionStatus = permission;
+          locationPermissionStateRef.current = permission.state;
+          setLocationPermissionState(permission.state);
           permission.addEventListener(
             "change",
             handlePermissionChange,
@@ -595,8 +858,20 @@ export function DriverLocationSharingProvider({
         window.clearInterval(heartbeatTimerRef.current);
         heartbeatTimerRef.current = null;
       }
+
+      if (autoReloadTimerRef.current !== null) {
+        window.clearTimeout(autoReloadTimerRef.current);
+        autoReloadTimerRef.current = null;
+      }
     };
-  }, [sharingEnabled, isSignedIn, sendHeartbeat]);
+  }, [
+    clearLocationRecoveryReload,
+    sharingEnabled,
+    isSignedIn,
+    recoverFromRestoredLocationPermission,
+    sendHeartbeat,
+    signalActiveLoadLocationOffline,
+  ]);
 
   const value =
     React.useMemo<DriverLocationSharingContextValue>(
@@ -610,6 +885,13 @@ export function DriverLocationSharingProvider({
         shareError,
         hasActiveLoad,
         isLocationRequired: hasActiveLoad,
+        isLoadPolicyResolved,
+        locationPermissionState,
+        isLocationAccessBlocked:
+          hasActiveLoad &&
+          (locationPermissionState !== "granted" ||
+            isRecoveringLocationAccess),
+        isRecoveringLocationAccess,
         startSharing,
         stopSharing,
       }),
@@ -622,6 +904,9 @@ export function DriverLocationSharingProvider({
         lastCoords,
         shareError,
         hasActiveLoad,
+        isLoadPolicyResolved,
+        locationPermissionState,
+        isRecoveringLocationAccess,
         startSharing,
         stopSharing,
       ],
