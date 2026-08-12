@@ -191,7 +191,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                 <CardContent className="p-0">
                     <div className="flex flex-col 2xl:flex-row 2xl:min-h-80">
                         {/* ── Hero: vehicle photo + identity overlay ── */}
-                        <div className="relative w-full h-56 sm:h-64 2xl:h-auto 2xl:w-80 overflow-hidden shrink-0 bg-muted/30">
+                        <div className="relative w-full aspect-4/3 min-h-44 2xl:aspect-auto 2xl:min-h-0 2xl:h-auto 2xl:w-80 overflow-hidden shrink-0 bg-muted/30">
                             {heroImage ? (
                                 <img
                                     src={heroImage}
@@ -203,7 +203,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                             ) : (
                                 /* Schematic placeholder — same treatment as LoadCard */
                                 <div className="w-full h-full flex flex-col items-center justify-center gap-2.5 bg-linear-to-br from-emerald-950/40 via-card to-cyan-950/30 dark:from-emerald-950/60 dark:to-cyan-950/40">
-                                    <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-[size:24px_24px]" />
+                                    <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] bg-size-[24px_24px]" />
                                     <div className="size-14 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 flex items-center justify-center">
                                         <Car className="size-7 text-emerald-500/70" />
                                     </div>
@@ -258,7 +258,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                             Transport Quote
                                         </span>
                                         <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">·</span>
-                                        <span className="text-[11px] lg:text-xs text-muted-foreground/90 font-bold hidden xs:inline flex items-center gap-1">
+                                        <span className="text-[11px] lg:text-xs text-muted-foreground/90 font-bold hidden xs:inline items-center gap-1">
                                             <Calendar className="size-2.5 inline" /> {formatDate(quote.createdAt)}
                                         </span>
                                         {quote.organization && (
@@ -340,7 +340,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                                 <p className="text-[11px] font-mono text-muted-foreground">{quote.fromZip}</p>
                                             </div>
                                         </div>
-                                        <div className="ml-[6px] my-1 h-4 w-px bg-linear-to-b from-emerald-500/60 to-cyan-500/60" />
+                                        <div className="ml-1.5 my-1 h-4 w-px bg-linear-to-b from-emerald-500/60 to-cyan-500/60" />
                                         <div className="flex items-start gap-2.5 min-w-0">
                                             <MapPin className="size-3.5 text-cyan-500 mt-0.5 shrink-0" />
                                             <div className="min-w-0">

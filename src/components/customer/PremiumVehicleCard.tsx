@@ -163,7 +163,7 @@ function PremiumVehicleCardComponent({
             />
 
             {/* Sleek Overlay Gradient */}
-            <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-55 group-hover:opacity-70 transition-opacity duration-500" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/80 via-black/25 to-transparent transition-opacity duration-500 group-hover:from-black/90" />
 
             {/* Top Badges */}
             <div className="absolute top-4 left-4 flex gap-2 z-10">
@@ -178,7 +178,7 @@ function PremiumVehicleCardComponent({
             </div>
 
             {/* Bottom Image Overlay Details */}
-            <div className="absolute bottom-4 left-4 right-4 z-10 flex items-end justify-between gap-2">
+            <div className="absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 bg-linear-to-t from-black/95 via-black/60 via-60% to-transparent px-4 pb-3.5 pt-10">
               <div className="min-w-0 flex-1">
                 <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md leading-tight truncate">
                   {vehicle.year} {vehicle.make}

@@ -252,7 +252,7 @@ function SectionTitle({
   children: React.ReactNode;
 }) {
   return (
-    <div className="my-4 flex items-center gap-3">
+    <div className="my-2.5 flex items-center gap-2.5">
       <span
         className="h-px flex-1"
         style={{
@@ -289,7 +289,7 @@ function InquiryFieldRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[92px_minmax(0,1fr)] gap-3 py-2.5",
+        "grid grid-cols-[84px_minmax(0,1fr)] gap-2.5 py-1.5",
         !isLast && "border-b",
       )}
       style={{
@@ -365,7 +365,7 @@ function InquiryCard({
         </p>
 
         <article
-          className="overflow-hidden rounded-2xl border px-4 pb-4 pt-3"
+          className="overflow-hidden rounded-2xl border px-3.5 pb-3 pt-2.5"
           style={{
             background: "var(--bg-elevated)",
             borderColor: "var(--border-2)",
@@ -385,7 +385,7 @@ function InquiryCard({
           </h3>
 
           {(contactSection || vehicleSection) && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {contactSection && (
                 <section className="min-w-0">
                   <SectionTitle>
@@ -440,7 +440,7 @@ function InquiryCard({
                 {leadSection.title}
               </SectionTitle>
 
-              <div className="grid grid-cols-1 gap-x-5 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
                 {leadSection.fields.map(
                   (field, index) => (
                     <InquiryFieldRow

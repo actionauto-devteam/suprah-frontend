@@ -31,6 +31,7 @@ import {
   TrendingUp,
   ArrowRight,
   GitCompareArrows,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -595,6 +596,7 @@ export function VehicleDetailView({
   const [lightboxStart, setLightboxStart] = React.useState(0);
   const [tab, setTab] = React.useState<Tab>("overview");
   const [copied, setCopied] = React.useState(false);
+  const [mapLoaded, setMapLoaded] = React.useState(false);
 
   const locationFromApi = (vehicle.location || "").trim();
   const dealerCity = ((vehicle as any).dealerCity || "").trim();
@@ -1475,17 +1477,25 @@ export function VehicleDetailView({
                 <MapPin className="h-3 w-3 text-primary/70" /> Location
               </p>
               <div className="overflow-hidden rounded-xl border border-border/50">
-                <iframe
-                  title="Location"
-                  width="100%"
-                  height="150"
-                  loading="lazy"
-                  allowFullScreen
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(locationMapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
-                  className="w-full bg-white"
-                  style={{ colorScheme: "light" }}
-                />
+                <div className="relative h-37.5 w-full bg-muted/40">
+                  <iframe
+                    title="Location"
+                    width="100%"
+                    height="150"
+                    loading="lazy"
+                    allowFullScreen
+                    referrerPolicy="no-referrer-when-downgrade"
+                    onLoad={() => setMapLoaded(true)}
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(locationMapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                    className="w-full bg-white"
+                    style={{ colorScheme: "light" }}
+                  />
+                  {!mapLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/40">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/50" />
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-3.5 py-3 dark:bg-zinc-900/40">
                   <div>
                     <p className="text-xs font-semibold">

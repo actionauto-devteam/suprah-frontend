@@ -1946,100 +1946,37 @@ function DateNavigator({ selectedDate, onDateChange }: {
 function DeptTabBar({ selected, onSelect }: {
   selected: DepartmentKey | null; onSelect: (d: DepartmentKey | null) => void
 }) {
-  const scrollRef = React.useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
-  const [canScrollRight, setCanScrollRight] = React.useState(true)
-
-  const checkScroll = React.useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 2)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-  }, [])
-
-  React.useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    checkScroll()
-    el.addEventListener("scroll", checkScroll, { passive: true })
-    const ro = new ResizeObserver(checkScroll)
-    ro.observe(el)
-    return () => {
-      el.removeEventListener("scroll", checkScroll)
-      ro.disconnect()
-    }
-  }, [checkScroll])
-
-  const nudge = (dir: "left" | "right") =>
-    scrollRef.current?.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" })
-
   return (
-    <div className="flex items-center gap-2 w-full min-w-0">
-      {/* Left arrow */}
+    <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0">
       <button
-        onClick={() => nudge("left")}
-        disabled={!canScrollLeft}
-        className="shrink-0 h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
+        onClick={() => onSelect(null)}
+        className={`shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
+          ${selected === null
+            ? "bg-foreground text-background border-foreground"
+            : "border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
+          }`}
       >
-        <ChevronLeft className="h-3.5 w-3.5" />
+        <Building2 className="h-3 w-3" /> All Teams
       </button>
 
-      {/* Tab strip clip here intentionally, scroll via JS */}
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-1.5 flex-1 min-w-0"
-        style={{
-          overflowX: "auto",
-          overflowY: "visible",
-          scrollbarWidth: "none",
-          WebkitOverflowScrolling: "touch",
-        } as React.CSSProperties}
-        onScroll={checkScroll}
-      >
-        {/* hide webkit scrollbar */}
-        <style>{`#dept-scroll::-webkit-scrollbar{display:none}`}</style>
-        <div id="dept-scroll" className="flex items-center gap-1.5 pb-0.5">
-          {/* All tab */}
+      {DEPARTMENTS.map((d) => {
+        const s = getDeptStyle(d.color ?? "emerald")
+        const isActive = selected === d.key
+        return (
           <button
-            onClick={() => onSelect(null)}
-            className={`shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
-              ${selected === null
-                ? "bg-foreground text-background border-foreground"
+            key={d.key}
+            onClick={() => onSelect(d.key)}
+            className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
+              ${isActive
+                ? `${s.badge} border-current`
                 : "border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
               }`}
           >
-            <Building2 className="h-3 w-3" /> All Teams
+            <Hash className="h-2.5 w-2.5 opacity-60" />
+            <span>{d.label}</span>
           </button>
-
-          {DEPARTMENTS.map((d) => {
-            const s = getDeptStyle(d.color ?? "emerald")
-            const isActive = selected === d.key
-            return (
-              <button
-                key={d.key}
-                onClick={() => onSelect(d.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all border
-                  ${isActive
-                    ? `${s.badge} border-current`
-                    : "border-border/40 text-muted-foreground/50 hover:text-muted-foreground hover:border-border/60"
-                  }`}
-              >
-                <Hash className="h-2.5 w-2.5 opacity-60" />
-                <span>{d.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Right arrow */}
-      <button
-        onClick={() => nudge("right")}
-        disabled={!canScrollRight}
-        className="shrink-0 h-8 w-8 rounded-full border border-border/40 flex items-center justify-center text-muted-foreground/50 hover:text-foreground hover:border-border/60 disabled:opacity-0 disabled:pointer-events-none transition-all"
-      >
-        <ChevronRight className="h-3.5 w-3.5" />
-      </button>
+        )
+      })}
     </div>
   )
 }

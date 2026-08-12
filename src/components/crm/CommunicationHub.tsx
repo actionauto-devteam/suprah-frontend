@@ -161,32 +161,32 @@ const SMS_TEMPLATES: {
   label: string;
   text: (lead: Lead | null) => string;
 }[] = [
-  {
-    label: "Follow-up",
-    text: (lead) =>
-      `Hi ${lead?.firstName || "there"}, just following up on your interest in the ${vehicleLabel(lead)}. Let me know if you have any questions!`,
-  },
-  {
-    label: "Appointment",
-    text: (lead) =>
-      `Hi ${lead?.firstName || "there"}, this is a reminder about your upcoming appointment. Looking forward to seeing you!`,
-  },
-  {
-    label: "Test drive",
-    text: (lead) =>
-      `Hi ${lead?.firstName || "there"}, would you like to schedule a test drive for the ${vehicleLabel(lead)}? Let me know a time that works.`,
-  },
-  {
-    label: "Thank you",
-    text: (lead) =>
-      `Thank you, ${lead?.firstName || "there"}! It was great speaking with you. Please reach out with any questions.`,
-  },
-  {
-    label: "Pricing",
-    text: (lead) =>
-      `Hi ${lead?.firstName || "there"}, I have pricing details ready for the ${vehicleLabel(lead)}. Would you like me to send them over?`,
-  },
-];
+    {
+      label: "Follow-up",
+      text: (lead) =>
+        `Hi ${lead?.firstName || "there"}, just following up on your interest in the ${vehicleLabel(lead)}. Let me know if you have any questions!`,
+    },
+    {
+      label: "Appointment",
+      text: (lead) =>
+        `Hi ${lead?.firstName || "there"}, this is a reminder about your upcoming appointment. Looking forward to seeing you!`,
+    },
+    {
+      label: "Test drive",
+      text: (lead) =>
+        `Hi ${lead?.firstName || "there"}, would you like to schedule a test drive for the ${vehicleLabel(lead)}? Let me know a time that works.`,
+    },
+    {
+      label: "Thank you",
+      text: (lead) =>
+        `Thank you, ${lead?.firstName || "there"}! It was great speaking with you. Please reach out with any questions.`,
+    },
+    {
+      label: "Pricing",
+      text: (lead) =>
+        `Hi ${lead?.firstName || "there"}, I have pricing details ready for the ${vehicleLabel(lead)}. Would you like me to send them over?`,
+    },
+  ];
 
 function vehicleLabel(lead: Lead | null) {
   const vehicle = lead?.vehicle;
@@ -979,20 +979,20 @@ export function CommunicationHub() {
     () =>
       selectedLead
         ? communicationQuickActions({
-            onCall: () => setCallDialogOpen(true),
-            onEmail: () => switchComposerMode("email"),
-            onSms: () => switchComposerMode("sms"),
-            onNote: () => {
-              setDetailsTab("activity");
-              setShowDetails(true);
-              setOpenSharedNoteSignal((value) => value + 1);
-            },
-            onMarkContacted: () => void markContacted(),
-            hasPhone: Boolean(selectedLead.phone),
-            hasEmail: Boolean(selectedEmail),
-            contacted: selectedLead.status === "Contacted",
-            activeChannel: composerMode,
-          })
+          onCall: () => setCallDialogOpen(true),
+          onEmail: () => switchComposerMode("email"),
+          onSms: () => switchComposerMode("sms"),
+          onNote: () => {
+            setDetailsTab("activity");
+            setShowDetails(true);
+            setOpenSharedNoteSignal((value) => value + 1);
+          },
+          onMarkContacted: () => void markContacted(),
+          hasPhone: Boolean(selectedLead.phone),
+          hasEmail: Boolean(selectedEmail),
+          contacted: selectedLead.status === "Contacted",
+          activeChannel: composerMode,
+        })
         : [],
     [composerMode, selectedEmail, selectedLead, switchComposerMode],
   );
@@ -1148,7 +1148,7 @@ export function CommunicationHub() {
                 style={{ background: "var(--accent)" }}
               />
               <p
-                className="min-w-0 break-words text-[11px] leading-relaxed [overflow-wrap:anywhere]"
+                className="min-w-0 wrap-break-word text-[11px] leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {communicationAvailabilityLabel}
@@ -1321,9 +1321,9 @@ export function CommunicationHub() {
                 trailingInset={!showDetails}
                 meta={[
                   selectedLead.source ||
-                    "Communication Hub",
+                  "Communication Hub",
                   capabilities.sms.mode ===
-                  "simulation"
+                    "simulation"
                     ? "SMS simulation active"
                     : "Live messaging",
                 ]}
@@ -1451,7 +1451,7 @@ export function CommunicationHub() {
                                 ? "rounded-br-md border-emerald-500/25 bg-emerald-500/10"
                                 : "rounded-bl-md border-(--border-1) bg-(--bg-elevated)",
                               log.status === "failed" &&
-                                "border-red-500/40 bg-red-500/10",
+                              "border-red-500/40 bg-red-500/10",
                             )}
                           >
                             <div className="mb-1.5 flex min-w-0 items-start justify-between gap-3 text-[10px] uppercase tracking-wide text-(--text-tertiary)">
@@ -1471,7 +1471,7 @@ export function CommunicationHub() {
                             </div>
 
                             {log.body && (
-                              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
+                              <p className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed">
                                 {log.body}
                               </p>
                             )}
@@ -1479,7 +1479,7 @@ export function CommunicationHub() {
                             <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-(--text-tertiary)">
                               <span
                                 className={cn(
-                                  "max-w-full break-words rounded-full border px-2 py-0.5 [overflow-wrap:anywhere]",
+                                  "max-w-full wrap-break-word rounded-full border px-2 py-0.5",
                                   simulation
                                     ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
                                     : log.status === "failed"
@@ -1727,9 +1727,8 @@ export function CommunicationHub() {
                           }
                         >
                           {composerMode === "sms"
-                            ? `${smsBody.length} chars · ${smsSegments} ${
-                                smsSegments === 1 ? "segment" : "segments"
-                              }`
+                            ? `${smsBody.length} chars · ${smsSegments} ${smsSegments === 1 ? "segment" : "segments"
+                            }`
                             : selectedEmail || "No email"}
                         </span>
 
@@ -1751,7 +1750,7 @@ export function CommunicationHub() {
                           }}
                           title={
                             composerMode === "sms" &&
-                            capabilities.sms.mode === "simulation"
+                              capabilities.sms.mode === "simulation"
                               ? "Log simulated SMS"
                               : composerMode === "sms"
                                 ? "Send SMS"
@@ -1759,7 +1758,7 @@ export function CommunicationHub() {
                           }
                           aria-label={
                             composerMode === "sms" &&
-                            capabilities.sms.mode === "simulation"
+                              capabilities.sms.mode === "simulation"
                               ? "Log simulated SMS"
                               : composerMode === "sms"
                                 ? "Send SMS"
@@ -1849,7 +1848,7 @@ export function CommunicationHub() {
                   throw error;
                 } finally {
                   setNoteBusy(false);
-                              }
+                }
               }}
               isSavingNote={noteBusy}
               openNoteSignal={openSharedNoteSignal}

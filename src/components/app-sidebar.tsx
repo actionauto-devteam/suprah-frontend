@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
 import * as React from "react";
 import Image from "next/image";
@@ -334,7 +334,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-60 dark:opacity-80">
         {/* soft green cast over the entire sidebar */}
-        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/2.5 via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/1.5 dark:to-emerald-500/[0.05]" />
+        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/2.5 via-transparent to-emerald-500/[0.035] dark:from-emerald-500/[0.035] dark:via-emerald-500/1.5 dark:to-emerald-500/5" />
 
         {/* digital grid — slowly drifts so the surface feels "live" */}
         <div className="grid-drift absolute inset-0 bg-size-[24px_24px] bg-[linear-gradient(to_right,rgba(16,185,129,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.025)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(16,185,129,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(16,185,129,0.035)_1px,transparent_1px)]" />
@@ -487,7 +487,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           <Badge
                             variant="secondary"
                             className={cn(
-                              "ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter text-white border-none group-data-[collapsible=icon]:hidden",
+                              "ml-auto pointer-events-none text-[8px] h-4 px-1 leading-none uppercase tracking-tighter text-white border-none group-data-[collapsible=icon]:hidden",
                               yapLive > 0
                                 ? "bg-rose-500 animate-pulse"
                                 : "bg-emerald-600",
@@ -499,7 +499,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                         {/* Suprah Mail: fresh module — "New" tag until the team
                             has lived with it for a release or two. */}
-                       
+
 
                         {/* Feeds: unseen posts since last visit + unread
                             mentions/comments/@all announcements. Comes from
@@ -687,37 +687,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarContent>
 
- <SidebarFooter className="relative z-10 border-t bg-sidebar px-2 py-3 group-data-[collapsible=icon]:p-2">
-  <SidebarMenu>
-    <SidebarMenuItem>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuButton
-            size="lg"
-            className="w-full gap-3 rounded-lg border border-transparent transition-colors data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
-          >
-            <Avatar className="h-8 w-8 shrink-0 rounded-lg ring-1 ring-inset ring-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
-              <AvatarImage
-                src={resolveImageUrl(
-                  avatarUrl !== null ? avatarUrl : user?.imageUrl,
-                )}
-                alt={user?.fullName || ""}
-              />
-              <AvatarFallback className="rounded-lg">
-                {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
-                {user?.fullName}
-              </span>
-              <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
-                {user?.primaryEmailAddress?.emailAddress}
-              </span>
-            </div>
-            <ChevronRight className="ml-auto size-4 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden" />
-          </SidebarMenuButton>
-        </DropdownMenuTrigger>
+      <SidebarFooter className="relative z-10 border-t bg-sidebar px-2 py-3 group-data-[collapsible=icon]:p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  className="w-full gap-3 rounded-lg border border-transparent transition-colors data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+                >
+                  <Avatar className="h-8 w-8 shrink-0 rounded-lg ring-1 ring-inset ring-border group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
+                    <AvatarImage
+                      src={resolveImageUrl(
+                        avatarUrl !== null ? avatarUrl : user?.imageUrl,
+                      )}
+                      alt={user?.fullName || ""}
+                    />
+                    <AvatarFallback className="rounded-lg">
+                      {user?.firstName?.substring(0, 1).toUpperCase() || "US"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-[13px] font-semibold text-sidebar-foreground">
+                      {user?.fullName}
+                    </span>
+                    <span className="truncate text-[12px] font-medium text-sidebar-foreground/80">
+                      {user?.primaryEmailAddress?.emailAddress}
+                    </span>
+                  </div>
+                  <ChevronRight className="ml-auto size-4 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
               <DropdownMenuContent
                 className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
                 side="bottom"

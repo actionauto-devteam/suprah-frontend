@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
 import { generateLoadPDF } from "@/utils/pdfGenerator"
@@ -273,7 +274,7 @@ function StatTile({
       }}
       className={cn(
         "group/stat w-full min-w-0 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-left",
-        "transition-all duration-200 hover:border-emerald-500/35 hover:bg-emerald-500/[0.04] hover:shadow-sm",
+        "transition-all duration-200 hover:border-emerald-500/35 hover:bg-emerald-500/4 hover:shadow-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500/40",
       )}
     >
@@ -298,7 +299,7 @@ function ModalMetric({
       className={cn(
         "rounded-xl border px-3.5 py-3",
         emphasis
-          ? "border-emerald-500/45 bg-emerald-500/[0.06]"
+          ? "border-emerald-500/45 bg-emerald-500/6"
           : "border-slate-300/90 bg-background/45 dark:border-white/15",
       )}
     >
@@ -481,54 +482,71 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                           longer depends on an onUpdate callback (that was
                           only for the old modal's onSave), so it always
                           renders regardless of which tab/list this card is in */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 w-9 p-0 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
-                        onClick={handleEdit}
-                        title="Edit load"
-                      >
-                        <Edit3 className="size-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
+                            onClick={handleEdit}
+                            aria-label="Edit load"
+                          >
+                            <Edit3 className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit</TooltipContent>
+                      </Tooltip>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 w-9 p-0 text-muted-foreground hover:text-cyan-500 hover:bg-cyan-500/10"
-                        onClick={handleExportPDF}
-                        disabled={isExporting}
-                        title="Export PDF"
-                      >
-                        {isExporting ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <FileText className="size-4" />
-                        )}
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0 text-muted-foreground hover:text-cyan-500 hover:bg-cyan-500/10"
+                            onClick={handleExportPDF}
+                            disabled={isExporting}
+                            aria-label="View document"
+                          >
+                            {isExporting ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <FileText className="size-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View Document</TooltipContent>
+                      </Tooltip>
 
                       {onDelete && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-9 w-9 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-30"
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                            setIsDeleteDialogOpen(true)
-                          }}
-                          disabled={isDeleting || deleteBlocked}
-                          title={
-                            deleteBlocked
-                              ? "In-Transit loads can't be deleted"
-                              : "Delete load"
-                          }
-                        >
-                          {isDeleting ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-4" />
-                          )}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 w-9 p-0 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 disabled:opacity-30"
+                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                setIsDeleteDialogOpen(true)
+                              }}
+                              disabled={isDeleting || deleteBlocked}
+                              aria-label={
+                                deleteBlocked
+                                  ? "In-Transit loads can't be deleted"
+                                  : "Delete load"
+                              }
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {deleteBlocked ? "In-Transit loads can't be deleted" : "Delete"}
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
 
@@ -710,7 +728,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
         >
           {activeInfoModal === "vehicles" && (
             <>
-              <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-emerald-500/[0.08] via-background to-cyan-500/[0.06] px-5 py-4 dark:border-white/15 sm:px-6">
+              <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-emerald-500/8 via-background to-cyan-500/6 px-5 py-4 dark:border-white/15 sm:px-6">
                 <div className="flex items-start gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10">
                     <Car className="size-5 text-emerald-500" />
@@ -837,7 +855,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
 
           {activeInfoModal === "financials" && (
             <>
-              <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-emerald-500/[0.08] via-background to-background px-5 py-4 dark:border-white/15 sm:px-6">
+              <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-emerald-500/8 via-background to-background px-5 py-4 dark:border-white/15 sm:px-6">
                 <div className="flex items-start gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10">
                     <CircleDollarSign className="size-5 text-emerald-500" />
@@ -854,7 +872,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
               </DialogHeader>
 
               <div className="space-y-4 px-5 py-5 sm:px-6">
-                <div className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/[0.08] via-background to-cyan-500/[0.04] p-5 shadow-sm">
+                <div className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/8 via-background to-cyan-500/4 p-5 shadow-sm">
                   <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
@@ -931,11 +949,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                 className={cn(
                   "border-b border-slate-300/90 px-5 py-4 dark:border-white/15 sm:px-6",
                   schedulePresentation.tone === "emerald" &&
-                    "bg-linear-to-r from-emerald-500/[0.09] via-background to-cyan-500/[0.04]",
+                  "bg-linear-to-r from-emerald-500/9 via-background to-cyan-500/4",
                   schedulePresentation.tone === "cyan" &&
-                    "bg-linear-to-r from-cyan-500/[0.09] via-background to-blue-500/[0.04]",
+                  "bg-linear-to-r from-cyan-500/9 via-background to-blue-500/4",
                   schedulePresentation.tone === "amber" &&
-                    "bg-linear-to-r from-amber-500/[0.09] via-background to-cyan-500/[0.04]",
+                  "bg-linear-to-r from-amber-500/9 via-background to-cyan-500/4",
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -943,11 +961,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     className={cn(
                       "flex size-10 shrink-0 items-center justify-center rounded-xl border",
                       schedulePresentation.tone === "emerald" &&
-                        "border-emerald-500/25 bg-emerald-500/10",
+                      "border-emerald-500/25 bg-emerald-500/10",
                       schedulePresentation.tone === "cyan" &&
-                        "border-cyan-500/25 bg-cyan-500/10",
+                      "border-cyan-500/25 bg-cyan-500/10",
                       schedulePresentation.tone === "amber" &&
-                        "border-amber-500/25 bg-amber-500/10",
+                      "border-amber-500/25 bg-amber-500/10",
                     )}
                   >
                     {schedulePresentation.stage === "completed" ? (
@@ -976,11 +994,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                   className={cn(
                     "overflow-hidden rounded-2xl border p-5",
                     schedulePresentation.tone === "emerald" &&
-                      "border-emerald-500/40 bg-linear-to-br from-emerald-500/[0.09] via-background to-emerald-500/[0.02]",
+                    "border-emerald-500/40 bg-linear-to-br from-emerald-500/9 via-background to-emerald-500/2",
                     schedulePresentation.tone === "cyan" &&
-                      "border-cyan-500/40 bg-linear-to-br from-cyan-500/[0.09] via-background to-blue-500/[0.02]",
+                    "border-cyan-500/40 bg-linear-to-br from-cyan-500/9 via-background to-blue-500/2",
                     schedulePresentation.tone === "amber" &&
-                      "border-amber-500/45 bg-linear-to-br from-amber-500/[0.09] via-background to-amber-500/[0.02]",
+                    "border-amber-500/45 bg-linear-to-br from-amber-500/9 via-background to-amber-500/2",
                   )}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -1003,11 +1021,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                         className={cn(
                           "mt-2 text-sm font-black uppercase tracking-[0.12em]",
                           schedulePresentation.tone === "emerald" &&
-                            "text-emerald-600 dark:text-emerald-400",
+                          "text-emerald-600 dark:text-emerald-400",
                           schedulePresentation.tone === "cyan" &&
-                            "text-cyan-600 dark:text-cyan-400",
+                          "text-cyan-600 dark:text-cyan-400",
                           schedulePresentation.tone === "amber" &&
-                            "text-amber-600 dark:text-amber-400",
+                          "text-amber-600 dark:text-amber-400",
                         )}
                       >
                         {schedulePresentation.modalLabel}
@@ -1026,11 +1044,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                       className={cn(
                         "flex shrink-0 items-center gap-2 rounded-xl border bg-background/60 px-3.5 py-2.5",
                         schedulePresentation.tone === "emerald" &&
-                          "border-emerald-500/20",
+                        "border-emerald-500/20",
                         schedulePresentation.tone === "cyan" &&
-                          "border-cyan-500/20",
+                        "border-cyan-500/20",
                         schedulePresentation.tone === "amber" &&
-                          "border-amber-500/20",
+                        "border-amber-500/20",
                       )}
                     >
                       {schedulePresentation.stage === "completed" ? (
@@ -1101,10 +1119,10 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                         "rounded-2xl border bg-background/50 p-4 shadow-sm transition-colors",
                         item.isCurrent
                           ? item.tone === "emerald"
-                            ? "border-emerald-500/45 bg-emerald-500/[0.05]"
+                            ? "border-emerald-500/45 bg-emerald-500/5"
                             : item.tone === "cyan"
-                              ? "border-cyan-500/45 bg-cyan-500/[0.05]"
-                              : "border-amber-500/45 bg-amber-500/[0.05]"
+                              ? "border-cyan-500/45 bg-cyan-500/5"
+                              : "border-amber-500/45 bg-amber-500/5"
                           : "border-slate-300/90 dark:border-white/15",
                       )}
                     >
@@ -1113,13 +1131,13 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                           className={cn(
                             "flex size-8 items-center justify-center rounded-full border",
                             item.tone === "amber" &&
-                              "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                            "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
                             item.tone === "violet" &&
-                              "border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400",
+                            "border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400",
                             item.tone === "cyan" &&
-                              "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+                            "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
                             item.tone === "emerald" &&
-                              "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                            "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                           )}
                         >
                           {item.tone === "emerald" ? (
@@ -1134,11 +1152,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest",
                               item.tone === "emerald" &&
-                                "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                              "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                               item.tone === "cyan" &&
-                                "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+                              "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
                               item.tone === "amber" &&
-                                "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                              "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
                             )}
                           >
                             Current

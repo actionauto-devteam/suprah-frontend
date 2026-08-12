@@ -131,15 +131,13 @@ export function DriverTrackerMap({
                 transition-[opacity,transform,filter]
                 duration-500
                 ease-out
-                ${
-                  isMapReady
-                    ? "scale-100 opacity-100"
-                    : "scale-[0.992] opacity-0"
+                ${isMapReady
+                  ? "scale-100 opacity-100"
+                  : "scale-[0.992] opacity-0"
                 }
-                ${
-                  showThemeTransition
-                    ? "scale-[1.004] blur-[1.5px] brightness-[0.82] saturate-[0.82]"
-                    : "blur-0 brightness-100 saturate-100"
+                ${showThemeTransition
+                  ? "scale-[1.004] blur-[1.5px] brightness-[0.82] saturate-[0.82]"
+                  : "blur-0 brightness-100 saturate-100"
                 }
               `}
               style={{
@@ -165,10 +163,9 @@ export function DriverTrackerMap({
               className={`
                 absolute inset-0 z-20 overflow-hidden bg-background
                 transition-all duration-500 ease-out
-                ${
-                  isInitialLoading
-                    ? "visible opacity-100"
-                    : "invisible pointer-events-none opacity-0"
+                ${isInitialLoading
+                  ? "visible opacity-100"
+                  : "invisible pointer-events-none opacity-0"
                 }
               `}
               role="status"
@@ -176,13 +173,13 @@ export function DriverTrackerMap({
               aria-hidden={!isInitialLoading}
             >
               <div className="absolute inset-0 map-skeleton-grid opacity-70" />
-              <div className="absolute -left-16 top-[18%] h-28 w-[65%] rotate-[-8deg] rounded-[50%] border-[18px] border-muted/45" />
-              <div className="absolute -right-16 bottom-[20%] h-32 w-[70%] rotate-[11deg] rounded-[50%] border-[20px] border-muted/40" />
+              <div className="absolute -left-16 top-[18%] h-28 w-[65%] rotate-[-8deg] rounded-[50%] border-18 border-muted/45" />
+              <div className="absolute -right-16 bottom-[20%] h-32 w-[70%] rotate-11 rounded-[50%] border-20 border-muted/40" />
               <div className="absolute left-[28%] top-[34%] size-3 rounded-full bg-primary/35 ring-8 ring-primary/5" />
               <div className="absolute right-[22%] bottom-[31%] size-2.5 rounded-full bg-primary/25 ring-8 ring-primary/5" />
 
               <div className="absolute inset-0 flex items-center justify-center px-4">
-                <div className="map-loading-card flex w-full max-w-[250px] items-center gap-3 rounded-2xl border border-border/50 bg-background/82 px-4 py-3.5 shadow-xl backdrop-blur-md">
+                <div className="map-loading-card flex w-full max-w-62.5 items-center gap-3 rounded-2xl border border-border/50 bg-background/82 px-4 py-3.5 shadow-xl backdrop-blur-md">
                   <div className="relative flex size-10 shrink-0 items-center justify-center">
                     <div className="absolute inset-0 animate-pulse rounded-xl bg-primary/10" />
                     <MapPinned className="relative size-5 text-primary" />
@@ -209,12 +206,11 @@ export function DriverTrackerMap({
           {mapboxToken && (
             <div
               className={`
-                pointer-events-none absolute inset-0 z-[15]
+                pointer-events-none absolute inset-0 z-15
                 transition-all duration-500 ease-out
-                ${
-                  showThemeTransition
-                    ? "visible opacity-100"
-                    : "invisible opacity-0"
+                ${showThemeTransition
+                  ? "visible opacity-100"
+                  : "invisible opacity-0"
                 }
               `}
               role="status"
@@ -227,10 +223,9 @@ export function DriverTrackerMap({
                 className={`
                   absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                   transition-all duration-300 ease-out
-                  ${
-                    showThemeTransition
-                      ? "scale-100 opacity-100"
-                      : "scale-95 opacity-0"
+                  ${showThemeTransition
+                    ? "scale-100 opacity-100"
+                    : "scale-95 opacity-0"
                   }
                 `}
               >
@@ -276,10 +271,9 @@ export function DriverTrackerMap({
                     duration-200
                     sm:h-7
                     sm:px-2.5
-                    ${
-                      mapFilter === filter.key
-                        ? "shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
+                    ${mapFilter === filter.key
+                      ? "shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                     }
                   `}
                   onClick={() => onMapFilterChange(filter.key)}

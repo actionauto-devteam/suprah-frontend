@@ -230,7 +230,7 @@ function DashboardLayoutContent({
       <SidebarInset
         className={cn(
           "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out",
-          showCrmHeader && crmNotificationDrawerOpen && "lg:pr-[340px] xl:pr-[380px]",
+          showCrmHeader && crmNotificationDrawerOpen && "lg:pr-85 xl:pr-95",
         )}
       >
         {showCrmHeader && (

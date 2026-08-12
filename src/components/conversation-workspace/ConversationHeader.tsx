@@ -31,7 +31,7 @@ export function ConversationHeader({
     <div className={cn("cw-conversation-header shrink-0", className)}>
       <header
         className={cn(
-          "flex min-h-[62px] min-w-0 items-center gap-3 border-b px-3 py-2.5 sm:min-h-[70px] sm:px-4",
+          "flex min-h-15.5 min-w-0 items-center gap-3 border-b px-3 py-2.5 sm:min-h-17.5 sm:px-4",
           leadingInset && "pl-14",
           trailingInset && "pr-14",
         )}

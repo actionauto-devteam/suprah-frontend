@@ -77,12 +77,13 @@ export const CONVERSATION_WORKSPACE_CSS = `
     min-width: min(92vw, 300px);
     max-width: 370px;
     box-shadow: -18px 0 50px rgba(0,0,0,.38);
+    will-change: transform, opacity;
     animation: cw-details-in 180ms ease-out;
   }
 
   @keyframes cw-details-in {
-    from { opacity: 0; transform: translateX(18px); }
-    to { opacity: 1; transform: translateX(0); }
+    from { opacity: 0; transform: translate3d(18px, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
   }
 
   @media (max-width: 1439px) {

@@ -103,7 +103,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
   const toggle = () => {
     const el = audioRef.current;
     if (!el || !track) return;
-    if (el.paused) el.play().then(() => setPlaying(true)).catch(() => {});
+    if (el.paused) el.play().then(() => setPlaying(true)).catch(() => { });
     else { el.pause(); setPlaying(false); }
   };
 
@@ -138,9 +138,8 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
   // ── Album cover tile ────────────────────────────────────────────────────────
   const Cover = ({ size, glow }: { size: string; glow?: boolean }) => (
     <div
-      className={`relative shrink-0 overflow-hidden rounded-2xl bg-muted/40 ring-1 ring-white/10 ${size} ${
-        glow && playing ? "shadow-[0_0_28px_-4px_rgba(16,185,129,0.55)]" : "shadow-lg"
-      }`}
+      className={`relative shrink-0 overflow-hidden rounded-2xl bg-muted/40 ring-1 ring-border ${size} ${glow && playing ? "shadow-[0_0_28px_-4px_rgba(16,185,129,0.55)]" : "shadow-lg"
+        }`}
     >
       {track?.artwork ? (
         <img src={track.artwork} alt="" className="size-full object-cover" />
@@ -153,7 +152,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
   const progressBar = (
     <div className="flex items-center gap-2">
       <span className="w-8 shrink-0 text-[9px] tabular-nums text-muted-foreground/60">{fmt(current)}</span>
-      <div onClick={seek} className="relative h-1.5 flex-1 cursor-pointer overflow-hidden rounded-full bg-white/10">
+      <div onClick={seek} className="relative h-1.5 flex-1 cursor-pointer overflow-hidden rounded-full bg-muted">
         <div className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-emerald-500 to-green-400" style={{ width: `${progress * 100}%` }} />
       </div>
       <span className="w-8 shrink-0 text-right text-[9px] tabular-nums text-muted-foreground/60">{fmt(track?.durationSec || 0)}</span>
@@ -230,9 +229,9 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
 
   const searchModal =
     open && mounted && createPortal(
-      <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-[10vh] sm:items-center sm:pt-4">
+      <div className="fixed inset-0 z-100 flex items-start justify-center p-4 pt-[10vh] sm:items-center sm:pt-4">
         <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={() => setOpen(false)} />
-        <div className="relative z-10 flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/10 bg-background text-foreground shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="relative z-10 flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-border bg-background text-foreground shadow-2xl animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
             <div className="flex items-center gap-2">
               <Music2 className="size-4 text-green-500" />
@@ -252,7 +251,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
   // ── BARE — art-forward mini-card in the banner ──────────────────────────────
   if (bare) {
     return (
-      <div className="relative w-full min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-card/50 p-3">
+      <div className="relative w-full min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm p-3">
         {/* album-art color wash */}
         {track?.artwork && (
           <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -268,7 +267,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
               <p className="truncate text-sm font-bold">{track?.title || "Music"}</p>
               <p className="truncate text-[11px] text-muted-foreground/70">{track?.artist || "Search to play"}</p>
             </div>
-            <button onClick={onSearchToggle} className="shrink-0 rounded-full border border-white/10 bg-background/40 p-2 text-muted-foreground hover:text-foreground" aria-label="Search">
+            <button onClick={onSearchToggle} className="shrink-0 rounded-full border border-border bg-background p-2 text-muted-foreground hover:text-foreground" aria-label="Search">
               <Search className="size-4" />
             </button>
           </div>
@@ -282,7 +281,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
 
   // ── CARD — standalone ───────────────────────────────────────────────────────
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 shadow-sm backdrop-blur-xl">
+    <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm backdrop-blur-xl">
       {track?.artwork && (
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <img src={track.artwork} alt="" className="size-full scale-125 object-cover opacity-20 blur-3xl" />
@@ -296,7 +295,7 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
             <Music2 className="size-4 text-green-500" />
             <h2 className="text-sm font-black tracking-tight">Music</h2>
           </div>
-          <button onClick={onSearchToggle} className="rounded-full border border-white/10 bg-background/40 p-1.5 text-muted-foreground hover:text-foreground" aria-label="Search">
+          <button onClick={onSearchToggle} className="rounded-full border border-border bg-background p-1.5 text-muted-foreground hover:text-foreground" aria-label="Search">
             <Search className="size-4" />
           </button>
         </div>

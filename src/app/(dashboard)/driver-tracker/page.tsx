@@ -543,6 +543,7 @@ export default function DriverTrackerPage() {
         center: [MAP_CENTER.lng, MAP_CENTER.lat],
         zoom: 4,
         attributionControl: false,
+        logoPosition: "bottom-right",
       });
 
       mapInstanceRef.current = map;

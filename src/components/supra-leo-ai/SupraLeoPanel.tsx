@@ -67,7 +67,7 @@ export const UPDATED_PANEL_CSS = `
   --p-silver:   #6b9e80;
   --p-tx:       rgba(220,255,235,0.95);
   --p-tx2:      rgba(134,203,160,0.72);
-  --p-tx3:      rgba(74,163,112,0.42);
+  --p-tx3:      rgba(148,211,177,0.62);
   --p-green:    #22c55e;
   --p-red:      #f87171;
   --p-amber:    #fbbf24;
@@ -101,7 +101,7 @@ export const UPDATED_PANEL_CSS = `
     --p-silver:   #4b8b63;
     --p-tx:       #052e16;
     --p-tx2:      rgba(5,46,22,0.68);
-    --p-tx3:      rgba(5,46,22,0.38);
+    --p-tx3:      rgba(5,46,22,0.56);
     --p-green:    #16a34a;
     --p-red:      #dc2626;
     --p-amber:    #d97706;
@@ -132,7 +132,7 @@ export const UPDATED_PANEL_CSS = `
   --p-acc-dim:  rgba(34,197,94,0.12);
   --p-tx:       rgba(220,255,235,0.95);
   --p-tx2:      rgba(134,203,160,0.72);
-  --p-tx3:      rgba(74,163,112,0.42);
+  --p-tx3:      rgba(148,211,177,0.62);
   --p-green:    #22c55e;
   --p-red:      #f87171;
   --p-amber:    #fbbf24;
@@ -159,7 +159,7 @@ export const UPDATED_PANEL_CSS = `
   --p-acc-dim:  rgba(22,163,74,0.10);
   --p-tx:       #052e16;
   --p-tx2:      rgba(5,46,22,0.68);
-  --p-tx3:      rgba(5,46,22,0.38);
+  --p-tx3:      rgba(5,46,22,0.56);
   --p-green:    #16a34a;
   --p-red:      #dc2626;
   --p-amber:    #d97706;
@@ -574,7 +574,7 @@ export const UPDATED_PANEL_CSS = `
   overflow-y: auto; padding: 0; margin: 0;
   -webkit-user-select: text; user-select: text;
 }
-.axp-ta::placeholder { color: var(--p-tx3); }
+.axp-ta::placeholder { color: var(--p-tx2); }
 .axp-ta:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ── Send button ── */
@@ -693,7 +693,7 @@ export const UPDATED_PANEL_CSS = `
   border: 1px solid var(--p-bd2);
   border-radius: 10px;
   background: var(--p-surf2);
-  color: var(--p-tx3);
+  color: var(--p-tx2);
   font-family: 'Space Grotesk', sans-serif; font-size: 11.5px; font-weight: 400;
   cursor: pointer; transition: all .18s; text-align: left;
 }
@@ -1278,7 +1278,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
                 How can I help?
               </div>
               <div style={{
-                fontSize: 10, color: 'var(--p-tx3)', fontWeight: 300, textAlign: 'center',
+                fontSize: 10, color: 'var(--p-tx2)', fontWeight: 500, textAlign: 'center',
                 fontFamily: "'JetBrains Mono', monospace", letterSpacing: '.12em',
                 textTransform: 'uppercase',
               }}>
