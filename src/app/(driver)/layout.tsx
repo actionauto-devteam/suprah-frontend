@@ -33,6 +33,7 @@ import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { resolveImageUrl } from "@/lib/utils";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { DriverLocationSharingProvider } from "@/context/DriverLocationSharingContext";
+import { DriverLocationRequiredGate } from "@/components/driver/DriverLocationRequiredGate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +114,7 @@ function DriverLayoutContent({
 
   return (
     <DriverLocationSharingProvider>
+      <DriverLocationRequiredGate />
       <SidebarProvider>
         <DriverSidebar />
       <SidebarInset>

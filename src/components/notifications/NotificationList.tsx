@@ -26,7 +26,7 @@ export function NotificationList({
   if (notifications.length === 0) return <NotificationEmptyState />;
 
   return (
-    <div className={compact ? 'space-y-2 px-3 py-3' : 'divide-y divide-border/60'}>
+    <div className={compact ? "px-2 py-2 space-y-2" : "divide-y divide-border/60"}>
       {notifications.map((notification) => (
         <NotificationItem
           key={notification._id}

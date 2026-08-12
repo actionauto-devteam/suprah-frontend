@@ -16,11 +16,14 @@ import {
   ShieldCheck,
   Smile,
   Truck,
-  UserRound,
-  UsersRound,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
+import { resolveImageUrl } from "@/lib/utils";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { toast } from "sonner";
@@ -50,6 +54,13 @@ export interface DispatchChatMessage {
     role?: string;
   };
   senderRole: "driver" | "dispatcher";
+  messageType?: "message" | "system";
+  systemEvent?: {
+    type?: string;
+    title?: string;
+    message?: string;
+    metadata?: Record<string, any>;
+  } | null;
   content: string;
   attachments: DispatchChatAttachment[];
   readBy: string[];
@@ -78,6 +89,7 @@ interface DispatchChatContext {
     id: string | null;
     name: string;
     email?: string;
+    avatar?: string | null;
   };
   loads: Array<{
     id: string;
@@ -162,6 +174,47 @@ function mergeSystemEvent(
     (a, b) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
+}
+
+function nameInitials(name: string) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) return "US";
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`
+    .toUpperCase();
+}
+
+function participantAvatarSrc(
+  raw: string | null | undefined,
+): string | undefined {
+  const value = String(raw ?? "").trim();
+  if (!value) return undefined;
+
+  // AuthProvider uses this as a synthetic fallback. It is not a real profile
+  // picture, so Dispatch Chat should show the person's name initials instead.
+  if (
+    value === "/placeholder-avatar.png" ||
+    value.endsWith("/placeholder-avatar.png")
+  ) {
+    return undefined;
+  }
+
+  if (
+    /^https?:\/\//i.test(value) ||
+    value.startsWith("data:") ||
+    value.startsWith("blob:")
+  ) {
+    return value;
+  }
+
+  return resolveImageUrl(value) || undefined;
 }
 
 function bytesLabel(bytes: number) {
@@ -306,6 +359,13 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
   const response = event.metadata?.response;
   const destination = event.metadata?.destinationName;
   const loadNumber = event.metadata?.loadNumber;
+  const isLocationSilence =
+    event.notificationType === "driver_tracker_offline_alert";
+  const minutesWithoutLocation =
+    event.metadata?.minutesWithoutLocation;
+  const loadNumbers = Array.isArray(event.metadata?.loadNumbers)
+    ? event.metadata.loadNumbers
+    : [];
 
   return (
     <div className="flex w-full justify-center py-1">
@@ -329,7 +389,11 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
                 : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            {isAlert ? "Dispatch Alert" : "Operational Update"}
+            {isLocationSilence
+              ? "GPS Safety Alert"
+              : isAlert
+                ? "Dispatch Alert"
+                : "Operational Update"}
           </span>
         </div>
 
@@ -340,6 +404,24 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           <p className="mx-auto mt-1 max-w-lg break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {event.message}
           </p>
+        )}
+
+        {isLocationSilence && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+            {Number.isFinite(Number(minutesWithoutLocation)) && (
+              <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-700 dark:text-red-300">
+                No GPS for {Number(minutesWithoutLocation)} min
+              </span>
+            )}
+            {loadNumbers.map((number: string) => (
+              <span
+                key={number}
+                className="rounded-full border border-border/60 bg-background/70 px-2 py-1 text-[10px] font-semibold"
+              >
+                Load {number}
+              </span>
+            ))}
+          </div>
         )}
 
         {(destination || loadNumber || (response && response !== "pending")) && (
@@ -396,13 +478,23 @@ export function DispatchChatDialog({
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
+  const [isLatestPositionReady, setIsLatestPositionReady] =
+    React.useState(false);
+  const timelineScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const timelineContentRef = React.useRef<HTMLDivElement | null>(null);
+  const latestPositionFrameRef = React.useRef<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const openRef = React.useRef(open);
 
   React.useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  React.useEffect(() => {
+    if (open) {
+      setIsLatestPositionReady(false);
+    }
+  }, [driverId, open]);
 
   const currentUserId = user?.id ?? null;
   const currentUserIsDriver = user?.role === "driver";
@@ -576,43 +668,12 @@ export function DispatchChatDialog({
         );
       };
 
-      const onDispatchResponse = (payload: any) => {
-        if (String(payload?.driverId || "") !== String(driverId)) return;
-
-        const label =
-          payload?.response === "on_my_way"
-            ? "On My Way"
-            : payload?.response === "unable"
-              ? "Unable"
-              : "Acknowledged";
-
-        const event: DispatchChatSystemEvent = {
-          id: `response:${payload?.alertId}:${payload?.respondedAt ?? Date.now()}`,
-          kind: "notification",
-          notificationType: "driver_dispatch_alert_response",
-          title: `Driver Response: ${label}`,
-          message: payload?.destinationName
-            ? `${payload?.driverName || "Driver"} responded to the dispatch alert for ${payload.destinationName}.`
-            : `${payload?.driverName || "Driver"} responded to the dispatch alert.`,
-          metadata: payload ?? {},
-          createdAt: payload?.respondedAt || new Date().toISOString(),
-        };
-
-        setSystemEvents((previous) =>
-          mergeSystemEvent(previous, event),
-        );
-      };
-
       socket.on("dispatch-chat:message", onMessage);
       socket.on("dispatch-chat:read", onRead);
       socket.on("notification:new", onNotificationNew);
       socket.on("notification:updated", onNotificationNew);
       socket.on("driver:dispatch_alert", onDispatchAlert);
       socket.on("driver:dispatch_alert_sent", onDispatchAlert);
-      socket.on(
-        "driver:dispatch_alert_acknowledged",
-        onDispatchResponse,
-      );
 
       return () => {
         socket?.off("dispatch-chat:message", onMessage);
@@ -621,10 +682,6 @@ export function DispatchChatDialog({
         socket?.off("notification:updated", onNotificationNew);
         socket?.off("driver:dispatch_alert", onDispatchAlert);
         socket?.off("driver:dispatch_alert_sent", onDispatchAlert);
-        socket?.off(
-          "driver:dispatch_alert_acknowledged",
-          onDispatchResponse,
-        );
       };
     };
 
@@ -670,10 +727,145 @@ export function DispatchChatDialog({
     );
   }, [messages, systemEvents]);
 
+  // The conversation is rendered in normal chronological order
+  // (oldest -> newest). On every open/thread load, keep the timeline hidden
+  // until the ACTUAL scroll container has been verified at its bottom.
+  const scrollToLatest = React.useCallback(() => {
+    const viewport = timelineScrollRef.current;
+    if (!viewport) return false;
+
+    const maxScrollTop = Math.max(
+      0,
+      viewport.scrollHeight - viewport.clientHeight,
+    );
+
+    // Assign directly as well as through scrollTo so this works consistently
+    // across Chromium and nested Radix dialog scrolling contexts.
+    viewport.scrollTo({
+      top: maxScrollTop,
+      behavior: "auto",
+    });
+    viewport.scrollTop = maxScrollTop;
+
+    const distanceFromBottom =
+      viewport.scrollHeight -
+      viewport.clientHeight -
+      viewport.scrollTop;
+
+    return Math.abs(distanceFromBottom) <= 2;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open || isLoading) return;
+
+    // Empty thread has no scroll positioning work.
+    if (timeline.length === 0) {
+      setIsLatestPositionReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const placeAtLatest = () => {
+      if (cancelled) return;
+
+      const reachedLatest = scrollToLatest();
+      attempts += 1;
+
+      if (reachedLatest) {
+        // Reveal one frame AFTER the final scroll assignment so the user never
+        // sees the old/top position flash first.
+        latestPositionFrameRef.current =
+          window.requestAnimationFrame(() => {
+            if (cancelled) return;
+            scrollToLatest();
+            setIsLatestPositionReady(true);
+          });
+        return;
+      }
+
+      // Retry while Radix/dialog/content layout is still settling.
+      if (attempts < 30) {
+        latestPositionFrameRef.current =
+          window.requestAnimationFrame(placeAtLatest);
+        return;
+      }
+
+      // Extremely defensive fallback: do not leave the conversation invisible
+      // forever, but make one final hard bottom assignment before revealing.
+      scrollToLatest();
+      setIsLatestPositionReady(true);
+    };
+
+    // Start after two animation frames so the dialog viewport has its final
+    // height before calculating scrollHeight/clientHeight.
+    latestPositionFrameRef.current =
+      window.requestAnimationFrame(() => {
+        latestPositionFrameRef.current =
+          window.requestAnimationFrame(placeAtLatest);
+      });
+
+    return () => {
+      cancelled = true;
+      if (latestPositionFrameRef.current !== null) {
+        window.cancelAnimationFrame(
+          latestPositionFrameRef.current,
+        );
+        latestPositionFrameRef.current = null;
+      }
+    };
+  }, [
+    driverId,
+    isLoading,
+    open,
+    scrollToLatest,
+    timeline.length,
+  ]);
+
+  // Keep the open conversation at its newest activity when timeline data
+  // changes (new message, GPS alert, dispatch response, etc.).
   React.useEffect(() => {
-    if (!open) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [timeline, open]);
+    if (!open || isLoading || !isLatestPositionReady) return;
+
+    const frame = window.requestAnimationFrame(scrollToLatest);
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    isLatestPositionReady,
+    isLoading,
+    open,
+    scrollToLatest,
+    timeline,
+  ]);
+
+  // Images, videos, attachments, fonts and system cards can change the history
+  // height after the initial render. ResizeObserver keeps the currently-open
+  // conversation pinned to the newest item instead of letting those late size
+  // changes leave the viewport above the bottom.
+  React.useEffect(() => {
+    if (
+      !open ||
+      isLoading ||
+      typeof ResizeObserver === "undefined"
+    ) {
+      return;
+    }
+
+    const content = timelineContentRef.current;
+    if (!content) return;
+
+    const observer = new ResizeObserver(() => {
+      scrollToLatest();
+    });
+
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, [
+    isLoading,
+    open,
+    scrollToLatest,
+  ]);
 
   const submitMessage = React.useCallback(async () => {
     const content = draft.trim();
@@ -750,6 +942,32 @@ export function DispatchChatDialog({
     participantName ||
     "Driver";
 
+  const currentAccountAvatar = participantAvatarSrc(user?.imageUrl);
+
+  const dispatcherAvatar = participantAvatarSrc(
+    threadContext?.dispatcher?.avatar,
+  );
+  const driverAvatar = participantAvatarSrc(
+    threadContext?.driver?.avatar,
+  );
+
+  const dispatcherAvatarSrc =
+    dispatcherAvatar ||
+    (String(threadContext?.dispatcher?.id || "") ===
+    String(currentUserId || "")
+      ? currentAccountAvatar
+      : undefined);
+
+  const driverAvatarSrc =
+    driverAvatar ||
+    (String(threadContext?.driver?.id || "") ===
+    String(currentUserId || "")
+      ? currentAccountAvatar
+      : undefined);
+
+  const dispatcherInitials = nameInitials(dispatcherName);
+  const driverInitials = nameInitials(driverName);
+
   return (
     <Dialog
       open={open}
@@ -759,7 +977,14 @@ export function DispatchChatDialog({
         if (!nextOpen) setEmojiOpen(false);
       }}
     >
-      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[780px] sm:w-[92vw] sm:max-w-[56rem] lg:w-[86vw] lg:max-w-[64rem]">
+      <DialogContent
+        onOpenAutoFocus={(event) => {
+          // Prevent Radix autofocus from scrolling the freshly-opened dialog
+          // toward its first focusable element before latest-position setup.
+          event.preventDefault();
+        }}
+        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[780px] sm:w-[92vw] sm:max-w-[56rem] lg:w-[86vw] lg:max-w-[64rem]"
+      >
         <DialogHeader className="relative shrink-0 border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.08] to-background px-3 py-4 text-center sm:px-6 sm:py-5">
           <div className="mx-auto flex size-11 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <MessageSquare className="size-5" />
@@ -776,8 +1001,20 @@ export function DispatchChatDialog({
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-              <UsersRound className="size-4 text-emerald-500" />
-              <div className="text-left leading-tight">
+              <Avatar className="size-9 shrink-0 border border-emerald-500/20">
+                {dispatcherAvatarSrc && (
+                  <AvatarImage
+                    src={dispatcherAvatarSrc}
+                    alt={dispatcherName}
+                    className="object-cover"
+                  />
+                )}
+                <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                  {dispatcherInitials}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="min-w-0 text-left leading-tight">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
                   Dispatcher
                 </p>
@@ -792,8 +1029,20 @@ export function DispatchChatDialog({
             </span>
 
             <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-3 py-2">
-              <UserRound className="size-4 text-emerald-500" />
-              <div className="text-left leading-tight">
+              <Avatar className="size-9 shrink-0 border border-emerald-500/20">
+                {driverAvatarSrc && (
+                  <AvatarImage
+                    src={driverAvatarSrc}
+                    alt={driverName}
+                    className="object-cover"
+                  />
+                )}
+                <AvatarFallback className="bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                  {driverInitials}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="min-w-0 text-left leading-tight">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
                   Driver
                 </p>
@@ -839,7 +1088,10 @@ export function DispatchChatDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-3 py-4 sm:px-5">
+        <div
+          ref={timelineScrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-3 py-4 [overflow-anchor:none] sm:px-5"
+        >
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 size-5 animate-spin" />
@@ -857,7 +1109,13 @@ export function DispatchChatDialog({
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div
+              ref={timelineContentRef}
+              className={`w-full space-y-3 ${
+                isLatestPositionReady ? "opacity-100" : "opacity-0"
+              }`}
+              aria-busy={!isLatestPositionReady}
+            >
               {timeline.map((item) => {
                 if (item.itemType === "event") {
                   return (
@@ -869,6 +1127,35 @@ export function DispatchChatDialog({
                 }
 
                 const message = item.message;
+
+                if (
+                  message.messageType === "system" &&
+                  message.systemEvent
+                ) {
+                  return (
+                    <SystemEventCard
+                      key={item.id}
+                      event={{
+                        id: `chat-system:${message.id}`,
+                        kind: "notification",
+                        notificationType:
+                          message.systemEvent.type ||
+                          "dispatch_chat_system_event",
+                        title:
+                          message.systemEvent.title ||
+                          "Dispatch Update",
+                        message:
+                          message.systemEvent.message ||
+                          message.content ||
+                          "Dispatch activity updated.",
+                        metadata:
+                          message.systemEvent.metadata ?? {},
+                        createdAt: message.createdAt,
+                      }}
+                    />
+                  );
+                }
+
                 const mine = message.sender.id === currentUserId;
                 const senderLabel =
                   message.senderRole === "driver"
@@ -939,7 +1226,6 @@ export function DispatchChatDialog({
                   </div>
                 );
               })}
-              <div ref={messagesEndRef} />
             </div>
           )}
         </div>

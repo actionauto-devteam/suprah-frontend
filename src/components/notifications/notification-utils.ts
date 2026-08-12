@@ -322,6 +322,7 @@ const ROUTE_MAP: Record<string, string> = {
   message_received: '/crm/supra-space',
   aftermarket_inquiry: '/crm/support-center?tab=aftermarket', aftermarket_invoice: '/customer/payments', aftermarket_order: '/crm/aftermarket',
   driver_location_update: '/driver-tracker',
+  driver_tracker_offline_alert: '/driver-tracker',
   driver_dispatch_alert: '/driver/notifications',
   payment_request: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
@@ -363,7 +364,21 @@ function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'da
 }
 
 export function getNotificationRoute(notification: Notification, pathname?: string): string | null {
-  // Prefer the contextual route embedded in metadata (e.g. lead-reminder deep links)
+  // GPS-offline alerts must always open the affected driver's isolated
+  // Dispatch Chat. Derive the deep link from driverId on the frontend too so
+  // notifications created before metadata.route was added remain clickable.
+  if (notification.type === 'driver_tracker_offline_alert') {
+    const driverId = String(notification.metadata?.driverId ?? '').trim();
+
+    if (driverId) {
+      return `/driver-tracker?driverId=${encodeURIComponent(driverId)}&openDispatchChat=1`;
+    }
+
+    // Still take Dispatch to Driver Tracker if an old record lacks driverId.
+    return '/driver-tracker';
+  }
+
+  // Prefer the contextual route embedded in metadata for all other types.
   if (notification.metadata?.route) return notification.metadata.route as string;
 
   if (!pathname) return ROUTE_MAP[notification.type] || '/notifications';
