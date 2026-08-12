@@ -53,7 +53,6 @@ export function MemberCard({
             "w-full h-full min-h-48 text-left flex flex-col items-center gap-3 p-4 pt-5 rounded-xl border bg-card",
             "hover:bg-accent/10 active:scale-[0.98] transition-all duration-150 cursor-pointer group",
             "border-border/40 hover:border-border/60",
-            isMe && "ring-1 ring-primary/20 border-primary/20",
           )}
         >
           <div className="relative">
@@ -133,7 +132,6 @@ export function MemberCard({
         "items-center gap-3 sm:gap-4 pl-0 pr-3 sm:pr-4 py-3 rounded-xl border bg-card cursor-pointer",
         "transition-all duration-150 group overflow-hidden",
         "border-border/40 hover:border-border/60 hover:bg-accent/10",
-        isMe && "ring-1 ring-primary/20 border-primary/20",
       )}
     >
       <div className={cn("w-0.5 self-stretch shrink-0 transition-opacity opacity-70 group-hover:opacity-100", S.dot[status])} />

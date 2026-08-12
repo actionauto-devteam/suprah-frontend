@@ -629,9 +629,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[1700px] min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
+    <div className="relative mx-auto w-full max-w-425 min-w-0 overflow-x-clip p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-6 min-h-full pb-24 md:pb-12 animate-in fade-in duration-500">
       {/* ── Digital backdrop: subtle grid + ambient glow ── */}
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(to_right,rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,120,120,0.05)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent_80%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(to_right,rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,120,120,0.05)_1px,transparent_1px)] bg-size-[48px_48px] mask-[radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent_80%)]" />
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
