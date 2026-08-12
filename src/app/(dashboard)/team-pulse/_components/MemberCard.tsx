@@ -196,25 +196,32 @@ export function MemberCard({
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0 h-10" onClick={(e) => e.stopPropagation()}>
-        {!isMe && (
-          <button
-            onClick={handleMessage}
-            disabled={dmLoading}
-            className={cn(
-              "flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold shrink-0 border transition-all",
-              "bg-primary/8 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground hover:border-primary",
-              dmLoading && "opacity-60 cursor-wait",
-            )}
-            title="Message"
-          >
-            {dmLoading ? (
-              <span className="size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-            ) : (
-              <MessageCircle className="size-3.5" />
-            )}
-            <span className="hidden sm:inline">Message</span>
-          </button>
-        )}
+        {/* Always rendered (even for your own row) so this row's grid track
+            keeps the exact same natural width as every other row — each
+            MemberCard is its own independent CSS grid, so an "auto" column
+            that only sometimes contains a button shifts that row's other
+            columns out of alignment with the rest of the list. `invisible`
+            reserves the layout space without showing or allowing clicks. */}
+        <button
+          onClick={handleMessage}
+          disabled={dmLoading || isMe}
+          tabIndex={isMe ? -1 : 0}
+          aria-hidden={isMe}
+          className={cn(
+            "flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold shrink-0 border transition-all",
+            "bg-primary/8 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground hover:border-primary",
+            dmLoading && "opacity-60 cursor-wait",
+            isMe && "invisible pointer-events-none",
+          )}
+          title={isMe ? undefined : "Message"}
+        >
+          {dmLoading ? (
+            <span className="size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          ) : (
+            <MessageCircle className="size-3.5" />
+          )}
+          <span className="hidden sm:inline">Message</span>
+        </button>
 
         <div className="flex flex-col items-end justify-center gap-1 h-10 w-28 shrink-0">
           {leaveToday ? (

@@ -71,6 +71,16 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// Lets the page trigger activation on demand (see ServiceWorkerRegistration.tsx's
+// "New version available" prompt) instead of the SW auto-activating and yanking
+// every open tab out from under whatever the user is doing — see the
+// `skipWaiting: false` comment above for why that auto-activation was removed.
+self.addEventListener("message", (event: any) => {
+  if (event?.data === "SKIP_WAITING" || event?.data?.type === "SKIP_WAITING") {
+    (self as any).skipWaiting();
+  }
+});
+
 // --- CUSTOM WEB PUSH LISTENERS ---
 // (unchanged from your original — carried over verbatim)
 
