@@ -14,12 +14,25 @@ const TILE_URL = {
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
+// See getDomTheme() in LocatorLiveMapSection.tsx — same reasoning: ThemeContext's React
+// state deliberately starts as 'dark' on every load and only self-corrects a moment later,
+// so picking the initial tile set from that state (instead of the theme already applied to
+// <html> by the blocking inline script) flashes the wrong basemap for light-mode users.
+function getDomTheme(): "light" | "dark" {
+  if (typeof document === "undefined") return "dark";
+  return document.documentElement.classList.contains("light") ? "light" : "dark";
+}
+
 export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
   const { theme } = useTheme();
-  const themeRef = React.useRef(theme);
-  themeRef.current = theme;
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<LeafletMap | null>(null);
+  // The map is already initialized with the correct (DOM-read) theme below — this ref lets
+  // the theme-sync effect skip its first run, which otherwise fires with the still-stale
+  // 'dark' context value and would immediately swap the correctly-initialized tiles to the
+  // wrong theme, right before ThemeContext corrects itself a moment later. Real theme
+  // toggles after mount are unaffected.
+  const skippedFirstThemeSyncRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current || route.length === 0) return;
@@ -33,7 +46,7 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
 
       const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true });
       mapInstanceRef.current = map;
-      L.tileLayer(TILE_URL[themeRef.current], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
+      L.tileLayer(TILE_URL[getDomTheme()], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
 
       L.polyline(coords, { color: "#3b82f6", weight: 4, opacity: 0.9 }).addTo(map);
 
@@ -62,6 +75,10 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
 
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;
+    if (!skippedFirstThemeSyncRef.current) {
+      skippedFirstThemeSyncRef.current = true;
+      return;
+    }
     (async () => {
       const L = (await import("leaflet")).default;
       const map = mapInstanceRef.current;

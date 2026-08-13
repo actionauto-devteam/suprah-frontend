@@ -307,6 +307,20 @@ function NotificationPageView({
       return true;
     }
 
+    if (!isCrm && notification.type === 'driver_tracker_offline_alert') {
+      const route = getNotificationRoute(notification, pathname);
+
+      if (!notification.isRead) {
+        markAsRead(notification._id);
+      }
+
+      if (route) {
+        router.push(route);
+      }
+
+      return true;
+    }
+
     const route = getNotificationRoute(notification, pathname);
     if (!route) {
       setDetailsNotification(notification);
@@ -314,7 +328,7 @@ function NotificationPageView({
       return true;
     }
     return false;
-  }, [markAsRead, pathname, isCrm]);
+  }, [markAsRead, pathname, isCrm, router]);
 
   const clearAllFilters = () => {
     setFilterSelection('all');

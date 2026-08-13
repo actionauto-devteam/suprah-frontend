@@ -1382,16 +1382,16 @@ body.theme-switching *::after {
     display: none;
   }
 
-  .supra-floating-widget[data-panel-open="true"] {
+  .supra-floating-widget[data-panel-open="true"]:not([data-dragged="true"]) {
     right: 0.75rem !important;
     left: auto !important;
   }
 
-  .supra-floating-widget[data-position="bottom-left"] {
+  .supra-floating-widget[data-position="bottom-left"]:not([data-dragged="true"]) {
     left: var(--supra-leo-side) !important;
   }
 
-  .supra-floating-widget[data-position="bottom-right"] {
+  .supra-floating-widget[data-position="bottom-right"]:not([data-dragged="true"]) {
     right: var(--supra-leo-side) !important;
   }
 }

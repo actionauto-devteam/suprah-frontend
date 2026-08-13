@@ -250,8 +250,8 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const initialGradient = getInitialColor(displayName);
 
   return (
-    <div className="relative mb-6 sm:mb-8 w-full max-w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl sm:shadow-2xl border border-gray-200/60 dark:border-white/10 group h-fit flex flex-col">
-      <div className="absolute inset-0 bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950" />
+    <div className="relative mb-6 sm:mb-8 w-full max-w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-lg sm:shadow-xl border border-slate-300/90 dark:border-white/15 ring-1 ring-slate-200/60 dark:ring-white/[0.03] group h-fit flex flex-col">
+      <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950" />
 
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-[0.07]">
@@ -396,13 +396,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       </div>
 
       <div className="absolute inset-0 bg-linear-to-r from-emerald-500/10 via-transparent to-cyan-500/10" />
-      <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-black/40 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-linear-to-t from-slate-300/35 to-transparent dark:from-black/40" />
 
       <div className="relative w-full min-w-0 px-4 py-5 sm:px-8 sm:py-8 md:px-10 md:py-10 flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-8">
         <div className="relative group/avatar shrink-0">
           <div className="absolute -inset-1 rounded-2xl sm:rounded-3xl bg-linear-to-br from-emerald-400/40 to-cyan-400/40 blur-md opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500" />
           <div
-            className="relative w-20 h-20 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl overflow-hidden ring-[3px] ring-white/20 dark:ring-white/10 shadow-2xl transition-all duration-300 group-hover/avatar:ring-emerald-400/50 cursor-pointer"
+            className="relative w-20 h-20 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-2xl sm:rounded-3xl overflow-hidden ring-[3px] ring-slate-300 dark:ring-white/15 shadow-2xl transition-all duration-300 group-hover/avatar:ring-emerald-400/50 cursor-pointer"
             onClick={() => setIsCropperOpen(true)}
           >
             {showAvatarImage ? (
@@ -446,7 +446,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 
           <button
             onClick={() => setShowStatusDialog(true)}
-            className="absolute -bottom-1.5 -right-1.5 sm:-bottom-2 sm:-right-2 h-7 w-7 sm:h-9 sm:w-9 rounded-xl bg-gray-900 dark:bg-zinc-900 shadow-lg border-2 border-gray-700 hover:scale-110 transition-all active:scale-95 flex items-center justify-center"
+            className="absolute -bottom-1.5 -right-1.5 sm:-bottom-2 sm:-right-2 h-7 w-7 sm:h-9 sm:w-9 rounded-xl bg-background/95 dark:bg-zinc-900 shadow-lg border-2 border-slate-300 dark:border-gray-700 hover:scale-110 transition-all active:scale-95 flex items-center justify-center"
           >
             <div
               className={cn(
@@ -459,7 +459,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 
         <div className="flex-1 min-w-0 w-full text-center sm:text-left space-y-2.5 sm:space-y-3">
           <div className="flex flex-col sm:flex-row items-center sm:items-baseline gap-2 sm:gap-3">
-            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md leading-tight wrap-break-word sm:truncate max-w-full">
+            <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold text-slate-950 dark:text-white tracking-tight drop-shadow-md leading-tight wrap-break-word sm:truncate max-w-full">
               {displayName}
             </h1>
             <Badge
@@ -474,7 +474,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </div>
 
           {profile?.email && (
-            <p className="text-white/40 text-xs sm:text-sm font-medium break-all sm:break-normal sm:truncate">
+            <p className="text-slate-500 dark:text-white/50 text-xs sm:text-sm font-medium break-all sm:break-normal sm:truncate">
               {profile.email}
             </p>
           )}
@@ -482,7 +482,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 w-full">
             <button
               onClick={() => setShowStatusDialog(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all max-w-full"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/75 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 border border-border/80 dark:border-white/15 transition-all max-w-full shadow-sm"
             >
               <CircleDot
                 className={cn(
@@ -490,11 +490,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   currentStatus.color.replace("bg-", "text-"),
                 )}
               />
-              <span className="text-white/70 font-medium text-xs truncate max-w-32 sm:max-w-60">
+              <span className="text-slate-700 dark:text-white/75 font-medium text-xs truncate max-w-32 sm:max-w-60">
                 {customStatus || "Set your status..."}
               </span>
             </button>
-            <div className="hidden sm:flex items-center gap-3 text-white/40 text-xs font-medium">
+            <div className="hidden sm:flex items-center gap-3 text-muted-foreground text-xs font-medium">
               {profile?.personalInfo?.location && (
                 <span className="inline-flex items-center gap-1.5">
                   <MapPin className="size-3 text-emerald-400/60" />
@@ -519,7 +519,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 backdrop-blur-sm font-medium max-w-full"
+                className="bg-background/75 dark:bg-white/5 border border-border/80 dark:border-white/15 text-foreground/75 hover:text-foreground hover:bg-muted dark:hover:bg-white/10 backdrop-blur-sm font-medium max-w-full shadow-sm"
               >
                 <Share2 className="size-3.5 mr-1.5" />
                 Share
@@ -527,55 +527,55 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-64 bg-gray-900 border-white/10 text-white"
+              className="w-64 bg-popover border-border text-popover-foreground shadow-xl"
             >
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={handleCopyProfileLink}
               >
                 <Copy className="size-4 mr-2" />
                 Copy profile link
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={handleShareExternally}
               >
                 <Share2 className="size-4 mr-2" />
                 Copy & share manually
               </DropdownMenuItem>
-              <div className="my-1 mx-2 h-px bg-white/10" />
-              <p className="px-3 py-1 text-[11px] uppercase tracking-wide text-white/50">
+              <div className="my-1 mx-2 h-px bg-border" />
+              <p className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
                 Share using
               </p>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={() => handleShareToPlatform("facebook")}
               >
                 <Facebook className="size-4 mr-2" />
                 Facebook
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={() => handleShareToPlatform("x")}
               >
                 <Share2 className="size-4 mr-2" />X (Twitter)
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={() => handleShareToPlatform("linkedin")}
               >
                 <Linkedin className="size-4 mr-2" />
                 LinkedIn
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={() => handleShareToPlatform("whatsapp")}
               >
                 <MessageCircle className="size-4 mr-2" />
                 WhatsApp
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="focus:bg-white/10 focus:text-white"
+                className="focus:bg-accent focus:text-accent-foreground"
                 onClick={() => handleShareToPlatform("email")}
               >
                 <Mail className="size-4 mr-2" />
@@ -587,7 +587,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            className="bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 backdrop-blur-sm font-medium hidden sm:inline-flex"
+            className="bg-background/75 dark:bg-white/5 border border-border/80 dark:border-white/15 text-foreground/75 hover:text-foreground hover:bg-muted dark:hover:bg-white/10 backdrop-blur-sm font-medium hidden sm:inline-flex shadow-sm"
             onClick={handleCopyId}
           >
             <Copy className="size-3.5 mr-1.5" />
@@ -596,7 +596,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </div>
       </div>
 
-      <div className="relative w-full border-t border-white/5 bg-white/3 backdrop-blur-md px-4 py-3.5 sm:px-8 sm:py-4 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+      <div className="relative w-full border-t border-slate-200/90 dark:border-white/10 bg-slate-50/85 dark:bg-white/[0.04] backdrop-blur-md px-4 py-3.5 sm:px-8 sm:py-4 grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
         {[
           {
             label: "Role",
@@ -628,12 +628,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           },
         ].map((stat, i) => (
           <div key={i} className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-white/25 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">
+            <span className="text-slate-500 dark:text-white/35 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">
               {stat.label}
             </span>
             <div className="flex items-center gap-1.5">
               <stat.icon className={cn("size-3.5 sm:size-4", stat.color)} />
-              <span className="text-white/80 font-bold text-sm sm:text-base capitalize truncate min-w-0">
+              <span className="text-slate-800 dark:text-white/85 font-bold text-sm sm:text-base capitalize truncate min-w-0">
                 {stat.value}
               </span>
             </div>

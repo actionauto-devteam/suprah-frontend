@@ -8,6 +8,7 @@ import { DriverRequest } from "@/types/driver-request";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Link from "next/link";
 import {
   CheckCircle2,
   XCircle,
@@ -15,6 +16,7 @@ import {
   Clock,
   UserPlus,
   Mail,
+  ChevronRight,
 } from "lucide-react";
 
 const statusConfig: Record<
@@ -162,7 +164,10 @@ export function DriverRequestsSettings() {
                 key={request._id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border/70 gap-3 bg-card/75 hover:bg-card transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <Link
+                  href={`/settings/drivers/${driver?._id}`}
+                  className="flex items-center gap-3 min-w-0 group"
+                >
                   <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={driver?.avatar || undefined} />
                     <AvatarFallback className="text-xs">
@@ -170,7 +175,7 @@ export function DriverRequestsSettings() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-sm font-medium truncate group-hover:underline">
                       {driver?.name || "Unknown Driver"}
                     </p>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -184,7 +189,8 @@ export function DriverRequestsSettings() {
                       {new Date(request.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                     </div>
                   </div>
-                </div>
+                  <ChevronRight className="size-4 text-muted-foreground/50 shrink-0 ml-auto group-hover:text-muted-foreground transition-colors sm:hidden" />
+                </Link>
 
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                   <Badge variant="outline" className={config.className}>

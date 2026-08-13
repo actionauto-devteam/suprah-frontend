@@ -244,6 +244,19 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
         Sign in with Google
       </Button>
 
+      <div className="text-center pt-2">
+        <p className="text-zinc-500 text-sm font-light">
+          Don&apos;t have an account?{" "}
+          <button
+            type="button"
+            onClick={onToggleMode}
+            className={`${AUTH_LINK_CLASS} ml-1`}
+          >
+            Sign Up
+          </button>
+        </p>
+      </div>
+
     </div>
   );
 }

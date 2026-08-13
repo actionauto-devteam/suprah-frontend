@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   MapPin,
   Clock,
@@ -44,6 +45,7 @@ import { DriverAssignLoadModal } from "@/components/driver-tracker/DriverAssignL
 import { DriverTrackerAvailableLoadsCard } from "@/components/driver-tracker/DriverTrackerAvailableLoadsCard";
 import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTrackerRequestsCard";
 import { DriverDispatchAlertDialog } from "@/components/driver-tracker/DriverDispatchAlertDialog";
+import { DriverComplianceDocumentsDialog } from "@/components/driver-tracker/DriverComplianceDocumentsDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
@@ -88,6 +90,9 @@ const LOCATION_INTERVAL_MS = 10000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 
 export default function DriverTrackerPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const { theme } = useTheme();
@@ -113,6 +118,13 @@ export default function DriverTrackerPage() {
   const [alertDialogOpen, setAlertDialogOpen] = React.useState(false);
   const [chatDriver, setChatDriver] = React.useState<DriverTrackingItem | null>(null);
   const [chatDialogOpen, setChatDialogOpen] = React.useState(false);
+  const [complianceDriver, setComplianceDriver] =
+    React.useState<DriverTrackingItem | null>(null);
+  const [complianceDialogOpen, setComplianceDialogOpen] =
+    React.useState(false);
+  const [unreadMessageCounts, setUnreadMessageCounts] = React.useState<
+    Record<string, number>
+  >({});
   const [mapFilter, setMapFilter] = React.useState<
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
@@ -148,6 +160,111 @@ export default function DriverTrackerPage() {
     [drivers],
   );
 
+  const handledDispatchChatDeepLinkRef = React.useRef<string | null>(null);
+  const chatDialogOpenRef = React.useRef(chatDialogOpen);
+  const openChatDriverIdRef = React.useRef<string | null>(null);
+
+  const handleChatUnreadChange = React.useCallback(
+    (count: number) => {
+      const driverId = chatDriver?.driver?.id ?? chatDriver?.id;
+      if (!driverId) return;
+
+      const nextCount = Math.max(0, Number(count) || 0);
+
+      setUnreadMessageCounts((previous) => {
+        if ((previous[driverId] ?? 0) === nextCount) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          [driverId]: nextCount,
+        };
+      });
+    },
+    [chatDriver],
+  );
+
+  React.useEffect(() => {
+    chatDialogOpenRef.current = chatDialogOpen;
+    openChatDriverIdRef.current =
+      chatDriver?.driver?.id ?? chatDriver?.id ?? null;
+  }, [chatDialogOpen, chatDriver]);
+
+  // GPS-offline notifications deep-link to:
+  // /driver-tracker?driverId=<id>&openDispatchChat=1
+  //
+  // Keep the parameters in the URL while the dialog is open. The previous
+  // implementation removed them immediately after setChatDialogOpen(true),
+  // which could cause an App Router refresh/remount before the dialog state
+  // became visible.
+  React.useEffect(() => {
+    const targetDriverId = searchParams.get("driverId");
+    const shouldOpenChat =
+      searchParams.get("openDispatchChat") === "1";
+
+    if (!shouldOpenChat || !targetDriverId) {
+      handledDispatchChatDeepLinkRef.current = null;
+      return;
+    }
+
+    if (isLoading) return;
+
+    const deepLinkKey = `${targetDriverId}:dispatch-chat`;
+
+    // A deep link is single-use for the lifetime of these query params.
+    // Do NOT key this guard to chatDialogOpen: on close, React commits
+    // chatDialogOpen=false before router.replace() removes the query params.
+    // The old condition therefore reopened the exact same chat once.
+    if (handledDispatchChatDeepLinkRef.current === deepLinkKey) {
+      return;
+    }
+
+    const targetDriver = drivers.find(
+      (item) =>
+        String(item.driver?.id ?? item.id) ===
+        String(targetDriverId),
+    );
+
+    if (!targetDriver) {
+      toast.error(
+        "The driver linked to this notification is not available in Driver Tracker.",
+      );
+      return;
+    }
+
+    handledDispatchChatDeepLinkRef.current = deepLinkKey;
+    setMapFilter("all");
+    setChatDriver(targetDriver);
+    setChatDialogOpen(true);
+  }, [
+    drivers,
+    isLoading,
+    searchParams,
+  ]);
+
+  const clearDispatchChatDeepLink = React.useCallback(() => {
+    if (
+      searchParams.get("openDispatchChat") !== "1" &&
+      !searchParams.get("driverId")
+    ) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("driverId");
+    nextParams.delete("openDispatchChat");
+
+    // Keep the handled key until the URL has actually changed. Clearing it
+    // here creates a one-render race where the old query params can reopen the
+    // same dialog before router.replace() completes.
+    const cleanedUrl = nextParams.toString()
+      ? `${pathname}?${nextParams.toString()}`
+      : pathname;
+
+    router.replace(cleanedUrl, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const initialLoadDone = React.useRef(false);
 
   const fetchDrivers = React.useCallback(async () => {
@@ -177,12 +294,13 @@ export default function DriverTrackerPage() {
             phone: item.phone ?? "",
             avatar: item.avatar ?? null,
 
-            // Suprah Space messaging availability returned by /org-drivers
+            // Kept for compatibility with the current DriverTrackingItem type.
+            // The isolated Suprah Dispatch Chat does not rely on these fields.
             messagingAvailable: Boolean(item.messagingAvailable),
             crmUserId: item.crmUserId ?? null,
             messagingUnavailableReason:
               item.messagingUnavailableReason ??
-              "Suprah Space account is not linked to this driver.",
+              "Messaging account is not linked to this driver.",
           },
           equipment: item.equipment
             ? {
@@ -396,6 +514,76 @@ export default function DriverTrackerPage() {
     [],
   );
 
+  const driverIdsKey = React.useMemo(
+    () =>
+      drivers
+        .map((driver) => driver.driver?.id ?? driver.id)
+        .filter(Boolean)
+        .sort()
+        .join("|"),
+    [drivers],
+  );
+
+  React.useEffect(() => {
+    if (!isSignedIn || !driverIdsKey) {
+      if (!driverIdsKey) setUnreadMessageCounts({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUnreadCounts = async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled) return;
+
+        const driverIds = driverIdsKey.split("|").filter(Boolean);
+        const results = await Promise.allSettled(
+          driverIds.map(async (driverId) => {
+            const response = await apiClient.get(
+              `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/unread`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+
+            return {
+              driverId,
+              unreadCount: Math.max(
+                0,
+                Number(response.data?.data?.unreadCount ?? 0),
+              ),
+            };
+          }),
+        );
+
+        if (cancelled) return;
+
+        setUnreadMessageCounts((previous) => {
+          const next: Record<string, number> = {};
+
+          for (const driverId of driverIds) {
+            next[driverId] = previous[driverId] ?? 0;
+          }
+
+          for (const result of results) {
+            if (result.status !== "fulfilled") continue;
+            next[result.value.driverId] = result.value.unreadCount;
+          }
+
+          return next;
+        });
+      } catch {
+        // Individual unread requests are already isolated with allSettled.
+        // Keep the existing button counts if authentication temporarily fails.
+      }
+    };
+
+    void fetchUnreadCounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [driverIdsKey, getToken, isSignedIn]);
+
   React.useEffect(() => {
     fetchDrivers();
     const interval = setInterval(fetchDrivers, LOCATION_INTERVAL_MS);
@@ -427,7 +615,7 @@ export default function DriverTrackerPage() {
           "driver:location",
           (data: {
             driverId: string;
-            coords: { lat: number; lng: number };
+            coords: { lat: number; lng: number } | null;
             status: DriverStatus;
             lastSeenAt: string;
           }) => {
@@ -437,7 +625,7 @@ export default function DriverTrackerPage() {
               const updated = [...prev];
               updated[idx] = {
                 ...updated[idx],
-                coords: data.coords,
+                coords: data.coords ?? updated[idx].coords,
                 status: data.status,
                 lastSeenAt: data.lastSeenAt,
                 isSharing: data.status !== "offline",
@@ -469,6 +657,32 @@ export default function DriverTrackerPage() {
         });
 
         sock.on(
+          "dispatch-chat:message",
+          (message: {
+            id?: string;
+            driverId?: string;
+            senderRole?: "driver" | "dispatcher";
+          }) => {
+            const driverId = String(message?.driverId ?? "");
+            if (!driverId || message?.senderRole !== "driver") return;
+
+            // The open chat marks incoming messages read itself, so don't flash
+            // an unread badge for the conversation the dispatcher is viewing.
+            if (
+              chatDialogOpenRef.current &&
+              String(openChatDriverIdRef.current ?? "") === driverId
+            ) {
+              return;
+            }
+
+            setUnreadMessageCounts((previous) => ({
+              ...previous,
+              [driverId]: (previous[driverId] ?? 0) + 1,
+            }));
+          },
+        );
+
+        sock.on(
           "driver:dispatch_alert_acknowledged",
           (payload: { driverName?: string; response?: string; destinationName?: string }) => {
             const label = payload.response === "on_my_way"
@@ -493,6 +707,7 @@ export default function DriverTrackerPage() {
       socketRef.current?.off("driver:load_requested");
       socketRef.current?.off("driver:load_request_updated");
       socketRef.current?.off("load:change");
+      socketRef.current?.off("dispatch-chat:message");
       socketRef.current?.off("driver:dispatch_alert_acknowledged");
       socketRef.current = null;
     };
@@ -964,6 +1179,11 @@ export default function DriverTrackerPage() {
             setAlertDialogOpen(true);
           }}
           onMessageDriver={handleMessageDriver}
+          onViewCompliance={(driver) => {
+            setComplianceDriver(driver);
+            setComplianceDialogOpen(true);
+          }}
+          unreadMessageCounts={unreadMessageCounts}
         />
       </div>
 
@@ -1092,11 +1312,28 @@ export default function DriverTrackerPage() {
         driver={alertDriver}
       />
 
+      <DriverComplianceDocumentsDialog
+        open={complianceDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setComplianceDialogOpen(nextOpen);
+          if (!nextOpen) setComplianceDriver(null);
+        }}
+        driver={complianceDriver}
+      />
+
       <DispatchChatDialog
         open={chatDialogOpen}
-        onOpenChange={setChatDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setChatDialogOpen(nextOpen);
+
+          if (!nextOpen) {
+            setChatDriver(null);
+            clearDispatchChatDeepLink();
+          }
+        }}
         driverId={chatDriver?.driver?.id ?? null}
         participantName={chatDriver?.driver?.name || "Driver"}
+        onUnreadChange={handleChatUnreadChange}
       />
     </div>
   );
