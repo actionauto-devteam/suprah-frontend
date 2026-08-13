@@ -231,6 +231,46 @@ const buildInquirySections = (
   ].filter((section) => section.fields.length > 0);
 };
 
+/*
+ * FIX: the customer's actual message was NEVER rendered by the inquiry card.
+ * buildInquirySections only produces Contact/Vehicle/Lead-Details fields, so
+ * the person's typed inquiry — even when present on the lead — was dropped
+ * at render time. This extractor finds the message from, in order:
+ *   1. lead.comments (set at ingestion / by the backfill script)
+ *   2. a "— Customer Comments —" section inside the message text
+ *   3. a labeled block in the raw text ("SHOPPER COMMENT:", "Comments:", …)
+ */
+const extractCustomerComments = (
+  lead: any,
+  message: any,
+): string => {
+  const direct = cleanValue(lead?.comments);
+  if (direct) return direct;
+
+  const text = getMessageText(message);
+  if (!text) return "";
+
+  const section = text.match(
+    /—\s*Customer Comments\s*—\s*\n?([\s\S]*?)(?=\n\s*—\s|$)/i,
+  );
+  if (section?.[1]?.trim()) {
+    return section[1].trim();
+  }
+
+  const labeled = text.match(
+    /\b(?:shopper\s+comments?|customer\s+comments?|comments?|customer\s+message)\s*:\s*\n?([\s\S]{10,600}?)(?=\n\s*\n|\n[A-Z][A-Z0-9 \/#&'.-]{2,}:|$)/i,
+  );
+  const candidate = labeled?.[1]?.replace(/\s+/g, " ").trim() || "";
+  if (
+    candidate.length >= 10 &&
+    !/^https?:\/\//i.test(candidate) &&
+    !/\b[A-HJ-NPR-Z0-9]{17}\b/.test(candidate)
+  ) {
+    return candidate;
+  }
+  return "";
+};
+
 const isLeadInquiryMessage = (
   message: any,
   index: number,
@@ -344,6 +384,11 @@ function InquiryCard({
       section.title === "Lead Details",
   );
 
+  const customerComments = extractCustomerComments(
+    lead,
+    message,
+  );
+
   const senderName = getLeadName(lead);
 
   return (
@@ -454,6 +499,23 @@ function InquiryCard({
                   ),
                 )}
               </div>
+            </section>
+          )}
+
+          {customerComments && (
+            <section className="min-w-0">
+              <SectionTitle>
+                Customer Message
+              </SectionTitle>
+
+              <p
+                className="whitespace-pre-wrap py-1.5 text-[13px] font-medium leading-relaxed wrap-break-word"
+                style={{
+                  color: "var(--text-primary)",
+                }}
+              >
+                {customerComments}
+              </p>
             </section>
           )}
         </article>
