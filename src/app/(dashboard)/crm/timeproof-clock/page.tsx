@@ -384,6 +384,11 @@ export default function TimeprofClockPage() {
   const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<number | null>(null)
   const [resumeModal, setResumeModal] = React.useState(false)
   const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null)
+  // True only when the backend confirms the last time-out was an erroneous stale-shift
+  // auto-clockout (not a deliberate one) — gates whether "Yes, Resume Shift" can actually
+  // undo it (POST /resume-shift) vs. falling back to today's plain fresh time-in.
+  const [canSeamlessResume, setCanSeamlessResume] = React.useState(false)
+  const [resumingShift, setResumingShift] = React.useState(false)
   const [showEarlyEndModal, setShowEarlyEndModal] = React.useState(false)
   const [showConfirmEndModal, setShowConfirmEndModal] = React.useState(false)
   const [showBreakCapModal, setShowBreakCapModal] = React.useState(false)
@@ -861,14 +866,62 @@ export default function TimeprofClockPage() {
     return false
   }
 
-  const checkTrayAndStartShift = React.useCallback(async () => {
-    const isLotTech = isMobileMonitoringDept(user?.department)
+  // "Yes, Resume Shift" when canSeamlessResume — undoes the erroneous auto-close server-side
+  // (deletes that time-out, original time-in stays open) instead of the old behavior of a
+  // disconnected fresh time-in that silently discarded the gap. Falls back to a plain time-in
+  // if it's not a seamless-resumable case, or if the server-side re-check rejects it (state
+  // changed between the check and the click) — never leaves the user stuck on the modal.
+  const handleResumeShiftClick = async () => {
+    setResumeModal(false)
+    if (!canSeamlessResume) { handleClock("time-in"); return }
+    setResumingShift(true)
+    const isMain = authModeRef.current === 'main'
+    const resumeEndpoint = isMain ? "/api/timeclock/resume-shift" : "/api/crm/timeproof/resume-shift"
+    const t = localStorage.getItem("crm_token")
+    const config = isMain ? {} : (t ? { headers: { Authorization: `Bearer ${t}` } } : {})
+    try {
+      await apiClient.post(resumeEndpoint, {}, config)
+      setClockMsg(`Resumed your shift at ${fmt(new Date())}`)
+      setResumeOriginalClockIn(null)
+      await refreshShiftState()
+      setTimeout(() => fetchActivityState(), 1000)
+    } catch {
+      handleClock("time-in")
+    } finally {
+      setResumingShift(false)
+    }
+  }
+
+  // Shared by every path that starts a shift after confirming device/tray readiness — must
+  // NEVER be skipped in favor of a raw handleClock("time-in"). Doing so previously let both
+  // the Tray-Required modal's buttons AND (via a swallowed fetch error) this function's own
+  // fallback silently discard an erroneously-auto-closed shift's resume opportunity instead of
+  // offering it, which is how a real gap of worked hours got permanently lost in production.
+  const checkResumableAndStart = React.useCallback(async () => {
     const isMain = authModeRef.current === 'main'
     const resumableEndpoint = isMain ? "/api/timeclock/resumable-shift" : "/api/crm/timeproof/resumable-shift"
     const getResumeHeaders = () => {
       const t = localStorage.getItem("crm_token")
       return isMain ? {} : (t ? { headers: { Authorization: `Bearer ${t}` } } : {})
     }
+    try {
+      if (token) {
+        const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
+        const d = resumeRes.data?.data
+        if (d?.resumable && d?.originalClockIn) {
+          setResumeOriginalClockIn(d.originalClockIn)
+          setCanSeamlessResume(!!d.canSeamlessResume)
+          setResumeModal(true)
+          return
+        }
+      }
+    } catch { }
+    handleClock("time-in")
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const checkTrayAndStartShift = React.useCallback(async () => {
+    const isLotTech = isMobileMonitoringDept(user?.department)
+    const isMain = authModeRef.current === 'main'
     // Deliberately NOT `isMobile` (viewport width < 768px) — that hook exists
     // for responsive layout and is true for ANY narrow/non-maximized desktop
     // browser window, incognito or not. Using it here meant a desktop admin
@@ -880,18 +933,7 @@ export default function TimeprofClockPage() {
     // which a resized desktop window can't fake.
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (isGenuineMobileDevice || isLotTech || isMain) {
-      try {
-        if (token) {
-          const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
-          const d = resumeRes.data?.data
-          if (d?.resumable && d?.originalClockIn) {
-            setResumeOriginalClockIn(d.originalClockIn)
-            setResumeModal(true)
-            return
-          }
-        }
-      } catch { }
-      handleClock("time-in")
+      await checkResumableAndStart()
       return
     }
     setTrayChecking(true)
@@ -899,16 +941,7 @@ export default function TimeprofClockPage() {
       const online = await isTrayOnline()
       if (online) {
         setShowTrayModal(false)
-        try {
-          const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
-          const d = resumeRes.data?.data
-          if (d?.resumable && d?.originalClockIn) {
-            setResumeOriginalClockIn(d.originalClockIn)
-            setResumeModal(true)
-            return
-          }
-        } catch { }
-        handleClock("time-in")
+        await checkResumableAndStart()
       } else {
         setShowTrayModal(true)
       }
@@ -917,7 +950,7 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [user?.department, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.department, checkResumableAndStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
@@ -2002,9 +2035,9 @@ export default function TimeprofClockPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <button onClick={() => { setResumeModal(false); handleClock("time-in") }}
-                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors">
-                  <Play className="h-4 w-4" /> Yes, Resume Shift
+                <button onClick={handleResumeShiftClick} disabled={resumingShift}
+                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-50">
+                  <Play className="h-4 w-4" /> {resumingShift ? "Resuming…" : "Yes, Resume Shift"}
                 </button>
                 <button onClick={() => { setResumeModal(false); setResumeOriginalClockIn(null); handleClock("time-in") }}
                   className="flex w-full items-center justify-center h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors">
@@ -2147,7 +2180,7 @@ export default function TimeprofClockPage() {
                   setTrayChecking(true)
                   try {
                     const online = await attemptTrayReconnect()
-                    if (online) { setShowTrayModal(false); handleClock("time-in") }
+                    if (online) { setShowTrayModal(false); await checkResumableAndStart() }
                     else toast.error("Still couldn't reach the tray app. Make sure it's running, then try again.")
                   } catch { } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}
@@ -2158,7 +2191,7 @@ export default function TimeprofClockPage() {
                   setTrayChecking(true)
                   try {
                     const online = await attemptTrayReconnect()
-                    if (online) { setShowTrayModal(false); handleClock("time-in") }
+                    if (online) { setShowTrayModal(false); await checkResumableAndStart() }
                     else toast.error("Tray app not detected. Make sure it is running.")
                   } catch { toast.error("Tray app not detected. Make sure it is running.") } finally { setTrayChecking(false) }
                 }} disabled={trayChecking}

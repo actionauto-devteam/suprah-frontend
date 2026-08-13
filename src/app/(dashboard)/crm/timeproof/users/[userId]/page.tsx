@@ -214,6 +214,88 @@ export default function AdminUserTimeprofPage() {
   const [correctError, setCorrectError] = React.useState("")
   const [correctSuccess, setCorrectSuccess] = React.useState("")
 
+  /* ── Admin time-override (Web-Dev-only recovery tool, separate from Correct Overrun Shift
+     above — that one refuses this department entirely; see adminTimeOverride on the backend) ── */
+  const [showOverrideForm, setShowOverrideForm] = React.useState(false)
+  const [overrideDate, setOverrideDate] = React.useState(() => toDateStr(new Date()))
+  const [overrideDayLogs, setOverrideDayLogs] = React.useState<{ _id: string; type: string; timestamp: string; note?: string }[]>([])
+  const [overrideDayLogsLoading, setOverrideDayLogsLoading] = React.useState(false)
+  const [overrideAction, setOverrideAction] = React.useState<"edit" | "delete" | "create" | null>(null)
+  const [overrideLogId, setOverrideLogId] = React.useState<string | null>(null)
+  const [overrideNewType, setOverrideNewType] = React.useState<"time-in" | "time-out">("time-in")
+  const [overrideTime, setOverrideTime] = React.useState("")
+  const [overrideReason, setOverrideReason] = React.useState("")
+  const [overrideSubmitting, setOverrideSubmitting] = React.useState(false)
+  const [overrideError, setOverrideError] = React.useState("")
+  const [overrideSuccess, setOverrideSuccess] = React.useState("")
+
+  const loadOverrideDayLogs = React.useCallback(async (dateStr: string) => {
+    const token = localStorage.getItem("crm_token")
+    if (!token || !userId) return
+    setOverrideDayLogsLoading(true)
+    try {
+      const res = await apiClient.getAdminDayLogs(userId, dateStr, { headers: { Authorization: `Bearer ${token}` } })
+      setOverrideDayLogs(res.data?.data?.logs || [])
+    } catch {
+      setOverrideDayLogs([])
+    } finally {
+      setOverrideDayLogsLoading(false)
+    }
+  }, [userId])
+
+  React.useEffect(() => {
+    if (showOverrideForm && overrideDate) loadOverrideDayLogs(overrideDate)
+  }, [showOverrideForm, overrideDate, loadOverrideDayLogs])
+
+  const resetOverrideActionState = () => {
+    setOverrideAction(null)
+    setOverrideLogId(null)
+    setOverrideTime("")
+    setOverrideReason("")
+    setOverrideError("")
+    setOverrideSuccess("")
+  }
+
+  const handleSubmitOverride = React.useCallback(async () => {
+    if (!overrideAction || !overrideReason.trim()) {
+      setOverrideError("A reason is required.")
+      return
+    }
+    if ((overrideAction === "edit" || overrideAction === "create") && !overrideTime) {
+      setOverrideError("A time is required.")
+      return
+    }
+    const token = localStorage.getItem("crm_token")
+    if (!token || !userId) return
+    setOverrideSubmitting(true)
+    setOverrideError("")
+    try {
+      // Explicit -06:00 (MDT) — same reasoning as handleSubmitCorrection above: parsing in the
+      // admin's own browser timezone can silently land the timestamp hours off from intended.
+      const timestamp = overrideTime ? new Date(`${overrideDate}T${overrideTime}:00-06:00`).toISOString() : undefined
+      await apiClient.adminTimeOverride(
+        {
+          userId, date: overrideDate, action: overrideAction,
+          ...(overrideLogId && { logId: overrideLogId }),
+          ...(overrideAction === "create" && { type: overrideNewType }),
+          ...(timestamp && { timestamp }),
+          reason: overrideReason.trim(),
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      setOverrideSuccess("Applied. Reloading…")
+      await loadOverrideDayLogs(overrideDate)
+      const res = await apiClient.get(`/api/crm/timeproof/user/${userId}?range=365`, { headers: { Authorization: `Bearer ${token}` } })
+      setData(res.data?.data)
+      setTimeout(resetOverrideActionState, 1200)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setOverrideError(err?.response?.data?.message || "Failed to apply override.")
+    } finally {
+      setOverrideSubmitting(false)
+    }
+  }, [overrideAction, overrideReason, overrideTime, overrideDate, overrideLogId, overrideNewType, userId, loadOverrideDayLogs])
+
   const handleSubmitCorrection = React.useCallback(async () => {
     if (!correctDate || !correctTime || !correctReason.trim()) {
       setCorrectError("Date, corrected time, and reason are all required.")
@@ -1163,6 +1245,154 @@ export default function AdminUserTimeprofPage() {
                   )}
                 </div>
               )
+            )}
+
+            {/* ── Admin time-override: separate, narrower recovery tool reserved for
+                 departments exempt from Correct Overrun Shift above (currently Web Dev only).
+                 Never appears for a non-exempt department's user. ── */}
+            {/* Confirmed with the user: stays entirely within the exempt department — only an
+                admin whose OWN department is exempt (Web Dev) can see this, for any target
+                user whose department is exempt. Never visible to an admin from any other
+                department, and never for a non-exempt target. Backend enforces the same. */}
+            {isAdmin && isTimeEditExempt(currentUser?.department) && isTimeEditExempt(data.user.department) && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                <button
+                  onClick={() => { setShowOverrideForm((v) => !v); resetOverrideActionState() }}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Pencil className="h-3.5 w-3.5 text-amber-500" />
+                    <span className="text-[11px] font-black tracking-tight">Manual Time Override (Web Dev)</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/40">{showOverrideForm ? "Hide" : "Edit/add/remove an entry"}</span>
+                </button>
+
+                {showOverrideForm && (
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={overrideDate}
+                        onChange={(e) => { setOverrideDate(e.target.value); resetOverrideActionState() }}
+                        className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {overrideDayLogsLoading ? (
+                        <p className="text-[10px] text-muted-foreground/40">Loading entries…</p>
+                      ) : overrideDayLogs.length === 0 ? (
+                        <p className="text-[10px] text-muted-foreground/40">No time log entries for this date.</p>
+                      ) : (
+                        overrideDayLogs.map((log) => (
+                          <div key={log._id} className="flex items-center justify-between gap-2 rounded-lg border border-border/30 bg-background px-2.5 py-1.5">
+                            <div className="text-[11px]">
+                              <span className="font-bold">{log.type === "time-in" ? "Time In" : log.type === "time-out" ? "Time Out" : log.type}</span>
+                              <span className="text-muted-foreground/50 ml-1.5">
+                                {toMDTDate(new Date(log.timestamp)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setOverrideAction("edit"); setOverrideLogId(log._id)
+                                  setOverrideTime(toMDTDate(new Date(log.timestamp)).toISOString().slice(11, 16))
+                                  setOverrideError(""); setOverrideSuccess("")
+                                }}
+                                className="h-6 px-2 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-500/10 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => { setOverrideAction("delete"); setOverrideLogId(log._id); setOverrideError(""); setOverrideSuccess("") }}
+                                className="h-6 px-2 rounded-md text-[10px] font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <button
+                        onClick={() => { setOverrideAction("create"); setOverrideLogId(null); setOverrideError(""); setOverrideSuccess("") }}
+                        className="w-full h-7 rounded-lg border border-dashed border-border/40 text-[10px] font-semibold text-muted-foreground/60 hover:text-amber-600 hover:border-amber-500/40 transition-colors"
+                      >
+                        + Add Missing Entry
+                      </button>
+                    </div>
+
+                    {overrideAction && (
+                      <div className="space-y-2 pt-1 border-t border-border/20">
+                        <p className="text-[10px] font-bold text-amber-600">
+                          {overrideAction === "edit" && "Editing entry — new time:"}
+                          {overrideAction === "delete" && "Deleting this entry — confirm below:"}
+                          {overrideAction === "create" && "Adding a new entry:"}
+                        </p>
+
+                        {overrideAction === "create" && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setOverrideNewType("time-in")}
+                              className={`flex-1 h-8 rounded-lg text-[11px] font-bold transition-colors ${overrideNewType === "time-in" ? "bg-amber-600 text-white" : "border border-border/40 text-muted-foreground/60"}`}
+                            >
+                              Time In
+                            </button>
+                            <button
+                              onClick={() => setOverrideNewType("time-out")}
+                              className={`flex-1 h-8 rounded-lg text-[11px] font-bold transition-colors ${overrideNewType === "time-out" ? "bg-amber-600 text-white" : "border border-border/40 text-muted-foreground/60"}`}
+                            >
+                              Time Out
+                            </button>
+                          </div>
+                        )}
+
+                        {(overrideAction === "edit" || overrideAction === "create") && (
+                          <input
+                            type="time"
+                            value={overrideTime}
+                            onChange={(e) => setOverrideTime(e.target.value)}
+                            className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                          />
+                        )}
+
+                        <textarea
+                          value={overrideReason}
+                          onChange={(e) => setOverrideReason(e.target.value)}
+                          rows={2}
+                          placeholder="Reason (required) — e.g. Restoring hours lost to a stale-shift auto-clockout bug"
+                          className="w-full rounded-lg border border-border/40 bg-background px-2 py-1.5 text-[12px] resize-none"
+                        />
+
+                        {overrideError && (
+                          <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{overrideError}</p>
+                        )}
+                        {overrideSuccess && (
+                          <p className="text-[10px] text-emerald-600 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2">{overrideSuccess}</p>
+                        )}
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={resetOverrideActionState}
+                            disabled={overrideSubmitting}
+                            className="h-9 px-3 rounded-lg text-[11px] font-semibold text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleSubmitOverride}
+                            disabled={overrideSubmitting}
+                            className={`flex-1 h-9 rounded-lg text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${overrideAction === "delete" ? "bg-rose-600 hover:bg-rose-500" : "bg-amber-600 hover:bg-amber-500"}`}
+                          >
+                            {overrideSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                            {overrideSubmitting ? "Saving…" : overrideAction === "delete" ? "Confirm Delete" : "Apply"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ── Timecard: HR pay-period summary, any date range ── */}
