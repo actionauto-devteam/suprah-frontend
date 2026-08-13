@@ -367,7 +367,7 @@ function DayChip({ label }: { label: string }) {
   if (!label) return null;
   return (
     <div className="my-4 flex items-center justify-center">
-      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-400">
+      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm dark:border-emerald-400/20 dark:bg-[#0f1f19] dark:text-emerald-200/70">
         {label}
       </span>
     </div>
@@ -397,7 +397,7 @@ function InquiryFieldRow({
     <div
       className={cn(
         "grid grid-cols-[92px_minmax(0,1fr)] items-baseline gap-3 py-1.5",
-        !isLast && "border-b border-slate-100 dark:border-white/5",
+        !isLast && "border-b border-slate-100 dark:border-emerald-400/10",
       )}
     >
       <span className="text-right text-xs text-slate-400 dark:text-slate-500">
@@ -418,7 +418,7 @@ function InquiryFieldRow({
  */
 export function LeadInquiryDetails({
   lead,
-  defaultExpanded = true,
+  defaultExpanded = false,
 }: {
   lead: any;
   defaultExpanded?: boolean;
@@ -438,34 +438,51 @@ export function LeadInquiryDetails({
     .filter(Boolean)
     .join(" ");
 
+  const vinTail = lead?.vehicle?.vin
+    ? `VIN …${String(lead.vehicle.vin).slice(-6)}`
+    : "";
+
+  const Chip = ({ children }: { children: React.ReactNode }) => (
+    <span className="inline-flex max-w-full items-center truncate rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/5 dark:text-emerald-300">
+      {children}
+    </span>
+  );
+
   return (
-    <div className="border-b border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900">
+    <div className="border-b border-slate-200 bg-white dark:border-emerald-400/10 dark:bg-[#0f1f19]/90">
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
+        className="flex w-full items-center gap-2 px-3.5 py-2 text-left transition hover:bg-emerald-500/[0.04] dark:hover:bg-emerald-400/[0.05]"
         aria-expanded={expanded}
       >
-        <ClipboardList className="h-4 w-4 shrink-0 text-emerald-500" />
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+        <ClipboardList className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">
           Lead details
         </span>
-        {!expanded && vehicleLine && (
-          <span className="min-w-0 truncate text-xs text-slate-400 dark:text-slate-500">
-            · {vehicleLine}
-            {lead?.vehicle?.stock ? ` · #${lead.vehicle.stock}` : ""}
+
+        {!expanded && (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+            {vehicleLine && <Chip>{vehicleLine}</Chip>}
+            {lead?.vehicle?.stock && <Chip>#{lead.vehicle.stock}</Chip>}
+            {vinTail && (
+              <span className="hidden sm:inline-flex">
+                <Chip>{vinTail}</Chip>
+              </span>
+            )}
           </span>
         )}
+
         <ChevronDown
           className={cn(
-            "ml-auto h-4 w-4 shrink-0 text-slate-400 transition-transform",
+            "ml-auto h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
             expanded && "rotate-180",
           )}
         />
       </button>
 
       {expanded && (
-        <div className="grid grid-cols-1 gap-x-8 px-4 pb-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-8 px-3.5 pb-2.5 lg:grid-cols-2">
           {sections.map((section) => (
             <section
               key={section.title}
@@ -474,19 +491,27 @@ export function LeadInquiryDetails({
                 section.title === "Lead Details" && "lg:col-span-2",
               )}
             >
-              <SectionTitle>{section.title}</SectionTitle>
+              <p className="mb-0.5 mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 first:mt-0 dark:text-slate-500">
+                {section.title}
+              </p>
               <div
                 className={cn(
                   section.title === "Lead Details" &&
                     "grid grid-cols-1 gap-x-8 md:grid-cols-2",
                 )}
               >
-                {section.fields.map((field, index) => (
-                  <InquiryFieldRow
+                {section.fields.map((field) => (
+                  <div
                     key={`${section.title}-${field.label}`}
-                    field={field}
-                    isLast={index === section.fields.length - 1}
-                  />
+                    className="grid grid-cols-[80px_minmax(0,1fr)] items-baseline gap-2.5 py-[3px]"
+                  >
+                    <span className="text-right text-[11px] text-slate-400 dark:text-slate-500">
+                      {field.label}
+                    </span>
+                    <span className="min-w-0 wrap-break-word text-[12px] font-medium text-slate-700 dark:text-slate-200">
+                      {field.value}
+                    </span>
+                  </div>
                 ))}
               </div>
             </section>
@@ -541,10 +566,36 @@ export function ConversationView({
 
   let lastDayKey = "";
 
+  /*
+   * Marketplace aggregators re-submit the same inquiry several times a day,
+   * which used to render as a wall of identical bubbles. Consecutive
+   * messages with the same direction + cleaned text collapse into ONE
+   * bubble carrying a "×N" count (first occurrence's timestamp is shown).
+   */
+  const groupedThreads = React.useMemo(() => {
+    const groups: { message: any; index: number; count: number }[] = [];
+    let previousKey = "";
+    threads.forEach((message: any, index: number) => {
+      const direction = isOutboundMessage(message, sourceEmail) ? "out" : "in";
+      const textKey = cleanAggregatorText(getMessageText(message))
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+      const groupKey = `${direction}|${textKey}`;
+      if (textKey && groupKey === previousKey && groups.length > 0) {
+        groups[groups.length - 1].count += 1;
+      } else {
+        groups.push({ message, index, count: 1 });
+        previousKey = groupKey;
+      }
+    });
+    return groups;
+  }, [threads, sourceEmail]);
+
   return (
-    <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
       {!hideConversationChrome && (
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-slate-900">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
           <Avatar first={lead?.firstName} last={lead?.lastName} size="sm" />
 
           <div className="min-w-0 flex-1">
@@ -576,7 +627,7 @@ export function ConversationView({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/5 dark:hover:text-slate-300"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300"
             aria-label="Close conversation"
           >
             <X className="h-4 w-4" />
@@ -591,7 +642,7 @@ export function ConversationView({
         <button
           type="button"
           onClick={onReplyToSiblings}
-          className="flex items-center gap-2 border-b border-sky-100 bg-sky-50 px-4 py-2 text-[13px] text-sky-700 transition hover:bg-sky-100 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/15"
+          className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-[13px] text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15"
         >
           <Users className="h-4 w-4 shrink-0" />
           <span>
@@ -622,7 +673,7 @@ export function ConversationView({
           </div>
 
           {threads.length === 0 ? (
-            <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
               <Mail className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
               <div>
                 <strong className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -635,8 +686,9 @@ export function ConversationView({
             </div>
           ) : (
             <div className="w-full space-y-4">
-              {threads.map((message, index) => {
+              {groupedThreads.map(({ message, index, count }) => {
                 const outbound = isOutboundMessage(message, sourceEmail);
+                const countBadge = count > 1 ? ` · ×${count}` : "";
                 const key =
                   message?._id ||
                   message?.id ||
@@ -670,11 +722,12 @@ export function ConversationView({
                             size="sm"
                           />
                           <div className="flex min-w-0 max-w-[78%] flex-col items-start sm:max-w-[62%]">
-                            <div className="whitespace-pre-wrap wrap-break-word rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <div className="whitespace-pre-wrap wrap-break-word rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100">
                               {inquiryText}
                             </div>
                             <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                               {getLeadName(lead)} · {formatTimestamp(stamp)}
+                              {countBadge}
                             </span>
                           </div>
                         </div>
@@ -722,8 +775,8 @@ export function ConversationView({
                           className={cn(
                             "whitespace-pre-wrap wrap-break-word rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
                             outbound
-                              ? "rounded-br-md bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
-                              : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100",
+                              ? "rounded-br-md bg-gradient-to-br from-emerald-600 to-emerald-500 text-white shadow-emerald-500/20 dark:from-emerald-500 dark:to-cyan-600"
+                              : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100",
                           )}
                         >
                           {text || "Message content unavailable"}
@@ -731,6 +784,7 @@ export function ConversationView({
 
                         <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                           {senderLabel} · {formatTimestamp(stamp)}
+                          {countBadge}
                         </span>
                       </div>
 

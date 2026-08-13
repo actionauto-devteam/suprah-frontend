@@ -302,25 +302,10 @@ export const ReplySection = React.memo(
     if (isClosed) {
       return (
         <>
-          <div
-            className="flex shrink-0 items-center justify-between px-5 py-3.5"
-            style={{
-              borderTop: "1px solid var(--border-1)",
-              background: "var(--bg-elevated)",
-            }}
-          >
+          <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-5 py-3.5 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
             <div className="flex items-center gap-2">
-              <Lock
-                className="h-3.5 w-3.5"
-                style={{ color: "var(--text-disabled)" }}
-              />
-
-              <span
-                style={{
-                  fontSize: 13,
-                  color: "var(--text-tertiary)",
-                }}
-              >
+              <Lock className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-[13px] text-slate-500 dark:text-slate-400">
                 This inquiry is closed
               </span>
             </div>
@@ -328,7 +313,7 @@ export const ReplySection = React.memo(
             <button
               type="button"
               onClick={() => setReasonModal("reopen")}
-              className="ss4-pill-btn flex h-9 items-center gap-1.5 px-3 text-xs font-medium sm:h-7"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-emerald-500/40 px-3 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-500/10 dark:text-emerald-400"
             >
               <LockOpen className="h-3 w-3" />
               Reopen
@@ -348,14 +333,8 @@ export const ReplySection = React.memo(
     }
 
     return (
-      <div
-        className="suprah-reply-section shrink-0 px-2 py-2 sm:px-4"
-        style={{
-          borderTop: "1px solid var(--border-1)",
-          background: "var(--bg-elevated)",
-        }}
-      >
-        <div className="ss4-input-wrap relative overflow-visible">
+      <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2.5 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4">
+        <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
           <textarea
             ref={textareaRef}
             value={replyMessage}
@@ -374,54 +353,33 @@ export const ReplySection = React.memo(
                 void handleSendReply();
               }
             }}
-            className="suprah-composer-field suprah-composer-message suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 leading-snug outline-none sm:px-4"
+            className="suprah-composer-field suprah-composer-message suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[14px] leading-snug text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 sm:px-4"
             style={{
               minHeight: 56,
               maxHeight: "34vh",
-              fontSize: 14,
-              color: "var(--text-primary)",
               overflowY: "hidden",
             }}
           />
 
           {attachments.length > 0 && (
-            <div
-              className="flex flex-wrap gap-2 border-t px-3 py-2"
-              style={{ borderColor: "var(--border-1)" }}
-            >
+            <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2 dark:border-emerald-400/10">
               {attachments.map((file, index) => (
                 <div
                   key={`${file.name}-${file.lastModified}-${index}`}
-                  className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-2"
-                  style={{
-                    background: "var(--bg-hover)",
-                    borderColor: "var(--border-1)",
-                  }}
+                  className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-emerald-400/15 dark:bg-[#153426]/50"
                 >
                   {isImageFile(file) ? (
-                    <ImageIcon
-                      className="h-4 w-4 shrink-0"
-                      style={{ color: "var(--accent)" }}
-                    />
+                    <ImageIcon className="h-4 w-4 shrink-0 text-emerald-500" />
                   ) : (
-                    <FileText
-                      className="h-4 w-4 shrink-0"
-                      style={{ color: "var(--accent)" }}
-                    />
+                    <FileText className="h-4 w-4 shrink-0 text-emerald-500" />
                   )}
 
                   <div className="min-w-0">
-                    <p
-                      className="max-w-45 truncate text-xs font-medium"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+                    <p className="max-w-45 truncate text-xs font-medium text-slate-700 dark:text-slate-200">
                       {file.name}
                     </p>
 
-                    <p
-                      className="text-[10px]"
-                      style={{ color: "var(--text-tertiary)" }}
-                    >
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
                       {formatFileSize(file.size)}
                     </p>
                   </div>
@@ -429,7 +387,7 @@ export const ReplySection = React.memo(
                   <button
                     type="button"
                     onClick={() => removeAttachment(index)}
-                    className="ss4-icon-btn flex h-6 w-6 shrink-0 items-center justify-center"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-emerald-400/15 dark:hover:text-slate-200"
                     aria-label={`Remove ${file.name}`}
                     title="Remove attachment"
                   >
@@ -441,27 +399,18 @@ export const ReplySection = React.memo(
           )}
 
           {attachmentError && (
-            <p
-              className="border-t px-3 py-2 text-xs"
-              style={{
-                borderColor: "var(--border-1)",
-                color: "var(--danger, #ef4444)",
-              }}
-            >
+            <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
               {attachmentError}
             </p>
           )}
 
-          <div
-            className="grid select-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2 sm:flex sm:flex-wrap sm:items-center"
-            style={{ borderTop: "1px solid var(--border-1)" }}
-          >
+          <div className="grid select-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 px-2.5 py-2 dark:border-emerald-400/10 sm:flex sm:flex-wrap sm:items-center">
             <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex sm:flex-1 sm:flex-wrap sm:items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                    className="flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
                   >
                     <Circle className="h-3 w-3" />
                     Status
@@ -501,7 +450,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={onApptOpen}
-                className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Calendar className="h-3 w-3" />
                 Schedule
@@ -510,7 +459,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={onQuoteShipping}
-                className="ss4-pill-btn flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] font-medium sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <Truck className="h-3 w-3" />
                 Quote
@@ -519,11 +468,7 @@ export const ReplySection = React.memo(
               <button
                 type="button"
                 onClick={() => setReasonModal("close")}
-                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium transition-all sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
-                style={{
-                  color: "var(--danger)",
-                  opacity: 0.7,
-                }}
+                className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium text-red-500/80 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <XCircle className="h-3 w-3" />
                 Close
@@ -536,7 +481,7 @@ export const ReplySection = React.memo(
                   type="button"
                   onClick={() => setEmojiOpen((previous) => !previous)}
                   disabled={isSending}
-                  className="ss4-icon-btn inline-flex h-9 w-9 items-center justify-center sm:h-7 sm:w-7"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
                   title="Add emoji"
                   aria-label="Add emoji"
                   aria-expanded={emojiOpen}
@@ -546,18 +491,14 @@ export const ReplySection = React.memo(
 
                 {emojiOpen && (
                   <div
-                    className="absolute bottom-full right-0 z-100 mb-2 grid w-55 grid-cols-8 gap-1 rounded-xl border p-2 shadow-xl"
-                    style={{
-                      background: "var(--bg-elevated)",
-                      borderColor: "var(--border-2)",
-                    }}
+                    className="absolute bottom-full right-0 z-100 mb-2 grid w-55 grid-cols-8 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-emerald-400/15 dark:bg-[#0f1f19]"
                   >
                     {EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
                         type="button"
                         onClick={() => insertEmoji(emoji)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-(--bg-hover)"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-slate-100 dark:hover:bg-emerald-400/15"
                       >
                         {emoji}
                       </button>
@@ -579,7 +520,7 @@ export const ReplySection = React.memo(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isSending}
-                className="ss4-icon-btn inline-flex h-9 w-9 items-center justify-center sm:h-7 sm:w-7"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
                 title="Attach file (maximum 5 MB per file)"
                 aria-label="Attach file"
               >
@@ -593,11 +534,7 @@ export const ReplySection = React.memo(
                   isSending ||
                   (!replyMessage.trim() && attachments.length === 0)
                 }
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 text-[12px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-40 sm:h-7"
-                style={{
-                  background: "var(--accent)",
-                  color: "#ffffff",
-                }}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
                 title={
                   replyMessage.trim() || attachments.length > 0
                     ? "Send reply"
