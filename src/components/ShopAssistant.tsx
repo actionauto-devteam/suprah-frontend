@@ -505,7 +505,7 @@ export default function ShopAssistant({
   mobileBottomOffset = 0,
 }: ShopAssistantProps) {
   const [open, setOpen] = React.useState(false);
-  const { nodeRef, style: dragStyle, handleProps } = useDraggableWidget<HTMLButtonElement>(
+  const { setNode, style: dragStyle, handleProps } = useDraggableWidget<HTMLButtonElement>(
     "shop-assistant-pos"
   );
 
@@ -516,7 +516,7 @@ export default function ShopAssistant({
         {!open && (
           <button
             {...handleProps}
-            ref={nodeRef}
+            ref={setNode}
             onClick={() => setOpen(true)}
             aria-label="Open vehicle assistant — drag to reposition"
             title="Drag to reposition"

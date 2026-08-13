@@ -425,7 +425,7 @@ export function SupraLeoAI({
   const [open, setOpen] = useState(false)
   const [Panel, setPanel] = useState<React.ComponentType<LoadedPanelProps> | null>(null)
   const ref = useRef<HTMLDivElement | null>(null)
-  const { nodeRef, style: dragStyle, handleProps, positioned } = useDraggableWidget('autrix-widget-pos')
+  const { setNode, style: dragStyle, handleProps, positioned } = useDraggableWidget('autrix-widget-pos')
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
   const pathname = usePathname()
@@ -509,7 +509,7 @@ export function SupraLeoAI({
 
   return (
     <div
-      ref={(el) => { ref.current = el; nodeRef.current = el }}
+      ref={(el) => { ref.current = el; setNode(el) }}
       className="supra-floating-widget"
       data-panel-open={open ? 'true' : 'false'}
       data-position={position}

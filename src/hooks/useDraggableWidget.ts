@@ -2,20 +2,23 @@
 
 import * as React from "react";
 
-type Point = { x: number; y: number };
+type Anchor = { ax: "left" | "right"; ay: "top" | "bottom"; ox: number; oy: number };
+type Live = { x: number; y: number };
 
 const MARGIN = 8;
 const THRESHOLD = 4;
 
-const readStored = (key: string): Point | null => {
+const readStored = (key: string): Anchor | null => {
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
-    const { x, y } = parsed as Partial<Point>;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    return { x: x as number, y: y as number };
+    const { ax, ay, ox, oy } = parsed as Partial<Anchor>;
+    if (ax !== "left" && ax !== "right") return null;
+    if (ay !== "top" && ay !== "bottom") return null;
+    if (!Number.isFinite(ox) || !Number.isFinite(oy)) return null;
+    return { ax, ay, ox: ox as number, oy: oy as number };
   } catch {
     return null;
   }
@@ -23,79 +26,134 @@ const readStored = (key: string): Point | null => {
 
 export function useDraggableWidget<T extends HTMLElement = HTMLDivElement>(storageKey: string) {
   const nodeRef = React.useRef<T | null>(null);
-  const posRef = React.useRef<Point | null>(null);
-  const drag = React.useRef({ px: 0, py: 0, ox: 0, oy: 0, moved: false });
-  const [pos, setPos] = React.useState<Point | null>(null);
+  const anchorRef = React.useRef<Anchor | null>(null);
+  const liveRef = React.useRef<Live | null>(null);
+  const roRef = React.useRef<ResizeObserver | null>(null);
+  const drag = React.useRef({ px: 0, py: 0, ox: 0, oy: 0, moved: false, active: false });
+
+  const [anchor, setAnchor] = React.useState<Anchor | null>(null);
+  const [live, setLive] = React.useState<Live | null>(null);
   const [dragging, setDragging] = React.useState(false);
 
-  const apply = React.useCallback((p: Point | null) => {
-    posRef.current = p;
-    setPos(p);
+  const size = React.useCallback(() => ({
+    w: nodeRef.current?.offsetWidth ?? 0,
+    h: nodeRef.current?.offsetHeight ?? 0,
+  }), []);
+
+  const clampAnchor = React.useCallback((a: Anchor): Anchor => {
+    const { w, h } = size();
+    return {
+      ...a,
+      ox: Math.min(Math.max(a.ox, MARGIN), Math.max(MARGIN, window.innerWidth - w - MARGIN)),
+      oy: Math.min(Math.max(a.oy, MARGIN), Math.max(MARGIN, window.innerHeight - h - MARGIN)),
+    };
+  }, [size]);
+
+  const toAnchor = React.useCallback((p: Live): Anchor => {
+    const { w, h } = size();
+    const ax = p.x + w / 2 > window.innerWidth / 2 ? "right" : "left";
+    const ay = p.y + h / 2 > window.innerHeight / 2 ? "bottom" : "top";
+    return clampAnchor({
+      ax,
+      ay,
+      ox: ax === "left" ? p.x : window.innerWidth - (p.x + w),
+      oy: ay === "top" ? p.y : window.innerHeight - (p.y + h),
+    });
+  }, [size, clampAnchor]);
+
+  const commit = React.useCallback((a: Anchor) => {
+    anchorRef.current = a;
+    setAnchor(a);
   }, []);
 
-  const clamp = React.useCallback((p: Point): Point => {
-    const el = nodeRef.current;
-    const maxX = Math.max(MARGIN, window.innerWidth - (el?.offsetWidth ?? 0) - MARGIN);
-    const maxY = Math.max(MARGIN, window.innerHeight - (el?.offsetHeight ?? 0) - MARGIN);
-    return {
-      x: Math.min(Math.max(p.x, MARGIN), maxX),
-      y: Math.min(Math.max(p.y, MARGIN), maxY),
-    };
+  const putLive = React.useCallback((p: Live | null) => {
+    liveRef.current = p;
+    setLive(p);
   }, []);
+
+  const refit = React.useCallback(() => {
+    if (anchorRef.current && !drag.current.active) commit(clampAnchor(anchorRef.current));
+  }, [commit, clampAnchor]);
 
   React.useEffect(() => {
     const stored = readStored(storageKey);
-    if (stored) apply(clamp(stored));
-  }, [storageKey, apply, clamp]);
+    if (stored) commit(clampAnchor(stored));
+  }, [storageKey, commit, clampAnchor]);
 
   React.useEffect(() => {
-    const refit = () => {
-      if (posRef.current) apply(clamp(posRef.current));
-    };
     window.addEventListener("resize", refit);
     window.addEventListener("orientationchange", refit);
-    const ro = nodeRef.current ? new ResizeObserver(refit) : null;
-    if (ro && nodeRef.current) ro.observe(nodeRef.current);
     return () => {
       window.removeEventListener("resize", refit);
       window.removeEventListener("orientationchange", refit);
-      ro?.disconnect();
     };
-  }, [apply, clamp]);
+  }, [refit]);
+
+  const setNode = React.useCallback((el: T | null) => {
+    nodeRef.current = el;
+    roRef.current?.disconnect();
+    roRef.current = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      roRef.current = new ResizeObserver(refit);
+      roRef.current.observe(el);
+    }
+  }, [refit]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     const el = nodeRef.current;
     if (!el) return;
+
     const r = el.getBoundingClientRect();
-    drag.current = { px: e.clientX, py: e.clientY, ox: r.left, oy: r.top, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
-    apply({ x: r.left, y: r.top });
-    setDragging(true);
-  };
+    drag.current = {
+      px: e.clientX,
+      py: e.clientY,
+      ox: r.left,
+      oy: r.top,
+      moved: false,
+      active: true,
+    };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
-    if (!dragging) return;
-    const d = drag.current;
-    const dx = e.clientX - d.px;
-    const dy = e.clientY - d.py;
-    if (!d.moved && Math.hypot(dx, dy) < THRESHOLD) return;
-    d.moved = true;
-    apply(clamp({ x: d.ox + dx, y: d.oy + dy }));
-  };
+    const onMove = (ev: PointerEvent) => {
+      const d = drag.current;
+      if (!d.active) return;
+      const dx = ev.clientX - d.px;
+      const dy = ev.clientY - d.py;
+      if (!d.moved && Math.hypot(dx, dy) < THRESHOLD) return;
+      if (!d.moved) {
+        d.moved = true;
+        setDragging(true);
+      }
+      const { w, h } = size();
+      putLive({
+        x: Math.min(Math.max(d.ox + dx, MARGIN), Math.max(MARGIN, window.innerWidth - w - MARGIN)),
+        y: Math.min(Math.max(d.oy + dy, MARGIN), Math.max(MARGIN, window.innerHeight - h - MARGIN)),
+      });
+    };
 
-  const endDrag = (e: React.PointerEvent<HTMLElement>) => {
-    if (!dragging) return;
-    setDragging(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    if (!drag.current.moved || !posRef.current) return;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(posRef.current));
-    } catch {
-      /* storage unavailable — position stays for this session only */
-    }
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      drag.current.active = false;
+      setDragging(false);
+
+      const dropped = liveRef.current;
+      putLive(null);
+      if (!drag.current.moved || !dropped) return;
+
+      const next = toAnchor(dropped);
+      commit(next);
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        /* storage unavailable — position holds for this session only */
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   };
 
   const onClickCapture = (e: React.MouseEvent) => {
@@ -105,23 +163,30 @@ export function useDraggableWidget<T extends HTMLElement = HTMLDivElement>(stora
     e.stopPropagation();
   };
 
-  const style: React.CSSProperties = pos
-    ? { position: "fixed", left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : {};
+  const style: React.CSSProperties = live
+    ? { position: "fixed", left: live.x, top: live.y, right: "auto", bottom: "auto" }
+    : anchor
+      ? {
+          position: "fixed",
+          left: anchor.ax === "left" ? anchor.ox : "auto",
+          right: anchor.ax === "right" ? anchor.ox : "auto",
+          top: anchor.ay === "top" ? anchor.oy : "auto",
+          bottom: anchor.ay === "bottom" ? anchor.oy : "auto",
+        }
+      : {};
 
   return {
+    setNode,
     nodeRef,
     dragging,
-    positioned: pos !== null,
+    positioned: anchor !== null || live !== null,
     style,
     handleProps: {
       onPointerDown,
-      onPointerMove,
-      onPointerUp: endDrag,
-      onPointerCancel: endDrag,
       onClickCapture,
       style: {
         touchAction: "none",
+        userSelect: "none",
         cursor: dragging ? "grabbing" : "grab",
       } as React.CSSProperties,
     },

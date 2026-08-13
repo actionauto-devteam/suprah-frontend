@@ -125,7 +125,7 @@ export function YapLineDock() {
   const [inviteConv, setInviteConv] = React.useState<
     { _id: string; name?: string; members: Array<{ _id: string }> } | null
   >(null);
-  const { nodeRef, style: dragStyle, handleProps } = useDraggableWidget("yapline-dock-pos");
+  const { setNode, style: dragStyle, handleProps } = useDraggableWidget("yapline-dock-pos");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -568,7 +568,7 @@ export function YapLineDock() {
   return createPortal(
     <>
       <div
-        ref={nodeRef}
+        ref={setNode}
         style={dragStyle}
         className="pointer-events-none fixed bottom-24 right-3 z-70 flex flex-col items-end gap-2 md:bottom-5 md:right-5"
       >
