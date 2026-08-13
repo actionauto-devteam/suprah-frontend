@@ -7,12 +7,13 @@ import { apiClient } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, CheckCircle2, XCircle, LogOut, RefreshCw } from "lucide-react";
+import { DriverVerificationForm } from "@/components/driver-profile/DriverVerificationForm";
 
 export default function DriverPendingPage() {
   const { getToken, signOut, isLoaded } = useAuth();
   const router = useRouter();
   const [status, setStatus] = React.useState<
-    "loading" | "pending" | "approved" | "rejected" | "no-request"
+    "loading" | "needs-application" | "pending" | "approved" | "rejected" | "no-request"
   >("loading");
   const [orgName, setOrgName] = React.useState<string>("");
   const [checking, setChecking] = React.useState(false);
@@ -62,7 +63,24 @@ export default function DriverPendingPage() {
       } else if (data.status === "rejected") {
         setStatus("rejected");
       } else {
-        setStatus("pending");
+        // Still pending — but the driver may not have finished the
+        // documents/compliance/agreement application yet. If so, let them
+        // finish it here instead of just showing a "please wait" screen.
+        try {
+          const profileRes = await apiClient.get("/api/driver-profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const verificationStatus = profileRes.data?.data?.verificationStatus;
+          if (verificationStatus === "under_review" || verificationStatus === "verified") {
+            setStatus("pending");
+          } else {
+            setStatus("needs-application");
+          }
+        } catch {
+          // If we can't tell, default to letting them complete the
+          // application rather than leaving them stuck on a bare wait screen.
+          setStatus("needs-application");
+        }
       }
     } catch {
       setStatus("no-request");
@@ -87,6 +105,39 @@ export default function DriverPendingPage() {
     await checkStatus();
     setChecking(false);
   };
+
+  if (status === "needs-application") {
+    return (
+      <div className="min-h-screen bg-[#050505] p-4 py-10">
+        <div className="max-w-3xl mx-auto mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-white">
+              Finish Your Application
+            </h2>
+            <p className="text-sm text-zinc-400 mt-1">
+              Complete these steps so {orgName || "your organization's admin"}{" "}
+              can review and approve your account.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            className="gap-1.5 text-zinc-400 hover:text-white shrink-0"
+          >
+            <LogOut className="size-3.5" />
+            Sign Out
+          </Button>
+        </div>
+        <DriverVerificationForm
+          onComplete={() => {
+            setStatus("pending");
+            checkStatus();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
