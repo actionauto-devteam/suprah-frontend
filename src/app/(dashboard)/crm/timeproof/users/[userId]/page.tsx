@@ -257,10 +257,7 @@ export default function AdminUserTimeprofPage() {
   }
 
   const handleSubmitOverride = React.useCallback(async () => {
-    if (!overrideAction || !overrideReason.trim()) {
-      setOverrideError("A reason is required.")
-      return
-    }
+    if (!overrideAction) return
     if ((overrideAction === "edit" || overrideAction === "create") && !overrideTime) {
       setOverrideError("A time is required.")
       return
@@ -1360,7 +1357,7 @@ export default function AdminUserTimeprofPage() {
                           value={overrideReason}
                           onChange={(e) => setOverrideReason(e.target.value)}
                           rows={2}
-                          placeholder="Reason (required) — e.g. Restoring hours lost to a stale-shift auto-clockout bug"
+                          placeholder="Reason (optional) — e.g. Restoring hours lost to a stale-shift auto-clockout bug"
                           className="w-full rounded-lg border border-border/40 bg-background px-2 py-1.5 text-[12px] resize-none"
                         />
 
