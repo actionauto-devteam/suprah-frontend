@@ -12,6 +12,13 @@ const RETRY_INTERVAL_MS = 10_000
 // actually getting closer to connecting.
 const BACKOFF_AFTER_FAILURES = 6
 const BACKOFF_INTERVAL_MS = 120_000
+// Once connected, keep re-posting at this slower cadence instead of stopping forever — a tab
+// left open past the token's ~12h expiry used to leave the tray holding a dead token
+// indefinitely (nothing else re-triggers handleTrayAuth on the tray side), silently breaking
+// heartbeat/screenshots/clock-in until the user did a full page reload. Safe to repost this
+// often: the tray's handleTrayAuth treats a same-token post as an instant no-op, and validates
+// any different token against the backend before ever touching its current session.
+const KEEPALIVE_INTERVAL_MS = 5 * 60_000
 
 function getActiveToken(): string | null {
   if (typeof window === "undefined") return null
@@ -37,12 +44,14 @@ export function TrayAutoConnect() {
 
     const scheduleNext = () => {
       if (cancelled) return
-      const delay = failureCountRef.current >= BACKOFF_AFTER_FAILURES ? BACKOFF_INTERVAL_MS : RETRY_INTERVAL_MS
+      const delay = connectedRef.current
+        ? KEEPALIVE_INTERVAL_MS
+        : failureCountRef.current >= BACKOFF_AFTER_FAILURES ? BACKOFF_INTERVAL_MS : RETRY_INTERVAL_MS
       timeoutId = setTimeout(attempt, delay)
     }
 
     const attempt = async () => {
-      if (connectedRef.current || cancelled) { scheduleNext(); return }
+      if (cancelled) { scheduleNext(); return }
       const token = getActiveToken()
       if (!token) { scheduleNext(); return }
       try {
@@ -56,12 +65,17 @@ export function TrayAutoConnect() {
           connectedRef.current = true
           failureCountRef.current = 0
         } else {
+          // Was connected, now failing (e.g. tray restarted for an auto-update) — drop back to
+          // the fast retry cadence instead of silently staying dormant at the slow keep-alive
+          // interval until this tab is reloaded.
+          connectedRef.current = false
           failureCountRef.current += 1
         }
       } catch {
-        // Tray app not running (yet), or the browser blocked this loopback
+        // Tray app not running (yet/anymore), or the browser blocked this loopback
         // fetch outright (Private Network Access) — either way, back off
         // after repeated failures instead of retrying every 10s forever.
+        connectedRef.current = false
         failureCountRef.current += 1
       }
       scheduleNext()
