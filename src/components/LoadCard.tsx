@@ -762,16 +762,17 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                         key={`${vehicle.vehicleId ?? vehicle.vin ?? "vehicle"}-${index}`}
                         className="overflow-hidden rounded-2xl border border-slate-300/90 bg-background/45 shadow-sm dark:border-white/15"
                       >
-                        <div className="grid gap-0 sm:grid-cols-[170px_minmax(0,1fr)]">
-                          <div className="relative min-h-36 overflow-hidden border-b border-slate-300/85 bg-muted/30 dark:border-white/15 sm:min-h-full sm:border-b-0 sm:border-r">
+                        <div className="grid gap-0 sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+                          <div className="relative overflow-hidden border-b border-slate-300/85 bg-muted/30 dark:border-white/15 sm:border-b-0 sm:border-r">
                             {vehicle.imageUrl ? (
                               <img
                                 src={vehicle.imageUrl}
                                 alt={getVehicleName(vehicle, index)}
-                                className="h-full min-h-36 w-full object-cover"
+                                loading="lazy"
+                                className="h-44 w-full object-contain object-center sm:h-full sm:min-h-44"
                               />
                             ) : (
-                              <div className="flex h-full min-h-36 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
+                              <div className="flex h-44 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20 sm:h-full sm:min-h-44">
                                 <ImageIcon className="size-8 text-muted-foreground/45" />
                                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                                   No photo

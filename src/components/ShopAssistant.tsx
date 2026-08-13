@@ -23,6 +23,7 @@ import {
   ShopPreferences,
 } from "@/hooks/useShopAssistant";
 import { cn } from "@/lib/utils";
+import { useDraggableWidget } from "@/hooks/useDraggableWidget";
 
 type Mode = "inline" | "float";
 
@@ -504,6 +505,9 @@ export default function ShopAssistant({
   mobileBottomOffset = 0,
 }: ShopAssistantProps) {
   const [open, setOpen] = React.useState(false);
+  const { nodeRef, style: dragStyle, handleProps } = useDraggableWidget<HTMLButtonElement>(
+    "shop-assistant-pos"
+  );
 
   if (mode === "float") {
     const mobileBottom = `calc(env(safe-area-inset-bottom) + ${76 + mobileBottomOffset}px)`;
@@ -511,9 +515,16 @@ export default function ShopAssistant({
       <>
         {!open && (
           <button
+            {...handleProps}
+            ref={nodeRef}
             onClick={() => setOpen(true)}
-            aria-label="Open vehicle assistant"
-            style={{ "--tw-mobile-bottom": mobileBottom } as React.CSSProperties}
+            aria-label="Open vehicle assistant — drag to reposition"
+            title="Drag to reposition"
+            style={{
+              "--tw-mobile-bottom": mobileBottom,
+              ...handleProps.style,
+              ...dragStyle,
+            } as React.CSSProperties}
             className="fixed bottom-(--tw-mobile-bottom) md:bottom-6 right-4 sm:right-6 z-45 flex h-12 sm:h-14 items-center gap-2 sm:gap-2.5 rounded-full bg-emerald-600 px-4 sm:px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
           >
             <span className="text-xs sm:text-sm font-semibold">Find my car</span>
