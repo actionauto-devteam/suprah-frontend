@@ -101,6 +101,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const [showApproveDialog, setShowApproveDialog] = useState(false);
     const [approving, setApproving] = useState(false);
 
+    const [driverRequest, setDriverRequest] = useState<{ _id: string; status: string } | null>(null);
+    const [decidingRequest, setDecidingRequest] = useState<'approve' | 'reject' | null>(null);
+    const [showRejectAppDialog, setShowRejectAppDialog] = useState(false);
+
     const fetchProfile = useCallback(async () => {
         try {
             const token = await getToken();
@@ -115,7 +119,55 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         }
     }, [getToken, driverId]);
 
-    useEffect(() => { fetchProfile(); }, [fetchProfile]);
+    const fetchDriverRequest = useCallback(async () => {
+        try {
+            const token = await getToken();
+            const res = await apiClient.getDriverRequestByDriver(driverId, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setDriverRequest(res.data?.data || null);
+        } catch {
+            // Non-fatal — the account may have been approved through another
+            // path (invite link / convert lead) and never had a request at all.
+        }
+    }, [getToken, driverId]);
+
+    useEffect(() => { fetchProfile(); fetchDriverRequest(); }, [fetchProfile, fetchDriverRequest]);
+
+    const handleApproveApplication = async () => {
+        if (!driverRequest) return;
+        setDecidingRequest('approve');
+        try {
+            const token = await getToken();
+            await apiClient.approveDriverRequest(driverRequest._id, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            toast.success('Driver application approved — they can now log in');
+            await Promise.all([fetchProfile(), fetchDriverRequest()]);
+        } catch {
+            toast.error('Failed to approve the application');
+        } finally {
+            setDecidingRequest(null);
+        }
+    };
+
+    const handleRejectApplication = async () => {
+        if (!driverRequest) return;
+        setDecidingRequest('reject');
+        try {
+            const token = await getToken();
+            await apiClient.rejectDriverRequest(driverRequest._id, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            toast.success('Driver application rejected');
+            setShowRejectAppDialog(false);
+            await fetchDriverRequest();
+        } catch {
+            toast.error('Failed to reject the application');
+        } finally {
+            setDecidingRequest(null);
+        }
+    };
 
     const handleVerify = async (docId: string) => {
         setActionLoading(docId);
@@ -291,6 +343,40 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     (profile.profileCompletionScore || 0) >= 50 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400')}
                                 initial={false} animate={{ width: `${profile.profileCompletionScore || 0}%` }} transition={{ duration: 0.5, ease: 'easeOut' }} />
                         </div>
+
+                        {driverRequest?.status === 'pending' && (
+                            <div className="mb-5 rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                                <div className="flex items-center gap-3 flex-1">
+                                    <div className="size-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0"><Clock className="size-5 text-amber-400" /></div>
+                                    <div>
+                                        <p className="text-sm font-bold text-amber-300">Driver Account Application — Pending Review</p>
+                                        <p className="text-xs text-amber-400/70 mt-0.5">Review the details below, then approve or reject this application. The driver will be notified by email either way.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button variant="outline" onClick={() => setShowRejectAppDialog(true)} disabled={!!decidingRequest}
+                                        className="gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl">
+                                        <XCircle className="size-4" /> Reject
+                                    </Button>
+                                    <Button onClick={handleApproveApplication} disabled={!!decidingRequest}
+                                        className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">
+                                        {decidingRequest === 'approve' ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />} Approve Application
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                        {driverRequest?.status === 'approved' && (
+                            <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex items-center gap-2">
+                                <BadgeCheck className="size-4 text-emerald-400" />
+                                <span className="text-xs font-semibold text-emerald-400">Account application approved — driver can log in</span>
+                            </div>
+                        )}
+                        {driverRequest?.status === 'rejected' && (
+                            <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 flex items-center gap-2">
+                                <XCircle className="size-4 text-red-400" />
+                                <span className="text-xs font-semibold text-red-400">Account application rejected</span>
+                            </div>
+                        )}
 
                         <div className="flex gap-1.5">
                             {TABS.map(t => {
@@ -1011,6 +1097,25 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
                             {approving ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
                             {missingDocs.length > 0 ? 'Approve Anyway' : 'Approve Driver'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={showRejectAppDialog} onOpenChange={setShowRejectAppDialog}>
+                <DialogContent className="sm:max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <XCircle className="size-5 text-red-500" /> Reject Application
+                        </DialogTitle>
+                        <DialogDescription>
+                            {user?.name || 'This driver'} will be notified by email that their driver application was not approved. This cannot be undone from here.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button variant="outline" onClick={() => setShowRejectAppDialog(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleRejectApplication} disabled={decidingRequest === 'reject'} className="gap-2">
+                            {decidingRequest === 'reject' ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />} Reject Application
                         </Button>
                     </DialogFooter>
                 </DialogContent>

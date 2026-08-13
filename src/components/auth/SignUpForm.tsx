@@ -43,8 +43,11 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
   const { signUp, isLoaded } = useSignUp();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("token");
 
-  const [step, setStep] = useState<SignUpStep>("details");
+  // Invited users already have a role from the invite itself, so they skip
+  // straight to the details form. Everyone else picks an account type first.
+  const [step, setStep] = useState<SignUpStep>(inviteToken ? "details" : "identity");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,13 +70,15 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
       .catch(() => setOrgs([]));
   }, []);
 
-  const handleNextStep = async (e: React.FormEvent) => {
+  // Submit for the "details" (name/email/password) form — either an invited
+  // user registering directly, or a customer/dealer who already picked their
+  // account type on the previous step.
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password) return;
+    setError(null);
 
-    // If we have an invite token, we can skip the role selection step
-    const token = searchParams.get("token");
-    if (token) {
+    if (inviteToken) {
       setIsLoading(true);
       try {
         const firstName = name.split(" ")[0] || "";
@@ -84,7 +89,7 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
           password: password,
           firstName,
           lastName,
-          inviteToken: token,
+          inviteToken,
         });
 
         if (result.status === "needs_verification") {
@@ -98,21 +103,40 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
         toast.error(errorMessage);
         setIsLoading(false);
       }
-    } else {
-      setStep("identity");
+      return;
     }
+
+    if (!selectedRole) return;
+    await handleSubmit(selectedRole, organizationId || undefined);
   };
 
-  // Decide whether a customer needs to pick a dealership first.
-  const handleSelectRole = (role: UserRole) => {
+  // Manual (email/password) account-type pick — driver goes straight to its
+  // own dedicated page; customer/dealer advance to the one details form.
+  const chooseRole = (role: UserRole) => {
     setError(null);
+    if (role === "driver") {
+      router.push("/sign-up/driver");
+      return;
+    }
+    setSelectedRole(role);
+    setStep("details");
+  };
+
+  // Google account-type pick — no password needed, so only a dealership
+  // picker (when a customer has more than one org to choose from) stands
+  // between account-type selection and the OAuth redirect.
+  const chooseRoleGoogle = (role: UserRole) => {
+    setError(null);
+    if (role === "driver") {
+      router.push("/sign-up/driver");
+      return;
+    }
     if (role === "customer" && orgs.length > 1) {
       setSelectedRole("customer");
       setStep("dealership");
       return;
     }
-    // Single dealership (backend auto-assigns) or non-customer role.
-    handleSubmit(role);
+    handleGoogleSignUp(role);
   };
 
   const handleSubmit = async (role: UserRole, orgId?: string) => {
@@ -178,9 +202,9 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
   return (
     <div className="w-full">
       <AnimatePresence mode="wait">
-        {step === "details" ? (
+        {step === "identity" ? (
           <motion.div
-            key="step-details"
+            key="step-identity"
             {...containerVariants}
             className="space-y-8"
           >
@@ -188,57 +212,53 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
               <h1 className="text-4xl font-bold tracking-tight text-white flex items-center gap-3">
                 Create Account <Sparkles className="h-8 w-8 text-emerald-500" />
               </h1>
-              <p className="text-zinc-500 text-lg font-light">
-                Let&apos;s get you started with Action Auto Utah.
+              <p className="text-zinc-500 text-lg font-light leading-relaxed">
+                Choose how you want to use the platform.
               </p>
             </div>
 
-            <form onSubmit={handleNextStep} className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className={AUTH_LABEL_CLASS}>Full Name</Label>
-                  <Input
-                    type="text"
-                    placeholder="John Doe"
-                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className={AUTH_LABEL_CLASS}>Email Address</Label>
-                  <Input
-                    type="email"
-                    placeholder="name@example.com"
-                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className={AUTH_LABEL_CLASS}>Password</Label>
-                  <PasswordInput
-                    placeholder="Minimum 8 characters"
-                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={8}
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 gap-4">
+              {/* Role Cards */}
+              <IdentityCard
+                icon={<UserCheck className="h-6 w-6" />}
+                title="I am a Customer"
+                description="I want to browse vehicles and manage my appointments."
+                onClick={() => chooseRole("customer")}
+                onGoogleClick={() => chooseRoleGoogle("customer")}
+                disabled={isLoading}
+              />
+              <IdentityCard
+                icon={<Car className="h-6 w-6" />}
+                title="I am a Driver"
+                description="I want to sign up as a transportation provider."
+                onClick={() => chooseRole("driver")}
+                onGoogleClick={() => chooseRoleGoogle("driver")}
+                disabled={isLoading}
+              />
+              <IdentityCard
+                icon={<Briefcase className="h-6 w-6" />}
+                title="I am a Dealer"
+                description="I want to manage my dealership and inventory."
+                onClick={() => chooseRole("dealership")}
+                onGoogleClick={() => chooseRoleGoogle("dealership")}
+                disabled={isLoading}
+              />
+            </div>
 
-              <Button
-                type="submit"
-                className={`${AUTH_PRIMARY_BUTTON_CLASS} h-14 rounded-2xl text-lg transition-all active:scale-[0.98] shadow-[0_20px_40px_-10px_rgba(16,185,129,0.3)]`}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 p-4 text-sm font-medium bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20"
               >
-                <span className="flex items-center gap-2">
-                  Select Account Type <ArrowRight className="h-5 w-5" />
-                </span>
-              </Button>
-            </form>
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>{error}</span>
+              </motion.div>
+            )}
+
+            <p className="text-center text-zinc-600 text-[11px] px-8 leading-relaxed">
+              By clicking an option, you agree to our Terms of Service.
+            </p>
           </motion.div>
         ) : step === "dealership" ? (
           <motion.div
@@ -288,24 +308,9 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
               </div>
 
               <Button
-                onClick={() => handleSubmit("customer", organizationId)}
-                disabled={!organizationId || isLoading}
-                className={`${AUTH_PRIMARY_BUTTON_CLASS} h-14 rounded-2xl text-lg w-full transition-all active:scale-[0.98] shadow-[0_20px_40px_-10px_rgba(16,185,129,0.3)]`}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <span className="flex items-center gap-2">
-                    Create Account <ArrowRight className="h-5 w-5" />
-                  </span>
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
                 onClick={() => handleGoogleSignUp("customer", organizationId)}
                 disabled={!organizationId || isLoading}
-                className={`w-full h-12 text-sm font-semibold gap-2 ${AUTH_SECONDARY_BUTTON_CLASS}`}
+                className={`w-full h-12 text-sm font-semibold gap-2 ${AUTH_PRIMARY_BUTTON_CLASS}`}
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
                   <path
@@ -342,76 +347,115 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
           </motion.div>
         ) : (
           <motion.div
-            key="step-identity"
+            key="step-details"
             {...containerVariants}
             className="space-y-8"
           >
             <div className="space-y-3">
-              <button
-                onClick={() => setStep("details")}
-                className="text-emerald-500 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all mb-4"
-              >
-                ← Back to details
-              </button>
+              {!inviteToken && (
+                <button
+                  onClick={() => {
+                    setStep("identity");
+                    setError(null);
+                  }}
+                  className="text-emerald-500 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all mb-4"
+                >
+                  ← Back to account type
+                </button>
+              )}
               <h1 className="text-4xl font-bold tracking-tight text-white flex items-center gap-3">
-                Almost There
+                Create Account <Sparkles className="h-8 w-8 text-emerald-500" />
               </h1>
-              <p className="text-zinc-500 text-lg font-light leading-relaxed">
-                Choose how you want to use the platform.
+              <p className="text-zinc-500 text-lg font-light">
+                Let&apos;s get you started with Action Auto Utah.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              {/* Role Cards */}
-              <IdentityCard
-                icon={<UserCheck className="h-6 w-6" />}
-                title="I am a Customer"
-                description="I want to browse vehicles and manage my appointments."
-                onClick={() => handleSelectRole("customer")}
-                onGoogleClick={() =>
-                  orgs.length > 1
-                    ? handleSelectRole("customer")
-                    : handleGoogleSignUp("customer")
-                }
-                isLoading={isLoading && selectedRole === "customer"}
-                disabled={isLoading}
-              />
-              {/* <IdentityCard
-                                icon={<Car className="h-6 w-6" />}
-                                title="I am a Driver"
-                                description="I want to sign up as a transportation provider."
-                                onClick={() => handleSubmit("driver")}
-                                onGoogleClick={() => handleGoogleSignUp("driver")}
-                                isLoading={isLoading && selectedRole === "driver"}
-                                disabled={isLoading}
-                            /> */}
-              <IdentityCard
-                icon={<Briefcase className="h-6 w-6" />}
-                title="I am a Dealer"
-                description="I want to manage my dealership and inventory."
-                onClick={() => handleSubmit("dealership")}
-                onGoogleClick={() => handleGoogleSignUp("dealership")}
-                isLoading={isLoading && selectedRole === "dealership"}
-                disabled={isLoading}
-              />
-            </div>
+            <form onSubmit={handleDetailsSubmit} className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className={AUTH_LABEL_CLASS}>Full Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="John Doe"
+                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={AUTH_LABEL_CLASS}>Email Address</Label>
+                  <Input
+                    type="email"
+                    placeholder="name@example.com"
+                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className={AUTH_LABEL_CLASS}>Password</Label>
+                  <PasswordInput
+                    placeholder="Minimum 8 characters"
+                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl`}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
+                {!inviteToken && selectedRole === "customer" && orgs.length > 1 && (
+                  <div className="space-y-2">
+                    <Label className={AUTH_LABEL_CLASS}>Dealership</Label>
+                    <div className="relative">
+                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 pointer-events-none" />
+                      <select
+                        value={organizationId}
+                        onChange={(e) => setOrganizationId(e.target.value)}
+                        className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl w-full pl-12 appearance-none bg-transparent`}
+                        required
+                      >
+                        <option value="" disabled>
+                          Select your dealership
+                        </option>
+                        {orgs.map((o) => (
+                          <option key={o._id} value={o._id} className="bg-zinc-900">
+                            {o.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 p-4 text-sm font-medium bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20"
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 p-4 text-sm font-medium bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20"
+                >
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <span>{error}</span>
+                </motion.div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className={`${AUTH_PRIMARY_BUTTON_CLASS} h-14 rounded-2xl text-lg transition-all active:scale-[0.98] shadow-[0_20px_40px_-10px_rgba(16,185,129,0.3)]`}
               >
-                <AlertCircle className="h-5 w-5 shrink-0" />
-                <span>{error}</span>
-              </motion.div>
-            )}
-
-            <p className="text-center text-zinc-600 text-[11px] px-8 leading-relaxed">
-              By clicking an option, you agree to our Terms of Service. <br />A
-              6-digit verification code will be sent to{" "}
-              <span className="text-zinc-400">{email}</span>.
-            </p>
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    Create Account <ArrowRight className="h-5 w-5" />
+                  </span>
+                )}
+              </Button>
+            </form>
           </motion.div>
         )}
       </AnimatePresence>

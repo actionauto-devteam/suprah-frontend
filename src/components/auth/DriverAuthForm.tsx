@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSignUp } from "@/providers/AuthProvider";
+import { DriverVerificationForm } from "@/components/driver-profile/DriverVerificationForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -24,6 +25,7 @@ import {
   User,
   ShieldCheck,
   AlertCircle,
+  Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -55,6 +57,11 @@ const passwordRules = [
   },
 ];
 
+interface PublicOrg {
+  _id: string;
+  name: string;
+}
+
 export function DriverAuthForm() {
   const {
     signUp,
@@ -70,6 +77,20 @@ export function DriverAuthForm() {
   const [regConfirmPassword, setRegConfirmPassword] = React.useState("");
   const [pendingVerification, setPendingVerification] = React.useState(false);
   const [verificationCode, setVerificationCode] = React.useState("");
+  const [showApplication, setShowApplication] = React.useState(false);
+
+  const [orgs, setOrgs] = React.useState<PublicOrg[]>([]);
+  const [organizationId, setOrganizationId] = React.useState("");
+
+  React.useEffect(() => {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      "https://xj3pd14h-5000.asse.devtunnels.ms";
+    fetch(`${backendUrl}/api/organizations/public`)
+      .then((r) => r.json())
+      .then((j) => setOrgs(Array.isArray(j?.data) ? j.data : []))
+      .catch(() => setOrgs([]));
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +108,10 @@ export function DriverAuthForm() {
       setError("Passwords do not match");
       return;
     }
+    if (!organizationId) {
+      setError("Please select the organization you're applying to drive for");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const nameParts = regName.trim().split(" ");
@@ -98,15 +123,19 @@ export function DriverAuthForm() {
         firstName,
         lastName,
         role: "driver",
+        organizationId,
       });
 
       if (result?.status === "complete") {
         await setSignUpActive({ session: result.createdSessionId });
-        window.location.href = "/driver"; // Driver layout will redirect to pending if unapproved
+        setShowApplication(true);
         return;
       }
 
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      await signUp.prepareEmailAddressVerification({
+        email: regEmail,
+        strategy: "email_code",
+      });
       setPendingVerification(true);
     } catch (err: any) {
       const msg =
@@ -130,7 +159,7 @@ export function DriverAuthForm() {
       });
       if (result.status === "complete" && result.createdSessionId) {
         await setSignUpActive({ session: result.createdSessionId });
-        window.location.href = "/driver/pending";
+        setShowApplication(true);
       }
     } catch (err: any) {
       const msg =
@@ -142,6 +171,22 @@ export function DriverAuthForm() {
       setIsSubmitting(false);
     }
   };
+
+  if (showApplication) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full"
+      >
+        <DriverVerificationForm
+          onComplete={() => {
+            window.location.href = "/driver/pending";
+          }}
+        />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -329,11 +374,37 @@ export function DriverAuthForm() {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-org" className={AUTH_LABEL_CLASS}>
+                    Organization
+                  </Label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <select
+                      id="reg-org"
+                      value={organizationId}
+                      onChange={(e) => setOrganizationId(e.target.value)}
+                      className={`pl-10 h-11 w-full appearance-none bg-transparent ${AUTH_INPUT_CLASS}`}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select the organization you're applying to
+                      </option>
+                      {orgs.map((org) => (
+                        <option key={org._id} value={org._id}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 <div className="p-3 bg-white/[0.02] rounded-lg border border-white/10">
                   <p className="text-[10px] text-zinc-400">
-                    After registration, a dealer admin will review and approve
-                    your account. You will be notified via email.
+                    After verifying your email, you&apos;ll complete a short
+                    application (documents, compliance info, and an
+                    agreement). Your organization&apos;s admin will review it
+                    and notify you by email once approved.
                   </p>
                 </div>
 

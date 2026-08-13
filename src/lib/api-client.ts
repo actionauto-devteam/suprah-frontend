@@ -431,6 +431,10 @@ class ApiClient {
     return this.get("/api/driver-requests", { ...config, params });
   }
 
+  async getDriverRequestByDriver(userId: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/driver-requests/by-driver/${userId}`, config);
+  }
+
   async approveDriverRequest(id: string, config?: AxiosRequestConfig) {
     return this.patch(`/api/driver-requests/${id}/approve`, {}, config);
   }
