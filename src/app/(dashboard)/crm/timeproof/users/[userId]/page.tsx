@@ -222,6 +222,9 @@ export default function AdminUserTimeprofPage() {
   const [overrideDayLogsLoading, setOverrideDayLogsLoading] = React.useState(false)
   const [overrideAction, setOverrideAction] = React.useState<"edit" | "delete" | "create" | null>(null)
   const [overrideLogId, setOverrideLogId] = React.useState<string | null>(null)
+  // The full entry being edited/deleted (not just its id) — shown back to the admin in the
+  // confirmation step so it's unambiguous which one is about to be changed/removed.
+  const [overrideSelectedLog, setOverrideSelectedLog] = React.useState<{ type: string; timestamp: string } | null>(null)
   const [overrideNewType, setOverrideNewType] = React.useState<"time-in" | "time-out">("time-in")
   const [overrideTime, setOverrideTime] = React.useState("")
   const [overrideReason, setOverrideReason] = React.useState("")
@@ -250,6 +253,7 @@ export default function AdminUserTimeprofPage() {
   const resetOverrideActionState = () => {
     setOverrideAction(null)
     setOverrideLogId(null)
+    setOverrideSelectedLog(null)
     setOverrideTime("")
     setOverrideReason("")
     setOverrideError("")
@@ -1244,14 +1248,12 @@ export default function AdminUserTimeprofPage() {
               )
             )}
 
-            {/* ── Admin time-override: separate, narrower recovery tool reserved for
-                 departments exempt from Correct Overrun Shift above (currently Web Dev only).
-                 Never appears for a non-exempt department's user. ── */}
-            {/* Confirmed with the user: stays entirely within the exempt department — only an
-                admin whose OWN department is exempt (Web Dev) can see this, for any target
-                user whose department is exempt. Never visible to an admin from any other
-                department, and never for a non-exempt target. Backend enforces the same. */}
-            {isAdmin && isTimeEditExempt(currentUser?.department) && isTimeEditExempt(data.user.department) && (
+            {/* ── Admin time-override: separate, narrower recovery tool reserved for admins
+                 whose OWN department is exempt from Correct Overrun Shift above (currently
+                 Web Dev only) — a Web Dev-only POWER, not a Web-Dev-only PROTECTION. A Web Dev
+                 admin can use this on ANY user's records, any department; nobody outside Web
+                 Dev sees it at all, even on a Web Dev target. Backend enforces the same. ── */}
+            {isAdmin && isTimeEditExempt(currentUser?.department) && (
               <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
                 <button
                   onClick={() => { setShowOverrideForm((v) => !v); resetOverrideActionState() }}
@@ -1294,6 +1296,7 @@ export default function AdminUserTimeprofPage() {
                               <button
                                 onClick={() => {
                                   setOverrideAction("edit"); setOverrideLogId(log._id)
+                                  setOverrideSelectedLog({ type: log.type, timestamp: log.timestamp })
                                   setOverrideTime(toMDTDate(new Date(log.timestamp)).toISOString().slice(11, 16))
                                   setOverrideError(""); setOverrideSuccess("")
                                 }}
@@ -1302,7 +1305,11 @@ export default function AdminUserTimeprofPage() {
                                 Edit
                               </button>
                               <button
-                                onClick={() => { setOverrideAction("delete"); setOverrideLogId(log._id); setOverrideError(""); setOverrideSuccess("") }}
+                                onClick={() => {
+                                  setOverrideAction("delete"); setOverrideLogId(log._id)
+                                  setOverrideSelectedLog({ type: log.type, timestamp: log.timestamp })
+                                  setOverrideError(""); setOverrideSuccess("")
+                                }}
                                 className="h-6 px-2 rounded-md text-[10px] font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors"
                               >
                                 Delete
@@ -1326,6 +1333,18 @@ export default function AdminUserTimeprofPage() {
                           {overrideAction === "delete" && "Deleting this entry — confirm below:"}
                           {overrideAction === "create" && "Adding a new entry:"}
                         </p>
+
+                        {/* Shows exactly which entry is selected before the admin commits —
+                            otherwise there was no way to double-check the click landed on the
+                            right row before deleting/editing it. */}
+                        {overrideSelectedLog && (overrideAction === "edit" || overrideAction === "delete") && (
+                          <div className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${overrideAction === "delete" ? "border-rose-500/30 bg-rose-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                            <span className="font-bold">{overrideSelectedLog.type === "time-in" ? "Time In" : overrideSelectedLog.type === "time-out" ? "Time Out" : overrideSelectedLog.type}</span>
+                            <span className="text-muted-foreground/60 ml-1.5">
+                              {toMDTDate(new Date(overrideSelectedLog.timestamp)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
+                            </span>
+                          </div>
+                        )}
 
                         {overrideAction === "create" && (
                           <div className="flex gap-2">
