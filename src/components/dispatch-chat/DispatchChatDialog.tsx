@@ -358,7 +358,14 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
   const isAlert = event.kind === "alert";
   const response = event.metadata?.response;
   const destination = event.metadata?.destinationName;
+  const destinationType = event.metadata?.destinationType;
+  const dispatchAddress = String(event.metadata?.address ?? "").trim();
+  const dispatcherMessage = String(
+    event.metadata?.dispatcherMessage ?? "",
+  ).trim();
   const loadNumber = event.metadata?.loadNumber;
+  const isDispatchAlert =
+    event.notificationType === "driver_dispatch_alert";
   const isLocationSilence =
     event.notificationType === "driver_tracker_offline_alert";
   const minutesWithoutLocation =
@@ -366,6 +373,17 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
   const loadNumbers = Array.isArray(event.metadata?.loadNumbers)
     ? event.metadata.loadNumbers
     : [];
+
+  const destinationTypeLabel =
+    destinationType === "specific-shop"
+      ? "Specific Shop"
+      : destinationType === "carshop"
+        ? "Carshop"
+        : destinationType === "site"
+          ? "Site"
+          : destinationType
+            ? String(destinationType)
+            : "";
 
   return (
     <div className="flex w-full justify-center py-1">
@@ -400,10 +418,48 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         <p className="mt-1.5 text-sm font-black text-foreground">
           {event.title}
         </p>
-        {event.message && (
+        {event.message && !isDispatchAlert && (
           <p className="mx-auto mt-1 max-w-lg break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {event.message}
           </p>
+        )}
+
+        {isDispatchAlert && (
+          <div className="mx-auto mt-3 w-full max-w-lg rounded-xl border border-amber-500/20 bg-background/55 p-3 text-left">
+            <div className="space-y-2.5">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  Destination
+                </p>
+                <p className="mt-0.5 break-words text-xs font-semibold text-foreground [overflow-wrap:anywhere]">
+                  {destination || "Not provided"}
+                </p>
+                {destinationTypeLabel && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    Type: {destinationTypeLabel}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  Address / Directions
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                  {dispatchAddress || "No address or directions provided."}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  Message
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                  {dispatcherMessage || "No additional instruction provided."}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         {isLocationSilence && (

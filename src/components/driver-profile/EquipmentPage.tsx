@@ -133,14 +133,14 @@ const Counter = ({
 }) => (
   <div className="flex items-center gap-5 justify-center">
     <button type="button" onClick={() => onChange(Math.max(min, value - 1))}
-      className={cn('rounded-2xl border-2 border-border/30 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>−</button>
+      className={cn('rounded-2xl border-2 border-border/60 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>−</button>
     <div className="text-center min-w-20">
       <motion.span key={value} initial={{ scale: 1.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className={cn('font-black tabular-nums block', color, lg ? 'text-7xl' : 'text-5xl')}>{value}</motion.span>
       <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-widest">{label}</p>
     </div>
     <button type="button" onClick={() => onChange(Math.min(max, value + 1))}
-      className={cn('rounded-2xl border-2 border-border/30 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>+</button>
+      className={cn('rounded-2xl border-2 border-border/60 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>+</button>
   </div>
 );
 
@@ -250,15 +250,15 @@ export const EquipmentPage: React.FC = () => {
     </div>
   );
 
-  const inp = "h-11 text-sm font-medium bg-muted/20 border-border/30 focus:border-primary/50 focus:ring-primary/20 rounded-xl";
+  const inp = "h-11 text-sm font-medium bg-muted/20 border-border/60 focus:border-primary/50 focus:ring-primary/20 rounded-xl";
   const mono = cn(inp, 'font-mono tracking-wide');
 
   return (
     <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-5">
 
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="absolute top-0 right-0 w-80 h-80 bg-primary/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-60 h-60 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23fff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
@@ -266,30 +266,30 @@ export const EquipmentPage: React.FC = () => {
           <div className="relative p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Link href="/driver/profile" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-sm">
-                  <ArrowLeft className="size-4.5 text-white/80" />
+                <Link href="/driver/profile" className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 backdrop-blur-sm shadow-sm">
+                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Equipment & Rig</h1>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Equipment & Rig</h1>
                     <Badge className={cn('text-[10px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || '—'}</Badge>
                   </div>
-                  <p className="text-sm text-white/40 mt-0.5">Configure your truck, trailer, and capabilities</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">Configure your truck, trailer, and capabilities</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden sm:block text-right">
-                  <span className="text-4xl font-black tabular-nums text-white">{pct}%</span>
-                  <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Complete</p>
+                  <span className="text-4xl font-black tabular-nums text-foreground">{pct}%</span>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Complete</p>
                 </div>
-                <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 bg-white text-slate-900 hover:bg-white/90 font-extrabold shadow-xl rounded-xl">
+                <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 font-extrabold shadow-lg shadow-emerald-500/20 rounded-xl">
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save
                 </Button>
               </div>
             </div>
 
             <div className="mt-6">
-              <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden border border-slate-300/70 dark:border-white/10">
                 <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-400 to-teal-400" initial={false} animate={{ width: `${pct}%` }} transition={{ duration: 0.5, ease: 'easeOut' }} />
               </div>
             </div>
@@ -301,13 +301,13 @@ export const EquipmentPage: React.FC = () => {
                   <button key={n.id} type="button" onClick={() => setNav(n.id)}
                     className={cn(
                       'flex-1 flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl transition-all border relative overflow-hidden',
-                      active ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-white/3 border-white/5 hover:bg-white/6'
+                      active ? 'bg-background/90 dark:bg-white/10 border-primary/35 dark:border-white/25 shadow-md' : 'bg-background/55 dark:bg-white/[0.04] border-border/70 dark:border-white/10 hover:bg-muted/70 dark:hover:bg-white/[0.07]'
                     )}>
                     {active && <motion.div layoutId="nav-glow" className={cn('absolute inset-x-0 top-0 h-0.5 bg-linear-to-r', n.color)} transition={{ type: 'spring', stiffness: 400, damping: 35 }} />}
-                    <div className={cn('size-8 rounded-lg flex items-center justify-center shrink-0', active ? 'bg-white/10' : 'bg-white/5')}>
-                      <n.icon className={cn('size-4', active ? 'text-white' : 'text-white/30')} />
+                    <div className={cn('size-8 rounded-lg flex items-center justify-center shrink-0', active ? 'bg-primary/10 dark:bg-white/10' : 'bg-muted/60 dark:bg-white/5')}>
+                      <n.icon className={cn('size-4', active ? 'text-foreground' : 'text-muted-foreground')} />
                     </div>
-                    <span className={cn('text-[11px] sm:text-xs font-bold', active ? 'text-white' : 'text-white/30')}>{n.label}</span>
+                    <span className={cn('text-[11px] sm:text-xs font-bold', active ? 'text-foreground' : 'text-muted-foreground')}>{n.label}</span>
                   </button>
                 );
               })}
@@ -320,7 +320,7 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'rig' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-blue-500/5 via-transparent to-indigo-500/5" />
                   <div className="relative p-6 sm:p-8 space-y-6">
                     <div className="flex items-center gap-4">
@@ -331,25 +331,25 @@ export const EquipmentPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Truck Details</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Make</Label>
-                            <Input value={form.truckMake} onChange={e => patch({ truckMake: e.target.value })} placeholder="e.g. Peterbilt" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.truckMake} onChange={e => patch({ truckMake: e.target.value })} placeholder="e.g. Peterbilt" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Model</Label>
-                            <Input value={form.truckModel} onChange={e => patch({ truckModel: e.target.value })} placeholder="e.g. 389" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.truckModel} onChange={e => patch({ truckModel: e.target.value })} placeholder="e.g. 389" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                            <Input type="number" min={1990} max={2030} value={form.truckYear || ''} onChange={e => patch({ truckYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={1990} max={2030} value={form.truckYear || ''} onChange={e => patch({ truckYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
@@ -357,37 +357,37 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Color</Label>
-                            <Input value={form.truckColor} onChange={e => patch({ truckColor: e.target.value })} placeholder="e.g. White" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.truckColor} onChange={e => patch({ truckColor: e.target.value })} placeholder="e.g. White" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Engine Type</Label>
-                            <Input value={form.engineType} onChange={e => patch({ engineType: e.target.value })} placeholder="e.g. Cummins X15" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.engineType} onChange={e => patch({ engineType: e.target.value })} placeholder="e.g. Cummins X15" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Truck GVWR (lbs)</Label>
-                            <Input type="number" min={0} max={100000} value={form.gvwr || ''} onChange={e => patch({ gvwr: parseInt(e.target.value) || undefined })} placeholder="e.g. 26000" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={0} max={100000} value={form.gvwr || ''} onChange={e => patch({ gvwr: parseInt(e.target.value) || undefined })} placeholder="e.g. 26000" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Operating Authority</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">VIN</Label>
-                            <Input value={form.vin} onChange={e => patch({ vin: e.target.value.toUpperCase() })} placeholder="e.g. 1HGCM82633A004352" maxLength={17} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.vin} onChange={e => patch({ vin: e.target.value.toUpperCase() })} placeholder="e.g. 1HGCM82633A004352" maxLength={17} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">License Plate</Label>
-                            <Input value={form.plateNumber} onChange={e => patch({ plateNumber: e.target.value.toUpperCase() })} placeholder="e.g. ABC-1234" maxLength={15} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.plateNumber} onChange={e => patch({ plateNumber: e.target.value.toUpperCase() })} placeholder="e.g. ABC-1234" maxLength={15} className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
@@ -395,19 +395,19 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.45 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">DOT Number</Label>
-                            <Input value={form.dotNumber} onChange={e => patch({ dotNumber: e.target.value })} placeholder="e.g. 1234567" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.dotNumber} onChange={e => patch({ dotNumber: e.target.value })} placeholder="e.g. 1234567" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">MC Number</Label>
-                            <Input value={form.mcNumber} onChange={e => patch({ mcNumber: e.target.value })} placeholder="e.g. MC-123456" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.mcNumber} onChange={e => patch({ mcNumber: e.target.value })} placeholder="e.g. MC-123456" className="h-11 font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
                     </div>
 
-                    <motion.div layout className="flex items-center justify-between border-t border-border/20 pt-6">
+                    <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
                       <Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={() => setNav('trailer')} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
                         Next: Trailer <ChevronRight className="size-4" />
@@ -420,7 +420,7 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'trailer' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
                   <div className="relative p-6 sm:p-8 space-y-6">
                     <div className="flex items-center gap-4">
@@ -432,9 +432,9 @@ export const EquipmentPage: React.FC = () => {
                       {sel && <Badge className={cn('text-xs font-bold px-3 py-1.5 bg-linear-to-r text-white border-0 shadow-lg', th.grad)}>{sel.capacity}</Badge>}
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Trailer Type *</h3>
-                      <motion.button type="button" onClick={() => setTypeDialogOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full relative overflow-hidden rounded-2xl border-2 border-border/40 bg-linear-to-br from-background to-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:shadow-md group">
+                      <motion.button type="button" onClick={() => setTypeDialogOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full relative overflow-hidden rounded-2xl border-2 border-border/70 bg-linear-to-br from-background to-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:shadow-md group">
                         <div className="flex items-center gap-4">
                           <div className={cn('w-20 h-14 rounded-xl flex items-center justify-center shrink-0', th.bg)}>
                             <TSvg cat={cat} className="w-full h-full p-2" />
@@ -450,31 +450,31 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 pt-2">
                           <Label className="text-xs font-bold text-muted-foreground">Custom Trailer Name *</Label>
                           <Input value={form.customTrailerName} onChange={e => patch({ customTrailerName: e.target.value })} placeholder="e.g. Custom 4-Car Enclosed Wedge" maxLength={80}
-                            className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           <p className="text-[10px] text-muted-foreground">Describe your trailer so dispatchers know what you haul</p>
                         </motion.div>
                       )}
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Trailer Details</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Make</Label>
-                            <Input value={form.trailerMake} onChange={e => patch({ trailerMake: e.target.value })} placeholder="e.g. Kaufman" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.trailerMake} onChange={e => patch({ trailerMake: e.target.value })} placeholder="e.g. Kaufman" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Model</Label>
-                            <Input value={form.trailerModel} onChange={e => patch({ trailerModel: e.target.value })} placeholder="e.g. Deluxe" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={form.trailerModel} onChange={e => patch({ trailerModel: e.target.value })} placeholder="e.g. Deluxe" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                            <Input type="number" min={1990} max={2030} value={form.trailerYear || ''} onChange={e => patch({ trailerYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={1990} max={2030} value={form.trailerYear || ''} onChange={e => patch({ trailerYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
@@ -487,7 +487,7 @@ export const EquipmentPage: React.FC = () => {
                             return (
                               <motion.button key={opt.value} type="button" onClick={() => patch({ hitchType: a ? '' : opt.value })} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                                 className={cn('flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center',
-                                  a ? 'border-emerald-500 bg-emerald-500/10 shadow-md ring-1 ring-emerald-500/30' : 'border-border/30 hover:border-border/50')}>
+                                  a ? 'border-emerald-500 bg-emerald-500/10 shadow-md ring-1 ring-emerald-500/30' : 'border-border/60 hover:border-border/80')}>
                                 <span className={cn('text-xs font-bold', a && 'text-emerald-600 dark:text-emerald-400')}>{opt.label}</span>
                                 {a && <CheckCircle2 className="size-4 text-emerald-500" />}
                               </motion.button>
@@ -497,7 +497,7 @@ export const EquipmentPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <motion.div layout className="flex items-center justify-between border-t border-border/20 pt-6">
+                    <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
                       <Button variant="ghost" onClick={() => setNav('rig')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={() => setNav('specs')} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         Next: Specs <ChevronRight className="size-4" />
@@ -510,7 +510,7 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'specs' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
                   <div className="relative p-6 sm:p-8 space-y-6">
                     <div className="flex items-center gap-4">
@@ -522,7 +522,7 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0 }} className="relative overflow-hidden rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4 h-full">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4 h-full">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
                             <Gauge className="size-5" />
@@ -550,7 +550,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="relative overflow-hidden rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4 h-full">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4 h-full">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-violet-500/30">
                             <Ruler className="size-5" />
@@ -575,7 +575,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="relative overflow-hidden rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-rose-500 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
                             <Settings2 className="size-5" />
@@ -594,7 +594,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="relative overflow-hidden rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="size-10 rounded-xl bg-linear-to-br from-orange-500 to-red-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
                             <Gauge className="size-5" />
@@ -605,12 +605,12 @@ export const EquipmentPage: React.FC = () => {
                           </div>
                         </div>
                         <Input type="number" min={0} max={100000} value={form.trailerGvwr || ''} onChange={e => patch({ trailerGvwr: parseInt(e.target.value) || undefined })}
-                          placeholder="e.g. 14000" className="h-12 text-lg font-bold text-center bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                          placeholder="e.g. 14000" className="h-12 text-lg font-bold text-center bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                         <p className="text-xs text-muted-foreground text-center font-medium">Weight in pounds (lbs)</p>
                       </motion.div>
                     </div>
 
-                    <motion.div layout className="flex items-center justify-between border-t border-border/20 pt-6">
+                    <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
                       <Button variant="ghost" onClick={() => setNav('trailer')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={() => setNav('features')} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         Next: Features <ChevronRight className="size-4" />
@@ -623,7 +623,7 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'features' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
                   <div className="relative p-6 sm:p-8 space-y-6">
                     <div className="flex items-center gap-4">
@@ -635,7 +635,7 @@ export const EquipmentPage: React.FC = () => {
                       <Badge className="text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 text-white border-0 shadow-lg">{form.specialFeatures.length} selected</Badge>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Available Features</h3>
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         {specialFeatureOptions.map((opt, idx) => {
@@ -645,7 +645,7 @@ export const EquipmentPage: React.FC = () => {
                               initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.03 }}
                               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                               className={cn('relative flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all text-left',
-                                a ? 'border-emerald-500 bg-emerald-500/10 shadow-md ring-1 ring-emerald-500/30' : 'border-border/30 hover:border-border/50 hover:shadow-md')}>
+                                a ? 'border-emerald-500 bg-emerald-500/10 shadow-md ring-1 ring-emerald-500/30' : 'border-border/60 hover:border-border/80 hover:shadow-md')}>
                               <span className={cn('text-xs font-bold truncate flex-1', a && 'text-emerald-600 dark:text-emerald-400')}>{opt.label}</span>
                               {a ? <CheckCircle2 className="size-5 text-emerald-500 shrink-0" /> : <Circle className="size-4 text-border shrink-0" />}
                             </motion.button>
@@ -655,7 +655,7 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     {form.specialFeatures.filter(f => !specialFeatureOptions.find(o => o.value === f)).length > 0 && (
-                      <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-3">
+                      <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-3">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Custom Features</h3>
                         <div className="flex flex-wrap gap-2">
                           {form.specialFeatures.filter(f => !specialFeatureOptions.find(o => o.value === f)).map((f, idx) => (
@@ -672,7 +672,7 @@ export const EquipmentPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Add Custom Features</h3>
                         <Button type="button" variant="ghost" size="sm" onClick={() => setCustomInputs(p => [...p, ''])} disabled={form.specialFeatures.length >= 20}
@@ -684,7 +684,7 @@ export const EquipmentPage: React.FC = () => {
                         {customInputs.map((v, idx) => (
                           <motion.div key={idx} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }} className="flex gap-2">
                             <Input value={v} onChange={e => setCustomInputs(p => p.map((x, i) => i === idx ? e.target.value : x))}
-                              placeholder="e.g. Satellite GPS" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm flex-1"
+                              placeholder="e.g. Satellite GPS" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm flex-1"
                               onKeyDown={e => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -701,7 +701,7 @@ export const EquipmentPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <motion.div layout className="flex items-center justify-between border-t border-border/20 pt-6">
+                    <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
                       <Button variant="ghost" onClick={() => setNav('specs')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={handleSave} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         {saving ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} Save Equipment
@@ -716,9 +716,9 @@ export const EquipmentPage: React.FC = () => {
         </AnimatePresence>
 
         <Dialog open={typeDialogOpen} onOpenChange={setTypeDialogOpen}>
-          <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/30 flex flex-col bg-background">
+          <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/60 flex flex-col bg-background">
             {/* Header - Fixed */}
-            <div className="shrink-0 bg-background border-b border-border/20 p-6">
+            <div className="shrink-0 bg-background border-b border-border/50 p-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className={cn('size-14 rounded-xl bg-linear-to-br flex items-center justify-center text-white shadow-lg', th.grad, th.glow)}>
@@ -736,7 +736,7 @@ export const EquipmentPage: React.FC = () => {
             </div>
 
             {/* Category Tabs - Fixed, Horizontal Scroll */}
-            <div className="shrink-0 border-b border-border/20 bg-muted/5 px-6 py-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+            <div className="shrink-0 border-b border-border/50 bg-muted/5 px-6 py-4 overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
               <div className="flex gap-3 min-w-max">
                 {TRAILER_CATEGORIES.map((c) => {
                   const a = dialogCategory === c.id;
@@ -750,7 +750,7 @@ export const EquipmentPage: React.FC = () => {
                         'px-5 py-2 rounded-lg border-2 whitespace-nowrap transition-all font-semibold text-sm flex items-center gap-2',
                         a
                           ? `border-foreground text-foreground bg-foreground/5`
-                          : 'border-border/40 text-muted-foreground hover:border-border/60 hover:bg-muted/10'
+                          : 'border-border/70 text-muted-foreground hover:border-primary/60 hover:bg-muted/10'
                       )}>
                       <span>{c.label}</span>
                       <span className={cn('text-xs px-2 py-0.5 rounded-md font-bold', a ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground')}>
@@ -789,7 +789,7 @@ export const EquipmentPage: React.FC = () => {
                           'relative flex flex-row rounded-2xl border-2 transition-all overflow-hidden group cursor-pointer h-44',
                           s
                             ? cn('shadow-xl ring-2 border-current', ct.ring, ct.glow, 'bg-muted/50')
-                            : 'border-border/40 hover:border-border/70 hover:shadow-lg hover:bg-muted/20 bg-muted/5'
+                            : 'border-border/70 hover:border-border/70 hover:shadow-lg hover:bg-muted/20 bg-muted/5'
                         )}>
                         {/* Image Area - Left Side */}
                         <div className={cn('shrink-0 w-44 h-full flex items-center justify-center relative overflow-hidden bg-linear-to-br', ct.bg)}>
@@ -821,7 +821,7 @@ export const EquipmentPage: React.FC = () => {
             </div>
 
             {/* Footer - Simple */}
-            <div className="shrink-0 border-t border-border/20 px-8 py-4 bg-muted/5 text-center">
+            <div className="shrink-0 border-t border-border/50 px-8 py-4 bg-muted/5 text-center">
               <p className="text-xs font-semibold text-muted-foreground">
                 {trailerTypeOptions.filter(t => t.category === dialogCategory).length} trailer types in <span className="text-foreground font-bold">{TRAILER_CATEGORIES.find(c => c.id === dialogCategory)?.label}</span>
               </p>

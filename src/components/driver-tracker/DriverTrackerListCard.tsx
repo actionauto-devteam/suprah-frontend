@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Bell,
   MessageSquare,
+  FileCheck2,
 } from "lucide-react";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,8 @@ interface DriverTrackerListCardProps {
   onDriverClick?: (driver: DriverTrackingItem) => void;
   onAlertDriver?: (driver: DriverTrackingItem) => void;
   onMessageDriver?: (driver: DriverTrackingItem) => void;
+  onViewCompliance?: (driver: DriverTrackingItem) => void;
+  unreadMessageCounts?: Record<string, number>;
 }
 
 const trailerLabel = (val?: string) =>
@@ -98,6 +101,8 @@ export function DriverTrackerListCard({
   onDriverClick,
   onAlertDriver,
   onMessageDriver,
+  onViewCompliance,
+  unreadMessageCounts = {},
 }: DriverTrackerListCardProps) {
   const [filter, setFilter] = React.useState<DriverFilter>("all");
   const [query, setQuery] = React.useState("");
@@ -287,6 +292,10 @@ export function DriverTrackerListCard({
           const shipments = driver.shipments ?? [];
           const isExpanded = expandedId === driver.id;
           const eq = driver.equipment;
+          const unreadMessageCount = Math.max(
+            0,
+            Number(unreadMessageCounts[driver.driver?.id ?? driver.id] ?? 0),
+          );
 
           return (
             <div
@@ -397,14 +406,20 @@ export function DriverTrackerListCard({
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-8 gap-1.5 text-[10px] font-semibold border-primary/30 hover:bg-primary/5"
+                          className={`h-8 gap-1.5 text-[10px] font-semibold ${
+                            unreadMessageCount > 0
+                              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
+                              : "border-primary/30 hover:bg-primary/5"
+                          }`}
                           onClick={(event) => {
                             event.stopPropagation();
                             onMessageDriver(driver);
                           }}
                         >
                           <MessageSquare className="size-3" />
-                          Message
+                          {unreadMessageCount > 0
+                            ? `New Message${unreadMessageCount === 1 ? "" : "s"} (${unreadMessageCount})`
+                            : "Message"}
                         </Button>
                       )}
                     </div>
@@ -492,6 +507,43 @@ export function DriverTrackerListCard({
                           </span>
                         </div>
                       </div>
+                    )}
+                    {onViewCompliance && (
+                      <button
+                        type="button"
+                        className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
+                          eq?.isComplianceExpired
+                            ? "border-red-500/20 bg-red-500/5 hover:bg-red-500/10"
+                            : "border-emerald-500/15 bg-emerald-500/5 hover:border-emerald-500/30 hover:bg-emerald-500/10"
+                        }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onViewCompliance(driver);
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground">
+                              <FileCheck2 className="size-2.5 text-emerald-500" />
+                              Compliance & Documents
+                            </p>
+                            <p
+                              className={`mt-0.5 text-[10px] font-bold ${
+                                eq?.isComplianceExpired
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-foreground"
+                              }`}
+                            >
+                              {eq?.isComplianceExpired
+                                ? "Needs attention"
+                                : "View verification records"}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                            View →
+                          </span>
+                        </div>
+                      </button>
                     )}
                     {eq?.isComplianceExpired && (
                       <div className="rounded-lg bg-red-500/5 border border-red-500/10 px-2.5 py-1.5">

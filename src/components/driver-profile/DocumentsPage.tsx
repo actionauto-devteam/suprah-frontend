@@ -54,7 +54,7 @@ const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024)
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' });
 
 const FormSection = ({ icon, items }: { icon: string; items: Array<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; className?: string; type?: string }> }) => (
-  <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+  <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
     <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">{icon}</h3>
     <div className="space-y-3">
       {items.map((item, idx) => (
@@ -62,9 +62,9 @@ const FormSection = ({ icon, items }: { icon: string; items: Array<{ label: stri
           <div className="space-y-1.5">
             <Label className="text-xs font-bold text-muted-foreground">{item.label}</Label>
             {item.type === 'date' ? (
-              <Input type="date" value={item.value} onChange={e => item.onChange(e.target.value)} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
+              <Input type="date" value={item.value} onChange={e => item.onChange(e.target.value)} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
             ) : (
-              <Input value={item.value} onChange={e => item.onChange(e.target.value)} placeholder={item.placeholder} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
+              <Input value={item.value} onChange={e => item.onChange(e.target.value)} placeholder={item.placeholder} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
             )}
           </div>
         </motion.div>
@@ -327,35 +327,35 @@ export const DocumentsPage: React.FC = () => {
     <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
 
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M20 20.5V18H0v-2h20v-2l2 3-2 3zM0 20.5V18h20v-2l2 3-2 3H0v-1.5z\' fill=\'%23fff\' fill-opacity=\'.5\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
+          <div className="absolute inset-0 opacity-[0.035] dark:opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M20 20.5V18H0v-2h20v-2l2 3-2 3zM0 20.5V18h20v-2l2 3-2 3H0v-1.5z\' fill=\'%23fff\' fill-opacity=\'.5\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
 
           <div className="relative p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4 mb-5">
               <div className="flex items-center gap-3">
-                <Link href="/driver/profile" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10">
-                  <ArrowLeft className="size-4.5 text-white/80" />
+                <Link href="/driver/profile" className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm">
+                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Driver Verification</h1>
-                    <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/20">
-                      <Lock className="size-3 text-emerald-400" /><span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Encrypted</span>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Driver Verification</h1>
+                    <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/35 shadow-sm">
+                      <Lock className="size-3 text-emerald-600 dark:text-emerald-400" /><span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Encrypted</span>
                     </div>
                   </div>
-                  <p className="text-sm text-white/40 mt-0.5">FMCSA-compliant driver onboarding</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">FMCSA-compliant driver onboarding</p>
                 </div>
               </div>
               <div className="text-right hidden sm:block">
-                <span className="text-4xl font-black tabular-nums text-white">{overallPct}%</span>
-                <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Complete</p>
+                <span className="text-4xl font-black tabular-nums text-foreground">{overallPct}%</span>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Complete</p>
               </div>
             </div>
 
-            <div className="h-1.5 rounded-full bg-white/8 overflow-hidden mb-5">
+            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-white/10 border border-slate-300/70 dark:border-white/10 overflow-hidden mb-5">
               <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-400 to-teal-400" initial={false} animate={{ width: `${overallPct}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />
             </div>
 
@@ -368,18 +368,27 @@ export const DocumentsPage: React.FC = () => {
                     <button type="button" onClick={() => setActiveStep(step.id)} className="relative z-10 flex flex-col items-center gap-1.5 group">
                       <motion.div animate={active ? { scale: 1.15 } : { scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                         className={cn('size-10 sm:size-11 rounded-xl flex items-center justify-center transition-all border-2',
-                          active ? 'bg-white/15 border-white/30 shadow-lg shadow-white/5' :
-                            status === 'done' ? 'bg-emerald-500/20 border-emerald-500/30' :
-                              status === 'partial' ? 'bg-amber-500/15 border-amber-500/20' :
-                                'bg-white/5 border-white/8')}>
+                          active ? 'bg-background dark:bg-white/15 border-primary/45 dark:border-white/30 shadow-md ring-1 ring-primary/10' :
+                            status === 'done' ? 'bg-emerald-500/12 border-emerald-500/35' :
+                              status === 'partial' ? 'bg-amber-500/12 border-amber-500/35' :
+                                'bg-background/70 dark:bg-white/5 border-border/80 dark:border-white/15')}>
                         {status === 'done' ? <CheckCircle2 className="size-5 text-emerald-400" /> :
-                          <step.icon className={cn('size-4.5', active ? 'text-white' : 'text-white/30')} />}
+                          <step.icon className={cn('size-4.5', active ? 'text-primary dark:text-white' : 'text-muted-foreground')} />}
                       </motion.div>
-                      <span className={cn('text-[10px] font-bold whitespace-nowrap', active ? 'text-white' : status === 'done' ? 'text-emerald-400/70' : 'text-white/25')}>{step.label}</span>
+                      <span className={cn(
+                        'text-[10px] font-bold whitespace-nowrap',
+                        active
+                          ? 'text-foreground'
+                          : status === 'done'
+                            ? 'text-emerald-700 dark:text-emerald-400'
+                            : status === 'partial'
+                              ? 'text-amber-700 dark:text-amber-400'
+                              : 'text-muted-foreground',
+                      )}>{step.label}</span>
                     </button>
                     {i < STEPS.length - 1 && (
                       <div className="flex-1 h-0.5 mx-1 rounded-full relative -mt-5">
-                        <div className="absolute inset-0 bg-white/8 rounded-full" />
+                        <div className="absolute inset-0 bg-slate-300/80 dark:bg-white/10 rounded-full" />
                         <motion.div initial={false} animate={{ width: status === 'done' ? '100%' : '0%' }}
                           className="absolute inset-y-0 left-0 bg-emerald-400/50 rounded-full" transition={{ duration: 0.4 }} />
                       </div>
@@ -399,7 +408,7 @@ export const DocumentsPage: React.FC = () => {
               { icon: ShieldCheck, label: 'FMCSA Compliant' },
               { icon: Fingerprint, label: 'SOC 2 Data Handling' },
             ].map(s => (
-              <div key={s.label} className="flex items-center gap-1.5 text-muted-foreground/50">
+              <div key={s.label} className="flex items-center gap-1.5 text-muted-foreground/75">
                 <s.icon className="size-3" /><span className="text-[10px] font-semibold">{s.label}</span>
               </div>
             ))}
@@ -426,7 +435,7 @@ export const DocumentsPage: React.FC = () => {
 
             {activeStep === 'documents' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
                   <div className="relative p-6 sm:p-8">
                     <div className="flex items-center gap-4 mb-8">
@@ -452,7 +461,7 @@ export const DocumentsPage: React.FC = () => {
                             <div className={cn('rounded-2xl border-2 transition-all overflow-hidden',
                               status === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' :
                                 status === 'rejected' ? 'border-red-500/30 bg-red-500/5' :
-                                  status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/30 hover:border-primary/50 hover:bg-primary/5')}>
+                                  status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/75 hover:border-primary/50 hover:bg-primary/5')}>
                               <div className="p-4 flex items-start gap-4">
                                 <div className={cn('size-12 rounded-xl flex items-center justify-center shrink-0',
                                   status === 'verified' ? 'bg-emerald-500/15' : status === 'rejected' ? 'bg-red-500/15' :
@@ -482,7 +491,7 @@ export const DocumentsPage: React.FC = () => {
                                 </Button>
                               </div>
                               {ups.length > 0 && (
-                                <div className="border-t border-border/10 bg-muted/20 px-4 py-3">
+                                <div className="border-t border-border/50 bg-muted/20 px-4 py-3">
                                   {ups.map((doc: ComplianceDocument) => {
                                     const ex = doc.expiresAt ? getExpStatus(doc.expiresAt) : null;
                                     return (
@@ -534,7 +543,7 @@ export const DocumentsPage: React.FC = () => {
                             const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
                             return (
                               <div key={req.type} className={cn('rounded-2xl border-2 p-4 flex items-center gap-4 transition-all',
-                                status === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' : status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/20')}>
+                                status === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' : status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/70')}>
                                 <div className="size-10 rounded-lg bg-muted/30 flex items-center justify-center shrink-0"><FileText className="size-5 text-muted-foreground" /></div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2"><h3 className="text-sm font-bold">{req.label}</h3><Badge variant="outline" className="text-[9px] h-5 font-bold">Optional</Badge></div>
@@ -554,7 +563,7 @@ export const DocumentsPage: React.FC = () => {
                       </>
                     )}
 
-                    <div className="flex items-center justify-between pt-8 border-t border-border/20">
+                    <div className="flex items-center justify-between pt-8 border-t border-border/55">
                       <Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={() => setActiveStep('personal')} disabled={uploadedCount < requiredDocs.length} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         Next: Information <ChevronRight className="size-4" />
@@ -567,7 +576,7 @@ export const DocumentsPage: React.FC = () => {
 
             {activeStep === 'personal' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-blue-500/5 via-transparent to-indigo-500/5" />
                   <div className="relative p-6 sm:p-8">
                     <div className="flex items-center gap-4 mb-8">
@@ -589,12 +598,12 @@ export const DocumentsPage: React.FC = () => {
                         { label: 'City', value: driverCity, onChange: setDriverCity, placeholder: 'Salt Lake City' },
                       ]} />
 
-                      <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Address</h3>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Street Address</Label>
-                            <Input value={driverAddress} onChange={e => setDriverAddress(e.target.value)} placeholder="123 Main St" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={driverAddress} onChange={e => setDriverAddress(e.target.value)} placeholder="123 Main St" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -602,7 +611,7 @@ export const DocumentsPage: React.FC = () => {
                             <div className="space-y-2">
                               <Label className="text-xs font-bold text-muted-foreground">State</Label>
                               <Select value={driverState} onValueChange={setDriverState}>
-                                <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
+                                <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
                                 <SelectContent className="border-2 border-border/50 shadow-xl rounded-xl"><motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>{US_STATES.map(s => <SelectItem key={s} value={s} className="cursor-pointer hover:bg-primary/10 focus:bg-primary/20 rounded-lg">{s}</SelectItem>)}</motion.div></SelectContent>
                               </Select>
                             </div>
@@ -610,74 +619,74 @@ export const DocumentsPage: React.FC = () => {
                           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                             <div className="space-y-2">
                               <Label className="text-xs font-bold text-muted-foreground">ZIP Code</Label>
-                              <Input value={driverZip} onChange={e => setDriverZip(e.target.value)} placeholder="84111" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              <Input value={driverZip} onChange={e => setDriverZip(e.target.value)} placeholder="84111" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                             </div>
                           </motion.div>
                         </div>
                       </div>
 
                       <FormSection icon="License & Credentials" items={[
-                        { label: 'CDL Number *', value: licenseNumber, onChange: setLicenseNumber, placeholder: 'DL-XXXXXXXX', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'CDL Expiration *', type: 'date', value: licenseExp, onChange: setLicenseExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'CDL Number *', value: licenseNumber, onChange: setLicenseNumber, placeholder: 'DL-XXXXXXXX', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'CDL Expiration *', type: 'date', value: licenseExp, onChange: setLicenseExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
                       ]} />
 
-                      <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">License State *</h3>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <Select value={licenseState} onValueChange={setLicenseState}>
-                            <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
+                            <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
                             <SelectContent className="border-2 border-border/50 shadow-xl rounded-xl"><motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>{US_STATES.map(s => <SelectItem key={s} value={s} className="cursor-pointer hover:bg-primary/10 focus:bg-primary/20 rounded-lg">{s}</SelectItem>)}</motion.div></SelectContent>
                           </Select>
                         </motion.div>
                       </div>
 
                       <FormSection icon="Medical & Insurance" items={[
-                        { label: 'Medical Card Expires', type: 'date', value: medicalExp, onChange: setMedicalExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Insurance Expires', type: 'date', value: insuranceExp, onChange: setInsuranceExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Insurance Provider *', value: insuranceProvider, onChange: setInsuranceProvider, placeholder: 'e.g. Progressive', className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Policy Number *', value: insurancePolicyNumber, onChange: setInsurancePolicyNumber, placeholder: 'e.g. POL-123456', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/40 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'Medical Card Expires', type: 'date', value: medicalExp, onChange: setMedicalExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'Insurance Expires', type: 'date', value: insuranceExp, onChange: setInsuranceExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'Insurance Provider *', value: insuranceProvider, onChange: setInsuranceProvider, placeholder: 'e.g. Progressive', className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
+                        { label: 'Policy Number *', value: insurancePolicyNumber, onChange: setInsurancePolicyNumber, placeholder: 'e.g. POL-123456', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
                       ]} />
 
-                      <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Vehicle Information</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                             <div className="space-y-2">
                               <Label className="text-xs font-bold text-muted-foreground">Make</Label>
-                              <Input value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} placeholder="Freightliner" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              <Input value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} placeholder="Freightliner" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                             </div>
                           </motion.div>
                           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
                             <div className="space-y-2">
                               <Label className="text-xs font-bold text-muted-foreground">Model</Label>
-                              <Input value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} placeholder="Cascadia" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              <Input value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} placeholder="Cascadia" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                             </div>
                           </motion.div>
                           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                             <div className="space-y-2">
                               <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                              <Input value={vehicleYear} onChange={e => setVehicleYear(e.target.value)} placeholder="2020" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                              <Input value={vehicleYear} onChange={e => setVehicleYear(e.target.value)} placeholder="2020" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                             </div>
                           </motion.div>
                         </div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">VIN *</Label>
-                            <Input value={vehicleVin} onChange={e => setVehicleVin(e.target.value.toUpperCase())} placeholder="WBADT43451G..." className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={vehicleVin} onChange={e => setVehicleVin(e.target.value.toUpperCase())} placeholder="WBADT43451G..." className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">License Plate</Label>
-                            <Input value={vehicleLicensePlate} onChange={e => setVehicleLicensePlate(e.target.value.toUpperCase())} placeholder="ABC-1234" className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/40 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input value={vehicleLicensePlate} onChange={e => setVehicleLicensePlate(e.target.value.toUpperCase())} placeholder="ABC-1234" className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
 
-                      <div className="rounded-2xl border-2 border-border/30 bg-muted/10 p-5 space-y-4">
+                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Security</h3>
                         <motion.label initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className={cn('flex items-start gap-3.5 p-4 rounded-xl border-2 cursor-pointer transition-all',
-                          bgCheckConsent ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/20 hover:border-border/50')}>
+                          bgCheckConsent ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/55 hover:border-border/50')}>
                           <input type="checkbox" checked={bgCheckConsent} onChange={e => setBgCheckConsent(e.target.checked)} className="mt-0.5 size-5 rounded border-2 border-border accent-emerald-600" />
                           <div>
                             <span className="text-sm font-bold">Background Check Authorization *</span>
@@ -688,7 +697,7 @@ export const DocumentsPage: React.FC = () => {
                         </motion.label>
                       </div>
 
-                      <div className="flex items-center justify-between pt-4 border-t border-border/20">
+                      <div className="flex items-center justify-between pt-4 border-t border-border/55">
                         <Button variant="ghost" onClick={() => setActiveStep('documents')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                         <Button onClick={handleSavePersonalInfo} disabled={savingPersonal || !driverFirstName.trim() || !licenseNumber.trim() || !licenseExp || !vehicleVin.trim() || !bgCheckConsent || !insuranceProvider.trim()} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
                           {savingPersonal ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save & Next <ChevronRight className="size-4" />
@@ -702,7 +711,7 @@ export const DocumentsPage: React.FC = () => {
 
             {activeStep === 'agreement' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 via-transparent to-orange-500/5" />
                   <div className="relative p-6 sm:p-8">
                     <div className="flex items-center gap-4 mb-8">
@@ -726,8 +735,8 @@ export const DocumentsPage: React.FC = () => {
                       const el = e.currentTarget;
                       const isAtBottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 20;
                       setAgreementScrolledToBottom(isAtBottom);
-                    }} className="rounded-2xl border-2 border-border/30 bg-muted/5 max-h-[50vh] overflow-y-auto mb-6">
-                      <div className="sticky top-0 z-10 bg-linear-to-b from-background/95 to-background/80 backdrop-blur-sm border-b border-border/20 px-6 py-4 flex items-center justify-between">
+                    }} className="rounded-2xl border-2 border-border/65 bg-muted/5 max-h-[50vh] overflow-y-auto mb-6">
+                      <div className="sticky top-0 z-10 bg-linear-to-b from-background/95 to-background/80 backdrop-blur-sm border-b border-border/55 px-6 py-4 flex items-center justify-between">
                         <div className="flex items-center gap-2"><Scale className="size-5 text-amber-500" /><span className="font-bold">Driver Services Agreement</span></div>
                         <Badge className="bg-primary/10 text-primary text-xs font-bold">Rev. 2025-01</Badge>
                       </div>
@@ -781,7 +790,7 @@ export const DocumentsPage: React.FC = () => {
                     <motion.label initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={cn('flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all',
                       bgCheckConsent && uploadedCount === requiredDocs.length && driverFirstName && licenseNumber && licenseExp ? (
                         verificationAgreement ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-primary/50 hover:border-primary/70 bg-primary/5'
-                      ) : 'border-border/20 opacity-60 cursor-not-allowed')}>
+                      ) : 'border-border/55 opacity-60 cursor-not-allowed')}>
                       <input type="checkbox" checked={verificationAgreement} onChange={e => {
                         if (agreementScrolledToBottom && bgCheckConsent && uploadedCount === requiredDocs.length && driverFirstName && licenseNumber && licenseExp) {
                           setVerificationAgreement(e.target.checked);
@@ -795,7 +804,7 @@ export const DocumentsPage: React.FC = () => {
                       </div>
                     </motion.label>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-border/20">
+                    <div className="flex items-center justify-between pt-6 border-t border-border/55">
                       <Button variant="ghost" onClick={() => setActiveStep('personal')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={handleSaveIdentity}
                         disabled={savingIdentity || !verificationAgreement || uploadedCount < requiredDocs.length || !driverFirstName || !licenseNumber || !licenseExp}
@@ -810,7 +819,7 @@ export const DocumentsPage: React.FC = () => {
 
             {activeStep === 'review' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/30 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-green-500/5" />
                   <div className="relative p-6 sm:p-8">
                     <div className="flex items-center gap-4 mb-8">
@@ -843,7 +852,7 @@ export const DocumentsPage: React.FC = () => {
                       ].map((it, idx) => (
                         <motion.div key={it.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}>
                           <div className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all',
-                            it.done ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/20 bg-muted/5')}>
+                            it.done ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/70 bg-muted/10')}>
                             <div className={cn('size-10 rounded-lg flex items-center justify-center', it.done ? 'bg-emerald-500/15' : 'bg-muted/20')}>
                               {it.done ? <CheckCircle2 className="size-5 text-emerald-500" /> : <it.icon className="size-5 text-muted-foreground" />}
                             </div>
@@ -886,7 +895,7 @@ export const DocumentsPage: React.FC = () => {
                       </motion.div>
                     )}
 
-                    <div className="rounded-2xl border-2 border-border/20 bg-muted/5 p-5">
+                    <div className="rounded-2xl border-2 border-border/55 bg-muted/5 p-5">
                       <div className="flex items-start gap-3">
                         <Lock className="size-5 text-muted-foreground shrink-0 mt-0.5" />
                         <div>
@@ -902,7 +911,7 @@ export const DocumentsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-border/20">
+                    <div className="flex items-center justify-between pt-6 border-t border-border/55">
                       <Button variant="ghost" onClick={() => setActiveStep('agreement')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       {verificationStatus === 'verified' && (
                         <Button asChild className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
@@ -919,7 +928,7 @@ export const DocumentsPage: React.FC = () => {
       </motion.div>
 
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md border-2 border-primary/20 shadow-2xl">
+        <DialogContent className="sm:max-w-md border-2 border-primary/30 shadow-2xl">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3 text-xl">
@@ -958,7 +967,7 @@ export const DocumentsPage: React.FC = () => {
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                   className={cn('flex flex-col items-center justify-center gap-3 py-10 rounded-2xl border-2 border-dashed cursor-pointer transition-all',
-                    dragOver ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' : uploadFile ? 'border-emerald-500/40 bg-emerald-500/8 shadow-md shadow-emerald-500/10' : 'border-border/40 hover:border-blue-500/60 hover:bg-blue-500/5 hover:shadow-md')}>
+                    dragOver ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' : uploadFile ? 'border-emerald-500/40 bg-emerald-500/8 shadow-md shadow-emerald-500/10' : 'border-border/70 hover:border-blue-500/60 hover:bg-blue-500/5 hover:shadow-md')}>
 
                   {uploadFile ? (
                     <motion.div className="flex items-center gap-3 w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -985,7 +994,7 @@ export const DocumentsPage: React.FC = () => {
                 </motion.div>
               </div>
             </div>
-            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/20">
+            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/55">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
                 <Button variant="outline" onClick={() => setShowUploadDialog(false)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Cancel</Button>
               </motion.div>
@@ -1000,7 +1009,7 @@ export const DocumentsPage: React.FC = () => {
       </Dialog>
 
       <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
-        <DialogContent className="sm:max-w-sm border-2 border-destructive/20 shadow-2xl">
+        <DialogContent className="sm:max-w-sm border-2 border-destructive/30 shadow-2xl">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3 text-xl">
@@ -1015,7 +1024,7 @@ export const DocumentsPage: React.FC = () => {
                 <span>This will permanently remove the document. You may need to re-upload it later to re-verify.</span>
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/20">
+            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/55">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
                 <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Keep</Button>
               </motion.div>
@@ -1031,7 +1040,7 @@ export const DocumentsPage: React.FC = () => {
       </Dialog>
 
       <Dialog open={!!viewingDoc} onOpenChange={() => setViewingDoc(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] border-2 border-primary/20 shadow-2xl flex flex-col">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] border-2 border-primary/30 shadow-2xl flex flex-col">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="flex flex-col h-full">
             <DialogHeader className="shrink-0">
               <DialogTitle className="flex items-center gap-3 text-xl">
@@ -1046,14 +1055,14 @@ export const DocumentsPage: React.FC = () => {
                 <span className="text-muted-foreground">{viewingDoc?.uploadedAt ? fmtDate(viewingDoc.uploadedAt) : 'Date unavailable'}</span>
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-auto my-4 bg-muted/20 rounded-xl border border-border/30 p-4">
+            <div className="flex-1 min-h-0 overflow-auto my-4 bg-muted/20 rounded-xl border border-border/65 p-4">
               {viewingDoc?.fileUrl && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="w-full h-full flex items-center justify-center">
                   {viewingDoc.fileUrl.toLowerCase().endsWith('.pdf') ? (
                     <iframe
                       src={`${viewingDoc.fileUrl}#toolbar=1`}
                       title={viewingDoc.fileName}
-                      className="w-full h-full rounded-lg border border-border/20"
+                      className="w-full h-full rounded-lg border border-border/55"
                       style={{ minHeight: '500px' }}
                     />
                   ) : (
@@ -1066,7 +1075,7 @@ export const DocumentsPage: React.FC = () => {
                 </motion.div>
               )}
             </div>
-            <DialogFooter className="gap-2 shrink-0 pt-4 border-t border-border/20">
+            <DialogFooter className="gap-2 shrink-0 pt-4 border-t border-border/55">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
                 <Button variant="outline" onClick={() => setViewingDoc(null)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Close</Button>
               </motion.div>

@@ -636,30 +636,42 @@ export default function DriverDashboardPage() {
     {
       label: "Active Loads",
       value: activeLoads.length,
-      icon: <Truck className="size-32 sm:size-40" />,
+      icon: <Truck className="size-6" />,
       sub: activeLoads.length === 1 ? "load in transit" : "loads in transit",
       href: "/driver/loads",
+      gradient: "from-emerald-500 to-cyan-500",
+      glow: "bg-emerald-500/20",
+      ring: "ring-emerald-500/20",
     },
     {
       label: "Completed",
       value: dashStats?.completedLoads ?? completedCount,
-      icon: <CheckCircle2 className="size-32 sm:size-40" />,
+      icon: <CheckCircle2 className="size-6" />,
       sub: "deliveries made",
       href: "/driver/loads",
+      gradient: "from-teal-500 to-emerald-500",
+      glow: "bg-teal-500/20",
+      ring: "ring-teal-500/20",
     },
     {
       label: "Earnings",
       value: dashStats ? `$${dashStats.totalEarnings.toLocaleString()}` : "$0",
-      icon: <DollarSign className="size-32 sm:size-40" />,
+      icon: <DollarSign className="size-6" />,
       sub: "total revenue",
       href: "/driver/earnings",
+      gradient: "from-amber-500 to-emerald-500",
+      glow: "bg-amber-500/20",
+      ring: "ring-amber-500/20",
     },
     {
       label: "Profile",
       value: `${profileScore}%`,
-      icon: <Shield className="size-32 sm:size-40" />,
+      icon: <Shield className="size-6" />,
       sub: profileScore >= 80 ? "excellent standing" : profileScore >= 50 ? "needs attention" : "critical",
       href: "/driver/profile",
+      gradient: "from-violet-500 to-emerald-500",
+      glow: "bg-violet-500/20",
+      ring: "ring-violet-500/20",
     },
   ];
 
@@ -750,30 +762,53 @@ export default function DriverDashboardPage() {
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}
-            className="p-0 border-border/50 shadow-sm hover:shadow-xl transition-all duration-300 group relative overflow-hidden bg-card/80 backdrop-blur-sm border cursor-pointer hover:-translate-y-0.5"
+            className="p-0 border-border/75 dark:border-white/10 shadow-sm hover:shadow-xl transition-all duration-300 group relative overflow-hidden bg-card cursor-pointer hover:-translate-y-0.5 ring-1 ring-border/10"
             onClick={() => router.push(kpi.href)}
           >
-            <div className="absolute top-0 left-40 p-4 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
-              {kpi.icon}
-            </div>
-            <CardContent className="p-6 flex justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{kpi.label}</p>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <h3 className="text-3xl font-black tracking-tighter text-foreground">{kpi.value}</h3>
-                )}
-                <p className="text-[10px] text-muted-foreground/60 font-medium mt-1">{kpi.sub}</p>
+            <div
+              className={cn(
+                "pointer-events-none absolute -right-8 -top-10 size-32 rounded-full blur-3xl opacity-60 transition-opacity duration-300 group-hover:opacity-90",
+                kpi.glow,
+              )}
+            />
+            <CardContent className="relative p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    {kpi.label}
+                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <h3 className="text-3xl font-black tracking-tighter text-foreground">
+                      {kpi.value}
+                    </h3>
+                  )}
+                  <p className="mt-1 text-[10px] font-medium text-muted-foreground/75">
+                    {kpi.sub}
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <div
+                    className={cn(
+                      "flex size-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-lg ring-4 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2",
+                      kpi.gradient,
+                      kpi.ring,
+                    )}
+                  >
+                    {kpi.icon}
+                  </div>
+                  <ArrowRight className="size-4 text-muted-foreground/40 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+                </div>
               </div>
-              <ArrowRight className="size-4 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200 self-center" />
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* ── FULL-WIDTH MAP ── */}
-      <Card className="border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0 animate-fade-in-up stagger-2">
+      <Card className="border-border/70 shadow-sm overflow-hidden bg-card p-0 gap-0 animate-fade-in-up stagger-2">
         <CardContent className="p-0">
           <div className="relative h-96 lg:h-150 overflow-hidden" style={{ background: "#e5e7eb" }}>
             {mapboxToken ? (
@@ -870,8 +905,8 @@ export default function DriverDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up stagger-3">
 
         {/* GPS Broadcast */}
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div
@@ -1039,8 +1074,8 @@ export default function DriverDashboardPage() {
         </Card>
 
         {/* Current Load */}
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <Package className="size-4 text-primary" />
@@ -1123,8 +1158,8 @@ export default function DriverDashboardPage() {
         </Card>
 
         {/* Dispatch Status + Other Loads */}
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Zap className="size-4 text-emerald-500" />
               Dispatch Status
@@ -1152,7 +1187,7 @@ export default function DriverDashboardPage() {
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Other Loads ({activeLoads.length - 1})</p>
                 {activeLoads.slice(1, 4).map((load) => (
-                  <div key={load._id} className="flex items-center justify-between py-2 border-b border-border/10 last:border-0">
+                  <div key={load._id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-mono font-bold truncate">{load.trackingNumber || "No tracking #"}</p>
                       <p className="text-[10px] text-muted-foreground truncate">{load.origin} &rarr; {load.destination}</p>
@@ -1173,8 +1208,8 @@ export default function DriverDashboardPage() {
 
       {/* ── LOGISTICS: AVAILABILITY · SERVICE AREA · ROUTES ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up stagger-4">
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Calendar className="size-4 text-violet-500" />
               Availability
@@ -1191,7 +1226,7 @@ export default function DriverDashboardPage() {
                     "px-3 py-2 rounded-lg text-xs font-bold transition-all border",
                     logDays.includes(d.value)
                       ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-400"
-                      : "border-border/40 text-muted-foreground hover:border-border",
+                      : "border-border/65 text-muted-foreground hover:border-border",
                   )}
                 >
                   {d.label}
@@ -1201,8 +1236,8 @@ export default function DriverDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <MapPin className="size-4 text-blue-500" />
@@ -1233,8 +1268,8 @@ export default function DriverDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4 border-border/50 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
-          <CardHeader className="py-3.5 px-5 border-b border-border/10">
+        <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Route className="size-4 text-amber-500" />
               Preferred Routes

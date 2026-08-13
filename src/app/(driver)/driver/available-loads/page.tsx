@@ -236,19 +236,19 @@ export default function AvailableLoadsPage() {
     <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
 
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-cyan-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="absolute top-0 right-0 w-72 h-72 bg-blue-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-56 h-56 bg-emerald-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="relative p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Link href="/driver" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10">
-                  <ArrowLeft className="size-4.5 text-white/80" />
+                <Link href="/driver" className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm">
+                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Load Board</h1>
-                  <p className="text-sm text-white/40 mt-0.5">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Load Board</h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     {loading ? 'Scanning...' : `${loads.length} load${loads.length !== 1 ? 's' : ''} available`}
                     {pendingCount > 0 && <span className="ml-1.5 text-amber-400 font-semibold"> · {pendingCount} pending</span>}
                   </p>
@@ -258,13 +258,13 @@ export default function AvailableLoadsPage() {
                 <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/20">
                   <Zap className="size-3 text-emerald-400" /><span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
                 </div>
-                <div className="flex rounded-lg border border-white/10 p-0.5 bg-white/5">
-                  <div className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white/15 text-white shadow-sm">
+                <div className="flex rounded-lg border border-border/80 dark:border-white/15 p-0.5 bg-background/70 dark:bg-white/5 shadow-sm">
+                  <div className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-background text-foreground dark:bg-white/15 dark:text-white shadow-sm border border-border/60 dark:border-white/10">
                     <MapIcon className="size-3.5 inline mr-1" />Map
                     <span className="ml-1 text-[9px] text-amber-400 font-bold uppercase">Soon</span>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing} className="gap-1.5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10">
+                <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing} className="gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/10 border border-border/80 dark:border-white/15 bg-background/60 dark:bg-transparent">
                   <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
                 </Button>
               </div>
@@ -272,21 +272,21 @@ export default function AvailableLoadsPage() {
 
             {!loading && loads.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
-                  <p className="text-lg sm:text-xl font-black text-white tabular-nums">{loads.length}</p>
-                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Available</p>
+                <div className="rounded-xl bg-background/70 dark:bg-white/5 border border-border/80 dark:border-white/15 p-3 text-center shadow-sm">
+                  <p className="text-lg sm:text-xl font-black text-foreground tabular-nums">{loads.length}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">Available</p>
                 </div>
-                <div className={cn("rounded-xl bg-white/5 border p-3 text-center", atCapacity ? "border-red-500/30" : "border-white/8")}>
+                <div className={cn("rounded-xl bg-background/70 dark:bg-white/5 border p-3 text-center shadow-sm", atCapacity ? "border-red-500/40" : "border-border/80 dark:border-white/15")}>
                   <p className={cn("text-lg sm:text-xl font-black tabular-nums", atCapacity ? "text-red-400" : "text-amber-400")}>{activeLoadCount}/{maxLoadCapacity}</p>
-                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">My Loads</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">My Loads</p>
                 </div>
-                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
+                <div className="rounded-xl bg-background/70 dark:bg-white/5 border border-border/80 dark:border-white/15 p-3 text-center shadow-sm">
                   <p className="text-lg sm:text-xl font-black text-emerald-400 tabular-nums">${avgPay.toLocaleString()}</p>
-                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Avg Pay</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">Avg Pay</p>
                 </div>
-                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
+                <div className="rounded-xl bg-background/70 dark:bg-white/5 border border-border/80 dark:border-white/15 p-3 text-center shadow-sm">
                   <p className="text-lg sm:text-xl font-black text-emerald-400 tabular-nums">${highPay.toLocaleString()}</p>
-                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Top Pay</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">Top Pay</p>
                 </div>
               </div>
             )}
@@ -296,12 +296,12 @@ export default function AvailableLoadsPage() {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input placeholder="Search by city, tracking #, or vehicle..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-10 rounded-xl bg-muted/30 border-border/20" />
+            <Input placeholder="Search by city, tracking #, or vehicle..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-10 rounded-xl bg-background border-border/80 shadow-sm focus-visible:border-primary/60" />
           </div>
           <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 h-10 shrink-0 rounded-xl border-border/20">
+                <Button variant="outline" size="sm" className="gap-1.5 h-10 shrink-0 rounded-xl border-border/60">
                   <ArrowUpDown className="size-3.5" /><span className="hidden sm:inline">{sortOpts.find(s => s.key === sortBy)?.label}</span><ChevronDown className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -313,7 +313,7 @@ export default function AvailableLoadsPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("gap-1.5 h-10 shrink-0 rounded-xl border-border/20", trailerFilter !== 'all' && "border-primary/40 bg-primary/5")}>
+                <Button variant="outline" size="sm" className={cn("gap-1.5 h-10 shrink-0 rounded-xl border-border/60", trailerFilter !== 'all' && "border-primary/40 bg-primary/5")}>
                   <Filter className="size-3.5" /><span className="hidden sm:inline">{trailerFilter === 'all' ? 'All Trailers' : trailerLabel(trailerFilter)}</span><ChevronDown className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -333,7 +333,7 @@ export default function AvailableLoadsPage() {
             <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Scanning Load Board</p>
           </div>
         ) : filtered.length === 0 ? (
-          <Card className="border-border/20 rounded-2xl">
+          <Card className="border-border/60 rounded-2xl">
             <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <div className="size-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4"><Package className="size-8 text-muted-foreground/30" /></div>
               <p className="text-sm font-bold">{search || trailerFilter !== 'all' ? 'No loads match your filters' : 'No loads posted to the board right now'}</p>
@@ -357,7 +357,7 @@ export default function AvailableLoadsPage() {
               </div>
             )}
             {pagination?.hasMore && !loadingMore && (
-              <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/30 hover:border-primary/30" onClick={handleLoadMore}>
+              <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/70 hover:border-primary/30" onClick={handleLoadMore}>
                 <ChevronDown className="h-4 w-4" /> Load more loads
               </Button>
             )}
@@ -432,7 +432,7 @@ function LoadCard({ load, onRequest }: { load: AvailableLoad; onRequest: () => v
 
   return (
     <Link href={`/driver/available-loads/${load._id}`} className="block group">
-      <Card className={cn('border-border/20 hover:shadow-xl transition-all duration-200 overflow-hidden rounded-2xl',
+      <Card className={cn('border-border/75 hover:shadow-xl transition-all duration-200 overflow-hidden rounded-2xl',
         isRequested ? 'border-amber-500/30 bg-amber-500/3' : isRejected ? 'border-red-500/20 opacity-75' : 'hover:border-primary/25 hover:-translate-y-0.5')}>
         <CardContent className="p-0">
           <div className="flex flex-col sm:flex-row">
@@ -488,7 +488,7 @@ function LoadCard({ load, onRequest }: { load: AvailableLoad; onRequest: () => v
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/20 border border-border/10">
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted/20 border border-border/50">
                 <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-xs font-semibold truncate max-w-32.5">{load.origin}</span>
                 <div className="flex-1 border-t border-dashed border-muted-foreground/20 mx-1.5" />

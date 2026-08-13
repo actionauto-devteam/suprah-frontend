@@ -343,8 +343,8 @@ export default function DriverLoadsPage() {
         transition={{ duration: 0.4 }}
         className="space-y-5"
       >
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="relative p-5 sm:p-7">
@@ -352,15 +352,15 @@ export default function DriverLoadsPage() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/driver"
-                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+                  className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm"
                 >
-                  <ArrowLeft className="size-4.5 text-white/80" />
+                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
                     My Loads
                   </h1>
-                  <p className="text-sm text-white/40 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     {loading ? (
                       "Loading..."
                     ) : (
@@ -389,7 +389,7 @@ export default function DriverLoadsPage() {
                   size="sm"
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="gap-1.5 text-white/60 hover:text-white hover:bg-white/10 border border-white/10"
+                  className="gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/10 border border-border/80 dark:border-white/15 bg-background/60 dark:bg-transparent"
                 >
                   <RefreshCw
                     className={cn("size-3.5", refreshing && "animate-spin")}
@@ -399,7 +399,7 @@ export default function DriverLoadsPage() {
               </div>
             </div>
 
-            <div className="flex gap-1 mt-5 bg-white/5 rounded-xl p-1 border border-white/8">
+            <div className="flex gap-1 mt-5 bg-background/70 dark:bg-white/5 rounded-xl p-1 border border-border/80 dark:border-white/15 shadow-sm">
               {tabItems.map((t) => (
                 <button
                   key={t.key}
@@ -407,8 +407,8 @@ export default function DriverLoadsPage() {
                   className={cn(
                     "relative px-3 py-2 text-xs rounded-lg transition-all flex items-center gap-1.5",
                     tab === t.key
-                      ? "bg-white/10 font-bold text-white shadow-sm"
-                      : "text-white/40 hover:text-white/70",
+                      ? "bg-card font-bold text-foreground shadow-sm border border-border/70 dark:bg-white/10 dark:text-white dark:border-white/15"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:text-white/80",
                   )}
                 >
                   <t.icon className="size-3" />
@@ -419,7 +419,7 @@ export default function DriverLoadsPage() {
                         "inline-flex items-center justify-center min-w-4.5 h-4.5 text-[9px] font-bold rounded-full px-1",
                         t.key === "requests"
                           ? "bg-amber-500 text-white"
-                          : "bg-white/15 text-white/60",
+                          : "bg-muted text-muted-foreground dark:bg-white/15 dark:text-white/70",
                       )}
                     >
                       {t.count}
@@ -437,7 +437,7 @@ export default function DriverLoadsPage() {
             placeholder="Search by load #, city, vehicle..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 rounded-xl bg-muted/30 border-border/20"
+            className="pl-9 h-10 rounded-xl bg-background border-border/80 shadow-sm focus-visible:border-primary/60"
           />
         </div>
 
@@ -452,7 +452,7 @@ export default function DriverLoadsPage() {
             </p>
           </div>
         ) : filtered.length === 0 ? (
-          <Card className="border-border/20 rounded-2xl">
+          <Card className="border-border/60 rounded-2xl">
             <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <div className="size-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
                 <Package className="size-8 text-muted-foreground/30" />
@@ -510,7 +510,7 @@ export default function DriverLoadsPage() {
               </div>
             )}
             {pagination?.hasMore && !loadingMore && (
-              <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/30 hover:border-primary/30" onClick={handleLoadMore}>
+              <Button variant="outline" className="w-full rounded-xl h-10 text-xs gap-2 border-border/70 hover:border-primary/30" onClick={handleLoadMore}>
                 <ChevronDown className="h-4 w-4" /> Load more loads
               </Button>
             )}
@@ -634,7 +634,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
   const vehicleImg = vehicle?.imageUrl ? resolveImageUrl(vehicle.imageUrl) : null;
 
   return (
-    <Card className={cn('overflow-hidden border-border/20 hover:shadow-lg transition-all duration-200 rounded-2xl group',
+    <Card className={cn('overflow-hidden border-border/75 hover:shadow-lg transition-all duration-200 rounded-2xl group',
       isPending ? 'border-amber-500/30 bg-amber-500/3' : isRejected ? 'border-red-500/20 opacity-75' :
         (status === 'In-Transit') ? 'border-emerald-500/30 bg-emerald-500/3' :
           status === 'Picked Up' ? 'border-orange-500/30 bg-orange-500/3' :
@@ -793,7 +793,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
             )}
 
             {expanded && (isDispatched || isDelivered) && (
-              <div className="rounded-xl border border-border/20 bg-muted/20 p-3 space-y-3">
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-3">
                 {load.additionalInfo?.notes && <DetailBlock label="Dispatch Notes" text={load.additionalInfo.notes} />}
                 {load.additionalInfo?.instructions && <DetailBlock label="Special Instructions" text={load.additionalInfo.instructions} />}
                 {load.contract?.signerName && <DetailBlock label="Signed By" text={load.contract.signerName} />}
@@ -801,7 +801,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                 {load.pickupLocation?.contactName && <ContactBlock label="Pick-Up Contact" contact={load.pickupLocation} />}
                 {load.deliveryLocation?.contactName && <ContactBlock label="Delivery Contact" contact={load.deliveryLocation} />}
                 {load.pricing?.carrierPayAmount != null && load.pricing.carrierPayAmount > 0 && (
-                  <div className="flex items-center gap-4 pt-1 border-t border-border/15">
+                  <div className="flex items-center gap-4 pt-1 border-t border-border/55">
                     <MoneyBlock label="Carrier Pay" value={load.pricing.carrierPayAmount} highlight />
                     {load.pricing.copCodAmount != null && load.pricing.copCodAmount > 0 && <MoneyBlock label="COD" value={load.pricing.copCodAmount} />}
                     {load.pricing.balanceAmount != null && <MoneyBlock label="Balance" value={load.pricing.balanceAmount} />}
