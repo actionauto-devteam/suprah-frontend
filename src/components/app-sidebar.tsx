@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
+  Radar,
   Car,
   ChevronRight,
   ClipboardList,
@@ -171,6 +172,12 @@ const data = {
       title: "Transportation",
       url: "/transportation",
       icon: Truck,
+    },
+    {
+      title: "Suprah Radar",
+      url: "/suprah-radar",
+      icon: Radar,
+      isNew: true,
     },
     {
       title: "Driver Tracker",
@@ -559,6 +566,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+                        {item.isNew && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            New
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
