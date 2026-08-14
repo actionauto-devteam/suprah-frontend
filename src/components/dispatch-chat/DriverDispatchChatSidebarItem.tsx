@@ -8,11 +8,14 @@ import {
 } from "@/components/ui/sidebar";
 import { useUser } from "@/providers/AuthProvider";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
+import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 
 export function DriverDispatchChatSidebarItem() {
   const { user } = useUser();
   const [open, setOpen] = React.useState(false);
-  const [unreadCount, setUnreadCount] = React.useState(0);
+  const { unreadTotal, refresh } = useDispatchChatUnread({
+    enabled: user?.role === "driver",
+  });
 
   const driverId = user?.id ?? null;
 
@@ -30,12 +33,12 @@ export function DriverDispatchChatSidebarItem() {
             Suprah Dispatch Chat
           </span>
 
-          {unreadCount > 0 && (
+          {unreadTotal > 0 && (
             <span
-              aria-label={`${unreadCount} unread message${unreadCount === 1 ? "" : "s"}`}
+              aria-label={`${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}`}
               className="ml-auto min-w-5 h-5 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center group-data-[collapsible=icon]:hidden"
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadTotal > 99 ? "99+" : unreadTotal}
             </span>
           )}
         </SidebarMenuButton>
@@ -43,10 +46,12 @@ export function DriverDispatchChatSidebarItem() {
 
       <DispatchChatDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) void refresh();
+        }}
         driverId={driverId}
-        participantName="Dispatch Team"
-        onUnreadChange={setUnreadCount}
+        participantName="Dispatch"
       />
     </>
   );

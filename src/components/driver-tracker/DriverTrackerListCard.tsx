@@ -24,9 +24,19 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LayoutGrid } from "lucide-react";
-import { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
+import { DriverTrackingItem, DriverStatus, DriverOperationalStatus } from "@/types/driver-tracking";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-type DriverFilter = "all" | "active" | "offline" | "sharing" | "not-sharing";
+type OperationalFilter = "all" | "active" | "on_leave" | "maintenance";
+type ActiveSubFilter = "all" | DriverStatus;
+type GpsFilter = "all" | "sharing" | "not-sharing";
 
 interface DriverTrackerListCardProps {
   drivers: DriverTrackingItem[];
@@ -40,54 +50,35 @@ interface DriverTrackerListCardProps {
   onAlertDriver?: (driver: DriverTrackingItem) => void;
   onMessageDriver?: (driver: DriverTrackingItem) => void;
   onViewCompliance?: (driver: DriverTrackingItem) => void;
+  onViewStatusRequest?: (driver: DriverTrackingItem) => void;
   unreadMessageCounts?: Record<string, number>;
 }
 
 const trailerLabel = (val?: string) =>
   trailerTypeOptions.find((t) => t.value === val)?.label ?? val ?? "Unknown";
 
-const FILTER_OPTIONS: { key: DriverFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "offline", label: "Offline" },
-  { key: "sharing", label: "Sharing" },
-  { key: "not-sharing", label: "Not Sharing" },
-];
+const opStatusOf = (driver: DriverTrackingItem): DriverOperationalStatus =>
+  driver.equipment?.operationalStatus ?? "active";
 
-const FILTER_STYLE: Record<
-  DriverFilter,
-  { activeClass: string; badgeClass: string; icon: React.ReactNode }
-> = {
-  all: {
-    activeClass: "bg-indigo-500/20 border-indigo-500/40",
-    badgeClass: "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400",
-    icon: <LayoutGrid className="size-3 text-indigo-600 dark:text-indigo-400" />,
-  },
-  active: {
-    activeClass: "bg-emerald-500/20 border-emerald-500/40",
-    badgeClass: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-    icon: (
-      <span className="relative flex size-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-40" />
-        <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-      </span>
-    ),
-  },
-  offline: {
-    activeClass: "bg-slate-500/20 border-slate-500/40",
-    badgeClass: "bg-slate-500/20 text-slate-600 dark:text-slate-400",
-    icon: <span className="inline-block size-2 rounded-full bg-slate-400" />,
-  },
-  sharing: {
-    activeClass: "bg-blue-500/20 border-blue-500/40",
-    badgeClass: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
-    icon: <Wifi className="size-3 text-blue-600 dark:text-blue-400" />,
-  },
-  "not-sharing": {
-    activeClass: "bg-amber-500/20 border-amber-500/40",
-    badgeClass: "bg-amber-500/20 text-amber-600 dark:text-amber-400",
-    icon: <WifiOff className="size-3 text-amber-600 dark:text-amber-400" />,
-  },
+const OP_LABEL: Record<DriverOperationalStatus, string> = {
+  active: "Active",
+  on_leave: "On Leave",
+  maintenance: "In Shop",
+};
+
+// Driver Tracker should not present a driver as currently Dispatch Active when
+// their live presence is Offline. Keep the persisted operationalStatus intact
+// (so reconnecting does not silently turn into On Leave/In Shop), but derive
+// the dispatcher-facing availability from BOTH operational and live state.
+const isDispatchActive = (driver: DriverTrackingItem) =>
+  opStatusOf(driver) === "active" && driver.status !== "offline";
+
+const dispatchLabelOf = (driver: DriverTrackingItem) => {
+  const operationalStatus = opStatusOf(driver);
+  if (operationalStatus === "active" && driver.status === "offline") {
+    return "Offline";
+  }
+  return OP_LABEL[operationalStatus];
 };
 
 export function DriverTrackerListCard({
@@ -102,9 +93,12 @@ export function DriverTrackerListCard({
   onAlertDriver,
   onMessageDriver,
   onViewCompliance,
+  onViewStatusRequest,
   unreadMessageCounts = {},
 }: DriverTrackerListCardProps) {
-  const [filter, setFilter] = React.useState<DriverFilter>("all");
+  const [operationalFilter, setOperationalFilter] = React.useState<OperationalFilter>("all");
+  const [activeSubFilter, setActiveSubFilter] = React.useState<ActiveSubFilter>("all");
+  const [gpsFilter, setGpsFilter] = React.useState<GpsFilter>("all");
   const [query, setQuery] = React.useState("");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const listScrollRef = React.useRef<HTMLDivElement | null>(null);
@@ -130,80 +124,91 @@ export function DriverTrackerListCard({
 
     return drivers
       .filter((d) => {
-        if (filter === "active" && d.status === "offline") return false;
-        if (filter === "offline" && d.status !== "offline") return false;
-        if (filter === "sharing" && !d.isSharing) return false;
-        if (filter === "not-sharing" && d.isSharing) return false;
+        const opStatus = opStatusOf(d);
+        if (operationalFilter === "active" && !isDispatchActive(d)) return false;
+        if (
+          operationalFilter !== "all" &&
+          operationalFilter !== "active" &&
+          opStatus !== operationalFilter
+        ) return false;
+        if (
+          operationalFilter === "active" &&
+          activeSubFilter !== "all" &&
+          d.status !== activeSubFilter
+        ) return false;
+        if (gpsFilter === "sharing" && !d.isSharing) return false;
+        if (gpsFilter === "not-sharing" && d.isSharing) return false;
         if (!q) return true;
 
         const name = d.driver?.name?.toLowerCase() || "";
         const email = d.driver?.email?.toLowerCase() || "";
         const tracking =
-          d.shipments
-            ?.map((s) => s.trackingNumber?.toLowerCase() || "")
-            .join(" ") || "";
-
+          d.shipments?.map((shipment) => shipment.trackingNumber?.toLowerCase() || "").join(" ") || "";
         return name.includes(q) || email.includes(q) || tracking.includes(q);
       })
       .sort((a, b) => {
-        // Keep the driver whose details are open at the top of the panel.
         if (a.id === expandedId && b.id !== expandedId) return -1;
         if (b.id === expandedId && a.id !== expandedId) return 1;
 
-        // Then prioritize drivers who are currently active/sharing.
-        const aActivePriority =
-          a.status !== "offline" || a.isSharing ? 0 : 1;
-        const bActivePriority =
-          b.status !== "offline" || b.isSharing ? 0 : 1;
+        const attentionRank = (driver: DriverTrackingItem) =>
+          driver.statusRequest?.priority === "emergency"
+            ? 0
+            : driver.statusRequest?.status === "approved_awaiting_reassignment"
+              ? 1
+              : 2;
+        const aAttention = attentionRank(a);
+        const bAttention = attentionRank(b);
+        if (aAttention !== bAttention) return aAttention - bAttention;
 
-        if (aActivePriority !== bActivePriority) {
-          return aActivePriority - bActivePriority;
-        }
-
-        return (
-          (originalOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-          (originalOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-        );
+        if (a.assignable !== b.assignable) return a.assignable ? -1 : 1;
+        const aSharing = a.isSharing ? 0 : 1;
+        const bSharing = b.isSharing ? 0 : 1;
+        if (aSharing !== bSharing) return aSharing - bSharing;
+        return (originalOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (originalOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER);
       });
-  }, [drivers, filter, query, expandedId]);
+  }, [drivers, operationalFilter, activeSubFilter, gpsFilter, query, expandedId]);
 
-  const counts = React.useMemo(
-    () => ({
+  const counts = React.useMemo(() => {
+    const activeDrivers = drivers.filter(isDispatchActive);
+    return {
       all: drivers.length,
-      active: drivers.filter((d) => d.status !== "offline").length,
-      offline: drivers.filter((d) => d.status === "offline").length,
-      sharing: drivers.filter((d) => d.isSharing).length,
-      "not-sharing": drivers.filter((d) => !d.isSharing).length,
-    }),
-    [drivers],
-  );
+      active: activeDrivers.length,
+      on_leave: drivers.filter((driver) => opStatusOf(driver) === "on_leave").length,
+      maintenance: drivers.filter((driver) => opStatusOf(driver) === "maintenance").length,
+      sharing: drivers.filter((driver) => driver.isSharing).length,
+      notSharing: drivers.filter((driver) => !driver.isSharing).length,
+      activeStatus: {
+        "on-route": activeDrivers.filter((driver) => driver.status === "on-route").length,
+        idle: activeDrivers.filter((driver) => driver.status === "idle").length,
+        waiting: activeDrivers.filter((driver) => driver.status === "waiting").length,
+        "on-break": activeDrivers.filter((driver) => driver.status === "on-break").length,
+        offline: 0,
+      } as Record<DriverStatus, number>,
+    };
+  }, [drivers]);
 
   return (
     <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden flex flex-col min-h-0 h-[60vh] min-h-80 max-h-105 sm:h-120 lg:h-150 lg:max-h-none">
       <CardHeader className="py-4 px-5 border-b border-border/30 shrink-0 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-black flex items-center gap-2">
-              <Users className="size-4.5 text-primary" />
+            <CardTitle className="text-lg font-black flex items-center gap-2">
+              <Users className="size-5 text-primary" />
               All Drivers
             </CardTitle>
-            <p className="text-[10px] text-muted-foreground/60 font-medium mt-0.5">
+            <p className="text-sm text-muted-foreground/80 font-medium mt-1">
               {filtered.length} of {drivers.length} driver
               {drivers.length !== 1 ? "s" : ""}
             </p>
           </div>
-          {counts.active > 0 && (
-            <Badge
-              variant="secondary"
-              className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 gap-1"
-            >
-              <span className="relative flex size-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-40" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
-              </span>
-              {counts.active} online
-            </Badge>
-          )}
+          <Badge
+            variant="secondary"
+            className="h-7 text-xs font-bold bg-blue-500/10 text-blue-600 gap-1.5 px-2.5"
+          >
+            <Wifi className="size-3.5" />
+            {counts.sharing} GPS sharing
+          </Badge>
         </div>
 
         <div className="relative">
@@ -212,44 +217,58 @@ export function DriverTrackerListCard({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name, email, or load..."
-            className="h-10 sm:h-8 pl-9 text-base sm:text-[11px] rounded-lg border-border/40 bg-muted/30"
+            className="h-10 pl-9 text-sm rounded-lg border-border/50 bg-muted/30"
           />
         </div>
 
-        <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
-          {FILTER_OPTIONS.map((opt) => {
-            const cfg = FILTER_STYLE[opt.key];
-            const isActive = filter === opt.key;
-            return (
+        <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
+          <button
+            onClick={() => { setOperationalFilter("all"); setActiveSubFilter("all"); }}
+            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+          >All ({counts.all})</button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
-                key={opt.key}
-                onClick={() => setFilter(opt.key)}
-                className={`flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-2 sm:py-1.5 min-h-9 rounded-md flex-1 min-w-[calc(33%-0.25rem)] transition-all ${
-                  isActive
-                    ? `${cfg.activeClass} border shadow-sm`
-                    : "border border-transparent hover:bg-muted/50"
-                }`}
+                className={`rounded-md px-2 py-2 text-xs font-bold border transition-all flex items-center justify-center gap-1 ${operationalFilter === "active" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
               >
-                {cfg.icon}
-                <span
-                  className={`text-[11px] font-bold flex-1 text-left ${
-                    isActive ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {opt.label}
-                </span>
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                    isActive
-                      ? cfg.badgeClass
-                      : "bg-muted/50 text-muted-foreground/60"
-                  }`}
-                >
-                  {counts[opt.key]}
-                </span>
+                Active ({counts.active}) <ChevronDown className="size-3" />
               </button>
-            );
-          })}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-52">
+              <DropdownMenuLabel className="text-xs uppercase tracking-wider">Active Drivers</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setOperationalFilter("active"); setActiveSubFilter("all"); }}>All Active ({counts.active})</DropdownMenuItem>
+              {(["on-route", "idle", "waiting", "on-break"] as DriverStatus[]).map((status) => (
+                <DropdownMenuItem key={status} onClick={() => { setOperationalFilter("active"); setActiveSubFilter(status); }}>
+                  {statusLabel[status]} ({counts.activeStatus[status]})
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <button
+            onClick={() => { setOperationalFilter("on_leave"); setActiveSubFilter("all"); }}
+            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+          >On Leave ({counts.on_leave})</button>
+          <button
+            onClick={() => { setOperationalFilter("maintenance"); setActiveSubFilter("all"); }}
+            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+          >In Shop ({counts.maintenance})</button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {([
+            ["all", `All GPS (${drivers.length})`],
+            ["sharing", `Sharing (${counts.sharing})`],
+            ["not-sharing", `Not Sharing (${counts.notSharing})`],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setGpsFilter(key)}
+              className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
+            >{label}</button>
+          ))}
         </div>
       </CardHeader>
 
@@ -259,7 +278,7 @@ export function DriverTrackerListCard({
       >
         {error && (
           <div className="rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2">
-            <p className="text-[11px] text-destructive font-medium">{error}</p>
+            <p className="text-xs text-destructive font-medium">{error}</p>
           </div>
         )}
 
@@ -282,7 +301,7 @@ export function DriverTrackerListCard({
             <div className="size-12 rounded-xl bg-muted/40 flex items-center justify-center">
               <Users className="size-6 text-muted-foreground/40" />
             </div>
-            <p className="text-xs text-muted-foreground font-medium">
+            <p className="text-sm text-muted-foreground font-medium">
               {query ? "No drivers match your search" : "No drivers found"}
             </p>
           </div>
@@ -296,6 +315,11 @@ export function DriverTrackerListCard({
             0,
             Number(unreadMessageCounts[driver.driver?.id ?? driver.id] ?? 0),
           );
+          const operationalStatus = opStatusOf(driver);
+          const dispatchLabel = dispatchLabelOf(driver);
+          const isDispatchOffline =
+            operationalStatus === "active" && driver.status === "offline";
+          const statusRequest = driver.statusRequest;
 
           return (
             <div
@@ -324,14 +348,14 @@ export function DriverTrackerListCard({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-foreground truncate">
+                      <p className="min-w-0 break-words text-sm font-bold leading-tight text-foreground [overflow-wrap:anywhere] sm:text-base">
                         {driver.driver?.name || "Unknown Driver"}
                       </p>
                       <div className="flex items-center gap-1 shrink-0">
                         {shipments.length > 0 && (
                           <Badge
                             variant="outline"
-                            className={`text-[9px] font-semibold h-5 ${eq?.maxVehicleCapacity && shipments.length >= eq.maxVehicleCapacity ? "border-red-500/50 text-red-600 dark:text-red-400" : "border-border/50"}`}
+                            className={`text-[11px] font-semibold h-7 px-2.5 ${eq?.maxVehicleCapacity && shipments.length >= eq.maxVehicleCapacity ? "border-red-500/50 text-red-600 dark:text-red-400" : "border-border/50"}`}
                           >
                             {shipments.length}
                             {eq?.maxVehicleCapacity
@@ -343,61 +367,74 @@ export function DriverTrackerListCard({
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="size-8 sm:size-6 p-0"
+                          className="size-8 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             setExpandedId(isExpanded ? null : driver.id);
                           }}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="size-3.5 sm:size-3" />
+                            <ChevronUp className="size-4" />
                           ) : (
-                            <ChevronDown className="size-3.5 sm:size-3" />
+                            <ChevronDown className="size-4" />
                           )}
                         </Button>
                       </div>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px]">
-                      <span className="relative flex size-2">
-                        {driver.status === "on-route" && (
-                          <span
-                            className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusStyles[driver.status]} opacity-40`}
-                          />
-                        )}
-                        <span
-                          className={`relative inline-flex size-2 rounded-full ${statusStyles[driver.status]}`}
-                        />
-                      </span>
-                      <span
-                        className={`font-semibold ${statusText[driver.status]}`}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={`h-7 px-2.5 text-[11px] ${
+                          isDispatchOffline
+                            ? "border-slate-500/30 bg-slate-500/5 text-slate-500"
+                            : operationalStatus === "active"
+                              ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                              : operationalStatus === "on_leave"
+                                ? "border-amber-500/30 text-amber-700 dark:text-amber-400"
+                                : "border-blue-500/30 text-blue-700 dark:text-blue-400"
+                        }`}
                       >
-                        {statusLabel[driver.status]}
-                      </span>
-                      <span className="text-muted-foreground/30">|</span>
-                      <span className="inline-flex items-center gap-1 text-muted-foreground/60">
-                        <Clock className="size-2.5" />
+                        Dispatch: {dispatchLabel}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[11px] h-7 px-2.5 ${statusText[driver.status]}`}>
+                        Live: {statusLabel[driver.status]}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[11px] h-7 gap-1.5 px-2.5 ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
+                        {driver.isSharing ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
+                        {driver.isSharing ? "Sharing" : "Not Sharing"}
+                      </Badge>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">
+                        <Clock className="size-3" />
                         {driver.lastSeenAt
-                          ? new Date(driver.lastSeenAt).toLocaleTimeString('en-US', {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              timeZone: "America/Denver",
-                            })
+                          ? new Date(driver.lastSeenAt).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })
                           : "Never"}
                       </span>
                     </div>
+                    {statusRequest && (
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); onViewStatusRequest?.(driver); }}
+                        className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${statusRequest.priority === "emergency" ? "border-red-500/25 bg-red-500/5 hover:bg-red-500/10" : "border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10"}`}
+                      >
+                        <p className={`text-sm font-bold ${statusRequest.priority === "emergency" ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
+                          {statusRequest.priority === "emergency" ? "Emergency Release Active" : statusRequest.status === "approved_awaiting_reassignment" ? "Approved — Awaiting Reassignment" : "Status Change Request Pending"}
+                        </p>
+                        <p className="text-xs text-muted-foreground/80 mt-1">Requested: {statusRequest.requestedStatus === "maintenance" ? "In Shop" : "On Leave"} · View request →</p>
+                      </button>
+                    )}
                     <div className="mt-2 grid grid-cols-2 gap-1.5">
                       {onAlertDriver && (
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-8 gap-1.5 text-[10px] font-semibold border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                          className="h-9 gap-1.5 text-xs font-semibold border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
                           onClick={(event) => {
                             event.stopPropagation();
                             onAlertDriver(driver);
                           }}
                         >
-                          <Bell className="size-3" />
+                          <Bell className="size-3.5" />
                           Alert
                         </Button>
                       )}
@@ -406,7 +443,7 @@ export function DriverTrackerListCard({
                           type="button"
                           size="sm"
                           variant="outline"
-                          className={`h-8 gap-1.5 text-[10px] font-semibold ${
+                          className={`h-9 gap-1.5 text-xs font-semibold ${
                             unreadMessageCount > 0
                               ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300"
                               : "border-primary/30 hover:bg-primary/5"
@@ -416,7 +453,7 @@ export function DriverTrackerListCard({
                             onMessageDriver(driver);
                           }}
                         >
-                          <MessageSquare className="size-3" />
+                          <MessageSquare className="size-3.5" />
                           {unreadMessageCount > 0
                             ? `New Message${unreadMessageCount === 1 ? "" : "s"} (${unreadMessageCount})`
                             : "Message"}
@@ -426,13 +463,13 @@ export function DriverTrackerListCard({
 
                     {eq?.trailerType && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[9px] font-semibold text-purple-600 dark:text-purple-400">
-                          <Truck className="size-2.5" />
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/10 px-2.5 py-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                          <Truck className="size-3" />
                           {trailerLabel(eq.trailerType)}
                         </span>
                         {eq.maxVehicleCapacity && eq.maxVehicleCapacity > 0 && (
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"}`}
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"}`}
                           >
                             {shipments.length}/{eq.maxVehicleCapacity} loads
                           </span>
@@ -448,20 +485,20 @@ export function DriverTrackerListCard({
                   <div className="pt-2 grid grid-cols-2 gap-2">
                     {eq?.truckMake && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
-                        <p className="text-[9px] text-muted-foreground font-medium">
+                        <p className="text-[11px] text-muted-foreground font-semibold">
                           Truck
                         </p>
-                        <p className="text-[11px] font-bold">
+                        <p className="text-sm font-bold">
                           {eq.truckMake} {eq.truckModel || ""}
                         </p>
                       </div>
                     )}
                     {eq?.trailerType && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
-                        <p className="text-[9px] text-muted-foreground font-medium">
+                        <p className="text-[11px] text-muted-foreground font-semibold">
                           Trailer
                         </p>
-                        <p className="text-[11px] font-bold">
+                        <p className="text-sm font-bold">
                           {trailerLabel(eq.trailerType)}
                         </p>
                       </div>
@@ -470,11 +507,11 @@ export function DriverTrackerListCard({
                       <div
                         className={`rounded-lg px-2.5 py-1.5 ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/5 border border-red-500/10" : "bg-muted/30"}`}
                       >
-                        <p className="text-[9px] text-muted-foreground font-medium">
+                        <p className="text-[11px] text-muted-foreground font-semibold">
                           Load Capacity
                         </p>
                         <p
-                          className={`text-[11px] font-bold ${shipments.length >= eq.maxVehicleCapacity ? "text-red-600 dark:text-red-400" : ""}`}
+                          className={`text-sm font-bold ${shipments.length >= eq.maxVehicleCapacity ? "text-red-600 dark:text-red-400" : ""}`}
                         >
                           {shipments.length}/{eq.maxVehicleCapacity} active
                         </p>
@@ -482,17 +519,27 @@ export function DriverTrackerListCard({
                     )}
                     {eq?.operationalStatus && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
-                        <p className="text-[9px] text-muted-foreground font-medium">
-                          Op. Status
+                        <p className="text-[11px] text-muted-foreground font-semibold">
+                          Dispatch Status
                         </p>
-                        <p className="text-[11px] font-bold capitalize">
-                          {eq.operationalStatus.replace("_", " ")}
+                        <p
+                          className={`text-sm font-bold ${
+                            isDispatchOffline
+                              ? "text-slate-500"
+                              : operationalStatus === "active"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : operationalStatus === "on_leave"
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-blue-600 dark:text-blue-400"
+                          }`}
+                        >
+                          {dispatchLabel}
                         </p>
                       </div>
                     )}
                     {eq?.profileCompletionScore != null && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
-                        <p className="text-[9px] text-muted-foreground font-medium">
+                        <p className="text-[11px] text-muted-foreground font-semibold">
                           Profile
                         </p>
                         <div className="flex items-center gap-1.5">
@@ -502,7 +549,7 @@ export function DriverTrackerListCard({
                               style={{ width: `${eq.profileCompletionScore}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-bold">
+                          <span className="text-xs font-bold">
                             {eq.profileCompletionScore}%
                           </span>
                         </div>
@@ -523,12 +570,12 @@ export function DriverTrackerListCard({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground">
-                              <FileCheck2 className="size-2.5 text-emerald-500" />
+                            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                              <FileCheck2 className="size-3 text-emerald-500" />
                               Compliance & Documents
                             </p>
                             <p
-                              className={`mt-0.5 text-[10px] font-bold ${
+                              className={`mt-1 text-sm font-bold ${
                                 eq?.isComplianceExpired
                                   ? "text-red-600 dark:text-red-400"
                                   : "text-foreground"
@@ -539,7 +586,7 @@ export function DriverTrackerListCard({
                                 : "View verification records"}
                             </p>
                           </div>
-                          <span className="shrink-0 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                          <span className="shrink-0 text-xs font-black text-emerald-600 dark:text-emerald-400">
                             View →
                           </span>
                         </div>
@@ -547,10 +594,10 @@ export function DriverTrackerListCard({
                     )}
                     {eq?.isComplianceExpired && (
                       <div className="rounded-lg bg-red-500/5 border border-red-500/10 px-2.5 py-1.5">
-                        <p className="text-[9px] text-red-500 font-medium">
+                        <p className="text-[11px] text-red-500 font-semibold">
                           Compliance
                         </p>
-                        <p className="text-[11px] font-bold text-red-600 dark:text-red-400">
+                        <p className="text-sm font-bold text-red-600 dark:text-red-400">
                           Expired
                         </p>
                       </div>
@@ -559,7 +606,7 @@ export function DriverTrackerListCard({
 
                   {shipments.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Active Loads
                       </p>
                       {shipments.map((s) => (
@@ -569,11 +616,11 @@ export function DriverTrackerListCard({
                         >
                           <Package className="size-3 text-primary shrink-0" />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold truncate">
+                            <p className="text-sm font-bold truncate">
                               {s.trackingNumber || s.id}
                             </p>
                             {(s.origin || s.destination) && (
-                              <p className="text-[9px] text-muted-foreground truncate">
+                              <p className="text-xs text-muted-foreground/80 truncate">
                                 {s.origin} → {s.destination}
                               </p>
                             )}
@@ -581,7 +628,7 @@ export function DriverTrackerListCard({
                           {s.status && (
                             <Badge
                               variant="outline"
-                              className="text-[8px] h-4 shrink-0"
+                              className="text-[10px] h-6 shrink-0"
                             >
                               {s.status}
                             </Badge>
@@ -595,14 +642,15 @@ export function DriverTrackerListCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full h-7 text-[10px] font-semibold gap-1.5 border-border/50 hover:bg-primary/5 hover:text-primary hover:border-primary/30"
+                      disabled={!driver.assignable}
+                      className="w-full h-10 text-sm font-semibold gap-2 border-border/50 hover:bg-primary/5 hover:text-primary hover:border-primary/30 disabled:opacity-50"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onAssignLoad(driver);
+                        if (driver.assignable) onAssignLoad(driver);
                       }}
                     >
-                      <UserPlus className="size-3" />
-                      Assign Load
+                      <UserPlus className="size-3.5" />
+                      {driver.assignable ? "Assign Load" : "Unavailable for Assignment"}
                     </Button>
                   )}
                 </div>

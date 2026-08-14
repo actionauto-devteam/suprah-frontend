@@ -2,16 +2,30 @@
 
 import * as React from "react";
 import {
-  Package, Truck, Loader2, UserPlus, Megaphone,
-  MapPin, ArrowRight, Calendar, DollarSign, Search,
-  CheckCircle2, XCircle, AlertTriangle,
+  Package,
+  Truck,
+  Loader2,
+  UserPlus,
+  Megaphone,
+  MapPin,
+  ArrowRight,
+  Calendar,
+  DollarSign,
+  Search,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { DriverTrackingItem } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
@@ -72,8 +86,8 @@ export function DriverTrackerAvailableLoadsCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-2">
-        <Loader2 className="size-5 text-primary animate-spin" />
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <Loader2 className="size-5 animate-spin text-primary" />
         <p className="text-xs text-muted-foreground">Loading available loads...</p>
       </div>
     );
@@ -81,12 +95,14 @@ export function DriverTrackerAvailableLoadsCard({
 
   if (loads.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-center">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/40">
           <Package className="size-7 text-muted-foreground/40" />
         </div>
-        <p className="text-sm text-muted-foreground font-medium">No available loads</p>
-        <p className="text-[11px] text-muted-foreground/60">Create a load or post to the load board</p>
+        <p className="text-sm font-medium text-muted-foreground">No available loads</p>
+        <p className="break-words text-xs leading-relaxed text-muted-foreground/70 [overflow-wrap:anywhere]">
+          Create a load or post to the load board
+        </p>
       </div>
     );
   }
@@ -95,53 +111,61 @@ export function DriverTrackerAvailableLoadsCard({
     <>
       <div className="divide-y divide-border/30">
         {loads.map((load) => (
-          <div key={load._id} className="p-3 sm:p-4 hover:bg-accent/30 transition-colors">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                <div className="size-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+          <div key={load._id} className="p-3 transition-colors hover:bg-accent/30 sm:p-4">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start sm:gap-4">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
                   <Package className="size-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-bold text-foreground">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="min-w-0 break-all text-sm font-bold text-foreground [overflow-wrap:anywhere]">
                       {load.trackingNumber || load._id.slice(-8)}
                     </p>
-                    <div className="flex gap-1 flex-wrap">
+                    <div className="flex min-w-0 flex-wrap gap-1">
                       {load.isPostedToBoard && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-blue-300 dark:border-blue-500/40 text-blue-600 dark:text-blue-400 gap-0.5">
-                          <Megaphone className="size-2.5" />Board
+                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight text-blue-600 [overflow-wrap:anywhere] border-blue-300 dark:border-blue-500/40 dark:text-blue-400">
+                          <Megaphone className="mr-0.5 size-2.5 shrink-0" />Board
                         </Badge>
                       )}
                       {load.trailerTypeRequired && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-purple-300 dark:border-purple-500/40 text-purple-600 dark:text-purple-400 gap-0.5">
-                          <Truck className="size-2.5" />{trailerLabel(load.trailerTypeRequired)}
+                        <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
+                          <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(load.trailerTypeRequired)}
                         </Badge>
                       )}
                       {load.vehicleCount && load.vehicleCount > 0 && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-indigo-300 dark:border-indigo-500/40 text-indigo-600 dark:text-indigo-400">
+                        <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
                           {load.vehicleCount} vehicle{load.vehicleCount !== 1 ? "s" : ""}
                         </Badge>
                       )}
                     </div>
                   </div>
+
                   {(load.origin || load.destination) && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <MapPin className="size-3 shrink-0" />
-                      <span className="truncate">{load.origin}</span>
-                      <ArrowRight className="size-3 shrink-0 text-muted-foreground/40" />
-                      <span className="truncate">{load.destination}</span>
+                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 text-[11px] leading-relaxed text-muted-foreground sm:flex sm:flex-wrap sm:items-center">
+                      <MapPin className="mt-0.5 size-3 shrink-0 sm:mt-0" />
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] sm:max-w-[16rem]">
+                        {load.origin || "Origin not provided"}
+                      </span>
+                      <ArrowRight className="col-start-1 mt-0.5 size-3 shrink-0 text-muted-foreground/40 sm:col-auto sm:mt-0" />
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere] sm:max-w-[16rem]">
+                        {load.destination || "Destination not provided"}
+                      </span>
                     </div>
                   )}
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60 flex-wrap">
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground/70">
                     {load.requestedPickupDate && (
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="size-2.5" />
-                        Pickup: {new Date(load.requestedPickupDate).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
+                      <span className="inline-flex min-w-0 items-start gap-1">
+                        <Calendar className="mt-0.5 size-2.5 shrink-0" />
+                        <span className="break-words [overflow-wrap:anywhere]">
+                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "America/Denver" })}
+                        </span>
                       </span>
                     )}
                     {load.carrierPayAmount != null && load.carrierPayAmount > 0 && (
                       <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                        <DollarSign className="size-2.5" />
+                        <DollarSign className="size-2.5 shrink-0" />
                         {load.carrierPayAmount.toLocaleString()}
                       </span>
                     )}
@@ -151,9 +175,12 @@ export function DriverTrackerAvailableLoadsCard({
 
               <Button
                 size="sm"
-                className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 shrink-0 shadow-sm w-full sm:w-auto"
+                className="h-10 w-full shrink-0 gap-1.5 px-3 text-xs font-bold shadow-sm sm:h-8 sm:w-auto"
                 disabled={assigning === load._id || activeDrivers.length === 0}
-                onClick={() => { setAssignLoad(load); setDriverSearch(""); }}
+                onClick={() => {
+                  setAssignLoad(load);
+                  setDriverSearch("");
+                }}
               >
                 {assigning === load._id ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -169,138 +196,170 @@ export function DriverTrackerAvailableLoadsCard({
         ))}
       </div>
 
-      <Dialog open={assignLoad !== null} onOpenChange={(open) => { if (!open) setAssignLoad(null); }}>
+      <Dialog
+        open={assignLoad !== null}
+        onOpenChange={(open) => {
+          if (!open) setAssignLoad(null);
+        }}
+      >
         <DialogContent
-          className="sm:max-w-xl w-[calc(100%-1.5rem)] sm:w-full"
-          overlayClassName="bg-black/72 backdrop-blur-[4px]"
+          className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[88dvh] sm:w-[92vw] sm:max-w-xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
+          overlayClassName="bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
         >
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <UserPlus className="size-4 text-primary" />
-              Assign Driver
+          <DialogHeader className="shrink-0 border-b border-border/60 px-4 py-4 text-left sm:px-5">
+            <DialogTitle className="flex min-w-0 items-start gap-2 pr-6 text-base font-bold">
+              <UserPlus className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">Assign Driver</span>
             </DialogTitle>
+            <DialogDescription className="break-words text-xs leading-relaxed [overflow-wrap:anywhere]">
+              Choose an available driver for this load. Driver details and compatibility indicators remain fully visible on smaller screens.
+            </DialogDescription>
+
             {assignLoad && (
-              <div className="mt-2 rounded-lg border border-border/40 p-3 space-y-1.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Package className="size-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <p className="text-sm font-bold">{assignLoad.trackingNumber || assignLoad._id.slice(-8)}</p>
-                  <div className="flex gap-1 flex-wrap">
+              <div className="mt-2 space-y-2 rounded-lg border border-border/40 bg-muted/[0.12] p-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Package className="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <p className="min-w-0 break-all text-sm font-bold [overflow-wrap:anywhere]">
+                    {assignLoad.trackingNumber || assignLoad._id.slice(-8)}
+                  </p>
+                  <div className="flex min-w-0 flex-wrap gap-1">
                     {assignLoad.trailerTypeRequired && (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-purple-300 dark:border-purple-500/40 text-purple-600 dark:text-purple-400 gap-0.5">
-                        <Truck className="size-2.5" />{trailerLabel(assignLoad.trailerTypeRequired)}
+                      <Badge variant="outline" className="min-h-5 h-auto max-w-full whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-300 dark:border-purple-500/40 dark:text-purple-400">
+                        <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(assignLoad.trailerTypeRequired)}
                       </Badge>
                     )}
                     {assignLoad.vehicleCount && assignLoad.vehicleCount > 0 && (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 border-indigo-300 dark:border-indigo-500/40 text-indigo-600 dark:text-indigo-400">
+                      <Badge variant="outline" className="min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] border-indigo-300 text-indigo-600 dark:border-indigo-500/40 dark:text-indigo-400">
                         {assignLoad.vehicleCount} vehicle{assignLoad.vehicleCount !== 1 ? "s" : ""}
                       </Badge>
                     )}
                   </div>
                 </div>
+
                 {(assignLoad.origin || assignLoad.destination) && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <MapPin className="size-3 shrink-0" />
-                    <span className="truncate">{assignLoad.origin}</span>
-                    <ArrowRight className="size-3 shrink-0" />
-                    <span className="truncate">{assignLoad.destination}</span>
+                  <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 text-[11px] leading-relaxed text-muted-foreground sm:flex sm:flex-wrap sm:items-center">
+                    <MapPin className="mt-0.5 size-3 shrink-0 sm:mt-0" />
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                      {assignLoad.origin || "Origin not provided"}
+                    </span>
+                    <ArrowRight className="col-start-1 mt-0.5 size-3 shrink-0 sm:col-auto sm:mt-0" />
+                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                      {assignLoad.destination || "Destination not provided"}
+                    </span>
                   </div>
                 )}
               </div>
             )}
           </DialogHeader>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40" />
-            <Input
-              value={driverSearch}
-              onChange={(e) => setDriverSearch(e.target.value)}
-              placeholder="Search drivers..."
-              className="h-10 sm:h-9 pl-9 text-base sm:text-xs rounded-lg border-border/40"
-            />
-          </div>
-
-          <div className="space-y-1.5 max-h-[50vh] sm:max-h-80 overflow-y-auto modal-scrollbar pr-1">
-            {filteredDrivers.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-8 gap-2">
-                <p className="text-xs text-muted-foreground">No drivers found</p>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+            <div className="sticky top-0 z-10 -mx-1 mb-3 bg-background/95 px-1 pb-2 backdrop-blur-sm">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/40" />
+                <Input
+                  value={driverSearch}
+                  onChange={(e) => setDriverSearch(e.target.value)}
+                  placeholder="Search drivers..."
+                  className="h-10 rounded-lg border-border/40 pl-9 text-base sm:h-9 sm:text-xs"
+                />
               </div>
-            )}
-            {filteredDrivers.map((driver) => {
-              const eq = driver.equipment;
-              const trailerMatch = eq?.trailerType && assignLoad?.trailerTypeRequired
-                ? eq.trailerType === assignLoad.trailerTypeRequired : null;
-              const capacityMatch = eq?.maxVehicleCapacity && assignLoad?.vehicleCount
-                ? eq.maxVehicleCapacity >= assignLoad.vehicleCount : null;
+            </div>
 
-              return (
-                <div
-                  key={driver.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border/40 p-3 gap-3 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
-                >
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <Avatar className="size-10 border-2 border-background shadow-sm shrink-0">
-                      {driver.driver?.avatar && <AvatarImage src={driver.driver.avatar} />}
-                      <AvatarFallback className="text-xs font-bold bg-primary/5 text-primary">
-                        {driver.driver?.name?.[0]?.toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-sm font-bold truncate">{driver.driver?.name || "Unknown"}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
-                        <span>{driver.shipments?.length || 0} load{(driver.shipments?.length || 0) !== 1 ? "s" : ""}</span>
-                        {eq?.truckMake && (
-                          <>
-                            <span className="text-muted-foreground/30">|</span>
-                            <span className="truncate">{eq.truckMake} {eq.truckModel || ""}</span>
-                          </>
+            <div className="space-y-1.5">
+              {filteredDrivers.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+                  <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">No drivers found</p>
+                </div>
+              )}
+
+              {filteredDrivers.map((driver) => {
+                const eq = driver.equipment;
+                const trailerMatch = eq?.trailerType && assignLoad?.trailerTypeRequired
+                  ? eq.trailerType === assignLoad.trailerTypeRequired
+                  : null;
+                const capacityMatch = eq?.maxVehicleCapacity && assignLoad?.vehicleCount
+                  ? eq.maxVehicleCapacity >= assignLoad.vehicleCount
+                  : null;
+
+                return (
+                  <div
+                    key={driver.id}
+                    className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-border/40 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-sm sm:flex-row sm:items-center"
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <Avatar className="size-10 shrink-0 border-2 border-background shadow-sm">
+                        {driver.driver?.avatar && <AvatarImage src={driver.driver.avatar} />}
+                        <AvatarFallback className="bg-primary/5 text-xs font-bold text-primary">
+                          {driver.driver?.name?.[0]?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
+                          {driver.driver?.name || "Unknown"}
+                        </p>
+                        {driver.driver?.email && (
+                          <p className="break-all text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                            {driver.driver.email}
+                          </p>
                         )}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {eq?.trailerType && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 gap-0.5">
-                            <Truck className="size-2.5" />{trailerLabel(eq.trailerType)}
-                          </Badge>
-                        )}
-                        {eq?.maxVehicleCapacity != null && eq.maxVehicleCapacity > 0 && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30">
-                            Cap: {eq.maxVehicleCapacity}
-                          </Badge>
-                        )}
-                        {trailerMatch !== null && (
-                          <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${trailerMatch ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30"}`}>
-                            {trailerMatch ? <CheckCircle2 className="size-2.5" /> : <XCircle className="size-2.5" />}
-                            Trailer
-                          </Badge>
-                        )}
-                        {capacityMatch !== null && (
-                          <Badge className={`text-[9px] px-1.5 py-0 h-5 gap-0.5 ${capacityMatch ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30"}`}>
-                            {capacityMatch ? <CheckCircle2 className="size-2.5" /> : <XCircle className="size-2.5" />}
-                            Capacity
-                          </Badge>
-                        )}
-                        {eq?.isComplianceExpired && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
-                            <AlertTriangle className="size-2.5" />Expired
-                          </Badge>
-                        )}
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+                          <span>{driver.shipments?.length || 0} load{(driver.shipments?.length || 0) !== 1 ? "s" : ""}</span>
+                          {eq?.truckMake && (
+                            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                              {eq.truckMake} {eq.truckModel || ""}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex min-w-0 flex-wrap gap-1">
+                          {eq?.trailerType && (
+                            <Badge className="min-h-5 h-auto max-w-full whitespace-normal break-words bg-purple-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-purple-600 [overflow-wrap:anywhere] border-purple-200 dark:border-purple-500/30 dark:text-purple-400">
+                              <Truck className="mr-0.5 size-2.5 shrink-0" />{trailerLabel(eq.trailerType)}
+                            </Badge>
+                          )}
+                          {eq?.maxVehicleCapacity != null && eq.maxVehicleCapacity > 0 && (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words bg-indigo-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-indigo-600 [overflow-wrap:anywhere] border-indigo-200 dark:border-indigo-500/30 dark:text-indigo-400">
+                              Cap: {eq.maxVehicleCapacity}
+                            </Badge>
+                          )}
+                          {trailerMatch !== null && (
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${trailerMatch ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
+                              {trailerMatch ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
+                              Trailer
+                            </Badge>
+                          )}
+                          {capacityMatch !== null && (
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${capacityMatch ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
+                              {capacityMatch ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
+                              Capacity
+                            </Badge>
+                          )}
+                          {eq?.isComplianceExpired && (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                              <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Expired
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    <Button
+                      size="sm"
+                      className="h-10 w-full shrink-0 px-3 text-xs font-bold shadow-sm sm:h-8 sm:w-auto"
+                      disabled={assigning !== null}
+                      onClick={() => driver.driver?.id && assignLoad && handleAssign(assignLoad, driver.driver.id)}
+                    >
+                      {assigning === assignLoad?._id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        "Assign"
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    className="h-10 sm:h-8 px-3 text-xs font-bold shrink-0 shadow-sm w-full sm:w-auto"
-                    disabled={assigning !== null}
-                    onClick={() => driver.driver?.id && assignLoad && handleAssign(assignLoad, driver.driver.id)}
-                  >
-                    {assigning === assignLoad?._id ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      "Assign"
-                    )}
-                  </Button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -131,13 +131,15 @@ export function DriverTrackerMap({
                 transition-[opacity,transform,filter]
                 duration-500
                 ease-out
-                ${isMapReady
-                  ? "scale-100 opacity-100"
-                  : "scale-[0.992] opacity-0"
+                ${
+                  isMapReady
+                    ? "scale-100 opacity-100"
+                    : "scale-[0.992] opacity-0"
                 }
-                ${showThemeTransition
-                  ? "scale-[1.004] blur-[1.5px] brightness-[0.82] saturate-[0.82]"
-                  : "blur-0 brightness-100 saturate-100"
+                ${
+                  showThemeTransition
+                    ? "scale-[1.004] blur-[1.5px] brightness-[0.82] saturate-[0.82]"
+                    : "blur-0 brightness-100 saturate-100"
                 }
               `}
               style={{
@@ -151,7 +153,7 @@ export function DriverTrackerMap({
                 <Satellite className="size-8 text-muted-foreground/40" />
               </div>
 
-              <p className="text-sm font-medium text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 Add NEXT_PUBLIC_MAPBOX_TOKEN to enable the live map
               </p>
             </div>
@@ -163,9 +165,10 @@ export function DriverTrackerMap({
               className={`
                 absolute inset-0 z-20 overflow-hidden bg-background
                 transition-all duration-500 ease-out
-                ${isInitialLoading
-                  ? "visible opacity-100"
-                  : "invisible pointer-events-none opacity-0"
+                ${
+                  isInitialLoading
+                    ? "visible opacity-100"
+                    : "invisible pointer-events-none opacity-0"
                 }
               `}
               role="status"
@@ -173,13 +176,13 @@ export function DriverTrackerMap({
               aria-hidden={!isInitialLoading}
             >
               <div className="absolute inset-0 map-skeleton-grid opacity-70" />
-              <div className="absolute -left-16 top-[18%] h-28 w-[65%] rotate-[-8deg] rounded-[50%] border-18 border-muted/45" />
-              <div className="absolute -right-16 bottom-[20%] h-32 w-[70%] rotate-11 rounded-[50%] border-20 border-muted/40" />
+              <div className="absolute -left-16 top-[18%] h-28 w-[65%] rotate-[-8deg] rounded-[50%] border-[18px] border-muted/45" />
+              <div className="absolute -right-16 bottom-[20%] h-32 w-[70%] rotate-[11deg] rounded-[50%] border-[20px] border-muted/40" />
               <div className="absolute left-[28%] top-[34%] size-3 rounded-full bg-primary/35 ring-8 ring-primary/5" />
               <div className="absolute right-[22%] bottom-[31%] size-2.5 rounded-full bg-primary/25 ring-8 ring-primary/5" />
 
               <div className="absolute inset-0 flex items-center justify-center px-4">
-                <div className="map-loading-card flex w-full max-w-62.5 items-center gap-3 rounded-2xl border border-border/50 bg-background/82 px-4 py-3.5 shadow-xl backdrop-blur-md">
+                <div className="map-loading-card flex w-full max-w-[250px] items-center gap-3 rounded-2xl border border-border/50 bg-background/82 px-4 py-3.5 shadow-xl backdrop-blur-md">
                   <div className="relative flex size-10 shrink-0 items-center justify-center">
                     <div className="absolute inset-0 animate-pulse rounded-xl bg-primary/10" />
                     <MapPinned className="relative size-5 text-primary" />
@@ -187,10 +190,10 @@ export function DriverTrackerMap({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-foreground">
+                    <p className="text-sm font-semibold text-foreground">
                       Preparing live map
                     </p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground/80">
                       Loading driver locations…
                     </p>
                     <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-muted">
@@ -206,11 +209,12 @@ export function DriverTrackerMap({
           {mapboxToken && (
             <div
               className={`
-                pointer-events-none absolute inset-0 z-15
+                pointer-events-none absolute inset-0 z-[15]
                 transition-all duration-500 ease-out
-                ${showThemeTransition
-                  ? "visible opacity-100"
-                  : "invisible opacity-0"
+                ${
+                  showThemeTransition
+                    ? "visible opacity-100"
+                    : "invisible opacity-0"
                 }
               `}
               role="status"
@@ -223,15 +227,16 @@ export function DriverTrackerMap({
                 className={`
                   absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                   transition-all duration-300 ease-out
-                  ${showThemeTransition
-                    ? "scale-100 opacity-100"
-                    : "scale-95 opacity-0"
+                  ${
+                    showThemeTransition
+                      ? "scale-100 opacity-100"
+                      : "scale-95 opacity-0"
                   }
                 `}
               >
                 <div className="flex items-center gap-2.5 rounded-full border border-border/50 bg-background/82 px-3.5 py-2 shadow-lg backdrop-blur-md">
                   <div className="size-3.5 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
-                  <span className="whitespace-nowrap text-[11px] font-semibold text-foreground">
+                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
                     {mapNotice || "Updating map theme…"}
                   </span>
                 </div>
@@ -243,7 +248,7 @@ export function DriverTrackerMap({
           {informationalNotice && mapboxToken && (
             <div className="pointer-events-none absolute inset-0 z-10 flex animate-map-notice-in items-center justify-center px-4">
               <div className="max-w-full rounded-xl border border-border/50 bg-background/90 px-4 py-3 shadow-lg backdrop-blur-sm transition-colors duration-300 sm:px-6">
-                <p className="text-center text-xs font-medium text-muted-foreground">
+                <p className="text-center text-sm font-medium text-muted-foreground">
                   {informationalNotice}
                 </p>
               </div>
@@ -265,15 +270,16 @@ export function DriverTrackerMap({
                     shrink-0
                     rounded-lg
                     px-2
-                    text-[10px]
+                    text-xs
                     font-bold
                     transition-all
                     duration-200
                     sm:h-7
                     sm:px-2.5
-                    ${mapFilter === filter.key
-                      ? "shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                    ${
+                      mapFilter === filter.key
+                        ? "shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     }
                   `}
                   onClick={() => onMapFilterChange(filter.key)}
@@ -314,18 +320,18 @@ export function DriverTrackerMap({
           {/* Status legend */}
           {isMapReady && (
             <details
-              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-4 sm:left-4 sm:w-44"
+              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-44 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-4 sm:left-4 sm:w-48"
               open
             >
               <summary className="flex cursor-pointer list-none select-none items-center justify-between p-3 sm:p-4 sm:pb-0 [&::-webkit-details-marker]:hidden">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                   Status
                 </span>
 
                 <ChevronDown className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
               </summary>
 
-              <div className="space-y-2 px-3 pt-2 pb-3 text-xs sm:px-4 sm:pt-3 sm:pb-4">
+              <div className="space-y-2 px-3 pt-2 pb-3 text-sm sm:px-4 sm:pt-3 sm:pb-4">
                 {MAP_STATUS_ITEMS.map((item) => (
                   <div key={item.label} className="flex items-center gap-2.5">
                     <span className="relative flex size-2.5 shrink-0">
@@ -354,7 +360,7 @@ export function DriverTrackerMap({
 
                 {activeCount > 0 && (
                   <div className="mt-1 border-t border-border/30 pt-2">
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground/80">
                       <span className="font-bold text-foreground">
                         {activeCount}
                       </span>{" "}

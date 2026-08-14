@@ -93,79 +93,90 @@ export function DriverDispatchAlertDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+      <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)] sm:max-w-md duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0" overlayClassName="bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-4 py-4 text-left sm:px-6 sm:py-5">
+          <DialogTitle className="flex min-w-0 items-start gap-2 pr-7 text-lg font-black">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
               <BellRing className="size-4.5" />
             </span>
-            Alert {driver?.driver?.name || 'Driver'}
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+              Alert {driver?.driver?.name || 'Driver'}
+            </span>
           </DialogTitle>
-          <DialogDescription>
-            Sends an urgent in-app, push, vibration, and audible warning alert.
+          <DialogDescription className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
+            Sends an urgent in-app, push, vibration, and audible warning alert to this driver.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <Label htmlFor="driver-alert-destination-type">Destination type</Label>
-            <Select value={destinationType} onValueChange={(value) => handleDestinationType(value as DestinationType)}>
-              <SelectTrigger id="driver-alert-destination-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="site">Current Site</SelectItem>
-                <SelectItem value="carshop">Lehi Carshop</SelectItem>
-                <SelectItem value="specific-shop">Specific Shop</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="driver-alert-destination-type">Destination type</Label>
+              <Select value={destinationType} onValueChange={(value) => handleDestinationType(value as DestinationType)}>
+                <SelectTrigger id="driver-alert-destination-type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="site">Current Site</SelectItem>
+                  <SelectItem value="carshop">Lehi Carshop</SelectItem>
+                  <SelectItem value="specific-shop">Specific Shop</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="driver-alert-destination">Destination</Label>
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="space-y-1.5">
+              <Label htmlFor="driver-alert-destination">Destination</Label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="driver-alert-destination"
+                  value={destinationName}
+                  onChange={(event) => setDestinationName(event.target.value)}
+                  placeholder="Enter destination name"
+                  className="w-full pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="driver-alert-address">Address or directions</Label>
               <Input
-                id="driver-alert-destination"
-                value={destinationName}
-                onChange={(event) => setDestinationName(event.target.value)}
-                placeholder="Enter destination name"
-                className="pl-9"
+                id="driver-alert-address"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="Optional street address or directions"
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="driver-alert-message">Message</Label>
+                <span className="text-[10px] text-muted-foreground">{message.length}/500</span>
+              </div>
+              <Textarea
+                id="driver-alert-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Optional instruction for the driver"
+                maxLength={500}
+                rows={4}
+                className="min-h-24 resize-y break-words [overflow-wrap:anywhere]"
               />
             </div>
           </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="driver-alert-address">Address or directions</Label>
-            <Input
-              id="driver-alert-address"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              placeholder="Optional street address or directions"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="driver-alert-message">Message</Label>
-            <Textarea
-              id="driver-alert-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Optional instruction for the driver"
-              maxLength={500}
-              rows={3}
-            />
-          </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
-            Cancel
-          </Button>
-          <Button onClick={sendAlert} disabled={sending || !destinationName.trim()}>
-            {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <BellRing className="mr-2 size-4" />}
-            Send Alert
-          </Button>
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-background px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
+              Cancel
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={sendAlert} disabled={sending || !destinationName.trim()}>
+              {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <BellRing className="mr-2 size-4" />}
+              <span className="break-words text-center [overflow-wrap:anywhere]">Send Alert</span>
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

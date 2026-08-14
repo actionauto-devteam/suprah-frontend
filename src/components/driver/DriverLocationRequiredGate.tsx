@@ -15,8 +15,9 @@ import { useDriverLocationSharing } from "@/context/DriverLocationSharingContext
 
 export function DriverLocationRequiredGate() {
   const {
-    hasActiveLoad,
     isLoadPolicyResolved,
+    isLocationRequired,
+    locationRequirementReason,
     isLocationAccessBlocked,
     locationPermissionState,
     isRecoveringLocationAccess,
@@ -28,8 +29,7 @@ export function DriverLocationRequiredGate() {
   const gateRef = React.useRef<HTMLDivElement | null>(null);
   const isCheckingPolicy = !isLoadPolicyResolved;
   const shouldBlock =
-    isCheckingPolicy ||
-    (hasActiveLoad && isLocationAccessBlocked);
+    isCheckingPolicy || (isLocationRequired && isLocationAccessBlocked);
 
   React.useEffect(() => {
     if (!shouldBlock || typeof document === "undefined") return;
@@ -101,15 +101,18 @@ export function DriverLocationRequiredGate() {
             id="driver-location-required-title"
             className="mt-4 text-xl font-black tracking-tight text-foreground"
           >
-            Location Access Required
+            {locationRequirementReason === "dispatch_retained_load"
+              ? "GPS Required by Dispatch"
+              : "Location Access Required"}
           </h2>
 
           <p
             id="driver-location-required-description"
             className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground"
           >
-            You currently have an active load. Live location sharing must remain
-            enabled so Dispatch can monitor the load while it is in your care.
+            {locationRequirementReason === "dispatch_retained_load"
+              ? "Dispatch kept one or more active loads assigned to you and requires live location sharing while those retained loads remain active."
+              : "You currently have an active load. Live location sharing must remain enabled so Dispatch can monitor the load while it is in your care."}
           </p>
         </div>
 
@@ -145,9 +148,9 @@ export function DriverLocationRequiredGate() {
                     Location is unavailable on this device
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    This browser or device does not provide geolocation. Use a
-                    supported GPS-enabled device to continue working with active
-                    loads.
+                    {locationRequirementReason === "dispatch_retained_load"
+                      ? "This browser or device does not provide geolocation. Use a supported GPS-enabled device while Dispatch requires tracking for your retained load."
+                      : "This browser or device does not provide geolocation. Use a supported GPS-enabled device to continue working with active loads."}
                   </p>
                 </div>
               </div>
@@ -235,9 +238,9 @@ export function DriverLocationRequiredGate() {
           <div className="flex items-start gap-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
             <p className="text-[10px] leading-relaxed text-muted-foreground">
-              SUPRAH first reconnects GPS without interrupting your page. A
-              one-time automatic refresh is used only if the browser cannot
-              activate the restored location permission without it.
+              {locationRequirementReason === "dispatch_retained_load"
+                ? "Dispatch requires GPS while retained loads stay assigned. SUPRAH reconnects location without interrupting your page whenever possible."
+                : "SUPRAH first reconnects GPS without interrupting your page. A one-time automatic refresh is used only if the browser cannot activate the restored location permission without it."}
             </p>
           </div>
         </div>

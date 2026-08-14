@@ -156,12 +156,15 @@ function getStatusColor(status?: LoadStatus): string {
 /**
  * Generates the downloadable Load Documentation / Load Manifest PDF.
  *
- * The layout is optimized for a single A4 page for normal load data:
- * - compact header
- * - side-by-side customer and vehicle information
- * - wrapped route text
- * - two-column timeline
- * - financial details beside the total rate
+ * Readability is prioritized for print preview, saved PDF, and physical print:
+ * - larger minimum font sizes
+ * - more line height and character spacing
+ * - roomier information rows and cards
+ * - wider usable value areas
+ * - wrapped route and long text without squeezing the typography
+ *
+ * Normal load records still fit on a single A4 page while preserving a
+ * comfortable bottom safety area so content is not compressed toward the footer.
  */
 export const generateLoadPDF = async (
   load: Load,
@@ -233,8 +236,10 @@ export const generateLoadPDF = async (
   ) => {
     setTextHex(colors.text);
     pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(8.8);
+    pdf.setFontSize(9.8);
+    pdf.setCharSpace(0.08);
     pdf.text(title, x, y);
+    pdf.setCharSpace(0);
 
     const titleWidth = pdf.getTextWidth(title);
     setDrawHex("#cbd5e1");
@@ -257,18 +262,20 @@ export const generateLoadPDF = async (
     y: number,
     maxWidth: number,
     maxLines = 2,
-    fontSize = 8.2,
+    fontSize = 9,
     align: "left" | "right" = "left",
   ) => {
     setTextHex(colors.text);
     pdf.setFont(F.body, "normal");
     pdf.setFontSize(fontSize);
+    pdf.setCharSpace(0.025);
 
     const lines = fitText(value, maxWidth, maxLines);
     pdf.text(lines, x, y, {
       align,
-      lineHeightFactor: 1.15,
+      lineHeightFactor: 1.3,
     });
+    pdf.setCharSpace(0);
   };
 
   const drawLabel = (
@@ -279,8 +286,10 @@ export const generateLoadPDF = async (
   ) => {
     setTextHex(colors.textMuted);
     pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
-    pdf.setFontSize(6.7);
+    pdf.setFontSize(7.6);
+    pdf.setCharSpace(0.1);
     pdf.text(label.toUpperCase(), x, y, { align });
+    pdf.setCharSpace(0);
   };
 
   const drawCompactRows = (
@@ -288,8 +297,8 @@ export const generateLoadPDF = async (
     x: number,
     y: number,
     width: number,
-    rowHeight = 8,
-    labelWidth = 38,
+    rowHeight = 10,
+    labelWidth = 36,
   ) => {
     rows.forEach((row, index) => {
       const rowTop = y + index * rowHeight;
@@ -299,14 +308,16 @@ export const generateLoadPDF = async (
         pdf.rect(x + 0.8, rowTop, width - 1.6, rowHeight, "F");
       }
 
-      drawLabel(row.label, x + 4, rowTop + 5.1);
+      const baselineY = rowTop + rowHeight * 0.62;
+
+      drawLabel(row.label, x + 4, baselineY);
       drawWrappedValue(
         row.value,
         x + labelWidth,
-        rowTop + 5.1,
-        width - labelWidth - 4,
+        baselineY,
+        width - labelWidth - 5,
         1,
-        7.8,
+        8.9,
       );
     });
   };
@@ -339,12 +350,14 @@ export const generateLoadPDF = async (
 
   pdf.setTextColor(255, 255, 255);
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(11.3);
+  pdf.setFontSize(12);
+  pdf.setCharSpace(0.08);
   pdf.text("ACTION AUTO UTAH", marginX + 12.5, 11);
+  pdf.setCharSpace(0);
 
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(6.8);
-  pdf.text("Powered by Supra AI", marginX + 12.5, 15.5);
+  pdf.setFontSize(7.4);
+  pdf.text("Powered by Supra AI", marginX + 12.5, 15.8);
 
   const issueDate = generatedAt.toLocaleDateString("en-US", {
     month: "long",
@@ -354,17 +367,19 @@ export const generateLoadPDF = async (
   });
 
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(9.3);
+  pdf.setFontSize(10);
+  pdf.setCharSpace(0.06);
   pdf.text("Load Documentation", pageWidth - marginX, 9.5, {
     align: "right",
   });
+  pdf.setCharSpace(0);
 
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(6.6);
-  pdf.text(`Issue Date: ${issueDate}`, pageWidth - marginX, 14, {
+  pdf.setFontSize(7.2);
+  pdf.text(`Issue Date: ${issueDate}`, pageWidth - marginX, 14.2, {
     align: "right",
   });
-  pdf.text("Report Type: Load Manifest", pageWidth - marginX, 18, {
+  pdf.text("Report Type: Load Manifest", pageWidth - marginX, 18.4, {
     align: "right",
   });
 
@@ -375,7 +390,7 @@ export const generateLoadPDF = async (
   let y = 33;
 
   // ─── Hero summary ──────────────────────────────────────────────────────────
-  const heroHeight = 17;
+  const heroHeight = 19;
   drawRoundedCard(marginX, y, contentWidth, heroHeight);
 
   const vehicle = load.vehicles?.[0];
@@ -383,24 +398,24 @@ export const generateLoadPDF = async (
     ? `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim()
     : "N/A";
 
-  drawLabel("Load Number", marginX + 5, y + 5.4);
+  drawLabel("Load Number", marginX + 5, y + 5.8);
   setTextHex(colors.text);
   pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(11.5);
+  pdf.setFontSize(12.5);
 
   const loadNumber = safeText(load.loadNumber, "Not Assigned");
   const loadNumberLines = fitText(loadNumber, 72, 1);
-  pdf.text(loadNumberLines, marginX + 5, y + 11.7);
+  pdf.text(loadNumberLines, marginX + 5, y + 13);
 
-  drawLabel("Primary Vehicle", marginX + 86, y + 5.4);
-  drawWrappedValue(vehicleName, marginX + 86, y + 11.6, 57, 1, 8.1);
+  drawLabel("Primary Vehicle", marginX + 84, y + 5.8);
+  drawWrappedValue(vehicleName, marginX + 84, y + 13, 59, 1, 9);
 
   const statusText = safeText(load.status, "Unknown").toUpperCase();
   const statusColor = getStatusColor(load.status);
   const statusRgb = hexToRgb(statusColor);
 
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(7.3);
+  pdf.setFontSize(8);
   const statusWidth = Math.min(
     42,
     Math.max(28, pdf.getTextWidth(statusText) + 10),
@@ -408,9 +423,9 @@ export const generateLoadPDF = async (
   const statusX = pageWidth - marginX - statusWidth - 4;
 
   pdf.setFillColor(statusRgb.r, statusRgb.g, statusRgb.b);
-  pdf.roundedRect(statusX, y + 4.5, statusWidth, 8, 4, 4, "F");
+  pdf.roundedRect(statusX, y + 5, statusWidth, 8.8, 4.4, 4.4, "F");
   pdf.setTextColor(255, 255, 255);
-  pdf.text(statusText, statusX + statusWidth / 2, y + 9.8, {
+  pdf.text(statusText, statusX + statusWidth / 2, y + 10.8, {
     align: "center",
   });
 
@@ -431,7 +446,7 @@ export const generateLoadPDF = async (
 
   y += 4.5;
 
-  const infoCardHeight = 31;
+  const infoCardHeight = 40;
   drawRoundedCard(marginX, y, halfWidth, infoCardHeight);
   drawRoundedCard(
     marginX + halfWidth + gap,
@@ -477,18 +492,18 @@ export const generateLoadPDF = async (
   drawCompactRows(
     customerRows,
     marginX,
-    y + 1,
+    y + 1.2,
     halfWidth,
-    9.4,
-    28,
+    11.2,
+    30,
   );
   drawCompactRows(
     vehicleRows,
     marginX + halfWidth + gap,
-    y + 0.7,
+    y + 0.9,
     halfWidth,
-    7.25,
-    27,
+    9.5,
+    30,
   );
 
   y += infoCardHeight + 7;
@@ -497,7 +512,7 @@ export const generateLoadPDF = async (
   drawSectionHeader("Route Information", marginX, y, contentWidth);
   y += 4.5;
 
-  const routeHeight = 28;
+  const routeHeight = 32;
   drawRoundedCard(marginX, y, contentWidth, routeHeight);
 
   const routePadding = 6;
@@ -527,18 +542,18 @@ export const generateLoadPDF = async (
     .join(" ");
 
   setFillHex("#dcfce7");
-  pdf.circle(routeLeftX + 2, y + 8, 2.6, "F");
+  pdf.circle(routeLeftX + 2, y + 9, 2.8, "F");
   setFillHex("#22c55e");
-  pdf.circle(routeLeftX + 2, y + 8, 1.45, "F");
+  pdf.circle(routeLeftX + 2, y + 9, 1.55, "F");
 
-  drawLabel("Origin", routeLeftX + 7, y + 5.8);
+  drawLabel("Origin", routeLeftX + 7, y + 6.4);
   drawWrappedValue(
     safeText(pickupLocation, "Location not provided"),
     routeLeftX + 7,
-    y + 11,
+    y + 12.4,
     routeColumnWidth - 9,
     2,
-    8.1,
+    9.1,
   );
 
   setDrawHex(colors.divider);
@@ -551,18 +566,18 @@ export const generateLoadPDF = async (
   );
 
   setFillHex("#fee2e2");
-  pdf.circle(routeRightX + 2, y + 8, 2.6, "F");
+  pdf.circle(routeRightX + 2, y + 9, 2.8, "F");
   setFillHex("#ef4444");
-  pdf.circle(routeRightX + 2, y + 8, 1.45, "F");
+  pdf.circle(routeRightX + 2, y + 9, 1.55, "F");
 
-  drawLabel("Destination", routeRightX + 7, y + 5.8);
+  drawLabel("Destination", routeRightX + 7, y + 6.4);
   drawWrappedValue(
     safeText(deliveryLocation, "Location not provided"),
     routeRightX + 7,
-    y + 11,
+    y + 12.4,
     routeColumnWidth - 9,
     2,
-    8.1,
+    9.1,
   );
 
   y += routeHeight + 7;
@@ -571,7 +586,7 @@ export const generateLoadPDF = async (
   drawSectionHeader("Load Timeline", marginX, y, contentWidth);
   y += 4.5;
 
-  const timelineHeight = 29;
+  const timelineHeight = 34;
   drawRoundedCard(marginX, y, contentWidth, timelineHeight);
 
   const timelineItems = [
@@ -625,23 +640,23 @@ export const generateLoadPDF = async (
 
     const circleColor = index === 0 ? "#2563eb" : "#6366f1";
     setFillHex(circleColor);
-    pdf.circle(cellX + 7, cellY + 7, 2.4, "F");
+    pdf.circle(cellX + 7, cellY + 8, 2.6, "F");
 
     pdf.setTextColor(255, 255, 255);
     pdf.setFont(F.heading, "bold");
-    pdf.setFontSize(6.3);
-    pdf.text(item.number, cellX + 7, cellY + 7.8, {
+    pdf.setFontSize(7);
+    pdf.text(item.number, cellX + 7, cellY + 8.9, {
       align: "center",
     });
 
-    drawLabel(item.label, cellX + 12, cellY + 5.5);
+    drawLabel(item.label, cellX + 12, cellY + 6.4);
     drawWrappedValue(
       item.value,
       cellX + 12,
-      cellY + 10.5,
+      cellY + 12,
       timelineCellWidth - 17,
       1,
-      7.8,
+      8.8,
     );
   });
 
@@ -651,7 +666,7 @@ export const generateLoadPDF = async (
   drawSectionHeader("Financial Details", marginX, y, contentWidth);
   y += 4.5;
 
-  const financeHeight = 31;
+  const financeHeight = 36;
   const financeLeftWidth = contentWidth * 0.58;
   const totalRateWidth = contentWidth - financeLeftWidth - gap;
 
@@ -678,10 +693,10 @@ export const generateLoadPDF = async (
   drawCompactRows(
     financeRows,
     marginX,
-    y + 1.1,
+    y + 1.2,
     financeLeftWidth,
-    9.2,
-    34,
+    10.8,
+    35,
   );
 
   const totalRateX = marginX + financeLeftWidth + gap;
@@ -713,7 +728,7 @@ export const generateLoadPDF = async (
 
   pdf.setTextColor(255, 255, 255);
   pdf.setFont(F.heading, "bold");
-  pdf.setFontSize(7.3);
+  pdf.setFontSize(8);
   pdf.text(
     "TOTAL TRANSPORT RATE",
     totalRateX + totalRateWidth / 2,
@@ -722,17 +737,17 @@ export const generateLoadPDF = async (
   );
 
   pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
-  pdf.setFontSize(15);
+  pdf.setFontSize(16.5);
   pdf.text(
     formatCurrency(load.pricing?.carrierPayAmount),
     totalRateX + totalRateWidth / 2,
-    y + 19.2,
+    y + 21.2,
     { align: "center" },
   );
 
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(6.7);
-  pdf.text("USD", totalRateX + totalRateWidth / 2, y + 25, {
+  pdf.setFontSize(7.4);
+  pdf.text("USD", totalRateX + totalRateWidth / 2, y + 28.2, {
     align: "center",
   });
 
@@ -752,7 +767,7 @@ export const generateLoadPDF = async (
   pdf.line(marginX, footerY - 6, pageWidth - marginX, footerY - 6);
 
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(6.4);
+  pdf.setFontSize(7);
   setTextHex(colors.textMuted);
   pdf.text(
     `Document ID: ${docIdLabel}  •  Generated: ${generatedLabel}`,
@@ -767,7 +782,7 @@ export const generateLoadPDF = async (
   });
 
   pdf.setFont(F.body, "normal");
-  pdf.setFontSize(6.2);
+  pdf.setFontSize(6.9);
   setTextHex(colors.textSoft);
   pdf.text(
     "Action Auto Utah  •  support@actionautoutah.com",

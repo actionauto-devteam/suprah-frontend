@@ -46,6 +46,8 @@ export interface DispatchChatAttachment {
 
 export interface DispatchChatMessage {
   id: string;
+  threadId?: string | null;
+  dispatcherId?: string | null;
   driverId: string;
   sender: {
     id: string;
@@ -79,6 +81,7 @@ export interface DispatchChatSystemEvent {
 }
 
 interface DispatchChatContext {
+  threadId?: string;
   driver: {
     id: string;
     name: string;
@@ -100,6 +103,36 @@ interface DispatchChatContext {
     destination?: string;
     pickupDate?: string | null;
   }>;
+}
+
+interface DispatchChatThreadSummary {
+  id: string;
+  dispatcher: {
+    id: string;
+    name: string;
+    email?: string;
+    avatar?: string | null;
+    isActive?: boolean;
+  };
+  driver: {
+    id: string;
+    name: string;
+    email?: string;
+    avatar?: string | null;
+    isActive?: boolean;
+  };
+  unreadCount: number;
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string;
+  lastMessageType?: "message" | "system" | null;
+}
+
+interface DispatchChatThreadCacheEntry {
+  messages: DispatchChatMessage[];
+  systemEvents: DispatchChatSystemEvent[];
+  context: DispatchChatContext | null;
+  unreadCount: number;
+  loadedAt: number;
 }
 
 interface DispatchChatDialogProps {
@@ -137,16 +170,30 @@ const EMOJIS = [
   "❤️",
 ];
 
-const RELEVANT_NOTIFICATION_TYPES = new Set([
-  "driver_dispatch_alert",
+// These events are persisted as exact dispatcher↔driver private-thread system
+// messages. Their generic Notification copies are user-wide and must never be
+// merged into whichever private conversation happens to be open.
+const PRIVATE_THREAD_SYSTEM_ONLY_NOTIFICATION_TYPES = new Set([
   "driver_assigned",
   "driver_request_approved",
   "driver_request_rejected",
+]);
+
+// These operational notifications may still appear in Dispatch Chat for
+// compatibility, but ONLY when their payload proves ownership of the exact
+// dispatcher↔driver conversation. Ambiguous notifications stay in the normal
+// Notification Center instead of being guessed into a private chat.
+const EXPLICIT_THREAD_SCOPED_NOTIFICATION_TYPES = new Set([
   "driver_tracker_geofence_alert",
-  "driver_tracker_offline_alert",
   "driver_tracker_place_visit",
   "proof_submitted",
   "delivery_confirmed",
+]);
+
+const RELEVANT_NOTIFICATION_TYPES = new Set([
+  "driver_dispatch_alert",
+  "driver_tracker_offline_alert",
+  ...EXPLICIT_THREAD_SCOPED_NOTIFICATION_TYPES,
 ]);
 
 function mergeMessage(
@@ -368,6 +415,29 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
     event.notificationType === "driver_dispatch_alert";
   const isLocationSilence =
     event.notificationType === "driver_tracker_offline_alert";
+  const isStatusRequestApproved =
+    event.notificationType === "driver_status_request_approved";
+  const isStatusRequestRejected =
+    event.notificationType === "driver_status_request_rejected";
+  const isStatusRequestDecision =
+    isStatusRequestApproved || isStatusRequestRejected;
+  const awaitingReassignment =
+    Boolean(event.metadata?.awaitingReassignment);
+  const requestedStatusLabel = String(
+    event.metadata?.requestedStatusLabel ??
+      (event.metadata?.requestedStatus === "maintenance"
+        ? "In Shop"
+        : event.metadata?.requestedStatus === "on_leave"
+          ? "On Leave"
+          : "Status Change"),
+  );
+  const decisionReason = String(
+    event.metadata?.decisionReason ?? "",
+  ).trim();
+  const activeLoadCount = Math.max(
+    0,
+    Number(event.metadata?.activeLoadCount ?? 0),
+  );
   const minutesWithoutLocation =
     event.metadata?.minutesWithoutLocation;
   const loadNumbers = Array.isArray(event.metadata?.loadNumbers)
@@ -389,36 +459,60 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
     <div className="flex w-full justify-center py-1">
       <div
         className={`w-full max-w-xl rounded-2xl border px-4 py-3 text-center ${
-          isAlert
-            ? "border-amber-400/50 bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.08)]"
-            : "border-emerald-500/30 bg-emerald-500/[0.07]"
+          isStatusRequestRejected
+            ? "border-red-500/45 bg-red-500/[0.08] shadow-[0_0_0_1px_rgba(239,68,68,0.06)]"
+            : isStatusRequestApproved
+              ? awaitingReassignment
+                ? "border-amber-400/45 bg-amber-500/[0.08] shadow-[0_0_0_1px_rgba(245,158,11,0.06)]"
+                : "border-emerald-500/35 bg-emerald-500/[0.07]"
+              : isAlert
+                ? "border-amber-400/50 bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.08)]"
+                : "border-emerald-500/30 bg-emerald-500/[0.07]"
         }`}
       >
         <div className="flex items-center justify-center gap-2">
-          {isAlert ? (
+          {isStatusRequestRejected ? (
+            <AlertTriangle className="size-4 text-red-500" />
+          ) : isStatusRequestApproved ? (
+            <CheckCheck
+              className={`size-4 ${
+                awaitingReassignment
+                  ? "text-amber-500"
+                  : "text-emerald-500"
+              }`}
+            />
+          ) : isAlert ? (
             <AlertTriangle className="size-4 text-amber-500" />
           ) : (
             <BellRing className="size-4 text-emerald-500" />
           )}
           <span
             className={`text-[10px] font-black uppercase tracking-[0.18em] ${
-              isAlert
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-emerald-600 dark:text-emerald-400"
+              isStatusRequestRejected
+                ? "text-red-600 dark:text-red-400"
+                : isStatusRequestApproved && awaitingReassignment
+                  ? "text-amber-600 dark:text-amber-400"
+                  : isStatusRequestApproved
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : isAlert
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            {isLocationSilence
-              ? "GPS Safety Alert"
-              : isAlert
-                ? "Dispatch Alert"
-                : "Operational Update"}
+            {isStatusRequestDecision
+              ? "Dispatch Decision"
+              : isLocationSilence
+                ? "GPS Safety Alert"
+                : isAlert
+                  ? "Dispatch Alert"
+                  : "Operational Update"}
           </span>
         </div>
 
-        <p className="mt-1.5 text-sm font-black text-foreground">
+        <p className="mt-1.5 break-words text-sm font-black text-foreground [overflow-wrap:anywhere]">
           {event.title}
         </p>
-        {event.message && !isDispatchAlert && (
+        {event.message && !isDispatchAlert && !isStatusRequestDecision && (
           <p className="mx-auto mt-1 max-w-lg break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {event.message}
           </p>
@@ -462,6 +556,102 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           </div>
         )}
 
+        {isStatusRequestDecision && (
+          <div
+            className={`mx-auto mt-3 w-full max-w-lg rounded-xl border p-3 text-left ${
+              isStatusRequestRejected
+                ? "border-red-500/20 bg-background/55"
+                : awaitingReassignment
+                  ? "border-amber-500/20 bg-background/55"
+                  : "border-emerald-500/20 bg-background/55"
+            }`}
+          >
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Request
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-foreground">
+                    {requestedStatusLabel}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Decision
+                  </p>
+                  <p
+                    className={`mt-0.5 text-xs font-black ${
+                      isStatusRequestRejected
+                        ? "text-red-600 dark:text-red-400"
+                        : awaitingReassignment
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "text-emerald-700 dark:text-emerald-400"
+                    }`}
+                  >
+                    {isStatusRequestRejected
+                      ? "Not Approved"
+                      : awaitingReassignment
+                        ? "Approved — Reassignment Required"
+                        : "Approved"}
+                  </p>
+                </div>
+              </div>
+
+              {awaitingReassignment && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Next Step
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-foreground">
+                    Dispatch is clearing or reassigning{" "}
+                    {activeLoadCount || "your"} active load
+                    {activeLoadCount === 1 ? "" : "s"}. Your requested
+                    Dispatch Status will apply automatically after those
+                    loads are cleared.
+                  </p>
+                </div>
+              )}
+
+              {decisionReason && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Reason
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                    {decisionReason}
+                  </p>
+                </div>
+              )}
+
+              {event.message && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Message
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                    {event.message}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {loadNumbers.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {loadNumbers.map((number: string) => (
+                  <span
+                    key={number}
+                    className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]"
+                  >
+                    Load {number}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {isLocationSilence && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
             {Number.isFinite(Number(minutesWithoutLocation)) && (
@@ -472,7 +662,7 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
             {loadNumbers.map((number: string) => (
               <span
                 key={number}
-                className="rounded-full border border-border/60 bg-background/70 px-2 py-1 text-[10px] font-semibold"
+                className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]"
               >
                 Load {number}
               </span>
@@ -483,12 +673,12 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         {(destination || loadNumber || (response && response !== "pending")) && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
             {destination && (
-              <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+              <span className="max-w-full whitespace-normal break-words rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-center text-[10px] font-semibold text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
                 Destination: {destination}
               </span>
             )}
             {loadNumber && (
-              <span className="rounded-full border border-border/60 bg-background/60 px-2 py-1 text-[10px] font-semibold">
+              <span className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/60 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]">
                 Load {loadNumber}
               </span>
             )}
@@ -528,6 +718,9 @@ export function DispatchChatDialog({
   >([]);
   const [threadContext, setThreadContext] =
     React.useState<DispatchChatContext | null>(null);
+  const [threads, setThreads] = React.useState<DispatchChatThreadSummary[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
+  const [threadsLoading, setThreadsLoading] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
   const [emojiOpen, setEmojiOpen] = React.useState(false);
@@ -541,10 +734,18 @@ export function DispatchChatDialog({
   const latestPositionFrameRef = React.useRef<number | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const openRef = React.useRef(open);
+  const selectedThreadIdRef = React.useRef<string | null>(selectedThreadId);
+  const threadCacheRef = React.useRef<Map<string, DispatchChatThreadCacheEntry>>(
+    new Map(),
+  );
 
   React.useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  React.useEffect(() => {
+    selectedThreadIdRef.current = selectedThreadId;
+  }, [selectedThreadId]);
 
   React.useEffect(() => {
     if (open) {
@@ -554,10 +755,44 @@ export function DispatchChatDialog({
 
   const currentUserId = user?.id ?? null;
   const currentUserIsDriver = user?.role === "driver";
+  const activeThreadId = currentUserIsDriver
+    ? selectedThreadId
+    : threadContext?.threadId ?? null;
+  const selectedThread = React.useMemo(
+    () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
+    [threads, selectedThreadId],
+  );
 
   const updateUnread = React.useCallback((count: number) => {
     setUnreadCount(Math.max(0, count));
   }, []);
+
+  const applyThreadCache = React.useCallback(
+    (entry: DispatchChatThreadCacheEntry) => {
+      setMessages(entry.messages);
+      setSystemEvents(entry.systemEvents);
+      setThreadContext(entry.context);
+      updateUnread(entry.unreadCount);
+      // Re-run the existing verified "open at latest" positioning for the
+      // newly selected cached thread. The thread content itself is available
+      // immediately, so no loading screen is required.
+      setIsLatestPositionReady(false);
+    },
+    [updateUnread],
+  );
+
+  const cacheThreadSnapshot = React.useCallback(
+    (
+      threadId: string,
+      snapshot: Omit<DispatchChatThreadCacheEntry, "loadedAt">,
+    ) => {
+      threadCacheRef.current.set(threadId, {
+        ...snapshot,
+        loadedAt: Date.now(),
+      });
+    },
+    [],
+  );
 
   // Synchronize the sidebar/header unread badge only after this component's
   // own unread state has committed. This avoids cross-component setState
@@ -566,40 +801,151 @@ export function DispatchChatDialog({
     onUnreadChange?.(unreadCount);
   }, [unreadCount, onUnreadChange]);
 
+  const fetchThreads = React.useCallback(async () => {
+    if (!currentUserIsDriver || !isSignedIn) return;
+    setThreadsLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const response = await apiClient.get(
+        "/api/driver-tracking/dispatch-chat/threads",
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const nextThreads = Array.isArray(response.data?.data?.threads)
+        ? (response.data.data.threads as DispatchChatThreadSummary[])
+        : [];
+      setThreads(nextThreads);
+      setSelectedThreadId((current) => {
+        if (current && nextThreads.some((thread) => thread.id === current)) {
+          return current;
+        }
+        return nextThreads[0]?.id ?? null;
+      });
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Could not load dispatcher conversations",
+      );
+    } finally {
+      setThreadsLoading(false);
+    }
+  }, [currentUserIsDriver, getToken, isSignedIn]);
+
   const markRead = React.useCallback(async () => {
     if (!driverId || !isSignedIn) return;
+    const threadId = currentUserIsDriver
+      ? selectedThreadId
+      : threadContext?.threadId ?? null;
+    if (currentUserIsDriver && !threadId) return;
+
     try {
       const token = await getToken();
       if (!token) return;
       await apiClient.post(
         `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/read`,
-        {},
+        threadId ? { threadId } : {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
       updateUnread(0);
+      if (threadId) {
+        const cachedEntry = threadCacheRef.current.get(threadId);
+        if (cachedEntry) {
+          threadCacheRef.current.set(threadId, {
+            ...cachedEntry,
+            unreadCount: 0,
+          });
+        }
+
+        setThreads((current) =>
+          current.map((thread) =>
+            thread.id === threadId
+              ? { ...thread, unreadCount: 0 }
+              : thread,
+          ),
+        );
+      }
     } catch {
       // A temporary read-state failure must not prevent the user from chatting.
     }
-  }, [driverId, getToken, isSignedIn, updateUnread]);
+  }, [
+    currentUserIsDriver,
+    driverId,
+    getToken,
+    isSignedIn,
+    selectedThreadId,
+    threadContext?.threadId,
+    updateUnread,
+  ]);
 
   const fetchUnread = React.useCallback(async () => {
     if (!driverId || !isSignedIn) return;
+    const threadId = currentUserIsDriver
+      ? selectedThreadId
+      : threadContext?.threadId ?? null;
+    if (currentUserIsDriver && !threadId) {
+      updateUnread(0);
+      return;
+    }
+
     try {
       const token = await getToken();
       if (!token) return;
       const response = await apiClient.get(
         `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/unread`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: threadId ? { threadId } : undefined,
+        },
       );
       updateUnread(Number(response.data?.data?.unreadCount ?? 0));
     } catch {
       updateUnread(0);
     }
-  }, [driverId, getToken, isSignedIn, updateUnread]);
+  }, [
+    currentUserIsDriver,
+    driverId,
+    getToken,
+    isSignedIn,
+    selectedThreadId,
+    threadContext?.threadId,
+    updateUnread,
+  ]);
 
   const fetchMessages = React.useCallback(async () => {
     if (!driverId || !isSignedIn) return;
-    setIsLoading(true);
+
+    const requestedThreadId = currentUserIsDriver
+      ? selectedThreadId
+      : null;
+
+    if (currentUserIsDriver && !requestedThreadId) {
+      setMessages([]);
+      setSystemEvents([]);
+      setThreadContext(null);
+      updateUnread(0);
+      setIsLoading(false);
+      setIsLatestPositionReady(true);
+      return;
+    }
+
+    // Reopening a dispatcher tab that has already been loaded should feel
+    // instant. Render ONLY that exact thread's cached snapshot, then refresh it
+    // in the background. Never keep the previous dispatcher's visible messages
+    // while a different thread is being selected.
+    const cached =
+      currentUserIsDriver && requestedThreadId
+        ? threadCacheRef.current.get(requestedThreadId) ?? null
+        : null;
+
+    if (cached) {
+      applyThreadCache(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      setIsLatestPositionReady(false);
+    }
+
     try {
       const token = await getToken();
       if (!token) return;
@@ -608,46 +954,247 @@ export function DispatchChatDialog({
         `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/messages`,
         {
           headers: { Authorization: `Bearer ${token}` },
-          params: { limit: 100 },
+          params: {
+            limit: 100,
+            ...(requestedThreadId
+              ? { threadId: requestedThreadId }
+              : {}),
+          },
         },
       );
 
       const payload = response.data?.data ?? {};
-      setMessages(
-        Array.isArray(payload.messages) ? payload.messages : [],
+      const nextMessages = Array.isArray(payload.messages)
+        ? (payload.messages as DispatchChatMessage[])
+        : [];
+      const nextContext = (payload.context ?? null) as DispatchChatContext | null;
+      const historyDispatcherId = String(
+        nextContext?.dispatcher?.id ?? payload.thread?.dispatcherId ?? "",
       );
-      setSystemEvents(
-        Array.isArray(payload.systemEvents) ? payload.systemEvents : [],
+      const nextSystemEvents = Array.isArray(payload.systemEvents)
+        ? (payload.systemEvents as DispatchChatSystemEvent[]).filter((event) => {
+            const eventType = String(event?.notificationType ?? "");
+
+            if (PRIVATE_THREAD_SYSTEM_ONLY_NOTIFICATION_TYPES.has(eventType)) {
+              return false;
+            }
+
+            if (EXPLICIT_THREAD_SCOPED_NOTIFICATION_TYPES.has(eventType)) {
+              const metadata = event?.metadata ?? {};
+              const ownerDispatcherId = String(
+                metadata?.dispatcherId ??
+                  metadata?.dispatchOwnerId ??
+                  metadata?.sentByUserId ??
+                  "",
+              );
+              const explicitDriverId = String(metadata?.driverId ?? "");
+
+              // Defense in depth: even if an older backend accidentally returns
+              // a generic operational notification, do not render it unless its
+              // metadata proves ownership of this exact private conversation.
+              if (
+                !historyDispatcherId ||
+                !ownerDispatcherId ||
+                ownerDispatcherId !== historyDispatcherId
+              ) {
+                return false;
+              }
+              if (explicitDriverId && explicitDriverId !== String(driverId)) {
+                return false;
+              }
+            }
+
+            return true;
+          })
+        : [];
+      const nextUnread = Math.max(
+        0,
+        Number(payload.unreadCount ?? 0),
       );
-      setThreadContext(payload.context ?? null);
-      updateUnread(Number(payload.unreadCount ?? 0));
-      await markRead();
+
+      const resolvedThreadId =
+        payload.thread?.id ??
+        payload.context?.threadId ??
+        requestedThreadId ??
+        null;
+      const normalizedResolvedThreadId = resolvedThreadId
+        ? String(resolvedThreadId)
+        : null;
+
+      if (currentUserIsDriver && normalizedResolvedThreadId) {
+        cacheThreadSnapshot(normalizedResolvedThreadId, {
+          messages: nextMessages,
+          systemEvents: nextSystemEvents,
+          context: nextContext,
+          unreadCount: nextUnread,
+        });
+      }
+
+      // A response for Dispatcher A must never overwrite Dispatcher B after a
+      // fast tab switch. The backend already enforces thread membership; this
+      // is the UI race-condition guard for overlapping network requests.
+      const isStillSelected =
+        !currentUserIsDriver ||
+        (normalizedResolvedThreadId !== null &&
+          String(selectedThreadIdRef.current ?? "") ===
+            normalizedResolvedThreadId);
+
+      if (!isStillSelected) {
+        return;
+      }
+
+      setMessages(nextMessages);
+      setSystemEvents(nextSystemEvents);
+      setThreadContext(nextContext);
+      updateUnread(nextUnread);
+
+      if (
+        currentUserIsDriver &&
+        normalizedResolvedThreadId &&
+        normalizedResolvedThreadId !== selectedThreadId
+      ) {
+        selectedThreadIdRef.current = normalizedResolvedThreadId;
+        setSelectedThreadId(normalizedResolvedThreadId);
+      }
+
+      // Mark only the exact private dispatcher↔driver thread that is STILL
+      // selected. A stale request from a tab the driver already left must not
+      // silently mark that other conversation as read.
+      if (!currentUserIsDriver || normalizedResolvedThreadId) {
+        await apiClient.post(
+          `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/read`,
+          normalizedResolvedThreadId
+            ? { threadId: normalizedResolvedThreadId }
+            : {},
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+
+        // Check selection again because the user may have switched while the
+        // mark-read request was in flight.
+        if (
+          !currentUserIsDriver ||
+          String(selectedThreadIdRef.current ?? "") ===
+            String(normalizedResolvedThreadId ?? "")
+        ) {
+          updateUnread(0);
+        }
+
+        if (normalizedResolvedThreadId) {
+          const cachedEntry =
+            threadCacheRef.current.get(normalizedResolvedThreadId);
+          if (cachedEntry) {
+            threadCacheRef.current.set(normalizedResolvedThreadId, {
+              ...cachedEntry,
+              unreadCount: 0,
+            });
+          }
+
+          setThreads((current) =>
+            current.map((thread) =>
+              thread.id === normalizedResolvedThreadId
+                ? { ...thread, unreadCount: 0 }
+                : thread,
+            ),
+          );
+        }
+      }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Could not load Suprah Dispatch Chat",
-      );
+      const requestIsStillCurrent =
+        !currentUserIsDriver ||
+        String(selectedThreadIdRef.current ?? "") ===
+          String(requestedThreadId ?? "");
+
+      if (requestIsStillCurrent && !cached) {
+        toast.error(
+          error.response?.data?.message ||
+            error.message ||
+            "Could not load Suprah Dispatch Chat",
+        );
+      }
     } finally {
-      setIsLoading(false);
+      const requestIsStillCurrent =
+        !currentUserIsDriver ||
+        String(selectedThreadIdRef.current ?? "") ===
+          String(requestedThreadId ?? "");
+
+      if (requestIsStillCurrent) {
+        setIsLoading(false);
+      }
     }
-  }, [driverId, getToken, isSignedIn, markRead, updateUnread]);
+  }, [
+    applyThreadCache,
+    cacheThreadSnapshot,
+    currentUserIsDriver,
+    driverId,
+    getToken,
+    isSignedIn,
+    selectedThreadId,
+    updateUnread,
+  ]);
 
   React.useEffect(() => {
     if (!driverId) {
       setMessages([]);
       setSystemEvents([]);
       setThreadContext(null);
+      setThreads([]);
+      setSelectedThreadId(null);
+      selectedThreadIdRef.current = null;
+      threadCacheRef.current.clear();
       updateUnread(0);
       return;
     }
-    void fetchUnread();
-  }, [driverId, fetchUnread, updateUnread]);
+
+    if (!currentUserIsDriver) {
+      void fetchUnread();
+    }
+  }, [
+    currentUserIsDriver,
+    driverId,
+    fetchUnread,
+    updateUnread,
+  ]);
+
+  React.useEffect(() => {
+    if (!open || !driverId || !currentUserIsDriver) return;
+    void fetchThreads();
+  }, [open, driverId, currentUserIsDriver, fetchThreads]);
 
   React.useEffect(() => {
     if (!open || !driverId) return;
+
+    if (currentUserIsDriver) {
+      if (!selectedThreadId) {
+        setMessages([]);
+        setSystemEvents([]);
+        setThreadContext(null);
+        setIsLatestPositionReady(true);
+        return;
+      }
+
+      const cached = threadCacheRef.current.get(selectedThreadId);
+      if (cached) {
+        applyThreadCache(cached);
+        setIsLoading(false);
+      } else {
+        // Privacy first: if this dispatcher has never been loaded in this
+        // dialog session, clear the prior dispatcher immediately instead of
+        // flashing the previous conversation during the network request.
+        setMessages([]);
+        setSystemEvents([]);
+        setThreadContext(null);
+      }
+    }
+
     void fetchMessages();
-  }, [open, driverId, fetchMessages]);
+  }, [
+    open,
+    driverId,
+    currentUserIsDriver,
+    selectedThreadId,
+    fetchMessages,
+    applyThreadCache,
+  ]);
 
   React.useEffect(() => {
     if (!driverId || !isSignedIn) return;
@@ -662,7 +1209,51 @@ export function DispatchChatDialog({
       socket = initializeSocket(token);
 
       const onMessage = (message: DispatchChatMessage) => {
-        if (!message || message.driverId !== driverId) return;
+        if (!message || String(message.driverId) !== String(driverId)) return;
+
+        // Defense in depth for staff: the backend already emits only to the two
+        // thread participants, but never render a message tagged for a different
+        // dispatcher even if a malformed socket payload is received.
+        if (
+          !currentUserIsDriver &&
+          message.dispatcherId &&
+          String(message.dispatcherId) !== String(currentUserId)
+        ) {
+          return;
+        }
+
+        if (currentUserIsDriver) {
+          void fetchThreads();
+
+          if (message.threadId) {
+            const messageThreadId = String(message.threadId);
+            const cachedEntry =
+              threadCacheRef.current.get(messageThreadId);
+
+            if (cachedEntry) {
+              threadCacheRef.current.set(messageThreadId, {
+                ...cachedEntry,
+                messages: mergeMessage(
+                  cachedEntry.messages,
+                  message,
+                ),
+              });
+            }
+          }
+
+          if (
+            !message.threadId ||
+            String(message.threadId) !== String(selectedThreadId ?? "")
+          ) {
+            return;
+          }
+        } else if (
+          activeThreadId &&
+          message.threadId &&
+          String(message.threadId) !== String(activeThreadId)
+        ) {
+          return;
+        }
 
         setMessages((previous) => mergeMessage(previous, message));
 
@@ -677,10 +1268,58 @@ export function DispatchChatDialog({
       };
 
       const onRead = (payload: {
+        threadId?: string;
+        dispatcherId?: string;
         driverId?: string;
         readerId?: string;
       }) => {
-        if (payload?.driverId !== driverId || !payload.readerId) return;
+        if (
+          String(payload?.driverId ?? "") !== String(driverId) ||
+          !payload.readerId
+        ) {
+          return;
+        }
+
+        if (currentUserIsDriver) {
+          void fetchThreads();
+
+          if (payload.threadId) {
+            const readThreadId = String(payload.threadId);
+            const cachedEntry =
+              threadCacheRef.current.get(readThreadId);
+
+            if (cachedEntry) {
+              threadCacheRef.current.set(readThreadId, {
+                ...cachedEntry,
+                messages: cachedEntry.messages.map((message) =>
+                  message.readBy.includes(payload.readerId!)
+                    ? message
+                    : {
+                        ...message,
+                        readBy: [
+                          ...message.readBy,
+                          payload.readerId!,
+                        ],
+                      },
+                ),
+                unreadCount:
+                  String(payload.readerId) ===
+                  String(currentUserId)
+                    ? 0
+                    : cachedEntry.unreadCount,
+              });
+            }
+          }
+        }
+
+        if (
+          payload.threadId &&
+          activeThreadId &&
+          String(payload.threadId) !== String(activeThreadId)
+        ) {
+          return;
+        }
+
         setMessages((previous) =>
           previous.map((message) =>
             message.readBy.includes(payload.readerId!)
@@ -691,33 +1330,104 @@ export function DispatchChatDialog({
                 },
           ),
         );
+
+        if (String(payload.readerId) === String(currentUserId)) {
+          updateUnread(0);
+        }
       };
 
       const onNotificationNew = (notification: any) => {
-        const targetDriverId =
-          notification?.userId ??
-          notification?.metadata?.driverId ??
-          notification?.driverId;
-
-        if (String(targetDriverId || "") !== String(driverId)) return;
-
-        const event = normalizeNotification(notification);
-        if (!event) return;
-        setSystemEvents((previous) =>
-          mergeSystemEvent(previous, event),
+        const notificationType = String(
+          notification?.notificationType ?? notification?.type ?? "",
         );
-      };
 
-      const onDispatchAlert = (payload: any) => {
-        const targetDriverId =
-          payload?.driverId ?? payload?.metadata?.driverId ?? driverId;
+        // Manual Dispatch Alerts now arrive as persisted private-thread system
+        // messages. Ignore the notification copy here to prevent duplicates.
+        if (notificationType === "driver_dispatch_alert") return;
+
+        // Load assignment/reassignment notifications are driver-wide
+        // Notification records. The chat version is already persisted as an
+        // exact dispatcher↔driver system message with threadId/dispatcherId.
+        // Never inject the generic copy into whichever dispatcher tab happens
+        // to be open.
+        if (
+          PRIVATE_THREAD_SYSTEM_ONLY_NOTIFICATION_TYPES.has(
+            notificationType,
+          )
+        ) {
+          return;
+        }
+
+        const metadata = notification?.metadata ?? {};
+        const notificationRecipientId = String(
+          notification?.userId ?? notification?.recipientId ?? "",
+        );
+        const targetDriverId = String(
+          metadata?.driverId ?? notification?.driverId ?? notification?.userId ?? "",
+        );
+
         if (String(targetDriverId) !== String(driverId)) return;
 
-        const event = normalizeNotification({
-          ...payload,
-          _id: payload?.alertId,
-          type: "driver_dispatch_alert",
-        });
+        if (notificationType === "driver_tracker_offline_alert") {
+          // GPS safety alerts are dispatcher-only. They may appear only inside
+          // the exact private thread for the dispatcher who owns the accepted
+          // load(s); the driver and other dispatchers must never render them.
+          if (currentUserIsDriver) return;
+          const alertDispatcherId = String(metadata?.dispatcherId ?? "");
+          if (
+            !alertDispatcherId ||
+            alertDispatcherId !== String(currentUserId ?? "")
+          ) {
+            return;
+          }
+        }
+
+        if (
+          EXPLICIT_THREAD_SCOPED_NOTIFICATION_TYPES.has(notificationType)
+        ) {
+          if (currentUserIsDriver) {
+            // A notification addressed to the driver still needs explicit
+            // dispatcher ownership before it can be placed into one of the
+            // driver's private dispatcher tabs.
+            const selectedDispatcherId = String(
+              threadContext?.dispatcher?.id ??
+                selectedThread?.dispatcher?.id ??
+                "",
+            );
+            const ownerDispatcherId = String(
+              metadata?.dispatcherId ??
+                metadata?.dispatchOwnerId ??
+                metadata?.sentByUserId ??
+                "",
+            );
+
+            if (
+              !selectedDispatcherId ||
+              !ownerDispatcherId ||
+              ownerDispatcherId !== selectedDispatcherId
+            ) {
+              return;
+            }
+          } else {
+            // For Dispatch, the Notification record itself must be addressed to
+            // this signed-in dispatcher and identify the driver whose private
+            // chat is open. This prevents another dispatcher's notification
+            // from appearing just because both users belong to the same org.
+            if (
+              !notificationRecipientId ||
+              notificationRecipientId !== String(currentUserId ?? "")
+            ) {
+              return;
+            }
+
+            const explicitDriverId = String(metadata?.driverId ?? "");
+            if (!explicitDriverId || explicitDriverId !== String(driverId)) {
+              return;
+            }
+          }
+        }
+
+        const event = normalizeNotification(notification);
         if (!event) return;
         setSystemEvents((previous) =>
           mergeSystemEvent(previous, event),
@@ -728,16 +1438,12 @@ export function DispatchChatDialog({
       socket.on("dispatch-chat:read", onRead);
       socket.on("notification:new", onNotificationNew);
       socket.on("notification:updated", onNotificationNew);
-      socket.on("driver:dispatch_alert", onDispatchAlert);
-      socket.on("driver:dispatch_alert_sent", onDispatchAlert);
 
       return () => {
         socket?.off("dispatch-chat:message", onMessage);
         socket?.off("dispatch-chat:read", onRead);
         socket?.off("notification:new", onNotificationNew);
         socket?.off("notification:updated", onNotificationNew);
-        socket?.off("driver:dispatch_alert", onDispatchAlert);
-        socket?.off("driver:dispatch_alert_sent", onDispatchAlert);
       };
     };
 
@@ -755,11 +1461,18 @@ export function DispatchChatDialog({
       cleanup?.();
     };
   }, [
-    driverId,
-    isSignedIn,
-    getToken,
+    activeThreadId,
     currentUserId,
+    currentUserIsDriver,
+    driverId,
+    fetchThreads,
+    getToken,
+    isSignedIn,
     markRead,
+    selectedThread?.dispatcher?.id,
+    selectedThreadId,
+    threadContext?.dispatcher?.id,
+    updateUnread,
   ]);
 
   const timeline = React.useMemo(() => {
@@ -872,6 +1585,7 @@ export function DispatchChatDialog({
       }
     };
   }, [
+    activeThreadId,
     driverId,
     isLoading,
     open,
@@ -925,7 +1639,16 @@ export function DispatchChatDialog({
 
   const submitMessage = React.useCallback(async () => {
     const content = draft.trim();
-    if ((!content && selectedFiles.length === 0) || !driverId || isSending) {
+    const requestThreadId = currentUserIsDriver
+      ? selectedThreadId
+      : activeThreadId;
+
+    if (
+      (!content && selectedFiles.length === 0) ||
+      !driverId ||
+      isSending ||
+      (currentUserIsDriver && !requestThreadId)
+    ) {
       return;
     }
 
@@ -940,6 +1663,7 @@ export function DispatchChatDialog({
         const form = new FormData();
         selectedFiles.forEach((file) => form.append("files", file));
         if (content) form.append("content", content);
+        if (requestThreadId) form.append("threadId", requestThreadId);
 
         const response = await apiClient.post(
           `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/attachments`,
@@ -954,7 +1678,10 @@ export function DispatchChatDialog({
       } else {
         const response = await apiClient.post(
           `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/messages`,
-          { content },
+          {
+            content,
+            ...(requestThreadId ? { threadId: requestThreadId } : {}),
+          },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         message = response.data?.data as DispatchChatMessage | undefined;
@@ -962,6 +1689,10 @@ export function DispatchChatDialog({
 
       if (message?.id) {
         setMessages((previous) => mergeMessage(previous, message!));
+      }
+
+      if (currentUserIsDriver) {
+        void fetchThreads();
       }
 
       setDraft("");
@@ -978,9 +1709,13 @@ export function DispatchChatDialog({
       setIsSending(false);
     }
   }, [
+    activeThreadId,
+    currentUserIsDriver,
     draft,
     selectedFiles,
+    selectedThreadId,
     driverId,
+    fetchThreads,
     getToken,
     isSending,
   ]);
@@ -992,19 +1727,22 @@ export function DispatchChatDialog({
   );
 
   const dispatcherName =
-    threadContext?.dispatcher?.name || "Dispatch Team";
+    threadContext?.dispatcher?.name ||
+    selectedThread?.dispatcher?.name ||
+    (currentUserIsDriver ? "Select a dispatcher" : "Dispatcher");
   const driverName =
     threadContext?.driver?.name ||
+    selectedThread?.driver?.name ||
     participantName ||
     "Driver";
 
   const currentAccountAvatar = participantAvatarSrc(user?.imageUrl);
 
   const dispatcherAvatar = participantAvatarSrc(
-    threadContext?.dispatcher?.avatar,
+    threadContext?.dispatcher?.avatar ?? selectedThread?.dispatcher?.avatar,
   );
   const driverAvatar = participantAvatarSrc(
-    threadContext?.driver?.avatar,
+    threadContext?.driver?.avatar ?? selectedThread?.driver?.avatar,
   );
 
   const dispatcherAvatarSrc =
@@ -1023,6 +1761,11 @@ export function DispatchChatDialog({
 
   const dispatcherInitials = nameInitials(dispatcherName);
   const driverInitials = nameInitials(driverName);
+  const selectedDispatcherIsActive =
+    selectedThread?.dispatcher?.isActive !== false;
+  const canCompose =
+    !currentUserIsDriver ||
+    (Boolean(selectedThreadId) && selectedDispatcherIsActive);
 
   return (
     <Dialog
@@ -1039,7 +1782,8 @@ export function DispatchChatDialog({
           // toward its first focusable element before latest-position setup.
           event.preventDefault();
         }}
-        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[780px] sm:w-[92vw] sm:max-w-[56rem] lg:w-[86vw] lg:max-w-[64rem]"
+        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl sm:h-[calc(100dvh-2rem)] sm:max-h-[780px] sm:w-[92vw] sm:max-w-[56rem] lg:w-[86vw] lg:max-w-[64rem] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
+        overlayClassName="bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
       >
         <DialogHeader className="relative shrink-0 border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.08] to-background px-3 py-4 text-center sm:px-6 sm:py-5">
           <div className="mx-auto flex size-11 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -1050,7 +1794,7 @@ export function DispatchChatDialog({
             Suprah Dispatch Chat
           </DialogTitle>
 
-          <DialogDescription className="mx-auto mt-1 flex max-w-xl items-center justify-center gap-1.5 text-center text-xs">
+          <DialogDescription className="mx-auto mt-1 flex max-w-xl flex-wrap items-center justify-center gap-1.5 break-words text-center text-xs leading-relaxed [overflow-wrap:anywhere]">
             <ShieldCheck className="size-3.5 shrink-0 text-emerald-500" />
             Private operational communication. Isolated from Suprah Space.
           </DialogDescription>
@@ -1144,11 +1888,124 @@ export function DispatchChatDialog({
           </div>
         </DialogHeader>
 
+        {currentUserIsDriver && (
+          <div className="shrink-0 border-b border-border/60 bg-muted/[0.12] px-3 py-3 sm:px-5">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                  Dispatcher Conversations
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground/75">
+                  Each tab is a separate private conversation.
+                </p>
+              </div>
+              {threadsLoading && (
+                <Loader2 className="size-4 animate-spin text-emerald-500" />
+              )}
+            </div>
+
+            {threads.length > 0 ? (
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+                {threads.map((thread) => {
+                  const isSelected = thread.id === selectedThreadId;
+                  const avatar = participantAvatarSrc(thread.dispatcher.avatar);
+                  return (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      onClick={() => {
+                        if (thread.id === selectedThreadId) return;
+
+                        // Update the race guard synchronously before React
+                        // commits the state change, so an older request cannot
+                        // win in the tiny interval between click and render.
+                        selectedThreadIdRef.current = thread.id;
+                        setSelectedThreadId(thread.id);
+
+                        const cached =
+                          threadCacheRef.current.get(thread.id);
+                        if (cached) {
+                          applyThreadCache(cached);
+                          setIsLoading(false);
+                        } else {
+                          setMessages([]);
+                          setSystemEvents([]);
+                          setThreadContext(null);
+                          setIsLoading(true);
+                          setIsLatestPositionReady(false);
+                        }
+
+                        setDraft("");
+                        setSelectedFiles([]);
+                        setEmojiOpen(false);
+                      }}
+                      className={`relative flex w-56 max-w-[calc(100vw-2.5rem)] shrink-0 items-start gap-2 rounded-xl border px-3 py-2 text-left transition-all ${
+                        isSelected
+                          ? "border-emerald-500/40 bg-emerald-500/10 shadow-sm"
+                          : "border-border/60 bg-background hover:border-emerald-500/25 hover:bg-emerald-500/[0.05]"
+                      }`}
+                    >
+                      <Avatar className="size-8 shrink-0 border border-border/60">
+                        {avatar && (
+                          <AvatarImage
+                            src={avatar}
+                            alt={thread.dispatcher.name}
+                            className="object-cover"
+                          />
+                        )}
+                        <AvatarFallback className="bg-emerald-500/10 text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                          {nameInitials(thread.dispatcher.name)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className="break-words text-xs font-black leading-snug text-foreground [overflow-wrap:anywhere]">
+                            {thread.dispatcher.name || "Dispatcher"}
+                          </p>
+                          {thread.dispatcher.isActive === false && (
+                            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase text-muted-foreground">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 break-words text-[9px] leading-snug text-muted-foreground [overflow-wrap:anywhere]">
+                          {thread.lastMessagePreview || "Private conversation"}
+                        </p>
+                      </div>
+
+                      {thread.unreadCount > 0 && (
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black text-white">
+                          {thread.unreadCount > 99 ? "99+" : thread.unreadCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+                No dispatcher conversations yet. A private tab will appear when a dispatcher messages or sends you a Dispatch Alert.
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           ref={timelineScrollRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-3 py-4 [overflow-anchor:none] sm:px-5"
         >
-          {isLoading ? (
+          {currentUserIsDriver && !selectedThreadId ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10">
+                <MessageSquare className="size-6 text-emerald-500" />
+              </div>
+              <p className="text-sm font-black">Select a dispatcher conversation</p>
+              <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+                Your Dispatch Chat is separated by dispatcher so messages never mix between different dispatcher conversations.
+              </p>
+            </div>
+          ) : isLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 size-5 animate-spin" />
               <span className="text-sm">Loading Dispatch Chat…</span>
@@ -1160,8 +2017,8 @@ export function DispatchChatDialog({
               </div>
               <p className="text-sm font-black">Start the dispatch conversation</p>
               <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
-                Messages, shared files, dispatch alerts, and relevant driver
-                operational updates will appear here in one private timeline.
+                Messages, shared files, Dispatch Alerts, and relevant driver
+                operational updates will appear only in this dispatcher-driver conversation.
               </p>
             </div>
           ) : (
@@ -1193,7 +2050,12 @@ export function DispatchChatDialog({
                       key={item.id}
                       event={{
                         id: `chat-system:${message.id}`,
-                        kind: "notification",
+                        kind:
+                          message.systemEvent.type === "driver_dispatch_alert" ||
+                          String(message.systemEvent.type || "").includes("offline") ||
+                          String(message.systemEvent.type || "").includes("geofence")
+                            ? "alert"
+                            : "notification",
                         notificationType:
                           message.systemEvent.type ||
                           "dispatch_chat_system_event",
@@ -1302,7 +2164,7 @@ export function DispatchChatDialog({
                   <span className="min-w-0 max-w-full break-all text-[10px] font-semibold [overflow-wrap:anywhere]">
                     {file.name}
                   </span>
-                  <span className="text-[9px] text-muted-foreground">
+                  <span className="shrink-0 text-[9px] text-muted-foreground">
                     {bytesLabel(file.size)}
                   </span>
                   <button
@@ -1323,7 +2185,7 @@ export function DispatchChatDialog({
           )}
 
           {emojiOpen && (
-            <div className="absolute bottom-[calc(100%-4px)] left-12 z-20 mb-2 w-64 rounded-2xl border border-border bg-popover p-2 shadow-xl">
+            <div className="absolute bottom-[calc(100%-4px)] left-0 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-popover p-2 shadow-xl sm:left-12">
               <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Quick emotes
               </p>
@@ -1364,7 +2226,7 @@ export function DispatchChatDialog({
             }}
           />
 
-          <div className="flex items-end gap-2">
+          <div className="flex min-w-0 items-end gap-2">
             <div className="flex shrink-0 items-center gap-1">
               <Button
                 type="button"
@@ -1372,6 +2234,7 @@ export function DispatchChatDialog({
                 size="icon"
                 className="h-11 w-11 rounded-xl"
                 aria-label="Attach files"
+                disabled={!canCompose}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="size-4" />
@@ -1383,6 +2246,7 @@ export function DispatchChatDialog({
                 size="icon"
                 className="h-11 w-11 rounded-xl"
                 aria-label="Add emoji"
+                disabled={!canCompose}
                 onClick={() => setEmojiOpen((current) => !current)}
               >
                 <Smile className="size-4" />
@@ -1400,9 +2264,14 @@ export function DispatchChatDialog({
               }}
               placeholder={
                 currentUserIsDriver
-                  ? "Message your dispatch team…"
+                  ? selectedThread
+                    ? selectedDispatcherIsActive
+                      ? `Message ${selectedThread.dispatcher.name || "dispatcher"}…`
+                      : "This dispatcher is inactive. Conversation history remains available."
+                    : "Select a dispatcher conversation…"
                   : `Message ${driverName}…`
               }
+              disabled={!canCompose}
               maxLength={4000}
               rows={2}
               className="min-h-[44px] min-w-0 max-h-32 w-full flex-1 resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -1414,9 +2283,10 @@ export function DispatchChatDialog({
               disabled={
                 (!draft.trim() && selectedFiles.length === 0) ||
                 isSending ||
-                !driverId
+                !driverId ||
+                !canCompose
               }
-              className="h-11 px-4 gap-2 shrink-0"
+              className="h-11 shrink-0 gap-2 px-3 sm:px-4"
             >
               {isSending ? (
                 <Loader2 className="size-4 animate-spin" />

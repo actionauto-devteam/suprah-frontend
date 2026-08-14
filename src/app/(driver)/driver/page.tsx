@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/providers/AuthProvider";
+import { useAuth, useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { useDriverLocationSharing } from "@/hooks/useDriverLocationSharing";
@@ -57,10 +57,14 @@ import {
 
   Zap,
   DollarSign,
+  MessageSquare,
 } from "lucide-react";
 import { US_STATES, AVAILABLE_DAYS } from "@/components/driver-profile/driver-profile-constants";
 import { ConfirmationModal, ConfirmationVariant } from "@/components/ui/confirmation-modal";
 import { DriverAcceptLoadDialog } from "@/components/driver/DriverAcceptLoadDialog";
+import { DriverStatusChangeDialog } from "@/components/driver/DriverStatusChangeDialog";
+import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
+import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
 
 type DriverStatus = "on-route" | "idle" | "on-break" | "waiting" | "offline";
@@ -120,6 +124,14 @@ const OP_STATUS_CONFIG = [
   { key: "maintenance", label: "In Shop", icon: <Wrench className="size-4 sm:size-5" />, color: "border-border/50 text-muted-foreground hover:bg-blue-500/5", activeColor: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-400 dark:border-blue-600 shadow-sm shadow-blue-500/10" },
 ];
 
+const LIVE_STATUS_LABEL: Record<DriverStatus, string> = {
+  "on-route": "On Route",
+  idle: "Idle",
+  waiting: "Waiting",
+  "on-break": "On Break",
+  offline: "Offline",
+};
+
 const MAP_CENTER: [number, number] = [-98.5795, 39.8283];
 const MAP_STYLE_BY_THEME = {
   dark: "mapbox://styles/mapbox/navigation-night-v1",
@@ -145,6 +157,7 @@ function formatDualTime(date: Date) {
 
 export default function DriverDashboardPage() {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const { theme } = useTheme();
   const [loads, setLoads] = React.useState<any[]>([]);
   const [dashStats, setDashStats] = React.useState<{
@@ -163,6 +176,31 @@ export default function DriverDashboardPage() {
   const [mapError, setMapError] = React.useState<string | null>(null);
   const [opStatus, setOpStatus] = React.useState("active");
   const [savingOpStatus, setSavingOpStatus] = React.useState(false);
+  // Dispatch Status switches are optimistic so the selected state changes
+  // immediately instead of waiting for the network round trip. If the driver
+  // chooses a live status while a return-to-Active request is still saving,
+  // keep that choice locally and publish it as soon as Active is confirmed.
+  // This avoids racing a live-status heartbeat against the Dispatch Status PATCH.
+  const [queuedLiveStatus, setQueuedLiveStatus] =
+    React.useState<DriverStatus | null>(null);
+  const queuedLiveStatusRef = React.useRef<DriverStatus | null>(null);
+  // Remember the last live status that was confirmed while Dispatch Status was
+  // Active. When the driver returns from On Leave/In Shop, the UI can restore
+  // that live choice immediately while the backend PATCH is still settling,
+  // instead of briefly flashing the stale off-duty presentation.
+  const [lastActiveLiveStatus, setLastActiveLiveStatus] =
+    React.useState<DriverStatus>("idle");
+  const lastActiveLiveStatusRef = React.useRef<DriverStatus>("idle");
+  const [statusRequestDialog, setStatusRequestDialog] = React.useState<{
+    open: boolean;
+    requestedStatus: "on_leave" | "maintenance";
+    priority: "standard" | "emergency";
+    updateExisting?: boolean;
+  }>({ open: false, requestedStatus: "on_leave", priority: "standard" });
+  const [returnToActiveLiveStatus, setReturnToActiveLiveStatus] =
+    React.useState<DriverStatus | null>(null);
+  const [emergencyChatOpen, setEmergencyChatOpen] = React.useState(false);
+  const ignoreEmergencyChatUnread = React.useCallback((_count: number) => {}, []);
   const [logCity, setLogCity] = React.useState("");
   const [logState, setLogState] = React.useState("");
   const [logRadius, setLogRadius] = React.useState(500);
@@ -195,7 +233,43 @@ export default function DriverDashboardPage() {
     stopSharing,
     updateStatus,
     lastCoords,
+    isLocationRequired,
+    locationRequirementReason,
   } = useDriverLocationSharing();
+  const workEligibility = useDriverWorkEligibility();
+
+  // Keep a stable "last Active live status" only from the authoritative
+  // operational state. The optimistic Dispatch Status switch must never
+  // overwrite this memory with the temporary On Leave/In Shop presentation.
+  React.useEffect(() => {
+    if (
+      workEligibility.operationalStatus !== "active" ||
+      status === "offline"
+    ) {
+      return;
+    }
+
+    lastActiveLiveStatusRef.current = status;
+    setLastActiveLiveStatus(status);
+  }, [status, workEligibility.operationalStatus]);
+
+  React.useEffect(() => {
+    setOpStatus(workEligibility.operationalStatus);
+  }, [workEligibility.operationalStatus]);
+
+  // Dispatch Status and Live Status are separate persisted concerns, but they
+  // should transition as one coordinated UI state:
+  //   On Leave -> Live Offline
+  //   In Shop  -> Live Waiting
+  //   Active   -> queued selection, or the last confirmed Active live status
+  //               while the Dispatch PATCH is in flight.
+  const displayedLiveStatus: DriverStatus =
+    opStatus === "on_leave"
+      ? "offline"
+      : opStatus === "maintenance"
+        ? "waiting"
+        : queuedLiveStatus ??
+          (savingOpStatus ? lastActiveLiveStatus : status);
 
   const mapContainerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<any>(null);
@@ -461,6 +535,10 @@ export default function DriverDashboardPage() {
 
   const acceptLoad = React.useCallback(
     async (load: any, signatureDataUrl: string, signerName: string) => {
+      if (!workEligibility.canTakeNewWork) {
+        toast.error(workEligibility.blockReason || "You are not eligible to accept a new load right now.");
+        return;
+      }
       setAccepting(load._id);
       try {
         const token = await getToken();
@@ -482,7 +560,7 @@ export default function DriverDashboardPage() {
         setAccepting(null);
       }
     },
-    [getToken, fetchData],
+    [getToken, fetchData, workEligibility.canTakeNewWork, workEligibility.blockReason],
   );
 
   const dropLoad = React.useCallback(
@@ -495,9 +573,9 @@ export default function DriverDashboardPage() {
           {},
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        toast.success("Load dropped");
+        toast.success("Load released and returned to Available Loads");
 
-        // The load has already been dropped successfully, so clear the
+        // The load has already been released successfully, so clear the
         // confirmation state immediately instead of leaving the destructive
         // modal mounted while the refreshed load data removes the card.
         setConfirmState({
@@ -511,7 +589,7 @@ export default function DriverDashboardPage() {
 
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to drop load");
+        toast.error(err.response?.data?.message || "Failed to release load");
       } finally {
         setDropping(null);
       }
@@ -553,8 +631,8 @@ export default function DriverDashboardPage() {
         variant = 'success';
         break;
       case 'drop-load':
-        title = 'Drop This Load?';
-        description = 'Warning: You are about to drop this load. This action should only be taken if you cannot complete the delivery.';
+        title = 'Release This Load?';
+        description = 'You will no longer be responsible for this load. It will return to the Transportation Available Loads pool so Dispatch can assign it to another driver. This does not mark the delivery as completed.';
         variant = 'danger';
         break;
       default:
@@ -577,9 +655,27 @@ export default function DriverDashboardPage() {
     if (action === 'drop-load') dropLoad(load);
   };
 
-  const updateOpStatus = React.useCallback(
-    async (newStatus: string) => {
+  const performOpStatusUpdate = React.useCallback(
+    async (
+      newStatus: "active" | "on_leave" | "maintenance",
+      preferredLiveStatus: DriverStatus | null = null,
+    ) => {
+      const previousStatus = opStatus as
+        | "active"
+        | "on_leave"
+        | "maintenance";
+
+      // Optimistic UI: Dispatch and its derived Live Status presentation move
+      // together immediately. The backend remains authoritative and a failed
+      // PATCH rolls the Dispatch selection back.
+      setOpStatus(newStatus);
       setSavingOpStatus(true);
+
+      if (newStatus !== "active") {
+        queuedLiveStatusRef.current = null;
+        setQueuedLiveStatus(null);
+      }
+
       try {
         const token = await getToken();
         await apiClient.patch(
@@ -587,15 +683,167 @@ export default function DriverDashboardPage() {
           { operationalStatus: newStatus },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        setOpStatus(newStatus);
-        toast.success(`Status: ${newStatus.replace("_", " ")}`);
+
+        if (newStatus === "active") {
+          // Resolve the live status exactly once after Active becomes
+          // authoritative. Priority:
+          // 1) a live button clicked while the PATCH was in flight,
+          // 2) an explicit target from the "Return to Active" confirmation,
+          // 3) the driver's last confirmed Active live status.
+          const queued = queuedLiveStatusRef.current;
+          const nextLiveStatus =
+            queued ??
+            preferredLiveStatus ??
+            lastActiveLiveStatusRef.current;
+
+          queuedLiveStatusRef.current = null;
+          setQueuedLiveStatus(null);
+
+          if (nextLiveStatus && nextLiveStatus !== "offline") {
+            lastActiveLiveStatusRef.current = nextLiveStatus;
+            setLastActiveLiveStatus(nextLiveStatus);
+            updateStatus(nextLiveStatus);
+
+            // Only announce an explicit live-status choice. Automatic
+            // restoration of the previous Active status stays silent so one
+            // Dispatch click does not create two success toasts.
+            if (queued || preferredLiveStatus) {
+              toast.success(
+                `Status: ${
+                  STATUS_CONFIG.find(
+                    (item) => item.key === nextLiveStatus,
+                  )?.label || nextLiveStatus
+                }`,
+              );
+            }
+          }
+        }
+
+        toast.success(
+          `Dispatch Status: ${
+            newStatus === "maintenance"
+              ? "In Shop"
+              : newStatus.replace("_", " ")
+          }`,
+        );
+
+        // Reconciliation stays in the background. Socket events plus these
+        // refreshes confirm the optimistic state without making the controls
+        // wait or visually jump through intermediate values.
+        void Promise.all([fetchData(), workEligibility.refresh()]).catch(() => {
+          // The PATCH already succeeded. A background refresh failure should
+          // not roll back a confirmed Dispatch Status.
+        });
+
+        return true;
       } catch (err: any) {
-        toast.error(err?.response?.data?.message || "Failed to update status");
+        setOpStatus(previousStatus);
+        queuedLiveStatusRef.current = null;
+        setQueuedLiveStatus(null);
+        toast.error(
+          err?.response?.data?.message || "Failed to update Dispatch Status",
+        );
+        return false;
       } finally {
         setSavingOpStatus(false);
       }
     },
-    [getToken],
+    [
+      fetchData,
+      getToken,
+      opStatus,
+      updateStatus,
+      workEligibility.refresh,
+    ],
+  );
+
+  const handleOperationalStatusClick = React.useCallback(
+    async (newStatus: "active" | "on_leave" | "maintenance") => {
+      if (newStatus === opStatus) return;
+
+      if (newStatus === "active") {
+        await performOpStatusUpdate("active");
+        return;
+      }
+
+      if (workEligibility.statusRequest) {
+        toast.error("You already have an active Dispatch Status request.");
+        return;
+      }
+
+      if (hasActiveLoad && opStatus === "active") {
+        setStatusRequestDialog({
+          open: true,
+          requestedStatus: newStatus,
+          priority: "standard",
+        });
+        return;
+      }
+
+      await performOpStatusUpdate(newStatus);
+    },
+    [hasActiveLoad, opStatus, performOpStatusUpdate, workEligibility.statusRequest],
+  );
+
+  const handleLiveStatusChoice = React.useCallback(
+    (nextStatus: DriverStatus) => {
+      if (workEligibility.emergencyReleaseActive) {
+        toast.error(
+          "Emergency Release is active. Dispatch is handling your current loads.",
+        );
+        return;
+      }
+
+      if (nextStatus === "on-route" && !hasActiveLoad) {
+        toast.error("You need an active load to go On Route.");
+        return;
+      }
+
+      if (opStatus === "on_leave") {
+        toast.error(
+          "Live status controls are unavailable while you are On Leave.",
+        );
+        return;
+      }
+
+      if (opStatus === "maintenance") {
+        if (nextStatus === "waiting") {
+          updateStatus("waiting");
+          return;
+        }
+        setReturnToActiveLiveStatus(nextStatus);
+        return;
+      }
+
+      // If the UI has already switched optimistically to Active but the PATCH
+      // is still in flight, accept the click immediately and queue the server
+      // live-status update. displayedLiveStatus reads this queue, so the button
+      // highlights now while the heartbeat waits for Active to be authoritative.
+      if (savingOpStatus) {
+        queuedLiveStatusRef.current = nextStatus;
+        setQueuedLiveStatus(nextStatus);
+        return;
+      }
+
+      queuedLiveStatusRef.current = null;
+      setQueuedLiveStatus(null);
+      lastActiveLiveStatusRef.current = nextStatus;
+      setLastActiveLiveStatus(nextStatus);
+      updateStatus(nextStatus);
+      toast.success(
+        `Status: ${
+          STATUS_CONFIG.find((item) => item.key === nextStatus)?.label ||
+          nextStatus
+        }`,
+      );
+    },
+    [
+      hasActiveLoad,
+      opStatus,
+      savingOpStatus,
+      updateStatus,
+      workEligibility.emergencyReleaseActive,
+    ],
   );
 
   const saveLogistics = React.useCallback(async () => {
@@ -605,7 +853,6 @@ export default function DriverDashboardPage() {
       await apiClient.patch(
         "/api/driver-profile/logistics",
         {
-          operationalStatus: opStatus,
           homeBase: { city: logCity.trim(), state: logState },
           serviceRadius: logRadius,
           preferredRoutes: logRoutes,
@@ -619,7 +866,7 @@ export default function DriverDashboardPage() {
     } finally {
       setSavingLogistics(false);
     }
-  }, [getToken, opStatus, logCity, logState, logRadius, logRoutes, logDays]);
+  }, [getToken, logCity, logState, logRadius, logRoutes, logDays]);
 
   const toggleDay = (d: string) =>
     setLogDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
@@ -631,6 +878,23 @@ export default function DriverDashboardPage() {
       setLogRouteInput("");
     }
   };
+
+  const cancelPendingStatusRequest = React.useCallback(async () => {
+    const requestId = workEligibility.statusRequest?.id || workEligibility.statusRequest?._id;
+    if (!requestId) return;
+    try {
+      const token = await getToken();
+      await apiClient.post(
+        `/api/driver-profile/status-requests/${requestId}/cancel`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success("Dispatch Status request cancelled");
+      await Promise.all([fetchData(), workEligibility.refresh()]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Unable to cancel the status request");
+    }
+  }, [fetchData, getToken, workEligibility]);
 
   const kpis = [
     {
@@ -678,6 +942,8 @@ export default function DriverDashboardPage() {
   const router = useRouter();
 
   const { mst, utc } = formatDualTime(currentTime);
+  const displayedDispatchLabel =
+    OP_STATUS_CONFIG.find((item) => item.key === opStatus)?.label ?? "Active";
 
   return (
     <div className="p-4 sm:p-8 space-y-8 container mx-auto min-h-screen">
@@ -686,11 +952,11 @@ export default function DriverDashboardPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-fade-in-up">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px] font-bold tracking-widest uppercase px-2 py-0.5">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-bold tracking-widest uppercase px-2.5 py-1">
               Driver Portal
             </Badge>
             <div className="size-1 rounded-full bg-border" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex flex-wrap items-center gap-2">
               <Clock className="size-3" />
               {currentTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "America/Denver" })}
               <span className="text-primary/60 font-black tabular-nums">
@@ -707,7 +973,7 @@ export default function DriverDashboardPage() {
           {(isSharing || isStarting) && (
             <Badge
               className={cn(
-                "text-[10px] font-bold gap-1.5",
+                "text-xs font-bold gap-1.5 px-2.5 py-1",
                 isSharing
                   ? "bg-emerald-500/10 text-emerald-500 border-emerald-200/50 animate-pulse"
                   : "bg-amber-500/10 text-amber-600 border-amber-200/50",
@@ -723,7 +989,7 @@ export default function DriverDashboardPage() {
             </Badge>
           )}
           <Badge variant="outline" className={cn(
-            "text-[10px] font-bold",
+            "text-xs font-bold px-2.5 py-1",
             opStatus === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-200 dark:border-emerald-800" :
               opStatus === "on_leave" ? "bg-amber-500/10 text-amber-500 border-amber-200 dark:border-amber-800" :
                 opStatus === "maintenance" ? "bg-blue-500/10 text-blue-500 border-blue-200 dark:border-blue-800" :
@@ -739,8 +1005,8 @@ export default function DriverDashboardPage() {
         <div className="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3">
           <AlertTriangle className="size-4 text-red-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">Compliance Expired</p>
-            <p className="text-xs text-red-600 dark:text-red-500">
+            <p className="text-base font-semibold text-red-700 dark:text-red-400">Compliance Expired</p>
+            <p className="text-sm leading-relaxed text-red-600 dark:text-red-500">
               Update documents in your <Link href="/driver/documents" className="underline font-bold">Documents page</Link> to keep accepting loads.
             </p>
           </div>
@@ -750,12 +1016,14 @@ export default function DriverDashboardPage() {
       {dashStats && dashStats.pendingRequests > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-2.5">
           <Timer className="size-4 text-amber-600 shrink-0" />
-          <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+          <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
             <span className="font-bold">{dashStats.pendingRequests}</span> pending request{dashStats.pendingRequests > 1 ? "s" : ""} awaiting approval
           </p>
-          <Link href="/driver/loads" className="ml-auto text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline shrink-0">View &rarr;</Link>
+          <Link href="/driver/loads" className="ml-auto text-sm font-semibold text-amber-700 dark:text-amber-400 hover:underline shrink-0">View &rarr;</Link>
         </div>
       )}
+
+
 
       {/* ── KPI CARDS (clickable) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up stagger-1">
@@ -774,7 +1042,7 @@ export default function DriverDashboardPage() {
             <CardContent className="relative p-5 sm:p-6">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     {kpi.label}
                   </p>
                   {isLoading ? (
@@ -784,7 +1052,7 @@ export default function DriverDashboardPage() {
                       {kpi.value}
                     </h3>
                   )}
-                  <p className="mt-1 text-[10px] font-medium text-muted-foreground/75">
+                  <p className="mt-1 text-sm font-medium text-muted-foreground/85">
                     {kpi.sub}
                   </p>
                 </div>
@@ -822,7 +1090,7 @@ export default function DriverDashboardPage() {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="rounded-xl bg-background/80 backdrop-blur-sm border border-border/50 px-6 py-3 shadow-lg text-center">
                       <Loader2 className="size-5 animate-spin text-primary mx-auto mb-2" />
-                      <p className="text-xs font-medium text-muted-foreground">{mapNotice}</p>
+                      <p className="text-sm font-medium text-muted-foreground">{mapNotice}</p>
                     </div>
                   </div>
                 )}
@@ -832,7 +1100,7 @@ export default function DriverDashboardPage() {
                 <div className="size-16 rounded-2xl bg-muted/60 flex items-center justify-center">
                   <Satellite className="size-8 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground font-medium">Map unavailable</p>
+                <p className="text-base text-muted-foreground font-medium">Map unavailable</p>
               </div>
             )}
 
@@ -850,7 +1118,7 @@ export default function DriverDashboardPage() {
                         {btn.icon}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left" className="text-xs">{btn.label}</TooltipContent>
+                    <TooltipContent side="left" className="text-sm">{btn.label}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               ))}
@@ -864,7 +1132,7 @@ export default function DriverDashboardPage() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Broadcasting Live</span>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Broadcasting Live</span>
                 </div>
               </div>
             )}
@@ -874,26 +1142,26 @@ export default function DriverDashboardPage() {
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-muted/80 backdrop-blur-sm">
                 <div className="rounded-xl bg-background border border-border/50 px-5 py-3 shadow-lg text-center">
                   <Satellite className="size-6 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground font-medium">{mapError}</p>
+                  <p className="text-sm text-muted-foreground font-medium">{mapError}</p>
                 </div>
               </div>
             )}
 
             {/* Map legend */}
             <div className="absolute bottom-4 right-4 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2.5">
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Legend</p>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Legend</p>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full bg-primary" />
-                  <span className="text-[10px] text-muted-foreground font-medium">Your Location</span>
+                  <span className="text-xs text-muted-foreground font-medium">Your Location</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full bg-amber-500" />
-                  <span className="text-[10px] text-muted-foreground font-medium">Pickup Point</span>
+                  <span className="text-xs text-muted-foreground font-medium">Pickup Point</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-[10px] text-muted-foreground font-medium">Delivery Point</span>
+                  <span className="text-xs text-muted-foreground font-medium">Delivery Point</span>
                 </div>
               </div>
             </div>
@@ -928,8 +1196,8 @@ export default function DriverDashboardPage() {
                   )}
                 </div>
                 <div>
-                  <CardTitle className="text-sm font-bold">GPS Broadcast</CardTitle>
-                  <p className="text-[10px] text-muted-foreground/60 font-medium">Share location with dispatch</p>
+                  <CardTitle className="text-base font-bold">GPS Broadcast</CardTitle>
+                  <p className="text-sm text-muted-foreground/80 font-medium">Share location with dispatch</p>
                 </div>
               </div>
               {(isSharing || isStarting) && (
@@ -951,11 +1219,35 @@ export default function DriverDashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+              <Badge
+                variant="outline"
+                className="h-7 border-emerald-500/25 bg-emerald-500/5 px-2.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
+              >
+                Dispatch: {displayedDispatchLabel}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-7 border-blue-500/25 bg-blue-500/5 px-2.5 text-[11px] font-bold text-blue-700 dark:text-blue-400"
+              >
+                Live: {LIVE_STATUS_LABEL[displayedLiveStatus]}
+              </Badge>
+              {savingOpStatus && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Syncing…
+                </span>
+              )}
+            </div>
+
             <TooltipProvider>
               <div className="grid grid-cols-2 gap-1.5">
                 {STATUS_CONFIG.map((item) => {
-                  const locked = item.needsLoad && !hasActiveLoad;
-                  const isActive = status === item.key;
+                  const locked =
+                    opStatus === "on_leave" ||
+                    workEligibility.emergencyReleaseActive ||
+                    Boolean(item.needsLoad && !hasActiveLoad);
+                  const isActive = displayedLiveStatus === item.key;
                   const btn = (
                     <Button
                       key={item.key}
@@ -963,15 +1255,12 @@ export default function DriverDashboardPage() {
                       variant="outline"
                       disabled={locked}
                       className={cn(
-                        "h-9 text-[11px] font-semibold gap-1.5 transition-all duration-200",
+                        "h-10 text-sm font-semibold gap-1.5 transition-all duration-200",
                         isActive ? item.activeColor : "border-border/50 text-muted-foreground",
                         locked && "opacity-40",
                       )}
                       onClick={() => {
-                        if (!locked) {
-                          updateStatus(item.key as any);
-                          toast.success(`Status: ${item.label}`);
-                        }
+                        if (!locked) handleLiveStatusChoice(item.key);
                       }}
                     >
                       {item.icon} {item.label}
@@ -980,7 +1269,13 @@ export default function DriverDashboardPage() {
                   return locked ? (
                     <Tooltip key={item.key}>
                       <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-[10px]">Need an active load</TooltipContent>
+                      <TooltipContent side="bottom" className="text-xs">
+                        {opStatus === "on_leave"
+                          ? "Unavailable while On Leave"
+                          : workEligibility.emergencyReleaseActive
+                            ? "Emergency Release is active"
+                            : "Need an active load"}
+                      </TooltipContent>
                     </Tooltip>
                   ) : (
                     <React.Fragment key={item.key}>{btn}</React.Fragment>
@@ -988,7 +1283,7 @@ export default function DriverDashboardPage() {
                 })}
               </div>
             </TooltipProvider>
-            {hasActiveLoad ? (
+            {isLocationRequired ? (
               <div
                 className={cn(
                   "w-full rounded-lg border px-3 py-2.5",
@@ -1011,15 +1306,23 @@ export default function DriverDashboardPage() {
                     )}
                   />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold">
-                      GPS Required While Loads Are Active
+                    <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
+                      {locationRequirementReason === "dispatch_retained_load"
+                        ? "GPS Required by Dispatch"
+                        : "GPS Required While Loads Are Active"}
                     </p>
-                    <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-                      {isSharing
-                        ? "Location sharing is automatic and cannot be turned off until you have no active loads."
-                        : isStarting
-                          ? "Connecting automatically because you have an active load…"
-                          : "Location permission is required while you have an active load."}
+                    <p className="mt-1 break-words text-sm leading-relaxed text-muted-foreground/90 [overflow-wrap:anywhere]">
+                      {locationRequirementReason === "dispatch_retained_load"
+                        ? isSharing
+                          ? "Dispatch kept one or more active loads assigned to you and requires GPS while those retained loads remain active."
+                          : isStarting
+                            ? "Connecting GPS because Dispatch requires location sharing for your retained load…"
+                            : "Location permission is required because Dispatch kept an active load assigned to you with GPS required."
+                        : isSharing
+                          ? "Location sharing is automatic and cannot be turned off until you have no active loads."
+                          : isStarting
+                            ? "Connecting automatically because you have an active load…"
+                            : "Location permission is required while you have an active load."}
                     </p>
                   </div>
                 </div>
@@ -1027,20 +1330,28 @@ export default function DriverDashboardPage() {
             ) : (
               <div className="space-y-2">
                 <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">
-                    No active loads. You can choose whether to share your location.
+                  <p className="text-sm leading-relaxed text-muted-foreground/90">
+                    {workEligibility.emergencyReleaseActive
+                      ? "Emergency Release is active. GPS will continue when location is available, but location access will not block the Driver Portal."
+                      : opStatus === "on_leave"
+                        ? "GPS is optional while your Dispatch Status is On Leave. You can share or stop sharing your location at any time."
+                        : opStatus === "maintenance"
+                          ? "GPS is optional while your Dispatch Status is In Shop. You can share or stop sharing your location at any time while your live status remains Waiting."
+                          : "No active loads. You can choose whether to share your location."}
                   </p>
                 </div>
                 <Button
                   size="sm"
                   className={cn(
-                    "w-full h-10 text-xs font-bold transition-all duration-300",
+                    "w-full h-11 text-sm font-bold transition-all duration-300",
                     isSharing || isStarting
                       ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800 hover:bg-rose-500/20 shadow-none"
                       : "bg-primary text-primary-foreground shadow-sm hover:shadow-md",
                   )}
                   variant={isSharing || isStarting ? "outline" : "default"}
+                  disabled={savingOpStatus || workEligibility.emergencyReleaseActive}
                   onClick={() => {
+                    if (savingOpStatus || workEligibility.emergencyReleaseActive) return;
                     if (isSharing || isStarting) {
                       void stopSharing();
                     } else {
@@ -1055,19 +1366,23 @@ export default function DriverDashboardPage() {
                     )}
                   />
                   {isSharing
-                    ? "Turn Off GPS"
+                    ? "Stop Sharing Location"
                     : isStarting
                       ? "Stop Connecting"
-                      : "Turn On GPS"}
+                      : "Share Location"}
                 </Button>
               </div>
             )}
             {lastShareAt && (
-              <p className="text-[10px] text-muted-foreground/60 text-center font-medium">Last: {lastShareAt}</p>
+              <p className="text-xs text-muted-foreground/80 text-center font-medium">Last: {lastShareAt}</p>
             )}
             {locationError && (
               <div className="rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2">
-                <p className="text-[11px] text-destructive font-medium">{locationError}</p>
+                <p className="text-sm leading-relaxed text-destructive font-medium">
+                  {workEligibility.emergencyReleaseActive
+                    ? "Location isn't currently available. That's okay — your emergency request has already been sent. You can continue using Dispatch Chat and reviewing your information."
+                    : locationError}
+                </p>
               </div>
             )}
           </CardContent>
@@ -1077,12 +1392,12 @@ export default function DriverDashboardPage() {
         <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Package className="size-4 text-primary" />
                 Current Load
               </CardTitle>
               {currentLoad && (
-                <Badge variant="outline" className={cn("text-[10px] font-bold", LOAD_STATUS_COLORS[currentLoad.status] || "")}>
+                <Badge variant="outline" className={cn("text-xs font-bold px-2.5 py-1", LOAD_STATUS_COLORS[currentLoad.status] || "")}>
                   {currentLoad.status}
                 </Badge>
               )}
@@ -1098,33 +1413,39 @@ export default function DriverDashboardPage() {
             ) : currentLoad ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-mono font-bold">{currentLoad.trackingNumber || "No tracking #"}</p>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                  <p className="text-base font-mono font-bold">{currentLoad.trackingNumber || "No tracking #"}</p>
+                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
                     ${(currentLoad.pricing?.carrierPayAmount || 0).toLocaleString()}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
                   <MapPin className="size-3.5 text-primary shrink-0" />
-                  <span className="truncate">{currentLoad.origin}</span>
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{currentLoad.origin}</span>
                   <ArrowRight className="size-3 shrink-0 text-primary" />
-                  <span className="truncate">{currentLoad.destination}</span>
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{currentLoad.destination}</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground/60 font-medium flex items-center gap-1">
+                <p className="text-sm text-muted-foreground/80 font-medium flex items-center gap-1">
                   <Clock className="size-3" />
                   Pickup: {new Date(currentLoad.dates?.pickupDeadline || currentLoad.requestedPickupDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
                 </p>
                 {currentLoad.status === "Assigned" && (
                   <Button
                     size="sm"
-                    className="w-full h-9 text-xs font-bold shadow-sm"
-                    disabled={accepting === currentLoad._id}
-                    onClick={() => setAcceptDialogLoad(currentLoad)}
+                    className="w-full h-10 text-sm font-bold shadow-sm"
+                    disabled={accepting === currentLoad._id || !workEligibility.canTakeNewWork}
+                    onClick={() => {
+                      if (!workEligibility.canTakeNewWork) {
+                        toast.error(workEligibility.blockReason || "You are not eligible to accept this load right now.");
+                        return;
+                      }
+                      setAcceptDialogLoad(currentLoad);
+                    }}
                   >
                     {accepting === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Accepting...</> : <><CheckCircle2 className="size-3.5 mr-2" />Accept Load</>}
                   </Button>
                 )}
                 {currentLoad.status === "Picked Up" && (
-                  <Button size="sm" className="w-full h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm" disabled={startingRoute === currentLoad._id} onClick={() => handleAction('start-route', currentLoad)}>
+                  <Button size="sm" className="w-full h-10 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm" disabled={startingRoute === currentLoad._id} onClick={() => handleAction('start-route', currentLoad)}>
                     {startingRoute === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Starting...</> : <><Navigation2 className="size-3.5 mr-2" />Start Route</>}
                   </Button>
                 )}
@@ -1138,8 +1459,8 @@ export default function DriverDashboardPage() {
                   </div>
                 )}
                 {["Assigned", "Accepted"].includes(currentLoad.status) && (
-                  <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10" disabled={dropping === currentLoad._id} onClick={() => handleAction('drop-load', currentLoad)}>
-                    {dropping === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Dropping...</> : <><XCircle className="size-3.5 mr-2" />Drop Load</>}
+                  <Button size="sm" variant="outline" className="w-full h-10 text-sm font-semibold text-destructive border-destructive/20 hover:bg-destructive/10" disabled={dropping === currentLoad._id} onClick={() => handleAction('drop-load', currentLoad)}>
+                    {dropping === currentLoad._id ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Releasing...</> : <><XCircle className="size-3.5 mr-2" />Release Load</>}
                   </Button>
                 )}
               </div>
@@ -1148,8 +1469,8 @@ export default function DriverDashboardPage() {
                 <div className="size-10 rounded-xl bg-muted/40 flex items-center justify-center">
                   <Package className="size-5 text-muted-foreground/40" />
                 </div>
-                <p className="text-xs text-muted-foreground font-medium">No active loads</p>
-                <Link href="/driver/available-loads" className="text-[11px] font-semibold text-primary hover:underline">
+                <p className="text-sm text-muted-foreground font-medium">No active loads</p>
+                <Link href="/driver/available-loads" className="text-sm font-semibold text-primary hover:underline">
                   Browse Available &rarr;
                 </Link>
               </div>
@@ -1160,7 +1481,7 @@ export default function DriverDashboardPage() {
         {/* Dispatch Status + Other Loads */}
         <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-5 border-b border-border/50">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
               <Zap className="size-4 text-emerald-500" />
               Dispatch Status
             </CardTitle>
@@ -1172,32 +1493,126 @@ export default function DriverDashboardPage() {
                   key={item.key}
                   size="sm"
                   variant="outline"
-                  disabled={savingOpStatus}
+                  disabled={savingOpStatus || (Boolean(workEligibility.statusRequest) && item.key !== "active")}
                   className={cn(
-                    "h-9 text-[11px] font-semibold gap-1 transition-all duration-200",
+                    "h-10 text-sm font-semibold gap-1.5 transition-all duration-200",
                     opStatus === item.key ? item.activeColor : "border-border/50 text-muted-foreground",
                   )}
-                  onClick={() => updateOpStatus(item.key)}
+                  onClick={() => void handleOperationalStatusClick(item.key as "active" | "on_leave" | "maintenance")}
                 >
                   {item.icon} {item.label}
                 </Button>
               ))}
             </div>
+
+            {workEligibility.statusRequest && (
+              <div
+                className={cn(
+                  "rounded-xl border p-3 space-y-3",
+                  workEligibility.statusRequest.priority === "emergency"
+                    ? "border-red-500/25 bg-red-500/5"
+                    : "border-amber-500/25 bg-amber-500/5",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    className={cn(
+                      "size-4 shrink-0 mt-0.5",
+                      workEligibility.statusRequest.priority === "emergency"
+                        ? "text-red-500"
+                        : "text-amber-500",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black">
+                      {workEligibility.statusRequest.priority === "emergency"
+                        ? "Emergency Request Active"
+                        : workEligibility.statusRequest.status === "approved_awaiting_reassignment"
+                          ? "Approved — Awaiting Reassignment"
+                          : "Dispatch Status Request Pending"}
+                    </p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground/90">
+                      Requested Status: {workEligibility.statusRequest.requestedStatus === "maintenance" ? "In Shop" : "On Leave"}.
+                      {workEligibility.statusRequest.priority === "emergency"
+                        ? " Dispatch is handling your active loads. You do not need to take further action right now."
+                        : workEligibility.statusRequest.status === "approved_awaiting_reassignment"
+                          ? " Your status will change automatically after all active loads are cleared."
+                          : " You remain Active while Dispatch reviews the request."}
+                    </p>
+                  </div>
+                </div>
+
+                {workEligibility.statusRequest.priority === "emergency" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-xs font-semibold"
+                      onClick={() => setEmergencyChatOpen(true)}
+                    >
+                      <MessageSquare className="size-3.5 mr-1.5" />
+                      Message Dispatch
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-xs font-semibold"
+                      onClick={() => setStatusRequestDialog({
+                        open: true,
+                        requestedStatus: workEligibility.statusRequest!.requestedStatus,
+                        priority: "emergency",
+                        updateExisting: true,
+                      })}
+                    >
+                      Add Details Later
+                    </Button>
+                  </div>
+                )}
+
+                {workEligibility.statusRequest.priority === "standard" &&
+                  workEligibility.statusRequest.status === "pending" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 w-full text-xs font-semibold"
+                      onClick={() => void cancelPendingStatusRequest()}
+                    >
+                      Cancel Request
+                    </Button>
+                  )}
+              </div>
+            )}
+
+            {opStatus === "active" && hasActiveLoad && !workEligibility.statusRequest && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                onClick={() => setStatusRequestDialog({
+                  open: true,
+                  requestedStatus: "maintenance",
+                  priority: "emergency",
+                })}
+              >
+                <AlertTriangle className="size-4 mr-2" />
+                Emergency / Unable to Continue
+              </Button>
+            )}
             {activeLoads.length > 1 && (
               <div className="space-y-2">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Other Loads ({activeLoads.length - 1})</p>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Other Loads ({activeLoads.length - 1})</p>
                 {activeLoads.slice(1, 4).map((load) => (
                   <div key={load._id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-mono font-bold truncate">{load.trackingNumber || "No tracking #"}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{load.origin} &rarr; {load.destination}</p>
+                      <p className="break-words text-sm font-mono font-bold [overflow-wrap:anywhere]">{load.trackingNumber || "No tracking #"}</p>
+                      <p className="break-words text-sm text-muted-foreground/85 [overflow-wrap:anywhere]">{load.origin} &rarr; {load.destination}</p>
                     </div>
-                    <Badge variant="outline" className={cn("text-[9px] font-bold shrink-0 ml-2", LOAD_STATUS_COLORS[load.status] || "")}>
+                    <Badge variant="outline" className={cn("text-[10px] font-bold shrink-0 ml-2", LOAD_STATUS_COLORS[load.status] || "")}>
                       {load.status}
                     </Badge>
                   </div>
                 ))}
-                <Link href="/driver/loads" className="flex items-center justify-center gap-1.5 pt-1 text-[11px] font-semibold text-primary hover:underline">
+                <Link href="/driver/loads" className="flex items-center justify-center gap-1.5 pt-1 text-sm font-semibold text-primary hover:underline">
                   View all loads <ArrowRight className="size-3" />
                 </Link>
               </div>
@@ -1210,7 +1625,7 @@ export default function DriverDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in-up stagger-4">
         <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-5 border-b border-border/50">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="size-4 text-violet-500" />
               Availability
             </CardTitle>
@@ -1223,7 +1638,7 @@ export default function DriverDashboardPage() {
                   type="button"
                   onClick={() => toggleDay(d.value)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-xs font-bold transition-all border",
+                    "px-3 py-2.5 rounded-lg text-sm font-bold transition-all border",
                     logDays.includes(d.value)
                       ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-400"
                       : "border-border/65 text-muted-foreground hover:border-border",
@@ -1239,7 +1654,7 @@ export default function DriverDashboardPage() {
         <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-5 border-b border-border/50">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
                 <MapPin className="size-4 text-blue-500" />
                 Service Area
               </CardTitle>
@@ -1248,14 +1663,14 @@ export default function DriverDashboardPage() {
           </CardHeader>
           <CardContent className="p-4 space-y-3">
             <Slider value={[logRadius]} onValueChange={([v]) => setLogRadius(v)} min={25} max={3000} step={25} />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
+            <div className="flex justify-between text-xs text-muted-foreground/85">
               <span>25 mi</span>
               <span>3,000 mi</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Input value={logCity} onChange={(e) => setLogCity(e.target.value)} placeholder="City" className="h-9 text-xs" />
+              <Input value={logCity} onChange={(e) => setLogCity(e.target.value)} placeholder="City" className="h-10 text-sm" />
               <Select value={logState || ""} onValueChange={setLogState}>
-                <SelectTrigger className="h-9 text-xs">
+                <SelectTrigger className="h-10 text-sm">
                   <SelectValue placeholder="State" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1270,10 +1685,10 @@ export default function DriverDashboardPage() {
 
         <Card className="lg:col-span-4 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-5 border-b border-border/50">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
               <Route className="size-4 text-amber-500" />
               Preferred Routes
-              <span className="text-[10px] text-muted-foreground ml-auto">{logRoutes.length}/10</span>
+              <span className="text-xs text-muted-foreground ml-auto">{logRoutes.length}/10</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
@@ -1284,22 +1699,22 @@ export default function DriverDashboardPage() {
                 placeholder="e.g. UT &rarr; CA"
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addRoute(); } }}
                 maxLength={50}
-                className="h-9 text-xs"
+                className="h-10 text-sm"
               />
-              <Button size="sm" variant="outline" onClick={addRoute} disabled={logRoutes.length >= 10} className="h-9 px-3 text-xs shrink-0">
+              <Button size="sm" variant="outline" onClick={addRoute} disabled={logRoutes.length >= 10} className="h-10 px-3 text-sm shrink-0">
                 Add
               </Button>
             </div>
             {logRoutes.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {logRoutes.map((r) => (
-                  <Badge key={r} variant="outline" className="gap-1 pr-1 cursor-pointer hover:bg-destructive/10 text-xs" onClick={() => setLogRoutes(logRoutes.filter((x) => x !== r))}>
-                    {r} <span className="text-destructive text-[10px]">&times;</span>
+                  <Badge key={r} variant="outline" className="gap-1 pr-1.5 cursor-pointer hover:bg-destructive/10 text-sm" onClick={() => setLogRoutes(logRoutes.filter((x) => x !== r))}>
+                    {r} <span className="text-destructive text-xs">&times;</span>
                   </Badge>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground/50 text-center py-1">No routes added yet</p>
+              <p className="text-sm text-muted-foreground/70 text-center py-2">No routes added yet</p>
             )}
           </CardContent>
         </Card>
@@ -1323,12 +1738,56 @@ export default function DriverDashboardPage() {
         onAccept={acceptLoad}
       />
 
+      <DriverStatusChangeDialog
+        open={statusRequestDialog.open}
+        onOpenChange={(open) => setStatusRequestDialog((prev) => ({ ...prev, open }))}
+        requestedStatus={statusRequestDialog.requestedStatus}
+        priority={statusRequestDialog.priority}
+        currentRequest={statusRequestDialog.updateExisting ? workEligibility.statusRequest : null}
+        onSubmitted={async () => {
+          await Promise.all([fetchData(), workEligibility.refresh()]);
+        }}
+      />
+
+      <DispatchChatDialog
+        open={emergencyChatOpen}
+        onOpenChange={setEmergencyChatOpen}
+        driverId={user?.id ?? null}
+        participantName="Dispatch Team"
+        onUnreadChange={ignoreEmergencyChatUnread}
+      />
+
+      <ConfirmationModal
+        isOpen={returnToActiveLiveStatus !== null}
+        onClose={() => setReturnToActiveLiveStatus(null)}
+        onConfirm={async () => {
+          const target = returnToActiveLiveStatus;
+          if (!target) return;
+          const changed = await performOpStatusUpdate("active", target);
+          if (changed) {
+            toast.success("Dispatch Status returned to Active");
+            setReturnToActiveLiveStatus(null);
+          }
+        }}
+        title="Return to Active Status?"
+        description="You are currently In Shop. Returning to this live status will first change your Dispatch Status back to Active."
+        variant="primary"
+        isLoading={savingOpStatus}
+      />
+
       <ConfirmationModal
         isOpen={confirmState.isOpen}
         onClose={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
         onConfirm={executeConfirmedAction}
         title={confirmState.title}
         description={confirmState.description}
+        confirmText={
+          confirmState.action === "drop-load"
+            ? "Release Load"
+            : confirmState.action === "start-route"
+              ? "Start Route"
+              : "Confirm"
+        }
         variant={confirmState.variant}
         isLoading={!!accepting || !!dropping || !!startingRoute}
       />

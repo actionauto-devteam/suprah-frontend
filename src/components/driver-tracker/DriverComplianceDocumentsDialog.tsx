@@ -304,17 +304,23 @@ export function DriverComplianceDocumentsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-[94vw]">
-        <DialogHeader className="shrink-0 border-b border-border/60 bg-gradient-to-b from-emerald-500/[0.07] to-background px-5 py-5 sm:px-6">
+      <DialogContent
+        className="flex max-h-[90dvh] max-w-none flex-col gap-0 overflow-hidden p-0"
+        style={{
+          width: "min(94vw, 72rem)",
+          maxWidth: "min(94vw, 72rem)",
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b border-border/70 bg-gradient-to-b from-emerald-500/[0.07] to-background px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
           <div className="flex flex-wrap items-start justify-between gap-3 pr-7">
             <div>
-              <DialogTitle className="flex items-center gap-2 text-xl font-black">
-                <span className="flex size-9 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <ShieldCheck className="size-4.5" />
+              <DialogTitle className="flex items-center gap-2.5 text-xl font-black sm:text-2xl">
+                <span className="flex size-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="size-5" />
                 </span>
                 Compliance & Documents
               </DialogTitle>
-              <DialogDescription className="mt-1.5">
+              <DialogDescription className="mt-2 text-sm leading-relaxed sm:text-base">
                 Dispatcher view of {driverName}&apos;s driver verification and
                 operational compliance records.
               </DialogDescription>
@@ -323,7 +329,7 @@ export function DriverComplianceDocumentsDialog({
             {profile && (
               <Badge
                 variant="outline"
-                className={`font-bold ${statusClass(
+                className={`h-7 px-3 text-xs font-bold ${statusClass(
                   profile.verificationStatus,
                 )}`}
               >
@@ -333,11 +339,11 @@ export function DriverComplianceDocumentsDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
           {isLoading ? (
             <div className="flex min-h-72 items-center justify-center">
               <Loader2 className="mr-2 size-5 animate-spin text-emerald-500" />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-base text-muted-foreground">
                 Loading driver records…
               </span>
             </div>
@@ -346,22 +352,22 @@ export function DriverComplianceDocumentsDialog({
               <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/50">
                 <FileText className="size-6 text-muted-foreground" />
               </div>
-              <p className="mt-3 text-sm font-black">
+              <p className="mt-3 text-base font-black">
                 No driver verification profile yet
               </p>
-              <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+              <p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">
                 {driverName} has not created their Driver Verification profile,
                 so there are no compliance documents available to review yet.
               </p>
             </div>
           ) : profile ? (
-            <div className="space-y-5">
-              <section className="rounded-2xl border border-border/60 bg-muted/[0.14] p-4">
+            <div className="space-y-5 sm:space-y-6">
+              <section className="rounded-2xl border border-border/70 bg-muted/[0.14] p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-black">{driverName}</p>
+                    <p className="text-base font-black">{driverName}</p>
                     {driverEmail && (
-                      <p className="break-all text-[11px] text-muted-foreground">
+                      <p className="break-all text-sm text-muted-foreground">
                         {driverEmail}
                       </p>
                     )}
@@ -377,12 +383,12 @@ export function DriverComplianceDocumentsDialog({
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-3">
+                  <div className="rounded-xl border border-border/60 bg-background/70 p-3.5 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Completion
                     </p>
-                    <p className="mt-1 text-lg font-black">{completion}%</p>
+                    <p className="mt-1.5 text-2xl font-black">{completion}%</p>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-emerald-500 transition-all"
@@ -391,40 +397,40 @@ export function DriverComplianceDocumentsDialog({
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="rounded-xl border border-border/60 bg-background/70 p-3.5 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Required Docs
                     </p>
-                    <p className="mt-1 text-lg font-black">
+                    <p className="mt-1.5 text-2xl font-black">
                       {totalRequired > 0
                         ? `${uploadedCount}/${totalRequired}`
                         : uploadedCount}
                     </p>
-                    <p className="text-[9px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       uploaded
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="rounded-xl border border-border/60 bg-background/70 p-3.5 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Uploaded Files
                     </p>
-                    <p className="mt-1 text-lg font-black">
+                    <p className="mt-1.5 text-2xl font-black">
                       {documents.length}
                     </p>
-                    <p className="text-[9px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       all documents
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="rounded-xl border border-border/60 bg-background/70 p-3.5 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Verification
                     </p>
-                    <p className="mt-1 text-sm font-black">
+                    <p className="mt-1.5 text-base font-black">
                       {statusLabel(profile.verificationStatus)}
                     </p>
-                    <p className="text-[9px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       current status
                     </p>
                   </div>
@@ -432,7 +438,7 @@ export function DriverComplianceDocumentsDialog({
 
                 {missingTypes.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Missing Required Documents
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -440,7 +446,7 @@ export function DriverComplianceDocumentsDialog({
                         <Badge
                           key={type}
                           variant="outline"
-                          className="border-amber-500/25 bg-amber-500/10 text-[9px] text-amber-700 dark:text-amber-300"
+                          className="border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] sm:text-xs font-semibold text-amber-700 dark:text-amber-300"
                         >
                           {formatDocumentType(type)}
                         </Badge>
@@ -452,13 +458,13 @@ export function DriverComplianceDocumentsDialog({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <IdCard className="size-4 text-emerald-500" />
-                  <h3 className="text-sm font-black">
+                  <IdCard className="size-5 text-emerald-500" />
+                  <h3 className="text-lg font-black">
                     License & Insurance
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
                   <InfoCell
                     label="Driver's License"
                     value={maskIdentifier(profile.driversLicenseNumber)}
@@ -500,13 +506,13 @@ export function DriverComplianceDocumentsDialog({
 
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <Truck className="size-4 text-emerald-500" />
-                  <h3 className="text-sm font-black">
+                  <Truck className="size-5 text-emerald-500" />
+                  <h3 className="text-lg font-black">
                     Operational Information
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
                   <InfoCell
                     label="Truck"
                     value={
@@ -551,24 +557,24 @@ export function DriverComplianceDocumentsDialog({
               <section>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <FileCheck2 className="size-4 text-emerald-500" />
-                    <h3 className="text-sm font-black">
+                    <FileCheck2 className="size-5 text-emerald-500" />
+                    <h3 className="text-lg font-black">
                       Uploaded Documents
                     </h3>
                   </div>
-                  <span className="text-[10px] font-medium text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {documents.length} file
                     {documents.length === 1 ? "" : "s"}
                   </span>
                 </div>
 
                 {documents.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border/70 px-5 py-8 text-center">
+                  <div className="rounded-2xl border border-dashed border-border/70 px-5 py-10 text-center">
                     <FileText className="mx-auto size-6 text-muted-foreground/50" />
-                    <p className="mt-2 text-xs font-bold">
+                    <p className="mt-2 text-sm font-bold">
                       No documents uploaded
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Uploaded Driver Verification documents will appear here.
                     </p>
                   </div>
@@ -583,29 +589,29 @@ export function DriverComplianceDocumentsDialog({
                       return (
                         <div
                           key={key}
-                          className="rounded-2xl border border-border/60 bg-muted/[0.12] p-3.5"
+                          className="rounded-2xl border border-border/70 bg-muted/[0.12] p-4 sm:p-5"
                         >
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
-                              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background">
-                                <FileText className="size-4 text-emerald-500" />
+                              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background">
+                                <FileText className="size-5 text-emerald-500" />
                               </div>
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <p className="break-words text-xs font-black [overflow-wrap:anywhere]">
+                                  <p className="break-words text-base font-black leading-snug [overflow-wrap:anywhere]">
                                     {document.label ||
                                       formatDocumentType(document.type)}
                                   </p>
                                   <Badge
                                     variant="outline"
-                                    className={`text-[9px] ${docStatus.className}`}
+                                    className={`h-6 px-2 text-[11px] sm:text-xs font-semibold ${docStatus.className}`}
                                   >
                                     {docStatus.label}
                                   </Badge>
                                 </div>
 
-                                <p className="mt-0.5 break-all text-[10px] text-muted-foreground [overflow-wrap:anywhere]">
+                                <p className="mt-1 break-all text-xs text-muted-foreground [overflow-wrap:anywhere]">
                                   {document.fileName ||
                                     formatDocumentType(document.type)}
                                   {bytesLabel(document.fileSize)
@@ -613,9 +619,9 @@ export function DriverComplianceDocumentsDialog({
                                     : ""}
                                 </p>
 
-                                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted-foreground">
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                                   <span className="inline-flex items-center gap-1">
-                                    <CalendarClock className="size-2.5" />
+                                    <CalendarClock className="size-3" />
                                     Uploaded {formatDate(document.uploadedAt)}
                                   </span>
                                   {document.expiresAt && (
@@ -627,7 +633,7 @@ export function DriverComplianceDocumentsDialog({
 
                                 {document.reviewStatus === "rejected" &&
                                   document.rejectionReason && (
-                                    <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/[0.07] px-2.5 py-2 text-[10px] text-red-700 dark:text-red-300">
+                                    <div className="mt-2.5 rounded-lg border border-red-500/20 bg-red-500/[0.07] px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
                                       Rejection reason:{" "}
                                       {document.rejectionReason}
                                     </div>
@@ -641,14 +647,14 @@ export function DriverComplianceDocumentsDialog({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="h-8 shrink-0 gap-1.5 text-[10px] font-semibold"
+                                className="h-10 shrink-0 gap-2 px-3.5 text-sm font-semibold"
                               >
                                 <a
                                   href={document.fileUrl}
                                   target="_blank"
                                   rel="noreferrer"
                                 >
-                                  <ExternalLink className="size-3" />
+                                  <ExternalLink className="size-3.5" />
                                   Open Document
                                 </a>
                               </Button>
@@ -658,7 +664,7 @@ export function DriverComplianceDocumentsDialog({
                                 size="sm"
                                 variant="outline"
                                 disabled
-                                className="h-8 shrink-0 text-[10px]"
+                                className="h-10 shrink-0 text-sm"
                               >
                                 File unavailable
                               </Button>
@@ -671,8 +677,8 @@ export function DriverComplianceDocumentsDialog({
                 )}
               </section>
 
-              <div className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
-                <p className="text-[10px] leading-relaxed text-muted-foreground">
+              <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   This dispatcher view is read-only. Driver document approval
                   and rejection permissions remain controlled by the existing
                   administrative verification workflow.
@@ -696,12 +702,12 @@ function InfoCell({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/50 bg-muted/[0.16] px-3 py-2.5">
-      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-xl border border-border/60 bg-muted/[0.16] px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground sm:text-sm">
         {icon}
         {label}
       </p>
-      <p className="mt-1 break-words text-[11px] font-semibold capitalize [overflow-wrap:anywhere]">
+      <p className="mt-1.5 break-words text-sm font-semibold leading-snug capitalize [overflow-wrap:anywhere] sm:text-base">
         {value}
       </p>
     </div>

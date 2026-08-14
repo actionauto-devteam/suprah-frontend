@@ -40,7 +40,6 @@ export function ConfirmationModal({
   variant = 'primary',
   isLoading = false,
 }: ConfirmationModalProps) {
-
   const getVariantStyles = () => {
     switch (variant) {
       case 'danger':
@@ -74,45 +73,60 @@ export function ConfirmationModal({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent className="w-[calc(100vw-1rem)] sm:max-w-100 rounded-2xl gap-6 p-6">
-        <AlertDialogHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className={cn(
-              "p-2 rounded-xl border",
-              variant === 'danger' && "bg-red-50 border-red-100 dark:bg-red-950/30 dark:border-red-900/50",
-              variant === 'success' && "bg-emerald-50 border-emerald-100 dark:bg-emerald-950/30 dark:border-emerald-900/50",
-              variant === 'warning' && "bg-amber-50 border-amber-100 dark:bg-amber-950/30 dark:border-amber-900/50",
-              variant === 'primary' && "bg-blue-50 border-blue-100 dark:bg-blue-950/30 dark:border-blue-900/50",
-            )}>
-              {styles.icon}
+      <AlertDialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[calc(100dvh-2rem)] sm:max-w-md duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-6">
+          <AlertDialogHeader className="text-left">
+            <div className="mb-2 flex min-w-0 items-start gap-3">
+              <div
+                className={cn(
+                  'shrink-0 rounded-xl border p-2',
+                  variant === 'danger' && 'border-red-100 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30',
+                  variant === 'success' && 'border-emerald-100 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30',
+                  variant === 'warning' && 'border-amber-100 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30',
+                  variant === 'primary' && 'border-blue-100 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/30',
+                )}
+              >
+                {styles.icon}
+              </div>
+              <AlertDialogTitle className="min-w-0 break-words pt-1 text-lg font-black leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-xl">
+                {title}
+              </AlertDialogTitle>
             </div>
-            <AlertDialogTitle className="text-xl font-black tracking-tight">
-              {title}
-            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground/80 [overflow-wrap:anywhere]">
+              {description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </div>
+
+        <AlertDialogFooter className="shrink-0 border-t border-border/60 bg-background px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel asChild>
+              <Button
+                variant="ghost"
+                className="h-auto min-h-10 w-full whitespace-normal break-words rounded-xl px-4 py-2 text-center text-[10px] font-bold uppercase tracking-widest [overflow-wrap:anywhere] sm:w-auto"
+                disabled={isLoading}
+              >
+                {cancelText}
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                onClick={(event) => {
+                  event.preventDefault();
+                  onConfirm();
+                }}
+                disabled={isLoading}
+                className={cn(
+                  'h-auto min-h-10 w-full min-w-0 whitespace-normal break-words rounded-xl px-4 py-2 text-center text-[10px] font-bold uppercase tracking-widest shadow-lg [overflow-wrap:anywhere] sm:w-auto sm:min-w-25',
+                  styles.button,
+                  styles.ring,
+                )}
+              >
+                {isLoading ? <Loader2 className="mr-2 size-3.5 shrink-0 animate-spin" /> : null}
+                <span className="break-words [overflow-wrap:anywhere]">{confirmText}</span>
+              </Button>
+            </AlertDialogAction>
           </div>
-          <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground/80">
-            {description}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="gap-2 sm:gap-0">
-          <AlertDialogCancel asChild>
-            <Button variant="ghost" className="rounded-xl font-bold uppercase tracking-widest text-[10px]" disabled={isLoading}>
-              {cancelText}
-            </Button>
-          </AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button
-              onClick={(e) => {
-                e.preventDefault();
-                onConfirm();
-              }}
-              disabled={isLoading}
-              className={cn("rounded-xl font-bold uppercase tracking-widest text-[10px] min-w-25 shadow-lg", styles.button, styles.ring)}
-            >
-              {isLoading ? <Loader2 className="size-3.5 animate-spin mr-2" /> : null}
-              {confirmText}
-            </Button>
-          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

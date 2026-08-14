@@ -66,6 +66,7 @@ import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
 import { useFeedBadge } from "@/lib/feed-notification-store";
+import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 // Suprah YapLine — live PTT session count. Singleton useSyncExternalStore
 // store (no provider needed), same pattern as the Feeds badge below.
 import { useYapLineActiveCount } from "@/lib/yapline-store";
@@ -293,6 +294,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // since these are the "something needs attention" alerts, distinct from the
   // informational badges above.
   const { notifications: allNotifications } = useNotifications();
+  const dispatchChatEnabled = ["employee", "admin", "super_admin"].includes(
+    String(user?.role ?? ""),
+  );
+  const { unreadTotal: driverTrackerUnread } = useDispatchChatUnread({
+    enabled: dispatchChatEnabled,
+  });
+
   const locatorUnread = React.useMemo(
     () => allNotifications.filter((n) => !n.isRead && isLocatorNotification(n)).length,
     [allNotifications],
@@ -559,6 +567,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+
+                        {/* Driver Tracker: unread private dispatcher↔driver
+                            messages for the currently logged-in dispatcher only.
+                            This count is fully separate from Suprah Space. */}
+                        {item.title === "Driver Tracker" &&
+                          driverTrackerUnread > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                            >
+                              {driverTrackerUnread > 99
+                                ? "99+"
+                                : driverTrackerUnread}
+                            </Badge>
+                          )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -30,6 +30,7 @@ interface DriverLocationSharingContextValue {
   shareError: string | null;
   hasActiveLoad: boolean;
   isLocationRequired: boolean;
+  locationRequirementReason: "active_load" | "dispatch_retained_load" | null;
   isLoadPolicyResolved: boolean;
   locationPermissionState: "unknown" | "prompt" | "granted" | "denied" | "unsupported";
   isLocationAccessBlocked: boolean;
@@ -84,6 +85,13 @@ export function DriverLocationSharingProvider({
   >("unknown");
   const [isRecoveringLocationAccess, setIsRecoveringLocationAccess] =
     React.useState(false);
+  const [operationalStatus, setOperationalStatus] = React.useState<
+    "active" | "on_leave" | "maintenance"
+  >("active");
+  const [emergencyReleaseActive, setEmergencyReleaseActive] =
+    React.useState(false);
+  const [dispatchRetainedGpsRequired, setDispatchRetainedGpsRequired] =
+    React.useState(false);
 
   const watchIdRef = React.useRef<number | null>(null);
   const heartbeatTimerRef = React.useRef<number | null>(null);
@@ -98,6 +106,9 @@ export function DriverLocationSharingProvider({
     "unknown" | "prompt" | "granted" | "denied" | "unsupported"
   >("unknown");
   const locationOfflineSignaledRef = React.useRef(false);
+  const operationalStatusRef = React.useRef<"active" | "on_leave" | "maintenance">("active");
+  const emergencyReleaseActiveRef = React.useRef(false);
+  const dispatchRetainedGpsRequiredRef = React.useRef(false);
   const autoReloadTimerRef = React.useRef<number | null>(null);
   const mountedRef = React.useRef(true);
 
@@ -131,6 +142,12 @@ export function DriverLocationSharingProvider({
       mountedRef.current = false;
     };
   }, []);
+
+  const isLocationEnforcementRequired = React.useCallback(() =>
+    hasActiveLoadRef.current &&
+    !emergencyReleaseActiveRef.current &&
+    (operationalStatusRef.current === "active" ||
+      dispatchRetainedGpsRequiredRef.current), []);
 
   const persistManualSharing = React.useCallback(
     (enabled: boolean) => {
@@ -193,7 +210,7 @@ export function DriverLocationSharingProvider({
       if (!mountedRef.current) return;
 
       const shouldRemainEnabled =
-        hasActiveLoadRef.current ||
+        isLocationEnforcementRequired() ||
         manualSharingEnabledRef.current;
 
       setLastShareAt(new Date().toLocaleTimeString());
@@ -202,28 +219,38 @@ export function DriverLocationSharingProvider({
       setIsSharing(shouldRemainEnabled);
       setIsStarting(false);
     },
-    [postLocation],
+    [isLocationEnforcementRequired, postLocation],
   );
 
   const sendOfflineHeartbeat = React.useCallback(async () => {
-    const coords = lastCoordsRef.current;
-    if (!coords) return;
-
     try {
-      await postLocation(coords, "offline");
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await apiClient.post(
+        "/api/driver-tracking/location-offline",
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
       if (mountedRef.current) {
         setLastShareAt(new Date().toLocaleTimeString());
+        setIsSharing(false);
+        setIsStarting(false);
       }
+
+      return response.data?.data;
     } catch (error: any) {
       if (mountedRef.current) {
         setShareError(
           error?.response?.data?.message ||
             error?.message ||
-            "Failed to update GPS offline status",
+            "Failed to update GPS sharing state",
         );
       }
+      return undefined;
     }
-  }, [postLocation]);
+  }, [getToken]);
 
   const signalLocationPermissionOffline = React.useCallback(() => {
     if (locationOfflineSignaledRef.current) {
@@ -233,40 +260,16 @@ export function DriverLocationSharingProvider({
     locationOfflineSignaledRef.current = true;
     setIsSharing(false);
     setIsStarting(false);
+    setSharingEnabled(false);
 
-    // Active-load drivers keep the dedicated backend endpoint because it also
-    // preserves the required GPS-silence monitoring flow.
-    if (hasActiveLoadRef.current) {
-      void (async () => {
-        try {
-          const token = await getToken();
-          if (!token) return;
-
-          await apiClient.post(
-            "/api/driver-tracking/location-offline",
-            {
-              lat: lastCoordsRef.current?.lat,
-              lng: lastCoordsRef.current?.lng,
-            },
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-        } catch (error: any) {
-          if (!mountedRef.current) return;
-          setShareError(
-            error?.response?.data?.message ||
-              error?.message ||
-              "Failed to publish the required Offline GPS state",
-          );
-        }
-      })();
-      return;
-    }
-
-    // No active load: do not start the 10-minute dispatcher alert flow.
-    // Publish Offline through the normal heartbeat using the last valid
-    // coordinates solely so Driver Tracker immediately reflects Offline.
-    void sendOfflineHeartbeat();
-  }, [getToken, sendOfflineHeartbeat]);
+    // Publish GPS-off independently from Live/Dispatch Status. The backend
+    // decides whether the 10-minute monitoring policy is required. On Leave /
+    // In Shop stay optional unless Dispatch explicitly kept loads assigned and
+    // required GPS for those retained loads.
+    void sendOfflineHeartbeat().catch(() => {
+      // sendOfflineHeartbeat already exposes a user-facing error.
+    });
+  }, [sendOfflineHeartbeat]);
 
   const setShareStatus = React.useCallback(
     (status: DriverStatus) => {
@@ -300,23 +303,58 @@ export function DriverLocationSharingProvider({
   );
 
   const applyLoadPolicy = React.useCallback(
-    async (nextHasActiveLoad: boolean) => {
+    async (
+      nextHasActiveLoad: boolean,
+      nextDispatchRetainedGpsRequired = false,
+    ) => {
       const previousHasActiveLoad = hasActiveLoadRef.current;
       hasActiveLoadRef.current = nextHasActiveLoad;
       setHasActiveLoad(nextHasActiveLoad);
+      dispatchRetainedGpsRequiredRef.current =
+        nextDispatchRetainedGpsRequired;
+      setDispatchRetainedGpsRequired(nextDispatchRetainedGpsRequired);
 
-      if (nextHasActiveLoad) {
-        // Active load always overrides the driver's manual no-load preference.
-        setShareError(null);
-        setSharingEnabled(true);
-
-        if (!isSharingRef.current) {
-          setIsStarting(true);
+      const operationallyActive =
+        operationalStatusRef.current === "active";
+      // On Leave / In Shop remain optional by default. If Dispatch explicitly
+      // kept active loads assigned AND required GPS, that retained-load policy
+      // becomes the only off-duty exception and uses the same proven forced-GPS
+      // lifecycle as Active + active-load tracking.
+      if (!operationallyActive) {
+        if (nextHasActiveLoad && nextDispatchRetainedGpsRequired) {
+          setShareError(null);
+          setSharingEnabled(true);
+          if (!isSharingRef.current) setIsStarting(true);
+          return;
         }
+
+        const shouldShareManually = manualSharingEnabledRef.current;
+        setSharingEnabled(shouldShareManually);
+
+        if (shouldShareManually) {
+          if (!isSharingRef.current) setIsStarting(true);
+          return;
+        }
+
+        if (isSharingRef.current || sharingEnabledRef.current) {
+          await sendOfflineHeartbeat().catch(() => {});
+        }
+
+        setIsStarting(false);
+        setIsSharing(false);
         return;
       }
 
-      // No active loads: return control to the driver's saved manual preference.
+      if (nextHasActiveLoad) {
+        // Standard active-load policy: tracking remains automatic. During an
+        // emergency release, keep GPS running when available but remove the
+        // blocking/forced-permission requirement.
+        setShareError(null);
+        setSharingEnabled(true);
+        if (!isSharingRef.current) setIsStarting(true);
+        return;
+      }
+
       const shouldShareManually = manualSharingEnabledRef.current;
       setSharingEnabled(shouldShareManually);
 
@@ -325,8 +363,6 @@ export function DriverLocationSharingProvider({
         return;
       }
 
-      // If forced tracking just ended because the last active load was
-      // delivered/removed/reassigned, immediately mark the driver offline.
       if (
         previousHasActiveLoad ||
         isSharingRef.current ||
@@ -348,12 +384,19 @@ export function DriverLocationSharingProvider({
       const token = await getToken();
       if (!token) return;
 
-      const response = await apiClient.get(
-        "/api/driver-tracking/my-loads",
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const [loadsResponse, profileResponse, requestResponse] = await Promise.all([
+        apiClient.get("/api/driver-tracking/my-loads", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiClient.get("/api/driver-profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiClient.get("/api/driver-profile/status-requests/my-current", {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null),
+      ]);
 
-      const data = response.data?.data;
+      const data = loadsResponse.data?.data;
       const loads = Array.isArray(data)
         ? data
         : Array.isArray(data?.loads)
@@ -363,24 +406,44 @@ export function DriverLocationSharingProvider({
       const nextHasActiveLoad = loads.some((load: any) =>
         ACTIVE_LOAD_STATUSES.has(String(load?.status)),
       );
+      const nextDispatchRetainedGpsRequired = loads.some(
+        (load: any) =>
+          ACTIVE_LOAD_STATUSES.has(String(load?.status)) &&
+          load?.dispatchGpsRequired === true,
+      );
 
-      await applyLoadPolicy(nextHasActiveLoad);
+      const rawOperationalStatus = profileResponse.data?.data?.operationalStatus;
+      const nextOperationalStatus =
+        rawOperationalStatus === "on_leave" || rawOperationalStatus === "maintenance"
+          ? rawOperationalStatus
+          : "active";
+      const currentRequest = requestResponse?.data?.data ?? null;
+      const nextEmergencyReleaseActive = Boolean(
+        currentRequest?.priority === "emergency" &&
+          ["pending", "approved_awaiting_reassignment"].includes(currentRequest?.status),
+      );
 
-      if (mountedRef.current) {
-        setIsLoadPolicyResolved(true);
-      }
+      operationalStatusRef.current = nextOperationalStatus;
+      emergencyReleaseActiveRef.current = nextEmergencyReleaseActive;
+      setOperationalStatus(nextOperationalStatus);
+      setEmergencyReleaseActive(nextEmergencyReleaseActive);
+
+      await applyLoadPolicy(
+        nextHasActiveLoad,
+        nextDispatchRetainedGpsRequired,
+      );
+
+      if (mountedRef.current) setIsLoadPolicyResolved(true);
     } catch (error: any) {
-      // Keep the first policy check fail-closed so a transient API failure
-      // cannot create a click-through window while requirements are unknown.
-      if (mountedRef.current && hasActiveLoadRef.current) {
+      if (mountedRef.current && isLocationEnforcementRequired()) {
         setShareError(
           error?.response?.data?.message ||
             error?.message ||
-            "Unable to verify load status. Required GPS tracking remains active.",
+            "Unable to verify load/status policy. Required GPS tracking remains active.",
         );
       }
     }
-  }, [applyLoadPolicy, getToken, isSignedIn]);
+  }, [applyLoadPolicy, getToken, isSignedIn, isLocationEnforcementRequired]);
 
   const startSharing = React.useCallback(() => {
     if (!navigator.geolocation) {
@@ -391,10 +454,9 @@ export function DriverLocationSharingProvider({
       return;
     }
 
-    // When there is no active load, this is the driver's explicit preference.
-    // During an active load the same call is harmless and does not change the
-    // saved no-load preference.
-    if (!hasActiveLoadRef.current) {
+    // Manual GPS is allowed whenever GPS is not being forced by the standard
+    // Active + active-load policy. This includes On Leave and In Shop.
+    if (!isLocationEnforcementRequired()) {
       persistManualSharing(true);
     }
 
@@ -403,12 +465,15 @@ export function DriverLocationSharingProvider({
     setIsSharing(false);
     setIsStarting(true);
     setSharingEnabled(true);
-  }, [persistManualSharing]);
+  }, [isLocationEnforcementRequired, persistManualSharing]);
 
   const stopSharing = React.useCallback(async () => {
-    if (hasActiveLoadRef.current) {
+    if (isLocationEnforcementRequired()) {
       setShareError(
-        "GPS tracking is required while you have an active load and cannot be turned off.",
+        dispatchRetainedGpsRequiredRef.current &&
+          operationalStatusRef.current !== "active"
+          ? "Dispatch requires GPS while your retained load remains assigned. Location sharing cannot be turned off until that requirement ends."
+          : "GPS tracking is required while you have an active load and cannot be turned off.",
       );
       setSharingEnabled(true);
       return;
@@ -419,7 +484,7 @@ export function DriverLocationSharingProvider({
     setIsStarting(false);
     setIsSharing(false);
     await sendOfflineHeartbeat();
-  }, [persistManualSharing, sendOfflineHeartbeat]);
+  }, [isLocationEnforcementRequired, persistManualSharing, sendOfflineHeartbeat]);
 
   // Restore the driver's operational status + their manual no-load GPS choice,
   // then let the current load state decide whether that choice can be overridden.
@@ -466,6 +531,8 @@ export function DriverLocationSharingProvider({
         socket = initializeSocket(token);
         socket.on("driver:loads_updated", handleLoadsUpdated);
         socket.on("load:change", handleLoadsUpdated);
+        socket.on("driver:operational_status_updated", handleLoadsUpdated);
+        socket.on("driver:status_request_updated", handleLoadsUpdated);
 
         interval = window.setInterval(
           handleLoadsUpdated,
@@ -486,6 +553,8 @@ export function DriverLocationSharingProvider({
       if (interval !== null) window.clearInterval(interval);
       socket?.off("driver:loads_updated", handleLoadsUpdated);
       socket?.off("load:change", handleLoadsUpdated);
+      socket?.off("driver:operational_status_updated", handleLoadsUpdated);
+      socket?.off("driver:status_request_updated", handleLoadsUpdated);
     };
   }, [getToken, isSignedIn, refreshActiveLoadState]);
 
@@ -508,7 +577,7 @@ export function DriverLocationSharingProvider({
   const scheduleLocationRecoveryReload = React.useCallback(() => {
     if (
       typeof window === "undefined" ||
-      !hasActiveLoadRef.current
+      !isLocationEnforcementRequired()
     ) {
       return;
     }
@@ -531,7 +600,7 @@ export function DriverLocationSharingProvider({
     autoReloadTimerRef.current = window.setTimeout(() => {
       window.location.reload();
     }, 2_500);
-  }, []);
+  }, [isLocationEnforcementRequired]);
 
   const recoverFromRestoredLocationPermission = React.useCallback(() => {
     const wasDenied =
@@ -541,7 +610,7 @@ export function DriverLocationSharingProvider({
     setLocationPermissionState("granted");
 
     const shouldResumeSharing =
-      hasActiveLoadRef.current ||
+      isLocationEnforcementRequired() ||
       manualSharingEnabledRef.current;
 
     // Prompt -> Granted does not need special recovery. If a previously denied
@@ -592,7 +661,7 @@ export function DriverLocationSharingProvider({
             );
 
             // Automatic reload remains an active-load enforcement fallback.
-            if (hasActiveLoadRef.current) {
+            if (isLocationEnforcementRequired()) {
               scheduleLocationRecoveryReload();
             } else {
               setIsRecoveringLocationAccess(false);
@@ -609,7 +678,7 @@ export function DriverLocationSharingProvider({
         );
 
         // No-load manual sharing should never force a page reload.
-        if (hasActiveLoadRef.current) {
+        if (isLocationEnforcementRequired()) {
           scheduleLocationRecoveryReload();
         } else {
           setIsRecoveringLocationAccess(false);
@@ -626,6 +695,7 @@ export function DriverLocationSharingProvider({
     clearLocationRecoveryReload,
     scheduleLocationRecoveryReload,
     sendHeartbeat,
+    isLocationEnforcementRequired,
   ]);
 
   // After a successful non-reload recovery (or after the refreshed page
@@ -633,7 +703,7 @@ export function DriverLocationSharingProvider({
   // future permission incident can use the fallback again.
   React.useEffect(() => {
     if (
-      !hasActiveLoad ||
+      !(hasActiveLoad && operationalStatus === "active" && !emergencyReleaseActive) ||
       locationPermissionState !== "granted" ||
       isRecoveringLocationAccess
     ) {
@@ -644,6 +714,8 @@ export function DriverLocationSharingProvider({
   }, [
     clearLocationRecoveryReload,
     hasActiveLoad,
+    operationalStatus,
+    emergencyReleaseActive,
     isRecoveringLocationAccess,
     locationPermissionState,
   ]);
@@ -654,8 +726,11 @@ export function DriverLocationSharingProvider({
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
       setShareError(
-        hasActiveLoadRef.current
-          ? "Location access is required while you have an active load, but geolocation is not supported on this device."
+        isLocationEnforcementRequired()
+          ? dispatchRetainedGpsRequiredRef.current &&
+              operationalStatusRef.current !== "active"
+            ? "Dispatch requires location sharing for your retained load, but geolocation is not supported on this device."
+            : "Location access is required while you have an active load, but geolocation is not supported on this device."
           : "Geolocation is not supported on this device.",
       );
       setSharingEnabled(false);
@@ -733,8 +808,11 @@ export function DriverLocationSharingProvider({
         signalLocationPermissionOffline();
 
         setShareError(
-          hasActiveLoadRef.current
-            ? "Location permission is required while you have an active load. Enable location access for this site."
+          isLocationEnforcementRequired()
+            ? dispatchRetainedGpsRequiredRef.current &&
+                operationalStatusRef.current !== "active"
+              ? "Dispatch requires GPS for your retained load. Enable location access for this site."
+              : "Location permission is required while you have an active load. Enable location access for this site."
             : "Location permission is blocked. Enable it if you want to share your location.",
         );
         return;
@@ -832,8 +910,11 @@ export function DriverLocationSharingProvider({
         signalLocationPermissionOffline();
 
         setShareError(
-          hasActiveLoadRef.current
-            ? "Location permission is required while you have an active load. Enable location access for this site."
+          isLocationEnforcementRequired()
+            ? dispatchRetainedGpsRequiredRef.current &&
+                operationalStatusRef.current !== "active"
+              ? "Dispatch requires GPS for your retained load. Enable location access for this site."
+              : "Location permission is required while you have an active load. Enable location access for this site."
             : "Location permission is blocked. Enable it if you want to share your location.",
         );
       } else {
@@ -896,6 +977,7 @@ export function DriverLocationSharingProvider({
     recoverFromRestoredLocationPermission,
     sendHeartbeat,
     signalLocationPermissionOffline,
+    isLocationEnforcementRequired,
   ]);
 
   const value =
@@ -909,11 +991,28 @@ export function DriverLocationSharingProvider({
         lastCoords,
         shareError,
         hasActiveLoad,
-        isLocationRequired: hasActiveLoad,
+        isLocationRequired:
+          hasActiveLoad &&
+          !emergencyReleaseActive &&
+          (operationalStatus === "active" ||
+            dispatchRetainedGpsRequired),
+        locationRequirementReason:
+          hasActiveLoad &&
+          !emergencyReleaseActive &&
+          operationalStatus === "active"
+            ? "active_load"
+            : hasActiveLoad &&
+                !emergencyReleaseActive &&
+                dispatchRetainedGpsRequired
+              ? "dispatch_retained_load"
+              : null,
         isLoadPolicyResolved,
         locationPermissionState,
         isLocationAccessBlocked:
           hasActiveLoad &&
+          !emergencyReleaseActive &&
+          (operationalStatus === "active" ||
+            dispatchRetainedGpsRequired) &&
           (locationPermissionState !== "granted" ||
             isRecoveringLocationAccess),
         isRecoveringLocationAccess,
@@ -929,6 +1028,9 @@ export function DriverLocationSharingProvider({
         lastCoords,
         shareError,
         hasActiveLoad,
+        operationalStatus,
+        emergencyReleaseActive,
+        dispatchRetainedGpsRequired,
         isLoadPolicyResolved,
         locationPermissionState,
         isRecoveringLocationAccess,

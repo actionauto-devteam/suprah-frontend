@@ -21,6 +21,7 @@ import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-c
 import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 
 // Real driver-tracking endpoints — accept/request/pickup/start-route/drop
 // all live under /loads/:id/*, not the flat /api/driver-tracking/{action}
@@ -63,6 +64,7 @@ const STEPS = [
 
 export default function LoadDetailPage() {
   const { getToken } = useAuth();
+  const workEligibility = useDriverWorkEligibility();
   const params = useParams();
   const router = useRouter();
   const loadId = params.id as string;
@@ -126,6 +128,10 @@ export default function LoadDetailPage() {
   };
 
   const handleAction = (action: string) => {
+    if (SIGNATURE_ACTIONS.has(action) && !workEligibility.canTakeNewWork) {
+      toast.error(workEligibility.blockReason || 'You are not eligible to accept or request a new load right now.');
+      return;
+    }
     if (SIGNATURE_ACTIONS.has(action)) {
       setContractAction(action);
       return;
@@ -191,11 +197,11 @@ export default function LoadDetailPage() {
   const isAccepted = !!data.driverAcceptedAt;
   const isMyRequest = !!data.myRequestStatus;
 
-  const canAccept = status === 'Assigned' && !isAccepted;
+  const canAccept = status === 'Assigned' && !isAccepted && workEligibility.canTakeNewWork;
   const canMarkPickedUp = status === 'Accepted';
   const canStartRoute = status === 'Picked Up';
   const canDrop = isAccepted && (status === 'Accepted' || status === 'Picked Up' || status === 'In-Transit');
-  const canRequest = !isAssigned && !isMyRequest && (status === 'Posted');
+  const canRequest = !isAssigned && !isMyRequest && status === 'Posted' && workEligibility.canTakeNewWork;
 
   const getStepIdx = () => {
     if (status === 'Delivered') return 4;
@@ -259,6 +265,13 @@ export default function LoadDetailPage() {
             )}
           </div>
         </div>
+
+        {!workEligibility.canTakeNewWork && !workEligibility.isLoading && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">{workEligibility.blockReason}</p>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {canAccept && (

@@ -23,6 +23,8 @@ interface LoadRequest {
   driverId: string;
   driverName: string;
   requestedAt: string;
+  workEligible?: boolean;
+  workEligibilityReason?: string | null;
   equipment?: {
     trailerType?: string;
     maxVehicleCapacity?: number;
@@ -139,6 +141,11 @@ export function DriverTrackerRequestsCard({
                       Capacity
                     </Badge>
                   )}
+                  {req.workEligible === false && (
+                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25">
+                      <AlertTriangle className="size-2.5" />Unavailable for New Work
+                    </Badge>
+                  )}
                   {req.equipment?.isComplianceExpired && (
                     <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       <AlertTriangle className="size-2.5" />Compliance Expired
@@ -162,7 +169,8 @@ export function DriverTrackerRequestsCard({
                   size="sm"
                   className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 flex-1 sm:flex-initial"
                   onClick={() => onApprove(req.loadId!, req.driverId)}
-                  disabled={isApproving || isRejecting}
+                  disabled={isApproving || isRejecting || req.workEligible === false}
+                  title={req.workEligible === false ? (req.workEligibilityReason || "Driver is unavailable for new work") : undefined}
                 >
                   {isApproving ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
                   Approve

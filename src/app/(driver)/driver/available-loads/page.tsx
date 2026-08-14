@@ -26,6 +26,7 @@ import { initializeSocket, getSocket } from '@/lib/socket.client';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 
 const FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -68,6 +69,7 @@ type SortMode = 'newest' | 'pay-high' | 'pay-low' | 'pickup-soon';
 
 export default function AvailableLoadsPage() {
   const { getToken } = useAuth();
+  const workEligibility = useDriverWorkEligibility();
   const [loads, setLoads] = React.useState<AvailableLoad[]>([]);
   const [pagination, setPagination] = React.useState<{ hasMore: boolean; page: number; totalPages: number } | null>(null);
   const [page, setPage] = React.useState(1);
@@ -178,6 +180,10 @@ export default function AvailableLoadsPage() {
 
   const handleRequest = async (contract: DriverSignedContract) => {
     if (!requestTarget) return;
+    if (!workEligibility.canTakeNewWork) {
+      toast.error(workEligibility.blockReason || 'You are not eligible to request a new load right now.');
+      return;
+    }
     setRequesting(true);
     try {
       const token = await getToken();
@@ -293,6 +299,13 @@ export default function AvailableLoadsPage() {
           </div>
         </div>
 
+        {!workEligibility.canTakeNewWork && !workEligibility.isLoading && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">{workEligibility.blockReason}</p>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -346,7 +359,17 @@ export default function AvailableLoadsPage() {
               <div className="grid gap-3">
                 {filtered.map((load, i) => (
                   <motion.div key={load._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: i * 0.03 }}>
-                    <LoadCard load={load} onRequest={() => setRequestTarget(load)} />
+                    <LoadCard
+                      load={load}
+                      canRequest={workEligibility.canTakeNewWork}
+                      onRequest={() => {
+                        if (!workEligibility.canTakeNewWork) {
+                          toast.error(workEligibility.blockReason || 'You are not eligible to request a load right now.');
+                          return;
+                        }
+                        setRequestTarget(load);
+                      }}
+                    />
                   </motion.div>
                 ))}
               </div>
@@ -402,7 +425,7 @@ export default function AvailableLoadsPage() {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setRequestTarget(null)} disabled={requesting}>Cancel</Button>
-            <Button onClick={() => setShowContractModal(true)} disabled={requesting || atCapacity} className="gap-1.5">
+            <Button onClick={() => setShowContractModal(true)} disabled={requesting || atCapacity || !workEligibility.canTakeNewWork} className="gap-1.5">
               {requesting ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />}{requesting ? 'Requesting...' : atCapacity ? 'At Capacity' : 'Continue to Sign'}
             </Button>
           </DialogFooter>
@@ -422,7 +445,7 @@ export default function AvailableLoadsPage() {
   );
 }
 
-function LoadCard({ load, onRequest }: { load: AvailableLoad; onRequest: () => void }) {
+function LoadCard({ load, onRequest, canRequest }: { load: AvailableLoad; onRequest: () => void; canRequest: boolean }) {
   const quote = load.preservedQuoteData;
   const isRequested = load.myRequestStatus === 'pending';
   const isRejected = load.myRequestStatus === 'rejected';
@@ -510,8 +533,8 @@ function LoadCard({ load, onRequest }: { load: AvailableLoad; onRequest: () => v
                   <Badge variant="outline" className="text-[10px] font-semibold border-red-500/30 text-red-500 gap-1"><XCircle className="size-3" />Declined</Badge>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={e => { e.preventDefault(); e.stopPropagation(); onRequest(); }} className="h-7 px-3 text-[10px] font-bold gap-1 shadow-sm rounded-lg">
-                      <Truck className="size-3" />Request
+                    <Button size="sm" disabled={!canRequest} onClick={e => { e.preventDefault(); e.stopPropagation(); onRequest(); }} className="h-7 px-3 text-[10px] font-bold gap-1 shadow-sm rounded-lg">
+                      <Truck className="size-3" />{canRequest ? 'Request' : 'Unavailable'}
                     </Button>
                     <ChevronRight className="size-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
                   </div>

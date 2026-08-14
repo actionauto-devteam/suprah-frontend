@@ -53,6 +53,7 @@ import Link from "next/link";
 import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 
 // Real driver-tracking endpoint — accept/pickup/start-route/drop all live
 // under /loads/:id/*, not the flat /api/driver-tracking/{action} shape this
@@ -99,6 +100,7 @@ type Tab = "active" | "requests" | "completed" | "all";
 
 export default function DriverLoadsPage() {
   const { getToken } = useAuth();
+  const workEligibility = useDriverWorkEligibility();
   const [loads, setLoads] = React.useState<Load[]>([]);
   const [requests, setRequests] = React.useState<Load[]>([]);
   const [pagination, setPagination] = React.useState<{ hasMore: boolean; page: number; totalPages: number } | null>(null);
@@ -233,6 +235,10 @@ export default function DriverLoadsPage() {
   };
 
   const handleAction = (action: string, loadOrId: Load | string) => {
+    if (action === 'accept-load' && !workEligibility.canTakeNewWork) {
+      toast.error(workEligibility.blockReason || 'You are not eligible to accept a new load right now.');
+      return;
+    }
     let title = '';
     let description = '';
     let variant: ConfirmationVariant = 'primary';
@@ -431,6 +437,13 @@ export default function DriverLoadsPage() {
           </div>
         </div>
 
+        {!workEligibility.canTakeNewWork && !workEligibility.isLoading && (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">{workEligibility.blockReason}</p>
+          </div>
+        )}
+
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -499,6 +512,7 @@ export default function DriverLoadsPage() {
                       onDrop={(l) => handleAction('drop-load', l)}
                       onStartRoute={(l) => handleAction('start-route', l)}
                       onSubmitProof={() => setProofTarget(load)}
+                      canAcceptWork={workEligibility.canTakeNewWork}
                     />
                   </motion.div>
                 ))}
@@ -617,9 +631,9 @@ function StatusTimeline({ load }: { load: Load }) {
   );
 }
 
-function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, onDrop, onStartRoute, onSubmitProof }: {
+function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, onDrop, onStartRoute, onSubmitProof, canAcceptWork }: {
   load: Load; isRequest: boolean; actionLoading: string | null;
-  onAccept: (id: string) => void; onMarkPickedUp: (id: string) => void; onDrop: (l: Load) => void; onStartRoute: (id: string) => void; onSubmitProof: () => void;
+  onAccept: (id: string) => void; onMarkPickedUp: (id: string) => void; onDrop: (l: Load) => void; onStartRoute: (id: string) => void; onSubmitProof: () => void; canAcceptWork: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const status = load.status;
@@ -707,8 +721,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               {!isRequest && (
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   {status === 'Assigned' && !load.driverAcceptedAt && isActive && (
-                    <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id} className="rounded-lg gap-1.5">
-                      {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />Accept</>}
+                    <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="rounded-lg gap-1.5">
+                      {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
                     </Button>
                   )}
                   {status === 'Accepted' && (

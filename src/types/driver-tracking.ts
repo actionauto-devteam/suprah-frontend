@@ -1,4 +1,22 @@
 export type DriverStatus = "on-route" | "idle" | "on-break" | "waiting" | "offline";
+export type DriverOperationalStatus = "active" | "on_leave" | "maintenance";
+export type DriverStatusRequestPriority = "standard" | "emergency";
+export type DriverStatusRequestState =
+  | "pending"
+  | "approved_awaiting_reassignment"
+  | "completed"
+  | "rejected"
+  | "cancelled";
+
+export interface DriverStatusRequestSummary {
+  id: string;
+  requestedStatus: "on_leave" | "maintenance";
+  priority: DriverStatusRequestPriority;
+  status: DriverStatusRequestState;
+  reason?: string | null;
+  message?: string | null;
+  submittedAt?: string | Date | null;
+}
 
 export interface DriverTrackingItem {
   id: string;
@@ -13,6 +31,7 @@ export interface DriverTrackingItem {
   assignable: boolean;
   warnings: string[];
   remainingCapacity: number | null;
+  statusRequest?: DriverStatusRequestSummary | null;
   driver: {
     id: string;
     name: string;
@@ -26,7 +45,7 @@ export interface DriverTrackingItem {
   equipment?: {
     trailerType?: string;
     maxVehicleCapacity?: number;
-    operationalStatus?: string;
+    operationalStatus?: DriverOperationalStatus;
     truckMake?: string;
     truckModel?: string;
     isComplianceExpired?: boolean;
