@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Car, Package, RefreshCw } from "lucide-react";
+import { Archive, Car, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
@@ -194,6 +194,13 @@ function InventoryContent() {
   const [shippingRates, setShippingRates] = React.useState<Record<string, number>>({});
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
 
+  // Active inventory vs Archive/Sold. Archived vehicles are the ones no
+  // longer present in the latest confirmed FTP upload — kept with full
+  // history and browsable through this dedicated view.
+  const [inventoryView, setInventoryView] = React.useState<"active" | "archived">(
+    searchParams.get("view") === "archived" ? "archived" : "active",
+  );
+
   const {
     selectedVehicle,
     openModals,
@@ -265,6 +272,9 @@ function InventoryContent() {
             all: "true",
             sortBy: "make",
             sortOrder: "asc",
+            // The Archive/Sold view asks the backend for archived vehicles
+            // only; the default view receives active inventory only.
+            ...(inventoryView === "archived" ? { archived: "true" } : {}),
           },
           signal: controller.signal,
           timeout: 15000,
@@ -307,7 +317,7 @@ function InventoryContent() {
         }
       }
     },
-    [getToken],
+    [getToken, inventoryView],
   );
 
   // Demand metrics are the only expensive part of the backend inventory query.
@@ -372,6 +382,8 @@ function InventoryContent() {
   // the inventory is already usable so "Most Inquiries" remains ready later.
   React.useEffect(() => {
     if (!hasLoadedOnceRef.current || metricsReady) return;
+    // Demand metrics only apply to the active inventory view.
+    if (inventoryView === "archived") return;
 
     let cancelled = false;
     const start = () => {
@@ -394,7 +406,7 @@ function InventoryContent() {
         (window as any).cancelIdleCallback(idleId);
       }
     };
-  }, [allVehicles.length, fetchDemandMetrics, metricsReady]);
+  }, [allVehicles.length, fetchDemandMetrics, metricsReady, inventoryView]);
 
   const filteredVehicles = React.useMemo(() => {
     const search = debouncedSearch.trim().toLowerCase();
@@ -545,6 +557,7 @@ function InventoryContent() {
     const params = new URLSearchParams();
     params.set("page", page.toString());
     params.set("limit", limit.toString());
+    if (inventoryView === "archived") params.set("view", "archived");
 
     Object.keys(filters).forEach((key) => {
       const value = filters[key];
@@ -559,6 +572,7 @@ function InventoryContent() {
     pathname,
     page,
     limit,
+    inventoryView,
     filters.search,
     filters.make,
     filters.model,
@@ -612,6 +626,21 @@ function InventoryContent() {
     });
     setPage(1);
   }, []);
+
+  const handleViewChange = React.useCallback(
+    (view: "active" | "archived") => {
+      if (view === inventoryView) return;
+      // Full reload with skeleton — the two views are different datasets.
+      hasLoadedOnceRef.current = false;
+      setAllVehicles([]);
+      setPage(1);
+      // Demand metrics belong to the freshly-loaded dataset; re-warm on the
+      // next active-view load instead of merging stale counts.
+      setMetricsReady(false);
+      setInventoryView(view);
+    },
+    [inventoryView],
+  );
 
   const handleSortChange = React.useCallback(
     (value: string) => {
@@ -756,10 +785,16 @@ function InventoryContent() {
 
                 <div>
                   <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-none text-foreground uppercase">
-                    All <span className="text-primary">Inventory</span>
+                    {inventoryView === "archived" ? (
+                      <>Archive <span className="text-primary">/ Sold</span></>
+                    ) : (
+                      <>All <span className="text-primary">Inventory</span></>
+                    )}
                   </h1>
                   <p className="text-xs text-muted-foreground mt-1.5 font-medium">
-                    Manage and review every vehicle on the lot
+                    {inventoryView === "archived"
+                      ? "Vehicles no longer in the latest FTP upload — full history preserved"
+                      : "Manage and review every vehicle on the lot"}
                   </p>
                 </div>
 
@@ -768,22 +803,53 @@ function InventoryContent() {
                     {isInitialLoading ? (
                       <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
                     ) : total}
-                    {" "}vehicles
+                    {" "}
+                    {inventoryView === "archived" ? "archived" : "vehicles"}
                   </span>
                 </div>
               </div>
 
-              <button
-                onClick={() => fetchVehicles(false)}
-                disabled={isInitialLoading || isRefreshing}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all shrink-0",
-                  "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
-                )}
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", (isInitialLoading || isRefreshing) && "animate-spin")} />
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Active ↔ Archive/Sold segmented toggle */}
+                <div className="flex items-center rounded-xl border border-border/50 bg-muted/60 p-0.5">
+                  <button
+                    onClick={() => handleViewChange("active")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all",
+                      inventoryView === "active"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Car className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Active</span>
+                  </button>
+                  <button
+                    onClick={() => handleViewChange("archived")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all",
+                      inventoryView === "archived"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Archive / Sold</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => fetchVehicles(false)}
+                  disabled={isInitialLoading || isRefreshing}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all shrink-0",
+                    "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
+                  )}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", (isInitialLoading || isRefreshing) && "animate-spin")} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -827,12 +893,22 @@ function InventoryContent() {
         ) : visibleVehicles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Package className="h-7 w-7 text-muted-foreground/30" />
+              {inventoryView === "archived" ? (
+                <Archive className="h-7 w-7 text-muted-foreground/30" />
+              ) : (
+                <Package className="h-7 w-7 text-muted-foreground/30" />
+              )}
             </div>
             <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">No vehicles found</h2>
+              <h2 className="text-base font-bold text-foreground">
+                {inventoryView === "archived"
+                  ? "No archived vehicles"
+                  : "No vehicles found"}
+              </h2>
               <p className="text-sm text-muted-foreground max-w-xs">
-                Try adjusting your filters or clearing them to see more results.
+                {inventoryView === "archived"
+                  ? "Vehicles removed from the latest FTP upload will appear here automatically."
+                  : "Try adjusting your filters or clearing them to see more results."}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={handleClearFilters} className="gap-1.5 rounded-xl">
