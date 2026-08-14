@@ -1235,8 +1235,8 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/60 bg-white/60 dark:bg-zinc-900/40 px-6 py-10">
+        <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
         <p className="text-xs text-zinc-500">Loading accounts…</p>
       </div>
     );
@@ -1244,7 +1244,7 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+      <div className="mx-auto flex w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 px-6 py-10 text-center">
         <AlertCircle className="h-6 w-6 text-red-400" />
         <p className="text-sm text-zinc-500">{error}</p>
         <button
@@ -1331,11 +1331,11 @@ function RegisteredUsersView({ token }: RegisteredUsersViewProps) {
       </div>
 
       {users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+        <div className="mx-auto flex w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 px-6 py-10 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
             {roleFilter === "driver"
-              ? <Car className="h-6 w-6 text-violet-400" />
-              : <Users className="h-6 w-6 text-violet-400" />}
+              ? <Car className="h-5 w-5 text-violet-400" />
+              : <Users className="h-5 w-5 text-violet-400" />}
           </div>
           <div>
             <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
@@ -1720,14 +1720,14 @@ export default function ReferralsPage() {
           { }
           {viewMode === "leads" && (
             loading ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3">
-                <Loader2 className="h-7 w-7 text-violet-500 animate-spin" />
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-200/70 dark:border-zinc-800/60 bg-white/60 dark:bg-zinc-900/40 px-6 py-10">
+                <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
                 <p className="text-xs text-zinc-500">Loading referral leads…</p>
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                  <Gift className="h-6 w-6 text-violet-400" />
+              <div className="mx-auto flex w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 px-6 py-10 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                  <Gift className="h-5 w-5 text-violet-400" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">

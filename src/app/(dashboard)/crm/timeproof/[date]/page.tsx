@@ -198,11 +198,10 @@ const Timeline = ({
               key={s._id}
               onClick={() => onDotClick(i)}
               title={fmtTime(s.capturedAt)}
-              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-2.5 w-2.5 rounded-full border border-background transition-transform hover:scale-150 z-10 ${
-                s.idleDetected
+              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-2.5 w-2.5 rounded-full border border-background transition-transform hover:scale-150 z-10 ${s.idleDetected
                   ? "bg-rose-500"
                   : "bg-emerald-500"
-              }`}
+                }`}
               style={{ left: `${left}%` }}
             />
           )
@@ -382,11 +381,10 @@ const Lightbox = ({
                 if (diff > 0) for (let j = 0; j < diff; j++) onNext()
                 else for (let j = 0; j < -diff; j++) onPrev()
               }}
-              className={`relative h-14 w-24 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${
-                i === index
+              className={`relative h-14 w-24 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${i === index
                   ? "border-white/80 opacity-100"
                   : "border-transparent opacity-40 hover:opacity-70"
-              }`}
+                }`}
             >
               {ss.isBlurred ? (
                 <FakeLoadingThumb className="w-full h-full" />
@@ -825,9 +823,64 @@ export default function ScreenshotGalleryPage() {
   const [confirmDeleteTarget, setConfirmDeleteTarget] = React.useState<Screenshot | null>(null)
   const [deleteError, setDeleteError] = React.useState("")
 
+  // Multi-select delete — same underlying single-delete endpoint/deduction/
+  // audit trail per screenshot, just fired in a batch from the UI.
+  const [selectMode, setSelectMode] = React.useState(false)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false)
+  const [bulkDeleting, setBulkDeleting] = React.useState(false)
+  const [bulkDeleteError, setBulkDeleteError] = React.useState("")
+
   const handleDeleteScreenshot = (s: Screenshot) => {
     setDeleteError("")
     setConfirmDeleteTarget(s)
+  }
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v)
+    setSelectedIds(new Set())
+    setBulkDeleteError("")
+  }
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectableScreenshots = screenshots.filter((s) => !s.isBlurred)
+  const allSelected = selectableScreenshots.length > 0 && selectableScreenshots.every((s) => selectedIds.has(s._id))
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableScreenshots.map((s) => s._id)))
+  }
+
+  const confirmBulkDelete = async () => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setBulkDeleting(true)
+    setBulkDeleteError("")
+    const ids = Array.from(selectedIds)
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        apiClient.delete(`/api/crm/timeproof/screenshots?key=${encodeURIComponent(id)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
+    )
+    const succeededIds = ids.filter((_, i) => results[i].status === "fulfilled")
+    const failedCount = results.length - succeededIds.length
+    setScreenshots((prev) => prev.filter((x) => !succeededIds.includes(x._id)))
+    setSelectedIds(new Set(ids.filter((_, i) => results[i].status !== "fulfilled")))
+    setBulkDeleting(false)
+    if (failedCount > 0) {
+      setBulkDeleteError(`${failedCount} screenshot${failedCount === 1 ? "" : "s"} failed to delete. The rest were removed.`)
+    } else {
+      setBulkDeleteOpen(false)
+      setSelectMode(false)
+    }
   }
 
   const confirmDeleteScreenshot = async () => {
@@ -947,26 +1000,23 @@ export default function ScreenshotGalleryPage() {
 
               {/* Breaks */}
               <div
-                className={`rounded-xl border px-4 py-3.5 space-y-2 ${
-                  breaks.length > 0
+                className={`rounded-xl border px-4 py-3.5 space-y-2 ${breaks.length > 0
                     ? "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
                     : "border-border/40 bg-card"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">
                     Breaks
                   </p>
                   <Coffee
-                    className={`h-3.5 w-3.5 ${
-                      breaks.length > 0 ? "text-amber-500" : "text-muted-foreground/25"
-                    }`}
+                    className={`h-3.5 w-3.5 ${breaks.length > 0 ? "text-amber-500" : "text-muted-foreground/25"
+                      }`}
                   />
                 </div>
                 <p
-                  className={`text-2xl font-black tracking-tight leading-none ${
-                    breaks.length > 0 ? "text-amber-700 dark:text-amber-300" : ""
-                  }`}
+                  className={`text-2xl font-black tracking-tight leading-none ${breaks.length > 0 ? "text-amber-700 dark:text-amber-300" : ""
+                    }`}
                 >
                   {fmtDuration(breakTotalMs)}
                 </p>
@@ -982,26 +1032,23 @@ export default function ScreenshotGalleryPage() {
                   const qs = userId ? `?userId=${userId}` : ""
                   router.push(`/crm/timeproof/idle-records/${dateStr}${qs}`)
                 } : undefined}
-                className={`rounded-xl border px-4 py-3.5 space-y-2 ${
-                  idleCount > 0
+                className={`rounded-xl border px-4 py-3.5 space-y-2 ${idleCount > 0
                     ? "border-rose-500/25 bg-rose-50/40 dark:bg-rose-950/15 cursor-pointer hover:bg-rose-50/60 dark:hover:bg-rose-950/25 transition-colors"
                     : "border-border/40 bg-card"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground/40">
                     Idle Alerts
                   </p>
                   <AlertTriangle
-                    className={`h-3.5 w-3.5 ${
-                      idleCount > 0 ? "text-rose-500" : "text-muted-foreground/25"
-                    }`}
+                    className={`h-3.5 w-3.5 ${idleCount > 0 ? "text-rose-500" : "text-muted-foreground/25"
+                      }`}
                   />
                 </div>
                 <p
-                  className={`text-2xl font-black tracking-tight leading-none ${
-                    idleCount > 0 ? "text-rose-700 dark:text-rose-300" : ""
-                  }`}
+                  className={`text-2xl font-black tracking-tight leading-none ${idleCount > 0 ? "text-rose-700 dark:text-rose-300" : ""
+                    }`}
                 >
                   {idleCount}
                 </p>
@@ -1052,13 +1099,45 @@ export default function ScreenshotGalleryPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
                     All Screenshots
                   </p>
-                  <p className="text-[10px] text-muted-foreground/35">
-                    Click any to enlarge
-                  </p>
+                  <div className="flex items-center gap-3">
+                    {selectMode ? (
+                      <>
+                        <button
+                          onClick={toggleSelectAll}
+                          className="text-[10px] font-bold text-primary hover:underline"
+                        >
+                          {allSelected ? "Deselect all" : "Select all"}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground/50">
+                          {selectedIds.size} selected
+                        </span>
+                        <button
+                          onClick={toggleSelectMode}
+                          className="text-[10px] font-bold text-muted-foreground/60 hover:text-foreground"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-muted-foreground/35">
+                          Click any to enlarge
+                        </p>
+                        {canDeleteScreenshots && selectableScreenshots.length > 0 && (
+                          <button
+                            onClick={toggleSelectMode}
+                            className="text-[10px] font-bold text-primary hover:underline"
+                          >
+                            Select
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {screenshots.map((s, i) => (
@@ -1066,8 +1145,21 @@ export default function ScreenshotGalleryPage() {
                       key={s._id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => openLightbox(i)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openLightbox(i) }}
+                      onClick={() => {
+                        if (selectMode) {
+                          if (!s.isBlurred) toggleSelected(s._id)
+                          return
+                        }
+                        openLightbox(i)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return
+                        if (selectMode) {
+                          if (!s.isBlurred) toggleSelected(s._id)
+                          return
+                        }
+                        openLightbox(i)
+                      }}
                       className="group flex flex-col gap-1.5 text-left focus:outline-none cursor-pointer"
                     >
                       {/* Timestamp + idle/placeholder badge — outside the image, top-right */}
@@ -1114,13 +1206,36 @@ export default function ScreenshotGalleryPage() {
                           <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
                         )}
 
-                        {/* Zoom icon — always visible on touch, hover-reveal on desktop */}
-                        <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                          <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                        </div>
+                        {!selectMode && (
+                          <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                            <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                          </div>
+                        )}
+
+                        {/* Selection checkbox — replaces the per-item delete button while
+                            select mode is active */}
+                        {selectMode && !s.isBlurred && (
+                          <div
+                            className={`absolute inset-0 rounded-xl transition-colors ${selectedIds.has(s._id) ? "bg-primary/20 border-2 border-primary" : "bg-black/10"
+                              }`}
+                          >
+                            <div
+                              className={`absolute top-1.5 left-1.5 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(s._id)
+                                  ? "bg-primary border-primary"
+                                  : "bg-black/40 border-white/70"
+                                }`}
+                            >
+                              {selectedIds.has(s._id) && (
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-foreground" fill="none" stroke="currentColor" strokeWidth={3}>
+                                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Delete icon — self-service only, one per screenshot */}
-                        {canDeleteScreenshots && !s.isBlurred && (
+                        {!selectMode && canDeleteScreenshots && !s.isBlurred && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteScreenshot(s) }}
                             disabled={deletingKey === s._id}
@@ -1136,6 +1251,22 @@ export default function ScreenshotGalleryPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── Floating bulk-delete bar ── */}
+            {selectMode && selectedIds.size > 0 && (
+              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-border/60 bg-card shadow-2xl px-4 py-3">
+                <span className="text-xs font-bold text-foreground">
+                  {selectedIds.size} screenshot{selectedIds.size === 1 ? "" : "s"} selected
+                </span>
+                <button
+                  onClick={() => { setBulkDeleteError(""); setBulkDeleteOpen(true) }}
+                  className="h-9 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Selected
+                </button>
               </div>
             )}
 
@@ -1190,7 +1321,7 @@ export default function ScreenshotGalleryPage() {
       {/* ── Delete confirmation modal ── */}
       {confirmDeleteTarget && (
         <div
-          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          className="fixed inset-0 z-300 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget && deletingKey === null) setConfirmDeleteTarget(null) }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -1223,6 +1354,50 @@ export default function ScreenshotGalleryPage() {
                 className="flex-1 h-10 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
               >
                 {deletingKey !== null ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk delete confirmation modal ── */}
+      {bulkDeleteOpen && (
+        <div
+          className="fixed inset-0 z-300 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget && !bulkDeleting) setBulkDeleteOpen(false) }}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl p-5 space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-black text-zinc-100">
+                Delete {selectedIds.size} screenshot{selectedIds.size === 1 ? "" : "s"}?
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                This cannot be undone. {selectedIds.size * 10} minutes total will be deducted from{" "}
+                {userId ? "this user's" : "your"} rendered hours for this day.
+              </p>
+            </div>
+
+            {bulkDeleteError && (
+              <p className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                {bulkDeleteError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBulkDeleteOpen(false)}
+                disabled={bulkDeleting}
+                className="flex-1 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBulkDelete}
+                disabled={bulkDeleting}
+                className="flex-1 h-10 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                {bulkDeleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>

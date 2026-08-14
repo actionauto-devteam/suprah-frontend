@@ -113,7 +113,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
   };
   const uploadedCount = requiredDocs.filter(d => getDocStatus(d.type) !== 'missing').length;
   const documentsDone = uploadedCount === requiredDocs.length;
-  const complianceDone = !!(licenseNumber.trim() && licenseExp && insuranceProvider.trim() && insurancePolicyNumber.trim());
+  const complianceDone = !!(licenseNumber.trim() && licenseExp);
 
   const openUploadFor = (type: string) => {
     setUploadType(type);
@@ -344,11 +344,11 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                   <Input type="date" value={medicalExp} onChange={e => setMedicalExp(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-white rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-zinc-400">Insurance Provider *</Label>
+                  <Label className="text-xs font-bold text-zinc-400">Insurance Provider</Label>
                   <Input value={insuranceProvider} onChange={e => setInsuranceProvider(e.target.value)} placeholder="e.g. Progressive" className="h-11 bg-white/[0.03] border-white/10 text-white rounded-xl" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-zinc-400">Policy Number *</Label>
+                  <Label className="text-xs font-bold text-zinc-400">Policy Number</Label>
                   <Input value={insurancePolicyNumber} onChange={e => setInsurancePolicyNumber(e.target.value)} placeholder="e.g. POL-123456" className="h-11 bg-white/[0.03] border-white/10 text-white rounded-xl" />
                 </div>
                 <div className="space-y-1.5">

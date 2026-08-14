@@ -749,6 +749,22 @@ class ApiClient {
     return this.patch("/api/crm/timeproof/correct-time", data, config);
   }
 
+  // Admin-only, and only usable for departments exempt from correctTimeLog above (currently
+  // just Web Dev) — see adminTimeOverride on the backend for the full rationale.
+  async getAdminDayLogs(userId: string, date: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/crm/timeproof/admin/day-logs?userId=${userId}&date=${date}`, config);
+  }
+
+  async adminTimeOverride(
+    data: {
+      userId: string; date: string; action: "edit" | "delete" | "create";
+      logId?: string; type?: "time-in" | "time-out"; timestamp?: string; reason: string;
+    },
+    config?: AxiosRequestConfig
+  ) {
+    return this.post("/api/crm/timeproof/admin/time-override", data, config);
+  }
+
   async excludeScreenshots(
     data: { userId: string; date: string; after: string; reason: string },
     config?: AxiosRequestConfig

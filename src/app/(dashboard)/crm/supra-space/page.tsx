@@ -33,12 +33,21 @@ import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { DEPARTMENTS, deptLabel } from '@/lib/departments';
-import { JitsiMeet } from './JitsiMeet';
+import nextDynamic from 'next/dynamic';
 import { useCall, CallSession } from '@/hooks/useCall';
 import { stopCallSound } from '@/lib/notification-sound';
 import { CallBanner } from './CallBanner';
-import { IncomingCallModal } from './IncomingCallModal';
-import { CallExperience } from './CallExperience';
+
+// Lazy-loaded — @jitsi/react-sdk (a full video-conferencing SDK) was being
+// pulled into every SupraSpace page load via a static import even though most
+// visits never open a call. JitsiMeet/CallExperience/IncomingCallModal are
+// only ever rendered conditionally (activeMeeting/incoming call state), so
+// deferring them to their own chunk, fetched only when a call actually
+// starts, was a pure win with no behavior change. ssr:false because these
+// use browser-only APIs (WebRTC etc.) and were never server-rendered anyway.
+const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet), { ssr: false });
+const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
+const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
 import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
 import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
@@ -56,6 +65,24 @@ type SS4InlineTypingPreferences = Record<
   SS4InlineTypingFormat,
   boolean | null
 >;
+
+// Stable shared reference for the common "no members" case — a fresh `[]`
+// literal at a JSX prop callsite is a new array every render even when
+// logically empty both times, which defeats React.memo's shallow prop
+// comparison on any component that reads it (e.g. Bubble's `members` prop).
+const EMPTY_MEMBERS_ARRAY: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }> = [];
+
+// Used to guard setState calls that would otherwise construct a brand-new
+// object literal on every call even when every field is unchanged — without
+// this, React can never bail out of re-rendering (a new object is never
+// Object.is-equal to the old one), which matters a lot for state updated on
+// every keystroke (see refreshActiveFormats).
+function shallowEqualFlat<T extends Record<string, unknown>>(a: T, b: T): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every(k => a[k] === b[k as keyof T]);
+}
 
 function createSS4InlineTypingPreferences(): SS4InlineTypingPreferences {
   return {
@@ -3436,7 +3463,7 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
   };
 }
 
-function DateSep({ date }: { date: string }) {
+const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   return (
     <div className="flex items-center gap-2.5 sm:gap-3 my-3.5 sm:my-6 px-4 sm:px-5">
       <div className="flex-1 ss4-date-line" />
@@ -3444,7 +3471,7 @@ function DateSep({ date }: { date: string }) {
       <div className="flex-1 ss4-date-line" />
     </div>
   );
-}
+});
 
 function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
   const { getToken } = useAuth();
@@ -3729,7 +3756,7 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
   return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 };
 
-function Bubble({
+const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
   onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
@@ -3750,6 +3777,14 @@ function Bubble({
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
 }) {
+  // renderMessageContent does several sequential regex passes (links, color/
+  // font/size tags, bold/italic/underline/strike/code) — memoized so it only
+  // re-runs when the actual message content changes, not on every re-render
+  // of this Bubble (hover state, reaction picker open/close, etc.).
+  const renderedContent = React.useMemo(
+    () => renderMessageContent(message.content, isOwn),
+    [message.content, isOwn]
+  );
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
   type PickerPosition = {
@@ -5161,7 +5196,7 @@ function Bubble({
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-              <div className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderMessageContent(message.content, isOwn)}</div>
+              <div className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderedContent}</div>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
           ) : null}
@@ -5708,7 +5743,7 @@ function Bubble({
       )}
     </div>
   );
-}
+});
 
 function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
@@ -6943,7 +6978,7 @@ interface ConvRowProps {
 // socket traffic (typing, presence, message:new), so the 3-dot menu would open then
 // immediately get wiped by the next remount. Keeping this at module scope means the
 // component reference never changes, so re-renders just update props in place.
-function ConvRow({
+const ConvRow = React.memo(function ConvRow({
   conv, compact, draggable: isDraggable,
   activeId, activeConvId, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
@@ -7176,7 +7211,7 @@ function ConvRow({
       )}
     </div>
   );
-}
+});
 
 export default function SupraSpacePage() {
   const router = useRouter();
@@ -7422,6 +7457,14 @@ export default function SupraSpacePage() {
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
+  // Guards fetchConversationMessages against out-of-order responses — two
+  // force-refetches for the same conversation (on-focus refetch racing a
+  // retry, etc.) can resolve in a different order than they were sent; only
+  // the response matching the LATEST request for that conversation is
+  // allowed to touch state, so a stale one can never silently stomp newer
+  // messages back out of view.
+  const fetchSeqRef = React.useRef<Record<string, number>>({});
+  const refreshFormatsRafRef = React.useRef<number | null>(null);
   const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
   const composerDraftsRef = React.useRef<Record<string, string>>({});
   const previousComposerConversationRef = React.useRef<string | null>(null);
@@ -7779,11 +7822,17 @@ export default function SupraSpacePage() {
     if (!options.silent) setLoadingMsgs(true);
     setMsgFetchState(p => ({ ...p, [conversationId]: 'loading' }));
 
+    const mySeq = (fetchSeqRef.current[conversationId] = (fetchSeqRef.current[conversationId] || 0) + 1);
+
     try {
       const r = await apiClient.get(`/api/supraspace/conversations/${conversationId}/messages`, {
         headers: { Authorization: `Bearer ${t}` },
         params: { limit: 40 },
       });
+      // A newer fetch for this same conversation was started after this one
+      // — this response is stale, discard it rather than let it overwrite
+      // whatever the newer (or a locally-optimistic-appended) state is.
+      if (fetchSeqRef.current[conversationId] !== mySeq) return false;
       const d: SSMessage[] = r.data?.data || [];
       const conv = convosRef.current.find(c => c._id === conversationId);
       const hasHistorySignal = Boolean(conv?.lastMessage || conv?.lastMessageAt);
@@ -8086,7 +8135,15 @@ export default function SupraSpacePage() {
     const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
       appendMessageLocal(conversationId, message);
       if (conversationId === activeIdRef.current) {
-        fetchConversationMessages(conversationId, { force: true, silent: true });
+        // appendMessageLocal above already correctly splices this message into
+        // the cache (dedupes against the optimistic temp entry, updates
+        // lastMessage/unread counts) — a follow-up force-refetch here used to
+        // re-GET the whole conversation on EVERY single incoming message. Two
+        // of these firing close together (e.g. two messages arriving quickly)
+        // could resolve out of order and the earlier one's stale snapshot
+        // would silently overwrite the newer state, making a just-sent
+        // message disappear from the sender's own view. Removed — nothing
+        // here actually needed the refetch, it was pure redundant load.
         ctxMarkAsRead(conversationId);
         setConvos(prev => prev.map(c => {
           if (c._id !== conversationId || !c.lastMessage) return c;
@@ -8560,6 +8617,8 @@ export default function SupraSpacePage() {
     setSending(true);
     sendTypingStop(conversationId);
     let optimisticTextId: string | null = null;
+    let optimisticAttachmentId: string | null = null;
+    let optimisticAttachmentUrls: string[] = [];
     try {
       if (hasPendingMeeting) {
         if (hasPendingFiles || hasPendingGif) {
@@ -8583,15 +8642,54 @@ export default function SupraSpacePage() {
           showUploadNotice('error', 'Send GIFs separately from file attachments.');
           return;
         }
+        // Optimistic preview (local blob URLs) while the upload is in
+        // flight — previously nothing appeared until the full multipart
+        // upload finished, which read as "delayed" especially for larger
+        // files/slower connections. Mirrors the text-message optimistic
+        // path below; replaced with the real server message on success,
+        // removed on failure.
+        const filesToUpload = pendingFiles;
+        const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        optimisticAttachmentId = tempId;
+        const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
+          const url = URL.createObjectURL(f);
+          optimisticAttachmentUrls.push(url);
+          return { url, originalName: f.name, mimeType: f.type, size: f.size };
+        });
+        const allImages = filesToUpload.every(f => f.type.startsWith('image/'));
+        const member = activeConv?.members.find(m => m._id === uid);
+        appendMessageLocal(conversationId, {
+          _id: tempId,
+          conversationId,
+          sender: {
+            _id: uid,
+            fullName: me?.fullName || member?.fullName || 'You',
+            username: me?.username || member?.username || 'you',
+            avatar: me?.avatar || member?.avatar,
+          },
+          content,
+          type: allImages ? 'image' : 'file',
+          attachments: optimisticAttachments,
+          reactions: [],
+          readBy: [uid],
+          replyTo: replyTo || null,
+          isEdited: false,
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+        });
+
         setUploading(true);
         const fd = new FormData();
-        pendingFiles.forEach(f => fd.append('files', f));
+        filesToUpload.forEach(f => fd.append('files', f));
         if (content) fd.append('content', content);
         if (replyMessageId) fd.append('replyTo', replyMessageId);
-        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
-        if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
         setPendingFiles([]); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
-        showUploadNotice('success', pendingFiles.length === 1 ? 'Attachment sent.' : `${pendingFiles.length} attachments sent.`);
+        setSending(false);
+        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+        if (r.data?.data) replaceMessageLocal(conversationId, tempId, r.data.data);
+        else removeMessageLocal(conversationId, tempId);
+        optimisticAttachmentUrls.forEach(u => URL.revokeObjectURL(u));
+        showUploadNotice('success', filesToUpload.length === 1 ? 'Attachment sent.' : `${filesToUpload.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
@@ -8640,7 +8738,11 @@ export default function SupraSpacePage() {
         }
       }
     } catch (error) {
-      if (hasPendingFiles) showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
+      if (hasPendingFiles) {
+        if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
+        optimisticAttachmentUrls.forEach(u => URL.revokeObjectURL(u));
+        showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
+      }
       else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
       else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
       else {
@@ -8776,7 +8878,7 @@ export default function SupraSpacePage() {
         document.queryCommandValue('fontName') || '',
       ).toLowerCase();
 
-      setActiveFormats({
+      const nextFormats: Record<RichTextFormat, boolean> = {
         bold: caret.bold,
         italic: caret.italic,
         underline: caret.underline,
@@ -8793,7 +8895,8 @@ export default function SupraSpacePage() {
         code:
           /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue)
           || beforeCursor.split('`').length % 2 === 0,
-      });
+      };
+      setActiveFormats(prev => shallowEqualFlat(prev, nextFormats) ? prev : nextFormats);
 
       setActiveFontFamily(caret.fontFamily);
       setActiveFontSize(caret.fontSize);
@@ -8820,13 +8923,28 @@ export default function SupraSpacePage() {
         caret.colorExplicit || caret.color !== rootColor,
       );
 
-      setActiveTypingFormats(
-        ss4TypingPreferencesFromCaretSnapshot(caret),
-      );
+      const nextTypingFormats = ss4TypingPreferencesFromCaretSnapshot(caret);
+      setActiveTypingFormats(prev => shallowEqualFlat(prev, nextTypingFormats) ? prev : nextTypingFormats);
     } catch {
       // Browser formatting-state detection is best effort.
     }
   }, []);
+
+  // A single keystroke fires onInput + onSelect + onKeyUp on the composer, each
+  // calling refreshActiveFormats — which itself does several synchronous,
+  // layout-forcing calls (document.queryCommandValue/State, getComputedStyle).
+  // That's 2-3x the DOM-query cost per keystroke for no benefit, since it only
+  // drives the formatting toolbar's bold/italic/font/color display (nothing
+  // reads these values to decide typing/send behavior) — coalescing to once
+  // per animation frame keeps the toolbar visually in sync while cutting that
+  // cost down to 1x.
+  const scheduleRefreshActiveFormats = React.useCallback(() => {
+    if (refreshFormatsRafRef.current !== null) return;
+    refreshFormatsRafRef.current = requestAnimationFrame(() => {
+      refreshFormatsRafRef.current = null;
+      refreshActiveFormats();
+    });
+  }, [refreshActiveFormats]);
 
   React.useEffect(() => {
     document.addEventListener('selectionchange', refreshActiveFormats);
@@ -9170,7 +9288,7 @@ export default function SupraSpacePage() {
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
-  const handleReact = async (msgId: string, emoji: string) => {
+  const handleReact = React.useCallback(async (msgId: string, emoji: string) => {
     if (!activeId) return;
     setMsgs(p => ({
       ...p, [activeId]: (p[activeId] || []).map(m => {
@@ -9186,13 +9304,13 @@ export default function SupraSpacePage() {
       })
     }));
     try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  };
-  const handleVotePoll = async (msgId: string, optionId: string) => {
+  }, [activeId, uid, token]);
+  const handleVotePoll = React.useCallback(async (msgId: string, optionId: string) => {
     try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch { }
-  };
-  const handleRsvp = async (msgId: string, response: 'going' | 'maybe' | 'declined') => {
+  }, [activeId, token, patchMsg]);
+  const handleRsvp = React.useCallback(async (msgId: string, response: 'going' | 'maybe' | 'declined') => {
     try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/event/rsvp`, { response }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.event) patchMsg(activeId, msgId, { event: r.data.data.event }); } catch { }
-  };
+  }, [activeId, token, patchMsg]);
   const createPoll = async (question: string, options: string[], allowMultiple: boolean) => {
     if (!activeId) return; setPollOpen(false);
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/poll`, { question, options, allowMultiple }, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create poll.')); }
@@ -9282,7 +9400,7 @@ export default function SupraSpacePage() {
     }
   };
 
-  const handleEdit = async (msgId: string, content: string, replacementFiles?: File[]) => {
+  const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[]) => {
     if (!activeId) return;
     if (replacementFiles?.length) {
       const fd = new FormData();
@@ -9305,15 +9423,15 @@ export default function SupraSpacePage() {
 
     const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content }, { headers: { Authorization: `Bearer ${token}` } });
     if (r.data?.data) patchMsg(activeId, msgId, { content: r.data.data.content, isEdited: true });
-  };
+  }, [activeId, token, patchMsg]);
 
-  const handleDelete = async (msgId: string) => {
+  const handleDelete = React.useCallback(async (msgId: string) => {
     if (!activeId) return;
     patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] } as any);
     try { await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } }); }
     catch { patchMsg(activeId, msgId, { isDeleted: false } as any); }
-  };
-  const handlePinToggle = (msgId: string) => {
+  }, [activeId, token, patchMsg]);
+  const handlePinToggle = React.useCallback((msgId: string) => {
     const alreadyPinned = pinnedMsgIds.has(msgId);
     setPinnedMsgIds(prev => { const n = new Set(prev); alreadyPinned ? n.delete(msgId) : n.add(msgId); return n; });
     if (alreadyPinned) {
@@ -9324,7 +9442,7 @@ export default function SupraSpacePage() {
       const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
       setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
     }
-  };
+  }, [pinnedMsgIds, activeConv, uid]);
 
   const jumpToMessage = React.useCallback((msgId: string) => {
     setPinnedModalOpen(false);
@@ -9348,16 +9466,16 @@ export default function SupraSpacePage() {
     }, 120);
   }, []);
 
-  const togglePinConv = async (c: SSConversation) => {
+  const togglePinConv = React.useCallback(async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
     patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
     try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  };
-  const toggleArchiveConv = async (c: SSConversation) => {
+  }, [isPinnedConv, patchConv, uid, token]);
+  const toggleArchiveConv = React.useCallback(async (c: SSConversation) => {
     const archived = !isArchivedConv(c);
     patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) } as any);
     try { await apiClient.post(`/api/supraspace/conversations/${c._id}/archive`, { archived }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  };
+  }, [isArchivedConv, patchConv, uid, token]);
   const deleteConversation = async (c: SSConversation) => {
     setConfirmDelete(false); setShowInfo(false);
     try {
@@ -10028,12 +10146,12 @@ export default function SupraSpacePage() {
       refreshSpaces();
     } catch { }
   };
-  const handleMoveToSpace = async (convId: string, spaceId: string | null) => {
+  const handleMoveToSpace = React.useCallback(async (convId: string, spaceId: string | null) => {
     try {
       await apiClient.patch(`/api/supraspace/conversations/${convId}/space`, { spaceId }, { headers: { Authorization: `Bearer ${token}` } });
       setConvos(p => p.map(c => c._id === convId ? { ...c, spaceId: spaceId || null } as any : c));
     } catch { }
-  };
+  }, [token]);
   const handleDeleteSpace = async (spaceId: string) => {
     setDeleteSpaceConfirm(null);
     try {
@@ -10204,14 +10322,21 @@ export default function SupraSpacePage() {
     if (conversationFilter === 'mentions') return hasUnreadMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
     return true;
   }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
-  const visibleConvos = convos.filter(c =>
-    getConvName(c, uid).toLowerCase().includes(q.toLowerCase()) &&
-    matchesConversationFilter(c)
-  );
-  const pinnedList = visibleConvos.filter(c => isPinnedConv(c) && !isArchivedConv(c));
-  const archivedList = convos.filter(c => isArchivedConv(c) && matchesConversationFilter(c));
-  const normalList = visibleConvos.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
-  const dmList = normalList.filter(c => c.type === 'direct');
+  // Combined into one memo (rather than 5 unmemoized .filter() passes over
+  // convos on every render) — this used to re-run on every keystroke, since
+  // nothing gated it, scaling with conversation count for zero reason on
+  // renders where convos/search/filter never actually changed.
+  const { visibleConvos, pinnedList, archivedList, normalList, dmList } = React.useMemo(() => {
+    const visible = convos.filter(c =>
+      getConvName(c, uid).toLowerCase().includes(q.toLowerCase()) &&
+      matchesConversationFilter(c)
+    );
+    const pinned = visible.filter(c => isPinnedConv(c) && !isArchivedConv(c));
+    const archived = convos.filter(c => isArchivedConv(c) && matchesConversationFilter(c));
+    const normal = visible.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
+    const dms = normal.filter(c => c.type === 'direct');
+    return { visibleConvos: visible, pinnedList: pinned, archivedList: archived, normalList: normal, dmList: dms };
+  }, [convos, uid, q, matchesConversationFilter, isPinnedConv, isArchivedConv]);
   const channelList = React.useMemo(() => {
     const activeSpaceIds = new Set(ctxSpaces.map(s => s._id));
     const list = normalList.filter(c => {
@@ -10737,7 +10862,7 @@ export default function SupraSpacePage() {
                           <React.Fragment key={msg._id}>
                             {showDate && <DateSep date={msg.createdAt} />}
                             <div id={`ss4-msg-${msg._id}`}>
-                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || []} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]} />
+                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || EMPTY_MEMBERS_ARRAY} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]} />
                             </div>
                             {pinEvents.find(e => e.msgId === msg._id) && (() => {
                               const ev = pinEvents.find(e => e.msgId === msg._id)!;
@@ -11044,24 +11169,24 @@ export default function SupraSpacePage() {
                                 );
                                 handleTyping(event);
                                 saveComposerSelection();
-                                refreshActiveFormats();
+                                scheduleRefreshActiveFormats();
                               }}
                               onFocus={() => {
                                 saveComposerSelection();
-                                refreshActiveFormats();
+                                scheduleRefreshActiveFormats();
                               }}
                               onSelect={() => {
                                 saveComposerSelection();
-                                refreshActiveFormats();
+                                scheduleRefreshActiveFormats();
                               }}
                               onMouseDown={e => e.stopPropagation()}
                               onMouseUp={() => {
                                 saveComposerSelection();
-                                refreshActiveFormats();
+                                scheduleRefreshActiveFormats();
                               }}
                               onKeyUp={() => {
                                 saveComposerSelection();
-                                refreshActiveFormats();
+                                scheduleRefreshActiveFormats();
                               }}
                               onKeyDown={e => {
                                 if (

@@ -12,7 +12,6 @@ import { NotificationProvider } from "@/context/NotificationContext";
 
 import { useRouter } from "next/navigation";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
-import { useOrg } from "@/hooks/useOrg";
 import { apiClient } from "@/lib/api-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -50,9 +49,8 @@ function DriverLayoutContent({
 }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useUser();
   const { signOut } = useAuthActions();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const { avatarUrl } = useProfileContext();
-  const { isLoaded, isDriver, userRole } = useOrg();
   const router = useRouter();
   const [guardPassed, setGuardPassed] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
@@ -61,11 +59,11 @@ function DriverLayoutContent({
     const checkApproval = async () => {
       if (!isLoaded) return;
 
-      // Wait until role data has resolved
-      if (userRole === undefined) return;
+      // Wait until the user object has resolved
+      if (!user) return;
 
       // If not a driver role, redirect to dealer dashboard
-      if (!isDriver) {
+      if (user.role !== "driver") {
         router.push("/");
         return;
       }
@@ -93,7 +91,7 @@ function DriverLayoutContent({
     };
 
     checkApproval();
-  }, [isLoaded, isDriver, userRole, router, getToken]);
+  }, [isLoaded, user, router, getToken]);
 
   const { isSignedIn } = useAuth();
   if (isLoaded && !isSignedIn) return null;

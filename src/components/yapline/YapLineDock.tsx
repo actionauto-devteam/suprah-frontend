@@ -54,6 +54,7 @@ import {
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { YapLineInviteModal } from "@/components/yapline/YapLineInviteModal";
 import { YapLineSummonMenu } from "@/components/yapline/YapLineSummonMenu";
+import { useDraggableWidget } from "@/hooks/useDraggableWidget";
 
 const ini = (name?: string | null) =>
   (name || "?")
@@ -124,6 +125,7 @@ export function YapLineDock() {
   const [inviteConv, setInviteConv] = React.useState<
     { _id: string; name?: string; members: Array<{ _id: string }> } | null
   >(null);
+  const { setNode, style: dragStyle, handleProps } = useDraggableWidget("yapline-dock-pos");
 
   React.useEffect(() => setMounted(true), []);
 
@@ -172,12 +174,14 @@ export function YapLineDock() {
   /* ── The orb: the dock's only resting state ───────────────────────────── */
   const orb = (
     <button
+      {...handleProps}
       onClick={() => {
         yapline.setMinimized(false);
         if (s.audioBlocked) void yapline.resumeAudio();
       }}
-      aria-label="Open YapLine"
-      className="group relative flex size-14 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 shadow-xl shadow-emerald-900/40 ring-1 ring-inset ring-white/25 transition-transform duration-200 hover:scale-105 active:scale-95"
+      aria-label="Open YapLine — drag to reposition"
+      title="Drag to reposition"
+      className="group pointer-events-auto relative flex size-14 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 shadow-xl shadow-emerald-900/40 ring-1 ring-inset ring-white/25 transition-transform duration-200 hover:scale-105 active:scale-95"
     >
       {/* Expanding halo — pulses while anyone is talking, steady otherwise */}
       <span
@@ -224,9 +228,13 @@ export function YapLineDock() {
 
   /* ── Expanded panel ───────────────────────────────────────────────────── */
   const panel = (
-    <div className="w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-emerald-500/20 bg-card/95 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
+    <div className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-emerald-500/20 bg-card/95 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
       {/* Header */}
-      <div className="flex items-center gap-2.5 border-b border-border/40 bg-linear-to-r from-emerald-500/10 to-transparent px-3.5 py-3">
+      <div
+        {...handleProps}
+        title="Drag to reposition"
+        className="flex items-center gap-2.5 border-b border-border/40 bg-linear-to-r from-emerald-500/10 to-transparent px-3.5 py-3"
+      >
         <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600 shadow-md shadow-emerald-500/30 ring-1 ring-inset ring-white/20">
           <RadioTower className="size-4.5 text-white" />
         </span>
@@ -559,7 +567,11 @@ export function YapLineDock() {
 
   return createPortal(
     <>
-      <div className="fixed bottom-24 right-3 z-70 flex flex-col items-end gap-2 md:bottom-5 md:right-5">
+      <div
+        ref={setNode}
+        style={dragStyle}
+        className="pointer-events-none fixed bottom-24 right-3 z-70 flex flex-col items-end gap-2 md:bottom-5 md:right-5"
+      >
         {collapsed ? orb : panel}
       </div>
 

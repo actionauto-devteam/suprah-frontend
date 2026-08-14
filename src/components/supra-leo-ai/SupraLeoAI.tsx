@@ -3,6 +3,7 @@ import * as React from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { SupraLeoAvatar, type LeoState } from './SupraLeoAvatar'
+import { useDraggableWidget } from '@/hooks/useDraggableWidget'
 
 const BADGE_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
@@ -423,7 +424,8 @@ export function SupraLeoAI({
 }: SupraLeoAIProps) {
   const [open, setOpen] = useState(false)
   const [Panel, setPanel] = useState<React.ComponentType<LoadedPanelProps> | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement | null>(null)
+  const { setNode, style: dragStyle, handleProps, positioned } = useDraggableWidget('autrix-widget-pos')
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
   const pathname = usePathname()
@@ -507,26 +509,33 @@ export function SupraLeoAI({
 
   return (
     <div
-      ref={ref}
+      ref={(el) => { ref.current = el; setNode(el) }}
       className="supra-floating-widget"
       data-panel-open={open ? 'true' : 'false'}
       data-position={position}
+      data-dragged={positioned ? 'true' : 'false'}
       style={{
         position: 'fixed',
         ...floatingStyles,
+        ...dragStyle,
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
         alignItems: isLeft ? 'flex-start' : 'flex-end',
         gap: 12,
+        pointerEvents: 'none',
       }}
     >
       {open && Panel && panelProps && (
-        <div data-axb>
+        <div data-axb style={{ pointerEvents: 'auto' }}>
           <div className="axb-panel-wrap"><Panel {...panelProps} /></div>
         </div>
       )}
-      {!open && <AutrixBadge state={state} module={currentModule} onClick={() => setOpen(p => !p)} />}
+      {!open && (
+        <div {...handleProps} title="Drag to reposition" style={{ ...handleProps.style, pointerEvents: 'auto' }}>
+          <AutrixBadge state={state} module={currentModule} onClick={() => setOpen(p => !p)} />
+        </div>
+      )}
     </div>
   )
 }

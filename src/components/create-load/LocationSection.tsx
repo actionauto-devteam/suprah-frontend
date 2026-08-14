@@ -32,12 +32,12 @@ const LOCATION_TYPE_LABELS: Record<string, string> = {
 }
 
 const labelClass =
-  "block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1"
+  "block text-xs font-bold text-foreground/80 uppercase tracking-[0.12em] mb-1.5"
 
 const controlClass =
-  "w-full h-11 rounded-lg border border-border/60 bg-background/40 px-3 text-sm " +
-  "placeholder:text-muted-foreground/50 focus-visible:outline-none " +
-  "focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-colors"
+  "w-full h-11 rounded-lg border border-border bg-background px-3 text-base font-medium text-foreground " +
+  "placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none " +
+  "focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:border-emerald-500/60 transition-colors"
 
 interface FieldProps {
   label: string
@@ -52,7 +52,7 @@ function Field({ label, className, children, hint }: FieldProps) {
       <span className={labelClass}>{label}</span>
       {children}
       {hint ? (
-        <span className="block text-[10px] text-muted-foreground mt-1">{hint}</span>
+        <span className="block text-[11px] font-medium text-muted-foreground mt-1">{hint}</span>
       ) : null}
     </label>
   )
@@ -65,7 +65,7 @@ function IconInput({
 }: { icon: React.ComponentType<{ className?: string }> } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="relative">
-      <Icon className="size-4 text-muted-foreground/50 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <Icon className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
       <input {...props} className={cn(controlClass, "pl-9", props.className)} />
     </div>
   )
@@ -138,7 +138,7 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
         </span>
         <span
           className={cn(
-            "text-[11px] font-black uppercase tracking-[0.2em]",
+            "text-xs font-black uppercase tracking-[0.14em]",
             accentText,
           )}
         >
@@ -181,7 +181,7 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
         {/* ── State: dropdown, drives the ZIP autofill ── */}
         <Field label="State" className="col-span-1">
           <select
-            className={cn(controlClass, "appearance-none cursor-pointer")}
+            className={cn(controlClass, "cursor-pointer")}
             value={value.state ?? ""}
             onChange={handleStateChange}
           >

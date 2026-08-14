@@ -69,6 +69,18 @@ const DRAFT_STORAGE_KEY = "crm-appointment-draft";
 const isMongoObjectId = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f\d]{24}$/i.test(value.trim());
 
+/*
+ * SMS-channel detection: leads that came in by text or phone (or that have a
+ * phone number but no email/Gmail thread) get their Reply routed through the
+ * shared SMS pipeline instead of the centralized Gmail account.
+ */
+const isSmsLead = (lead: Lead | null | undefined): boolean => {
+  if (!lead) return false;
+  const channel = String(lead.channel || "").toLowerCase();
+  if (channel === "sms" || channel === "phone") return true;
+  return Boolean(lead.phone && !lead.email && !lead.threadId);
+};
+
 const TABS = [
   { key: null, label: "All" },
   { key: "New", label: "New" },
@@ -495,6 +507,44 @@ export function LeadsTab({
         }
       });
       socket.on("lead:update", () => refetch());
+
+      /*
+       * Shared SMS pipeline: when any teammate's message (or an inbound
+       * customer text) lands, append it to that lead's cached thread so
+       * every open Leads workspace updates live without a refetch.
+       */
+      socket.on("comm:message:new", (data: any) => {
+        const message = data?.message;
+        const leadId = message?.leadId || data?.conversation?.leadId;
+        if (!message || !leadId) return;
+        setThreads((previous) => {
+          const existing = previous[leadId];
+          if (!existing) return previous;
+          if (existing.some((m: any) => m?._id === message._id)) return previous;
+          return { ...previous, [leadId]: [...existing, message] };
+        });
+      });
+
+      socket.on("comm:message:status", (data: any) => {
+        const { messageId, status } = data || {};
+        if (!messageId) return;
+        setThreads((previous) => {
+          let changed = false;
+          const next: Record<string, any[]> = {};
+          for (const [leadId, messages] of Object.entries(previous)) {
+            const idx = messages.findIndex((m: any) => m?._id === messageId);
+            if (idx >= 0) {
+              changed = true;
+              next[leadId] = messages.map((m: any) =>
+                m?._id === messageId ? { ...m, status } : m,
+              );
+            } else {
+              next[leadId] = messages;
+            }
+          }
+          return changed ? next : previous;
+        });
+      });
       socket.on("lead:delete", () => {
         refetch();
         setSelectedLead(null);
@@ -505,6 +555,8 @@ export function LeadsTab({
       if (socket) {
         socket.off("lead:new");
         socket.off("lead:update");
+        socket.off("comm:message:new");
+        socket.off("comm:message:status");
         socket.off("lead:delete");
       }
     };
@@ -574,11 +626,28 @@ export function LeadsTab({
 
   // 6. Thread Refresh
   const buildLeadFallbackMessage = React.useCallback((lead: Lead) => {
-    const content =
+    let content =
       lead.parsedContent?.trim() ||
       lead.body?.trim() ||
       lead.comments?.trim() ||
       lead.subject?.trim();
+
+    /*
+     * SAFEGUARD: the customer's actual message (lead.comments) must always
+     * be visible. If the pre-rendered parsedContent was generated without a
+     * Customer Comments section (older parser missed vehicle-level comments)
+     * but the comments field itself holds text, append it as its own section
+     * so the person's message is never hidden.
+     */
+    const customerComments = lead.comments?.trim();
+    if (
+      content &&
+      customerComments &&
+      customerComments !== content &&
+      !content.includes(customerComments)
+    ) {
+      content = `${content}\n\n— Customer Comments —\n${customerComments}`;
+    }
 
     if (!content) return [];
 
@@ -623,6 +692,52 @@ export function LeadsTab({
           [lead._id]: fallbackMessages,
         };
       });
+
+      /*
+       * SMS/phone leads: load the shared communications thread by phone
+       * instead of Gmail. Messages carry direction/body/createdAt, which is
+       * exactly what ConversationView renders.
+       */
+      if (isSmsLead(lead)) {
+        if (!lead.phone) return;
+        try {
+          const smsResponse = await apiClient.get(
+            "/api/crm/communications/threads/by-phone",
+            {
+              params: { phone: lead.phone, leadId: lead._id },
+            },
+          );
+          const smsMessages =
+            smsResponse.data?.data?.messages || [];
+          if (smsMessages.length > 0) {
+            loadedThreadIdsRef.current.add(lead._id);
+            /*
+             * MERGE, don't replace: the customer's ORIGINAL inquiry lives on
+             * the lead itself (it arrived through the DealersCloud pipeline,
+             * not through Telnyx), so it must stay at the top of the thread.
+             * Replacing the seed with only SMS-pipeline messages made the
+             * customer's first message disappear once an employee replied.
+             */
+            setThreads((previous) => {
+              const smsIds = new Set(
+                smsMessages.map((m: any) => m?._id).filter(Boolean),
+              );
+              const preserved = (previous[lead._id] || fallbackMessages).filter(
+                (m: any) => m?.isLeadFallback && !smsIds.has(m?._id),
+              );
+              const seed =
+                preserved.length > 0 ? preserved : fallbackMessages;
+              return {
+                ...previous,
+                [lead._id]: [...seed, ...smsMessages],
+              };
+            });
+          }
+        } catch (error) {
+          console.error("Failed to load SMS thread:", error);
+        }
+        return;
+      }
 
       // Imported leads may not have a Gmail thread.
       if (!threadId) {
@@ -671,10 +786,29 @@ export function LeadsTab({
           // Mark this lead as having a fully loaded thread
           loadedThreadIdsRef.current.add(lead._id);
 
-          setThreads((previous) => ({
-            ...previous,
-            [lead._id]: syncedMessages,
-          }));
+          /*
+           * MERGE, don't replace (same fix as the SMS path): the customer's
+           * ORIGINAL inquiry (ADF/website leads) exists only on the lead —
+           * it is NOT in the Gmail thread — so it must stay at the top when
+           * the synced Gmail messages (staff replies + customer replies)
+           * load underneath it.
+           */
+          setThreads((previous) => {
+            const syncedIds = new Set(
+              syncedMessages
+                .map((m: any) => m?._id || m?.id)
+                .filter(Boolean),
+            );
+            const preserved = (previous[lead._id] || fallbackMessages).filter(
+              (m: any) =>
+                m?.isLeadFallback && !syncedIds.has(m?._id || m?.id),
+            );
+            const seed = preserved.length > 0 ? preserved : fallbackMessages;
+            return {
+              ...previous,
+              [lead._id]: [...seed, ...syncedMessages],
+            };
+          });
         }
       } catch (error) {
         /*
@@ -817,6 +951,66 @@ export function LeadsTab({
       if (!token) {
         addToast("error", "Auth required");
         throw new Error("Authentication required");
+      }
+
+      /*
+       * SMS Reply: text-channel leads go out through the shared company
+       * number. The reply is saved on the org-wide conversation with the
+       * sending user, and every teammate's workspace updates via socket.
+       */
+      if (isSmsLead(selectedLead)) {
+        if (!selectedLead.phone) {
+          addToast("error", "This lead has no phone number on file");
+          throw new Error("Missing phone number");
+        }
+        if (attachments.length > 0) {
+          addToast(
+            "error",
+            "Attachments aren't supported for SMS replies yet",
+          );
+          throw new Error("Attachments unsupported for SMS");
+        }
+
+        const smsResponse = await apiClient.post(
+          "/api/crm/communications/messages",
+          {
+            toPhone: selectedLead.phone,
+            body: replyMessage.trim(),
+            leadId: selectedLead._id,
+            customerName: `${selectedLead.firstName || ""} ${selectedLead.lastName || ""}`.trim(),
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        const sentMessage =
+          smsResponse.data?.data?.message;
+        if (sentMessage) {
+          setThreads((previous) => {
+            const existing = previous[selectedLead._id] || [];
+            if (existing.some((m: any) => m?._id === sentMessage._id)) {
+              return previous;
+            }
+            return {
+              ...previous,
+              [selectedLead._id]: [...existing, sentMessage],
+            };
+          });
+        }
+
+        setReplyMessage("");
+        addToast("success", "Text message sent");
+
+        await updateLeadStatus({
+          id: selectedLead._id,
+          status: "Contacted",
+        });
+
+        await refetch();
+        return;
       }
 
       const formData = new FormData();

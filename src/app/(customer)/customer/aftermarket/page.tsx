@@ -367,7 +367,7 @@ export default function CustomerAftermarketPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="w-full p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -418,7 +418,7 @@ export default function CustomerAftermarketPage() {
           <p className="text-sm text-muted-foreground">{search ? "No products match your search." : "No products available yet."}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {products.map((p) => (
             <ProductCard
               key={p._id}
