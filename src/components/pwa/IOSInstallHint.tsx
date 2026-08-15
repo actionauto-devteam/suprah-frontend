@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
 import { Share, PlusSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -10,14 +9,9 @@ import { motion, AnimatePresence } from "framer-motion";
  * This component handles the discovery gating for iOS users.
  */
 export function IOSInstallHint() {
-    const pathname = usePathname();
     const [show, setShow] = useState(false);
 
     useEffect(() => {
-        // SupraSpace has its own iOS install hint (different manifest/copy) —
-        // skip this one there so the two don't stack.
-        if (pathname?.startsWith("/crm/supra-space")) return;
-
         // Detect iOS Browser (not already a standalone app)
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
         const isStandalone = (window.matchMedia("(display-mode: standalone)").matches) || (navigator as any).standalone === true;
@@ -30,7 +24,7 @@ export function IOSInstallHint() {
             const timer = setTimeout(() => setShow(true), 6000);
             return () => clearTimeout(timer);
         }
-    }, [pathname]);
+    }, []);
 
     const handleDismiss = () => {
         setShow(false);

@@ -2,10 +2,8 @@
 
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
-import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
-import { resolveImageUrl } from '@/lib/utils';
 import { playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
@@ -176,41 +174,6 @@ function stripChatFormatting(content?: string | null): string {
     .replace(/\s*\n+\s*/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
-}
-
-// In-app "pop up" for a new message while the tab is focused but the user
-// isn't on Suprah Space at all — showNotificationViaSW() above already
-// covers the unfocused/hidden case via the OS, so this only needs to catch
-// the gap where the user is elsewhere in the dashboard with the tab open.
-function showInAppMessageToast(opts: {
-  conversationId: string;
-  title: string;
-  body: string;
-  avatar?: string;
-  onOpen: (conversationId: string) => void;
-}) {
-  const avatarUrl = resolveImageUrl(opts.avatar);
-  toast.custom(
-    (t) => (
-      <button
-        onClick={() => { toast.dismiss(t); opts.onOpen(opts.conversationId); }}
-        className="flex w-full max-w-sm items-start gap-3 rounded-lg border border-border bg-popover p-3 text-left text-popover-foreground shadow-lg transition-colors hover:bg-accent"
-      >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            {opts.title.charAt(0).toUpperCase()}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{opts.title}</p>
-          <p className="truncate text-xs text-muted-foreground">{opts.body}</p>
-        </div>
-      </button>
-    ),
-    { id: `ss-msg-${opts.conversationId}`, duration: 6000 }
-  );
 }
 
 function authConfig(token: string, skipAuthRefresh = false): SupraSpaceRequestConfig {
@@ -440,21 +403,6 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
               body,
               tag: conversationId,
               url: `/crm/supra-space?conversationId=${encodeURIComponent(conversationId)}&messageId=${encodeURIComponent(message._id)}`,
-            });
-          } else if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/crm/supra-space')) {
-            // Tab is focused but the user is on a different dashboard page —
-            // the OS notification path above never fires here, so this is
-            // the only signal they'd otherwise get until they happen to open
-            // Suprah Space themselves.
-            const conv = conversationsRef.current.find(c => c._id === conversationId);
-            const isGroup = conv?.type === 'group';
-            const preview = stripChatFormatting(message.content).slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
-            showInAppMessageToast({
-              conversationId,
-              title: isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message'),
-              body: isGroup ? `${message.sender?.fullName}: ${preview}` : preview,
-              avatar: isGroup ? (conv?.avatar || undefined) : message.sender?.avatar,
-              onOpen: openChatPopup,
             });
           }
         }
