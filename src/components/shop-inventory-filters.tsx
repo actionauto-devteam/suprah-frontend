@@ -191,9 +191,57 @@ export function ShopInventoryFilters({
   const activeCount = chipEntries.length;
   const hasRangeFilter = !!(filters.minPrice || filters.maxPrice || filters.minMileage || filters.maxMileage);
 
-  const STATUSES = filterOptions?.statuses?.length
-    ? filterOptions.statuses
-    : ["Ready for Sale", "In Recon", "Sold", "In Transit"];
+  // These option lists (models especially, which can run into the hundreds across a real
+  // inventory) were being rebuilt from scratch — a fresh array + fresh objects — on every
+  // render, including every keystroke in the search box above (each one updates `filters`
+  // and re-renders this whole toolbar). PillSelect isn't memoized, so a brand-new `options`
+  // array reference each time meant every dropdown's item list was reconstructed constantly,
+  // which is exactly the kind of main-thread work that makes a click to open one of these
+  // feel delayed. Memoizing so they only rebuild when the underlying data actually changes.
+  const makeOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All Makes" },
+      ...(filterOptions?.makes ?? []).map((make) => ({ value: make, label: make })),
+    ],
+    [filterOptions],
+  );
+  const modelOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All Models" },
+      ...(filterOptions?.models ?? []).map((model) => ({ value: model, label: model })),
+    ],
+    [filterOptions],
+  );
+  const yearOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All Years" },
+      ...(filterOptions?.years ?? []).map((year) => ({ value: String(year), label: String(year) })),
+    ],
+    [filterOptions],
+  );
+  const bodyStyleOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All Styles" },
+      ...(filterOptions?.bodyStyles ?? []).map((style) => ({ value: style, label: style })),
+    ],
+    [filterOptions],
+  );
+  const statusOptions = React.useMemo(() => {
+    const statuses = filterOptions?.statuses?.length
+      ? filterOptions.statuses
+      : ["Ready for Sale", "In Recon", "Sold", "In Transit"];
+    return [
+      { value: "all", label: "All Statuses" },
+      ...statuses.map((status: string) => ({ value: status, label: status })),
+    ];
+  }, [filterOptions]);
+  const locationOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All Locations" },
+      ...(filterOptions?.locations ?? []).map((location) => ({ value: location, label: location })),
+    ],
+    [filterOptions],
+  );
 
   return (
     <div className="space-y-2.5">
@@ -260,13 +308,7 @@ export function ShopInventoryFilters({
             }
             active={!!filters.make}
             ariaLabel="Filter by make"
-            options={[
-              { value: "all", label: "All Makes" },
-              ...(filterOptions?.makes ?? []).map((make) => ({
-                value: make,
-                label: make,
-              })),
-            ]}
+            options={makeOptions}
           />
 
           <PillSelect
@@ -276,13 +318,7 @@ export function ShopInventoryFilters({
             }
             active={!!filters.model}
             ariaLabel="Filter by model"
-            options={[
-              { value: "all", label: "All Models" },
-              ...(filterOptions?.models ?? []).map((model) => ({
-                value: model,
-                label: model,
-              })),
-            ]}
+            options={modelOptions}
           />
 
           <PillSelect
@@ -292,13 +328,7 @@ export function ShopInventoryFilters({
             }
             active={!!filters.year}
             ariaLabel="Filter by year"
-            options={[
-              { value: "all", label: "All Years" },
-              ...(filterOptions?.years ?? []).map((year) => ({
-                value: String(year),
-                label: String(year),
-              })),
-            ]}
+            options={yearOptions}
           />
 
           <PillSelect
@@ -308,13 +338,7 @@ export function ShopInventoryFilters({
             }
             active={!!filters.bodyStyle}
             ariaLabel="Filter by body style"
-            options={[
-              { value: "all", label: "All Styles" },
-              ...(filterOptions?.bodyStyles ?? []).map((style) => ({
-                value: style,
-                label: style,
-              })),
-            ]}
+            options={bodyStyleOptions}
           />
 
           <PillSelect
@@ -328,13 +352,7 @@ export function ShopInventoryFilters({
             }
             active={!!(filters.status && filters.status !== "all")}
             ariaLabel="Filter by status"
-            options={[
-              { value: "all", label: "All Statuses" },
-              ...STATUSES.map((status) => ({
-                value: status,
-                label: status,
-              })),
-            ]}
+            options={statusOptions}
           />
 
           <PillSelect
@@ -344,13 +362,7 @@ export function ShopInventoryFilters({
             }
             active={!!filters.location}
             ariaLabel="Filter by location"
-            options={[
-              { value: "all", label: "All Locations" },
-              ...(filterOptions?.locations ?? []).map((location) => ({
-                value: location,
-                label: location,
-              })),
-            ]}
+            options={locationOptions}
           />
 
           {/* Range toggle pill */}

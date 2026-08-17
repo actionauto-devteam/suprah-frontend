@@ -6,7 +6,11 @@ type Anchor = { ax: "left" | "right"; ay: "top" | "bottom"; ox: number; oy: numb
 type Live = { x: number; y: number };
 
 const MARGIN = 8;
-const THRESHOLD = 4;
+// The whole orb is both the click target and the drag handle, so ordinary mouse/trackpad
+// jitter during a plain click needs to stay BELOW this and not register as a drag. 4px was
+// too sensitive — a normal click easily moves that much, which was silently relocating the
+// widget (and persisting the new spot to localStorage) even though nobody meant to drag it.
+const THRESHOLD = 10;
 
 const readStored = (key: string): Anchor | null => {
   try {

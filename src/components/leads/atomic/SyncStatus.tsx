@@ -29,7 +29,7 @@ export const SyncStatus = React.memo(({
     return (
       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-        Centralized ingestion not configured
+        Gmail auto-sync not connected — other lead sources (e.g. ADF) are unaffected
       </div>
     )
   }

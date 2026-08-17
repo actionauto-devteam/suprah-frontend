@@ -95,8 +95,13 @@ const STYLES = `
 }
 
 .vpm-thumb-wrapper-frame {
-  width: 130px;
-  height: 100px;
+  /* Was a fixed 130x100px regardless of card width — on the wider cards this grid can
+     produce, that read as an oversized, disproportionate thumbnail next to the vehicle
+     details. Scaling with the card via clamp() (with sane min/max bounds) plus a fixed
+     aspect-ratio keeps it proportionate at any modal/card width instead of a rigid box. */
+  width: clamp(84px, 20%, 130px);
+  aspect-ratio: 4 / 3;
+  max-height: 100px;
   border-radius: 10px;
   overflow: hidden;
   background: #f8fafc;
@@ -109,8 +114,8 @@ const STYLES = `
 
 @media (max-width: 540px) {
   .vpm-thumb-wrapper-frame {
-    width: 95px;
-    height: 95px;
+    width: clamp(72px, 26%, 95px);
+    max-height: 95px;
   }
 }
 

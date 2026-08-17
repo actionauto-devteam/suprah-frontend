@@ -341,6 +341,21 @@ function PostCard({ post, canDelete, onDelete, deleting }: {
   );
 }
 
+// A duration this long is almost certainly bad start/end data (e.g. the end time
+// picked on the wrong day), not a real appointment — flagged visually rather than
+// silently shown as an oddly large minute count.
+const UNUSUAL_DURATION_MIN = 8 * 60;
+
+/** Minutes → "Xh Ym" (or "Xm" under an hour) — a raw "1500 min" makes someone do the
+ * math to realize that's 25 hours; formatting it makes a bad duration obvious at a glance. */
+function formatDuration(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 0) return "—";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 // ─── Table row ────────────────────────────────────────────────────────────────
 
 function AppointmentRow({ apt, onOpen }: {
@@ -375,7 +390,9 @@ function AppointmentRow({ apt, onOpen }: {
       </td>
       <td className="w-[8%] px-3.5 py-3 align-middle">
         <div className="font-mono text-[13px] font-medium tabular-nums">{start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: MDT_TZ })}</div>
-        <div className="text-[11px] tabular-nums text-muted-foreground">{dur} min</div>
+        <div className={cn("text-[11px] tabular-nums", dur > UNUSUAL_DURATION_MIN ? "font-semibold text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+          {formatDuration(dur)}
+        </div>
       </td>
       <td className="w-[11%] px-3.5 py-3 align-middle">
         <TypeBadge type={displayType} />
@@ -454,9 +471,9 @@ function AppointmentMobileCard({ apt, onOpen }: {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+          <span className={cn("inline-flex items-center gap-1 font-mono tabular-nums", dur > UNUSUAL_DURATION_MIN && "font-semibold text-amber-600 dark:text-amber-400")}>
             <Clock className="h-3 w-3 shrink-0" />
-            {fmtTimeMDT(start)} · {dur}min
+            {fmtTimeMDT(start)} · {formatDuration(dur)}
           </span>
           {apt.customerBooking.phone && (
             <span className="font-mono tabular-nums">· {apt.customerBooking.phone}</span>
@@ -535,7 +552,7 @@ function AppointmentDashboard() {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
-  const { data: appointmentsData, isLoading, error, refetch } = useQuery({
+  const { data: appointmentsData, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["appts-dash", viewMode, selectedDate, statusFilter, typeFilter],
     queryFn: async () => {
       const h = await getHeaders();
@@ -841,8 +858,11 @@ function AppointmentDashboard() {
               <Download size={12} strokeWidth={2} />
               Export CSV
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isLoading}>
-              <RefreshCw size={12} strokeWidth={2} className={cn(isLoading && "animate-spin")} />
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isFetching}>
+              {/* isLoading only covers the very first load — a manual refetch on an
+                  already-loaded (possibly empty) list needs isFetching, or clicking
+                  Refresh gives no visible feedback at all and looks unresponsive. */}
+              <RefreshCw size={12} strokeWidth={2} className={cn(isFetching && "animate-spin")} />
               Refresh
             </Button>
           </SectionHeader>
