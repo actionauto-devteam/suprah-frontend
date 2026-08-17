@@ -236,11 +236,17 @@ export default function AdminUserTimeprofPage() {
     const token = localStorage.getItem("crm_token")
     if (!token || !userId) return
     setOverrideDayLogsLoading(true)
+    setOverrideError("")
     try {
       const res = await apiClient.getAdminDayLogs(userId, dateStr, { headers: { Authorization: `Bearer ${token}` } })
       setOverrideDayLogs(res.data?.data?.logs || [])
-    } catch {
+    } catch (e: unknown) {
+      // Previously swallowed silently — a real backend error (e.g. "User not found") looked
+      // identical to "genuinely no entries for this date," which is exactly what hid the
+      // Lot Tech user-model lookup bug from view. Surface it instead.
       setOverrideDayLogs([])
+      const err = e as { response?: { data?: { message?: string } } }
+      setOverrideError(err?.response?.data?.message || "Failed to load entries for this date.")
     } finally {
       setOverrideDayLogsLoading(false)
     }
@@ -1281,6 +1287,8 @@ export default function AdminUserTimeprofPage() {
                     <div className="space-y-1.5">
                       {overrideDayLogsLoading ? (
                         <p className="text-[10px] text-muted-foreground/40">Loading entries…</p>
+                      ) : overrideError && !overrideAction ? (
+                        <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{overrideError}</p>
                       ) : overrideDayLogs.length === 0 ? (
                         <p className="text-[10px] text-muted-foreground/40">No time log entries for this date.</p>
                       ) : (
