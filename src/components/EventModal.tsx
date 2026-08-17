@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import type { CalendarItem, CrmUserLite, EventDraft } from "@/types/calendar.types";
 import {
   CALENDAR_TZ_LABEL,
@@ -273,24 +274,22 @@ export function EventModal({
           <div className="mb-4 grid grid-cols-2 gap-3">
             <div>
               <label className={label} htmlFor="sc-start">Starts ({CALENDAR_TZ_LABEL})</label>
-              <input
+              <DateTimePicker
                 id="sc-start"
-                type="datetime-local"
-                className={`${field} font-mono tabular-nums`}
-                disabled={readOnly}
                 value={draft.start}
-                onChange={(e) => set("start", e.target.value)}
+                onChange={(v) => set("start", v)}
+                disabled={readOnly}
+                className={`${field} font-mono tabular-nums`}
               />
             </div>
             <div>
               <label className={label} htmlFor="sc-end">Ends ({CALENDAR_TZ_LABEL})</label>
-              <input
+              <DateTimePicker
                 id="sc-end"
-                type="datetime-local"
-                className={`${field} font-mono tabular-nums`}
-                disabled={readOnly}
                 value={draft.end}
-                onChange={(e) => set("end", e.target.value)}
+                onChange={(v) => set("end", v)}
+                disabled={readOnly}
+                className={`${field} font-mono tabular-nums`}
               />
             </div>
           </div>

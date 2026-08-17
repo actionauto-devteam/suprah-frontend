@@ -465,6 +465,7 @@ export function CustomersConcernTab() {
   const {
     data: conversations = [],
     isLoading: loadingConvs,
+    isFetching: fetchingConvs,
     refetch: refetchConvs,
   } = useQuery({
     queryKey: ["concern-conversations", debSearch],
@@ -479,6 +480,11 @@ export function CustomersConcernTab() {
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
+
+  const handleRefreshConvs = async () => {
+    const result = await refetchConvs();
+    if (result.isError) showNotice("error", "Couldn't refresh — try again.");
+  };
 
   // Filtered list
   const filteredConvs = conversations.filter((c) => {
@@ -684,10 +690,11 @@ export function CustomersConcernTab() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => refetchConvs()}
-              className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
+              onClick={handleRefreshConvs}
+              disabled={fetchingConvs}
+              className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary disabled:opacity-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw className={cn("h-3.5 w-3.5", fetchingConvs && "animate-spin")} />
             </Button>
           </div>
 

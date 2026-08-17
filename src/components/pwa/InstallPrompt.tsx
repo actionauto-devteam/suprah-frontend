@@ -1,15 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { X, Share, PlusSquare, Download } from "lucide-react";
 
 export const InstallPrompt = () => {
+    const pathname = usePathname();
     const { isInstallable, isIOS, isStandalone, handleInstallClick } = usePWAInstall();
     const [isVisible, setIsVisible] = useState(false);
     const [isDismissed, setIsDismissed] = useState(false);
 
+    // SupraSpace has its own install affordance (its manifest/scope is
+    // different from this one) — showing this banner there too would offer
+    // two competing "install" actions for the same click.
+    const inSupraSpace = pathname?.startsWith("/crm/supra-space");
+
     useEffect(() => {
+        if (inSupraSpace) return;
         // Check if user has already dismissed the prompt in this session
         const dismissed = sessionStorage.getItem("pwa-prompt-dismissed");
         if (dismissed) {
@@ -30,7 +38,7 @@ export const InstallPrompt = () => {
         sessionStorage.setItem("pwa-prompt-dismissed", "true");
     };
 
-    if (!isVisible || isDismissed || isStandalone) return null;
+    if (!isVisible || isDismissed || isStandalone || inSupraSpace) return null;
 
     return (
         <div className="fixed bottom-6 left-1/2 z-9999 w-[90%] max-w-md -translate-x-1/2 animate-in fade-in slide-in-from-bottom-10 duration-500">

@@ -76,7 +76,7 @@ function DashboardLayoutContent({
   useCrmWebPush();
   usePresence();
   usePresenceSocket();
-  const { organization, isLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
+  const { organization, isLoaded: isOrgLoaded, isSuperAdmin, isDriver, userRole } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
@@ -150,13 +150,13 @@ function DashboardLayoutContent({
   }, [isCrmRoute]);
 
   React.useEffect(() => {
-    if (isLoaded) {
+    if (isOrgLoaded) {
       setHasResolvedOrgAccess(true);
     }
-  }, [isLoaded]);
+  }, [isOrgLoaded]);
 
   React.useEffect(() => {
-    if (!isLoaded) return;
+    if (!isOrgLoaded) return;
 
     if (isSuperAdmin && !isImpersonating) {
       if (
@@ -187,7 +187,7 @@ function DashboardLayoutContent({
       return;
     }
   }, [
-    isLoaded,
+    isOrgLoaded,
     organization,
     isSuperAdmin,
     isDriver,
@@ -196,7 +196,7 @@ function DashboardLayoutContent({
     userRole,
   ]);
 
-  const { isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   if (isLoaded && !isSignedIn) return null;
 
   const isCustomer = userRole === "customer";
