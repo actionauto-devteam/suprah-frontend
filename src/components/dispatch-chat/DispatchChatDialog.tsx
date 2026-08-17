@@ -41,6 +41,7 @@ import { resolveImageUrl } from "@/lib/utils";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { toast } from "sonner";
+import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 
 export interface DispatchChatAttachment {
   url: string;
@@ -317,35 +318,37 @@ function normalizeNotification(
 function AttachmentView({
   attachment,
   mine,
+  onOpenMedia,
 }: {
   attachment: DispatchChatAttachment;
   mine: boolean;
+  onOpenMedia: (attachment: LightboxAttachment) => void;
 }) {
   const isImage = attachment.mimeType?.startsWith("image/");
   const isVideo = attachment.mimeType?.startsWith("video/");
 
   if (isImage) {
     return (
-      <a
-        href={attachment.url}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-2 block overflow-hidden rounded-xl border border-white/15 bg-black/10"
+      <button
+        type="button"
+        onClick={() =>
+          onOpenMedia({ src: attachment.url, type: "image", name: attachment.originalName })
+        }
+        className="mt-2 block w-full overflow-hidden rounded-xl border border-white/15 bg-black/10 text-left"
       >
         <img
           src={attachment.url}
           alt={attachment.originalName}
-          className="max-h-64 w-full object-cover"
+          className="max-h-52 max-w-full object-contain"
         />
         <div
-          className={`flex items-center justify-between gap-2 px-3 py-2 text-[10px] ${
-            mine ? "text-emerald-50/90" : "text-muted-foreground"
-          }`}
+          className={`flex items-center justify-between gap-2 px-3 py-2 text-[10px] ${mine ? "text-emerald-50/90" : "text-muted-foreground"
+            }`}
         >
-          <span className="min-w-0 flex-1 break-all text-left [overflow-wrap:anywhere]">{attachment.originalName}</span>
+          <span className="min-w-0 flex-1 break-all text-left wrap-anywhere">{attachment.originalName}</span>
           <span className="shrink-0">{bytesLabel(attachment.size)}</span>
         </div>
-      </a>
+      </button>
     );
   }
 
@@ -359,11 +362,10 @@ function AttachmentView({
           className="max-h-72 w-full bg-black"
         />
         <div
-          className={`flex items-center justify-between gap-2 px-3 py-2 text-[10px] ${
-            mine ? "text-emerald-50/90" : "text-muted-foreground"
-          }`}
+          className={`flex items-center justify-between gap-2 px-3 py-2 text-[10px] ${mine ? "text-emerald-50/90" : "text-muted-foreground"
+            }`}
         >
-          <span className="min-w-0 flex-1 break-all text-left [overflow-wrap:anywhere]">{attachment.originalName}</span>
+          <span className="min-w-0 flex-1 break-all text-left wrap-anywhere">{attachment.originalName}</span>
           <span className="shrink-0">{bytesLabel(attachment.size)}</span>
         </div>
       </div>
@@ -375,31 +377,27 @@ function AttachmentView({
       href={attachment.url}
       target="_blank"
       rel="noreferrer"
-      className={`mt-2 flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-        mine
+      className={`mt-2 flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${mine
           ? "border-white/15 bg-white/10 hover:bg-white/15"
           : "border-border/60 bg-background/70 hover:bg-muted/60"
-      }`}
+        }`}
     >
       <div
-        className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${
-          mine ? "bg-white/15" : "bg-emerald-500/10"
-        }`}
+        className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${mine ? "bg-white/15" : "bg-emerald-500/10"
+          }`}
       >
         <FileText
-          className={`size-4 ${
-            mine ? "text-white" : "text-emerald-600 dark:text-emerald-400"
-          }`}
+          className={`size-4 ${mine ? "text-white" : "text-emerald-600 dark:text-emerald-400"
+            }`}
         />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold break-all [overflow-wrap:anywhere]">
+        <p className="text-xs font-semibold break-all wrap-anywhere">
           {attachment.originalName}
         </p>
         <p
-          className={`text-[10px] ${
-            mine ? "text-emerald-50/75" : "text-muted-foreground"
-          }`}
+          className={`text-[10px] ${mine ? "text-emerald-50/75" : "text-muted-foreground"
+            }`}
         >
           {bytesLabel(attachment.size)}
         </p>
@@ -1146,6 +1144,8 @@ export function DispatchChatDialog({
   const [detailsTruncated, setDetailsTruncated] = React.useState(false);
   const [isLatestPositionReady, setIsLatestPositionReady] =
     React.useState(false);
+  const [lightboxAttachment, setLightboxAttachment] =
+    React.useState<LightboxAttachment | null>(null);
   const timelineScrollRef = React.useRef<HTMLDivElement | null>(null);
   const timelineContentRef = React.useRef<HTMLDivElement | null>(null);
   const latestPositionFrameRef = React.useRef<number | null>(null);
@@ -1183,6 +1183,8 @@ export function DispatchChatDialog({
     () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
     [threads, selectedThreadId],
   );
+  const staffConversationCacheKey =
+    !currentUserIsDriver && driverId ? `staff:${String(driverId)}` : null;
 
   const updateUnread = React.useCallback((count: number) => {
     setUnreadCount(Math.max(0, count));
@@ -1405,10 +1407,12 @@ export function DispatchChatDialog({
     // instant. Render ONLY that exact thread's cached snapshot, then refresh it
     // in the background. Never keep the previous dispatcher's visible messages
     // while a different thread is being selected.
-    const cached =
-      currentUserIsDriver && requestedThreadId
-        ? threadCacheRef.current.get(requestedThreadId) ?? null
-        : null;
+    const requestedCacheKey = currentUserIsDriver
+      ? requestedThreadId
+      : staffConversationCacheKey;
+    const cached = requestedCacheKey
+      ? threadCacheRef.current.get(requestedCacheKey) ?? null
+      : null;
 
     if (cached) {
       applyThreadCache(cached);
@@ -1493,13 +1497,23 @@ export function DispatchChatDialog({
         ? String(resolvedThreadId)
         : null;
 
-      if (currentUserIsDriver && normalizedResolvedThreadId) {
-        cacheThreadSnapshot(normalizedResolvedThreadId, {
+      if (normalizedResolvedThreadId) {
+        const snapshot = {
           messages: nextMessages,
           systemEvents: nextSystemEvents,
           context: nextContext,
           unreadCount: nextUnread,
-        });
+        };
+
+        // Drivers cache by exact private thread. Dispatch caches by the selected
+        // driver because each signed-in dispatcher has exactly one private
+        // thread with that driver. This makes reopening a conversation instant
+        // without mixing histories between drivers or dispatcher accounts.
+        if (currentUserIsDriver) {
+          cacheThreadSnapshot(normalizedResolvedThreadId, snapshot);
+        } else if (staffConversationCacheKey) {
+          cacheThreadSnapshot(staffConversationCacheKey, snapshot);
+        }
       }
 
       // A response for Dispatcher A must never overwrite Dispatcher B after a
@@ -1520,6 +1534,12 @@ export function DispatchChatDialog({
       setThreadContext(nextContext);
       updateUnread(nextUnread);
 
+      // The conversation is ready as soon as the history GET completes.
+      // Do not keep the full-screen chat loader visible while a separate
+      // mark-read request makes another network round trip.
+      setIsLoading(false);
+      setIsLatestPositionReady(false);
+
       if (
         currentUserIsDriver &&
         normalizedResolvedThreadId &&
@@ -1530,19 +1550,14 @@ export function DispatchChatDialog({
       }
 
       // Mark only the exact private dispatcher↔driver thread that is STILL
-      // selected. A stale request from a tab the driver already left must not
-      // silently mark that other conversation as read.
+      // selected, but keep this secondary write off the critical render path.
+      // The user sees the conversation immediately after the history GET; the
+      // read receipt completes quietly in the background.
       if (!currentUserIsDriver || normalizedResolvedThreadId) {
-        await apiClient.post(
-          `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/read`,
-          normalizedResolvedThreadId
-            ? { threadId: normalizedResolvedThreadId }
-            : {},
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const readBody = normalizedResolvedThreadId
+          ? { threadId: normalizedResolvedThreadId }
+          : {};
 
-        // Check selection again because the user may have switched while the
-        // mark-read request was in flight.
         if (
           !currentUserIsDriver ||
           String(selectedThreadIdRef.current ?? "") ===
@@ -1552,13 +1567,18 @@ export function DispatchChatDialog({
         }
 
         if (normalizedResolvedThreadId) {
-          const cachedEntry =
-            threadCacheRef.current.get(normalizedResolvedThreadId);
-          if (cachedEntry) {
-            threadCacheRef.current.set(normalizedResolvedThreadId, {
-              ...cachedEntry,
-              unreadCount: 0,
-            });
+          const cacheKeys = currentUserIsDriver
+            ? [normalizedResolvedThreadId]
+            : [staffConversationCacheKey].filter(Boolean) as string[];
+
+          for (const cacheKey of cacheKeys) {
+            const cachedEntry = threadCacheRef.current.get(cacheKey);
+            if (cachedEntry) {
+              threadCacheRef.current.set(cacheKey, {
+                ...cachedEntry,
+                unreadCount: 0,
+              });
+            }
           }
 
           setThreads((current) =>
@@ -1569,6 +1589,17 @@ export function DispatchChatDialog({
             ),
           );
         }
+
+        void apiClient
+          .post(
+            `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/read`,
+            readBody,
+            { headers: { Authorization: `Bearer ${token}` } },
+          )
+          .catch(() => {
+            // A temporary read-state failure must never block or hide chat
+            // history. The next unread refresh/socket event will reconcile it.
+          });
       }
     } catch (error: any) {
       const requestIsStillCurrent =
@@ -1601,6 +1632,7 @@ export function DispatchChatDialog({
     getToken,
     isSignedIn,
     selectedThreadId,
+    staffConversationCacheKey,
     updateUnread,
   ]);
 
@@ -1831,6 +1863,18 @@ export function DispatchChatDialog({
         setSystemEvents([]);
         setThreadContext(null);
       }
+    } else if (staffConversationCacheKey) {
+      const cached = threadCacheRef.current.get(staffConversationCacheKey);
+      if (cached) {
+        applyThreadCache(cached);
+        setIsLoading(false);
+      } else {
+        // Never flash another driver's private thread while Dispatch switches
+        // between drivers. Only the exact driver-scoped cache may render.
+        setMessages([]);
+        setSystemEvents([]);
+        setThreadContext(null);
+      }
     }
 
     void fetchMessages();
@@ -1841,6 +1885,7 @@ export function DispatchChatDialog({
     selectedThreadId,
     fetchMessages,
     applyThreadCache,
+    staffConversationCacheKey,
   ]);
 
   React.useEffect(() => {
@@ -2421,8 +2466,9 @@ export function DispatchChatDialog({
     (Boolean(selectedThreadId) && selectedDispatcherIsActive);
 
   return (
-    <Dialog
-      open={open}
+    <>
+      <Dialog
+        open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen);
         if (nextOpen) void markRead();
@@ -2715,6 +2761,7 @@ export function DispatchChatDialog({
                               key={`${message.id}:${index}:${attachment.originalName}`}
                               attachment={attachment}
                               mine={mine}
+                              onOpenMedia={setLightboxAttachment}
                             />
                           ),
                         )}
@@ -2945,6 +2992,11 @@ export function DispatchChatDialog({
           )}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      <AttachmentLightbox
+        attachment={lightboxAttachment}
+        onClose={() => setLightboxAttachment(null)}
+      />
+    </>
   );
 }

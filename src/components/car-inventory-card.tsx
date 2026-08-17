@@ -335,7 +335,7 @@ export function CarInventoryCard({
     return (
       <div
         className={cn(
-          "group relative flex h-22 sm:h-25 overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm",
+          "group relative flex h-26 sm:h-30 overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm",
           "transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
         )}
       >
@@ -345,7 +345,7 @@ export function CarInventoryCard({
           showStatusDot
           showDaysOnLot
           onClick={() => onVehicleClick?.(vehicle)}
-          className="w-28 sm:w-40 shrink-0 rounded-l-2xl"
+          className="w-28 sm:w-44 shrink-0 rounded-l-2xl"
           isSaved={isSaved}
           onToggleSave={
             onToggleSave
@@ -361,37 +361,37 @@ export function CarInventoryCard({
           canCompareMore={canCompareMore}
         />
 
-        <div className="flex flex-1 min-w-0 flex-col justify-center px-3 py-2 gap-0.5">
-          <div className="flex items-start justify-between gap-1.5">
+        <div className="flex flex-1 min-w-0 flex-col justify-center px-4 py-2 gap-1">
+          <div className="flex items-start justify-between gap-2">
             <h3
-              className="font-bold text-sm leading-tight text-foreground cursor-pointer hover:text-primary transition-colors line-clamp-1"
+              className="font-bold text-base sm:text-lg leading-tight text-foreground cursor-pointer hover:text-primary transition-colors line-clamp-1"
               onClick={() => onVehicleClick?.(vehicle)}
             >
               {vehicle.year} {vehicle.make} {vehicle.model}
               {vehicle.trim && (
-                <span className="font-normal text-muted-foreground ml-1 text-xs">{vehicle.trim}</span>
+                <span className="font-normal text-muted-foreground ml-1.5 text-sm">{vehicle.trim}</span>
               )}
             </h3>
             {statusCfg && (
               <Badge
                 className={cn(
-                  "hidden sm:flex shrink-0 items-center gap-1 h-5 px-2 text-[10px] font-bold rounded-full",
+                  "hidden sm:flex shrink-0 items-center gap-1 h-6 px-2.5 text-xs font-bold rounded-full",
                   statusCfg.pill,
                 )}
               >
-                <statusCfg.icon className="h-2.5 w-2.5" />
+                <statusCfg.icon className="h-3 w-3" />
                 {statusCfg.label}
               </Badge>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <GaugeIcon className="h-3 w-3 text-primary/50" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <GaugeIcon className="h-4 w-4 text-primary/50" />
               {safeMileage.toLocaleString()} mi
             </span>
-            <span className="flex items-center gap-1">
-              <MapPinIcon className="h-3 w-3" />
+            <span className="flex items-center gap-1.5">
+              <MapPinIcon className="h-4 w-4" />
               {safeLocation}
             </span>
             {vehicle.bodyStyle && <span className="hidden md:inline">{vehicle.bodyStyle}</span>}
@@ -399,48 +399,48 @@ export function CarInventoryCard({
           </div>
         </div>
 
-        <div className="hidden sm:flex flex-col items-end justify-center gap-0.5 pr-4 pl-2 py-2 shrink-0 border-l border-border/30 min-w-35">
+        <div className="hidden sm:flex flex-col items-end justify-center gap-1 pr-5 pl-3 py-2 shrink-0 border-l border-border/30 min-w-40">
           {hasDiscount ? (
             <>
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
+                <span className="text-xs text-muted-foreground/60 line-through tabular-nums">
                   ${price.toLocaleString()}
                 </span>
-                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
                   {tierName} -{discountPct}%
                 </span>
               </div>
-              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                 ${memberPrice.toLocaleString()}
               </span>
             </>
           ) : (
-            <span className="text-lg font-black text-foreground tabular-nums">
+            <span className="text-2xl font-black text-foreground tabular-nums">
               ${price.toLocaleString()}
             </span>
           )}
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs gap-1 w-full mt-1 rounded-lg border-border/50"
+            className="h-8 text-sm gap-1.5 w-full mt-1 rounded-lg border-border/50"
             onClick={() => onVehicleClick?.(vehicle)}
           >
-            <Eye className="h-3 w-3" /> Details
+            <Eye className="h-3.5 w-3.5" /> Details
           </Button>
         </div>
 
         <div className="sm:hidden flex flex-col items-end justify-center pr-3 pl-1 py-2 shrink-0 gap-0.5">
           {hasDiscount ? (
             <>
-              <span className="text-[10px] text-muted-foreground/60 line-through tabular-nums">
+              <span className="text-xs text-muted-foreground/60 line-through tabular-nums">
                 ${price.toLocaleString()}
               </span>
-              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              <span className="text-base font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                 ${memberPrice.toLocaleString()}
               </span>
             </>
           ) : (
-            <span className="text-sm font-black text-foreground tabular-nums">
+            <span className="text-base font-black text-foreground tabular-nums">
               ${price.toLocaleString()}
             </span>
           )}

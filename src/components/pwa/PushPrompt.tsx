@@ -53,7 +53,7 @@ export function PushPrompt() {
                 initial={{ y: 100, opacity: 0, scale: 0.95 }}
                 animate={{ y: 0, opacity: 1, scale: 1 }}
                 exit={{ y: 50, opacity: 0, scale: 0.95 }}
-                className="fixed bottom-6 left-6 right-6 z-50 md:left-auto md:right-8 md:w-[380px]"
+                className="fixed bottom-6 left-6 right-6 z-50 md:left-auto md:right-8 md:w-95"
             >
                 <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card/80 p-5 shadow-2xl backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5">
                     {/* Subtle Glow Effect */}

@@ -1456,7 +1456,7 @@ export function LeadsTab({
                       : "var(--text-tertiary)",
                   }}
                 >
-                  {centralConnected ? "Live sync" : "Sync unavailable"}
+                  {centralConnected ? "Live sync" : "Gmail sync off"}
                 </span>
                 <ChevronDown
                   className={cn(

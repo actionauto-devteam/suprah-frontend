@@ -314,6 +314,12 @@ export function VehicleHistory({
                 Showing{" "}
                 <strong className="font-semibold tabular-nums text-foreground/70">{rangeFrom}–{rangeTo}</strong>{" "}
                 of <strong className="font-semibold tabular-nums text-foreground/70">{vehicles.length}</strong>
+                {pageCount > 1 && (
+                  <>
+                    {" "}(page <strong className="font-semibold tabular-nums text-foreground/70">{currentPage}</strong>
+                    {" "}of <strong className="font-semibold tabular-nums text-foreground/70">{pageCount}</strong>)
+                  </>
+                )}
               </span>
               <span className="hidden text-border sm:inline">·</span>
               <label className="flex items-center gap-1.5">

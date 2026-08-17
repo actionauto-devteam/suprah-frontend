@@ -14,7 +14,7 @@ import {
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
   MoreHorizontal, Copy, GripVertical, Link2, Star, MailOpen, Share2,
-  Bell, VolumeX, EyeOff,
+  Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
@@ -35,7 +35,8 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { DEPARTMENTS, deptLabel } from '@/lib/departments';
 import nextDynamic from 'next/dynamic';
 import { useCall, CallSession } from '@/hooks/useCall';
-import { stopCallSound } from '@/lib/notification-sound';
+import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
+import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { CallBanner } from './CallBanner';
 
 // Lazy-loaded — @jitsi/react-sdk (a full video-conferencing SDK) was being
@@ -53,6 +54,8 @@ import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
+import { StoriesRail } from '@/components/dashboard/StoriesRail';
+import { InstallSupraSpaceButton } from '@/components/supraspace/InstallSupraSpaceButton';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -3465,7 +3468,7 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
 
 const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   return (
-    <div className="flex items-center gap-2.5 sm:gap-3 my-3.5 sm:my-6 px-4 sm:px-5">
+    <div className="flex items-center gap-2.5 sm:gap-3 my-2 sm:my-3 px-4 sm:px-5">
       <div className="flex-1 ss4-date-line" />
       <span className="ss4-date-chip">{fmtDate(date)}</span>
       <div className="flex-1 ss4-date-line" />
@@ -3689,7 +3692,7 @@ function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingD
           <p className="font-semibold leading-none" style={{ fontSize: 15, color: '#fff' }}>{meeting.title || 'Video meeting'}</p>
           <p className="mt-1" style={{ fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>SupraSpace Meet</p>
           {start && (
-            <p className="mt-2" style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)' }}>
+            <p className="mt-2 font-medium" style={{ fontSize: 13, color: '#ffffff' }}>
               {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}
             </p>
           )}
@@ -6884,6 +6887,101 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
   );
 }
 
+function PeoplePanel({ users, presence, uid, onSelect }: {
+  users: CrmUser[]; presence: PresenceMap; uid: string; onSelect: (userId: string) => void;
+}) {
+  const online = users.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
+  const offline = users.filter(u => u._id !== uid && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
+  const Row = (u: CrmUser, isOn: boolean) => {
+    const status = presence[u._id]?.onlineStatus ?? 'offline';
+    return (
+      <button key={u._id} onClick={() => onSelect(u._id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-(--bg-hover) transition-colors">
+        <div className="relative shrink-0">
+          <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
+            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+          </div>
+          {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+          <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? S.label[status] : u.role || 'Offline'}</p>
+        </div>
+        <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', S.dot[status])} />
+      </button>
+    );
+  };
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
+      {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online · {online.length}</span></div>}
+      {online.map(u => Row(u, true))}
+      {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
+      {offline.map(u => Row(u, false))}
+      {users.length <= 1 && (
+        <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
+          <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No teammates yet</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupraSpaceSettingsPanel() {
+  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = useCrmWebPush();
+  const [soundOn, setSoundOnState] = React.useState(true);
+
+  React.useEffect(() => {
+    setSoundOnState(isSoundEnabled());
+    const onChange = (e: any) => setSoundOnState(e.detail);
+    window.addEventListener('ss_sound_changed', onChange);
+    return () => window.removeEventListener('ss_sound_changed', onChange);
+  }, []);
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4">
+      <span className="ss4-section-label">Notifications</span>
+      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <Bell className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+          <div className="min-w-0">
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Push notifications</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {!isSupported ? 'Not supported on this browser' : isSubscribed ? 'Enabled on this device' : 'Off on this device'}
+            </p>
+          </div>
+        </div>
+        {isSupported && (
+          <button
+            disabled={isLoading}
+            onClick={() => (isSubscribed ? unsubscribe() : subscribe())}
+            className="ss4-icon-btn h-7 px-3 shrink-0"
+            style={{ fontSize: 11, fontWeight: 600, opacity: isLoading ? 0.6 : 1 }}
+          >
+            {isSubscribed ? 'Disable' : 'Enable'}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          {soundOn ? <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <VolumeX className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+          <div className="min-w-0">
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Message sound</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Play a sound for new messages</p>
+          </div>
+        </div>
+        <button onClick={() => setSoundEnabled(!soundOn)} className="ss4-icon-btn h-7 px-3 shrink-0" style={{ fontSize: 11, fontWeight: 600 }}>
+          {soundOn ? 'On' : 'Off'}
+        </button>
+      </div>
+      <div className="py-1">
+        <span className="ss4-section-label">App</span>
+        <div className="py-2">
+          <InstallSupraSpaceButton variant="row" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SummarizeModal({ token, conversationId, onClose }: { token: string; conversationId: string; onClose: () => void }) {
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
@@ -7322,6 +7420,18 @@ export default function SupraSpacePage() {
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
+  const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'people' | 'settings'>('chats');
+  // The tabbed layout (Chats/People/Settings) + Stories rail are exclusive to
+  // the installed standalone SupraSpace PWA — a regular browser tab (desktop
+  // or otherwise, not installed) keeps the original single-list sidebar
+  // unchanged. Standalone-ness can't change during a session without a
+  // reload, so a one-time check on mount is enough.
+  const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
+  React.useEffect(() => {
+    setIsStandaloneApp(
+      window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+    );
+  }, []);
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -7596,7 +7706,7 @@ export default function SupraSpacePage() {
   const [channelMentionIdx, setChannelMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceSocket(token || null);
-  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
       notifPrefs[conversationId] ||
@@ -10436,6 +10546,7 @@ export default function SupraSpacePage() {
                 <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
               </button>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
+              <InstallSupraSpaceButton variant="icon" />
             </div>
           </div>
         </header>
@@ -10448,7 +10559,42 @@ export default function SupraSpacePage() {
             'lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-72 lg:shrink-0 lg:translate-x-0',
             activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
           )}>
-            <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
+            {isStandaloneApp && (
+              <div className="flex items-center gap-1 px-3 pt-3 pb-1 shrink-0">
+                {([
+                  { key: 'chats', label: 'Chats', Icon: MessageSquare },
+                  { key: 'people', label: 'People', Icon: Users },
+                  { key: 'settings', label: 'Settings', Icon: SettingsIcon },
+                ] as const).map(({ key, label, Icon }) => {
+                  const active = sidebarTab === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSidebarTab(key)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg transition-colors"
+                      style={{
+                        height: 32,
+                        background: active ? 'var(--accent)' : 'transparent',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ display: sidebarTab === 'chats' ? 'contents' : 'none' }}>
+              {isStandaloneApp && (
+                <div className="shrink-0 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
+                  <StoriesRail me={{ fullName: myFullName, avatar: myAvatar }} />
+                </div>
+              )}
+              <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">Messages</span>
                 <div className="flex items-center gap-1.5">
@@ -10708,7 +10854,19 @@ export default function SupraSpacePage() {
                   {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
+              </div>
             </div>
+
+            {isStandaloneApp && sidebarTab === 'people' && (
+              <PeoplePanel
+                users={allUsers}
+                presence={presence}
+                uid={uid}
+                onSelect={(targetId) => { setSidebarTab('chats'); handleDM(targetId); }}
+              />
+            )}
+
+            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel />}
           </aside>
 
           { }
