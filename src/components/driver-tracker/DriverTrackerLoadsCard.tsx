@@ -16,6 +16,9 @@ import {
   Camera,
   CheckCircle2,
   Navigation2,
+  AlertTriangle,
+  Calendar,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,13 @@ import {
 import { DriverTrackingItem } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
 import { cn } from "@/lib/utils";
+import {
+  compatibilityRank,
+  evaluateDriverLoadCompatibility,
+  titleCaseDay,
+} from "@/lib/driver-load-compatibility";
+import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview";
+import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
 
 const STATUS_BADGE: Record<string, string> = {
   Assigned: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -53,7 +63,7 @@ interface DriverTrackerLoadsCardProps {
   error: string | null;
   activeDrivers?: DriverTrackingItem[];
   onRemoveLoad?: (shipmentId: string) => Promise<void>;
-  onReassignLoad?: (shipmentId: string, newDriverId: string) => Promise<void>;
+  onReassignLoad?: (shipmentId: string, newDriverId: string) => Promise<boolean>;
 }
 
 export function DriverTrackerLoadsCard({
@@ -86,28 +96,88 @@ export function DriverTrackerLoadsCard({
   };
 
   const handleReassign = async (shipmentId: string, newDriverId: string) => {
-    if (!onReassignLoad) return;
+    if (!onReassignLoad) return false;
     setReassigning(shipmentId);
     try {
-      await onReassignLoad(shipmentId, newDriverId);
-      setReassignShipmentId(null);
+      const succeeded = await onReassignLoad(shipmentId, newDriverId);
+      if (succeeded) setReassignShipmentId(null);
+      return succeeded;
     } finally {
       setReassigning(null);
     }
   };
 
+  const reassignShipment = React.useMemo(
+    () =>
+      drivers
+        .flatMap((driver) => driver.shipments ?? [])
+        .find((shipment) => String(shipment.id) === String(reassignShipmentId)) ??
+      null,
+    [drivers, reassignShipmentId],
+  );
+
+  const reassignLoadPreview = React.useMemo(
+    () =>
+      reassignShipment
+        ? {
+            requestedPickupDate: reassignShipment.pickupDate,
+            vehicleCount: reassignShipment.vehicleCount,
+            trailerTypeRequired: reassignShipment.trailerType,
+            pickupLocation: reassignShipment.pickupLocation,
+            deliveryLocation: reassignShipment.deliveryLocation,
+          }
+        : null,
+    [reassignShipment],
+  );
+  const previewDriverIds = React.useMemo(
+    () => activeDrivers.map((driver) => driver.id),
+    [activeDrivers],
+  );
+  const { compatibilityByDriverId } = useDriverLoadCompatibilityPreview({
+    load: reassignLoadPreview,
+    driverIds: previewDriverIds,
+    enabled: Boolean(reassignShipment),
+  });
+
   const reassignCandidates = React.useMemo(() => {
     const q = driverSearch.trim().toLowerCase();
-    const filtered = activeDrivers.filter(
-      (d) => d.assignable && d.driver?.id !== viewDriver?.driver?.id,
-    );
-    if (!q) return filtered;
-    return filtered.filter((d) => {
+    const filtered = activeDrivers.filter((d) => {
+      if (!d.assignable || d.driver?.id === viewDriver?.driver?.id) return false;
+      if (!q) return true;
       const name = d.driver?.name?.toLowerCase() || "";
       const email = d.driver?.email?.toLowerCase() || "";
       return name.includes(q) || email.includes(q);
     });
-  }, [activeDrivers, viewDriver, driverSearch]);
+
+    if (!reassignShipment) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const previewLoad = reassignLoadPreview ?? {
+        requestedPickupDate: reassignShipment.pickupDate,
+        vehicleCount: reassignShipment.vehicleCount,
+        trailerTypeRequired: reassignShipment.trailerType,
+      };
+      const aCompatibility =
+        compatibilityByDriverId[a.id] ??
+        evaluateDriverLoadCompatibility(a, previewLoad);
+      const bCompatibility =
+        compatibilityByDriverId[b.id] ??
+        evaluateDriverLoadCompatibility(b, previewLoad);
+      const rankDifference =
+        compatibilityRank(aCompatibility) - compatibilityRank(bCompatibility);
+      if (rankDifference !== 0) return rankDifference;
+      return String(a.driver?.name || "").localeCompare(
+        String(b.driver?.name || ""),
+      );
+    });
+  }, [
+    activeDrivers,
+    viewDriver,
+    driverSearch,
+    reassignShipment,
+    reassignLoadPreview,
+    compatibilityByDriverId,
+  ]);
 
   if (isLoading) {
     return (
@@ -371,7 +441,7 @@ export function DriverTrackerLoadsCard({
               <span className="min-w-0 break-words [overflow-wrap:anywhere]">Reassign Load</span>
             </DialogTitle>
             <DialogDescription className="break-words text-xs leading-relaxed [overflow-wrap:anywhere]">
-              Select another eligible Active driver. Names, equipment details, and capacity information wrap instead of being cut off.
+              Select another eligible Active driver. Drivers are ranked by pickup-day availability and equipment capacity; warnings remain visible instead of hiding valid override options.
             </DialogDescription>
           </DialogHeader>
 
@@ -397,6 +467,22 @@ export function DriverTrackerLoadsCard({
 
               {reassignCandidates.map((d) => {
                 const eq = d.equipment;
+                const compatibility = reassignShipment
+                  ? compatibilityByDriverId[d.id] ??
+                    evaluateDriverLoadCompatibility(
+                      d,
+                      reassignLoadPreview ?? {
+                        requestedPickupDate: reassignShipment.pickupDate,
+                        vehicleCount: reassignShipment.vehicleCount,
+                        trailerTypeRequired: reassignShipment.trailerType,
+                      },
+                    )
+                  : null;
+                const availability = compatibility?.availability.status ?? "unknown";
+                const capacity = compatibility?.capacity.status ?? "unknown";
+                const trailer = compatibility?.trailer.status ?? "unknown";
+                const needsReview =
+                  availability === "off_schedule" || capacity !== "match";
                 return (
                   <div
                     key={d.id}
@@ -437,7 +523,37 @@ export function DriverTrackerLoadsCard({
                               Cap: {eq.maxVehicleCapacity}
                             </Badge>
                           )}
+                          {availability !== "unknown" && (
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${availability === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
+                              {availability === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
+                              {availability === "match"
+                                ? `Available ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()
+                                : `Off Schedule ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()}
+                            </Badge>
+                          )}
+                          {capacity === "match" ? (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-emerald-200 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-emerald-600 [overflow-wrap:anywhere] dark:border-emerald-500/30 dark:text-emerald-400">
+                              <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" />
+                              Capacity {compatibility?.capacity.requiredVehicles}/{compatibility?.capacity.maxVehicles}
+                            </Badge>
+                          ) : (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                              {capacity === "exceeded" ? <XCircle className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
+                              {capacity === "exceeded"
+                                ? `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles} · Exceeded`
+                                : "Capacity Not Verified"}
+                            </Badge>
+                          )}
+                          {trailer === "mismatch" && (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-200 bg-amber-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:border-amber-500/30 dark:text-amber-400">
+                              <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Trailer Mismatch
+                            </Badge>
+                          )}
                         </div>
+                        <DriverLoadRecommendationBadges
+                          compatibility={compatibility}
+                          className="pt-1"
+                        />
                       </div>
                     </div>
 
@@ -453,6 +569,8 @@ export function DriverTrackerLoadsCard({
                     >
                       {reassigning === reassignShipmentId ? (
                         <Loader2 className="size-3.5 animate-spin" />
+                      ) : needsReview ? (
+                        "Review & Reassign"
                       ) : (
                         "Reassign"
                       )}

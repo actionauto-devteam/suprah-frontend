@@ -1,400 +1,618 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
+  Car,
+  CheckCircle2,
+  DollarSign,
+  FileText,
+  Loader2,
+  Mail,
+  MapPin,
+  Navigation,
+  Package,
+  Phone,
+  Timer,
+  Truck,
+  User2,
+  XCircle,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-    Truck, ArrowLeft, ArrowRight, CheckCircle2, Clock, Loader2, MapPin,
-    DollarSign, Navigation, Phone, Mail, User2,
-    Calendar, Package, Car, Shield, Copy, FileText, ChevronRight,
-    Timer, XCircle, Zap, Route, ExternalLink,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
 import { cn, resolveImageUrl } from '@/lib/utils';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { useTheme } from '@/context/ThemeContext';
-import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+import {
+  DriverContractModal,
+  DriverSignedContract,
+} from '@/components/create-load/DriverContractModal';
+import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
+import type { DriverLoadCompatibility } from '@/types/driver-tracking';
+import { titleCaseDay } from '@/lib/driver-load-compatibility';
+import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
 
-const FALLBACK = "/vehicle-placeholder.jpg";
+const FALLBACK = '/vehicle-placeholder.jpg';
 
-const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
-const trailerLabel = (val?: string) => trailerTypeOptions.find(t => t.value === val)?.label || val || 'Any';
-const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.message || fb;
+const fmtDate = (value?: string) =>
+  value
+    ? new Date(value).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    : '';
+
+const trailerLabel = (value?: string) =>
+  trailerTypeOptions.find((item) => item.value === value)?.label || value || 'Any';
+
+const extractErr = (error: any, fallback: string) =>
+  error?.response?.data?.message || error?.message || fallback;
+
+function locationLabel(location: any, fallback?: string) {
+  if (fallback) return fallback;
+  return [location?.city, location?.state].filter(Boolean).join(', ');
+}
+
+function normalizeLoad(raw: any) {
+  const vehicles = Array.isArray(raw?.vehicles) ? raw.vehicles : [];
+  return {
+    ...raw,
+    origin: locationLabel(raw?.pickupLocation, raw?.origin) || 'Origin not provided',
+    destination:
+      locationLabel(raw?.deliveryLocation, raw?.destination) ||
+      'Destination not provided',
+    trackingNumber: raw?.trackingNumber || raw?.loadNumber,
+    trailerTypeRequired: raw?.trailerTypeRequired || raw?.trailerType,
+    vehicleCount:
+      typeof raw?.vehicleCount === 'number' ? raw.vehicleCount : vehicles.length,
+    carrierPayAmount:
+      raw?.carrierPayAmount ?? raw?.pricing?.carrierPayAmount ?? null,
+    copCodAmount: raw?.copCodAmount ?? raw?.pricing?.copCodAmount ?? null,
+    originContact: raw?.originContact || raw?.pickupLocation || null,
+    destinationContact: raw?.destinationContact || raw?.deliveryLocation || null,
+    specialInstructions:
+      raw?.specialInstructions || raw?.additionalInfo?.instructions || '',
+    preDispatchNotes:
+      raw?.preDispatchNotes || raw?.additionalInfo?.notes || '',
+    vehicles,
+  };
+}
+
+function CompatibilityPanel({ compatibility }: { compatibility?: DriverLoadCompatibility }) {
+  if (!compatibility) return null;
+  const availability = compatibility.availability.status;
+  const capacity = compatibility.capacity.status;
+
+  return (
+    <Card className="overflow-hidden rounded-2xl border-border/40">
+      <div className="border-b border-border/40 px-4 py-3">
+        <h3 className="text-sm font-black uppercase tracking-wider">Load Compatibility</h3>
+      </div>
+      <CardContent className="space-y-3 p-4">
+        <div
+          className={cn(
+            'flex items-start gap-3 rounded-xl border p-3',
+            availability === 'match'
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : availability === 'off_schedule'
+                ? 'border-amber-500/25 bg-amber-500/5'
+                : 'border-border/50 bg-muted/15',
+          )}
+        >
+          {availability === 'match' ? (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+          ) : availability === 'off_schedule' ? (
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+          ) : (
+            <Calendar className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          )}
+          <div className="min-w-0">
+            <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
+              {availability === 'match'
+                ? `Available ${titleCaseDay(compatibility.availability.pickupDay) || 'on pickup day'}`
+                : availability === 'off_schedule'
+                  ? `Outside Regular Availability · ${titleCaseDay(compatibility.availability.pickupDay) || 'Pickup day'}`
+                  : 'Regular Availability Could Not Be Compared'}
+            </p>
+            <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {availability === 'off_schedule'
+                ? 'You can still request this load if you are available to work outside your normal weekly schedule.'
+                : availability === 'unknown'
+                  ? 'No regular work days are configured or the pickup date is not available. This does not block the request by itself.'
+                  : 'The pickup falls on one of your selected regular work days.'}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            'flex items-start gap-3 rounded-xl border p-3',
+            capacity === 'match'
+              ? 'border-emerald-500/20 bg-emerald-500/5'
+              : 'border-red-500/25 bg-red-500/5',
+          )}
+        >
+          {capacity === 'match' ? (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+          ) : capacity === 'exceeded' ? (
+            <XCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
+          ) : (
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-500" />
+          )}
+          <div className="min-w-0">
+            <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
+              {capacity === 'match'
+                ? `Capacity Fits · ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
+                : capacity === 'exceeded'
+                  ? `Capacity Exceeded · ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
+                  : 'Vehicle Capacity Not Verified'}
+            </p>
+            <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {capacity === 'match'
+                ? 'Your configured equipment can accommodate the vehicles on this load.'
+                : capacity === 'exceeded'
+                  ? 'Drivers cannot self-request a load that exceeds their configured equipment capacity. Contact Dispatch if your equipment profile is outdated.'
+                  : 'Update your Equipment profile or contact Dispatch before requesting this load.'}
+            </p>
+          </div>
+        </div>
+
+        {compatibility.trailer.status === 'mismatch' && (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold">Trailer Type Mismatch</p>
+              <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                This is shown as a planning warning. Dispatch can verify whether another approved equipment configuration is available.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-border/50 bg-muted/15 p-3">
+          <p className="mb-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+            Dispatch Matching Information
+          </p>
+          <DriverLoadRecommendationBadges
+            compatibility={compatibility}
+            showUnknown
+          />
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Service area, preferred route, and pickup distance are planning preferences only. They do not prevent you from requesting an otherwise eligible load.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AvailableLoadDetailPage() {
-    const { getToken } = useAuth();
-    const { theme } = useTheme();
-    const params = useParams();
-    const router = useRouter();
-    const loadId = params.id as string;
-    const [data, setData] = React.useState<any>(null);
-    const [loading, setLoading] = React.useState(true);
-    const [requesting, setRequesting] = React.useState(false);
-    const [showConfirm, setShowConfirm] = React.useState(false);
-    const mapRef = React.useRef<HTMLDivElement>(null);
-    const mapInst = React.useRef<any>(null);
-    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const { getToken } = useAuth();
+  const { theme } = useTheme();
+  const workEligibility = useDriverWorkEligibility();
+  const params = useParams();
+  const router = useRouter();
+  const loadId = params.id as string;
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [requesting, setRequesting] = React.useState(false);
+  const [showContract, setShowContract] = React.useState(false);
+  const mapRef = React.useRef<HTMLDivElement>(null);
+  const mapInstanceRef = React.useRef<any>(null);
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
-    const fetchDetail = React.useCallback(async () => {
+  const fetchDetail = React.useCallback(async () => {
+    try {
+      const token = await getToken();
+      const response = await apiClient.get(
+        `/api/driver-tracking/loads/${encodeURIComponent(loadId)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setData(normalizeLoad(response.data?.data));
+    } catch (error: any) {
+      toast.error(extractErr(error, 'Failed to load details'));
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, loadId]);
+
+  React.useEffect(() => {
+    void fetchDetail();
+  }, [fetchDetail]);
+
+  React.useEffect(() => {
+    if (!data || !mapboxToken || !mapRef.current) return;
+    let cancelled = false;
+
+    const init = async () => {
+      const mapboxgl = (await import('mapbox-gl')).default;
+      // @ts-ignore CSS side-effect import is supported by the existing app bundler.
+      await import('mapbox-gl/dist/mapbox-gl.css');
+      if (cancelled || mapInstanceRef.current || !mapRef.current) return;
+
+      const geocode = async (query: string): Promise<[number, number] | null> => {
         try {
-            const token = await getToken();
-            const res = await apiClient.get('/api/driver-tracking/available-loads', { headers: { Authorization: `Bearer ${token}` } });
-            const responseData = res.data?.data;
-            const loadsList = responseData?.loads || responseData || [];
-            const found = loadsList.find((l: any) => l._id === loadId);
-            if (found) setData(found);
-        } catch (err: any) { toast.error(extractErr(err, 'Failed to load details')); }
-        finally { setLoading(false); }
-    }, [getToken, loadId]);
+          const response = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&limit=1&country=US`,
+          );
+          const json = await response.json();
+          return json.features?.[0]?.center || null;
+        } catch {
+          return null;
+        }
+      };
 
-    React.useEffect(() => { fetchDetail(); }, [fetchDetail]);
+      const [originCoords, destinationCoords] = await Promise.all([
+        geocode(data.origin),
+        geocode(data.destination),
+      ]);
+      if (cancelled || !mapRef.current) return;
 
-    React.useEffect(() => {
-        if (!data || !mapboxToken || !mapRef.current) return;
-        let cancelled = false;
-        const init = async () => {
-            const mapboxgl = (await import('mapbox-gl')).default;
-            // @ts-ignore
-            await import('mapbox-gl/dist/mapbox-gl.css');
-            if (cancelled || mapInst.current) return;
+      const center: [number, number] = originCoords || [-98.58, 39.83];
+      const map = new mapboxgl.Map({
+        container: mapRef.current,
+        style:
+          theme === 'dark'
+            ? 'mapbox://styles/mapbox/dark-v11'
+            : 'mapbox://styles/mapbox/streets-v12',
+        center,
+        zoom: 5,
+        accessToken: mapboxToken,
+      });
+      mapInstanceRef.current = map;
+      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-            const geocode = async (q: string): Promise<[number, number] | null> => {
-                try {
-                    const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxToken}&limit=1&country=US`);
-                    const d = await r.json();
-                    return d.features?.[0]?.center || null;
-                } catch { return null; }
-            };
+      map.on('load', () => {
+        if (cancelled) return;
+        const points: [number, number][] = [];
 
-            const [originCoords, destCoords] = await Promise.all([geocode(data.origin), geocode(data.destination)]);
-            if (cancelled) return;
-
-            const center: [number, number] = originCoords || [-98.58, 39.83];
-            const map = new mapboxgl.Map({
-                container: mapRef.current!,
-                style: theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/streets-v12",
-                center,
-                zoom: 5,
-                accessToken: mapboxToken,
-            });
-            mapInst.current = map;
-            map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-            map.on('load', () => {
-                if (cancelled) return;
-                const points: [number, number][] = [];
-
-                if (originCoords) {
-                    points.push(originCoords);
-                    const el = document.createElement('div');
-                    el.innerHTML = `<div style="width:16px;height:16px;background:#10b981;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>`;
-                    new mapboxgl.Marker({ element: el }).setLngLat(originCoords)
-                        .setPopup(new mapboxgl.Popup({ offset: 12 }).setHTML(`<div style="padding:4px 8px;font-weight:700;font-size:12px;">Pickup: ${data.origin}</div>`))
-                        .addTo(map);
-                }
-
-                if (destCoords) {
-                    points.push(destCoords);
-                    const el = document.createElement('div');
-                    el.innerHTML = `<div style="width:16px;height:16px;background:#ef4444;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>`;
-                    new mapboxgl.Marker({ element: el }).setLngLat(destCoords)
-                        .setPopup(new mapboxgl.Popup({ offset: 12 }).setHTML(`<div style="padding:4px 8px;font-weight:700;font-size:12px;">Delivery: ${data.destination}</div>`))
-                        .addTo(map);
-                }
-
-                if (originCoords && destCoords) {
-                    map.addSource('route-line', {
-                        type: 'geojson',
-                        data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [originCoords, destCoords] } },
-                    });
-                    map.addLayer({ id: 'route-line-layer', type: 'line', source: 'route-line', paint: { 'line-color': '#3b82f6', 'line-width': 3, 'line-dasharray': [2, 1] } });
-                }
-
-                if (points.length >= 2) {
-                    const bounds = new mapboxgl.LngLatBounds();
-                    points.forEach(p => bounds.extend(p));
-                    map.fitBounds(bounds, { padding: 60, duration: 800 });
-                } else if (points.length === 1) {
-                    map.flyTo({ center: points[0], zoom: 8, duration: 800 });
-                }
-            });
+        const addMarker = (
+          coordinates: [number, number] | null,
+          label: string,
+          background: string,
+        ) => {
+          if (!coordinates) return;
+          points.push(coordinates);
+          const element = document.createElement('div');
+          element.innerHTML = `<div style="width:16px;height:16px;background:${background};border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);"></div>`;
+          new mapboxgl.Marker({ element })
+            .setLngLat(coordinates)
+            .setPopup(
+              new mapboxgl.Popup({ offset: 12 }).setText(label),
+            )
+            .addTo(map);
         };
-        init();
-        return () => { cancelled = true; mapInst.current?.remove(); mapInst.current = null; };
-    }, [data, mapboxToken, theme]);
 
-    const handleRequest = async (contract: DriverSignedContract) => {
-        setRequesting(true);
-        try {
-            const token = await getToken();
-            await apiClient.post(`/api/driver-tracking/loads/${data._id}/request`,
-            contract,
-            { headers: { Authorization: `Bearer ${token}` } });
-            toast.success('Load request submitted — pending dispatcher approval');
-            setShowConfirm(false);
-            fetchDetail();
-        } catch (err: any) { toast.error(extractErr(err, 'Failed to request load')); }
-        finally { setRequesting(false); }
+        addMarker(originCoords, `Pickup: ${data.origin}`, '#10b981');
+        addMarker(destinationCoords, `Delivery: ${data.destination}`, '#ef4444');
+
+        if (originCoords && destinationCoords) {
+          map.addSource('route-line', {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: [originCoords, destinationCoords],
+              },
+            },
+          });
+          map.addLayer({
+            id: 'route-line-layer',
+            type: 'line',
+            source: 'route-line',
+            paint: {
+              'line-color': '#3b82f6',
+              'line-width': 3,
+              'line-dasharray': [2, 1],
+            },
+          });
+        }
+
+        if (points.length >= 2) {
+          const bounds = new mapboxgl.LngLatBounds();
+          points.forEach((point) => bounds.extend(point));
+          map.fitBounds(bounds, { padding: 60, duration: 800 });
+        } else if (points.length === 1) {
+          map.flyTo({ center: points[0], zoom: 8, duration: 800 });
+        }
+      });
     };
 
-    if (loading) return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <div className="relative"><div className="size-16 rounded-full border-4 border-blue-500/20 animate-pulse" /><Loader2 className="size-8 animate-spin text-blue-500 absolute inset-0 m-auto" /></div>
-            <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Loading Details</p>
-        </div>
-    );
+    void init();
+    return () => {
+      cancelled = true;
+      mapInstanceRef.current?.remove();
+      mapInstanceRef.current = null;
+    };
+  }, [data, mapboxToken, theme]);
 
-    if (!data) return (
-        <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-            <div className="size-20 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-4"><Package className="size-10 text-muted-foreground/30" /></div>
-            <h2 className="text-xl font-black">Load Not Found</h2>
-            <p className="text-sm text-muted-foreground mt-2">This load may have been removed or already assigned.</p>
-            <Button asChild className="mt-4 gap-2 rounded-xl"><Link href="/driver/available-loads"><ArrowLeft className="size-4" /> Back to Load Board</Link></Button>
-        </div>
-    );
+  const handleRequest = async (contract: DriverSignedContract) => {
+    if (!data) return;
+    if (!workEligibility.canTakeNewWork) {
+      toast.error(workEligibility.blockReason || 'You are not eligible for new work right now.');
+      return;
+    }
 
-    const quote = data.preservedQuoteData;
-    const vehicleName = quote?.vehicleName;
-    const vehicleImg = quote?.vehicleImage;
-    const vehicles = data.vehicles || [];
-    const pay = data.pricing?.carrierPayAmount || data.carrierPayAmount || quote?.rate || 0;
-    const miles = quote?.miles || data.estimatedMiles;
-    const isRequested = data.myRequestStatus === 'pending';
-    const isRejected = data.myRequestStatus === 'rejected';
-    const canRequest = !isRequested && !isRejected;
+    const compatibility: DriverLoadCompatibility | undefined = data.compatibility;
+    if (compatibility && !compatibility.driverRequestAllowed) {
+      toast.error(
+        compatibility.capacity.status === 'exceeded'
+          ? 'This load exceeds your configured vehicle capacity.'
+          : 'Your vehicle capacity must be verified before requesting this load.',
+      );
+      return;
+    }
 
+    setRequesting(true);
+    try {
+      const token = await getToken();
+      await apiClient.post(
+        `/api/driver-tracking/loads/${encodeURIComponent(data._id)}/request`,
+        {
+          ...contract,
+          overrideAvailability:
+            compatibility?.availability.status === 'off_schedule',
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success('Load request submitted — pending dispatcher approval');
+      setShowContract(false);
+      await fetchDetail();
+    } catch (error: any) {
+      toast.error(extractErr(error, 'Failed to request load'));
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  if (loading) {
     return (
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
-
-                <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-                    <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
-                    <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-                    <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-                    <div className="relative p-5 sm:p-7">
-                        <div className="flex items-center justify-between gap-4 mb-4">
-                            <div className="flex items-center gap-3">
-                                <button onClick={() => router.back()} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10">
-                                    <ArrowLeft className="size-4.5 text-white/80" />
-                                </button>
-                                <div>
-                                    <div className="flex items-center gap-2.5">
-                                        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white font-mono">{data.trackingNumber || data.loadNumber || loadId.slice(-8)}</h1>
-                                        <Badge className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">Available</Badge>
-                                        {isRequested && <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20 gap-1"><Timer className="size-2.5" />Requested</Badge>}
-                                        {isRejected && <Badge className="text-[10px] bg-red-500/10 text-red-400 border-red-500/20 gap-1"><XCircle className="size-2.5" />Declined</Badge>}
-                                    </div>
-                                    <p className="text-sm text-white/40 mt-0.5">{vehicleName || `${data.origin} → ${data.destination}`}</p>
-                                </div>
-                            </div>
-                            {pay > 0 && (
-                                <div className="text-right hidden sm:block">
-                                    <span className="text-3xl font-black tabular-nums text-white">${pay.toLocaleString()}</span>
-                                    {miles && <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">${(pay / miles).toFixed(2)}/mi</p>}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/8">
-                            <div className="size-3 rounded-full bg-emerald-400 shrink-0" />
-                            <span className="text-sm font-semibold text-white truncate">{data.origin}</span>
-                            <div className="flex-1 border-t border-dashed border-white/15 mx-2" />
-                            <Navigation className="size-3.5 text-white/25 shrink-0" />
-                            <div className="flex-1 border-t border-dashed border-white/15 mx-2" />
-                            <MapPin className="size-3.5 text-red-400 shrink-0" />
-                            <span className="text-sm font-semibold text-white truncate">{data.destination}</span>
-                        </div>
-
-                        {pay > 0 && (
-                            <div className="grid grid-cols-3 gap-3 mt-4">
-                                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
-                                    <p className="text-lg font-black text-emerald-400 tabular-nums">${pay.toLocaleString()}</p>
-                                    <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Pay</p>
-                                </div>
-                                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
-                                    <p className="text-lg font-black text-white tabular-nums">{miles ? `${miles.toLocaleString()} mi` : '—'}</p>
-                                    <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Distance</p>
-                                </div>
-                                <div className="rounded-xl bg-white/5 border border-white/8 p-3 text-center">
-                                    <p className="text-lg font-black text-white tabular-nums">{miles && pay ? `$${(pay / miles).toFixed(2)}` : '—'}</p>
-                                    <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Per Mile</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex gap-2">
-                    {canRequest && (
-                        <Button onClick={() => setShowConfirm(true)} className="gap-2 rounded-xl flex-1 sm:flex-none h-11 text-sm font-bold shadow-lg">
-                            <Truck className="size-4" />Request This Load
-                        </Button>
-                    )}
-                    {isRequested && (
-                        <Badge className="h-11 px-5 text-sm bg-amber-500/10 text-amber-600 border-amber-500/20 gap-2">
-                            <Timer className="size-4" />Request Pending — Awaiting Approval
-                        </Badge>
-                    )}
-                    {isRejected && (
-                        <Badge className="h-11 px-5 text-sm bg-red-500/10 text-red-600 border-red-500/20 gap-2">
-                            <XCircle className="size-4" />Request Declined
-                        </Badge>
-                    )}
-                </div>
-
-                <Card className="overflow-hidden border-border/20 rounded-2xl shadow-xl">
-                    <CardContent className="p-0">
-                        {mapboxToken ? <div ref={mapRef} className="h-75 w-full" /> : (
-                            <div className="h-75 flex items-center justify-center bg-muted/30">
-                                <div className="text-center space-y-2"><MapPin className="size-10 text-muted-foreground/30 mx-auto" /><p className="text-xs text-muted-foreground">Route map unavailable</p></div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">
-                        <div className="relative h-56 sm:h-72">
-                            <img
-                                src={resolveImageUrl(vehicleImg) || FALLBACK}
-                                alt={vehicleName || 'Vehicle'}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                    const img = e.currentTarget;
-                                    if (img.src !== window.location.origin + FALLBACK) {
-                                        img.src = FALLBACK;
-                                    }
-                                }}
-                            />
-                            <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
-                            <div className="absolute bottom-4 left-4 right-4">
-                                <p className="text-xl font-black text-white">{vehicleName}</p>
-                                {miles && <p className="text-sm text-white/60">{miles.toLocaleString()} miles</p>}
-                            </div>
-                        </div>
-                    </Card>
-
-                    {vehicles.length > 0 && (
-                        <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">
-                            <div className="p-4 border-b border-border/10">
-                                <div className="flex items-center gap-2"><Car className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Vehicles ({vehicles.length})</h3></div>
-                            </div>
-                            <CardContent className="p-4">
-                                <div className="grid gap-2">
-                                    {vehicles.map((v: any, i: number) => (
-                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-border/15 bg-muted/10">
-                                            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><Car className="size-5 text-primary" /></div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold">{`${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Unknown Vehicle'}</p>
-                                                <div className="flex flex-wrap gap-2 mt-0.5">
-                                                    {v.color && <span className="text-[10px] text-muted-foreground">{v.color}</span>}
-                                                    {v.condition && <span className="text-[10px] text-muted-foreground">· {v.condition}</span>}
-                                                    {v.vin && <span className="text-[10px] text-muted-foreground font-mono">VIN: {v.vin}</span>}
-                                                    {v.trailerType && <Badge variant="outline" className="text-[9px] h-4">{trailerLabel(v.trailerType)}</Badge>}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    <Card className="border-border/20 rounded-2xl overflow-hidden">
-                        <div className="p-4 border-b border-border/10">
-                            <div className="flex items-center gap-2"><Calendar className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Schedule</h3></div>
-                        </div>
-                        <CardContent className="p-4 space-y-3">
-                            <DetailRow label="Scheduled Pickup" value={fmtDate(data.dates?.pickupDeadline || data.scheduledPickup || data.requestedPickupDate)} />
-                            <DetailRow label="Scheduled Delivery" value={fmtDate(data.dates?.deliveryDeadline || data.scheduledDelivery || data.desiredDeliveryDate)} />
-                            <DetailRow label="Posted" value={fmtDate(data.createdAt)} />
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-border/20 rounded-2xl overflow-hidden">
-                        <div className="p-4 border-b border-border/10">
-                            <div className="flex items-center gap-2"><DollarSign className="size-4 text-emerald-500" /><h3 className="text-sm font-black uppercase tracking-wider">Financials</h3></div>
-                        </div>
-                        <CardContent className="p-4 space-y-3">
-                            {pay > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Carrier Pay</span><span className="font-bold text-emerald-600">${pay.toLocaleString()}</span></div>}
-                            {miles && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Distance</span><span className="font-semibold">{miles.toLocaleString()} miles</span></div>}
-                            {miles && pay > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Rate per Mile</span><span className="font-semibold">${(pay / miles).toFixed(2)}/mi</span></div>}
-                            {data.copCodAmount != null && data.copCodAmount > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">COD</span><span className="font-semibold">${data.copCodAmount.toLocaleString()}</span></div>}
-                            {data.trailerTypeRequired && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Trailer Required</span><Badge variant="outline" className="text-[10px] h-5">{trailerLabel(data.trailerTypeRequired)}</Badge></div>}
-                        </CardContent>
-                    </Card>
-
-                    {(data.originContact?.contactName || data.originContact?.phone) && (
-                        <Card className="border-border/20 rounded-2xl overflow-hidden">
-                            <div className="p-4 border-b border-border/10"><h3 className="text-sm font-black uppercase tracking-wider">Pick-Up Contact</h3></div>
-                            <CardContent className="p-4 space-y-2">
-                                {data.originContact.contactName && <div className="flex items-center gap-2 text-sm"><User2 className="size-4 text-muted-foreground" /><span className="font-semibold">{data.originContact.contactName}</span></div>}
-                                {data.originContact.phone && <a href={`tel:${data.originContact.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline"><Phone className="size-4" />{data.originContact.phone}</a>}
-                                {data.originContact.email && <a href={`mailto:${data.originContact.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline"><Mail className="size-4" />{data.originContact.email}</a>}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {(data.destinationContact?.contactName || data.destinationContact?.phone) && (
-                        <Card className="border-border/20 rounded-2xl overflow-hidden">
-                            <div className="p-4 border-b border-border/10"><h3 className="text-sm font-black uppercase tracking-wider">Delivery Contact</h3></div>
-                            <CardContent className="p-4 space-y-2">
-                                {data.destinationContact.contactName && <div className="flex items-center gap-2 text-sm"><User2 className="size-4 text-muted-foreground" /><span className="font-semibold">{data.destinationContact.contactName}</span></div>}
-                                {data.destinationContact.phone && <a href={`tel:${data.destinationContact.phone}`} className="flex items-center gap-2 text-sm text-primary hover:underline"><Phone className="size-4" />{data.destinationContact.phone}</a>}
-                                {data.destinationContact.email && <a href={`mailto:${data.destinationContact.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline"><Mail className="size-4" />{data.destinationContact.email}</a>}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {(data.specialInstructions || data.preDispatchNotes || data.loadSpecificTerms) && (
-                        <Card className="border-border/20 rounded-2xl overflow-hidden md:col-span-2">
-                            <div className="p-4 border-b border-border/10">
-                                <div className="flex items-center gap-2"><FileText className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Notes & Instructions</h3></div>
-                            </div>
-                            <CardContent className="p-4 space-y-4">
-                                {data.preDispatchNotes && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Dispatch Notes</p><p className="text-sm leading-relaxed">{data.preDispatchNotes}</p></div>}
-                                {data.specialInstructions && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Special Instructions</p><p className="text-sm leading-relaxed">{data.specialInstructions}</p></div>}
-                                {data.loadSpecificTerms && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Load Terms</p><p className="text-sm leading-relaxed">{data.loadSpecificTerms}</p></div>}
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-
-                {canRequest && (
-                    <div className="rounded-2xl overflow-hidden border border-primary/20 bg-primary/3">
-                        <div className="p-5 flex items-center justify-between gap-4">
-                            <div>
-                                <p className="font-bold text-sm">Ready to haul this load?</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">Submit a request and the dispatcher will review your profile and equipment.</p>
-                            </div>
-                            <Button onClick={() => setShowConfirm(true)} className="gap-2 rounded-xl h-11 px-6 font-bold shadow-lg shrink-0">
-                                <Truck className="size-4" />Request Assignment
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </motion.div>
-
-            <DriverContractModal
-                isOpen={showConfirm}
-                onClose={() => setShowConfirm(false)}
-                onConfirm={handleRequest}
-                isSubmitting={requesting}
-                title="Request This Load"
-                description="Requesting a load does not guarantee assignment — your compliance and equipment profile will be verified. Review and sign the transport contract to submit your request."
-                confirmLabel="Request & Sign"
-            />
-        </div>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <Loader2 className="size-8 animate-spin text-primary" />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Loading Details</p>
+      </div>
     );
+  }
+
+  if (!data) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <Package className="mx-auto mb-4 size-10 text-muted-foreground/30" />
+        <h2 className="text-xl font-black">Load Not Found</h2>
+        <p className="mt-2 text-sm text-muted-foreground">This load may have been removed or already assigned.</p>
+        <Button asChild className="mt-4 gap-2 rounded-xl">
+          <Link href="/driver/available-loads"><ArrowLeft className="size-4" />Back to Load Board</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const quote = data.preservedQuoteData;
+  const vehicleName = quote?.vehicleName;
+  const vehicleImage = quote?.vehicleImage;
+  const vehicles = data.vehicles || [];
+  const pay = data.pricing?.carrierPayAmount || data.carrierPayAmount || quote?.rate || 0;
+  const miles = quote?.miles || data.estimatedMiles;
+  const isRequested = data.myRequestStatus === 'pending' || data.hasRequested;
+  const isRejected = data.myRequestStatus === 'rejected';
+  const compatibility: DriverLoadCompatibility | undefined = data.compatibility;
+  const capacityBlocked = Boolean(compatibility && !compatibility.driverRequestAllowed);
+  const offSchedule = compatibility?.availability.status === 'off_schedule';
+  const canRequest =
+    !isRequested &&
+    !isRejected &&
+    !capacityBlocked &&
+    workEligibility.canTakeNewWork;
+
+  return (
+    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
+        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
+          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+          <div className="relative p-5 sm:p-7">
+            <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <button onClick={() => router.back()} className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 transition-colors hover:bg-white/10">
+                  <ArrowLeft className="size-4.5 text-white/80" />
+                </button>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                    <h1 className="break-all font-mono text-xl font-black tracking-tight text-white [overflow-wrap:anywhere] sm:text-2xl">{data.trackingNumber || data.loadNumber || loadId.slice(-8)}</h1>
+                    <Badge className="bg-blue-500/10 text-[10px] text-blue-400">Available</Badge>
+                    {isRequested && <Badge className="bg-amber-500/10 text-[10px] text-amber-400"><Timer className="mr-1 size-2.5" />Requested</Badge>}
+                  </div>
+                  <p className="mt-0.5 break-words text-sm text-white/50 [overflow-wrap:anywhere]">{vehicleName || `${data.origin} → ${data.destination}`}</p>
+                </div>
+              </div>
+              {pay > 0 && <span className="text-3xl font-black tabular-nums text-white">${pay.toLocaleString()}</span>}
+            </div>
+
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white sm:flex sm:items-center">
+              <span className="size-3 rounded-full bg-emerald-400" />
+              <span className="break-words [overflow-wrap:anywhere]">{data.origin}</span>
+              <Navigation className="size-3.5 text-white/30" />
+              <span className="break-words [overflow-wrap:anywhere]">{data.destination}</span>
+            </div>
+          </div>
+        </div>
+
+        <CompatibilityPanel compatibility={compatibility} />
+
+        {!workEligibility.canTakeNewWork && (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3.5">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+            <p className="break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{workEligibility.blockReason}</p>
+          </div>
+        )}
+
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {canRequest && (
+            <Button onClick={() => setShowContract(true)} className="h-11 flex-1 gap-2 rounded-xl text-sm font-bold shadow-lg sm:flex-none">
+              {offSchedule ? <AlertTriangle className="size-4" /> : <Truck className="size-4" />}
+              {offSchedule ? 'Request Anyway' : 'Request This Load'}
+            </Button>
+          )}
+          {capacityBlocked && (
+            <Badge className="h-auto min-h-11 whitespace-normal border-red-500/25 bg-red-500/10 px-4 py-2 text-sm leading-relaxed text-red-700 dark:text-red-400">
+              <XCircle className="mr-2 size-4 shrink-0" />Capacity mismatch — contact Dispatch
+            </Badge>
+          )}
+          {isRequested && (
+            <Badge className="h-auto min-h-11 whitespace-normal border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-600">
+              <Timer className="mr-2 size-4 shrink-0" />Request Pending — Awaiting Approval
+            </Badge>
+          )}
+        </div>
+
+        <Card className="overflow-hidden rounded-2xl border-border/40 shadow-xl">
+          <CardContent className="p-0">
+            {mapboxToken ? (
+              <div ref={mapRef} className="h-75 w-full" />
+            ) : (
+              <div className="flex h-75 items-center justify-center bg-muted/30 text-center">
+                <div><MapPin className="mx-auto size-10 text-muted-foreground/30" /><p className="mt-2 text-xs text-muted-foreground">Route map unavailable</p></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card className="overflow-hidden rounded-2xl border-border/40 md:col-span-2">
+            <div className="relative h-56 sm:h-72">
+              <img
+                src={resolveImageUrl(vehicleImage) || FALLBACK}
+                alt={vehicleName || 'Vehicle'}
+                className="h-full w-full object-cover"
+                onError={(event) => {
+                  const image = event.currentTarget;
+                  if (image.src !== window.location.origin + FALLBACK) image.src = FALLBACK;
+                }}
+              />
+              <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
+              <div className="absolute bottom-4 left-4 right-4">
+                {vehicleName && <p className="break-words text-xl font-black text-white [overflow-wrap:anywhere]">{vehicleName}</p>}
+                {miles && <p className="text-sm text-white/70">{miles.toLocaleString()} miles</p>}
+              </div>
+            </div>
+          </Card>
+
+          {vehicles.length > 0 && (
+            <Card className="overflow-hidden rounded-2xl border-border/40 md:col-span-2">
+              <div className="border-b border-border/40 p-4"><h3 className="text-sm font-black uppercase tracking-wider">Vehicles ({vehicles.length})</h3></div>
+              <CardContent className="grid gap-2 p-4">
+                {vehicles.map((vehicle: any, index: number) => (
+                  <div key={`${vehicle.vin || vehicle.vehicleId || index}`} className="flex min-w-0 items-start gap-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"><Car className="size-5 text-primary" /></div>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">{`${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Unknown Vehicle'}</p>
+                      <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                        {vehicle.color && <span>{vehicle.color}</span>}
+                        {vehicle.condition && <span>· {vehicle.condition}</span>}
+                        {vehicle.vin && <span className="break-all font-mono [overflow-wrap:anywhere]">VIN: {vehicle.vin}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <InfoCard icon={<Calendar className="size-4 text-primary" />} title="Schedule">
+            <DetailRow label="First Available" value={fmtDate(data.dates?.firstAvailable)} />
+            <DetailRow label="Pickup Deadline" value={fmtDate(data.dates?.pickupDeadline)} />
+            <DetailRow label="Delivery Deadline" value={fmtDate(data.dates?.deliveryDeadline)} />
+          </InfoCard>
+
+          <InfoCard icon={<DollarSign className="size-4 text-emerald-500" />} title="Financials">
+            {pay > 0 && <DetailRow label="Carrier Pay" value={`$${pay.toLocaleString()}`} />}
+            {miles && <DetailRow label="Distance" value={`${miles.toLocaleString()} miles`} />}
+            {data.copCodAmount > 0 && <DetailRow label="COD" value={`$${data.copCodAmount.toLocaleString()}`} />}
+            {data.trailerTypeRequired && <DetailRow label="Trailer Required" value={trailerLabel(data.trailerTypeRequired)} />}
+          </InfoCard>
+
+          {(data.originContact?.contactName || data.originContact?.phone || data.originContact?.email) && (
+            <InfoCard icon={<User2 className="size-4 text-primary" />} title="Pick-Up Contact">
+              {data.originContact.contactName && <DetailRow label="Contact" value={data.originContact.contactName} />}
+              {data.originContact.phone && <a href={`tel:${data.originContact.phone}`} className="flex min-w-0 items-center gap-2 break-all text-sm text-primary [overflow-wrap:anywhere] hover:underline"><Phone className="size-4 shrink-0" />{data.originContact.phone}</a>}
+              {data.originContact.email && <a href={`mailto:${data.originContact.email}`} className="flex min-w-0 items-center gap-2 break-all text-sm text-primary [overflow-wrap:anywhere] hover:underline"><Mail className="size-4 shrink-0" />{data.originContact.email}</a>}
+            </InfoCard>
+          )}
+
+          {(data.destinationContact?.contactName || data.destinationContact?.phone || data.destinationContact?.email) && (
+            <InfoCard icon={<User2 className="size-4 text-primary" />} title="Delivery Contact">
+              {data.destinationContact.contactName && <DetailRow label="Contact" value={data.destinationContact.contactName} />}
+              {data.destinationContact.phone && <a href={`tel:${data.destinationContact.phone}`} className="flex min-w-0 items-center gap-2 break-all text-sm text-primary [overflow-wrap:anywhere] hover:underline"><Phone className="size-4 shrink-0" />{data.destinationContact.phone}</a>}
+              {data.destinationContact.email && <a href={`mailto:${data.destinationContact.email}`} className="flex min-w-0 items-center gap-2 break-all text-sm text-primary [overflow-wrap:anywhere] hover:underline"><Mail className="size-4 shrink-0" />{data.destinationContact.email}</a>}
+            </InfoCard>
+          )}
+
+          {(data.preDispatchNotes || data.specialInstructions) && (
+            <Card className="overflow-hidden rounded-2xl border-border/40 md:col-span-2">
+              <div className="border-b border-border/40 p-4"><div className="flex items-center gap-2"><FileText className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Notes & Instructions</h3></div></div>
+              <CardContent className="space-y-4 p-4">
+                {data.preDispatchNotes && <div><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dispatch Notes</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.preDispatchNotes}</p></div>}
+                {data.specialInstructions && <div><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Special Instructions</p><p className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">{data.specialInstructions}</p></div>}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </motion.div>
+
+      <DriverContractModal
+        isOpen={showContract}
+        onClose={() => setShowContract(false)}
+        onConfirm={handleRequest}
+        isSubmitting={requesting}
+        title={offSchedule ? 'Request Outside Regular Schedule' : 'Request This Load'}
+        description={
+          offSchedule
+            ? 'You confirmed that you are available for this off-schedule pickup. Review and sign the transport contract to submit your request.'
+            : 'Review and sign the transport contract to submit your request.'
+        }
+        confirmLabel={offSchedule ? 'Request Anyway & Sign' : 'Request & Sign'}
+      />
+    </div>
+  );
+}
+
+function InfoCard({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden rounded-2xl border-border/40">
+      <div className="border-b border-border/40 p-4"><div className="flex items-center gap-2">{icon}<h3 className="text-sm font-black uppercase tracking-wider">{title}</h3></div></div>
+      <CardContent className="space-y-3 p-4">{children}</CardContent>
+    </Card>
+  );
 }
 
 function DetailRow({ label, value }: { label: string; value?: string }) {
-    if (!value) return null;
-    return <div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{value}</span></div>;
+  if (!value) return null;
+  return (
+    <div className="flex min-w-0 flex-wrap justify-between gap-2 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="break-words text-right font-semibold [overflow-wrap:anywhere]">{value}</span>
+    </div>
+  );
 }

@@ -39,6 +39,10 @@ import { DriverPickerSection, OrgDriver } from "./DriverPickerSection"
 import { InspectionSection } from "./InspectionSection"
 import { ReviewSection } from "./ReviewSection"
 import { cn } from "@/lib/utils"
+import type { DriverLoadCompatibility } from "@/types/driver-tracking"
+import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility"
+import { DriverLoadCompatibilityReviewDialog } from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog"
+
 
 // ─── Create / Edit Load: form orchestrator ───────────────────────────────────
 // Owns all form state and the submit flow for BOTH workflows AND both modes:
@@ -234,6 +238,17 @@ export function LoadFormLayout({
 
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
+  const [createdAssignmentReview, setCreatedAssignmentReview] = React.useState<{
+  loadId: string
+  loadNumber: string
+  driverId: string
+  driverName: string
+  compatibility: DriverLoadCompatibility
+} | null>(null)
+
+const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
+  React.useState(false)
+
   // ── Steps ──
   const steps: Array<{ key: StepKey; label: string }> = React.useMemo(() => {
     const base: Array<{ key: StepKey; label: string }> = [
@@ -353,6 +368,24 @@ export function LoadFormLayout({
             `Load ${load.loadNumber} created and assigned to the driver.`,
           )
         } catch (assignErr: any) {
+            const compatibility = extractCompatibilityFromError(assignErr)
+
+            if (compatibility) {
+              setCreatedAssignmentReview({
+                loadId: load._id,
+                loadNumber: load.loadNumber,
+                driverId: selectedDriverId,
+                driverName: selectedDriverInfo?.name || "Selected Driver",
+                compatibility,
+              })
+
+              toast.warning(
+                `Load ${load.loadNumber} was created. Review driver compatibility to finish the assignment.`,
+              )
+
+              return
+            }
+
           // The load EXISTS — don't pretend the whole thing failed. Tell the
           // dispatcher exactly what state they're in and where to fix it.
           toast.error(
@@ -380,6 +413,41 @@ export function LoadFormLayout({
       )
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const confirmCreatedAssignmentOverride = async () => {
+    if (!createdAssignmentReview || isApplyingCompatibilityOverride) return
+
+    setIsApplyingCompatibilityOverride(true)
+
+    try {
+      await assignDriverToLoad(
+        createdAssignmentReview.loadId,
+        createdAssignmentReview.driverId,
+        {
+          overrideAvailability:
+            createdAssignmentReview.compatibility.requiresAvailabilityOverride,
+
+          overrideCapacity:
+            createdAssignmentReview.compatibility.requiresCapacityOverride,
+        },
+      )
+
+      toast.success(
+        `Load ${createdAssignmentReview.loadNumber} created and assigned to ${createdAssignmentReview.driverName}.`,
+      )
+
+      setCreatedAssignmentReview(null)
+      router.push("/transportation?tab=shipments")
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "The compatibility override could not be applied.",
+      )
+    } finally {
+      setIsApplyingCompatibilityOverride(false)
     }
   }
 
@@ -504,6 +572,24 @@ export function LoadFormLayout({
             onSelectDriverInfo={setSelectedDriverInfo}
             makeAvailable={makeAvailable}
             onMakeAvailableChange={setMakeAvailable}
+            loadPreview={{
+              dates: {
+                firstAvailable: dates.firstAvailable || null,
+                pickupDeadline: dates.pickupDeadline || null,
+              },
+              vehicleCount: vehicles.length,
+              trailerTypeRequired: trailerType,
+              pickupLocation: {
+                city: pickup.city || null,
+                state: pickup.state || null,
+                zip: pickup.zip || null,
+              },
+              deliveryLocation: {
+                city: delivery.city || null,
+                state: delivery.state || null,
+                zip: delivery.zip || null,
+              },
+            }}
           />
         )}
 
@@ -596,6 +682,24 @@ export function LoadFormLayout({
           </Button>
         )}
       </div>
+        <DriverLoadCompatibilityReviewDialog
+          open={createdAssignmentReview !== null}
+          onOpenChange={(open) => {
+            if (open || isApplyingCompatibilityOverride) return
+
+            setCreatedAssignmentReview(null)
+
+            // The load already exists as Posted.
+            // Canceling does not create another load.
+            router.push("/transportation?tab=shipments")
+          }}
+          compatibility={createdAssignmentReview?.compatibility ?? null}
+          driverName={createdAssignmentReview?.driverName || "Selected Driver"}
+          loadLabel={createdAssignmentReview?.loadNumber || "New Load"}
+          actionLabel="Assign Anyway"
+          isSubmitting={isApplyingCompatibilityOverride}
+          onConfirm={confirmCreatedAssignmentOverride}
+        />
     </div>
   )
 }

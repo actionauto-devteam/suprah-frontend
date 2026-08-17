@@ -5,12 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Loader2, MapPin, Save, Navigation, Route, Calendar, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DriverProfile } from '@/types/driver-profile';
 import { operationalStatusOptions, US_STATES, AVAILABLE_DAYS } from './driver-profile-constants';
+import { PreferredRoutesEditor } from './PreferredRoutesEditor';
 import { cn } from '@/lib/utils';
 
 interface LogisticsTabProps {
@@ -27,22 +27,11 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
   const [zip, setZip] = useState(profile?.homeBase?.zip || '');
   const [radius, setRadius] = useState(profile?.serviceRadius || 500);
   const [routes, setRoutes] = useState<string[]>(profile?.preferredRoutes || []);
-  const [routeInput, setRouteInput] = useState('');
   const [days, setDays] = useState<string[]>(profile?.availableDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
 
   const toggleDay = (d: string) => {
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   };
-
-  const addRoute = () => {
-    const trimmed = routeInput.trim();
-    if (trimmed && !routes.includes(trimmed) && routes.length < 10) {
-      setRoutes([...routes, trimmed]);
-      setRouteInput('');
-    }
-  };
-
-  const removeRoute = (r: string) => setRoutes(routes.filter(x => x !== r));
 
   const handleSave = async () => {
     setSaving(true);
@@ -73,8 +62,8 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
               <Navigation className="size-5 text-emerald-600" />
             </div>
             <div>
-              <CardTitle className="text-lg font-bold">Operational Status</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Your current availability for dispatch</p>
+              <CardTitle className="text-lg font-bold">Work Availability</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Set whether you are available for new dispatch work</p>
             </div>
           </div>
         </CardHeader>
@@ -199,32 +188,12 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">
               <div className="flex items-center gap-1.5"><Route className="size-3" /> Preferred Routes</div>
             </Label>
-            <div className="flex items-center gap-2 mb-3">
-              <Input
-                value={routeInput}
-                onChange={(e) => setRouteInput(e.target.value)}
-                placeholder="e.g. UT → CA, West Coast"
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRoute())}
-                maxLength={50}
-              />
-              <Button size="sm" variant="outline" onClick={addRoute} disabled={routes.length >= 10}>Add</Button>
-            </div>
-            {routes.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {routes.map((r) => (
-                  <Badge
-                    key={r}
-                    variant="outline"
-                    className="gap-1.5 pr-1 cursor-pointer hover:bg-destructive/10 transition-colors"
-                    onClick={() => removeRoute(r)}
-                  >
-                    {r}
-                    <span className="text-destructive text-[10px]">×</span>
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-muted-foreground mt-2">{routes.length}/10 routes</p>
+            <PreferredRoutesEditor
+              routes={routes}
+              onChange={setRoutes}
+              defaultFromState={state}
+              defaultFromCity={city}
+            />
           </div>
         </CardContent>
       </Card>

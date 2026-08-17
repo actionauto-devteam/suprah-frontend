@@ -11,6 +11,7 @@ import {
   XCircle,
   Search,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -25,6 +26,12 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DriverTrackingItem } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
+import {
+  evaluateDriverLoadCompatibility,
+  titleCaseDay,
+} from "@/lib/driver-load-compatibility";
+import { useDriverLoadCompatibilityMatrixPreview } from "@/hooks/useDriverLoadCompatibilityMatrixPreview";
+import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
 
 const trailerLabel = (val?: string) =>
   trailerTypeOptions.find((t) => t.value === val)?.label || val || "";
@@ -40,6 +47,18 @@ interface AvailableItem {
   vehicleCount?: number;
   carrierPayAmount?: number;
   requestedPickupDate?: string;
+  pickupLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
+  deliveryLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
   isPostedToBoard?: boolean;
 }
 
@@ -49,7 +68,7 @@ interface DriverAssignLoadModalProps {
   driver: DriverTrackingItem | null;
   availableLoads: AvailableItem[];
   isLoading: boolean;
-  onAssign: (item: AvailableItem) => Promise<void>;
+  onAssign: (item: AvailableItem) => Promise<boolean>;
 }
 
 export function DriverAssignLoadModal({
@@ -64,6 +83,28 @@ export function DriverAssignLoadModal({
   const [loadSearch, setLoadSearch] = React.useState("");
 
   const eq = driver?.equipment;
+
+  const compatibilityPreviewLoads = React.useMemo(
+    () =>
+      availableLoads.map((load) => ({
+        key: load._id,
+        load: {
+          requestedPickupDate: load.requestedPickupDate,
+          vehicleCount: load.vehicleCount,
+          trailerTypeRequired: load.trailerTypeRequired,
+          pickupLocation: load.pickupLocation,
+          deliveryLocation: load.deliveryLocation,
+        },
+      })),
+    [availableLoads],
+  );
+
+  const { compatibilityByLoadKey } =
+    useDriverLoadCompatibilityMatrixPreview({
+      loads: compatibilityPreviewLoads,
+      driverIds: driver?.id ? [driver.id] : [],
+      enabled: open && Boolean(driver?.id),
+    });
 
   const filteredLoads = React.useMemo(() => {
     const q = loadSearch.trim().toLowerCase();
@@ -190,14 +231,16 @@ export function DriverAssignLoadModal({
               )}
 
               {filteredLoads.map((load) => {
-                const trailerMatch =
-                  eq?.trailerType && load.trailerTypeRequired
-                    ? eq.trailerType === load.trailerTypeRequired
-                    : null;
-                const capacityMatch =
-                  eq?.maxVehicleCapacity && load.vehicleCount
-                    ? eq.maxVehicleCapacity >= load.vehicleCount
-                    : null;
+                const compatibility =
+                  (driver?.id
+                    ? compatibilityByLoadKey[load._id]?.[driver.id]
+                    : null) ?? evaluateDriverLoadCompatibility(driver, load);
+                const trailerMatch = compatibility.trailer.status;
+                const capacityMatch = compatibility.capacity.status;
+                const availabilityMatch = compatibility.availability.status;
+                const needsReview =
+                  availabilityMatch === "off_schedule" ||
+                  capacityMatch !== "match";
 
                 return (
                   <div
@@ -236,7 +279,7 @@ export function DriverAssignLoadModal({
                             <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/70">
                               <Calendar className="size-3 shrink-0" />
                               <span>
-                                Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "America/Denver" })}
+                                Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
                               </span>
                             </div>
                           )}
@@ -268,26 +311,81 @@ export function DriverAssignLoadModal({
                         onClick={() => handleAssign(load)}
                         disabled={assigning !== null || !driver?.assignable}
                       >
-                        {assigning === load._id ? <Loader2 className="size-3.5 animate-spin" /> : "Assign"}
+                        {assigning === load._id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : needsReview ? (
+                          "Review & Assign"
+                        ) : (
+                          "Assign"
+                        )}
                       </Button>
                     </div>
 
-                    {(trailerMatch !== null || capacityMatch !== null) && (
-                      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/20 pt-3">
-                        {trailerMatch !== null && (
-                          <span className={`flex items-center gap-1.5 text-xs font-semibold ${trailerMatch ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                            {trailerMatch ? <CheckCircle2 className="size-3.5 shrink-0" /> : <XCircle className="size-3.5 shrink-0" />}
-                            Trailer {trailerMatch ? "Match" : "Mismatch"}
-                          </span>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/20 pt-3">
+                      <span
+                        className={`flex items-center gap-1.5 text-xs font-semibold ${
+                          availabilityMatch === "match"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : availabilityMatch === "off_schedule"
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {availabilityMatch === "match" ? (
+                          <CheckCircle2 className="size-3.5 shrink-0" />
+                        ) : availabilityMatch === "off_schedule" ? (
+                          <AlertTriangle className="size-3.5 shrink-0" />
+                        ) : (
+                          <Calendar className="size-3.5 shrink-0" />
                         )}
-                        {capacityMatch !== null && (
-                          <span className={`flex items-center gap-1.5 text-xs font-semibold ${capacityMatch ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
-                            {capacityMatch ? <CheckCircle2 className="size-3.5 shrink-0" /> : <XCircle className="size-3.5 shrink-0" />}
-                            Capacity {capacityMatch ? "OK" : "Exceeded"}
-                          </span>
+                        {availabilityMatch === "match"
+                          ? `Available ${titleCaseDay(compatibility.availability.pickupDay) || "on pickup day"}`
+                          : availabilityMatch === "off_schedule"
+                            ? `Off Schedule ${titleCaseDay(compatibility.availability.pickupDay) || ""}`.trim()
+                            : "Schedule Unknown"}
+                      </span>
+
+                      <span
+                        className={`flex items-center gap-1.5 text-xs font-semibold ${
+                          capacityMatch === "match"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-500 dark:text-red-400"
+                        }`}
+                      >
+                        {capacityMatch === "match" ? (
+                          <CheckCircle2 className="size-3.5 shrink-0" />
+                        ) : (
+                          <XCircle className="size-3.5 shrink-0" />
                         )}
-                      </div>
-                    )}
+                        {capacityMatch === "match"
+                          ? `Capacity ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
+                          : capacityMatch === "exceeded"
+                            ? `Capacity ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles} · Exceeded`
+                            : "Capacity Not Verified"}
+                      </span>
+
+                      {trailerMatch !== "unknown" && (
+                        <span
+                          className={`flex items-center gap-1.5 text-xs font-semibold ${
+                            trailerMatch === "match"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          {trailerMatch === "match" ? (
+                            <CheckCircle2 className="size-3.5 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="size-3.5 shrink-0" />
+                          )}
+                          Trailer {trailerMatch === "match" ? "Match" : "Mismatch"}
+                        </span>
+                      )}
+                    </div>
+
+                    <DriverLoadRecommendationBadges
+                      compatibility={compatibility}
+                      className="mt-2"
+                    />
                   </div>
                 );
               })}

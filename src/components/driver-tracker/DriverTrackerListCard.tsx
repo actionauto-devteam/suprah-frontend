@@ -66,20 +66,14 @@ const OP_LABEL: Record<DriverOperationalStatus, string> = {
   maintenance: "In Shop",
 };
 
-// Driver Tracker should not present a driver as currently Dispatch Active when
-// their live presence is Offline. Keep the persisted operationalStatus intact
-// (so reconnecting does not silently turn into On Leave/In Shop), but derive
-// the dispatcher-facing availability from BOTH operational and live state.
-const isDispatchActive = (driver: DriverTrackingItem) =>
-  opStatusOf(driver) === "active" && driver.status !== "offline";
+// Work Availability and Current Activity are intentionally separate concepts.
+// A driver can remain Work Availability: Active while Current Activity is
+// Offline; GPS sharing is shown independently as a third signal.
+const isWorkAvailable = (driver: DriverTrackingItem) =>
+  opStatusOf(driver) === "active";
 
-const dispatchLabelOf = (driver: DriverTrackingItem) => {
-  const operationalStatus = opStatusOf(driver);
-  if (operationalStatus === "active" && driver.status === "offline") {
-    return "Offline";
-  }
-  return OP_LABEL[operationalStatus];
-};
+const workAvailabilityLabelOf = (driver: DriverTrackingItem) =>
+  OP_LABEL[opStatusOf(driver)];
 
 export function DriverTrackerListCard({
   drivers,
@@ -125,7 +119,7 @@ export function DriverTrackerListCard({
     return drivers
       .filter((d) => {
         const opStatus = opStatusOf(d);
-        if (operationalFilter === "active" && !isDispatchActive(d)) return false;
+        if (operationalFilter === "active" && !isWorkAvailable(d)) return false;
         if (
           operationalFilter !== "all" &&
           operationalFilter !== "active" &&
@@ -170,7 +164,7 @@ export function DriverTrackerListCard({
   }, [drivers, operationalFilter, activeSubFilter, gpsFilter, query, expandedId]);
 
   const counts = React.useMemo(() => {
-    const activeDrivers = drivers.filter(isDispatchActive);
+    const activeDrivers = drivers.filter(isWorkAvailable);
     return {
       all: drivers.length,
       active: activeDrivers.length,
@@ -183,7 +177,7 @@ export function DriverTrackerListCard({
         idle: activeDrivers.filter((driver) => driver.status === "idle").length,
         waiting: activeDrivers.filter((driver) => driver.status === "waiting").length,
         "on-break": activeDrivers.filter((driver) => driver.status === "on-break").length,
-        offline: 0,
+        offline: activeDrivers.filter((driver) => driver.status === "offline").length,
       } as Record<DriverStatus, number>,
     };
   }, [drivers]);
@@ -236,10 +230,10 @@ export function DriverTrackerListCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-52">
-              <DropdownMenuLabel className="text-xs uppercase tracking-wider">Active Drivers</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs uppercase tracking-wider">Work Availability: Active</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => { setOperationalFilter("active"); setActiveSubFilter("all"); }}>All Active ({counts.active})</DropdownMenuItem>
-              {(["on-route", "idle", "waiting", "on-break"] as DriverStatus[]).map((status) => (
+              {(["on-route", "idle", "waiting", "on-break", "offline"] as DriverStatus[]).map((status) => (
                 <DropdownMenuItem key={status} onClick={() => { setOperationalFilter("active"); setActiveSubFilter(status); }}>
                   {statusLabel[status]} ({counts.activeStatus[status]})
                 </DropdownMenuItem>
@@ -316,9 +310,7 @@ export function DriverTrackerListCard({
             Number(unreadMessageCounts[driver.driver?.id ?? driver.id] ?? 0),
           );
           const operationalStatus = opStatusOf(driver);
-          const dispatchLabel = dispatchLabelOf(driver);
-          const isDispatchOffline =
-            operationalStatus === "active" && driver.status === "offline";
+          const availabilityLabel = workAvailabilityLabelOf(driver);
           const statusRequest = driver.statusRequest;
 
           return (
@@ -355,13 +347,9 @@ export function DriverTrackerListCard({
                         {shipments.length > 0 && (
                           <Badge
                             variant="outline"
-                            className={`text-[11px] font-semibold h-7 px-2.5 ${eq?.maxVehicleCapacity && shipments.length >= eq.maxVehicleCapacity ? "border-red-500/50 text-red-600 dark:text-red-400" : "border-border/50"}`}
+                            className="h-7 border-border/50 px-2.5 text-[11px] font-semibold"
                           >
-                            {shipments.length}
-                            {eq?.maxVehicleCapacity
-                              ? `/${eq.maxVehicleCapacity}`
-                              : ""}{" "}
-                            load{shipments.length !== 1 ? "s" : ""}
+                            {shipments.length} active load{shipments.length !== 1 ? "s" : ""}
                           </Badge>
                         )}
                         <Button
@@ -385,19 +373,17 @@ export function DriverTrackerListCard({
                       <Badge
                         variant="outline"
                         className={`h-7 px-2.5 text-[11px] ${
-                          isDispatchOffline
-                            ? "border-slate-500/30 bg-slate-500/5 text-slate-500"
-                            : operationalStatus === "active"
-                              ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-                              : operationalStatus === "on_leave"
-                                ? "border-amber-500/30 text-amber-700 dark:text-amber-400"
-                                : "border-blue-500/30 text-blue-700 dark:text-blue-400"
+                          operationalStatus === "active"
+                            ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                            : operationalStatus === "on_leave"
+                              ? "border-amber-500/30 text-amber-700 dark:text-amber-400"
+                              : "border-blue-500/30 text-blue-700 dark:text-blue-400"
                         }`}
                       >
-                        Dispatch: {dispatchLabel}
+                        Availability: {availabilityLabel}
                       </Badge>
                       <Badge variant="outline" className={`text-[11px] h-7 px-2.5 ${statusText[driver.status]}`}>
-                        Live: {statusLabel[driver.status]}
+                        Activity: {statusLabel[driver.status]}
                       </Badge>
                       <Badge variant="outline" className={`text-[11px] h-7 gap-1.5 px-2.5 ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
                         {driver.isSharing ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
@@ -417,9 +403,9 @@ export function DriverTrackerListCard({
                         className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${statusRequest.priority === "emergency" ? "border-red-500/25 bg-red-500/5 hover:bg-red-500/10" : "border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10"}`}
                       >
                         <p className={`text-sm font-bold ${statusRequest.priority === "emergency" ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
-                          {statusRequest.priority === "emergency" ? "Emergency Release Active" : statusRequest.status === "approved_awaiting_reassignment" ? "Approved — Awaiting Reassignment" : "Status Change Request Pending"}
+                          {statusRequest.priority === "emergency" ? "Emergency Release Active" : statusRequest.status === "approved_awaiting_reassignment" ? "Approved — Awaiting Reassignment" : "Work Availability Request Pending"}
                         </p>
-                        <p className="text-xs text-muted-foreground/80 mt-1">Requested: {statusRequest.requestedStatus === "maintenance" ? "In Shop" : "On Leave"} · View request →</p>
+                        <p className="text-xs text-muted-foreground/80 mt-1">Requested availability: {statusRequest.requestedStatus === "maintenance" ? "In Shop" : "On Leave"} · View request →</p>
                       </button>
                     )}
                     <div className="mt-2 grid grid-cols-2 gap-1.5">
@@ -468,10 +454,8 @@ export function DriverTrackerListCard({
                           {trailerLabel(eq.trailerType)}
                         </span>
                         {eq.maxVehicleCapacity && eq.maxVehicleCapacity > 0 && (
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/10 text-red-600 dark:text-red-400" : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"}`}
-                          >
-                            {shipments.length}/{eq.maxVehicleCapacity} loads
+                          <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                            Capacity: {eq.maxVehicleCapacity} vehicle{eq.maxVehicleCapacity === 1 ? "" : "s"}/load
                           </span>
                         )}
                       </div>
@@ -504,36 +488,30 @@ export function DriverTrackerListCard({
                       </div>
                     )}
                     {eq?.maxVehicleCapacity != null && (
-                      <div
-                        className={`rounded-lg px-2.5 py-1.5 ${shipments.length >= eq.maxVehicleCapacity ? "bg-red-500/5 border border-red-500/10" : "bg-muted/30"}`}
-                      >
+                      <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
                         <p className="text-[11px] text-muted-foreground font-semibold">
-                          Load Capacity
+                          Equipment Capacity
                         </p>
-                        <p
-                          className={`text-sm font-bold ${shipments.length >= eq.maxVehicleCapacity ? "text-red-600 dark:text-red-400" : ""}`}
-                        >
-                          {shipments.length}/{eq.maxVehicleCapacity} active
+                        <p className="text-sm font-bold">
+                          {eq.maxVehicleCapacity} vehicle{eq.maxVehicleCapacity === 1 ? "" : "s"} / load
                         </p>
                       </div>
                     )}
                     {eq?.operationalStatus && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
                         <p className="text-[11px] text-muted-foreground font-semibold">
-                          Dispatch Status
+                          Work Availability
                         </p>
                         <p
                           className={`text-sm font-bold ${
-                            isDispatchOffline
-                              ? "text-slate-500"
-                              : operationalStatus === "active"
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : operationalStatus === "on_leave"
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-blue-600 dark:text-blue-400"
+                            operationalStatus === "active"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : operationalStatus === "on_leave"
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-blue-600 dark:text-blue-400"
                           }`}
                         >
-                          {dispatchLabel}
+                          {availabilityLabel}
                         </p>
                       </div>
                     )}

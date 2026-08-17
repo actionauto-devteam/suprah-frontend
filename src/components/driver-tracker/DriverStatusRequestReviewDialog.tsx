@@ -62,7 +62,7 @@ const LOAD_HANDLING_COPY: Record<
   keep_assigned: {
     title: "Keep Assigned",
     description:
-      "Keep the driver's current active loads with them while the requested Dispatch Status takes effect.",
+      "Keep the driver's current active loads with them while the requested Work Availability change takes effect.",
   },
   reassign: {
     title: "Reassign",
@@ -125,7 +125,7 @@ export function DriverStatusRequestReviewDialog({
       }
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || "Unable to load the status request",
+        error?.response?.data?.message || "Unable to load the Work Availability request",
       );
     } finally {
       setLoading(false);
@@ -299,12 +299,12 @@ export function DriverStatusRequestReviewDialog({
             <span>
               {emergency
                 ? "Emergency Driver Request"
-                : "Driver Status Change Request"}
+                : "Work Availability Change Request"}
             </span>
           </DialogTitle>
           <DialogDescription className="break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
             {emergency
-              ? "Review the driver's urgent status and active loads. Emergency handling remains immediate and does not wait for normal approval."
+              ? "Review the driver's urgent request and active loads. Emergency handling remains immediate and does not wait for normal approval."
               : currentLoads.length > 0
                 ? "Choose one clear load-handling action. Keep Assigned is the default and requires GPS by default, with optional GPS available under Advanced Options."
                 : "Review the request and approve or reject it. No active-load handling decision is currently required."}
@@ -337,7 +337,7 @@ export function DriverStatusRequestReviewDialog({
                   label="Driver"
                   value={request.driverId?.name || driver?.driver?.name || "Driver"}
                 />
-                <Info label="Requested Status" value={requestedStatus} />
+                <Info label="Requested Availability" value={requestedStatus} />
                 <Info label="Priority" value={emergency ? "Emergency" : "Standard"} />
                 <Info
                   label="State"
@@ -708,7 +708,7 @@ export function DriverStatusRequestReviewDialog({
                     Approved — Reassignment in Progress
                   </p>
                   <p className="mt-1 break-words text-xs leading-relaxed text-amber-700 [overflow-wrap:anywhere] dark:text-amber-400">
-                    New work is blocked. Reassign the active loads above. The requested Dispatch Status applies automatically after all active loads are moved away from this driver.
+                    New work is blocked. Reassign the active loads above. The requested Work Availability change applies automatically after all active loads are moved away from this driver.
                   </p>
                 </div>
               )}
@@ -734,7 +734,7 @@ export function DriverStatusRequestReviewDialog({
             </div>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Status request not found.
+              Work Availability request not found.
             </p>
           )}
         </div>

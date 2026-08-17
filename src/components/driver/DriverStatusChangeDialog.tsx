@@ -236,7 +236,7 @@ export function DriverStatusChangeDialog({
           form,
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        toast.success("Status request details updated");
+        toast.success("Work Availability request details updated");
       } else {
         const response = await apiClient.post(
           "/api/driver-profile/status-requests",
@@ -257,7 +257,7 @@ export function DriverStatusChangeDialog({
       toast.error(
         error?.response?.data?.message ||
           error?.message ||
-          "Unable to submit the status request",
+          "Unable to submit the Work Availability request",
       );
     } finally {
       setSubmitting(false);
@@ -277,15 +277,15 @@ export function DriverStatusChangeDialog({
               <PauseCircle className="size-5 text-amber-500" />
             )}
             {isUpdate
-              ? "Add Details to Status Request"
+              ? "Add Details to Work Availability Request"
               : emergency
                 ? "Emergency / Unable to Continue"
-                : "Request Dispatch Status Change"}
+                : "Request Work Availability Change"}
           </DialogTitle>
           <DialogDescription className="break-words leading-relaxed [overflow-wrap:anywhere]">
             {emergency
               ? "Your safety comes first. Submit what you can now; the remaining details can be added later."
-              : "Choose the status you need and add any details that will help Dispatch review your request."}
+              : "Choose the Work Availability you need and add any details that will help Dispatch review your request."}
           </DialogDescription>
         </DialogHeader>
 
@@ -316,7 +316,7 @@ export function DriverStatusChangeDialog({
           {!isUpdate && (
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>Requested Status</Label>
+                <Label>Requested Availability</Label>
                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${emergency ? "border-red-500/25 bg-red-500/5 text-red-600 dark:text-red-400" : "border-border bg-muted/30 text-muted-foreground"}`}>
                   {emergency ? "Emergency request" : "Standard request"}
                 </span>
