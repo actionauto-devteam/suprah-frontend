@@ -2,12 +2,38 @@
 
 import * as React from "react"
 import {
-  User, RefreshCw, Check, AlertTriangle, Radio, Megaphone,
-  Truck, Loader2, ShieldAlert, PackageX, WifiOff, UserX,
+  User,
+  RefreshCw,
+  Check,
+  AlertTriangle,
+  Radio,
+  Megaphone,
+  Truck,
+  Loader2,
+  ShieldAlert,
+  WifiOff,
+  UserX,
+  Calendar,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { apiClient } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
+import type {
+  DriverLoadCompatibility,
+  DriverStatus,
+  DriverTrackingItem,
+} from "@/types/driver-tracking"
+import {
+  compatibilityRank,
+  evaluateDriverLoadCompatibility,
+  titleCaseDay,
+  type DriverLoadLike,
+} from "@/lib/driver-load-compatibility"
+import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview"
+import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges"
 
 // ─── Centralized driver directory types ──────────────────────────────────────
 // Mirrors GET /api/driver-tracking/org-drivers — the single source of truth
@@ -27,12 +53,29 @@ export interface OrgDriver {
     truckMake: string | null
     truckModel: string | null
     isComplianceExpired: boolean
+    profileCompletionScore?: number
   } | null
+  availability?: {
+    availableDays: string[]
+  }
+  logistics?: {
+    serviceRadiusMiles: number | null
+    preferredRoutes: string[]
+    homeBase: {
+      city: string | null
+      state: string | null
+      zip: string | null
+      coordinates: { lat: number; lng: number } | null
+    }
+  }
   presence: {
     status: string
     lastSeenAt: string | null
+    coords?: { lat: number; lng: number } | null
+    isSharing?: boolean
   }
   activeLoadCount: number
+  /** @deprecated Vehicle capacity is per load, not active-load subtraction. */
   remainingCapacity: number | null
   assignable: boolean
   warnings: string[]
@@ -41,9 +84,15 @@ export interface OrgDriver {
 const WARNING_META: Record<string, { label: string; icon: React.ElementType }> = {
   no_driver_profile: { label: "No profile", icon: UserX },
   compliance_expired: { label: "Compliance expired", icon: ShieldAlert },
-  at_capacity: { label: "At capacity", icon: PackageX },
   offline_or_stale_location: { label: "Offline", icon: WifiOff },
   inactive_account: { label: "Inactive", icon: UserX },
+  on_leave: { label: "On Leave", icon: AlertTriangle },
+  in_shop: { label: "In Shop", icon: AlertTriangle },
+  emergency_release_active: { label: "Emergency release", icon: AlertTriangle },
+  status_change_awaiting_reassignment: {
+    label: "Status change pending",
+    icon: AlertTriangle,
+  },
 }
 
 const PRESENCE_DOT: Record<string, string> = {
@@ -62,6 +111,138 @@ interface DriverPickerSectionProps {
   onMakeAvailableChange: (value: boolean) => void
   /** Lifts the selected driver's display info up for the Review step */
   onSelectDriverInfo?: (driver: OrgDriver | null) => void
+  /** Unsaved Create Load data used only for read-only matching recommendations. */
+  loadPreview?: DriverLoadLike | null
+}
+
+function toTrackingItem(driver: OrgDriver): DriverTrackingItem {
+  return {
+    id: driver.id,
+    status: (driver.presence.status || "offline") as DriverStatus,
+    coords: driver.presence.coords ?? null,
+    lastSeenAt: driver.presence.lastSeenAt ?? null,
+    isSharing: Boolean(driver.presence.isSharing),
+    assignable: driver.assignable,
+    warnings: driver.warnings ?? [],
+    remainingCapacity: null,
+    activeLoadCount: driver.activeLoadCount,
+    availability: {
+      availableDays: driver.availability?.availableDays ?? [],
+    },
+    logistics: driver.logistics
+      ? {
+          serviceRadiusMiles: driver.logistics.serviceRadiusMiles,
+          preferredRoutes: driver.logistics.preferredRoutes ?? [],
+          homeBase: driver.logistics.homeBase,
+        }
+      : undefined,
+    driver: {
+      id: driver.id,
+      name: driver.name,
+      email: driver.email,
+      phone: driver.phone,
+      avatar: driver.avatar,
+      messagingAvailable: false,
+    },
+    equipment: driver.equipment
+      ? {
+          trailerType: driver.equipment.trailerType ?? undefined,
+          maxVehicleCapacity: driver.equipment.maxVehicleCapacity ?? undefined,
+          operationalStatus: (driver.equipment.operationalStatus ?? "active") as
+            | "active"
+            | "on_leave"
+            | "maintenance",
+          truckMake: driver.equipment.truckMake ?? undefined,
+          truckModel: driver.equipment.truckModel ?? undefined,
+          isComplianceExpired: driver.equipment.isComplianceExpired,
+          profileCompletionScore: driver.equipment.profileCompletionScore,
+        }
+      : null,
+    shipments: [],
+  }
+}
+
+function CoreCompatibilityBadges({
+  compatibility,
+}: {
+  compatibility: DriverLoadCompatibility | null
+}) {
+  if (!compatibility) return null
+
+  const availability = compatibility.availability.status
+  const capacity = compatibility.capacity.status
+  const trailer = compatibility.trailer.status
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      <Badge
+        variant="outline"
+        className={cn(
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+          availability === "match"
+            ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+            : availability === "off_schedule"
+              ? "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400"
+              : "border-border/60 bg-muted/20 text-muted-foreground",
+        )}
+      >
+        {availability === "match" ? (
+          <CheckCircle2 className="mr-1 size-2.5 shrink-0" />
+        ) : availability === "off_schedule" ? (
+          <AlertTriangle className="mr-1 size-2.5 shrink-0" />
+        ) : (
+          <Calendar className="mr-1 size-2.5 shrink-0" />
+        )}
+        {availability === "match"
+          ? `Available ${titleCaseDay(compatibility.availability.pickupDay) || ""}`.trim()
+          : availability === "off_schedule"
+            ? `Off Schedule ${titleCaseDay(compatibility.availability.pickupDay) || ""}`.trim()
+            : "Schedule Unknown"}
+      </Badge>
+
+      <Badge
+        variant="outline"
+        className={cn(
+          "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+          capacity === "match"
+            ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+            : "border-red-500/25 bg-red-500/5 text-red-700 dark:text-red-400",
+        )}
+      >
+        {capacity === "match" ? (
+          <CheckCircle2 className="mr-1 size-2.5 shrink-0" />
+        ) : capacity === "exceeded" ? (
+          <XCircle className="mr-1 size-2.5 shrink-0" />
+        ) : (
+          <AlertTriangle className="mr-1 size-2.5 shrink-0" />
+        )}
+        {capacity === "match"
+          ? `Capacity ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
+          : capacity === "exceeded"
+            ? `Capacity ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles} · Exceeded`
+            : "Capacity Not Verified"}
+      </Badge>
+
+      {trailer !== "unknown" && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "h-auto whitespace-normal px-1.5 py-0.5 text-[9px] font-bold",
+            trailer === "match"
+              ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+              : "border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-400",
+          )}
+        >
+          {trailer === "match" ? (
+            <CheckCircle2 className="mr-1 size-2.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="mr-1 size-2.5 shrink-0" />
+          )}
+          Trailer {trailer === "match" ? "Match" : "Mismatch"}
+        </Badge>
+      )}
+    </div>
+  )
 }
 
 export function DriverPickerSection({
@@ -70,6 +251,7 @@ export function DriverPickerSection({
   makeAvailable,
   onMakeAvailableChange,
   onSelectDriverInfo,
+  loadPreview = null,
 }: DriverPickerSectionProps) {
   const [drivers, setDrivers] = React.useState<OrgDriver[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -96,6 +278,60 @@ export function DriverPickerSection({
   React.useEffect(() => {
     fetchDrivers()
   }, [fetchDrivers])
+
+  const previewDriverIds = React.useMemo(
+    () => drivers.map((driver) => driver.id),
+    [drivers],
+  )
+
+  const { compatibilityByDriverId, isLoading: isMatching } =
+    useDriverLoadCompatibilityPreview({
+      load: loadPreview,
+      driverIds: previewDriverIds,
+      enabled: Boolean(loadPreview) && !makeAvailable,
+    })
+
+  const compatibilityForDriver = React.useCallback(
+    (driver: OrgDriver): DriverLoadCompatibility | null => {
+      if (!loadPreview) return null
+      return (
+        compatibilityByDriverId[driver.id] ??
+        evaluateDriverLoadCompatibility(toTrackingItem(driver), loadPreview)
+      )
+    },
+    [compatibilityByDriverId, loadPreview],
+  )
+
+  const sortedDrivers = React.useMemo(() => {
+    return [...drivers].sort((a, b) => {
+      // Preserve the existing operational eligibility priority first. Matching
+      // recommendations never promote an unavailable driver over an eligible one.
+      if (a.assignable !== b.assignable) return a.assignable ? -1 : 1
+
+      const aCompatibility = compatibilityForDriver(a)
+      const bCompatibility = compatibilityForDriver(b)
+      if (aCompatibility && bCompatibility) {
+        const rankDiff =
+          compatibilityRank(aCompatibility) - compatibilityRank(bCompatibility)
+        if (rankDiff !== 0) return rankDiff
+      }
+
+      return a.name.localeCompare(b.name)
+    })
+  }, [drivers, compatibilityForDriver])
+
+  const bestDriverId = React.useMemo(() => {
+    if (!loadPreview) return null
+    const candidate = sortedDrivers.find((driver) => {
+      const compatibility = compatibilityForDriver(driver)
+      return (
+        driver.assignable &&
+        compatibility?.capacity.status === "match" &&
+        compatibility.availability.status !== "off_schedule"
+      )
+    })
+    return candidate?.id ?? null
+  }, [compatibilityForDriver, loadPreview, sortedDrivers])
 
   const handleMakeAvailable = (value: boolean) => {
     onMakeAvailableChange(value)
@@ -162,26 +398,40 @@ export function DriverPickerSection({
 
       {/* ── Driver directory ── */}
       <div className={cn(makeAvailable && "opacity-40 pointer-events-none")}>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
-            <Radio className="size-3" /> Assign Driver
-            {!isLoading && (
-              <span className="font-mono normal-case tracking-normal">
-                ({drivers.length})
-              </span>
+        <div className="flex items-center justify-between mb-2 gap-3">
+          <div className="min-w-0">
+            <p className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] flex items-center gap-1.5">
+              <Radio className="size-3" /> Assign Driver
+              {!isLoading && (
+                <span className="font-mono normal-case tracking-normal">
+                  ({drivers.length})
+                </span>
+              )}
+            </p>
+            {loadPreview && (
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
+                Drivers are ordered by eligibility, capacity, schedule, equipment,
+                service area, preferred route, and pickup proximity. Service area,
+                route preference, and distance are informational only.
+              </p>
             )}
-          </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
-            onClick={fetchDrivers}
-            disabled={isLoading}
-          >
-            <RefreshCw className={cn("size-3", isLoading && "animate-spin")} />
-            Refresh
-          </Button>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {isMatching && loadPreview && (
+              <Loader2 className="size-3 animate-spin text-muted-foreground" />
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+              onClick={fetchDrivers}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("size-3", isLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -204,12 +454,15 @@ export function DriverPickerSection({
           </div>
         ) : (
           <div className="space-y-1.5 max-h-96 overflow-y-auto overscroll-contain pr-1">
-            {/* BUSINESS RULE: every org driver is listed — warnings inform,
-                they never hide. The dispatcher decides. */}
-            {drivers.map((driver) => {
+            {/* Every org driver remains visible. Matching changes order and adds
+                context only; Dispatch keeps the final assignment decision. */}
+            {sortedDrivers.map((driver) => {
               const isSelected = selectedDriverId === driver.id
               const dot =
                 PRESENCE_DOT[driver.presence.status] ?? PRESENCE_DOT.offline
+              const compatibility = compatibilityForDriver(driver)
+              const isBestMatch = driver.id === bestDriverId
+
               return (
                 <button
                   key={driver.id}
@@ -228,7 +481,7 @@ export function DriverPickerSection({
                       : "border-border/60 bg-background/40 hover:border-emerald-500/25",
                   )}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className="relative shrink-0">
                       {driver.avatar ? (
                         <img
@@ -250,21 +503,27 @@ export function DriverPickerSection({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p className="text-sm font-black tracking-tight text-foreground truncate">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <p className="text-sm font-black tracking-tight text-foreground break-words [overflow-wrap:anywhere]">
                           {driver.name}
                         </p>
+                        {isBestMatch && (
+                          <Badge className="h-5 border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                            Best Match
+                          </Badge>
+                        )}
                         {driver.equipment?.trailerType && (
                           <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded-full shrink-0">
                             {driver.equipment.trailerType.replace(/_/g, " ")}
                           </span>
                         )}
                       </div>
+
                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
                         <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                           {driver.activeLoadCount} active
-                          {driver.remainingCapacity != null
-                            ? ` · ${driver.remainingCapacity} slots free`
+                          {driver.equipment?.maxVehicleCapacity != null
+                            ? ` · equipment cap ${driver.equipment.maxVehicleCapacity}`
                             : ""}
                         </span>
                         {driver.warnings.map((w) => {
@@ -281,11 +540,17 @@ export function DriverPickerSection({
                           )
                         })}
                       </div>
+
+                      <CoreCompatibilityBadges compatibility={compatibility} />
+                      <DriverLoadRecommendationBadges
+                        compatibility={compatibility}
+                        className="mt-1.5"
+                      />
                     </div>
 
                     <div
                       className={cn(
-                        "size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                        "size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors mt-0.5",
                         isSelected
                           ? "border-emerald-500 bg-emerald-500"
                           : "border-border",
@@ -300,7 +565,7 @@ export function DriverPickerSection({
           </div>
         )}
 
-        {/* Advisory note when the selected driver has warnings */}
+        {/* Advisory note when the selected driver has existing directory warnings */}
         {(() => {
           const selected = drivers.find((d) => d.id === selectedDriverId)
           if (!selected || selected.warnings.length === 0) return null
@@ -312,7 +577,8 @@ export function DriverPickerSection({
                 {selected.warnings
                   .map((w) => WARNING_META[w]?.label ?? w)
                   .join(", ")}
-                ). You can still assign — this is informational only.
+                ). The backend still applies the existing operational eligibility
+                and compatibility checks before assignment.
               </p>
             </div>
           )

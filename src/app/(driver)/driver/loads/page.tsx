@@ -98,6 +98,16 @@ const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.mess
 
 type Tab = "active" | "requests" | "completed" | "all";
 
+const getTabFromSearch = (search: string): Tab => {
+  const requestedTab = new URLSearchParams(search).get("tab");
+  return requestedTab === "requests" ||
+    requestedTab === "completed" ||
+    requestedTab === "all" ||
+    requestedTab === "active"
+    ? requestedTab
+    : "active";
+};
+
 export default function DriverLoadsPage() {
   const { getToken } = useAuth();
   const workEligibility = useDriverWorkEligibility();
@@ -109,6 +119,40 @@ export default function DriverLoadsPage() {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>('active');
   const [search, setSearch] = React.useState('');
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncTabFromUrl = () => {
+      setTab(getTabFromSearch(window.location.search));
+    };
+
+    syncTabFromUrl();
+    window.addEventListener("popstate", syncTabFromUrl);
+
+    return () => {
+      window.removeEventListener("popstate", syncTabFromUrl);
+    };
+  }, []);
+
+  const handleTabChange = React.useCallback((nextTab: Tab) => {
+    setTab(nextTab);
+
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    if (nextTab === "active") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", nextTab);
+    }
+
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, []);
 
   // Action States
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
@@ -409,7 +453,7 @@ export default function DriverLoadsPage() {
               {tabItems.map((t) => (
                 <button
                   key={t.key}
-                  onClick={() => setTab(t.key)}
+                  onClick={() => handleTabChange(t.key)}
                   className={cn(
                     "relative px-3 py-2 text-xs rounded-lg transition-all flex items-center gap-1.5",
                     tab === t.key
@@ -488,7 +532,7 @@ export default function DriverLoadsPage() {
                       ? "Try adjusting your search."
                       : "Loads will appear here as they are assigned."}
               </p>
-              {tab === "active" && (
+              {(tab === "active" || tab === "requests") && (
                 <Button asChild className="mt-4 gap-2 rounded-xl">
                   <Link href="/driver/available-loads">
                     <Truck className="size-4" /> Browse Available Loads

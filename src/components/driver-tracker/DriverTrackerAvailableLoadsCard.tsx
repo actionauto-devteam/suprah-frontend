@@ -29,6 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { DriverTrackingItem } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
+import {
+  compatibilityRank,
+  evaluateDriverLoadCompatibility,
+  titleCaseDay,
+} from "@/lib/driver-load-compatibility";
+import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview";
+import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
 
 const trailerLabel = (val?: string) =>
   trailerTypeOptions.find((t) => t.value === val)?.label || val || "";
@@ -44,6 +51,18 @@ interface AvailableItem {
   vehicleCount?: number;
   carrierPayAmount?: number;
   requestedPickupDate?: string;
+  pickupLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
+  deliveryLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
   isPostedToBoard?: boolean;
 }
 
@@ -51,7 +70,7 @@ interface DriverTrackerAvailableLoadsCardProps {
   loads: AvailableItem[];
   isLoading: boolean;
   activeDrivers: DriverTrackingItem[];
-  onAssign: (item: AvailableItem, driverId: string) => Promise<void>;
+  onAssign: (item: AvailableItem, driverId: string) => Promise<boolean>;
 }
 
 export function DriverTrackerAvailableLoadsCard({
@@ -64,11 +83,21 @@ export function DriverTrackerAvailableLoadsCard({
   const [assignLoad, setAssignLoad] = React.useState<AvailableItem | null>(null);
   const [driverSearch, setDriverSearch] = React.useState("");
 
+  const previewDriverIds = React.useMemo(
+    () => activeDrivers.map((driver) => driver.id),
+    [activeDrivers],
+  );
+  const { compatibilityByDriverId } = useDriverLoadCompatibilityPreview({
+    load: assignLoad,
+    driverIds: previewDriverIds,
+    enabled: Boolean(assignLoad),
+  });
+
   const handleAssign = async (item: AvailableItem, driverId: string) => {
     setAssigning(item._id);
     try {
-      await onAssign(item, driverId);
-      setAssignLoad(null);
+      const succeeded = await onAssign(item, driverId);
+      if (succeeded) setAssignLoad(null);
     } finally {
       setAssigning(null);
     }
@@ -76,13 +105,30 @@ export function DriverTrackerAvailableLoadsCard({
 
   const filteredDrivers = React.useMemo(() => {
     const q = driverSearch.trim().toLowerCase();
-    if (!q) return activeDrivers;
-    return activeDrivers.filter((d) => {
+    const matching = activeDrivers.filter((d) => {
+      if (!q) return true;
       const name = d.driver?.name?.toLowerCase() || "";
       const email = d.driver?.email?.toLowerCase() || "";
       return name.includes(q) || email.includes(q);
     });
-  }, [activeDrivers, driverSearch]);
+
+    if (!assignLoad) return matching;
+
+    return [...matching].sort((a, b) => {
+      const aCompatibility =
+        compatibilityByDriverId[a.id] ??
+        evaluateDriverLoadCompatibility(a, assignLoad);
+      const bCompatibility =
+        compatibilityByDriverId[b.id] ??
+        evaluateDriverLoadCompatibility(b, assignLoad);
+      const rankDifference =
+        compatibilityRank(aCompatibility) - compatibilityRank(bCompatibility);
+      if (rankDifference !== 0) return rankDifference;
+      return String(a.driver?.name || "").localeCompare(
+        String(b.driver?.name || ""),
+      );
+    });
+  }, [activeDrivers, assignLoad, compatibilityByDriverId, driverSearch]);
 
   if (isLoading) {
     return (
@@ -159,7 +205,7 @@ export function DriverTrackerAvailableLoadsCard({
                       <span className="inline-flex min-w-0 items-start gap-1">
                         <Calendar className="mt-0.5 size-2.5 shrink-0" />
                         <span className="break-words [overflow-wrap:anywhere]">
-                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "America/Denver" })}
+                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
                         </span>
                       </span>
                     )}
@@ -274,12 +320,17 @@ export function DriverTrackerAvailableLoadsCard({
 
               {filteredDrivers.map((driver) => {
                 const eq = driver.equipment;
-                const trailerMatch = eq?.trailerType && assignLoad?.trailerTypeRequired
-                  ? eq.trailerType === assignLoad.trailerTypeRequired
+                const compatibility = assignLoad
+                  ? compatibilityByDriverId[driver.id] ??
+                    evaluateDriverLoadCompatibility(driver, assignLoad)
                   : null;
-                const capacityMatch = eq?.maxVehicleCapacity && assignLoad?.vehicleCount
-                  ? eq.maxVehicleCapacity >= assignLoad.vehicleCount
-                  : null;
+                const trailerMatch = compatibility?.trailer.status ?? "unknown";
+                const capacityMatch = compatibility?.capacity.status ?? "unknown";
+                const availabilityMatch =
+                  compatibility?.availability.status ?? "unknown";
+                const needsReview =
+                  availabilityMatch === "off_schedule" ||
+                  capacityMatch !== "match";
 
                 return (
                   <div
@@ -323,16 +374,40 @@ export function DriverTrackerAvailableLoadsCard({
                               Cap: {eq.maxVehicleCapacity}
                             </Badge>
                           )}
-                          {trailerMatch !== null && (
-                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${trailerMatch ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
-                              {trailerMatch ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
-                              Trailer
+                          {availabilityMatch !== "unknown" && (
+                            <Badge
+                              className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${
+                                availabilityMatch === "match"
+                                  ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400"
+                                  : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"
+                              }`}
+                            >
+                              {availabilityMatch === "match" ? (
+                                <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" />
+                              ) : (
+                                <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />
+                              )}
+                              {availabilityMatch === "match"
+                                ? `Available ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()
+                                : `Off Schedule ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()}
                             </Badge>
                           )}
-                          {capacityMatch !== null && (
-                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${capacityMatch ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
-                              {capacityMatch ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
-                              Capacity
+                          {capacityMatch !== "unknown" ? (
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${capacityMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"}`}>
+                              {capacityMatch === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <XCircle className="mr-0.5 size-2.5 shrink-0" />}
+                              {capacityMatch === "match"
+                                ? `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles}`
+                                : `Capacity ${compatibility?.capacity.requiredVehicles}/${compatibility?.capacity.maxVehicles} · Exceeded`}
+                            </Badge>
+                          ) : (
+                            <Badge className="min-h-5 h-auto whitespace-normal break-words border-red-200 bg-red-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-red-600 [overflow-wrap:anywhere] dark:border-red-500/30 dark:text-red-400">
+                              <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Capacity Not Verified
+                            </Badge>
+                          )}
+                          {trailerMatch !== "unknown" && (
+                            <Badge className={`min-h-5 h-auto whitespace-normal break-words px-1.5 py-0.5 text-[9px] leading-tight [overflow-wrap:anywhere] ${trailerMatch === "match" ? "border-emerald-200 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:text-emerald-400" : "border-amber-200 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400"}`}>
+                              {trailerMatch === "match" ? <CheckCircle2 className="mr-0.5 size-2.5 shrink-0" /> : <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />}
+                              Trailer {trailerMatch === "match" ? "Match" : "Mismatch"}
                             </Badge>
                           )}
                           {eq?.isComplianceExpired && (
@@ -341,6 +416,10 @@ export function DriverTrackerAvailableLoadsCard({
                             </Badge>
                           )}
                         </div>
+                        <DriverLoadRecommendationBadges
+                          compatibility={compatibility}
+                          className="pt-1"
+                        />
                       </div>
                     </div>
 
@@ -352,6 +431,8 @@ export function DriverTrackerAvailableLoadsCard({
                     >
                       {assigning === assignLoad?._id ? (
                         <Loader2 className="size-3.5 animate-spin" />
+                      ) : needsReview ? (
+                        "Review & Assign"
                       ) : (
                         "Assign"
                       )}

@@ -81,6 +81,23 @@ function isExpectedSupraSpaceAvailabilityError(
   );
 }
 
+function isExpectedDriverLoadCompatibilityError(
+  status: number | undefined,
+  responseData: any
+): boolean {
+  if (status !== 409) return false;
+
+  const errors = responseData?.errors;
+  return (
+    Array.isArray(errors) &&
+    errors.some(
+      (item: any) =>
+        item?.type === "driver_load_compatibility" &&
+        item?.compatibility != null
+    )
+  );
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private onAuthFailure?: () => void;
@@ -268,6 +285,21 @@ class ApiClient {
             // Next.js development overlay even though the caller handles it.
             console.warn(
               `[apiClient] Suprah Space is unavailable for this account (${status}):`,
+              error.response.data
+            );
+          } else if (
+            isExpectedDriverLoadCompatibilityError(
+              status,
+              error.response.data
+            )
+          ) {
+            // Driver/load compatibility uses an intentional structured 409 to
+            // ask the caller to show the existing review/override dialog. Keep
+            // rejecting the request so the caller can handle it, but do not log
+            // it as console.error because Next.js dev treats that handled flow
+            // like an application crash and opens the error overlay.
+            console.warn(
+              `[apiClient] Driver/load compatibility review required (${status}):`,
               error.response.data
             );
           } else {

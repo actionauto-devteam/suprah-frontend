@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useUser } from "@/providers/AuthProvider";
-import { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
+import { DriverTrackingItem, DriverStatus, DriverLoadCompatibility } from "@/types/driver-tracking";
 import { useOptionalDriverLocationSharing } from "@/context/DriverLocationSharingContext";
 
 export interface AvailableItem {
@@ -35,6 +35,18 @@ export interface AvailableItem {
   vehicleCount?: number;
   carrierPayAmount?: number;
   requestedPickupDate?: string;
+  pickupLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
+  deliveryLocation?: {
+    city?: string;
+    state?: string;
+    zip?: string;
+    coordinates?: { lat: number; lng: number } | null;
+  };
   isPostedToBoard?: boolean;
 }
 import { DriverTrackerMap } from "@/components/driver-tracker/DriverTrackerMap";
@@ -47,7 +59,12 @@ import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTra
 import { DriverDispatchAlertDialog } from "@/components/driver-tracker/DriverDispatchAlertDialog";
 import { DriverComplianceDocumentsDialog } from "@/components/driver-tracker/DriverComplianceDocumentsDialog";
 import { DriverStatusRequestReviewDialog } from "@/components/driver-tracker/DriverStatusRequestReviewDialog";
+import {
+  DriverLoadCompatibilityReviewDialog,
+  type DriverActiveLoadSummary,
+} from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
+import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
 import {
@@ -60,7 +77,7 @@ const statusLabel: Record<DriverStatus, string> = {
   idle: "Idle",
   "on-break": "On Break",
   waiting: "Waiting",
-  offline: "Offline",
+  offline: "Disconnected",
 };
 
 const statusStyles: Record<DriverStatus, string> = {
@@ -127,6 +144,21 @@ export default function DriverTrackerPage() {
     React.useState<DriverTrackingItem | null>(null);
   const [statusRequestDialogOpen, setStatusRequestDialogOpen] =
     React.useState(false);
+  const [compatibilityReview, setCompatibilityReview] = React.useState<{
+    endpoint: string;
+    payload: Record<string, unknown>;
+    compatibility: DriverLoadCompatibility;
+    driverName: string;
+    loadLabel: string;
+    actionLabel: string;
+    successMessage: string;
+    activeLoads?: DriverActiveLoadSummary[];
+  } | null>(null);
+  const [compatibilityOverrideSubmitting, setCompatibilityOverrideSubmitting] =
+    React.useState(false);
+  const compatibilityReviewResolverRef = React.useRef<
+    ((success: boolean) => void) | null
+  >(null);
   const [unreadMessageCounts, setUnreadMessageCounts] = React.useState<
     Record<string, number>
   >({});
@@ -351,6 +383,27 @@ export default function DriverTrackerPage() {
           assignable: Boolean(item.assignable),
           warnings: Array.isArray(item.warnings) ? item.warnings : [],
           remainingCapacity: item.remainingCapacity ?? null,
+          activeLoadCount: Number(item.activeLoadCount ?? 0),
+          availability: {
+            availableDays: Array.isArray(item.availability?.availableDays)
+              ? item.availability.availableDays
+              : [],
+          },
+          logistics: {
+            serviceRadiusMiles:
+              typeof item.logistics?.serviceRadiusMiles === "number"
+                ? item.logistics.serviceRadiusMiles
+                : null,
+            preferredRoutes: Array.isArray(item.logistics?.preferredRoutes)
+              ? item.logistics.preferredRoutes
+              : [],
+            homeBase: {
+              city: item.logistics?.homeBase?.city ?? null,
+              state: item.logistics?.homeBase?.state ?? null,
+              zip: item.logistics?.homeBase?.zip ?? null,
+              coordinates: item.logistics?.homeBase?.coordinates ?? null,
+            },
+          },
           statusRequest: item.statusRequest
             ? {
                 id: String(item.statusRequest.id ?? item.statusRequest._id),
@@ -422,7 +475,19 @@ export default function DriverTrackerPage() {
           trailerTypeRequired: l.trailerType,
           vehicleCount: l.vehicles?.length || 0,
           carrierPayAmount: l.pricing?.carrierPayAmount,
-          requestedPickupDate: l.dates?.firstAvailable,
+          requestedPickupDate: l.dates?.firstAvailable ?? l.dates?.pickupDeadline,
+          pickupLocation: {
+            city: l.pickupLocation?.city,
+            state: l.pickupLocation?.state,
+            zip: l.pickupLocation?.zip,
+            coordinates: l.pickupLocation?.coordinates ?? null,
+          },
+          deliveryLocation: {
+            city: l.deliveryLocation?.city,
+            state: l.deliveryLocation?.state,
+            zip: l.deliveryLocation?.zip,
+            coordinates: l.deliveryLocation?.coordinates ?? null,
+          },
           isPostedToBoard: false,
         }));
       setAvailableLoads(mapped);
@@ -432,46 +497,162 @@ export default function DriverTrackerPage() {
     }
   }, [getToken, isSignedIn]);
 
-  const handleAssignLoad = React.useCallback(
-    async (item: AvailableItem) => {
-      if (!assigningTo?.driver?.id || !isSignedIn) return;
+  const fetchLoadRequests = React.useCallback(async () => {
+    if (!isSignedIn || isDriver) return;
+    setLoadRequestsLoading(true);
+    try {
+      const token = await getToken();
+      const res = await apiClient.get("/api/driver-tracking/load-requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setLoadRequests(res.data?.data || []);
+    } catch {
+    } finally {
+      setLoadRequestsLoading(false);
+    }
+  }, [getToken, isSignedIn, isDriver]);
+
+
+  const runDispatcherLoadAction = React.useCallback(
+    async (options: {
+      endpoint: string;
+      payload: Record<string, unknown>;
+      driverName: string;
+      loadLabel: string;
+      actionLabel: string;
+      successMessage: string;
+      activeLoads?: DriverActiveLoadSummary[];
+    }): Promise<boolean> => {
       try {
         const token = await getToken();
-        await apiClient.post(
-          "/api/driver-tracking/assign-load",
-          { loadId: item._id, driverId: assigningTo.driver.id },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        toast.success(
-          `Load assigned to ${assigningTo.driver.name || "driver"}`,
-        );
-        fetchDrivers();
-        fetchAvailableLoads();
+        await apiClient.post(options.endpoint, options.payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.success(options.successMessage);
+        await Promise.all([
+          fetchDrivers(),
+          fetchAvailableLoads(),
+          fetchLoadRequests(),
+        ]);
+        return true;
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to assign load");
+        const compatibility = extractCompatibilityFromError(err);
+        if (compatibility) {
+          return await new Promise<boolean>((resolve) => {
+            compatibilityReviewResolverRef.current = resolve;
+            setCompatibilityReview({
+              ...options,
+              compatibility,
+            });
+          });
+        }
+
+        toast.error(
+          err.response?.data?.message || "Unable to complete the load action",
+        );
+        return false;
       }
     },
-    [assigningTo, getToken, isSignedIn, fetchDrivers, fetchAvailableLoads],
+    [
+      getToken,
+      fetchDrivers,
+      fetchAvailableLoads,
+      fetchLoadRequests,
+    ],
+  );
+
+  const handleCompatibilityReviewOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (open || compatibilityOverrideSubmitting) return;
+      const resolver = compatibilityReviewResolverRef.current;
+      compatibilityReviewResolverRef.current = null;
+      setCompatibilityReview(null);
+      resolver?.(false);
+    },
+    [compatibilityOverrideSubmitting],
+  );
+
+  const confirmCompatibilityOverride = React.useCallback(async () => {
+    if (!compatibilityReview || compatibilityOverrideSubmitting) return;
+    setCompatibilityOverrideSubmitting(true);
+
+    try {
+      const token = await getToken();
+      await apiClient.post(
+        compatibilityReview.endpoint,
+        {
+          ...compatibilityReview.payload,
+          overrideAvailability:
+            compatibilityReview.compatibility.requiresAvailabilityOverride,
+          overrideCapacity:
+            compatibilityReview.compatibility.requiresCapacityOverride,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      toast.success(compatibilityReview.successMessage);
+      await Promise.all([
+        fetchDrivers(),
+        fetchAvailableLoads(),
+        fetchLoadRequests(),
+      ]);
+
+      const resolver = compatibilityReviewResolverRef.current;
+      compatibilityReviewResolverRef.current = null;
+      setCompatibilityReview(null);
+      resolver?.(true);
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message ||
+          "The compatibility override could not be applied",
+      );
+    } finally {
+      setCompatibilityOverrideSubmitting(false);
+    }
+  }, [
+    compatibilityReview,
+    compatibilityOverrideSubmitting,
+    getToken,
+    fetchDrivers,
+    fetchAvailableLoads,
+    fetchLoadRequests,
+  ]);
+
+  const handleAssignLoad = React.useCallback(
+    async (item: AvailableItem): Promise<boolean> => {
+      if (!assigningTo?.driver?.id || !isSignedIn) return false;
+      const success = await runDispatcherLoadAction({
+        endpoint: "/api/driver-tracking/assign-load",
+        payload: { loadId: item._id, driverId: assigningTo.driver.id },
+        driverName: assigningTo.driver.name || "Driver",
+        loadLabel: item.trackingNumber || item._id,
+        actionLabel: "Assign Anyway",
+        successMessage: `Load assigned to ${assigningTo.driver.name || "driver"}`,
+        activeLoads: assigningTo.shipments ?? [],
+      });
+      if (success) setAssignModalOpen(false);
+      return success;
+    },
+    [assigningTo, isSignedIn, runDispatcherLoadAction],
   );
 
   const handleAssignFromAvailable = React.useCallback(
-    async (item: AvailableItem, driverId: string) => {
-      if (!isSignedIn) return;
-      try {
-        const token = await getToken();
-        await apiClient.post(
-          "/api/driver-tracking/assign-load",
-          { loadId: item._id, driverId },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        toast.success("Load assigned successfully");
-        fetchDrivers();
-        fetchAvailableLoads();
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to assign load");
-      }
+    async (item: AvailableItem, driverId: string): Promise<boolean> => {
+      if (!isSignedIn) return false;
+      const driver = drivers.find(
+        (candidate) => String(candidate.driver?.id ?? candidate.id) === String(driverId),
+      );
+      return runDispatcherLoadAction({
+        endpoint: "/api/driver-tracking/assign-load",
+        payload: { loadId: item._id, driverId },
+        driverName: driver?.driver?.name || "Driver",
+        loadLabel: item.trackingNumber || item._id,
+        actionLabel: "Assign Anyway",
+        successMessage: "Load assigned successfully",
+        activeLoads: driver?.shipments ?? [],
+      });
     },
-    [getToken, isSignedIn, fetchDrivers, fetchAvailableLoads],
+    [drivers, isSignedIn, runDispatcherLoadAction],
   );
 
   const handleRemoveLoad = React.useCallback(
@@ -495,93 +676,76 @@ export default function DriverTrackerPage() {
   );
 
   const handleReassignLoad = React.useCallback(
-    async (shipmentId: string, newDriverId: string) => {
-      if (!isSignedIn) return;
-      try {
-        const token = await getToken();
-        await apiClient.post(
-          "/api/driver-tracking/reassign-load",
-          { loadId: shipmentId, driverId: newDriverId },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        toast.success("Load reassigned successfully");
-        fetchDrivers();
-        fetchAvailableLoads();
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to reassign load");
-      }
+    async (shipmentId: string, newDriverId: string): Promise<boolean> => {
+      if (!isSignedIn) return false;
+      const driver = drivers.find(
+        (candidate) =>
+          String(candidate.driver?.id ?? candidate.id) === String(newDriverId),
+      );
+      const shipment = drivers
+        .flatMap((candidate) => candidate.shipments ?? [])
+        .find((item) => String(item.id) === String(shipmentId));
+
+      return runDispatcherLoadAction({
+        endpoint: "/api/driver-tracking/reassign-load",
+        payload: { loadId: shipmentId, driverId: newDriverId },
+        driverName: driver?.driver?.name || "Driver",
+        loadLabel: shipment?.trackingNumber || shipmentId,
+        actionLabel: "Reassign Anyway",
+        successMessage: "Load reassigned successfully",
+        activeLoads: driver?.shipments ?? [],
+      });
     },
-    [getToken, isSignedIn, fetchDrivers, fetchAvailableLoads],
+    [drivers, isSignedIn, runDispatcherLoadAction],
   );
 
-  const fetchLoadRequests = React.useCallback(async () => {
-    if (!isSignedIn || isDriver) return;
-    setLoadRequestsLoading(true);
-    try {
-      const token = await getToken();
-      const res = await apiClient.get("/api/driver-tracking/load-requests", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setLoadRequests(res.data?.data || []);
-    } catch {
-    } finally {
-      setLoadRequestsLoading(false);
-    }
-  }, [getToken, isSignedIn, isDriver]);
-
   const handleStatusRequestReassignLoad = React.useCallback(
-    async (shipmentId: string, newDriverId: string) => {
+    async (shipmentId: string, newDriverId: string): Promise<boolean> => {
       if (!isSignedIn) return false;
-      try {
-        const token = await getToken();
-        await apiClient.post(
-          "/api/driver-tracking/reassign-load",
-          { loadId: shipmentId, driverId: newDriverId },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        toast.success("Load reassigned successfully");
-        await Promise.all([
-          fetchDrivers(),
-          fetchAvailableLoads(),
-          fetchLoadRequests(),
-        ]);
-        return true;
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to reassign load");
-        return false;
-      }
+      const driver = drivers.find(
+        (candidate) =>
+          String(candidate.driver?.id ?? candidate.id) === String(newDriverId),
+      );
+      const shipment = drivers
+        .flatMap((candidate) => candidate.shipments ?? [])
+        .find((item) => String(item.id) === String(shipmentId));
+
+      return runDispatcherLoadAction({
+        endpoint: "/api/driver-tracking/reassign-load",
+        payload: { loadId: shipmentId, driverId: newDriverId },
+        driverName: driver?.driver?.name || "Driver",
+        loadLabel: shipment?.trackingNumber || shipmentId,
+        actionLabel: "Reassign Anyway",
+        successMessage: "Load reassigned successfully",
+        activeLoads: driver?.shipments ?? [],
+      });
     },
-    [
-      getToken,
-      isSignedIn,
-      fetchDrivers,
-      fetchAvailableLoads,
-      fetchLoadRequests,
-    ],
+    [drivers, isSignedIn, runDispatcherLoadAction],
   );
 
   const handleApproveRequest = React.useCallback(
-    async (loadId: string, driverId: string) => {
+    async (loadId: string, driverId: string): Promise<boolean> => {
       const key = `${loadId}-${driverId}`;
       setApprovingId(key);
       try {
-        const token = await getToken();
-        await apiClient.post(
-          `/api/driver-tracking/loads/${loadId}/approve-request`,
-          { driverId },
-          { headers: { Authorization: `Bearer ${token}` } },
+        const request = loadRequests.find(
+          (item: any) =>
+            String(item.loadId ?? item.shipmentId) === String(loadId) &&
+            String(item.driverId) === String(driverId),
         );
-        toast.success("Load request approved — driver dispatched");
-        fetchLoadRequests();
-        fetchDrivers();
-        fetchAvailableLoads();
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to approve request");
+        return await runDispatcherLoadAction({
+          endpoint: `/api/driver-tracking/loads/${loadId}/approve-request`,
+          payload: { driverId },
+          driverName: request?.driverName || "Driver",
+          loadLabel: request?.trackingNumber || request?.loadNumber || loadId,
+          actionLabel: "Approve Anyway",
+          successMessage: "Load request approved — driver dispatched",
+        });
       } finally {
         setApprovingId(null);
       }
     },
-    [getToken, fetchLoadRequests, fetchDrivers, fetchAvailableLoads],
+    [loadRequests, runDispatcherLoadAction],
   );
 
   const handleRejectRequest = React.useCallback(
@@ -1237,7 +1401,7 @@ export default function DriverTrackerPage() {
               }}
             >
               <Bell className="size-3" />
-              {openStatusRequestDrivers.length} status request
+              {openStatusRequestDrivers.length} availability request
               {openStatusRequestDrivers.length !== 1 ? "s" : ""}
             </Badge>
           )}
@@ -1492,6 +1656,18 @@ export default function DriverTrackerPage() {
         activeDrivers={eligibleDrivers}
         onReassignLoad={handleStatusRequestReassignLoad}
         onUpdated={fetchDrivers}
+      />
+
+      <DriverLoadCompatibilityReviewDialog
+        open={compatibilityReview !== null}
+        onOpenChange={handleCompatibilityReviewOpenChange}
+        compatibility={compatibilityReview?.compatibility ?? null}
+        driverName={compatibilityReview?.driverName || "Driver"}
+        loadLabel={compatibilityReview?.loadLabel || "Load"}
+        actionLabel={compatibilityReview?.actionLabel || "Continue Anyway"}
+        activeLoads={compatibilityReview?.activeLoads ?? []}
+        isSubmitting={compatibilityOverrideSubmitting}
+        onConfirm={confirmCompatibilityOverride}
       />
 
       <DispatchChatDialog

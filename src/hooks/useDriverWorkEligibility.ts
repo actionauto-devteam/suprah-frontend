@@ -35,16 +35,16 @@ function buildBlockReason(
   request: DriverStatusRequestSnapshot | null,
 ) {
   if (operationalStatus === "on_leave") {
-    return "Your Dispatch Status is On Leave. Return to Active before accepting or requesting new loads.";
+    return "Your Work Availability is On Leave. Return to Active before accepting or requesting new loads.";
   }
   if (operationalStatus === "maintenance") {
-    return "Your Dispatch Status is In Shop. Return to Active before accepting or requesting new loads.";
+    return "Your Work Availability is In Shop. Return to Active before accepting or requesting new loads.";
   }
   if (request?.priority === "emergency" && ["pending", "approved_awaiting_reassignment"].includes(request.status)) {
     return "Your emergency release request is active. Dispatch is handling your current loads, and new work is blocked.";
   }
   if (request?.status === "approved_awaiting_reassignment") {
-    return "Your status change is approved and awaiting load reassignment. New work is blocked until the transition is complete.";
+    return "Your Work Availability change is approved and awaiting load reassignment. New work is blocked until the transition is complete.";
   }
   return null;
 }
