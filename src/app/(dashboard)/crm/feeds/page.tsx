@@ -807,6 +807,18 @@ function ReactionBar({
   const btnRef = React.useRef<HTMLButtonElement>(null)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Nothing external can set showDetails/showPicker — they're only ever flipped true by
+  // this component's own click handlers below. So the only way either can be true right as
+  // this mounts is Next's client router cache restoring a previously-rendered instance of
+  // this page (with a modal left open) instead of a clean one — e.g. leaving a reactions
+  // modal open on Feeds, navigating to the Dashboard, then clicking back into a post here.
+  // Force both closed on every fresh appearance so a stale cached instance can't surface
+  // with a modal already open.
+  React.useEffect(() => {
+    setShowDetails(false)
+    setShowPicker(false)
+  }, [])
+
   React.useEffect(() => {
     function handle(e: MouseEvent) {
       if (

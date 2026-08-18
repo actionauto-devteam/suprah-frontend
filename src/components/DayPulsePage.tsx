@@ -893,6 +893,13 @@ function ReactionBar({
   const btnRef = React.useRef<HTMLButtonElement>(null)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // See the matching comment in crm/feeds/page.tsx's ReactionBar — same component shape,
+  // same fix: force any stale cached-open modal/picker state closed on every fresh mount.
+  React.useEffect(() => {
+    setShowDetails(false)
+    setShowPicker(false)
+  }, [])
+
   React.useEffect(() => {
     function handle(e: MouseEvent) {
       if (

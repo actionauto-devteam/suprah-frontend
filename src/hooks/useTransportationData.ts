@@ -483,8 +483,9 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   // ── Core fetch (initial + full refresh) ───────────────────────────────────
 
   const fetchData = React.useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: { silent?: boolean; force?: boolean }) => {
       const silent = options?.silent ?? false;
+      const force = options?.force ?? false;
       const view = activeViewRef.current;
 
       if (!isSignedIn) {
@@ -506,10 +507,16 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       try {
         // Warm both datasets concurrently. The active tab awaits only its own
         // snapshot, while the inactive tab is already being prepared in memory.
-        const loadSnapshotPromise = loadSnapshotRef.current?.complete
+        // `force` (used by the manual Refresh button) bypasses the "already have a
+        // complete snapshot" shortcut below — without it, once a snapshot had loaded
+        // once, every later call here (including a manual refresh) would just
+        // re-apply that same cached snapshot via applyLoadSnapshot/applyQuoteSnapshot
+        // and never actually call the network refresh again, so clicking Refresh
+        // spun the icon but never fetched anything new.
+        const loadSnapshotPromise = !force && loadSnapshotRef.current?.complete
           ? Promise.resolve(true)
           : refreshLoadSnapshot();
-        const quoteSnapshotPromise = quoteSnapshotRef.current?.complete
+        const quoteSnapshotPromise = !force && quoteSnapshotRef.current?.complete
           ? Promise.resolve(true)
           : refreshQuoteSnapshot();
 

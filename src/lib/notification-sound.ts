@@ -82,7 +82,7 @@ export function playMessageSound(): void {
 
   // Fallback: HTML Audio element (works if browser policy allows it)
   try {
-    const a = new Audio('/sounds/notification.wav');
+    const a = new Audio('/sounds/universfield-new-notification.wav');
     a.volume = 0.6;
     a.play().catch(() => {});
   } catch {}

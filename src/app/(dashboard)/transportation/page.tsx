@@ -323,7 +323,7 @@ function TransportationPageInner() {
       void fetchBoardLoads();
       return;
     }
-    void fetchData({ silent: true });
+    void fetchData({ silent: true, force: true });
   }, [activeTab, fetchBoardLoads, fetchData]);
 
   const filteredLoads = React.useMemo(() => {
