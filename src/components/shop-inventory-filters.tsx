@@ -175,13 +175,32 @@ export function ShopInventoryFilters({
         const res = await apiClient.get(apiPath, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000,
+          params: {
+            // The backend defaults to excluding Sold/Archived inventory from these
+            // option lists unless told otherwise — this call was never sending
+            // anything, so a model that only exists as a Sold record (e.g. a Sold
+            // 2019 Acura ILX) would never show up as selectable even while
+            // "Status: Sold" was explicitly chosen elsewhere on this same page.
+            // archived:"all" removes that blanket exclusion; the backend's own
+            // scoping (make stays global by design, everything else narrows to
+            // the current selection, each field correctly excluding itself) then
+            // makes Model/Year/Location/Body Style reflect what's actually
+            // available together, matching what's really in the results.
+            archived: "all",
+            make: filters.make || undefined,
+            model: filters.model || undefined,
+            status: filters.status && filters.status !== "all" ? filters.status : undefined,
+            year: filters.year || undefined,
+            location: filters.location || undefined,
+            bodyStyle: filters.bodyStyle || undefined,
+          },
         });
         if (cancelled || seq !== fetchSeqRef.current) return;
         setFilterOptions(res.data?.data ?? null);
       } catch { }
     })();
     return () => { cancelled = true; };
-  }, [apiPath, getToken]);
+  }, [apiPath, getToken, filters.make, filters.model, filters.status, filters.year, filters.location, filters.bodyStyle]);
 
   const chipEntries = Object.entries(filters).filter(([k, v]) => {
     if (["search", "page", "limit", "sortBy", "sortOrder"].includes(k)) return false;
