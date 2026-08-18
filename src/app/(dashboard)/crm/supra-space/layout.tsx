@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SupraSpaceServiceWorkerRegistration } from './SupraSpaceServiceWorkerRegistration';
 
 export const metadata: Metadata = {
     title: 'SupraSpace',
@@ -15,5 +16,10 @@ export const metadata: Metadata = {
 };
 
 export default function SupraSpaceLayout({ children }: { children: React.ReactNode }) {
-    return children;
+    return (
+        <>
+            {children}
+            <SupraSpaceServiceWorkerRegistration />
+        </>
+    );
 }

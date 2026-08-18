@@ -68,6 +68,7 @@ export type NotificationType =
   | 'location_share_requested'
   | 'agent_idle'
   | 'agent_idle_escalation'
+  | 'agent_screen_recording_missing'
   | 'aftermarket_inquiry'
   | 'aftermarket_invoice'
   | 'aftermarket_order'

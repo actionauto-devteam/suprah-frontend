@@ -44,19 +44,19 @@ interface DriverDocument {
 
 interface DriverProfileDetails {
   userId?:
-    | string
-    | {
-        _id?: string;
-        name?: string;
-        email?: string;
-        avatar?: string | null;
-      };
+  | string
+  | {
+    _id?: string;
+    name?: string;
+    email?: string;
+    avatar?: string | null;
+  };
   verificationStatus?:
-    | "unverified"
-    | "pending"
-    | "in_progress"
-    | "under_review"
-    | "verified";
+  | "unverified"
+  | "pending"
+  | "in_progress"
+  | "under_review"
+  | "verified";
   profileCompletionScore?: number;
   isComplianceExpired?: boolean;
   documents?: DriverDocument[];
@@ -255,8 +255,8 @@ export function DriverComplianceDocumentsDialog({
 
         toast.error(
           error?.response?.data?.message ||
-            error?.message ||
-            "Could not load driver compliance information",
+          error?.message ||
+          "Could not load driver compliance information",
         );
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -280,9 +280,9 @@ export function DriverComplianceDocumentsDialog({
       100,
       Number(
         compliance?.percentage ??
-          profile?.profileCompletionScore ??
-          driver?.equipment?.profileCompletionScore ??
-          0,
+        profile?.profileCompletionScore ??
+        driver?.equipment?.profileCompletionScore ??
+        0,
       ) || 0,
     ),
   );
@@ -311,7 +311,7 @@ export function DriverComplianceDocumentsDialog({
           maxWidth: "min(94vw, 72rem)",
         }}
       >
-        <DialogHeader className="shrink-0 border-b border-border/70 bg-gradient-to-b from-emerald-500/[0.07] to-background px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
+        <DialogHeader className="shrink-0 border-b border-border/70 bg-linear-to-b from-emerald-500/[0.07] to-background px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
           <div className="flex flex-wrap items-start justify-between gap-3 pr-7">
             <div>
               <DialogTitle className="flex items-center gap-2.5 text-xl font-black sm:text-2xl">
@@ -341,14 +341,14 @@ export function DriverComplianceDocumentsDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
           {isLoading ? (
-            <div className="flex min-h-72 items-center justify-center">
+            <div className="flex items-center justify-center py-14">
               <Loader2 className="mr-2 size-5 animate-spin text-emerald-500" />
               <span className="text-base text-muted-foreground">
                 Loading driver records…
               </span>
             </div>
           ) : notFound ? (
-            <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 px-6 py-10 text-center">
               <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/50">
                 <FileText className="size-6 text-muted-foreground" />
               </div>
@@ -532,9 +532,8 @@ export function DriverComplianceDocumentsDialog({
                     label="Load Capacity"
                     value={
                       profile.maxVehicleCapacity
-                        ? `${profile.maxVehicleCapacity} vehicle${
-                            profile.maxVehicleCapacity === 1 ? "" : "s"
-                          }`
+                        ? `${profile.maxVehicleCapacity} vehicle${profile.maxVehicleCapacity === 1 ? "" : "s"
+                        }`
                         : "Not provided"
                     }
                   />
@@ -589,7 +588,7 @@ export function DriverComplianceDocumentsDialog({
                       return (
                         <div
                           key={key}
-                          className="rounded-2xl border border-border/70 bg-muted/[0.12] p-4 sm:p-5"
+                          className="rounded-2xl border border-border/70 bg-muted/12 p-4 sm:p-5"
                         >
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -599,7 +598,7 @@ export function DriverComplianceDocumentsDialog({
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <p className="break-words text-base font-black leading-snug [overflow-wrap:anywhere]">
+                                  <p className="wrap-break-word text-base font-black leading-snug">
                                     {document.label ||
                                       formatDocumentType(document.type)}
                                   </p>
@@ -611,7 +610,7 @@ export function DriverComplianceDocumentsDialog({
                                   </Badge>
                                 </div>
 
-                                <p className="mt-1 break-all text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                                <p className="mt-1 break-all text-xs text-muted-foreground wrap-anywhere">
                                   {document.fileName ||
                                     formatDocumentType(document.type)}
                                   {bytesLabel(document.fileSize)
@@ -702,12 +701,12 @@ function InfoCell({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/[0.16] px-3.5 py-3">
+    <div className="rounded-xl border border-border/60 bg-muted/16 px-3.5 py-3">
       <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground sm:text-sm">
         {icon}
         {label}
       </p>
-      <p className="mt-1.5 break-words text-sm font-semibold leading-snug capitalize [overflow-wrap:anywhere] sm:text-base">
+      <p className="mt-1.5 wrap-break-word text-sm font-semibold leading-snug capitalize sm:text-base">
         {value}
       </p>
     </div>

@@ -26,9 +26,18 @@ export const CRM_TYPE_GROUPS: CrmTypeGroup[] = [
   { key: 'crm_leads', label: 'Leads', description: 'New leads and lead status changes', icon: UserPlus, color: 'text-amber-600 dark:text-amber-400', types: ['new_lead', 'lead_assigned', 'lead_status_changed'] },
   { key: 'crm_tasks', label: 'Tasks', description: 'Task assignments and due dates', icon: ClipboardList, color: 'text-orange-600 dark:text-orange-400', types: ['crm_task_assigned', 'crm_task_due'] },
   { key: 'crm_messages', label: 'Messages', description: 'New SupraSpace messages', icon: MessageSquare, color: 'text-blue-600 dark:text-blue-400', types: ['crm_message'] },
-  { key: 'crm_timeproof', label: 'TimeProof & Biometrics', description: 'Clock events, idle alerts, and biometric checks', icon: Fingerprint, color: 'text-violet-600 dark:text-violet-400', types: ['crm_biometric', 'crm_timeproof', 'agent_idle', 'agent_idle_escalation'] },
+  { key: 'crm_timeproof', label: 'TimeProof & Biometrics', description: 'Clock events and biometric checks', icon: Fingerprint, color: 'text-violet-600 dark:text-violet-400', types: ['crm_biometric', 'crm_timeproof'] },
   { key: 'crm_aftermarket', label: 'Aftermarket', description: 'Inquiries, invoices, and orders', icon: Tag, color: 'text-emerald-600 dark:text-emerald-400', types: ['aftermarket_inquiry', 'aftermarket_invoice', 'aftermarket_order'] },
   { key: 'crm_reminders', label: 'Reminders & Access', description: 'Reminders, location-share, and customer call requests', icon: Bell, color: 'text-rose-600 dark:text-rose-400', types: ['reminder', 'location_share_requested', 'customer_call_requested'] },
+];
+
+// Sub-breakdown for the Admin-Only "Staff Activity" category — every type
+// here always targets an admin/manager watching another agent (see
+// TYPE_CATEGORY_MAP in notification.service.ts), never the agent's own feed.
+export const ADMIN_STAFF_ACTIVITY_TYPE_GROUPS: CrmTypeGroup[] = [
+  { key: 'staff_idle', label: 'Idle Alerts', description: 'Agent idle and prolonged-idle escalation alerts', icon: Fingerprint, color: 'text-violet-600 dark:text-violet-400', types: ['agent_idle', 'agent_idle_escalation'] },
+  { key: 'staff_shift', label: 'Shift & Clock Alerts', description: 'Connection loss, stale clock-out, and location-sharing alerts', icon: Radar, color: 'text-blue-600 dark:text-blue-400', types: ['admin_staff_activity'] },
+  { key: 'staff_screen_recording', label: 'Screen Recording Alerts', description: 'Mac screen-recording permission revoked', icon: ShieldAlert, color: 'text-red-600 dark:text-red-400', types: ['agent_screen_recording_missing'] },
 ];
 
 export interface NotificationPreferenceCategory {
@@ -65,7 +74,7 @@ export const notificationPreferenceCategories: NotificationPreferenceCategory[] 
 export const adminNotificationPreferenceCategories: NotificationPreferenceCategory[] = [
   { key: 'adminBroadcasts', label: 'Broadcasts', description: 'Org-wide announcements sent by admins', icon: Radio, color: 'from-fuchsia-500 to-pink-600', adminOnly: true },
   { key: 'adminSystemAlerts', label: 'System Alerts', description: 'Platform and system-level alerts', icon: AlertTriangle, color: 'from-orange-500 to-red-500', adminOnly: true },
-  { key: 'adminStaffActivity', label: 'Staff Activity', description: 'Staff/employee activity requiring admin attention', icon: Activity, color: 'from-blue-500 to-indigo-600', adminOnly: true },
+  { key: 'adminStaffActivity', label: 'Staff Activity', description: 'Staff/employee activity requiring admin attention', icon: Activity, color: 'from-blue-500 to-indigo-600', adminOnly: true, typeGroups: ADMIN_STAFF_ACTIVITY_TYPE_GROUPS },
   { key: 'adminSecurityAudit', label: 'Security & Audit', description: 'Security-sensitive and audit-relevant events', icon: ShieldAlert, color: 'from-red-500 to-rose-600', adminOnly: true },
 ];
 

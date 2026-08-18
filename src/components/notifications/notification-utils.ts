@@ -196,6 +196,7 @@ const TYPE_LABELS: Record<string, string> = {
   location_share_requested: 'Location Share Requested',
   agent_idle: 'Went Idle',
   agent_idle_escalation: 'Idle 15+ Minutes',
+  agent_screen_recording_missing: 'Screen Recording Permission Revoked',
   aftermarket_inquiry: 'Aftermarket Inquiry',
   aftermarket_invoice: 'Aftermarket Invoice',
   aftermarket_order: 'Aftermarket Order',
@@ -265,6 +266,7 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type === 'admin_system_alert') return 'adminSystemAlerts';
   if (type === 'admin_staff_activity') return 'adminStaffActivity';
   if (type === 'admin_security_audit') return 'adminSecurityAudit';
+  if (type === 'agent_idle' || type === 'agent_idle_escalation' || type === 'agent_screen_recording_missing') return 'adminStaffActivity';
   return 'system';
 }
 
@@ -286,6 +288,9 @@ const LOCATOR_NOTIFICATION_TYPES = new Set([
   'location_share_requested',
   'admin_staff_activity',
   'crm_timeproof',
+  'agent_idle',
+  'agent_idle_escalation',
+  'agent_screen_recording_missing',
 ]);
 
 export function isLocatorNotification(notification: Notification): boolean {

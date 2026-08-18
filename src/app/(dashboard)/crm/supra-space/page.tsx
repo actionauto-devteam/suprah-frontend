@@ -13,7 +13,7 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
-  MoreHorizontal, Copy, GripVertical, Link2, Star, MailOpen, Share2,
+  MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2, RefreshCw,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
 } from 'lucide-react';
@@ -55,7 +55,7 @@ import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { StoriesRail } from '@/components/dashboard/StoriesRail';
-import { InstallSupraSpaceButton } from '@/components/supraspace/InstallSupraSpaceButton';
+import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -714,7 +714,7 @@ function insertSoftLineBreakWithCaretFormatting(
 }
 
 function stripSupraSpaceTypingMarkers(value: string): string {
-  return value.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+  return value.replace(/[\u200B\u2060\uFEFF]/g, '');
 }
 
 function clipboardElementIsHidden(element: HTMLElement): boolean {
@@ -745,7 +745,7 @@ function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
   const className = String(element.className || '').toLowerCase();
   const rawStyle = (element.getAttribute('style') || '').toLowerCase();
   const text = (element.textContent || '')
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u200B\u2060\uFEFF]/g, '')
     .replace(/\u00A0/g, ' ')
     .trim();
   const markerOnly = /^(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])$/u.test(text);
@@ -1568,7 +1568,7 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
 function htmlToMarkdown(el: HTMLElement): string {
   const walk = (node: Node, listDepth = 0): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1726,7 +1726,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .map(child => walk(child, 0))
       .join('')
       .replace(/\u00A0/g, ' ')
-      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+      .replace(/[\u200B\u2060\uFEFF]/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
@@ -1737,7 +1737,7 @@ function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1783,7 +1783,7 @@ function clipboardHtmlToPlainText(html: string): string {
 
 const VIN_LIKE_TOKEN = /[A-HJ-NPR-Z0-9]{17}/g;
 const SERIAL_LIKE_TOKEN = /[A-Z0-9][A-Z0-9-]{6,}[A-Z0-9]/g;
-const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B-\u200D\uFEFF]{6,}[A-Z0-9]/g;
+const SERIAL_WORD_TOKEN = /[A-Z0-9][A-Z0-9\-\u200B\uFEFF]{6,}[A-Z0-9]/g;
 
 function serialLikeTokens(text: string): string[] {
   const normalized = text.toUpperCase();
@@ -1955,7 +1955,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 
 function stripListMarkerNoise(value: string): string {
   return value
-    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ');
 }
 
@@ -1967,7 +1967,7 @@ function normalizeListExitLineSpacing(value: string): string {
     SS4_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line);
 
   return lines.map((line, index) => {
-    let nextLine = line.replace(/^[\u200B-\u200D\u2060\uFEFF]+/, '');
+    let nextLine = line.replace(/^[\u200B\u2060\uFEFF]+/, '');
 
     if (
       index > 0
@@ -2026,7 +2026,7 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
 
     const original = firstText.data;
     let normalized = original.replace(
-      /^[\u00A0\u200B-\u200D\u2060\uFEFF]+/,
+      /^[\u00A0\u200B\u2060\uFEFF]+/,
       '',
     );
 
@@ -2138,7 +2138,7 @@ function shouldUsePlainTextListLayout(plainText: string, editorHtml: string): bo
 function normalizeEditorHtmlListArtifacts(html: string): string {
   const marker = String.raw`[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014]`;
   const markerOnlyLineRe = new RegExp(
-    String.raw`(^|<br\s*\/?>)\s*(${marker})(?:&nbsp;|\s|[\u200b-\u200d\ufeff])*<br\s*\/?>\s*`,
+    String.raw`(^|<br\s*\/?>)\s*(${marker})(?:&nbsp;|\s|[\u200b\ufeff])*<br\s*\/?>\s*`,
     'gi',
   );
 
@@ -2153,7 +2153,7 @@ function normalizeEditorHtmlListArtifacts(html: string): string {
   }
 
   return normalized
-    .replace(/(?:&nbsp;|\s|[\u200b-\u200d\ufeff])+(<br\s*\/?>)/gi, '$1')
+    .replace(/(?:&nbsp;|\s|[\u200b\ufeff])+(<br\s*\/?>)/gi, '$1')
     .replace(/(<br\s*\/?>){3,}/gi, '<br><br>')
     .replace(/^(<br\s*\/?>)+/gi, '')
     .replace(/(<br\s*\/?>)+$/gi, '');
@@ -2187,7 +2187,7 @@ function clipboardHtmlToListAwareText(html: string): string {
 
   const pushLine = (value: string) => {
     const clean = value
-      .replace(/[\u200b-\u200d\ufeff]/g, '')
+      .replace(/[\u200b\ufeff]/g, '')
       .replace(/\u00a0/g, ' ')
       .replace(/[ \t]*\n[ \t]*/g, ' ')
       .replace(/[ \t]{2,}/g, ' ')
@@ -2258,7 +2258,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const normalizeListItemText = (value: string): string => value
-    .replace(/[\u200b-\u200d\ufeff]/g, '')
+    .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ')
     .replace(/[ \t]*\n[ \t]*/g, ' ')
     .replace(/[ \t]{2,}/g, ' ')
@@ -2442,7 +2442,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       return escapeHtmlText(
-        (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''),
+        (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, ''),
       );
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
@@ -2844,7 +2844,7 @@ function normalizePastedListArtifacts(text: string): string {
   const markerOnlyRe = new RegExp(String.raw`^\s*${marker}\s*$`);
   const realListItemRe = new RegExp(String.raw`^\s*${marker}\s+\S`);
   const cleanLine = (line: string) => stripListMarkerNoise(line);
-  const trimLineStart = (line: string) => stripListMarkerNoise(line).replace(/^[\s\u200b-\u200d\ufeff]+/, '');
+  const trimLineStart = (line: string) => stripListMarkerNoise(line).replace(/^[\s\u200b\ufeff]+/, '');
   const isMarkerOnly = (line: string) => {
     const clean = cleanLine(line).trim();
     return markerOnlyRe.test(clean) || ['\u2022', '\u00b7', '\u2023', '\u2043', '\u25aa', '\u25ab', '\u25cf', '\u25cb', '-', '*', '+', '\u2013', '\u2014'].includes(clean);
@@ -2893,7 +2893,7 @@ function normalizeMessageMarkdownText(text: string): string {
 }
 
 function hasSplitListMarkerLines(text: string): boolean {
-  const markerOnlyRe = /^[\s\u200b-\u200d\ufeff]*[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014][\s\u200b-\u200d\ufeff]*$/;
+  const markerOnlyRe = /^[\s\u200b\ufeff]*[\u2022\u00b7\u2023\u2043\u25aa\u25ab\u25cf\u25cb\-*+\u2013\u2014][\s\u200b\ufeff]*$/;
   const lines = stripListMarkerNoise(text).replace(/\r\n?/g, '\n').split('\n');
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -3766,7 +3766,7 @@ const Bubble = React.memo(function Bubble({
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
   onPin?: (id: string) => void; isPinned?: boolean;
-  onOpenMedia?: (v: { src: string; type: 'image' | 'video'; name: string }) => void;
+  onOpenMedia?: (v: { src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number }) => void;
   onReact: (id: string, emoji: string) => void;
   onVotePoll: (id: string, optionId: string) => void;
   onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
@@ -5489,10 +5489,11 @@ const Bubble = React.memo(function Bubble({
                   <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
                 </button>
               );
+              const gallery = images.map(im => ({ src: im.url, type: 'image' as const, name: im.originalName }));
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
                   {images.map((att, i) => (
-                    <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName })}
+                    <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName, gallery, index: i })}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
                       <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
                     </button>
@@ -5840,11 +5841,19 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
   ];
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+      <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ background: 'var(--bg-elevated)', maxHeight: 'min(85dvh, 640px)' }}>
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>New Conversation</h2>
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
+        { /* NewConvModal used to be a fixed-height block clipped by the parent's
+           overflow-hidden — fine on desktop, but on mobile with the on-screen
+           keyboard open (shrinking the visible viewport) the "Send Message /
+           Create Channel" button at the bottom could be pushed past the clip
+           and become completely unreachable, with no scrollbar to recover it.
+           Making this region scroll internally (with the header pinned above)
+           guarantees the action button is always reachable. */ }
+        <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
         <div className="px-4 pt-4 pb-3">
           <div className="ss4-tab-bar flex gap-1">
             {TABS.map(t => (
@@ -5930,12 +5939,17 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
             </button>
           )}
         </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image' | 'video'; name: string; onClose: () => void }) {
+function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPosition }: {
+  src: string; type: 'image' | 'video'; name: string; onClose: () => void;
+  onPrev?: () => void; onNext?: () => void;
+  galleryPosition?: { index: number; total: number };
+}) {
   const [downloading, setDownloading] = React.useState(false);
   const [zoom, setZoom] = React.useState(1);
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
@@ -5945,10 +5959,14 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
   const hasDraggedRef = React.useRef(false);
 
   React.useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft' && onPrev) onPrev();
+      else if (e.key === 'ArrowRight' && onNext) onNext();
+    };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext]);
 
   React.useEffect(() => {
     setZoom(1);
@@ -6042,7 +6060,12 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
         style={{ height: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}
       >
-        <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', maxWidth: '55%' }}>{name}</p>
+        <div className="flex items-center gap-2 min-w-0" style={{ maxWidth: '55%' }}>
+          <p className="font-medium truncate" style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{name}</p>
+          {galleryPosition && (
+            <span className="shrink-0" style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{galleryPosition.index + 1} / {galleryPosition.total}</span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {type === 'image' && (
             <div className="hidden sm:flex items-center gap-1">
@@ -6069,6 +6092,29 @@ function LightboxModal({ src, type, name, onClose }: { src: string; type: 'image
           </button>
         </div>
       </div>
+
+      {onPrev && (
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onPrev(); }}
+          className="ss4-icon-btn h-10 w-10 flex items-center justify-center"
+          style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', zIndex: 1 }}
+          title="Previous"
+        >
+          <ChevronLeft className="h-5 w-5" style={{ color: '#fff' }} />
+        </button>
+      )}
+      {onNext && (
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onNext(); }}
+          className="ss4-icon-btn h-10 w-10 flex items-center justify-center"
+          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', zIndex: 1 }}
+          title="Next"
+        >
+          <ChevronLeft className="h-5 w-5 rotate-180" style={{ color: '#fff' }} />
+        </button>
+      )}
 
       { }
       <div
@@ -6890,8 +6936,11 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
 function PeoplePanel({ users, presence, uid, onSelect }: {
   users: CrmUser[]; presence: PresenceMap; uid: string; onSelect: (userId: string) => void;
 }) {
-  const online = users.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
-  const offline = users.filter(u => u._id !== uid && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
+  const [query, setQuery] = React.useState('');
+  const q = query.trim().toLowerCase();
+  const matches = (u: CrmUser) => !q || u.fullName?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
+  const online = users.filter(u => u._id !== uid && matches(u) && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
+  const offline = users.filter(u => u._id !== uid && matches(u) && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
   const Row = (u: CrmUser, isOn: boolean) => {
     const status = presence[u._id]?.onlineStatus ?? 'offline';
     return (
@@ -6911,23 +6960,45 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
     );
   };
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
-      {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online · {online.length}</span></div>}
-      {online.map(u => Row(u, true))}
-      {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
-      {offline.map(u => Row(u, false))}
-      {users.length <= 1 && (
-        <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
-          <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No teammates yet</p>
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="px-4 pt-3 pb-2 shrink-0">
+        <div className="relative">
+          <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search people…"
+            className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input"
+            style={{ fontFamily: 'Geist, sans-serif' }}
+          />
         </div>
-      )}
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
+        {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online · {online.length}</span></div>}
+        {online.map(u => Row(u, true))}
+        {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
+        {offline.map(u => Row(u, false))}
+        {users.length <= 1 && (
+          <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
+            <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No teammates yet</p>
+          </div>
+        )}
+        {users.length > 1 && online.length === 0 && offline.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
+            <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No one matches &quot;{query}&quot;</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function SupraSpaceSettingsPanel() {
-  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = useCrmWebPush();
+function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
+  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshSubscription } = useCrmWebPush();
+  const { theme, setTheme } = useTheme();
   const [soundOn, setSoundOnState] = React.useState(true);
+  const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported'>('default');
+  const [rechecking, setRechecking] = React.useState(false);
 
   React.useEffect(() => {
     setSoundOnState(isSoundEnabled());
@@ -6936,8 +7007,37 @@ function SupraSpaceSettingsPanel() {
     return () => window.removeEventListener('ss_sound_changed', onChange);
   }, []);
 
+  React.useEffect(() => {
+    setPermission(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+  }, [isSubscribed]);
+
+  const recheckPermission = async () => {
+    setRechecking(true);
+    try {
+      setPermission(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+      await refreshSubscription();
+    } finally {
+      setRechecking(false);
+    }
+  };
+
+  const permissionLabel = permission === 'granted' ? 'Allowed' : permission === 'denied' ? 'Blocked' : permission === 'unsupported' ? 'Unsupported' : 'Not requested yet';
+  const permissionColor = permission === 'granted' ? 'var(--positive)' : permission === 'denied' ? 'var(--negative, #ef4444)' : 'var(--text-tertiary)';
+
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4">
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
+      {me && (
+        <div className="flex items-center gap-3 pb-4 mb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
+            {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{me.fullName}</p>
+            <p className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{me.role || 'Team member'}</p>
+          </div>
+        </div>
+      )}
+
       <span className="ss4-section-label">Notifications</span>
       <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
         <div className="flex items-center gap-3 min-w-0">
@@ -6962,6 +7062,26 @@ function SupraSpaceSettingsPanel() {
       </div>
       <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
         <div className="flex items-center gap-3 min-w-0">
+          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: permissionColor }} />
+          <div className="min-w-0">
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Notification permission</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {permissionLabel}{permission === 'denied' && ' — re-enable in site settings'}
+            </p>
+          </div>
+        </div>
+        <button
+          disabled={rechecking}
+          onClick={recheckPermission}
+          className="ss4-icon-btn h-7 w-7 shrink-0 flex items-center justify-center"
+          style={{ opacity: rechecking ? 0.6 : 1 }}
+          title="Recheck permission"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', rechecking && 'animate-spin')} />
+        </button>
+      </div>
+      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-3 min-w-0">
           {soundOn ? <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <VolumeX className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
           <div className="min-w-0">
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Message sound</p>
@@ -6972,6 +7092,24 @@ function SupraSpaceSettingsPanel() {
           {soundOn ? 'On' : 'Off'}
         </button>
       </div>
+      <div className="py-3">
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Per-conversation alerts (mute, mentions-only, etc.) are set from a chat&apos;s <strong>⋮ → Notification settings</strong>.</p>
+      </div>
+
+      <span className="ss4-section-label">Appearance</span>
+      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          {theme === 'dark' ? <Moon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+          <div className="min-w-0">
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Theme</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
+          </div>
+        </div>
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="ss4-icon-btn h-7 px-3 shrink-0" style={{ fontSize: 11, fontWeight: 600 }}>
+          Switch
+        </button>
+      </div>
+
       <div className="py-1">
         <span className="ss4-section-label">App</span>
         <div className="py-2">
@@ -7373,6 +7511,14 @@ export default function SupraSpacePage() {
   const [customScheduleAt, setCustomScheduleAt] = React.useState('');
   const sendLongPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendLongPressTriggeredRef = React.useRef(false);
+  // `sending` state flips back to false as soon as the composer is cleared
+  // (see handleSend) so typing the next message isn't blocked while an
+  // upload/post is still in flight — but that same early reset let a fast
+  // double-click/double-tap/Enter-repeat slip past the `sending` guard and
+  // re-run handleSend before the first request finished, uploading the same
+  // attachment twice. This ref is a separate, synchronous lock held for the
+  // full duration of the network call regardless of when `sending` flips.
+  const sendInFlightRef = React.useRef(false);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
   const [messageScrollActive, setMessageScrollActive] = React.useState(false);
@@ -7422,15 +7568,14 @@ export default function SupraSpacePage() {
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'people' | 'settings'>('chats');
   // The tabbed layout (Chats/People/Settings) + Stories rail are exclusive to
-  // the installed standalone SupraSpace PWA — a regular browser tab (desktop
-  // or otherwise, not installed) keeps the original single-list sidebar
-  // unchanged. Standalone-ness can't change during a session without a
-  // reload, so a one-time check on mount is enough.
+  // the installed standalone SupraSpace PWA — a regular browser tab, and the
+  // main Suprah AI app's own install (which shares display-mode: standalone
+  // but was never launched at SupraSpace's start_url) both keep the original
+  // single-list sidebar unchanged. Standalone-ness can't change during a
+  // session without a reload, so a one-time check on mount is enough.
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
   React.useEffect(() => {
-    setIsStandaloneApp(
-      window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
-    );
+    setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -7514,7 +7659,7 @@ export default function SupraSpacePage() {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const emojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiRef = React.useRef<HTMLDivElement>(null);
-  const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string } | null>(null);
+  const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number } | null>(null);
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
 
@@ -8697,6 +8842,7 @@ export default function SupraSpacePage() {
     const hasPendingMeeting = !!pendingMeeting;
     const hasPendingGif = !!pendingGif;
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
+    if (sendInFlightRef.current) return;
     const conversationId = activeId;
     const visibleComposerText = textareaRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim();
@@ -8725,6 +8871,7 @@ export default function SupraSpacePage() {
       return;
     }
     setSending(true);
+    sendInFlightRef.current = true;
     sendTypingStop(conversationId);
     let optimisticTextId: string | null = null;
     let optimisticAttachmentId: string | null = null;
@@ -8861,7 +9008,7 @@ export default function SupraSpacePage() {
         if (!currentDraft.trim()) syncComposerText(content, true);
         showUploadNotice('error', getErrorMessage(error, 'Message failed to send.'));
       }
-    } finally { setSending(false); setUploading(false); }
+    } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
 
   const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
@@ -10242,11 +10389,11 @@ export default function SupraSpacePage() {
       const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: targetId }, { headers: { Authorization: `Bearer ${token}` } });
       const c = r.data?.data;
       setConvos(p => p.find(x => x._id === c._id) ? p : [c, ...p]); openConversation(c._id);
-    } catch { }
+    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to start conversation.')); }
   };
   const handleGroup = async (name: string, ids: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
-    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); openConversation(r.data?.data._id); } catch { }
+    try { const r = await apiClient.post('/api/supraspace/conversations/group', { name, emoji, memberIds: ids }, { headers: { Authorization: `Bearer ${token}` } }); setConvos(p => [r.data?.data, ...p]); openConversation(r.data?.data._id); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create channel.')); }
   };
   const handleCreateSpace = async (name: string, convIds: string[], emoji?: string) => {
     setShowModal({ open: false, tab: 'dm' });
@@ -10254,7 +10401,7 @@ export default function SupraSpacePage() {
       const r = await apiClient.post('/api/supraspace/spaces', { name, emoji }, { headers: { Authorization: `Bearer ${token}` } });
       const newSpaceId = r.data?.data?._id;
       refreshSpaces();
-    } catch { }
+    } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create space.')); }
   };
   const handleMoveToSpace = React.useCallback(async (convId: string, spaceId: string | null) => {
     try {
@@ -10525,26 +10672,34 @@ export default function SupraSpacePage() {
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
-            <div className="flex items-center gap-3">
-              {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px" style={{ background: 'var(--border-2)' }} /></>)}
-              <div className="flex items-center gap-2.5">
-                <SupraSpaceLogo size={32} className="shrink-0" />
-                <div>
-                  <div className="flex items-center gap-1.5 leading-none">
-                    <p className="ss4-display font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
-                    {isConnected && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
-                  </div>
-                  <p className="leading-none mt-0.5 font-medium" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
-                </div>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8 shrink-0"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px shrink-0" style={{ background: 'var(--border-2)' }} /></>)}
+              <SupraSpaceLogo size={32} className="shrink-0" />
+              <div className="flex items-center gap-1.5 leading-none min-w-0">
+                <p className="ss4-display font-bold truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
+                {isConnected && <span className="shrink-0 hidden sm:inline" style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
               </div>
             </div>
-            <div className="flex items-center gap-1 sm:gap-2">
-              <MountainTimeClock compact />
-              <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
-                <Wifi className="h-3.5 w-3.5" />
-                <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
-              </button>
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <div className="hidden sm:flex items-center gap-2">
+                <MountainTimeClock compact />
+                <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
+                  <Wifi className="h-3.5 w-3.5" />
+                  <span className="font-semibold" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
+                </button>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="ss4-icon-btn h-8 w-8 sm:hidden" title="More"><MoreVertical className="h-4 w-4" /></button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                  <div className="px-3 py-2"><MountainTimeClock compact /></div>
+                  <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setActiveUsersOpen(true)}>
+                    <Wifi className="h-3.5 w-3.5" /> {allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active now
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
               <InstallSupraSpaceButton variant="icon" />
             </div>
@@ -10589,11 +10744,6 @@ export default function SupraSpacePage() {
             )}
 
             <div style={{ display: sidebarTab === 'chats' ? 'contents' : 'none' }}>
-              {isStandaloneApp && (
-                <div className="shrink-0 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
-                  <StoriesRail me={{ fullName: myFullName, avatar: myAvatar }} />
-                </div>
-              )}
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">Messages</span>
@@ -10858,15 +11008,20 @@ export default function SupraSpacePage() {
             </div>
 
             {isStandaloneApp && sidebarTab === 'people' && (
-              <PeoplePanel
-                users={allUsers}
-                presence={presence}
-                uid={uid}
-                onSelect={(targetId) => { setSidebarTab('chats'); handleDM(targetId); }}
-              />
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="shrink-0 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
+                  <StoriesRail me={{ fullName: myFullName, avatar: myAvatar }} />
+                </div>
+                <PeoplePanel
+                  users={allUsers}
+                  presence={presence}
+                  uid={uid}
+                  onSelect={(targetId) => { setSidebarTab('chats'); handleDM(targetId); }}
+                />
+              </div>
             )}
 
-            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel />}
+            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel me={me} />}
           </aside>
 
           { }
@@ -12196,7 +12351,26 @@ export default function SupraSpacePage() {
           );
         })()}
 
-        {lightbox && <LightboxModal src={lightbox.src} type={lightbox.type} name={lightbox.name} onClose={() => setLightbox(null)} />}
+        {lightbox && (() => {
+          const gallery = lightbox.gallery;
+          const index = lightbox.index ?? 0;
+          const hasGallery = !!gallery && gallery.length > 1;
+          const goTo = (i: number) => setLightbox(prev => {
+            if (!prev?.gallery?.[i]) return prev;
+            return { ...prev, src: prev.gallery[i].src, type: prev.gallery[i].type, name: prev.gallery[i].name, index: i };
+          });
+          return (
+            <LightboxModal
+              src={lightbox.src}
+              type={lightbox.type}
+              name={lightbox.name}
+              onClose={() => setLightbox(null)}
+              onPrev={hasGallery && index > 0 ? () => goTo(index - 1) : undefined}
+              onNext={hasGallery && index < gallery!.length - 1 ? () => goTo(index + 1) : undefined}
+              galleryPosition={hasGallery ? { index, total: gallery!.length } : undefined}
+            />
+          );
+        })()}
 
         { }
         {convMobileSheet && (() => {

@@ -1,32 +1,45 @@
 'use client';
 
 import * as React from 'react';
-import { Download, Share, PlusSquare, X, Check } from 'lucide-react';
+import { Download, Share, PlusSquare, X, Check, MoreVertical, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-function isIOSDevice(): boolean {
-  return typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+type Platform = 'ios' | 'android' | 'desktop';
+
+function detectPlatform(): Platform {
+  if (typeof navigator === 'undefined') return 'desktop';
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  return 'desktop';
 }
 
 // There's no cross-browser API to ask "was I launched from the SupraSpace
-// install or the main app install" — both share an origin. Standalone mode
-// + landing on this route is the closest reliable signal, since SupraSpace's
-// start_url points here.
-function isRunningAsSupraSpaceStandalone(): boolean {
+// install or the main app install" — both share an origin. A standalone
+// window's Navigation Timing entry records the URL the *document* actually
+// loaded at, which stays fixed across later client-side (SPA) navigation —
+// unlike location.pathname, which would also read /crm/supra-space if the
+// main app's shell was simply navigated there. Only a document that was
+// entered directly at /crm/supra-space (SupraSpace's own start_url) means
+// SupraSpace itself was launched, not the main app's shell.
+export function isRunningAsSupraSpaceStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
-  return standalone && window.location.pathname.startsWith('/crm/supra-space');
+  if (!standalone) return false;
+  const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  const entryPath = nav ? new URL(nav.name).pathname : window.location.pathname;
+  return entryPath.startsWith('/crm/supra-space');
 }
 
 export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon' | 'row' }) {
   const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
   const [installed, setInstalled] = React.useState(false);
-  const [showIOSHint, setShowIOSHint] = React.useState(false);
-  const [checkedIOS, setCheckedIOS] = React.useState(false);
+  const [showHint, setShowHint] = React.useState(false);
+  const [platform, setPlatform] = React.useState<Platform>('desktop');
 
   React.useEffect(() => {
     setInstalled(isRunningAsSupraSpaceStandalone());
-    setCheckedIOS(isIOSDevice());
+    setPlatform(detectPlatform());
     const onBip = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
     const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); };
     window.addEventListener('beforeinstallprompt', onBip);
@@ -44,10 +57,8 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       setDeferredPrompt(null);
       return;
     }
-    if (checkedIOS) setShowIOSHint(true);
+    setShowHint(true);
   };
-
-  const canInstall = !!deferredPrompt || checkedIOS;
 
   if (installed) {
     if (variant !== 'row') return null;
@@ -58,8 +69,6 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       </div>
     );
   }
-
-  if (!canInstall) return null;
 
   return (
     <>
@@ -74,7 +83,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       </button>
 
       <AnimatePresence>
-        {showIOSHint && (
+        {showHint && (
           <motion.div
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -85,7 +94,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
             <div className="relative overflow-hidden rounded-t-4xl bg-background border-t border-x border-border/50 p-7 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.5)] mx-auto max-w-md">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 mb-6" />
               <button
-                onClick={() => setShowIOSHint(false)}
+                onClick={() => setShowHint(false)}
                 className="absolute right-6 top-7 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
               >
                 <X className="h-6 w-6" />
@@ -98,25 +107,74 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
                   </p>
                 </div>
                 <div className="bg-muted/20 rounded-2xl p-5 space-y-5">
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
-                      <Share className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-foreground">Step 1</p>
-                      <p className="text-[13px] text-muted-foreground">Tap the <strong>Share</strong> button in Safari's toolbar</p>
-                    </div>
-                  </div>
-                  <div className="ml-5 border-l border-dashed border-border h-4" />
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
-                      <PlusSquare className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-foreground">Step 2</p>
-                      <p className="text-[13px] text-muted-foreground">Scroll down and select <strong>Add to Home Screen</strong></p>
-                    </div>
-                  </div>
+                  {platform === 'ios' ? (
+                    <>
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <Share className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">Step 1</p>
+                          <p className="text-[13px] text-muted-foreground">Tap the <strong>Share</strong> button in Safari&apos;s toolbar</p>
+                        </div>
+                      </div>
+                      <div className="ml-5 border-l border-dashed border-border h-4" />
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <PlusSquare className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">Step 2</p>
+                          <p className="text-[13px] text-muted-foreground">Scroll down and select <strong>Add to Home Screen</strong></p>
+                        </div>
+                      </div>
+                    </>
+                  ) : platform === 'android' ? (
+                    <>
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <MoreVertical className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">Step 1</p>
+                          <p className="text-[13px] text-muted-foreground">Tap the <strong>⋮ menu</strong> in your browser&apos;s toolbar</p>
+                        </div>
+                      </div>
+                      <div className="ml-5 border-l border-dashed border-border h-4" />
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <PlusSquare className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">Step 2</p>
+                          <p className="text-[13px] text-muted-foreground">Select <strong>Install app</strong> or <strong>Add to Home screen</strong></p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <PlusCircle className="h-5 w-5 text-blue-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">Step 1</p>
+                          <p className="text-[13px] text-muted-foreground">Click the <strong>install icon</strong> in your address bar</p>
+                        </div>
+                      </div>
+                      <div className="ml-5 border-l border-dashed border-border h-4" />
+                      <div className="flex items-center gap-4 text-left">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background border border-border shadow-sm">
+                          <MoreVertical className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-foreground">No install icon?</p>
+                          <p className="text-[13px] text-muted-foreground">Open the <strong>⋮ menu</strong> → <strong>Install SupraSpace…</strong></p>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/70 pt-1">Not seeing either option? Your browser may not support installing apps — try Chrome or Edge.</p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

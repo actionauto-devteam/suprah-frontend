@@ -402,9 +402,9 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
         <div className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent z-10" />
 
         <CardContent className="p-0">
-          <div className="flex flex-col 2xl:flex-row 2xl:min-h-80">
-            {/* Hero Image / Placeholder Panel — wider, taller */}
-            <div className="relative w-full h-56 sm:h-64 2xl:h-auto 2xl:w-80 overflow-hidden shrink-0 bg-muted/30">
+          <div className="flex flex-col lg:flex-row lg:min-h-64">
+            {/* Hero Image / Placeholder Panel */}
+            <div className="relative w-full h-56 sm:h-64 lg:h-auto lg:w-52 xl:w-60 2xl:w-72 overflow-hidden shrink-0 bg-muted/30">
               {heroImage ? (
                 <img
                   src={heroImage}
@@ -439,13 +439,23 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
               <div className="absolute top-3 right-3 size-4 border-t border-r border-white/25 rounded-tr pointer-events-none" />
               <div className="absolute bottom-3 right-3 size-4 border-b border-r border-white/25 rounded-br pointer-events-none" />
 
-              <div className="absolute bottom-4 left-4 flex flex-col gap-0.5">
+              <div
+                className={cn(
+                  "absolute bottom-4 left-4 flex min-w-0 flex-col gap-0.5",
+                  extraImageCount > 0 ? "right-16" : "right-4",
+                )}
+              >
                 <span className="text-[10px] font-black text-white/70 uppercase tracking-[0.25em]">Load</span>
-                <span className="text-base lg:text-lg font-black text-white font-mono tracking-tight drop-shadow">{load.loadNumber}</span>
+                <span
+                  title={load.loadNumber}
+                  className="truncate text-sm sm:text-base lg:text-lg font-black text-white font-mono tracking-tight drop-shadow"
+                >
+                  {load.loadNumber}
+                </span>
               </div>
 
               {extraImageCount > 0 && (
-                <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black text-white/90 uppercase tracking-wider">
+                <div className="absolute bottom-4 right-4 flex shrink-0 items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black text-white/90 uppercase tracking-wider">
                   <Layers className="size-2.5" /> +{extraImageCount}
                 </div>
               )}
