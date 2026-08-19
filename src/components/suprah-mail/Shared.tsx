@@ -161,8 +161,8 @@ export function EmptyState({ icon, title, hint }: {
   return (
     <div className="flex flex-col items-center gap-2 py-16 px-6 text-center">
       <div className="mb-1" style={{ color: 'var(--text-disabled)' }}>{icon}</div>
-      {title && <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{title}</p>}
-      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', maxWidth: 300, lineHeight: 1.5 }}>{hint}</p>
+      {title && <p className="sm5-title-md">{title}</p>}
+      <p className="sm5-supporting" style={{ maxWidth: 300 }}>{hint}</p>
     </div>
   );
 }
@@ -190,11 +190,11 @@ export function ConnectGmailScreen({ connecting, onConnect }: {
           <Mail className="h-7 w-7" style={{ color: 'var(--accent)' }} />
         </div>
         <div>
-          <p className="sm5-display font-bold" style={{ fontSize: 20, color: 'var(--text-primary)' }}>
+          <p className="sm5-title-xl">
             Connect your Gmail
           </p>
-          <p className="mt-2 leading-relaxed" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            Suprah Mail brings your Gmail inbox and email-powered conversations into the platform.
+          <p className="sm5-body mt-2">
+            Suprah One Desk brings your Gmail inbox and email-powered conversations into the platform.
             Read, send, reply, and manage attachments — everything stays synchronized with Gmail in real time.
           </p>
         </div>
@@ -202,7 +202,7 @@ export function ConnectGmailScreen({ connecting, onConnect }: {
           {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
           {connecting ? 'Opening Google…' : 'Connect Gmail account'}
         </button>
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+        <p className="sm5-helper">
           You'll be redirected to Google to grant access. Suprah only requests mail read/send
           permissions and never sees your password.
         </p>

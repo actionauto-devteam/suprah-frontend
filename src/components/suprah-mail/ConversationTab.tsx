@@ -3,7 +3,8 @@
 import * as React from 'react';
 import {
   AlertCircle, Archive, Check as CheckIcon, CheckCheck, ChevronLeft, Download,
-  FileText, Loader2, MessageSquare, Paperclip, Plus, Search, Send, UserPlus, Users, Users2,
+  FileText, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Paperclip,
+  Plus, Search, Send, UserPlus, Users, Users2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -70,38 +71,102 @@ function ConvAttachmentView({ token, convId, message, att, index }: {
 
 /* ── Conversation list row ─────────────────────────────────────────────── */
 
-function ConvRow({ conv, active, onOpen }: { conv: MailConv; active: boolean; onOpen: () => void }) {
+type ConversationMessageSearchMatch = {
+  conversationId: string;
+  messageId: string;
+  snippet: string;
+  fromName?: string;
+  fromEmail?: string;
+  sentAt: string;
+};
+
+function ConvRow({
+  conv,
+  active,
+  collapsed,
+  searchMatch,
+  onOpen,
+}: {
+  conv: MailConv;
+  active: boolean;
+  collapsed: boolean;
+  searchMatch?: ConversationMessageSearchMatch;
+  onOpen: () => void;
+}) {
   const display = convDisplayName(conv);
   const unread = conv.unreadCount > 0;
   const group = isGroupConv(conv);
-  const preview = conv.lastMessagePreview || conv.subject;
-  const previewPrefix = conv.lastMessageDirection === 'outbound'
-    ? 'You: '
-    : (group && conv.lastMessageFromName ? `${conv.lastMessageFromName.split(' ')[0]}: ` : '');
+  const preview = searchMatch?.snippet || conv.lastMessagePreview || conv.subject;
+  const previewPrefix = searchMatch
+    ? ''
+    : conv.lastMessageDirection === 'outbound'
+      ? 'You: '
+      : (group && conv.lastMessageFromName ? `${conv.lastMessageFromName.split(' ')[0]}: ` : '');
 
   return (
     <div
       onClick={onOpen}
-      className={cn('sm5-conv-row flex items-center gap-2.5 px-3 py-2.5', active && 'sm5-conv-active', unread && 'bg-emerald-500/5')}
+      className={cn(
+        'sm5-conv-row relative flex items-center gap-2.5 px-3 py-2.5',
+        active && 'sm5-conv-active',
+        unread && 'bg-emerald-500/5',
+        collapsed && 'lg:justify-center lg:px-2',
+      )}
+      title={collapsed ? display : undefined}
     >
-      <Avatar seed={convAvatarSeed(conv)} size={36} fontSize={12} icon={group ? <Users2 className="h-4 w-4" /> : undefined} />
-      <div className="min-w-0 flex-1">
+      <div className="relative shrink-0">
+        <Avatar seed={convAvatarSeed(conv)} size={36} fontSize={12} icon={group ? <Users2 className="h-4 w-4" /> : undefined} />
+        {collapsed && unread && (
+          <span
+            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white lg:block"
+            aria-label={`${conv.unreadCount} unread`}
+          >
+            {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
+          </span>
+        )}
+      </div>
+      <div className={cn('min-w-0 flex-1', collapsed && 'lg:hidden')}>
         <div className="flex items-center gap-2">
-          <p className={cn('truncate', unread ? 'font-bold' : 'font-semibold')} style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>{display}</p>
+          <p className={cn('sm5-title-sm truncate', unread ? 'font-bold' : 'font-semibold')}>{display}</p>
           <span className="ml-auto shrink-0 sm5-mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
             {conv.lastMessageAt ? fmtListDate(new Date(conv.lastMessageAt).getTime()) : ''}
           </span>
         </div>
         <p
-          className="truncate mt-0.5"
-          style={{ fontSize: 12, fontWeight: unread ? 600 : 400, color: unread ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+          className="sm5-supporting truncate mt-0.5"
+          style={{
+            fontSize: 12,
+            fontWeight: unread ? 600 : 400,
+            color: searchMatch
+              ? 'var(--accent-text)'
+              : unread
+                ? 'var(--text-primary)'
+                : 'var(--text-tertiary)',
+          }}
+          title={searchMatch?.snippet}
         >
+          {searchMatch && (
+            <span className="mr-1 font-bold">Message:</span>
+          )}
           {previewPrefix}{preview}
         </p>
+        {searchMatch && (
+          <p
+            className="truncate mt-0.5"
+            style={{ fontSize: 9.5, color: 'var(--text-tertiary)' }}
+          >
+            {searchMatch.fromName || searchMatch.fromEmail || 'Email message'}
+            {' · '}
+            {fmtListDate(new Date(searchMatch.sentAt).getTime())}
+          </p>
+        )}
       </div>
       {unread && (
         <span
-          className="shrink-0 rounded-full text-white font-bold text-center"
+          className={cn(
+            'shrink-0 rounded-full text-white font-bold text-center',
+            collapsed && 'lg:hidden',
+          )}
           style={{ fontSize: 9, minWidth: 17, height: 17, lineHeight: '17px', padding: '0 4px', background: 'var(--accent)' }}
         >
           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
@@ -112,6 +177,7 @@ function ConvRow({ conv, active, onOpen }: { conv: MailConv; active: boolean; on
 }
 
 /* ── Chat bubbles ──────────────────────────────────────────────────────── */
+
 
 function StatusIcon({ m }: { m: ConvMessage }) {
   if (m.status === 'sending') return <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--text-tertiary)' }} />;
@@ -183,10 +249,20 @@ function ChatBubble({ token, convId, msg, prev, isGroup }: {
 
 /* ── Conversation tab ──────────────────────────────────────────────────── */
 
-export function ConversationTab({ token, convPush, onConvPushHandled }: {
+export function ConversationTab({
+  token,
+  convPushes,
+  onConvPushesHandled,
+  refreshSignal = 0,
+  manualRefreshSignal = 0,
+  onUnreadTotalChange,
+}: {
   token: string;
-  convPush: ConvPushPayload | null;
-  onConvPushHandled: () => void;
+  convPushes: ConvPushPayload[];
+  onConvPushesHandled: (handledCount: number) => void;
+  refreshSignal?: number;
+  manualRefreshSignal?: number;
+  onUnreadTotalChange?: (count: number) => void;
 }) {
   const auth = React.useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -194,6 +270,29 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
   const [loadingConvos, setLoadingConvos] = React.useState(true);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
+  const realtimeRefreshSignalRef = React.useRef(refreshSignal);
+  const manualRefreshSignalRef = React.useRef(manualRefreshSignal);
+
+  const [railCollapsed, setRailCollapsed] = React.useState(false);
+  React.useEffect(() => {
+    setRailCollapsed(
+      localStorage.getItem('sm5_email_chat_rail_collapsed') === '1',
+    );
+  }, []);
+
+  const toggleRail = () => {
+    setRailCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem(
+        'sm5_email_chat_rail_collapsed',
+        next ? '1' : '0',
+      );
+      return next;
+    });
+  };
+  const convosRequestSeqRef = React.useRef(0);
+  const messagesRequestSeqRef = React.useRef<Record<string, number>>({});
+  const realtimeRevisionRef = React.useRef(0);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const [msgs, setMsgs] = React.useState<Record<string, ConvMessage[]>>({});
@@ -205,6 +304,18 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
   const [newOpen, setNewOpen] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [q, setQ] = React.useState('');
+  const [searching, setSearching] = React.useState(false);
+  const [searchRefreshNonce, setSearchRefreshNonce] = React.useState(0);
+  const [searchConvos, setSearchConvos] = React.useState<MailConv[] | null>(null);
+  const [messageSearchMatches, setMessageSearchMatches] = React.useState<
+    Record<string, ConversationMessageSearchMatch>
+  >({});
+  const [searchTarget, setSearchTarget] = React.useState<{
+    conversationId: string;
+    messageId: string;
+  } | null>(null);
+  const searchRequestSeqRef = React.useRef(0);
+  const searchWindowRequestSeqRef = React.useRef(0);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const endRef = React.useRef<HTMLDivElement>(null);
   const sendReqIdRef = React.useRef(0);
@@ -213,92 +324,530 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
   const isGroup = isGroupConv(activeConv);
 
+  const unreadTotal = React.useMemo(
+    () =>
+      convos.reduce(
+        (total: number, conversation: MailConv) =>
+          total + Math.max(0, Number(conversation.unreadCount || 0)),
+        0,
+      ),
+    [convos],
+  );
+
+  React.useEffect(() => {
+    onUnreadTotalChange?.(unreadTotal);
+  }, [onUnreadTotalChange, unreadTotal]);
+
+  // Unified Email Chat search:
+  // one debounced request searches conversation metadata + persisted local
+  // MailMessage text. It never queries Gmail and never starts a per-thread
+  // request storm.
+  React.useEffect(() => {
+    const query = q.trim();
+    const requestSeq = ++searchRequestSeqRef.current;
+
+    if (!query) {
+      setSearching(false);
+      setSearchConvos(null);
+      setMessageSearchMatches({});
+      return;
+    }
+
+    if (query.length < 2) {
+      setSearching(false);
+      setSearchConvos([]);
+      setMessageSearchMatches({});
+      return;
+    }
+
+    setSearching(true);
+    setSearchConvos(null);
+    setMessageSearchMatches({});
+
+    const timer = window.setTimeout(() => {
+      void apiClient
+        .get('/api/mail/conversations', {
+          headers: auth,
+          params: { q: query },
+        })
+        .then((response) => {
+          if (requestSeq !== searchRequestSeqRef.current) return;
+
+          const conversations = Array.isArray(
+            response.data?.data?.conversations,
+          )
+            ? response.data.data.conversations as MailConv[]
+            : [];
+
+          const matches = Array.isArray(
+            response.data?.data?.messageMatches,
+          )
+            ? response.data.data.messageMatches as ConversationMessageSearchMatch[]
+            : [];
+
+          setSearchConvos(conversations);
+          setMessageSearchMatches(
+            Object.fromEntries(
+              matches.map((match) => [
+                match.conversationId,
+                match,
+              ]),
+            ),
+          );
+        })
+        .catch(() => {
+          if (requestSeq !== searchRequestSeqRef.current) return;
+          setSearchConvos([]);
+          setMessageSearchMatches({});
+        })
+        .finally(() => {
+          if (requestSeq === searchRequestSeqRef.current) {
+            setSearching(false);
+          }
+        });
+    }, 280);
+
+    return () => window.clearTimeout(timer);
+  }, [auth, q, searchRefreshNonce]);
+
   /* ── Data fetching ── */
 
   const fetchConvos = React.useCallback(async (silent = false) => {
+    const requestSeq = ++convosRequestSeqRef.current;
+    const realtimeRevisionAtStart = realtimeRevisionRef.current;
+
     if (!silent) setLoadingConvos(true);
+
     try {
-      const r = await apiClient.get('/api/mail/conversations', { headers: auth });
-      setConvos(r.data?.data?.conversations || []);
-    } catch (e) {
-      if (!silent) toast.error(getErrorMessage(e, 'Could not load conversations.'));
+      const response = await apiClient.get('/api/mail/conversations', {
+        headers: auth,
+      });
+
+      // Do not let an older read-only fetch overwrite a socket message that
+      // arrived while the request was in flight.
+      if (
+        requestSeq !== convosRequestSeqRef.current ||
+        realtimeRevisionAtStart !== realtimeRevisionRef.current
+      ) {
+        return;
+      }
+
+      setConvos(response.data?.data?.conversations || []);
+    } catch (error) {
+      if (!silent) {
+        toast.error(
+          getErrorMessage(error, 'Could not load conversations.'),
+        );
+      }
     } finally {
-      setLoadingConvos(false);
+      if (requestSeq === convosRequestSeqRef.current) {
+        setLoadingConvos(false);
+      }
     }
   }, [auth]);
 
   const fetchMessages = React.useCallback(async (convId: string, silent = false) => {
+    const requestSeq =
+      (messagesRequestSeqRef.current[convId] || 0) + 1;
+    messagesRequestSeqRef.current[convId] = requestSeq;
+    const realtimeRevisionAtStart = realtimeRevisionRef.current;
+
     if (!silent) setLoadingMsgs(true);
+
     try {
-      const r = await apiClient.get(`/api/mail/conversations/${convId}/messages`, { headers: auth });
-      setMsgs((p) => ({ ...p, [convId]: r.data?.data?.messages || [] }));
+      const response = await apiClient.get(
+        `/api/mail/conversations/${convId}/messages`,
+        { headers: auth },
+      );
+
+      if (
+        messagesRequestSeqRef.current[convId] !== requestSeq ||
+        realtimeRevisionAtStart !== realtimeRevisionRef.current
+      ) {
+        return;
+      }
+
+      setMsgs((current) => ({
+        ...current,
+        [convId]: response.data?.data?.messages || [],
+      }));
     } catch {
-      /* keep whatever we have */
+      // Keep the last successful/optimistic message state.
     } finally {
-      setLoadingMsgs(false);
+      if (messagesRequestSeqRef.current[convId] === requestSeq) {
+        setLoadingMsgs(false);
+      }
     }
   }, [auth]);
 
+  const fetchMessageSearchWindow = React.useCallback(
+    async (
+      convId: string,
+      match: ConversationMessageSearchMatch,
+    ) => {
+      const requestSeq = ++searchWindowRequestSeqRef.current;
+
+      // Existing messages endpoint already supports `before`. One millisecond
+      // after the matched timestamp makes the matching bubble itself eligible,
+      // then returns up to 100 messages ending at that point in history.
+      const sentAtMs = new Date(match.sentAt).getTime();
+      const before = Number.isFinite(sentAtMs)
+        ? new Date(sentAtMs + 1).toISOString()
+        : undefined;
+
+      try {
+        const response = await apiClient.get(
+          `/api/mail/conversations/${convId}/messages`,
+          {
+            headers: auth,
+            params: {
+              limit: 100,
+              ...(before ? { before } : {}),
+            },
+          },
+        );
+
+        if (
+          requestSeq !== searchWindowRequestSeqRef.current ||
+          activeIdRef.current !== convId
+        ) {
+          return;
+        }
+
+        const windowMessages = Array.isArray(
+          response.data?.data?.messages,
+        )
+          ? response.data.data.messages as ConvMessage[]
+          : [];
+
+        setMsgs((current) => {
+          const map = new Map<string, ConvMessage>();
+
+          for (const message of current[convId] || []) {
+            map.set(message._id, message);
+          }
+          for (const message of windowMessages) {
+            map.set(message._id, message);
+          }
+
+          return {
+            ...current,
+            [convId]: [...map.values()].sort(
+              (a, b) =>
+                new Date(a.sentAt).getTime() -
+                new Date(b.sentAt).getTime(),
+            ),
+          };
+        });
+      } catch {
+        // The normal latest-message load remains usable. Search simply won't
+        // jump if the historical window cannot be retrieved.
+      }
+    },
+    [auth],
+  );
+
   React.useEffect(() => { fetchConvos(); }, [fetchConvos]);
+
+  // Realtime reconciliation remains read-only. Socket/history events may cause
+  // this signal frequently, so it must NEVER trigger another Gmail sync.
+  React.useEffect(() => {
+    if (refreshSignal === realtimeRefreshSignalRef.current) return;
+    realtimeRefreshSignalRef.current = refreshSignal;
+
+    void fetchConvos(true);
+    const currentConversationId = activeIdRef.current;
+    if (currentConversationId) {
+      void fetchMessages(currentConversationId, true);
+    }
+  }, [fetchConvos, fetchMessages, refreshSignal]);
+
+  // Explicit header Refresh:
+  // 1) run the existing Gmail sync so inbound Email Chat ingestion is current;
+  // 2) reload the conversation directory;
+  // 3) reload the exact open conversation;
+  // 4) rerun the current people/message search, if one is active.
+  React.useEffect(() => {
+    if (
+      manualRefreshSignal ===
+      manualRefreshSignalRef.current
+    ) {
+      return;
+    }
+    manualRefreshSignalRef.current =
+      manualRefreshSignal;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await apiClient.post(
+          '/api/mail/sync',
+          {},
+          { headers: auth },
+        );
+      } catch {
+        // Still reconcile the locally persisted Email Chat data below.
+      }
+
+      if (cancelled) return;
+
+      const currentConversationId =
+        activeIdRef.current;
+
+      const work: Promise<unknown>[] = [
+        fetchConvos(true),
+      ];
+
+      if (currentConversationId) {
+        work.push(
+          fetchMessages(
+            currentConversationId,
+            true,
+          ),
+        );
+      }
+
+      await Promise.allSettled(work);
+
+      if (cancelled) return;
+
+      // The search effect owns request sequencing/debouncing/result shaping.
+      // Bumping this nonce reruns the SAME current query instead of clearing
+      // the user's filter.
+      if (q.trim().length >= 2) {
+        setSearchRefreshNonce(
+          (value) => value + 1,
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    auth,
+    fetchConvos,
+    fetchMessages,
+    manualRefreshSignal,
+    q,
+  ]);
 
   /* ── Real-time push from the sync engine / send fan-out ── */
 
   React.useEffect(() => {
-    if (!convPush) return;
-    const { conversationId, message } = convPush;
+    if (convPushes.length === 0) return;
 
-    setMsgs((p) => {
-      const ex = p[conversationId] || [];
-      if (ex.some((m) => m._id === message._id)) {
-        return { ...p, [conversationId]: ex.map((m) => (m._id === message._id ? message : m)) };
+    const batch = convPushes;
+    realtimeRevisionRef.current += 1;
+    let missingConversation = false;
+
+    setMsgs((current) => {
+      const next = { ...current };
+
+      for (const { conversationId, message } of batch) {
+        const existing = next[conversationId] || [];
+        const found = existing.some(
+          (item) => item._id === message._id,
+        );
+
+        next[conversationId] = found
+          ? existing.map((item) =>
+              item._id === message._id ? message : item,
+            )
+          : [...existing, message];
       }
-      return { ...p, [conversationId]: [...ex, message] };
+
+      return next;
     });
 
-    setConvos((p) => {
-      const found = p.find((c) => c._id === conversationId);
-      if (!found) { fetchConvos(true); return p; }
-      return p
-        .map((c) => (c._id === conversationId ? {
-          ...c,
-          lastMessageAt: message.sentAt,
-          lastMessagePreview: message.bodyText?.slice(0, 140) || '📎 Attachment',
-          lastMessageDirection: message.direction,
-          lastMessageFromName: message.fromName,
-          unreadCount: message.direction === 'inbound' && activeIdRef.current !== conversationId
-            ? (c.unreadCount || 0) + 1
-            : (activeIdRef.current === conversationId ? 0 : c.unreadCount),
-        } : c))
-        .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
+    setConvos((current) => {
+      let next = current;
+
+      for (const { conversationId, message } of batch) {
+        const found = next.some(
+          (conversation) =>
+            conversation._id === conversationId,
+        );
+
+        if (!found) {
+          missingConversation = true;
+          continue;
+        }
+
+        next = next.map((conversation) =>
+          conversation._id === conversationId
+            ? {
+                ...conversation,
+                lastMessageAt: message.sentAt,
+                lastMessagePreview:
+                  message.bodyText?.slice(0, 140) ||
+                  '📎 Attachment',
+                lastMessageDirection: message.direction,
+                lastMessageFromName: message.fromName,
+                unreadCount:
+                  message.direction === 'inbound' &&
+                  activeIdRef.current !== conversationId
+                    ? (conversation.unreadCount || 0) + 1
+                    : activeIdRef.current === conversationId
+                      ? 0
+                      : conversation.unreadCount,
+              }
+            : conversation,
+        );
+      }
+
+      return [...next].sort(
+        (a, b) =>
+          new Date(b.lastMessageAt || 0).getTime() -
+          new Date(a.lastMessageAt || 0).getTime(),
+      );
     });
 
-    if (activeIdRef.current === conversationId && message.direction === 'inbound') {
-      apiClient.post(`/api/mail/conversations/${conversationId}/read`, {}, { headers: auth }).catch(() => { });
+    for (const { conversationId, message } of batch) {
+      if (
+        activeIdRef.current === conversationId &&
+        message.direction === 'inbound'
+      ) {
+        apiClient
+          .post(
+            `/api/mail/conversations/${conversationId}/read`,
+            {},
+            { headers: auth },
+          )
+          .catch(() => {});
+      }
     }
-    onConvPushHandled();
-  }, [convPush]); // eslint-disable-line
 
-  /* ── Slow polling fallback ── */
+    // If Gmail created/materialized a conversation that was not yet in this
+    // pane's list, reconcile the list once after all pushes are applied.
+    if (missingConversation) {
+      void fetchConvos(true);
+    }
+
+    // Remove only the batch this render actually consumed. If another socket
+    // message arrived meanwhile, page.tsx keeps that newer tail in the queue.
+    onConvPushesHandled(batch.length);
+  }, [
+    auth,
+    convPushes,
+    fetchConvos,
+    onConvPushesHandled,
+  ]);
+
+  /* ── Automatic reconciliation fallback ─────────────────────────────
+     Owned by page.tsx so a multi-pane workspace never creates duplicate
+     polling loops. Socket pushes remain the fast path.
+  ─────────────────────────────────────────────────────────────────────── */
 
   React.useEffect(() => {
-    const t = setInterval(() => {
-      fetchConvos(true);
-      if (activeIdRef.current) fetchMessages(activeIdRef.current, true);
-    }, 45_000);
-    return () => clearInterval(t);
-  }, [fetchConvos, fetchMessages]);
+    if (
+      searchTarget &&
+      searchTarget.conversationId === activeId
+    ) {
+      return;
+    }
 
-  React.useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [activeId, activeMsgs.length]);
+  }, [activeId, activeMsgs.length, searchTarget]);
+
+  React.useLayoutEffect(() => {
+    if (
+      !searchTarget ||
+      searchTarget.conversationId !== activeId
+    ) {
+      return;
+    }
+
+    if (
+      !activeMsgs.some(
+        (message) => message._id === searchTarget.messageId,
+      )
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(
+          `email-chat-message-${searchTarget.messageId}`,
+        )
+        ?.scrollIntoView({
+          behavior: 'auto',
+          block: 'center',
+        });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeId, activeMsgs, searchTarget]);
 
   /* ── Actions ── */
 
-  const openConversation = (convId: string) => {
+  const openConversation = (
+    convId: string,
+    searchMatch?: ConversationMessageSearchMatch,
+    searchConversation?: MailConv,
+  ) => {
+    activeIdRef.current = convId;
     setActiveId(convId);
-    fetchMessages(convId);
-    setConvos((p) => p.map((c) => (c._id === convId ? { ...c, unreadCount: 0 } : c)));
-    apiClient.post(`/api/mail/conversations/${convId}/read`, {}, { headers: auth }).catch(() => { });
+
+    if (searchConversation) {
+      setConvos((current) => {
+        const exists = current.some(
+          (conversation) => conversation._id === convId,
+        );
+
+        if (exists) {
+          return current.map((conversation) =>
+            conversation._id === convId
+              ? { ...conversation, ...searchConversation, unreadCount: 0 }
+              : conversation,
+          );
+        }
+
+        return [
+          { ...searchConversation, unreadCount: 0 },
+          ...current,
+        ];
+      });
+    } else {
+      setConvos((current) =>
+        current.map((conversation) =>
+          conversation._id === convId
+            ? { ...conversation, unreadCount: 0 }
+            : conversation,
+        ),
+      );
+    }
+
+    if (searchMatch) {
+      setSearchTarget({
+        conversationId: convId,
+        messageId: searchMatch.messageId,
+      });
+
+      // Latest messages first, then merge the historical page containing the
+      // selected search hit. Sequential execution prevents the latest-page
+      // replacement from racing after the historical merge.
+      void (async () => {
+        await fetchMessages(convId);
+        await fetchMessageSearchWindow(
+          convId,
+          searchMatch,
+        );
+      })();
+    } else {
+      setSearchTarget(null);
+      void fetchMessages(convId);
+    }
+
+    apiClient
+      .post(
+        `/api/mail/conversations/${convId}/read`,
+        {},
+        { headers: auth },
+      )
+      .catch(() => {});
   };
 
   const createConversation = async (payload: NewConversationPayload) => {
@@ -384,51 +933,165 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
     }
   };
 
-  const visibleConvos = convos.filter((c) =>
-    convDisplayName(c).toLowerCase().includes(q.toLowerCase())
-    || c.subject.toLowerCase().includes(q.toLowerCase())
-    || c.participants.some((p) => p.email.toLowerCase().includes(q.toLowerCase())),
+  const normalizedSearchQuery = q.trim().toLowerCase();
+
+  const immediateMetadataMatches = React.useMemo(
+    () =>
+      !normalizedSearchQuery
+        ? convos
+        : convos.filter((conversation) =>
+            convDisplayName(conversation)
+              .toLowerCase()
+              .includes(normalizedSearchQuery) ||
+            conversation.subject
+              .toLowerCase()
+              .includes(normalizedSearchQuery) ||
+            conversation.participants.some(
+              (participant) =>
+                participant.email
+                  .toLowerCase()
+                  .includes(normalizedSearchQuery) ||
+                String(participant.name || '')
+                  .toLowerCase()
+                  .includes(normalizedSearchQuery),
+            ) ||
+            String(conversation.lastMessagePreview || '')
+              .toLowerCase()
+              .includes(normalizedSearchQuery),
+          ),
+    [convos, normalizedSearchQuery],
   );
+
+  const visibleConvos = normalizedSearchQuery
+    ? searchConvos ?? immediateMetadataMatches
+    : convos;
 
   /* ── Render ── */
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden relative">
       {/* Conversation list */}
-      <aside className={cn('sm5-rail flex-col w-full lg:w-80 lg:shrink-0', activeId ? 'hidden lg:flex' : 'flex')}>
-        <div className="sm5-toolbar gap-2 px-3">
-          <div className="relative flex-1">
+      <aside
+        className={cn(
+          'sm5-rail flex-col w-full lg:shrink-0 transition-[width] duration-200',
+          railCollapsed ? 'lg:w-16' : 'lg:w-80',
+          activeId ? 'hidden lg:flex' : 'flex',
+        )}
+      >
+        <div className={cn('sm5-toolbar gap-2', railCollapsed ? 'lg:justify-center lg:px-2' : 'px-3')}>
+          <div className={cn('relative flex-1', railCollapsed && 'lg:hidden')}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)' }} />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search conversations…"
-              className="sm5-input w-full h-9 pl-9 pr-3 text-xs"
+              onChange={(event) => {
+                const value = event.target.value;
+                setQ(value);
+                setSearchConvos(null);
+                setMessageSearchMatches({});
+
+                if (!value.trim()) {
+                  setSearchTarget(null);
+                }
+              }}
+              placeholder="Search people or messages…"
+              aria-label="Search Email Chat people, subjects, or message text"
+              className="sm5-input w-full h-9 pl-9 pr-8 text-xs"
             />
+            {searching && (
+              <Loader2
+                className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin"
+                style={{ color: 'var(--accent)' }}
+                aria-label="Searching Email Chat"
+              />
+            )}
           </div>
-          <button onClick={() => setNewOpen(true)} className="sm5-btn h-9 px-3 flex items-center gap-1.5 shrink-0" style={{ fontSize: 12 }}>
-            <Plus className="h-3.5 w-3.5" /> New
+          <button
+            onClick={() => setNewOpen(true)}
+            className={cn(
+              'sm5-btn h-9 flex items-center justify-center gap-1.5 shrink-0',
+              railCollapsed ? 'lg:w-9 lg:px-0' : 'px-3',
+            )}
+            style={{ fontSize: 12 }}
+            title="New conversation"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className={cn(railCollapsed && 'lg:hidden')}>New</span>
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto sm5-scroll px-2 py-2 space-y-0.5">
           {loadingConvos && <CenterSpinner />}
-          {!loadingConvos && visibleConvos.length === 0 && (
-            <div className="flex flex-col items-center gap-3 py-14 px-4 text-center">
+          {!loadingConvos && !searching && visibleConvos.length === 0 && (
+            <div className={cn(
+              'flex flex-col items-center gap-3 py-14 px-4 text-center',
+              railCollapsed && 'lg:hidden',
+            )}>
               <div
                 className="h-11 w-11 rounded-xl flex items-center justify-center"
                 style={{ background: 'var(--accent-muted)', border: '1px dashed rgba(52,201,125,0.3)' }}
               >
-                <Users className="h-5 w-5" style={{ color: 'var(--accent)' }} />
+                {normalizedSearchQuery
+                  ? <Search className="h-5 w-5" style={{ color: 'var(--accent)' }} />
+                  : <Users className="h-5 w-5" style={{ color: 'var(--accent)' }} />}
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                Chat with anyone outside the platform — one person or a group. Messages travel as email, but feel like chat.
+                {normalizedSearchQuery
+                  ? normalizedSearchQuery.length < 2
+                    ? 'Type at least 2 characters to search message text.'
+                    : `No people, subjects, or messages match “${q.trim()}”.`
+                  : 'Chat with anyone outside the platform — one person or a group. Messages travel as email, but feel like chat.'}
               </p>
             </div>
           )}
-          {visibleConvos.map((c) => (
-            <ConvRow key={c._id} conv={c} active={activeId === c._id} onOpen={() => openConversation(c._id)} />
-          ))}
+          {visibleConvos.map((c) => {
+            const searchMatch =
+              messageSearchMatches[c._id];
+
+            return (
+              <ConvRow
+                key={c._id}
+                conv={c}
+                active={activeId === c._id}
+                collapsed={railCollapsed}
+                searchMatch={searchMatch}
+                onOpen={() =>
+                  openConversation(
+                    c._id,
+                    searchMatch,
+                    c,
+                  )
+                }
+              />
+            );
+          })}
+        </div>
+
+        <div
+          className="hidden shrink-0 py-2.5 lg:block"
+          style={{ borderTop: '1px solid var(--border-1)' }}
+        >
+          <button
+            type="button"
+            onClick={toggleRail}
+            className={cn(
+              'sm5-icon-btn h-9',
+              railCollapsed
+                ? 'mx-auto w-9'
+                : 'mx-2.5 flex w-[calc(100%-1.25rem)] items-center justify-start gap-3 px-3.5',
+            )}
+            title={railCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}
+          >
+            {railCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 shrink-0" />
+                <span style={{ fontSize: 12.5, letterSpacing: '0.045em' }}>
+                  Minimize
+                </span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
 
@@ -487,9 +1150,31 @@ export function ConversationTab({ token, convPush, onConvPushHandled }: {
                   </p>
                 </div>
               )}
-              {activeMsgs.map((m, i) => (
-                <ChatBubble key={m._id} token={token} convId={activeConv._id} msg={m} prev={activeMsgs[i - 1]} isGroup={isGroup} />
-              ))}
+              {activeMsgs.map((m, i) => {
+                const isSearchTarget =
+                  searchTarget?.conversationId === activeConv._id &&
+                  searchTarget.messageId === m._id;
+
+                return (
+                  <div
+                    key={m._id}
+                    id={`email-chat-message-${m._id}`}
+                    className={cn(
+                      'rounded-xl transition-[box-shadow,background-color] duration-200',
+                      isSearchTarget &&
+                        'bg-emerald-500/[0.06] ring-2 ring-emerald-500/55 ring-offset-2 ring-offset-transparent',
+                    )}
+                  >
+                    <ChatBubble
+                      token={token}
+                      convId={activeConv._id}
+                      msg={m}
+                      prev={activeMsgs[i - 1]}
+                      isGroup={isGroup}
+                    />
+                  </div>
+                );
+              })}
               <div ref={endRef} />
             </div>
 

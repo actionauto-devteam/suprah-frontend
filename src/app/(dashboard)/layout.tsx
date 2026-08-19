@@ -101,6 +101,7 @@ function DashboardLayoutContent({
     !pathname.startsWith("/crm/timeproof-clock");
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
+  const [mailWorkspaceActive, setMailWorkspaceActive] = React.useState(false);
   const [crmNotificationDrawerOpen, setCrmNotificationDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -110,6 +111,22 @@ function DashboardLayoutContent({
     window.addEventListener("crm-leads:convo-state", handler);
     return () => window.removeEventListener("crm-leads:convo-state", handler);
   }, []);
+
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      setMailWorkspaceActive(
+        Boolean((e as CustomEvent<{ active?: boolean }>).detail?.active),
+      );
+    };
+    window.addEventListener("suprah-mail:workspace-state", handler);
+    return () => window.removeEventListener("suprah-mail:workspace-state", handler);
+  }, []);
+
+  React.useEffect(() => {
+    if (pathname !== "/crm/suprah-mail" && !pathname.startsWith("/crm/suprah-mail/")) {
+      setMailWorkspaceActive(false);
+    }
+  }, [pathname]);
 
   React.useEffect(() => {
     if (!showCrmHeader) {
@@ -345,7 +362,7 @@ function DashboardLayoutContent({
             // contained to the content column instead of pushing the page
             // horizontally.
             "relative bg-background md:pb-0 min-w-0 overflow-x-hidden",
-            leadConvoActive ? "pb-0" : "pb-24",
+            (leadConvoActive || mailWorkspaceActive) ? "pb-0" : "pb-24",
             // Same fixed-viewport-shell + internally-scrolling-main treatment for every
             // route, not just /crm/* — this was previously CRM-only, which left every
             // other page (Team Pulse/Locator, Reports, etc.) with an unbounded page that

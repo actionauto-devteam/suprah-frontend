@@ -60,12 +60,12 @@ export function NewConversationModal({ onClose, onCreate }: {
         style={{ maxHeight: 'calc(100dvh - 32px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="sm5-modal-header flex items-center justify-between px-5 py-4 shrink-0">
           <div className="flex items-center gap-2">
             {isGroup
               ? <Users2 className="h-4 w-4" style={{ color: 'var(--accent)' }} />
               : <MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} />}
-            <h2 className="sm5-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>
+            <h2 className="sm5-title-lg">
               {isGroup ? 'New Group' : 'New Conversation'}
             </h2>
           </div>
@@ -75,7 +75,7 @@ export function NewConversationModal({ onClose, onCreate }: {
         </div>
 
         <div
-          className="px-4 py-4 space-y-3 overflow-y-auto sm5-scroll"
+          className="sm5-modal-body px-4 py-4 space-y-4 overflow-y-auto sm5-scroll"
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           {/* Added recipients as chips */}
@@ -99,6 +99,7 @@ export function NewConversationModal({ onClose, onCreate }: {
 
           {/* Recipient entry row */}
           <div className="space-y-2">
+            <label className="sm5-field-label">Recipients</label>
             <div className="flex gap-2">
               <input
                 autoFocus
@@ -123,17 +124,23 @@ export function NewConversationModal({ onClose, onCreate }: {
 
           {/* Group title only when 2+ */}
           {isGroup && (
+            <div>
+              <label className="sm5-field-label">Group name</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Group name (optional)" className="sm5-input w-full h-10 px-3 text-sm" />
+            </div>
           )}
 
+          <div>
+            <label className="sm5-field-label">Subject</label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject (optional — used for the email thread)"
             className="sm5-input w-full h-10 px-3 text-sm"
           />
+          </div>
 
-          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+          <p className="sm5-helper-card sm5-helper px-3 py-2.5">
             {isGroup
               ? 'Every message is emailed to all members (reply-all). Anyone who replies is seen by everyone.'
               : 'Messages are delivered as real emails from your connected Gmail. Add another recipient to make it a group.'}

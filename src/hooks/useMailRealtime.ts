@@ -35,6 +35,7 @@ export function useMailRealtime(
   handlers: {
     onInboxUpdate?: (u: MailInboxUpdate) => void;
     onConversationMessage?: (p: MailConversationPush) => void;
+    onConnectionReady?: () => void;
   },
 ) {
   const [connected, setConnected] = React.useState(false);
@@ -54,15 +55,36 @@ export function useMailRealtime(
       reconnectionDelayMax: 15000,
     });
 
-    const onInbox = (u: MailInboxUpdate) => handlersRef.current.onInboxUpdate?.(u);
-    const onConv = (p: MailConversationPush) => handlersRef.current.onConversationMessage?.(p);
+    const onInbox = (u: MailInboxUpdate) => {
+      if (!u || typeof u !== 'object') return;
+      handlersRef.current.onInboxUpdate?.(u);
+    };
 
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
+    const onConv = (p: MailConversationPush) => {
+      if (!p?.conversationId || !p?.message) return;
+      handlersRef.current.onConversationMessage?.(p);
+    };
+
+    const onConnect = () => {
+      setConnected(true);
+      // Run a read-only reconciliation whenever the socket first connects or
+      // reconnects. This closes the gap for events that may have happened while
+      // the browser/network was temporarily offline.
+      handlersRef.current.onConnectionReady?.();
+    };
+
+    const onDisconnected = () => setConnected(false);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnected);
+    socket.on('connect_error', onDisconnected);
     socket.on('mail:inbox:update', onInbox);
     socket.on('mail:conversation:message', onConv);
 
     return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnected);
+      socket.off('connect_error', onDisconnected);
       socket.off('mail:inbox:update', onInbox);
       socket.off('mail:conversation:message', onConv);
       socket.disconnect();

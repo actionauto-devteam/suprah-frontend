@@ -104,10 +104,10 @@ export function ComposeModal({ token, prefill, onClose, onSent }: {
         style={{ maxHeight: 'calc(100dvh - 24px)' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="sm5-modal-header flex items-center justify-between px-4 sm:px-5 py-3.5 shrink-0">
           <div className="flex items-center gap-2">
             <Pencil className="h-4 w-4" style={{ color: 'var(--accent)' }} />
-            <h2 className="sm5-display font-bold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>
+            <h2 className="sm5-title-lg">
               {TITLES[prefill.mode]}
             </h2>
           </div>
@@ -117,8 +117,10 @@ export function ComposeModal({ token, prefill, onClose, onSent }: {
         </div>
 
         {/* Fields */}
-        <div className="flex-1 overflow-y-auto sm5-scroll px-4 sm:px-5 py-4 space-y-3">
-          <div className="flex items-center gap-2">
+        <div className="sm5-modal-body flex-1 overflow-y-auto sm5-scroll px-4 sm:px-5 py-4 space-y-3">
+          <div>
+            <label className="sm5-field-label">Recipients</label>
+            <div className="flex items-center gap-2">
             <input
               value={to}
               onChange={(e) => setTo(e.target.value)}
@@ -131,16 +133,25 @@ export function ComposeModal({ token, prefill, onClose, onSent }: {
                 Cc
               </button>
             )}
+            </div>
           </div>
           {showCc && (
-            <input value={cc} onChange={(e) => setCc(e.target.value)} placeholder="Cc" className="sm5-input w-full h-10 px-3 text-sm" />
+            <div>
+              <label className="sm5-field-label">Cc</label>
+              <input value={cc} onChange={(e) => setCc(e.target.value)} placeholder="Cc" className="sm5-input w-full h-10 px-3 text-sm" />
+            </div>
           )}
+          <div>
+            <label className="sm5-field-label">Subject</label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject"
             className="sm5-input w-full h-10 px-3 text-sm"
           />
+          </div>
+          <div>
+            <label className="sm5-field-label">Message</label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -149,6 +160,7 @@ export function ComposeModal({ token, prefill, onClose, onSent }: {
             className="sm5-input w-full px-3 py-2.5 text-sm resize-y"
             style={{ minHeight: 160, lineHeight: 1.6 }}
           />
+          </div>
           {files.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {files.map((f, i) => (
@@ -165,8 +177,8 @@ export function ComposeModal({ token, prefill, onClose, onSent }: {
 
         {/* Actions */}
         <div
-          className="flex items-center gap-2 px-4 sm:px-5 py-3.5 shrink-0"
-          style={{ borderTop: '1px solid var(--border-1)', paddingBottom: 'max(0.875rem, env(safe-area-inset-bottom))' }}
+          className="sm5-modal-footer flex items-center gap-2 px-4 sm:px-5 py-3.5 shrink-0"
+          style={{ paddingBottom: 'max(0.875rem, env(safe-area-inset-bottom))' }}
         >
           <button onClick={handleSend} disabled={sending || savingDraft} className="sm5-btn h-9 px-4 flex items-center gap-2" style={{ fontSize: 13 }}>
             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

@@ -86,7 +86,7 @@ export interface DispatchChatSystemEvent {
   createdAt: string;
 }
 
-interface DispatchChatContext {
+export interface DispatchChatContext {
   threadId?: string;
   driver: {
     id: string;
@@ -315,7 +315,7 @@ function normalizeNotification(
   };
 }
 
-function AttachmentView({
+export function AttachmentView({
   attachment,
   mine,
   onOpenMedia,
@@ -407,7 +407,7 @@ function AttachmentView({
   );
 }
 
-function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
+export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
   const isAlert = event.kind === "alert";
   const response = event.metadata?.response;
   const destination = event.metadata?.destinationName;
@@ -473,7 +473,7 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
                 : "border-emerald-500/35 bg-emerald-500/[0.07]"
               : isAlert
                 ? "border-amber-400/50 bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.08)]"
-                : "border-emerald-500/30 bg-emerald-500/[0.07]"
+                : "border-emerald-500/35 bg-emerald-500/[0.07]"
         }`}
       >
         <div className="flex items-center justify-center gap-2">
@@ -493,7 +493,7 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
             <BellRing className="size-4 text-emerald-500" />
           )}
           <span
-            className={`text-[10px] font-black uppercase tracking-[0.18em] ${
+            className={`text-[11px] font-black uppercase tracking-[0.18em] ${
               isStatusRequestRejected
                 ? "text-red-600 dark:text-red-400"
                 : isStatusRequestApproved && awaitingReassignment
@@ -515,11 +515,11 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           </span>
         </div>
 
-        <p className="mt-1.5 break-words text-sm font-black text-foreground [overflow-wrap:anywhere]">
+        <p className="mt-1.5 break-words text-[15px] font-black text-foreground [overflow-wrap:anywhere]">
           {event.title}
         </p>
         {event.message && !isDispatchAlert && !isStatusRequestDecision && (
-          <p className="mx-auto mt-1 max-w-lg break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+          <p className="mx-auto mt-1 max-w-lg break-words text-[12.5px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
             {event.message}
           </p>
         )}
@@ -528,33 +528,33 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           <div className="mx-auto mt-3 w-full max-w-lg rounded-xl border border-amber-500/20 bg-background/55 p-3 text-left">
             <div className="space-y-2.5">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                   Destination
                 </p>
-                <p className="mt-0.5 break-words text-xs font-semibold text-foreground [overflow-wrap:anywhere]">
+                <p className="mt-0.5 break-words text-[12.5px] font-semibold text-foreground [overflow-wrap:anywhere]">
                   {destination || "Not provided"}
                 </p>
                 {destinationTypeLabel && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     Type: {destinationTypeLabel}
                   </p>
                 )}
               </div>
 
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                   Address / Directions
                 </p>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
                   {dispatchAddress || "No address or directions provided."}
                 </p>
               </div>
 
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                   Message
                 </p>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
                   {dispatcherMessage || "No additional instruction provided."}
                 </p>
               </div>
@@ -575,20 +575,20 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
             <div className="space-y-2.5">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Request
                   </p>
-                  <p className="mt-0.5 text-xs font-semibold text-foreground">
+                  <p className="mt-0.5 text-[12.5px] font-semibold text-foreground">
                     {requestedStatusLabel}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Decision
                   </p>
                   <p
-                    className={`mt-0.5 text-xs font-black ${
+                    className={`mt-0.5 text-[12.5px] font-black ${
                       isStatusRequestRejected
                         ? "text-red-600 dark:text-red-400"
                         : awaitingReassignment
@@ -607,10 +607,10 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
 
               {awaitingReassignment && (
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Next Step
                   </p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-foreground">
+                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-foreground">
                     Dispatch is clearing or reassigning{" "}
                     {activeLoadCount || "your"} active load
                     {activeLoadCount === 1 ? "" : "s"}. Your requested
@@ -622,10 +622,10 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
 
               {decisionReason && (
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Reason
                   </p>
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
                     {decisionReason}
                   </p>
                 </div>
@@ -633,10 +633,10 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
 
               {event.message && (
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Message
                   </p>
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                     {event.message}
                   </p>
                 </div>
@@ -648,7 +648,7 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
                 {loadNumbers.map((number: string) => (
                   <span
                     key={number}
-                    className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]"
+                    className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[11px] font-semibold [overflow-wrap:anywhere]"
                   >
                     Load {number}
                   </span>
@@ -661,14 +661,14 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         {isLocationSilence && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
             {Number.isFinite(Number(minutesWithoutLocation)) && (
-              <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-700 dark:text-red-300">
+              <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-black text-red-700 dark:text-red-300">
                 No GPS for {Number(minutesWithoutLocation)} min
               </span>
             )}
             {loadNumbers.map((number: string) => (
               <span
                 key={number}
-                className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]"
+                className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/70 px-2 py-1 text-center text-[11px] font-semibold [overflow-wrap:anywhere]"
               >
                 Load {number}
               </span>
@@ -679,24 +679,24 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         {(destination || loadNumber || (response && response !== "pending")) && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
             {destination && (
-              <span className="max-w-full whitespace-normal break-words rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-center text-[10px] font-semibold text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
+              <span className="max-w-full whitespace-normal break-words rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-center text-[11px] font-semibold text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
                 Destination: {destination}
               </span>
             )}
             {loadNumber && (
-              <span className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/60 px-2 py-1 text-center text-[10px] font-semibold [overflow-wrap:anywhere]">
+              <span className="max-w-full whitespace-normal break-all rounded-full border border-border/60 bg-background/60 px-2 py-1 text-center text-[11px] font-semibold [overflow-wrap:anywhere]">
                 Load {loadNumber}
               </span>
             )}
             {response && response !== "pending" && (
-              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                 Driver: {String(response).replace(/_/g, " ")}
               </span>
             )}
           </div>
         )}
 
-        <p className="mt-2 text-[9px] font-medium text-muted-foreground/70">
+        <p className="mt-2 text-[10.5px] font-medium text-muted-foreground/70">
           {new Date(event.createdAt).toLocaleString([], {
             month: "short",
             day: "numeric",
@@ -710,7 +710,15 @@ function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
 }
 
 
-type ConversationDetailsTab = "search" | "media" | "files";
+export type ConversationDetailsTab = "search" | "media" | "files";
+
+export type ConversationDetailsSearchResult = {
+  id: string;
+  author: string;
+  createdAt: string;
+  body: string;
+  attachments: DispatchChatAttachment[];
+};
 
 type ConversationAttachmentItem = {
   attachment: DispatchChatAttachment;
@@ -852,7 +860,7 @@ function DispatcherConversationList({
   );
 }
 
-function ConversationDetailsPanel({
+export function ConversationDetailsPanel({
   counterpartName,
   counterpartRole,
   messages,
@@ -863,6 +871,7 @@ function ConversationDetailsPanel({
   onTabChange,
   query,
   onQueryChange,
+  onSearchResultSelect,
   onClose,
 }: {
   counterpartName: string;
@@ -875,6 +884,9 @@ function ConversationDetailsPanel({
   onTabChange: (tab: ConversationDetailsTab) => void;
   query: string;
   onQueryChange: (value: string) => void;
+  onSearchResultSelect?: (
+    result: ConversationDetailsSearchResult,
+  ) => void | Promise<void>;
   onClose: () => void;
 }) {
   const attachmentItems = React.useMemo<ConversationAttachmentItem[]>(
@@ -946,14 +958,14 @@ function ConversationDetailsPanel({
         attachments: [] as DispatchChatAttachment[],
       }));
 
-    return [...messageRows, ...eventRows].sort(
+    return ([...messageRows, ...eventRows] as ConversationDetailsSearchResult[]).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [messages, normalizedQuery, systemEvents]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="shrink-0 border-b border-border/60 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col" style={{ background: "var(--bg-base)" }}>
+      <div className="shrink-0 border-b border-border/60 px-4 py-3" style={{ background: "var(--bg-elevated)" }}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-black">Conversation Details</p>
@@ -967,8 +979,8 @@ function ConversationDetailsPanel({
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-border/60 p-2">
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/40 p-1">
+      <div className="shrink-0 border-b border-border/60 p-2" style={{ background: "var(--bg-base)" }}>
+        <div className="grid grid-cols-3 gap-1 rounded-xl border border-border/50 p-1" style={{ background: "var(--bg-elevated)" }}>
           {([
             ["search", "Search", Search],
             ["media", `Media ${mediaItems.length}`, ImageIcon],
@@ -979,8 +991,16 @@ function ConversationDetailsPanel({
               type="button"
               onClick={() => onTabChange(key)}
               className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-2 py-2 text-[10px] font-bold transition-colors ${
-                tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                tab === key
+                  ? "border border-border/60 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
+              style={{
+                background:
+                  tab === key
+                    ? "var(--bg-base)"
+                    : "transparent",
+              }}
             >
               <Icon className="size-3.5 shrink-0" />
               <span className="truncate">{label}</span>
@@ -1002,7 +1022,8 @@ function ConversationDetailsPanel({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 placeholder="Search messages or filenames…"
-                className="h-10 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 w-full rounded-xl border border-border/70 pl-9 pr-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ background: "var(--bg-elevated)" }}
               />
             </div>
 
@@ -1017,7 +1038,16 @@ function ConversationDetailsPanel({
             ) : (
               <div className="space-y-2">
                 {searchResults.map((result) => (
-                  <div key={result.id} className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <button
+                    key={result.id}
+                    type="button"
+                    onClick={() => {
+                      void onSearchResultSelect?.(result);
+                    }}
+                    className="w-full rounded-xl border border-border/60 p-3 text-left transition-colors hover:border-emerald-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/45"
+                    style={{ background: "var(--bg-elevated)" }}
+                    title="Open this result in the conversation"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-[10px] font-black">{result.author}</p>
                       <p className="shrink-0 text-[9px] text-muted-foreground">
@@ -1030,13 +1060,17 @@ function ConversationDetailsPanel({
                     {result.attachments.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {result.attachments.map((attachment, index) => (
-                          <span key={`${result.id}:${index}`} className="max-w-full truncate rounded-md bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                          <span
+                            key={`${result.id}:${index}`}
+                            className="max-w-full truncate rounded-md border border-border/50 px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                            style={{ background: "var(--bg-base)" }}
+                          >
                             {attachment.originalName}
                           </span>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1050,7 +1084,8 @@ function ConversationDetailsPanel({
                   href={attachment.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group overflow-hidden rounded-xl border border-border/60 bg-muted/20"
+                  className="group overflow-hidden rounded-xl border border-border/60"
+                  style={{ background: "var(--bg-elevated)" }}
                 >
                   {attachment.mimeType?.startsWith("image/") ? (
                     <img src={attachment.url} alt={attachment.originalName} className="aspect-square w-full object-cover transition-transform group-hover:scale-[1.02]" />
@@ -1077,7 +1112,8 @@ function ConversationDetailsPanel({
                 href={attachment.url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex min-w-0 items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 hover:bg-muted/40"
+                className="flex min-w-0 items-center gap-3 rounded-xl border border-border/60 p-3 transition-colors hover:border-emerald-500/25"
+                style={{ background: "var(--bg-elevated)" }}
               >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   <FileText className="size-4" />
@@ -1131,6 +1167,9 @@ export function DispatchChatDialog({
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [historyState, setHistoryState] = React.useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const [isSending, setIsSending] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [conversationDrawerCollapsed, setConversationDrawerCollapsed] = React.useState(false);
@@ -1146,6 +1185,10 @@ export function DispatchChatDialog({
     React.useState(false);
   const [lightboxAttachment, setLightboxAttachment] =
     React.useState<LightboxAttachment | null>(null);
+  const [highlightedTimelineItemId, setHighlightedTimelineItemId] =
+    React.useState<string | null>(null);
+  const searchJumpActiveRef = React.useRef(false);
+  const searchJumpClearTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const timelineScrollRef = React.useRef<HTMLDivElement | null>(null);
   const timelineContentRef = React.useRef<HTMLDivElement | null>(null);
   const latestPositionFrameRef = React.useRef<number | null>(null);
@@ -1163,6 +1206,14 @@ export function DispatchChatDialog({
   React.useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  React.useEffect(() => {
+    return () => {
+      if (searchJumpClearTimerRef.current) {
+        clearTimeout(searchJumpClearTimerRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     selectedThreadIdRef.current = selectedThreadId;
@@ -1196,6 +1247,7 @@ export function DispatchChatDialog({
       setSystemEvents(entry.systemEvents);
       setThreadContext(entry.context);
       updateUnread(entry.unreadCount);
+      setHistoryState("ready");
       // Re-run the existing verified "open at latest" positioning for the
       // newly selected cached thread. The thread content itself is available
       // immediately, so no loading screen is required.
@@ -1237,6 +1289,7 @@ export function DispatchChatDialog({
         setMessages([]);
         setSystemEvents([]);
         setThreadContext(null);
+        setHistoryState("loading");
         setIsLoading(true);
         setIsLatestPositionReady(false);
       }
@@ -1398,6 +1451,7 @@ export function DispatchChatDialog({
       setSystemEvents([]);
       setThreadContext(null);
       updateUnread(0);
+      setHistoryState("ready");
       setIsLoading(false);
       setIsLatestPositionReady(true);
       return;
@@ -1413,6 +1467,8 @@ export function DispatchChatDialog({
     const cached = requestedCacheKey
       ? threadCacheRef.current.get(requestedCacheKey) ?? null
       : null;
+
+    setHistoryState("loading");
 
     if (cached) {
       applyThreadCache(cached);
@@ -1533,12 +1589,20 @@ export function DispatchChatDialog({
       setSystemEvents(nextSystemEvents);
       setThreadContext(nextContext);
       updateUnread(nextUnread);
+      setHistoryState("ready");
 
       // The conversation is ready as soon as the history GET completes.
       // Do not keep the full-screen chat loader visible while a separate
       // mark-read request makes another network round trip.
+      //
+      // IMPORTANT: do NOT reset isLatestPositionReady here. For a cached
+      // conversation, a background refresh can return the same number of
+      // timeline items. Resetting readiness to false in that situation used to
+      // leave the already-loaded history permanently opacity-0 because none of
+      // the positioning effect dependencies necessarily changed. A newly
+      // selected/uncached thread was already prepared as not-ready before the
+      // request, and isLoading/timeline changes will run the positioning effect.
       setIsLoading(false);
-      setIsLatestPositionReady(false);
 
       if (
         currentUserIsDriver &&
@@ -1606,6 +1670,10 @@ export function DispatchChatDialog({
         !currentUserIsDriver ||
         String(selectedThreadIdRef.current ?? "") ===
           String(requestedThreadId ?? "");
+
+      if (requestIsStillCurrent) {
+        setHistoryState("error");
+      }
 
       if (requestIsStillCurrent && !cached) {
         toast.error(
@@ -1824,6 +1892,7 @@ export function DispatchChatDialog({
     setMessages([]);
     setSystemEvents([]);
     setThreadContext(null);
+    setHistoryState("loading");
     updateUnread(Math.max(0, Number(initialThread.unreadCount ?? 0)));
     setIsLatestPositionReady(false);
   }, [
@@ -1862,6 +1931,7 @@ export function DispatchChatDialog({
         setMessages([]);
         setSystemEvents([]);
         setThreadContext(null);
+        setHistoryState("loading");
       }
     } else if (staffConversationCacheKey) {
       const cached = threadCacheRef.current.get(staffConversationCacheKey);
@@ -1874,6 +1944,7 @@ export function DispatchChatDialog({
         setMessages([]);
         setSystemEvents([]);
         setThreadContext(null);
+        setHistoryState("loading");
       }
     }
 
@@ -2219,6 +2290,11 @@ export function DispatchChatDialog({
   React.useLayoutEffect(() => {
     if (!open || isLoading) return;
 
+    if (searchJumpActiveRef.current) {
+      setIsLatestPositionReady(true);
+      return;
+    }
+
     // Empty thread has no scroll positioning work.
     if (timeline.length === 0) {
       setIsLatestPositionReady(true);
@@ -2289,6 +2365,7 @@ export function DispatchChatDialog({
   // changes (new message, GPS alert, dispatch response, etc.).
   React.useEffect(() => {
     if (!open || isLoading || !isLatestPositionReady) return;
+    if (searchJumpActiveRef.current) return;
 
     const frame = window.requestAnimationFrame(scrollToLatest);
     return () => window.cancelAnimationFrame(frame);
@@ -2317,6 +2394,7 @@ export function DispatchChatDialog({
     if (!content) return;
 
     const observer = new ResizeObserver(() => {
+      if (searchJumpActiveRef.current) return;
       scrollToLatest();
     });
 
@@ -2328,6 +2406,141 @@ export function DispatchChatDialog({
     open,
     scrollToLatest,
   ]);
+
+  const jumpToConversationSearchResult = React.useCallback(
+    async (result: ConversationDetailsSearchResult) => {
+      if (!driverId || !activeThreadId || !isSignedIn) return;
+
+      const targetItemId = result.id;
+      searchJumpActiveRef.current = true;
+      setHighlightedTimelineItemId(targetItemId);
+      setIsLatestPositionReady(true);
+
+      if (searchJumpClearTimerRef.current) {
+        clearTimeout(searchJumpClearTimerRef.current);
+      }
+
+      const targetExists =
+        targetItemId.startsWith("message:")
+          ? messages.some(
+              (message) =>
+                `message:${message.id}` === targetItemId,
+            )
+          : systemEvents.some(
+              (event) =>
+                `event:${event.id}` === targetItemId,
+            );
+
+      if (!targetExists) {
+        try {
+          const token = await getToken();
+          if (!token) return;
+
+          const targetTime =
+            new Date(result.createdAt).getTime();
+          const before = Number.isFinite(targetTime)
+            ? new Date(targetTime + 1).toISOString()
+            : undefined;
+
+          const response = await apiClient.get(
+            `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/messages`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              params: {
+                limit: 100,
+                threadId: activeThreadId,
+                ...(before ? { before } : {}),
+              },
+            },
+          );
+
+          const payload = response.data?.data ?? {};
+          const windowMessages = Array.isArray(payload.messages)
+            ? (payload.messages as DispatchChatMessage[])
+            : [];
+          const windowEvents = Array.isArray(payload.systemEvents)
+            ? (payload.systemEvents as DispatchChatSystemEvent[])
+            : [];
+
+          setMessages((current) => {
+            const map = new Map(
+              current.map((message) => [
+                message.id,
+                message,
+              ]),
+            );
+
+            for (const message of windowMessages) {
+              map.set(message.id, message);
+            }
+
+            return [...map.values()].sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            );
+          });
+
+          setSystemEvents((current) => {
+            const map = new Map(
+              current.map((event) => [
+                event.id,
+                event,
+              ]),
+            );
+
+            for (const event of windowEvents) {
+              map.set(event.id, event);
+            }
+
+            return [...map.values()].sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            );
+          });
+        } catch {
+          toast.error(
+            "Could not load that part of the conversation.",
+          );
+        }
+      }
+
+      // Close Details so the target is visible on both desktop and mobile.
+      setDetailsOpen(false);
+
+      // Give React/layout two frames to merge an older history window before
+      // locating the exact bubble/system event.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById(
+              `dispatch-chat-timeline-${targetItemId}`,
+            )
+            ?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+
+          searchJumpClearTimerRef.current =
+            setTimeout(() => {
+              setHighlightedTimelineItemId(null);
+              searchJumpActiveRef.current = false;
+            }, 2200);
+        });
+      });
+    },
+    [
+      activeThreadId,
+      driverId,
+      getToken,
+      isSignedIn,
+      messages,
+      systemEvents,
+    ],
+  );
 
   const submitMessage = React.useCallback(async () => {
     const content = draft.trim();
@@ -2644,12 +2857,28 @@ export function DispatchChatDialog({
                 Your Dispatch Chat is separated by dispatcher so messages never mix between different dispatcher conversations.
               </p>
             </div>
-          ) : isLoading ? (
+          ) : isLoading && timeline.length === 0 ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 size-5 animate-spin" />
               <span className="text-sm">Loading Dispatch Chat…</span>
             </div>
-          ) : timeline.length === 0 ? (
+          ) : historyState === "error" && timeline.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted">
+                <MessageSquare className="size-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-black">Conversation is still unavailable</p>
+              <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+                We couldn&apos;t confirm this private conversation&apos;s history yet.
+                Reopen or refresh Dispatch Chat to try again.
+              </p>
+            </div>
+          ) : historyState !== "ready" && timeline.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 size-5 animate-spin" />
+              <span className="text-sm">Checking conversation history…</span>
+            </div>
+          ) : historyState === "ready" && timeline.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10">
                 <MessageSquare className="size-6 text-emerald-500" />
@@ -2670,11 +2899,23 @@ export function DispatchChatDialog({
             >
               {timeline.map((item) => {
                 if (item.itemType === "event") {
+                  const highlighted =
+                    highlightedTimelineItemId === item.id;
+
                   return (
-                    <SystemEventCard
+                    <div
                       key={item.id}
-                      event={item.event}
-                    />
+                      id={`dispatch-chat-timeline-${item.id}`}
+                      className={`rounded-2xl transition-[box-shadow,background-color] duration-200 ${
+                        highlighted
+                          ? "bg-emerald-500/[0.06] ring-2 ring-emerald-500/55 ring-offset-2 ring-offset-transparent"
+                          : ""
+                      }`}
+                    >
+                      <SystemEventCard
+                        event={item.event}
+                      />
+                    </div>
                   );
                 }
 
@@ -2684,9 +2925,20 @@ export function DispatchChatDialog({
                   message.messageType === "system" &&
                   message.systemEvent
                 ) {
+                  const highlighted =
+                    highlightedTimelineItemId === item.id;
+
                   return (
-                    <SystemEventCard
+                    <div
                       key={item.id}
+                      id={`dispatch-chat-timeline-${item.id}`}
+                      className={`rounded-2xl transition-[box-shadow,background-color] duration-200 ${
+                        highlighted
+                          ? "bg-emerald-500/[0.06] ring-2 ring-emerald-500/55 ring-offset-2 ring-offset-transparent"
+                          : ""
+                      }`}
+                    >
+                    <SystemEventCard
                       event={{
                         id: `chat-system:${message.id}`,
                         kind:
@@ -2710,6 +2962,7 @@ export function DispatchChatDialog({
                         createdAt: message.createdAt,
                       }}
                     />
+                    </div>
                   );
                 }
 
@@ -2722,8 +2975,13 @@ export function DispatchChatDialog({
                 return (
                   <div
                     key={item.id}
-                    className={`flex ${
+                    id={`dispatch-chat-timeline-${item.id}`}
+                    className={`flex rounded-xl transition-[box-shadow,background-color] duration-200 ${
                       mine ? "justify-end" : "justify-start"
+                    } ${
+                      highlightedTimelineItemId === item.id
+                        ? "bg-emerald-500/[0.06] ring-2 ring-emerald-500/55 ring-offset-2 ring-offset-transparent"
+                        : ""
                     }`}
                   >
                     <div
@@ -2788,13 +3046,17 @@ export function DispatchChatDialog({
           )}
         </div>
 
-        <div className="relative shrink-0 border-t border-border/60 bg-muted/[0.14] p-3 sm:p-4">
+        <div
+          className="relative shrink-0 border-t border-border/60 p-3 sm:p-4"
+          style={{ background: "var(--bg-elevated)" }}
+        >
           {selectedFiles.length > 0 && (
             <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
               {selectedFiles.map((file, index) => (
                 <div
                   key={`${file.name}:${file.size}:${index}`}
-                  className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 bg-background px-2.5 py-1.5 sm:w-auto sm:max-w-full"
+                  className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 sm:w-auto sm:max-w-full"
+                  style={{ background: "var(--bg-base)" }}
                 >
                   {file.type.startsWith("image/") ? (
                     <ImageIcon className="size-3.5 shrink-0 text-emerald-500" />
@@ -2825,7 +3087,10 @@ export function DispatchChatDialog({
           )}
 
           {emojiOpen && (
-            <div className="absolute bottom-[calc(100%-4px)] left-0 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-popover p-2 shadow-xl sm:left-12">
+            <div
+              className="absolute bottom-[calc(100%-4px)] left-0 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border p-2 shadow-xl sm:left-12"
+              style={{ background: "var(--bg-elevated)" }}
+            >
               <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Quick emotes
               </p>
@@ -2914,7 +3179,8 @@ export function DispatchChatDialog({
               disabled={!canCompose}
               maxLength={4000}
               rows={2}
-              className="min-h-[44px] min-w-0 max-h-32 w-full flex-1 resize-y rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-[44px] min-w-0 max-h-32 w-full flex-1 resize-y rounded-xl border border-border/70 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ background: "var(--bg-base)" }}
             />
 
             <Button
@@ -2960,6 +3226,7 @@ export function DispatchChatDialog({
                 onTabChange={setDetailsTab}
                 query={detailsQuery}
                 onQueryChange={setDetailsQuery}
+                onSearchResultSelect={jumpToConversationSearchResult}
                 onClose={() => setDetailsOpen(false)}
               />
             </aside>

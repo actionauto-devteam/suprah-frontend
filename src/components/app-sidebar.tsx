@@ -140,7 +140,7 @@ const data = {
       isNew: true,
     },
     {
-      title: "Suprah Mail",
+      title: "Suprah One Desk",
       url: "/crm/suprah-mail",
       icon: Mail,
       isNew: true,
@@ -512,7 +512,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           </Badge>
                         )}
 
-                        {/* Suprah Mail: fresh module — "New" tag until the team
+                        {/* Suprah One Desk: fresh module — "New" tag until the team
                             has lived with it for a release or two. */}
 
 

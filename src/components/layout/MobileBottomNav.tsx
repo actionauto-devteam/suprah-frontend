@@ -23,6 +23,7 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     const [hidden, setHidden] = React.useState(false);
     const [hiddenForConvo, setHiddenForConvo] = React.useState(false);
     const [hiddenForLeadConvo, setHiddenForLeadConvo] = React.useState(false);
+    const [hiddenForMailWorkspace, setHiddenForMailWorkspace] = React.useState(false);
     const [pendingHref, setPendingHref] = React.useState<string | null>(null);
     const lastScrollY = React.useRef(0);
 
@@ -48,6 +49,14 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     }, []);
 
     React.useEffect(() => {
+        const handler = (e: Event) => {
+            setHiddenForMailWorkspace(Boolean((e as CustomEvent<{ active?: boolean }>).detail?.active));
+        };
+        window.addEventListener('suprah-mail:workspace-state', handler);
+        return () => window.removeEventListener('suprah-mail:workspace-state', handler);
+    }, []);
+
+    React.useEffect(() => {
         const el = document.querySelector("main");
         if (!el) return;
         const onScroll = () => {
@@ -67,8 +76,8 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     };
 
     const isSupraSpace = pathname === '/crm/supra-space' || pathname.startsWith('/crm/supra-space/');
-    const shouldHide = hidden || hiddenForConvo || hiddenForLeadConvo || isSupraSpace;
-    const shouldBeInvisible = hiddenForConvo || hiddenForLeadConvo || isSupraSpace;
+    const shouldHide = hidden || hiddenForConvo || hiddenForLeadConvo || hiddenForMailWorkspace || isSupraSpace;
+    const shouldBeInvisible = hiddenForConvo || hiddenForLeadConvo || hiddenForMailWorkspace || isSupraSpace;
 
     return (
         <motion.nav
