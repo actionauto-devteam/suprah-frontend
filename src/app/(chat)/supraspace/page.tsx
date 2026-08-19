@@ -38,7 +38,7 @@ import { useCall, CallSession } from '@/hooks/useCall';
 import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { CallBanner } from './CallBanner';
-import { MobileGetAppBanner } from '@/components/supraspace/MobileGetAppBanner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Lazy-loaded — @jitsi/react-sdk (a full video-conferencing SDK) was being
 // pulled into every SupraSpace page load via a static import even though most
@@ -7495,6 +7495,14 @@ export default function SupraSpacePage() {
   // link them to /supraspace first — a real page navigation, not router.push,
   // so the correct manifest is the one active when they actually install.
   const isSupraSpaceStandaloneUrl = pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/');
+  // Mobile-only: the dashboard-embedded route (/crm/supra-space) gates
+  // behind an "install the dedicated app" screen instead of showing chat —
+  // on a phone, messaging is meant to live in the dedicated SupraSpace PWA
+  // only. Desktop is unaffected. Scoped to !embedded specifically (i.e. only
+  // this exact route) — /crm/conversations' embedded view is deliberately
+  // left alone.
+  const isMobileViewport = useIsMobile();
+  const showMobileInstallGate = !embedded && isMobileViewport;
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -10689,6 +10697,34 @@ export default function SupraSpacePage() {
     </div>
   );
 
+  if (showMobileInstallGate) return (
+    <div className="ss4 flex items-center justify-center h-full min-h-screen px-6" data-theme={theme}>
+      <div className="flex flex-col items-center gap-5 text-center max-w-xs">
+        <SupraSpaceLogo size={64} />
+        <div className="flex flex-col items-center gap-2">
+          <p className="ss4-display font-bold" style={{ fontSize: 19, color: 'var(--text-primary)' }}>Get SupraSpace</p>
+          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+            Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.
+          </p>
+        </div>
+        <a
+          href="/supraspace"
+          className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
+          style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
+        >
+          <Download className="h-4 w-4" /> Install SupraSpace
+        </a>
+        <button
+          type="button"
+          onClick={() => router.push('/crm/dashboard')}
+          style={{ fontSize: 12, color: 'var(--text-tertiary)' }}
+        >
+          Back to dashboard
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <>
       {me?.role && <CrmPushPrompt role={me.role} />}
@@ -12228,9 +12264,6 @@ export default function SupraSpacePage() {
             })()}
           </main>
         </div>
-
-        { }
-        {!embedded && <MobileGetAppBanner />}
 
         { }
         {showModal.open && (
