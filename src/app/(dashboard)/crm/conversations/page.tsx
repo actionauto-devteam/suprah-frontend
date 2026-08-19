@@ -6,7 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { injectSS4Styles } from "@/lib/ss4-styles";
 import { cn } from "@/lib/utils";
 import { LeadsTab } from "@/components/LeadsTab";
-import SupraSpacePage from "../supra-space/page";
+import SupraSpacePage from "@/app/(chat)/supraspace/page";
 import CommunicationHub from "@/components/crm/CommunicationHub";
 
 injectSS4Styles();

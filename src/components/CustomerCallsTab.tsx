@@ -25,7 +25,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useCrmToken } from "@/hooks/useCrmToken";
 import { useSupraSpaceSocket } from "@/hooks/useSupraSpaceSocket";
 import { fmtTimeMDT, fmtFullDateTimeMDT, MDT_TZ } from "@/lib/timezone";
-import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
+import { JitsiMeet } from "@/app/(chat)/supraspace/JitsiMeet";
 import { linkifyText } from "@/lib/chatFormat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

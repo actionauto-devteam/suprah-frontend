@@ -16,7 +16,7 @@ export function IOSInstallHint() {
     useEffect(() => {
         // SupraSpace has its own iOS install hint (different manifest/copy) —
         // skip this one there so the two don't stack.
-        if (pathname?.startsWith("/crm/supra-space")) return;
+        if (pathname?.startsWith("/supraspace")) return;
 
         // Detect iOS Browser (not already a standalone app)
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;

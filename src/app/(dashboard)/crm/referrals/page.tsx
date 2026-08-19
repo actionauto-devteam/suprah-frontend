@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { getDashboardSocket } from "@/lib/dashboardSocket";
-import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
+import { JitsiMeet } from "@/app/(chat)/supraspace/JitsiMeet";
 
 
 type LeadStatus = "pending" | "contacted" | "converted" | "closed";

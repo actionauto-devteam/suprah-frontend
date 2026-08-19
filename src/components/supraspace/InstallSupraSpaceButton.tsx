@@ -18,9 +18,9 @@ function detectPlatform(): Platform {
 // install or the main app install" — both share an origin. A standalone
 // window's Navigation Timing entry records the URL the *document* actually
 // loaded at, which stays fixed across later client-side (SPA) navigation —
-// unlike location.pathname, which would also read /crm/supra-space if the
+// unlike location.pathname, which would also read /supraspace if the
 // main app's shell was simply navigated there. Only a document that was
-// entered directly at /crm/supra-space (SupraSpace's own start_url) means
+// entered directly at /supraspace (SupraSpace's own start_url) means
 // SupraSpace itself was launched, not the main app's shell.
 export function isRunningAsSupraSpaceStandalone(): boolean {
   if (typeof window === 'undefined') return false;
@@ -28,7 +28,7 @@ export function isRunningAsSupraSpaceStandalone(): boolean {
   if (!standalone) return false;
   const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
   const entryPath = nav ? new URL(nav.name).pathname : window.location.pathname;
-  return entryPath.startsWith('/crm/supra-space');
+  return entryPath.startsWith('/supraspace');
 }
 
 export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon' | 'row' }) {

@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { JitsiMeet } from '../supra-space/JitsiMeet';
+import { JitsiMeet } from './JitsiMeet';
 import type { CallSession } from '@/hooks/useCall';
 import { apiClient } from '@/lib/api-client';
 import { AutrixPanel } from './AutrixPanel';

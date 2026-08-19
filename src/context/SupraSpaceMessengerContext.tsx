@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { usePathname } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -223,6 +224,7 @@ function authConfig(token: string, skipAuthRefresh = false): SupraSpaceRequestCo
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 export function SupraSpaceMessengerProvider({ children }: { children: React.ReactNode }) {
+  const pathname                          = usePathname();
   const crmToken                          = useCrmToken();
   const crmUserId                         = crmToken ? decodeCrmUserId(crmToken) : null;
   const [conversations, setConversations] = React.useState<SSConv[]>([]);
@@ -572,6 +574,39 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       return msg.sender?._id !== crmUserId && !msg.readBy?.includes(crmUserId);
     }).length;
   }, [conversations, crmUserId]);
+
+  // App icon badge, scoped to this provider — needed because the standalone
+  // SupraSpace PWA ((chat) route group) doesn't mount NotificationContext
+  // (the general one, which badges on ALL notification types), so without
+  // this, installing/using SupraSpace as its own dedicated app would leave
+  // its home-screen icon's badge permanently stuck/stale. Also more correct
+  // for a focused chat app anyway — the badge shows unread CHATS, the same
+  // way WhatsApp/Google Chat's own icon badge works, not unrelated CRM
+  // notification counts.
+  //
+  // Gated to only the standalone SupraSpace route: this provider is ALSO
+  // mounted inside the main dashboard (for the header dropdown/popup chat
+  // feature), where NotificationContext already owns the badge for ALL
+  // notification types — without this gate, both effects would fight over
+  // setAppBadge() on every dashboard page, with the SupraSpace-only count
+  // sometimes winning and stomping the general one.
+  React.useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    // Standalone SupraSpace app only (/supraspace) — the /crm/supra-space
+    // dashboard-embedded page has NotificationProvider mounted above it and
+    // already owns the badge for all notification types there; this only
+    // takes over where that provider isn't present.
+    if (!pathname?.startsWith('/supraspace')) return;
+    try {
+      if (totalUnread > 0) {
+        (navigator as any).setAppBadge(totalUnread).catch(() => {});
+      } else {
+        (navigator as any).clearAppBadge().catch(() => {});
+      }
+    } catch {
+      // Best-effort — App Badge API support is inconsistent across browsers.
+    }
+  }, [totalUnread, pathname]);
 
   // ── Chat popup controls ───────────────────────────────────────────────────────
   const openChatPopup = React.useCallback((convId: string) => {

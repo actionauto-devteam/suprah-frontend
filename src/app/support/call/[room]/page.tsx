@@ -6,7 +6,7 @@ import { Car, Loader2, Phone, Video, AlertCircle, ChevronRight, Mail, ShieldChec
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { JitsiMeet } from "@/app/(dashboard)/crm/supra-space/JitsiMeet";
+import { JitsiMeet } from "@/app/(chat)/supraspace/JitsiMeet";
 
 type Step = "form" | "loading" | "call" | "error";
 

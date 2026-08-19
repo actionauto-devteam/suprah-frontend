@@ -3,7 +3,7 @@ import { SupraSpaceServiceWorkerRegistration } from './SupraSpaceServiceWorkerRe
 
 export const metadata: Metadata = {
     title: 'SupraSpace',
-    manifest: '/crm/supra-space/manifest.webmanifest',
+    manifest: '/supraspace/manifest.webmanifest',
     icons: {
         icon: '/supra-space/icon-192.png',
         apple: '/supra-space/apple-touch-icon.png',

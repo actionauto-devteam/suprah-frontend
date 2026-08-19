@@ -81,6 +81,10 @@ function DashboardLayoutContent({
   const pathname = usePathname();
   const { isImpersonating } = adminStore.useStore();
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
+  // SupraSpace renders its own top bar + push prompt already (same component
+  // whether reached here, inside the dashboard, or at the separate /supraspace
+  // standalone-app route) — showing the dashboard's copies too would duplicate
+  // that chrome.
   const isSupraSpaceRoute =
     pathname === "/crm/supra-space" || pathname.startsWith("/crm/supra-space/");
   const isStandaloneCrmShell = pathname === "/crm";

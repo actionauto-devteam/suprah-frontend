@@ -14,7 +14,7 @@ export const InstallPrompt = () => {
     // SupraSpace has its own install affordance (its manifest/scope is
     // different from this one) — showing this banner there too would offer
     // two competing "install" actions for the same click.
-    const inSupraSpace = pathname?.startsWith("/crm/supra-space");
+    const inSupraSpace = pathname?.startsWith("/supraspace");
 
     useEffect(() => {
         if (inSupraSpace) return;

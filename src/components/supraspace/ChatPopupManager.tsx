@@ -4286,26 +4286,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setEditFontSize(caret.fontSize);
       setEditTextColor(caret.color);
 
-      const rootStyle = window.getComputedStyle(root);
-      const rootFamily =
-        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
-        || SS4_DEFAULT_FONT_FAMILY;
-      const rootSize =
-        ss4FontSizeFromCss(rootStyle.fontSize)
-        || SS4_DEFAULT_FONT_SIZE;
-      const rootColor =
-        cssColorToHex(rootStyle.color)
-        || '#ffffff';
-
-      setEditFontFamilyChosen(
-        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
-      );
-      setEditFontSizeChosen(
-        caret.fontSizeExplicit || caret.fontSize !== rootSize,
-      );
-      setEditTextColorChosen(
-        caret.colorExplicit || caret.color !== rootColor,
-      );
+      // Only trust an EXPLICIT marker (inline style / dataset) here — a
+      // "differs from computed root style" fallback used to also flip this
+      // true, but the two are read through different detection paths that
+      // don't always agree even with zero user formatting, which silently
+      // re-baked a smaller font size no one ever selected.
+      setEditFontFamilyChosen(caret.fontFamilyExplicit);
+      setEditFontSizeChosen(caret.fontSizeExplicit);
+      setEditTextColorChosen(caret.colorExplicit);
 
       setEditTypingFormats(
         ss4TypingPreferencesFromCaretSnapshot(caret),
@@ -5155,26 +5143,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setComposerFontSize(caret.fontSize);
       setComposerTextColor(caret.color);
 
-      const rootStyle = window.getComputedStyle(root);
-      const rootFamily =
-        ss4FontFamilyIdFromCss(rootStyle.fontFamily)
-        || SS4_DEFAULT_FONT_FAMILY;
-      const rootSize =
-        ss4FontSizeFromCss(rootStyle.fontSize)
-        || SS4_DEFAULT_FONT_SIZE;
-      const rootColor =
-        cssColorToHex(rootStyle.color)
-        || '#ffffff';
-
-      setComposerFontFamilyChosen(
-        caret.fontFamilyExplicit || caret.fontFamily !== rootFamily,
-      );
-      setComposerFontSizeChosen(
-        caret.fontSizeExplicit || caret.fontSize !== rootSize,
-      );
-      setComposerTextColorChosen(
-        caret.colorExplicit || caret.color !== rootColor,
-      );
+      // Only trust an EXPLICIT marker (inline style / dataset) here — see
+      // the matching comment in the edit-message caret refresh above.
+      setComposerFontFamilyChosen(caret.fontFamilyExplicit);
+      setComposerFontSizeChosen(caret.fontSizeExplicit);
+      setComposerTextColorChosen(caret.colorExplicit);
       setComposerTypingFormats(
         ss4TypingPreferencesFromCaretSnapshot(caret),
       );

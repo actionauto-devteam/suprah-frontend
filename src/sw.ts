@@ -10,7 +10,7 @@ declare global {
 declare const self: ServiceWorkerGlobalScope & typeof globalThis;
 
 setCacheNameDetails({
-  prefix: "actionauto-v2026-07-06",
+  prefix: "actionauto-v2026-08-19",
 });
 
 // ---------------------------------------------------------------------------
@@ -156,7 +156,101 @@ function getStoredToken(key: string): Promise<string | null> {
   });
 }
 
+// Writes into the same IndexedDB store getStoredToken reads from — reuses it
+// as a generic key-value store rather than opening a second database, purely
+// so renewPushSubscription (below) has somewhere to remember when it last
+// ran without needing `localStorage` (not available in a service worker).
+function setStoredValue(key: string, value: string): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open("action-auto-auth", 1);
+      request.onsuccess = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("tokens")) return resolve();
+        const tx = db.transaction("tokens", "readwrite");
+        const store = tx.objectStore("tokens");
+        const putReq = store.put(value, key);
+        putReq.onsuccess = () => resolve();
+        putReq.onerror = () => resolve();
+      };
+      request.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+// Re-subscribes and re-POSTs to the backend, shared by pushsubscriptionchange
+// (fired when the browser itself rotates/invalidates the subscription — see
+// that handler below) and the periodic self-heal check inside the push event
+// handler. The periodic path exists because the OBVIOUS place to self-heal —
+// useCrmWebPush.ts's mount-time check — only ever runs if the person opens
+// the app, but the whole reason they'd open it is because push notified
+// them... which is exactly what's broken when this needs to run. A push
+// event, in contrast, wakes this service worker on every single delivery
+// ATTEMPT regardless of whether display ultimately succeeds, so checking
+// staleness here doesn't depend on the broken channel to trigger its own fix.
+const PUSH_RESUBSCRIBE_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
+const SW_LAST_VERIFIED_KEY = "swPushLastVerified";
+
+async function renewPushSubscription(existingSubscription?: any, applicationServerKeyHint?: any): Promise<void> {
+  try {
+    const applicationServerKey = existingSubscription?.options?.applicationServerKey ?? applicationServerKeyHint;
+    const subscription =
+      existingSubscription ??
+      (await (self as any).registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      }));
+
+    const body = JSON.stringify({ subscription, deviceHint: "unknown" });
+    const [accessToken, crmAccessToken] = await Promise.all([
+      getStoredToken("accessToken"),
+      getStoredToken("crmAccessToken"),
+    ]);
+
+    await Promise.allSettled([
+      accessToken
+        ? fetch(`${API_BASE_URL}/api/push/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body,
+        })
+        : Promise.resolve(),
+      crmAccessToken
+        ? fetch(`${API_BASE_URL}/api/crm/timeproof/push/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${crmAccessToken}` },
+          body,
+        })
+        : Promise.resolve(),
+    ]);
+    await setStoredValue(SW_LAST_VERIFIED_KEY, String(Date.now()));
+  } catch (err) {
+    console.error("[SW] Failed to renew push subscription:", err);
+  }
+}
+
+async function maybeSelfHealPushSubscription(): Promise<void> {
+  try {
+    const lastVerified = Number((await getStoredToken(SW_LAST_VERIFIED_KEY)) || 0);
+    if (Date.now() - lastVerified < PUSH_RESUBSCRIBE_INTERVAL_MS) return;
+    const subscription = await (self as any).registration.pushManager.getSubscription();
+    if (!subscription) return; // nothing to renew — a dead/missing subscription here is the foreground prompt's job, not this
+    await renewPushSubscription(subscription);
+  } catch (err) {
+    console.error("[SW] Self-heal check failed:", err);
+  }
+}
+
 self.addEventListener("push", (event: any) => {
+  // Runs independently of whatever happens below (display success/failure,
+  // parse errors, burst-collapse, etc.) — a separate event.waitUntil() call
+  // is valid and keeps this fully decoupled from the display branches. See
+  // maybeSelfHealPushSubscription's own comment for why this specifically
+  // needs to live here rather than only in the foreground hook.
+  event.waitUntil(maybeSelfHealPushSubscription());
+
   // Every push received MUST result in a shown notification — browsers
   // track "silent" pushes per-origin and will eventually revoke push
   // permission for sites that receive pushes without displaying one. Both
@@ -280,47 +374,10 @@ self.addEventListener("push", (event: any) => {
 // with (main-site User and/or CrmUser use separate subscribe endpoints/JWTs
 // — see useWebPush.ts vs useCrmWebPush.ts).
 self.addEventListener("pushsubscriptionchange", (event: any) => {
-  event.waitUntil(
-    (async () => {
-      try {
-        const applicationServerKey =
-          event.oldSubscription?.options?.applicationServerKey
-          ?? event.newSubscription?.options?.applicationServerKey;
-
-        const subscription =
-          event.newSubscription
-          ?? (await (self as any).registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          }));
-
-        const body = JSON.stringify({ subscription, deviceHint: "unknown" });
-        const [accessToken, crmAccessToken] = await Promise.all([
-          getStoredToken("accessToken"),
-          getStoredToken("crmAccessToken"),
-        ]);
-
-        await Promise.allSettled([
-          accessToken
-            ? fetch(`${API_BASE_URL}/api/push/subscribe`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-              body,
-            })
-            : Promise.resolve(),
-          crmAccessToken
-            ? fetch(`${API_BASE_URL}/api/crm/timeproof/push/subscribe`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${crmAccessToken}` },
-              body,
-            })
-            : Promise.resolve(),
-        ]);
-      } catch (err) {
-        console.error("[SW] Failed to renew push subscription:", err);
-      }
-    })(),
-  );
+  const applicationServerKey =
+    event.oldSubscription?.options?.applicationServerKey
+    ?? event.newSubscription?.options?.applicationServerKey;
+  event.waitUntil(renewPushSubscription(event.newSubscription, applicationServerKey));
 });
 
 self.addEventListener("notificationclick", (event: any) => {

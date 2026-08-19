@@ -3,12 +3,20 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, ArrowLeft, Lock, BellRing, RefreshCw,
+  Loader2, ArrowLeft, Lock, BellRing, RefreshCw, Search, Send,
   CheckCircle2, AlertTriangle, XCircle, HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
+
+function matchesSearch(u: { fullName: string; username: string }, term: string): boolean {
+  const q = term.trim().toLowerCase();
+  if (!q) return true;
+  return u.fullName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
+}
 
 interface CrmUserData {
   _id: string;
@@ -56,6 +64,8 @@ export default function NotificationHealthPage() {
   const [staleDays, setStaleDays] = React.useState(7);
   const [fetching, setFetching] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [nudgingId, setNudgingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const init = async () => {
@@ -112,6 +122,25 @@ export default function NotificationHealthPage() {
     () => (rows || []).filter((u) => u.subscriptionCount === 0).length,
     [rows]
   );
+  const filteredRows = React.useMemo(
+    () => (rows || []).filter((u) => matchesSearch(u, search)),
+    [rows, search]
+  );
+
+  const handleNudge = React.useCallback(async (targetUserId: string, targetName: string) => {
+    if (!token) return;
+    setNudgingId(targetUserId);
+    try {
+      await apiClient.post(`/api/crm/timeproof/push/nudge/${targetUserId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success(`Reminder sent to ${targetName}.`);
+    } catch {
+      toast.error(`Could not send reminder to ${targetName}.`);
+    } finally {
+      setNudgingId(null);
+    }
+  }, [token]);
 
   if (isLoading) {
     return (
@@ -206,6 +235,16 @@ export default function NotificationHealthPage() {
               </div>
             )}
 
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or username..."
+                className="h-9 rounded-xl border-border/40 bg-background/60 pl-9 text-xs"
+              />
+            </div>
+
             <div className="space-y-3">
               {rows === null && !error && (
                 <div className="flex items-center justify-center py-16">
@@ -215,22 +254,42 @@ export default function NotificationHealthPage() {
               {rows?.length === 0 && (
                 <p className="text-center text-xs text-muted-foreground/60 py-16">No active users found.</p>
               )}
-              {rows?.map((u) => (
+              {rows && rows.length > 0 && filteredRows.length === 0 && (
+                <p className="text-center text-xs text-muted-foreground/60 py-16">No users match "{search}".</p>
+              )}
+              {filteredRows.map((u) => (
                 <div key={u.userId} className="rounded-2xl border border-border/40 bg-card overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border/30">
                     <div className="min-w-0">
                       <p className="text-sm font-bold truncate">{u.fullName}</p>
                       <p className="text-[11px] text-muted-foreground/60 truncate">@{u.username} · {u.role}</p>
                     </div>
-                    {u.subscriptionCount === 0 ? (
-                      <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full border-orange-500/20 bg-orange-500/10 text-orange-600 shrink-0">
-                        No subscriptions
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full shrink-0">
-                        {u.subscriptionCount} device{u.subscriptionCount === 1 ? "" : "s"}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {u.subscriptionCount === 0 ? (
+                        <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full border-orange-500/20 bg-orange-500/10 text-orange-600">
+                          No subscriptions
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] h-5 px-2 rounded-full">
+                          {u.subscriptionCount} device{u.subscriptionCount === 1 ? "" : "s"}
+                        </Badge>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleNudge(u.userId, u.fullName)}
+                        disabled={nudgingId === u.userId}
+                        className="h-7 rounded-lg border-border/50 text-[11px] font-semibold gap-1.5 px-2.5"
+                        title="Remind this user to enable notifications"
+                      >
+                        {nudgingId === u.userId ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3" />
+                        )}
+                        <span className="hidden sm:inline">Remind to enable</span>
+                      </Button>
+                    </div>
                   </div>
                   {u.devices.length > 0 && (
                     <div className="divide-y divide-border/20">

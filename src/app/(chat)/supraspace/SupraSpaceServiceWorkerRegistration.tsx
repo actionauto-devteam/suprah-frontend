@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === 'true';
-const SUPRA_SPACE_SCOPE = '/crm/supra-space/';
+const SUPRA_SPACE_SCOPE = '/supraspace/';
 
 // Registers /sw.js under a scope narrower than the root registration's
 // (see ServiceWorkerRegistration.tsx). A script served from / is allowed to
