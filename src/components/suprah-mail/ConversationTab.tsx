@@ -3,8 +3,8 @@
 import * as React from 'react';
 import {
   AlertCircle, Archive, Check as CheckIcon, CheckCheck, ChevronLeft, Download,
-  FileText, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Paperclip,
-  Plus, Search, Send, UserPlus, Users, Users2,
+  FileText, Loader2, MessageSquare, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip,
+  Search, Send, Trash2, UserPlus, Users, Users2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -33,7 +33,7 @@ function ConvAttachmentView({ token, convId, message, att, index }: {
 
   if (isImg) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden" style={{ maxWidth: 240 }}>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden" style={{ maxWidth: 'min(240px, 100%)' }}>
         <img
           src={href}
           alt={att.originalName}
@@ -52,7 +52,7 @@ function ConvAttachmentView({ token, convId, message, att, index }: {
       rel="noopener noreferrer"
       className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline transition-opacity hover:opacity-80"
       style={{
-        maxWidth: 260,
+        maxWidth: 'min(260px, 100%)',
         background: own ? 'rgba(0,0,0,0.2)' : 'var(--surface-2)',
         border: `1px solid ${own ? 'rgba(255,255,255,0.12)' : 'var(--border-1)'}`,
       }}
@@ -86,12 +86,14 @@ function ConvRow({
   collapsed,
   searchMatch,
   onOpen,
+  onDelete,
 }: {
   conv: MailConv;
   active: boolean;
   collapsed: boolean;
   searchMatch?: ConversationMessageSearchMatch;
   onOpen: () => void;
+  onDelete: () => void;
 }) {
   const display = convDisplayName(conv);
   const unread = conv.unreadCount > 0;
@@ -107,10 +109,10 @@ function ConvRow({
     <div
       onClick={onOpen}
       className={cn(
-        'sm5-conv-row relative flex items-center gap-2.5 px-3 py-2.5',
+        'sm5-conv-row group relative flex items-center gap-2.5 px-3 py-2.5',
         active && 'sm5-conv-active',
         unread && 'bg-emerald-500/5',
-        collapsed && 'lg:justify-center lg:px-2',
+        collapsed && '@lg:justify-center @lg:px-2',
       )}
       title={collapsed ? display : undefined}
     >
@@ -118,14 +120,14 @@ function ConvRow({
         <Avatar seed={convAvatarSeed(conv)} size={36} fontSize={12} icon={group ? <Users2 className="h-4 w-4" /> : undefined} />
         {collapsed && unread && (
           <span
-            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white lg:block"
+            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white @lg:block"
             aria-label={`${conv.unreadCount} unread`}
           >
             {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
           </span>
         )}
       </div>
-      <div className={cn('min-w-0 flex-1', collapsed && 'lg:hidden')}>
+      <div className={cn('min-w-0 flex-1', collapsed && '@lg:hidden')}>
         <div className="flex items-center gap-2">
           <p className={cn('sm5-title-sm truncate', unread ? 'font-bold' : 'font-semibold')}>{display}</p>
           <span className="ml-auto shrink-0 sm5-mono" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
@@ -165,13 +167,174 @@ function ConvRow({
         <span
           className={cn(
             'shrink-0 rounded-full text-white font-bold text-center',
-            collapsed && 'lg:hidden',
+            collapsed && '@lg:hidden',
           )}
           style={{ fontSize: 9, minWidth: 17, height: 17, lineHeight: '17px', padding: '0 4px', background: 'var(--accent)' }}
         >
           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
         </span>
       )}
+      {/* Desktop-only — mobile gets swipe-to-reveal Archive/Delete instead
+          (see SwipeableConvRow), not a persistent icon on every row. */}
+      {!collapsed && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          className="hidden! h-7 w-7 shrink-0 @lg:flex! @lg:opacity-0 @lg:group-hover:opacity-100 sm5-icon-btn"
+          title="Delete conversation"
+          aria-label="Delete conversation"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Swipe-to-reveal (mobile) ─────────────────────────────────────────── */
+
+const SWIPE_ACTION_WIDTH = 72;
+const SWIPE_REVEAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
+const SWIPE_OPEN_THRESHOLD = SWIPE_REVEAL_WIDTH / 2;
+
+/**
+ * Wraps a ConvRow with a touch-only swipe-left gesture that reveals
+ * Archive/Delete behind it — the desktop equivalent is ConvRow's own
+ * hover-reveal trash icon, not this. Gated on `event.pointerType === 'touch'`
+ * so a desktop mouse drag can never trigger it, regardless of window width.
+ */
+function SwipeableConvRow({
+  conv,
+  active,
+  collapsed,
+  searchMatch,
+  onOpen,
+  onArchive,
+  onDelete,
+  isOpen,
+  onOpenChange,
+}: {
+  conv: MailConv;
+  active: boolean;
+  collapsed: boolean;
+  searchMatch?: ConversationMessageSearchMatch;
+  onOpen: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [dragX, setDragX] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const dragStateRef = React.useRef<{ pointerId: number; startX: number; startDragX: number } | null>(null);
+  const draggingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDragX(isOpen ? -SWIPE_REVEAL_WIDTH : 0);
+  }, [isOpen]);
+
+  const handlePointerDown = (event: React.PointerEvent) => {
+    if (event.pointerType !== 'touch') return;
+    dragStateRef.current = { pointerId: event.pointerId, startX: event.clientX, startDragX: dragX };
+    setIsDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const delta = event.clientX - state.startX;
+    if (Math.abs(delta) > 4) draggingRef.current = true;
+    setDragX(Math.min(0, Math.max(-SWIPE_REVEAL_WIDTH, state.startDragX + delta)));
+  };
+
+  const handlePointerUp = (event: React.PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    dragStateRef.current = null;
+    setIsDragging(false);
+    const wasDragging = draggingRef.current;
+    draggingRef.current = false;
+
+    if (wasDragging) {
+      const nowOpen = dragX <= -SWIPE_OPEN_THRESHOLD;
+      onOpenChange(nowOpen);
+      return;
+    }
+
+    // A tap, not a drag: closes an already-open row instead of opening the
+    // thread underneath it; otherwise behaves like a normal row tap.
+    if (isOpen) {
+      onOpenChange(false);
+    } else {
+      onOpen();
+    }
+  };
+
+  // Not just hidden behind the row — unmounted entirely while closed, so a
+  // stray sliver of Archive/Delete color can never bleed past the row's edge
+  // (subpixel rounding on the translateX cover was leaving a hairline trace).
+  const revealed = isDragging || dragX < 0;
+
+  return (
+    <div className="relative overflow-hidden">
+      {revealed && (
+        <div
+          className="absolute inset-y-0 right-0 flex @lg:hidden"
+          style={{ width: SWIPE_REVEAL_WIDTH }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onArchive();
+              onOpenChange(false);
+            }}
+            style={{ width: SWIPE_ACTION_WIDTH, background: 'var(--warning)' }}
+            className="flex flex-col items-center justify-center gap-1 text-white"
+          >
+            <Archive className="h-4 w-4" />
+            <span style={{ fontSize: 9, fontWeight: 700 }}>Archive</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onDelete();
+              onOpenChange(false);
+            }}
+            style={{ width: SWIPE_ACTION_WIDTH, background: 'var(--danger)' }}
+            className="flex flex-col items-center justify-center gap-1 text-white"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span style={{ fontSize: 9, fontWeight: 700 }}>Delete</span>
+          </button>
+        </div>
+      )}
+
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="relative"
+        style={{
+          transform: `translateX(${dragX}px)`,
+          transition: isDragging ? 'none' : 'transform 0.2s ease',
+          touchAction: 'pan-y',
+          background: 'var(--bg-elevated)',
+        }}
+      >
+        <ConvRow
+          conv={conv}
+          active={active}
+          collapsed={collapsed}
+          searchMatch={searchMatch}
+          onOpen={onOpen}
+          onDelete={onDelete}
+        />
+      </div>
     </div>
   );
 }
@@ -269,6 +432,9 @@ export function ConversationTab({
   const [convos, setConvos] = React.useState<MailConv[]>([]);
   const [loadingConvos, setLoadingConvos] = React.useState(true);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  // Which row's mobile swipe (Archive/Delete) is currently revealed — opening
+  // one closes any other left open.
+  const [swipedRowId, setSwipedRowId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   const realtimeRefreshSignalRef = React.useRef(refreshSignal);
   const manualRefreshSignalRef = React.useRef(manualRefreshSignal);
@@ -878,6 +1044,31 @@ export function ConversationTab({
       .catch(() => toast.error('Could not archive.'));
   };
 
+  // Permanently removes the conversation wrapper from Suprah (the Gmail
+  // thread itself is untouched) — deletable straight from the list row,
+  // not just from an open thread.
+  const deleteConversationRow = (conv: MailConv) => {
+    apiClient.delete(`/api/mail/conversations/${conv._id}`, { headers: auth })
+      .then(() => {
+        toast.success('Conversation deleted');
+        setConvos((p) => p.filter((c) => c._id !== conv._id));
+        setActiveId((current) => (current === conv._id ? null : current));
+      })
+      .catch(() => toast.error('Could not delete conversation.'));
+  };
+
+  // Row-level counterpart of archiveActive() — same endpoint, but works on
+  // whichever row was swiped, not just the currently-open thread.
+  const archiveConversationRow = (conv: MailConv) => {
+    apiClient.patch(`/api/mail/conversations/${conv._id}`, { isArchived: true }, { headers: auth })
+      .then(() => {
+        toast.success('Conversation archived');
+        setConvos((p) => p.filter((c) => c._id !== conv._id));
+        setActiveId((current) => (current === conv._id ? null : current));
+      })
+      .catch(() => toast.error('Could not archive.'));
+  };
+
   const addFiles = (list: FileList | null) => {
     const result = validateFiles(list, files.length);
     if ('error' in result) { toast.error(result.error); return; }
@@ -973,13 +1164,13 @@ export function ConversationTab({
       {/* Conversation list */}
       <aside
         className={cn(
-          'sm5-rail flex-col w-full lg:shrink-0 transition-[width] duration-200',
-          railCollapsed ? 'lg:w-16' : 'lg:w-80',
-          activeId ? 'hidden lg:flex' : 'flex',
+          'sm5-rail relative flex-col w-full @lg:shrink-0 transition-[width] duration-200',
+          railCollapsed ? '@lg:w-16' : '@lg:w-80',
+          activeId ? 'hidden @lg:flex' : 'flex',
         )}
       >
-        <div className={cn('sm5-toolbar gap-2', railCollapsed ? 'lg:justify-center lg:px-2' : 'px-3')}>
-          <div className={cn('relative flex-1', railCollapsed && 'lg:hidden')}>
+        <div className={cn('sm5-toolbar gap-2', railCollapsed ? '@lg:justify-center @lg:px-2' : 'px-3')}>
+          <div className={cn('relative flex-1', railCollapsed && '@lg:hidden')}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)' }} />
             <input
               value={q}
@@ -1005,18 +1196,6 @@ export function ConversationTab({
               />
             )}
           </div>
-          <button
-            onClick={() => setNewOpen(true)}
-            className={cn(
-              'sm5-btn h-9 flex items-center justify-center gap-1.5 shrink-0',
-              railCollapsed ? 'lg:w-9 lg:px-0' : 'px-3',
-            )}
-            style={{ fontSize: 12 }}
-            title="New conversation"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className={cn(railCollapsed && 'lg:hidden')}>New</span>
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto sm5-scroll px-2 py-2 space-y-0.5">
@@ -1024,7 +1203,7 @@ export function ConversationTab({
           {!loadingConvos && !searching && visibleConvos.length === 0 && (
             <div className={cn(
               'flex flex-col items-center gap-3 py-14 px-4 text-center',
-              railCollapsed && 'lg:hidden',
+              railCollapsed && '@lg:hidden',
             )}>
               <div
                 className="h-11 w-11 rounded-xl flex items-center justify-center"
@@ -1048,7 +1227,7 @@ export function ConversationTab({
               messageSearchMatches[c._id];
 
             return (
-              <ConvRow
+              <SwipeableConvRow
                 key={c._id}
                 conv={c}
                 active={activeId === c._id}
@@ -1061,13 +1240,31 @@ export function ConversationTab({
                     c,
                   )
                 }
+                onArchive={() => archiveConversationRow(c)}
+                onDelete={() => deleteConversationRow(c)}
+                isOpen={swipedRowId === c._id}
+                onOpenChange={(open) => setSwipedRowId(open ? c._id : null)}
               />
             );
           })}
         </div>
 
+        <button
+          type="button"
+          onClick={() => setNewOpen(true)}
+          className={cn(
+            'sm5-btn absolute bottom-4 right-4 z-10 flex h-11 items-center justify-center gap-2 rounded-full px-4 shadow-lg @lg:bottom-16',
+            railCollapsed && '@lg:w-11 @lg:px-0',
+          )}
+          style={{ fontSize: 13 }}
+          title="New conversation"
+        >
+          <MessageSquarePlus className="h-4 w-4 shrink-0" />
+          <span className={cn(railCollapsed && '@lg:hidden')}>New Chat</span>
+        </button>
+
         <div
-          className="hidden shrink-0 py-2.5 lg:block"
+          className="hidden shrink-0 py-2.5 @lg:block"
           style={{ borderTop: '1px solid var(--border-1)' }}
         >
           <button
@@ -1096,7 +1293,7 @@ export function ConversationTab({
       </aside>
 
       {/* Chat pane */}
-      <main className={cn('flex-col min-w-0 flex-1', activeId ? 'flex sm5-slide-in lg:animate-none' : 'hidden lg:flex')}>
+      <main className={cn('flex-col min-w-0 flex-1', activeId ? 'flex sm5-slide-in @lg:animate-none' : 'hidden @lg:flex')}>
         {!activeId && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
             <MessageSquare className="h-9 w-9" style={{ color: 'var(--text-disabled)' }} />
@@ -1108,7 +1305,7 @@ export function ConversationTab({
           <>
             {/* Chat header */}
             <div className="sm5-toolbar gap-2.5 px-3" style={{ background: 'var(--bg-elevated)' }}>
-              <button onClick={() => setActiveId(null)} className="sm5-icon-btn h-9 w-9 lg:hidden" title="Back">
+              <button onClick={() => setActiveId(null)} className="sm5-icon-btn h-9 w-9 @lg:hidden" title="Back">
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <Avatar seed={convAvatarSeed(activeConv)} size={36} fontSize={12} icon={isGroup ? <Users2 className="h-4 w-4" /> : undefined} />

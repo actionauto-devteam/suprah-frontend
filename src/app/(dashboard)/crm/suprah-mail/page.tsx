@@ -7,6 +7,7 @@ import {
   Check as CheckIcon,
   ChevronDown,
   Inbox,
+  LayoutGrid,
   LogOut,
   Mail,
   MessageSquare,
@@ -41,7 +42,9 @@ import { ConnectGmailScreen } from "@/components/suprah-mail/Shared";
 import { InboxTab } from "@/components/suprah-mail/InboxTab";
 import { ConversationTab } from "@/components/suprah-mail/ConversationTab";
 import { DispatchChatTab } from "@/components/suprah-mail/DispatchChatTab";
-import { ReservedCommunicationTab } from "@/components/suprah-mail/ReservedCommunicationTab";
+import { CallDialPadTab } from "@/components/suprah-mail/CallDialPadTab";
+import { SmsTab } from "@/components/suprah-mail/SmsTab";
+import { OverviewTab } from "@/components/suprah-mail/OverviewTab";
 import {
   CommunicationPaneWorkspace,
   movePaneInRows,
@@ -53,7 +56,33 @@ import type { ConvPushPayload, MailStatus } from "@/components/suprah-mail/types
 
 ensureMailStyles();
 
-type CommunicationTab = "inbox" | "conversation" | "dispatch" | "sms" | "call";
+type CommunicationTab = "overview" | "inbox" | "conversation" | "dispatch" | "sms" | "call";
+
+const LAST_CHANNEL_STORAGE_KEY = "sm5_last_channel";
+const VALID_CHANNELS: CommunicationTab[] = [
+  "overview",
+  "inbox",
+  "conversation",
+  "dispatch",
+  "sms",
+  "call",
+];
+
+// Overview is the default landing pane, not a communication channel, so it
+// stays out of CHANNELS (which drives the selectable channel list and the
+// Add Pane menu) — kept separately just for header/trigger icon+label
+// lookups on whichever pane happens to be showing it.
+const OVERVIEW_CHANNEL: {
+  key: CommunicationTab;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+} = {
+  key: "overview",
+  label: "Overview",
+  description: "Your One Desk home — quick status for every channel",
+  icon: LayoutGrid,
+};
 
 const CHANNELS: Array<{
   key: CommunicationTab;
@@ -157,7 +186,10 @@ function ChannelSelector({
   callUnread: number;
   disabledKeys?: CommunicationTab[];
 }) {
-  const active = CHANNELS.find((channel) => channel.key === value) ?? CHANNELS[0];
+  const active =
+    value === "overview"
+      ? OVERVIEW_CHANNEL
+      : CHANNELS.find((channel) => channel.key === value) ?? CHANNELS[0];
   const ActiveIcon = active.icon;
 
   const unreadFor = (key: CommunicationTab) => {
@@ -191,7 +223,7 @@ function ChannelSelector({
           </span>
           {(unreadFor(active.key) > 0 || active.key === "sms" || active.key === "call") && (
             <span
-              className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[8px] font-black ${
                 unreadFor(active.key) > 0
                   ? "bg-white text-emerald-700"
                   : "border border-white/20 bg-white/10 text-white/90"
@@ -369,7 +401,7 @@ export default function SuprahMailPage() {
   const paneCounterRef = React.useRef(1);
   const [panes, setPanes] = React.useState<
     Array<{ id: string; channel: CommunicationTab }>
-  >([{ id: initialPaneId, channel: "inbox" }]);
+  >([{ id: initialPaneId, channel: "overview" }]);
   const [paneRows, setPaneRows] = React.useState<PaneRows>([
     [initialPaneId],
   ]);
@@ -421,7 +453,15 @@ export default function SuprahMailPage() {
 
   const focusedPane =
     panes.find((pane) => pane.id === focusedPaneId) ?? panes[0];
-  const focusedChannel = focusedPane?.channel ?? "inbox";
+  const focusedChannel = focusedPane?.channel ?? "overview";
+
+  // Remember the last channel the user had focused so the next visit reopens
+  // there instead of always defaulting back to Overview.
+  React.useEffect(() => {
+    if (focusedChannel) {
+      localStorage.setItem(LAST_CHANNEL_STORAGE_KEY, focusedChannel);
+    }
+  }, [focusedChannel]);
 
   const activeChannelKeys = React.useMemo(
     () => panes.map((pane) => pane.channel),
@@ -596,7 +636,9 @@ export default function SuprahMailPage() {
           ? "Refresh Dispatch Chat"
           : focusedChannel === "sms"
             ? "Refresh will be available when SMS is connected"
-            : "Refresh will be available when calling is connected";
+            : focusedChannel === "call"
+              ? "Refresh will be available when calling is connected"
+              : "Nothing to refresh here";
 
   const handleGlobalRefresh = React.useCallback(() => {
     const canRefreshFocusedPane =
@@ -688,6 +730,11 @@ export default function SuprahMailPage() {
       }
 
       setToken(nextToken);
+
+      const savedChannel = localStorage.getItem(LAST_CHANNEL_STORAGE_KEY);
+      if (savedChannel && (VALID_CHANNELS as string[]).includes(savedChannel)) {
+        setPanes([{ id: initialPaneId, channel: savedChannel as CommunicationTab }]);
+      }
 
       try {
         const response = await apiClient.get("/api/mail/status", {
@@ -1189,9 +1236,9 @@ export default function SuprahMailPage() {
       if (!pane) return null;
 
       const channel =
-        CHANNELS.find(
-          (item) => item.key === pane.channel,
-        ) ?? CHANNELS[0];
+        pane.channel === "overview"
+          ? OVERVIEW_CHANNEL
+          : CHANNELS.find((item) => item.key === pane.channel) ?? CHANNELS[0];
       const Icon = channel.icon;
       const unread = unreadForChannel(pane.channel);
 
@@ -1234,7 +1281,7 @@ export default function SuprahMailPage() {
                 event.stopPropagation();
                 closePane(paneId);
               }}
-              className="sm5-icon-btn size-7 shrink-0"
+              className="sm5-icon-btn size-9 shrink-0"
               title={`Close ${channel.label} pane`}
               aria-label={`Close ${channel.label} pane`}
             >
@@ -1255,6 +1302,20 @@ export default function SuprahMailPage() {
     (paneId: string) => {
       const pane = panes.find((item) => item.id === paneId);
       if (!pane) return null;
+
+      if (pane.channel === "overview") {
+        return (
+          <OverviewTab
+            token={token}
+            mailConnected={Boolean(status?.connected)}
+            dispatchEnabled={dispatchChatEnabled}
+            inboxUnread={inboxUnreadTotal}
+            emailUnread={emailUnreadTotal + convUnreadBump}
+            dispatchUnread={dispatchUnreadTotal}
+            onSelectChannel={changeChannel}
+          />
+        );
+      }
 
       if (pane.channel === "inbox") {
         return status?.connected ? (
@@ -1324,18 +1385,23 @@ export default function SuprahMailPage() {
       }
 
       if (pane.channel === "sms") {
-        return <ReservedCommunicationTab channel="sms" />;
+        return <SmsTab token={token} />;
       }
 
-      return <ReservedCommunicationTab channel="call" />;
+      return <CallDialPadTab token={token} />;
     },
     [
+      changeChannel,
       connecting,
       convPushes,
+      convUnreadBump,
       conversationRefreshSignal,
+      dispatchChatEnabled,
       dispatchUnreadTotal,
+      emailUnreadTotal,
       handleConnect,
       inboxRefreshSignal,
+      inboxUnreadTotal,
       paneManualRefreshSignals,
       panes,
       refreshDispatchUnread,
@@ -1484,7 +1550,7 @@ export default function SuprahMailPage() {
 
                 <button
                   onClick={handleDisconnect}
-                  className="sm5-icon-btn h-8 w-8"
+                  className="sm5-icon-btn h-10 w-10"
                   title="Disconnect Gmail"
                 >
                   <LogOut className="h-3.5 w-3.5" />
@@ -1496,7 +1562,7 @@ export default function SuprahMailPage() {
               type="button"
               onClick={handleGlobalRefresh}
               disabled={!globalRefreshAvailable}
-              className="sm5-icon-btn h-8 w-8"
+              className="sm5-icon-btn h-10 w-10"
               style={{ border: "1px solid var(--border-2)" }}
               title={globalRefreshTitle}
               aria-label={globalRefreshTitle}
@@ -1506,7 +1572,7 @@ export default function SuprahMailPage() {
 
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="sm5-icon-btn h-8 w-8"
+              className="sm5-icon-btn h-10 w-10"
               style={{ border: "1px solid var(--border-2)" }}
               title="Toggle theme"
             >

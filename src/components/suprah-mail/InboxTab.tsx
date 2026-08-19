@@ -178,7 +178,7 @@ function LabelRail({
 
   return (
     <aside
-      className="sm5-rail hidden md:flex flex-col shrink-0 transition-[width] duration-200"
+      className="sm5-rail hidden @md:flex flex-col shrink-0 transition-[width] duration-200"
       style={{ width: collapsed ? 64 : 304 }}
     >
       {/* Desktop Inbox now mirrors Email Chat: Search + primary action live inside the left rail. */}
@@ -352,7 +352,7 @@ function DraftRow({
           if (!busy) onDiscard();
         }}
         disabled={busy}
-        className="sm5-icon-btn h-7 w-7 shrink-0 mt-1"
+        className="sm5-icon-btn h-10 w-10 shrink-0 -mt-0.5"
         title={discarding ? 'Deleting draft…' : opening ? 'Opening draft…' : 'Discard draft'}
         aria-label={discarding ? 'Deleting draft' : 'Discard draft'}
       >
@@ -378,25 +378,25 @@ function MessageRow({ msg, onOpen, onAction }: {
   return (
     <div
       onClick={onOpen}
-      className={cn('sm5-msg-row flex items-center gap-2.5 px-3 sm:px-4 py-3 lg:py-2.5 group', msg.isUnread && 'bg-emerald-500/4')}
+      className={cn('sm5-msg-row flex items-center gap-2.5 px-3 sm:px-4 py-3 @lg:py-2.5 group', msg.isUnread && 'bg-emerald-500/4')}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onAction(msg.isStarred ? 'unstar' : 'star'); }}
-        className="shrink-0 self-start lg:self-center mt-0.5 lg:mt-0"
+        className="shrink-0 self-start @lg:self-center -m-2 p-2 mt-0.5 @lg:mt-0"
         title={msg.isStarred ? 'Unstar' : 'Star'}
       >
         <Star className="h-4 w-4" style={{ color: msg.isStarred ? '#f0a855' : 'var(--text-disabled)', fill: msg.isStarred ? '#f0a855' : 'none' }} />
       </button>
 
-      <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-3">
+      <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-3">
         {/* Sender — fixed column on lg */}
-        <div className="flex items-center gap-2 lg:w-48 lg:shrink-0">
+        <div className="flex items-center gap-2 @lg:w-48 @lg:shrink-0">
           <span className={cn('truncate', msg.isUnread ? 'font-bold' : 'font-medium')} style={{ fontSize: 13, color: 'var(--text-primary)' }}>
             {msg.from.name || msg.from.email}
           </span>
-          {msg.attachments.length > 0 && <Paperclip className="h-3 w-3 shrink-0 lg:hidden" style={{ color: 'var(--text-tertiary)' }} />}
+          {msg.attachments.length > 0 && <Paperclip className="h-3 w-3 shrink-0 @lg:hidden" style={{ color: 'var(--text-tertiary)' }} />}
           <span
-            className="ml-auto shrink-0 sm5-mono lg:hidden"
+            className="ml-auto shrink-0 sm5-mono @lg:hidden"
             style={{ fontSize: 10.5, color: msg.isUnread ? 'var(--accent-text)' : 'var(--text-tertiary)', fontWeight: msg.isUnread ? 700 : 400 }}
           >
             {fmtListDate(msg.internalDate)}
@@ -405,16 +405,16 @@ function MessageRow({ msg, onOpen, onAction }: {
 
         {/* Subject + snippet — inline on lg, stacked below */}
         <div className="min-w-0 flex-1">
-          <p className="sm5-body truncate mt-0.5 lg:mt-0">
+          <p className="sm5-body truncate mt-0.5 @lg:mt-0">
             <span className={cn(msg.isUnread && 'font-semibold')} style={{ color: 'var(--text-primary)' }}>{msg.subject}</span>
-            <span className="hidden lg:inline" style={{ color: 'var(--text-tertiary)' }}>{'  —  '}{msg.snippet}</span>
+            <span className="hidden @lg:inline" style={{ color: 'var(--text-tertiary)' }}>{'  —  '}{msg.snippet}</span>
           </p>
-          <p className="sm5-supporting truncate mt-0.5 lg:hidden">{msg.snippet}</p>
+          <p className="sm5-supporting truncate mt-0.5 @lg:hidden">{msg.snippet}</p>
         </div>
       </div>
 
       {/* Right cluster on lg: attachment, date, hover actions */}
-      <div className="hidden lg:flex items-center gap-2 shrink-0">
+      <div className="hidden @lg:flex items-center gap-2 shrink-0">
         {msg.attachments.length > 0 && <Paperclip className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)' }} />}
         <span
           className="sm5-mono group-hover:hidden"
@@ -2209,7 +2209,7 @@ export function InboxTab({
             toolbar disappears reliably at md+ while preserving mobile access
             to Search + Compose when the desktop mailbox rail is hidden. */}
         <div
-          className="flex h-[54px] shrink-0 items-center gap-2 border-b px-3 md:!hidden"
+          className="flex h-[54px] shrink-0 items-center gap-2 border-b px-3 @md:!hidden"
           style={{ borderColor: 'var(--border-1)' }}
         >
           <div className="relative min-w-0 flex-1">
@@ -2239,7 +2239,7 @@ export function InboxTab({
         </div>
 
         {/* Mobile folder pills */}
-        <div className="flex md:hidden gap-1.5 px-3 py-2 overflow-x-auto sm5-scroll shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex @md:hidden gap-1.5 px-3 py-2 overflow-x-auto sm5-scroll shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
           {SYSTEM_FOLDERS.map((f) => (
             <button
               key={f.id}

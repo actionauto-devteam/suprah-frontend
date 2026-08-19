@@ -4,10 +4,10 @@ import * as React from "react";
 import {
   Loader2,
   MessageSquare,
+  MessageSquarePlus,
   Navigation2,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
   Search,
   Users,
   X,
@@ -195,7 +195,7 @@ function DriverRow({
         "sm5-conv-row group flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 text-left",
         selected && "sm5-conv-active",
         unread > 0 && "bg-emerald-500/5",
-        collapsed && "lg:justify-center lg:px-2",
+        collapsed && "@lg:justify-center @lg:px-2",
       )}
       aria-pressed={selected}
       title={collapsed ? driver.name : undefined}
@@ -216,7 +216,7 @@ function DriverRow({
         />
         {collapsed && unread > 0 && (
           <span
-            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white lg:block"
+            className="absolute -right-1 -top-1 hidden min-w-4 rounded-full bg-emerald-600 px-1 text-center text-[8px] font-black leading-4 text-white @lg:block"
             aria-label={`${unread} unread`}
           >
             {unread > 9 ? "9+" : unread}
@@ -224,7 +224,7 @@ function DriverRow({
         )}
       </div>
 
-      <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
+      <div className={cn("min-w-0 flex-1", collapsed && "@lg:hidden")}>
         <div className="flex min-w-0 items-center gap-2">
           <p
             className={cn("sm5-title-sm truncate", unread > 0 ? "font-bold" : "font-semibold")}
@@ -289,7 +289,7 @@ function DriverRow({
       <div
         className={cn(
           "ml-1 flex shrink-0 flex-col items-end gap-1.5 self-stretch py-0.5",
-          collapsed && "lg:hidden",
+          collapsed && "@lg:hidden",
         )}
       >
         <span
@@ -345,11 +345,11 @@ function NewDispatchChatModal({
 
   return (
     <div
-      className="sm5-overlay fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      className="sm5-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="sm5-modal sm5-sheet flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl rounded-b-none sm:rounded-2xl"
+        className="sm5-modal sm5-sheet flex w-full max-w-md flex-col overflow-hidden rounded-2xl"
         style={{ maxHeight: "calc(100dvh - 32px)" }}
         onClick={(event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation()}
       >
@@ -368,7 +368,7 @@ function NewDispatchChatModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="sm5-icon-btn h-7 w-7 shrink-0" title="Close">
+          <button onClick={onClose} className="sm5-icon-btn h-10 w-10 shrink-0" title="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1245,21 +1245,21 @@ export function DispatchChatTab({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <aside
         className={cn(
-          "min-h-0 w-full flex-col border-r-0 border-border/60 bg-[var(--bg-elevated)] transition-[width] duration-200 lg:flex lg:shrink-0 lg:border-r",
-          railCollapsed ? "lg:w-16" : "lg:w-[21rem]",
+          "relative min-h-0 w-full flex-col border-r-0 border-border/60 bg-[var(--bg-elevated)] transition-[width] duration-200 @lg:flex @lg:shrink-0 @lg:border-r",
+          railCollapsed ? "@lg:w-16" : "@lg:w-[min(21rem,100%)]",
           selectedDriver ? "hidden" : "flex",
         )}
       >
         <div className={cn(
           "sm5-toolbar gap-2",
-          railCollapsed ? "lg:justify-center lg:px-2" : "px-3",
+          railCollapsed ? "@lg:justify-center @lg:px-2" : "px-3",
         )}>
           <div className={cn(
             "relative min-w-0 flex-1",
-            railCollapsed && "lg:hidden",
+            railCollapsed && "@lg:hidden",
           )}>
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2"
@@ -1273,27 +1273,12 @@ export function DispatchChatTab({
               className="sm5-input h-9 w-full pl-9 pr-3 text-xs"
             />
           </div>
-
-          <button
-            type="button"
-            className={cn(
-              "sm5-btn flex h-9 shrink-0 items-center justify-center gap-1.5",
-              railCollapsed ? "lg:w-9 lg:px-0" : "px-3",
-            )}
-            style={{ fontSize: 12 }}
-            onClick={startNew}
-            title="New Dispatch Chat"
-          >
-            <Plus className="size-3.5" />
-            <span className={cn(railCollapsed && "lg:hidden")}>New</span>
-          </button>
-
         </div>
 
         <div
           className={cn(
             "shrink-0 border-b border-border/50 px-3 py-2",
-            railCollapsed && "lg:hidden",
+            railCollapsed && "@lg:hidden",
           )}
         >
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm5-scroll">
@@ -1303,7 +1288,7 @@ export function DispatchChatTab({
                 type="button"
                 onClick={() => setFilter(item.key)}
                 className={cn(
-                  "sm5-pill shrink-0 px-2.5 py-1.5 text-[10px] font-bold",
+                  "sm5-pill shrink-0 px-2.5 py-2 text-[10px] font-bold",
                   filter === item.key &&
                     "!border-emerald-500/30 !bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-300",
                 )}
@@ -1324,7 +1309,7 @@ export function DispatchChatTab({
           <div
             className={cn(
               "flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/[0.06] px-3 py-1.5 text-[9px] text-amber-700 dark:text-amber-300",
-              railCollapsed && "lg:hidden",
+              railCollapsed && "@lg:hidden",
             )}
           >
             <span className="min-w-0 truncate">{refreshWarning}</span>
@@ -1388,8 +1373,22 @@ export function DispatchChatTab({
           )}
         </div>
 
+        <button
+          type="button"
+          onClick={startNew}
+          className={cn(
+            "sm5-btn absolute bottom-4 right-4 z-10 flex h-11 items-center justify-center gap-2 rounded-full px-4 shadow-lg @lg:bottom-16",
+            railCollapsed && "@lg:w-11 @lg:px-0",
+          )}
+          style={{ fontSize: 13 }}
+          title="New Dispatch Chat"
+        >
+          <MessageSquarePlus className="size-4 shrink-0" />
+          <span className={cn(railCollapsed && "@lg:hidden")}>New Chat</span>
+        </button>
+
         <div
-          className="hidden shrink-0 py-2.5 lg:block"
+          className="hidden shrink-0 py-2.5 @lg:block"
           style={{ borderTop: "1px solid var(--border-1)" }}
         >
           <button
@@ -1420,7 +1419,7 @@ export function DispatchChatTab({
       <section
         className={cn(
           "min-h-0 min-w-0 flex-1 overflow-hidden",
-          selectedDriver ? "flex" : "hidden lg:flex",
+          selectedDriver ? "flex" : "hidden @lg:flex",
         )}
       >
         {selectedDriver ? (

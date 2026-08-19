@@ -54,9 +54,9 @@ export function NewConversationModal({ onClose, onCreate }: {
   };
 
   return (
-    <div className="sm5-overlay fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+    <div className="sm5-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="sm5-modal sm5-sheet w-full max-w-md overflow-hidden flex flex-col rounded-t-2xl rounded-b-none sm:rounded-2xl"
+        className="sm5-modal sm5-sheet w-full max-w-md overflow-hidden flex flex-col rounded-2xl"
         style={{ maxHeight: 'calc(100dvh - 32px)' }}
         onClick={(e) => e.stopPropagation()}
       >

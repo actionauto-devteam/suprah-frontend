@@ -63,7 +63,7 @@ export function PendingFileChip({ file, onRemove }: { file: File; onRemove: () =
         <p className="truncate font-semibold" style={{ fontSize: 11, color: 'var(--text-primary)' }}>{file.name}</p>
         <p className="sm5-mono" style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{fmtSize(file.size)}</p>
       </div>
-      <button onClick={onRemove} className="sm5-icon-btn h-5 w-5 shrink-0" title="Remove">
+      <button onClick={onRemove} className="sm5-icon-btn h-7 w-7 shrink-0" title="Remove">
         <X className="h-3 w-3" />
       </button>
     </div>

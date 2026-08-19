@@ -507,10 +507,13 @@ export function CommunicationPaneWorkspace({
     });
   }, [rowHeightWeights, visualRowKeys]);
 
+  // No `gap` here: with 240 tracks it floors the grid's intrinsic width at
+  // ~956px (239 fixed gutters), which breaks the panes' container queries
+  // below. Divider is drawn via each section's inset box-shadow instead.
   return (
     <div
       ref={containerRef}
-      className={`relative grid min-h-0 min-w-0 flex-1 gap-1 overflow-hidden bg-[var(--border-1)] ${
+      className={`relative grid min-h-0 min-w-0 flex-1 overflow-hidden ${
         resizeAxis === "horizontal"
           ? "cursor-col-resize"
           : resizeAxis === "vertical"
@@ -647,7 +650,7 @@ export function CommunicationPaneWorkspace({
                   aria-orientation="vertical"
                   aria-label="Resize adjacent panes"
                   title="Drag to resize panes"
-                  className="group absolute -right-[4px] top-0 bottom-0 z-50 w-[9px] cursor-col-resize touch-none"
+                  className="group absolute -right-2 top-0 bottom-0 z-50 w-4 cursor-col-resize touch-none"
                   onPointerDown={(event) =>
                     beginHorizontalResize(
                       event,
@@ -660,7 +663,10 @@ export function CommunicationPaneWorkspace({
                   onPointerUp={endResize}
                   onPointerCancel={endResize}
                 >
-                  <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-emerald-500/70" />
+                  <div
+                    className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors group-hover:bg-emerald-500/70"
+                    style={{ background: "var(--border-2)" }}
+                  />
                 </div>
               )}
 
@@ -670,14 +676,14 @@ export function CommunicationPaneWorkspace({
         },
       )}
 
-      {rowBoundaryPositions.map((topPercent, index) => (
+      {!compactMode && rowBoundaryPositions.map((topPercent, index) => (
         <div
           key={`row-resizer-${visualRowKeys[index]}-${visualRowKeys[index + 1]}`}
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize pane rows"
           title="Drag to resize pane rows"
-          className="group absolute left-0 right-0 z-[60] h-[9px] -translate-y-1/2 cursor-row-resize touch-none"
+          className="group absolute left-0 right-0 z-[60] h-4 -translate-y-1/2 cursor-row-resize touch-none"
           style={{ top: `${topPercent}%` }}
           onPointerDown={(event) =>
             beginVerticalResize(
@@ -690,7 +696,10 @@ export function CommunicationPaneWorkspace({
           onPointerUp={endResize}
           onPointerCancel={endResize}
         >
-          <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-emerald-500/70" />
+          <div
+            className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors group-hover:bg-emerald-500/70"
+            style={{ background: "var(--border-2)" }}
+          />
         </div>
       ))}
     </div>

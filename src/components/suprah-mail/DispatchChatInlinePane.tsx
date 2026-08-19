@@ -859,7 +859,7 @@ export function DispatchChatInlinePane({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-9 shrink-0 lg:hidden"
+              className="size-10 shrink-0 @lg:hidden"
               onClick={onBack}
               aria-label="Back to drivers"
             >
@@ -885,7 +885,7 @@ export function DispatchChatInlinePane({
               </span>
             </div>
 
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
               {primaryLoad ? (
                 <>
                   <Truck className="size-3 shrink-0 text-emerald-500" />
@@ -918,7 +918,7 @@ export function DispatchChatInlinePane({
             type="button"
             variant={detailsOpen ? "secondary" : "outline"}
             size="sm"
-            className="h-9 shrink-0 gap-1.5 px-2.5 text-[11.5px] font-bold"
+            className="h-10 shrink-0 gap-1.5 px-2.5 text-[11.5px] font-bold"
             disabled={!threadId}
             onClick={() => setDetailsOpen((current) => !current)}
           >
@@ -1114,7 +1114,7 @@ export function DispatchChatInlinePane({
 
           {emojiOpen && (
             <div
-              className="absolute bottom-[calc(100%-4px)] left-3 z-20 mb-2 w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl border border-border p-2 shadow-xl"
+              className="absolute bottom-[calc(100%-4px)] left-3 z-20 mb-2 w-[min(16rem,calc(100cqw-1.5rem))] rounded-2xl border border-border p-2 shadow-xl"
               style={{ background: "var(--bg-elevated)" }}
             >
               <p className="px-1 pb-1.5 text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
@@ -1227,7 +1227,7 @@ export function DispatchChatInlinePane({
       </div>
 
       {detailsOpen && threadId && (
-        <aside className="hidden min-h-0 w-80 shrink-0 border-l border-border/60 xl:block">
+        <aside className="hidden min-h-0 w-80 shrink-0 border-l border-border/60 @xl:block">
           <ConversationDetailsPanel
             counterpartName={resolvedDriverName}
             counterpartRole="Driver"
@@ -1249,11 +1249,11 @@ export function DispatchChatInlinePane({
         <>
           <button
             type="button"
-            className="absolute inset-0 z-40 bg-black/35 xl:hidden"
+            className="absolute inset-0 z-40 bg-black/35 @xl:hidden"
             onClick={() => setDetailsOpen(false)}
             aria-label="Close conversation details"
           />
-          <aside className="absolute inset-y-0 right-0 z-50 w-full border-l border-border/70 bg-background shadow-2xl sm:w-[22rem] xl:hidden">
+          <aside className="absolute inset-y-0 right-0 z-50 w-full border-l border-border/70 bg-background shadow-2xl sm:w-[22rem] @xl:hidden">
             <ConversationDetailsPanel
               counterpartName={resolvedDriverName}
               counterpartRole="Driver"
