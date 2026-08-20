@@ -39,6 +39,8 @@ import type { Vehicle } from "@/types/inventory"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
+import { usePaneContentMetrics } from "@/components/MultiPaneLayout"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,11 +138,13 @@ function SyncBar({
   lastSynced,
   lastSyncResult,
   onSync,
+  compact = false,
 }: {
   status: SyncStatus;
   lastSynced: Date | null;
   lastSyncResult: SyncResult | null;
   onSync: () => void;
+  compact?: boolean;
 }) {
   const configs = {
     idle: {
@@ -189,7 +193,10 @@ function SyncBar({
   const c = configs[status];
 
   return (
-    <div className={`flex items-center gap-4 px-4 py-3 rounded-lg border ${c.barBg} transition-all duration-300`}>
+    <div className={cn(
+      `gap-4 px-4 py-3 rounded-lg border ${c.barBg} transition-all duration-300`,
+      compact ? "flex flex-col items-stretch" : "flex items-center",
+    )}>
       <div className="flex items-center gap-2.5 flex-1 min-w-0">
         {c.icon}
         <div className="min-w-0">
@@ -197,8 +204,8 @@ function SyncBar({
           <p className="text-[11px] text-muted-foreground">{c.sub}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {lastSynced && status !== "syncing" && (
+      <div className={cn("flex items-center gap-2 shrink-0", compact && "justify-between")}>
+        {lastSynced && status !== "syncing" && !compact && (
           <span className="text-[10px] font-mono text-muted-foreground/60 hidden sm:block">
             {lastSynced.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: MDT_TZ })}
           </span>
@@ -1036,6 +1043,9 @@ export function CustomerCredentialsTab({
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>("idle")
   const [lastSyncResult, setLastSyncResult] = React.useState<SyncResult | null>(null)
   const [lastSynced, setLastSynced] = React.useState<Date | null>(null)
+  const { width: paneWidth, isPaneContent } = usePaneContentMetrics()
+  const compactPane = isPaneContent && (paneWidth === 0 || paneWidth < 820)
+  const narrowPane = isPaneContent && (paneWidth === 0 || paneWidth < 520)
 
   React.useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
@@ -1146,15 +1156,21 @@ export function CustomerCredentialsTab({
   ];
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-4 sm:gap-5 bg-card p-4 sm:p-6 rounded-xl">
+    <div className={cn(
+      "flex flex-col h-full min-h-0 min-w-0 bg-card rounded-xl overflow-hidden",
+      isPaneContent ? "gap-4 p-4" : "gap-4 sm:gap-5 p-4 sm:p-6",
+    )}>
 
       {/* ── Page Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+          <h1 className={cn(
+            "font-bold text-foreground tracking-tight",
+            isPaneContent ? "text-xl" : "text-2xl sm:text-3xl",
+          )}>
             Customer Records
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className={cn("text-muted-foreground mt-0.5", isPaneContent ? "text-xs" : "text-sm")}>
             Manage your customer database — leads are automatically imported as customer records
           </p>
         </div>
@@ -1174,10 +1190,20 @@ export function CustomerCredentialsTab({
         lastSynced={lastSynced}
         lastSyncResult={lastSyncResult}
         onSync={handleSync}
+        compact={narrowPane}
       />
 
       {/* ── Stats ────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className={cn(
+        "grid gap-3",
+        isPaneContent
+          ? (paneWidth === 0 || paneWidth < 520
+            ? "grid-cols-2"
+            : paneWidth < 820
+              ? "grid-cols-3"
+              : "grid-cols-5")
+          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+      )}>
         <StatCard
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
           label="Total Records"
@@ -1220,10 +1246,17 @@ export function CustomerCredentialsTab({
       </div>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 gap-4">
+      <div className="flex flex-1 min-h-0 min-w-0 gap-4 overflow-hidden">
 
         {/* Left: List */}
-        <div className={`flex flex-col ${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-90 xl:w-100 shrink-0`}>
+        <div className={cn(
+          "flex-col min-w-0",
+          isPaneContent
+            ? compactPane
+              ? (selectedId ? "hidden" : "flex w-full flex-1")
+              : "flex w-[38%] min-w-80 max-w-100 shrink-0"
+            : `${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-90 xl:w-100 shrink-0`,
+        )}>
           <div className="space-y-2.5 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
@@ -1240,7 +1273,12 @@ export function CustomerCredentialsTab({
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+            <div className={cn(
+              "grid gap-2",
+              isPaneContent
+                ? (compactPane && narrowPane ? "grid-cols-2" : "grid-cols-4")
+                : "grid-cols-2 sm:grid-cols-2 md:grid-cols-4",
+            )}>
               {sourceOptions.map(opt => (
                 <button
                   key={opt.value}
@@ -1359,8 +1397,14 @@ export function CustomerCredentialsTab({
         </div>
 
         {/* Right: Detail */}
-        <div className={`flex-1 min-w-0 border border-border rounded-xl overflow-hidden bg-card ${selectedId ? "flex" : "hidden lg:flex"
-          } flex-col shadow-sm`}>
+        <div className={cn(
+          "flex-1 min-w-0 border border-border rounded-xl overflow-hidden bg-card flex-col shadow-sm",
+          isPaneContent
+            ? compactPane
+              ? (selectedId ? "flex" : "hidden")
+              : "flex"
+            : (selectedId ? "flex" : "hidden lg:flex"),
+        )}>
           {detailCustomer ? (
             <CustomerDetail
               customer={detailCustomer}

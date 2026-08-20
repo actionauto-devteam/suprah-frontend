@@ -38,6 +38,7 @@ import { fmtLongDateTimeMDT, isTodayMDT, MDT_TZ } from "@/lib/timezone";
 import { useCustomerBookings } from "@/hooks/useCustomerBookings";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
+import { usePaneContentMetrics } from "@/components/MultiPaneLayout";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -126,9 +127,11 @@ function StatCard({
 function BookingCard({
   booking,
   onViewHistory,
+  compact = false,
 }: {
   booking: any;
   onViewHistory: (b: any) => void;
+  compact?: boolean;
 }) {
   const customer = booking.customerBooking;
   const start = new Date(booking.startTime);
@@ -137,7 +140,10 @@ function BookingCard({
   const todayFlag = isTodayMDT(start);
 
   return (
-    <div className="group relative flex gap-4 overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:border-border/80">
+    <div className={cn(
+      "group relative flex overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-200 hover:shadow-md hover:border-border/80",
+      compact ? "gap-2.5 p-3.5" : "gap-4 p-4",
+    )}>
       {/* Status bar */}
       <div
         className={cn(
@@ -195,7 +201,10 @@ function BookingCard({
         </div>
 
         {/* Contact + time row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div className={cn(
+          "flex flex-wrap items-center gap-y-1 text-xs text-muted-foreground",
+          compact ? "gap-x-2" : "gap-x-4",
+        )}>
           {customer?.email && (
             <span className="flex items-center gap-1 truncate">
               <Mail className="h-3 w-3 shrink-0" />
@@ -234,7 +243,7 @@ function BookingCard({
           className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <History className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">History</span>
+          {!compact && <span className="hidden sm:inline">History</span>}
           <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </Button>
       </div>
@@ -470,6 +479,9 @@ export function BookedTab() {
   const [historyModalOpen, setHistoryModalOpen] = React.useState(false);
   const lastFetchKeyRef = React.useRef<string>("");
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { width: paneWidth, isPaneContent } = usePaneContentMetrics();
+  const compactPane = isPaneContent && (paneWidth === 0 || paneWidth < 560);
+  const veryNarrowPane = isPaneContent && (paneWidth === 0 || paneWidth < 420);
 
   const {
     bookings,
@@ -595,9 +607,14 @@ export function BookedTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className={cn("min-w-0", veryNarrowPane ? "space-y-4" : "space-y-5")}>
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={cn(
+        "grid gap-3",
+        isPaneContent
+          ? (paneWidth === 0 || paneWidth < 560 ? "grid-cols-2" : "grid-cols-4")
+          : "grid-cols-2 sm:grid-cols-4",
+      )}>
         <StatCard
           label="Total Bookings"
           value={stats.total}
@@ -637,9 +654,12 @@ export function BookedTab() {
       </div>
 
       {/* ── Filter bar ── */}
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm">
+      <div className={cn(
+        "gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm",
+        compactPane ? "grid grid-cols-1 items-stretch" : "flex flex-wrap items-end",
+      )}>
         {/* Search */}
-        <div className="relative flex-1 min-w-48">
+        <div className={cn("relative flex-1", compactPane ? "min-w-0 w-full" : "min-w-48")}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Search name, email, phone…"
@@ -651,7 +671,7 @@ export function BookedTab() {
 
         {/* Status */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40 h-8 text-sm bg-muted/40">
+          <SelectTrigger className={cn("h-8 text-sm bg-muted/40", compactPane ? "w-full" : "w-40")}>
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -670,7 +690,10 @@ export function BookedTab() {
           onChange={(e) =>
             setSelectedDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)
           }
-          className="h-8 w-36 px-2.5 rounded-md border border-input bg-muted/40 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all scheme-light-dark"
+          className={cn(
+            "h-8 px-2.5 rounded-md border border-input bg-muted/40 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all scheme-light-dark",
+            compactPane ? "w-full" : "w-36",
+          )}
         />
 
         {/* Clear */}
@@ -688,8 +711,8 @@ export function BookedTab() {
       </div>
 
       {/* ── Section header ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <p className="text-sm font-semibold">Customer Bookings</p>
           {!isFetchingInitial && (
             <Badge
@@ -740,6 +763,7 @@ export function BookedTab() {
               key={booking._id}
               booking={booking}
               onViewHistory={handleViewHistory}
+              compact={compactPane}
             />
           ))}
         </div>

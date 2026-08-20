@@ -21,6 +21,64 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+// ─── Pane content metrics ────────────────────────────────────────────────────
+// Viewport breakpoints are not enough inside split panes: a 1920px browser can
+// still give one pane only ~400px. This context measures the pane itself so
+// child tabs can adapt to the space they actually own.
+interface PaneContentMetrics {
+  width: number
+  isPaneContent: boolean
+}
+
+const PaneContentMetricsContext = React.createContext<PaneContentMetrics>({
+  width: 0,
+  isPaneContent: false,
+})
+
+export function usePaneContentMetrics() {
+  return React.useContext(PaneContentMetricsContext)
+}
+
+function PaneContentBoundary({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [width, setWidth] = React.useState(0)
+
+  React.useEffect(() => {
+    const node = ref.current
+    if (!node) return
+
+    const update = () => setWidth(node.getBoundingClientRect().width)
+    update()
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update)
+      return () => window.removeEventListener("resize", update)
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const nextWidth = entries[0]?.contentRect.width
+      setWidth(nextWidth ?? node.getBoundingClientRect().width)
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  const value = React.useMemo(
+    () => ({ width, isPaneContent: true }),
+    [width],
+  )
+
+  return (
+    <PaneContentMetricsContext.Provider value={value}>
+      <div ref={ref} className="h-full min-h-0 w-full min-w-0">
+        {children}
+      </div>
+    </PaneContentMetricsContext.Provider>
+  )
+}
+
+const DIVIDER_WIDTH_PX = 6
+
 // ─── Resizable Divider ──────────────────────────────────────────────────────
 
 function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
@@ -54,8 +112,9 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
     <div
       onMouseDown={(e) => { e.preventDefault(); setIsDragging(true) }}
       onTouchStart={(e) => { lastTouchX.current = e.touches[0].clientX; setIsDragging(true) }}
+      style={{ width: DIVIDER_WIDTH_PX }}
       className={`
-        relative shrink-0 w-1.5 cursor-col-resize
+        relative shrink-0 cursor-col-resize
         flex items-center justify-center group/divider z-10
         transition-colors duration-150
         ${isDragging ? "bg-emerald-500/20" : "hover:bg-muted/60"}
@@ -191,12 +250,18 @@ export function MultiPaneContainer({
   }, [isMobile, isMultiPane, resetToSinglePane])
 
   const totalSize = panes.reduce((s, p) => s + p.size, 0)
+  const dividerCount = Math.max(0, panes.length - 1)
+  const totalDividerWidth = dividerCount * DIVIDER_WIDTH_PX
 
   const handleDrag = React.useCallback(
     (leftId: string, rightId: string, deltaX: number) => {
       if (!containerRef.current) return
       const w = containerRef.current.getBoundingClientRect().width
-      const deltaPct = (deltaX / w) * 100
+      // Pane percentages describe only the width left after fixed dividers.
+      // Using the full container width here made resize math drift as panes
+      // were added because divider pixels were never part of the percentages.
+      const usableWidth = Math.max(1, w - totalDividerWidth)
+      const deltaPct = (deltaX / usableWidth) * 100
 
       const left = panes.find((p) => p.id === leftId)
       const right = panes.find((p) => p.id === rightId)
@@ -212,7 +277,7 @@ export function MultiPaneContainer({
         resizePane(rightId, (newR / 100) * totalSize)
       }
     },
-    [panes, totalSize, resizePane]
+    [panes, totalSize, totalDividerWidth, resizePane]
   )
 
   // ── Single pane: show tab bar so user can navigate ──
@@ -247,8 +312,10 @@ export function MultiPaneContainer({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {renderTab(singlePane.selectedTab)}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <PaneContentBoundary>
+            {renderTab(singlePane.selectedTab)}
+          </PaneContentBoundary>
         </div>
       </div>
     )
@@ -262,13 +329,21 @@ export function MultiPaneContainer({
     >
       {panes.map((pane, idx) => {
         const normalizedSize = (pane.size / totalSize) * 100
+        // Each pane receives its proportional share of the width remaining
+        // after fixed dividers. The subtraction across all panes sums exactly
+        // to totalDividerWidth, so panes + dividers never exceed the container.
+        const dividerShare = (normalizedSize / 100) * totalDividerWidth
         const currentTab = tabOptions.find((t) => t.id === pane.selectedTab)
 
         return (
           <React.Fragment key={pane.id}>
             <div
               className="flex flex-col overflow-hidden min-w-0"
-              style={{ flexBasis: `${normalizedSize}%`, flexGrow: 0, flexShrink: 0 }}
+              style={{
+                flexBasis: `calc(${normalizedSize}% - ${dividerShare}px)`,
+                flexGrow: 0,
+                flexShrink: 0,
+              }}
             >
               {/* Pane header with tab selector */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 bg-muted/20 shrink-0 gap-2">
@@ -327,8 +402,10 @@ export function MultiPaneContainer({
               </div>
 
               {/* Pane content */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden">
-                {renderTab(pane.selectedTab)}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <PaneContentBoundary>
+                  {renderTab(pane.selectedTab)}
+                </PaneContentBoundary>
               </div>
             </div>
 
