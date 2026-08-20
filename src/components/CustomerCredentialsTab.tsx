@@ -1157,8 +1157,10 @@ export function CustomerCredentialsTab({
 
   return (
     <div className={cn(
-      "flex flex-col h-full min-h-0 min-w-0 bg-card rounded-xl overflow-hidden",
-      isPaneContent ? "gap-4 p-4" : "gap-4 sm:gap-5 p-4 sm:p-6",
+      "flex flex-col min-w-0 bg-card rounded-xl",
+      isPaneContent && compactPane
+        ? "min-h-full h-auto overflow-visible gap-4 p-4"
+        : "h-full min-h-0 overflow-hidden gap-4 sm:gap-5 p-4 sm:p-6",
     )}>
 
       {/* ── Page Header ──────────────────────────────────────────────────────── */}
@@ -1246,14 +1248,19 @@ export function CustomerCredentialsTab({
       </div>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 min-w-0 gap-4 overflow-hidden">
+      <div className={cn(
+        "flex min-w-0 gap-4",
+        isPaneContent && compactPane
+          ? "flex-none min-h-96 overflow-visible"
+          : "flex-1 min-h-0 overflow-hidden",
+      )}>
 
         {/* Left: List */}
         <div className={cn(
-          "flex-col min-w-0",
+          "flex-col min-w-0 min-h-0",
           isPaneContent
             ? compactPane
-              ? (selectedId ? "hidden" : "flex w-full flex-1")
+              ? (selectedId ? "hidden" : "flex w-full min-h-96")
               : "flex w-[38%] min-w-80 max-w-100 shrink-0"
             : `${selectedId ? "hidden lg:flex" : "flex"} w-full lg:w-90 xl:w-100 shrink-0`,
         )}>
@@ -1317,7 +1324,10 @@ export function CustomerCredentialsTab({
             </Alert>
           )}
 
-          <ScrollArea className="flex-1 -mx-1 px-1">
+          <ScrollArea className={cn(
+            "-mx-1 px-1",
+            isPaneContent && compactPane ? "h-80 shrink-0" : "flex-1 min-h-0",
+          )}>
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2.5">
                 <Loader2 className="h-5 w-5 text-muted-foreground/60 animate-spin" />
@@ -1398,7 +1408,7 @@ export function CustomerCredentialsTab({
 
         {/* Right: Detail */}
         <div className={cn(
-          "flex-1 min-w-0 border border-border rounded-xl overflow-hidden bg-card flex-col shadow-sm",
+          "flex-1 min-w-0 min-h-0 border border-border rounded-xl overflow-hidden bg-card flex-col shadow-sm",
           isPaneContent
             ? compactPane
               ? (selectedId ? "flex" : "hidden")

@@ -70,8 +70,20 @@ function PaneContentBoundary({ children }: { children: React.ReactNode }) {
 
   return (
     <PaneContentMetricsContext.Provider value={value}>
-      <div ref={ref} className="h-full min-h-0 w-full min-w-0">
-        {children}
+      <div
+        ref={ref}
+        className="h-full min-h-0 w-full min-w-0 overflow-y-scroll overflow-x-hidden overscroll-contain [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/55"
+      >
+        {/*
+          Keep the measured pane viewport at a fixed height, but let tab content
+          establish its own natural height inside it. This is important for tabs
+          such as Upcoming and compact Customer Records: a nested `h-full` child
+          must be able to overflow this inner surface so the pane becomes
+          vertically scrollable instead of clipping the lower content.
+        */}
+        <div className="min-h-full min-w-0">
+          {children}
+        </div>
       </div>
     </PaneContentMetricsContext.Provider>
   )
@@ -312,7 +324,7 @@ export function MultiPaneContainer({
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <PaneContentBoundary>
             {renderTab(singlePane.selectedTab)}
           </PaneContentBoundary>
@@ -402,7 +414,7 @@ export function MultiPaneContainer({
               </div>
 
               {/* Pane content */}
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <PaneContentBoundary>
                   {renderTab(pane.selectedTab)}
                 </PaneContentBoundary>
