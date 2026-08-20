@@ -116,6 +116,26 @@ type SS4FontFamilyId =
   | 'courier';
 type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 
+// Fixed (not per-conversation-theme) unread-indicator color — a custom
+// conversation theme can override --accent to anything, which made the old
+// accent-colored unread dot blend in or be hard to distinguish (raised by a
+// colorblind user). User-customizable (Settings > Appearance), stored per
+// device in localStorage, independent of any conversation's theme.
+const SS4_UNREAD_COLOR_STORAGE_KEY = 'ss4_unread_dot_color';
+const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
+const SS4_UNREAD_DOT_COLOR = '#3b82f6';
+const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
+
+function getUnreadDotColor(): string {
+  if (typeof window === 'undefined') return SS4_UNREAD_DOT_COLOR;
+  return localStorage.getItem(SS4_UNREAD_COLOR_STORAGE_KEY) || SS4_UNREAD_DOT_COLOR;
+}
+
+function setUnreadDotColor(color: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SS4_UNREAD_COLOR_STORAGE_KEY, color);
+  window.dispatchEvent(new CustomEvent(SS4_UNREAD_COLOR_CHANGED_EVENT, { detail: color }));
+}
 const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
 const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
 const SS4_FONT_FAMILIES: Array<{
@@ -7016,12 +7036,17 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
   const [soundOn, setSoundOnState] = React.useState(true);
   const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported'>('default');
   const [rechecking, setRechecking] = React.useState(false);
+  const [unreadColor, setUnreadColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
 
   React.useEffect(() => {
     setSoundOnState(isSoundEnabled());
     const onChange = (e: any) => setSoundOnState(e.detail);
     window.addEventListener('ss_sound_changed', onChange);
     return () => window.removeEventListener('ss_sound_changed', onChange);
+  }, []);
+
+  React.useEffect(() => {
+    setUnreadColorState(getUnreadDotColor());
   }, []);
 
   React.useEffect(() => {
@@ -7125,6 +7150,28 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
         <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="ss4-icon-btn h-7 px-3 shrink-0" style={{ fontSize: 11, fontWeight: 600 }}>
           Switch
         </button>
+      </div>
+
+      <div className="py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Unread chat color</p>
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>The dot that marks unread chats in your conversation list.</p>
+        <div className="flex items-center gap-2">
+          {SS4_UNREAD_COLOR_PRESETS.map(c => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => { setUnreadDotColor(c); setUnreadColorState(c); }}
+              title={c}
+              className="h-7 w-7 rounded-full shrink-0"
+              style={{
+                background: c,
+                border: c === '#ffffff' ? '1px solid var(--border-2)' : 'none',
+                outline: unreadColor === c ? '2px solid var(--text-primary)' : 'none',
+                outlineOffset: 2,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="py-1">
@@ -7252,6 +7299,13 @@ const ConvRow = React.memo(function ConvRow({
   openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
 }: ConvRowProps) {
+  const [unreadDotColor, setUnreadDotColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
+  React.useEffect(() => {
+    setUnreadDotColorState(getUnreadDotColor());
+    const onChange = (e: any) => setUnreadDotColorState(e.detail);
+    window.addEventListener(SS4_UNREAD_COLOR_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(SS4_UNREAD_COLOR_CHANGED_EVENT, onChange);
+  }, []);
   const isAct = conv._id === activeId;
   const other = safeMembers(conv).find(m => m._id !== uid);
   const otherPresence = other ? presence[other._id] : undefined;
@@ -7319,7 +7373,7 @@ const ConvRow = React.memo(function ConvRow({
           {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
         </div>
         {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
-          : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
+          : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: unreadDotColor, boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
@@ -7335,6 +7389,13 @@ const ConvRow = React.memo(function ConvRow({
           >
             {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
           </span>
+          {isUnread && (
+            <span
+              className="shrink-0 h-2 w-2 rounded-full"
+              style={{ background: unreadDotColor }}
+              aria-hidden="true"
+            />
+          )}
         </div>
         <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
           {hasDraftPreview ? (
@@ -7715,6 +7776,12 @@ export default function SupraSpacePage() {
   const [showArchived, setShowArchived] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
+  // App-wide settings (sound, unread color, notifications, install) used to
+  // only be reachable via the standalone app's own Chats/People/Settings tab
+  // bar — meaning it was completely unreachable from the normal
+  // dashboard-embedded view most people actually use. This modal exposes
+  // the same SupraSpaceSettingsPanel there too, via a header gear icon.
+  const [appSettingsOpen, setAppSettingsOpen] = React.useState(false);
   const [pollOpen, setPollOpen] = React.useState(false);
   const [eventOpen, setEventOpen] = React.useState(false);
   const [meetingOpen, setMeetingOpen] = React.useState(false);
@@ -10784,6 +10851,11 @@ export default function SupraSpacePage() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
+              {!isStandaloneApp && (
+                <button onClick={() => setAppSettingsOpen(true)} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Settings">
+                  <SettingsIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
               {isSupraSpaceStandaloneUrl ? (
                 <InstallSupraSpaceButton variant="icon" />
               ) : (
@@ -12310,6 +12382,24 @@ export default function SupraSpacePage() {
               members: c.members.map(m => m._id === uid ? { ...m, displayNickname: settings.nickname || undefined } : m),
             }))}
           />
+        )}
+        {appSettingsOpen && (
+          <div className="ss4-overlay fixed inset-0 z-200 flex items-center justify-center p-4" onClick={() => setAppSettingsOpen(false)}>
+            <div
+              className="ss4"
+              data-theme={theme}
+              onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--bg-elevated)', borderRadius: 12, width: '100%', maxWidth: 420, maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}
+            >
+              <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Settings</h2>
+                <button onClick={() => setAppSettingsOpen(false)} className="ss4-icon-btn h-7 w-7 flex items-center justify-center">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <SupraSpaceSettingsPanel me={me} />
+            </div>
+          </div>
         )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}

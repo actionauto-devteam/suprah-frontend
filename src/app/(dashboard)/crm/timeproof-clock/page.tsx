@@ -554,10 +554,16 @@ export default function TimeprofClockPage() {
   }, [])
 
   React.useEffect(() => {
-    const onVisibility = () => { if (!document.hidden) { refreshShiftState(); refreshLocatorStatus() } }
+    // fetchActivityState() alongside the other two — neither refreshShiftState() nor
+    // refreshLocatorStatus() touches isOnBreak, so returning to a backgrounded tab (where the
+    // 10s poll is heavily throttled by the browser) used to leave break/active state stale
+    // until that poll eventually caught up, sometimes long after the tab regained focus.
+    const onVisibility = () => { if (!document.hidden) { refreshShiftState(); refreshLocatorStatus(); fetchActivityState() } }
     document.addEventListener("visibilitychange", onVisibility)
     return () => document.removeEventListener("visibilitychange", onVisibility)
-  }, [refreshShiftState, refreshLocatorStatus])
+    // fetchActivityState is declared below this effect (TDZ — can't reference it in the deps
+    // array itself, only inside the callback, which is safe since that only runs post-mount).
+  }, [refreshShiftState, refreshLocatorStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchActivityState = React.useCallback(async () => {
     // Stamped BEFORE the request goes out, not after the response lands —
@@ -973,6 +979,20 @@ export default function TimeprofClockPage() {
   }
 
   const handleBreak = async () => {
+    // Guards against the exact rapid-double-click flurry that caused a real incident: ending a
+    // break is optimistic (see setIsOnBreak(false) below, before its POST resolves), so an
+    // impatient second tap used to land on the button's already-flipped state and fire the
+    // OPPOSITE request — alternating break-out/break-in entries seconds apart. Mirrors the
+    // disabled={isClocking || ...} guard Start Shift/End Shift already use.
+    setIsClocking(true)
+    try {
+      await handleBreakInner()
+    } finally {
+      setIsClocking(false)
+    }
+  }
+
+  const handleBreakInner = async () => {
     setClockMsg("")
     const isMain = authModeRef.current === 'main'
     const breakEndpoint = isMain ? "/api/timeclock/clock" : "/api/crm/time-clock"
@@ -997,7 +1017,13 @@ export default function TimeprofClockPage() {
         if (message.includes("already used your 1-hour break")) {
           setShowBreakCapModal(true)
         }
+        // refreshShiftState() only updates todayLogs, not isOnBreak — if this request actually
+        // succeeded server-side despite the client-side error (slow/dropped response), isOnBreak
+        // would otherwise stay stuck false forever, with every indicator (badge, timer, the
+        // over-break alarm) silently wrong. fetchActivityState() re-pulls the server's
+        // authoritative break state and corrects it.
         refreshShiftState()
+        fetchActivityState()
       }
     } else {
       // Resuming from break re-enters active tracking the exact same way
@@ -1508,11 +1534,11 @@ export default function TimeprofClockPage() {
                           <Play className="h-4 w-4" /> Resume Shift
                         </Button>
                       ) : (
-                        <Button onClick={handleBreak}
-                          className={cn("h-11 gap-2 rounded-xl border text-sm font-bold transition-all duration-200",
+                        <Button onClick={handleBreak} disabled={isClocking}
+                          className={cn("h-11 gap-2 rounded-xl border text-sm font-bold transition-all duration-200 disabled:opacity-30",
                             isOnBreak ? "border-amber-500/30 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
                               : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-amber-500/30 hover:bg-zinc-100 hover:text-amber-600 dark:border-zinc-700/60 dark:bg-zinc-800/40 dark:text-zinc-300")}>
-                          {isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
+                          {isClocking ? <Loader2 className="h-4 w-4 animate-spin" /> : isOnBreak ? <><Play className="h-4 w-4" /> Resume</> : <><Coffee className="h-4 w-4" /> Break</>}
                         </Button>
                       )}
                       <Button onClick={handleEndShiftClick} disabled={isClocking || serverIsOnBreak}

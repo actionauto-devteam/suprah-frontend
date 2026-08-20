@@ -471,6 +471,20 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
         tip: <>If you accidentally clicked {<span className="font-semibold">Don&apos;t Allow</span>}, go to {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} and turn the toggle {b("ON")} for Suprah AI - Timeproof Clock.</>,
       },
       {
+        title: "Screenshots stopped working after a while? Here's the fix",
+        body: <>Sometimes, after the app updates itself, your Mac quietly turns the screenshot permission back {b("OFF")} on its own — even if it was working fine before. This is not something you did wrong, and it can happen again later too. If your admin tells you screenshots aren&apos;t coming through, follow these steps:</>,
+        tip: (
+          <div className="space-y-1.5">
+            <p>1. Click the {b("Apple menu")} (🍎) at the top-left of your screen, then click {b("System Settings")}.</p>
+            <p>2. Click {b("Privacy & Security")} on the left side.</p>
+            <p>3. Click {b("Screen Recording")}.</p>
+            <p>4. Find {b("Suprah AI - Timeproof Clock")} in the list.</p>
+            <p>5. If the switch is already ON, turn it {b("OFF")}, wait a second, then turn it {b("ON")} again. If it&apos;s OFF, just turn it {b("ON")}.</p>
+            <p>6. Quit the app completely — click the small {b("AA")} icon in your menu bar, then {b("Sign Out")} — then open {b("Suprah AI - Timeproof Clock")} again from your {b("Applications")} folder.</p>
+          </div>
+        ),
+      },
+      {
         title: "Find the app in your menu bar — no login needed",
         body: <>The app does NOT open a normal window — it lives in your {b("menu bar")} at the {b("top-right of your screen")}, near the Wi-Fi and battery icons. Look for the small {b("AA")} icon.</>,
         visual: <MacMenuBar lang={lang} />,
@@ -506,6 +520,20 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       title: "Payagan ang Screen Recording kapag tinanong",
       body: <>Sa unang beses na buksan ang app, hihingi ito ng permiso na i-record ang screen mo. Kailangan ito para makakuha ito ng automatic screenshots bilang proof ng trabaho mo. I-click ang {b("Allow")} kapag lumabas ang pop-up.</>,
       tip: <>Kung na-click mo nang aksidente ang {<span className="font-semibold">Don&apos;t Allow</span>}, pumunta sa {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} at i-on ang toggle para sa Suprah AI - Timeproof Clock.</>,
+    },
+    {
+      title: "Tumigil ba ang screenshots pagkalipas ng ilang araw? Ito ang ayos",
+      body: <>Minsan, pagkatapos mag-update ang app, tahimik na ino-OFF ulit ng Mac mo ang screenshot permission — kahit gumagana ito dati. Hindi ito dahil sa nagawa mong mali, at pwede itong maulit sa hinaharap. Kung sinabi ng admin mo na hindi na dumarating ang mga screenshots mo, sundan ang mga hakbang na ito:</>,
+      tip: (
+        <div className="space-y-1.5">
+          <p>1. I-click ang {b("Apple menu")} (🍎) sa kaliwang-itaas ng screen mo, tapos i-click ang {b("System Settings")}.</p>
+          <p>2. I-click ang {b("Privacy & Security")} sa kaliwang bahagi.</p>
+          <p>3. I-click ang {b("Screen Recording")}.</p>
+          <p>4. Hanapin ang {b("Suprah AI - Timeproof Clock")} sa listahan.</p>
+          <p>5. Kung naka-ON na ang switch, i-OFF muna ito, maghintay ng isang segundo, tapos i-ON ulit. Kung naka-OFF ito, i-ON lang.</p>
+          <p>6. I-close nang tuluyan ang app — i-click ang maliit na {b("AA")} icon sa menu bar mo, tapos {b("Sign Out")} — pagkatapos buksan ulit ang {b("Suprah AI - Timeproof Clock")} mula sa {b("Applications")} folder mo.</p>
+        </div>
+      ),
     },
     {
       title: "Hanapin ang app sa menu bar mo — walang kailangang i-login",
