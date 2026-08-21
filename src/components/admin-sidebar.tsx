@@ -98,7 +98,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                                     <Shield className="size-4" />
                                 </div>
                                 <div className="grid flex-1 text-left text-sm leading-tight">
-                                    <span className="truncate font-semibold">ActionAuto Admin</span>
+                                    <span className="truncate font-semibold">Suprah AI</span>
                                     <span className="truncate text-xs">Super Admin Portal</span>
                                 </div>
                             </Link>
