@@ -234,7 +234,7 @@ export function DriverComplianceDocumentsDialog({
         if (!token || cancelled) return;
 
         const response = await apiClient.get(
-          `/api/driver-profile/org/${encodeURIComponent(driverId)}`,
+          `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/profile`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

@@ -12,7 +12,8 @@ import {
     CreditCard,
     LogOut,
     ChevronUp,
-    User2
+    User2,
+    Truck
 } from "lucide-react"
 
 import {
@@ -66,6 +67,11 @@ const data = {
             title: "Users",
             url: "/admin/users",
             icon: Users,
+        },
+        {
+            title: "Drivers",
+            url: "/admin/drivers",
+            icon: Truck,
         },
         {
             title: "Payouts",

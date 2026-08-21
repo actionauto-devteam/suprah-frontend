@@ -108,7 +108,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const fetchProfile = useCallback(async () => {
         try {
             const token = await getToken();
-            const res = await apiClient.get(`/api/driver-profile/org/${driverId}`, {
+            const res = await apiClient.get(`/api/admin/drivers/${driverId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setProfile(res.data?.data || null);
@@ -174,7 +174,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         try {
             const token = await getToken();
             await apiClient.patch(
-                `/api/driver-profile/org/${driverId}/documents/${docId}/verify`,
+                `/api/admin/drivers/${driverId}/documents/${docId}/verify`,
                 { verified: true },
                 { headers: { Authorization: `Bearer ${token}` } },
             );
@@ -196,7 +196,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         try {
             const token = await getToken();
             await apiClient.patch(
-                `/api/driver-profile/org/${driverId}/documents/${docId}/reject`,
+                `/api/admin/drivers/${driverId}/documents/${docId}/reject`,
                 { reason: rejectReason.trim() },
                 { headers: { Authorization: `Bearer ${token}` } },
             );
@@ -216,7 +216,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         try {
             const token = await getToken();
             await apiClient.patch(
-                `/api/driver-profile/org/${driverId}/approve`,
+                `/api/admin/drivers/${driverId}/approve`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } },
             );
@@ -264,7 +264,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <ShieldAlert className="size-12 text-muted-foreground/30" />
             <p className="text-sm font-bold text-muted-foreground">Driver profile not found</p>
-            <Link href="/settings"><Button variant="outline" className="gap-2"><ArrowLeft className="size-4" /> Back to Settings</Button></Link>
+            <Link href="/admin/drivers"><Button variant="outline" className="gap-2"><ArrowLeft className="size-4" /> Back to Drivers</Button></Link>
         </div>
     );
 
@@ -280,7 +280,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                     <div className="relative p-5 sm:p-7">
                         <div className="flex items-start justify-between gap-4 mb-5">
                             <div className="flex items-center gap-4">
-                                <Link href="/settings?tab=drivers" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-sm shrink-0">
+                                <Link href="/admin/drivers" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-sm shrink-0">
                                     <ArrowLeft className="size-4.5 text-white/80" />
                                 </Link>
                                 <Avatar className="size-14 border-2 border-white/15 shadow-xl shrink-0">
