@@ -21,6 +21,8 @@ export interface Vehicle {
   interiorColor?: string;
   status?: string;
   daysOnLot?: number;
+  ageDays?: number;
+  priceUpdatedAt?: string;
   leadCount?: number;
   images?: string[];
   bodyStyle?: string;

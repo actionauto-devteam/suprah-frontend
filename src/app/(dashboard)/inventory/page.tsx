@@ -47,7 +47,9 @@ type SortOption =
   | "cost-asc"
   | "cost-desc"
   | "demand-desc"
-  | "low-performing-desc";
+  | "low-performing-desc"
+  | "priceUpdated-desc"
+  | "priceUpdated-asc";
 
 const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "make-asc", label: "Make (A-Z)" },
@@ -61,6 +63,8 @@ const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "age-asc", label: "Newest on Lot" },
   { value: "age-desc", label: "Oldest on Lot" },
   { value: "created-desc", label: "Recently Added" },
+  { value: "priceUpdated-desc", label: "Price Updated: Newest" },
+  { value: "priceUpdated-asc", label: "Price Updated: Oldest" },
   { value: "demand-desc", label: "Most Inquiries" },
   { value: "low-performing-desc", label: "Low Performing" },
 ];
@@ -95,6 +99,43 @@ function compareDate(a?: string, b?: string) {
   if (!validLeft) return 1;
   if (!validRight) return -1;
   return left - right;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function priceUpdateAgeDays(vehicle: Vehicle) {
+  if (!vehicle.priceUpdatedAt) return Number.POSITIVE_INFINITY;
+
+  const updatedAt = Date.parse(vehicle.priceUpdatedAt);
+  if (!Number.isFinite(updatedAt)) return Number.POSITIVE_INFINITY;
+
+  return Math.max(0, Math.floor((Date.now() - updatedAt) / DAY_MS));
+}
+
+function matchesPriceUpdatedFilter(vehicle: Vehicle, filterValue?: string) {
+  if (!filterValue || filterValue === "all") return true;
+
+  const ageDays = priceUpdateAgeDays(vehicle);
+  if (!Number.isFinite(ageDays)) return false;
+
+  switch (filterValue) {
+    case "today":
+      return ageDays < 1;
+    case "last7":
+      return ageDays <= 7;
+    case "last14":
+      return ageDays <= 14;
+    case "last30":
+      return ageDays <= 30;
+    case "stale30":
+      return ageDays >= 30;
+    case "stale60":
+      return ageDays >= 60;
+    case "stale90":
+      return ageDays >= 90;
+    default:
+      return true;
+  }
 }
 
 function stableVehicleTieBreak(a: Vehicle, b: Vehicle) {
@@ -139,6 +180,9 @@ function sortInventoryVehicles(
         result = compareText(a.location, b.location);
         break;
       case "age":
+        // "Newest on Lot" / "Oldest on Lot" is based on Suprah's existing
+        // daysOnLot operational field. DealersCloud does not provide a
+        // vehicle-age column in the current feed, so do not mix meanings.
         result = compareNumber(a.daysOnLot, b.daysOnLot);
         break;
       case "status":
@@ -151,6 +195,9 @@ function sortInventoryVehicles(
       case "createdAt":
       case "recent":
         result = compareDate(a.dateAdded, b.dateAdded);
+        break;
+      case "priceUpdated":
+        result = compareDate(a.priceUpdatedAt, b.priceUpdatedAt);
         break;
       case "demand":
         result = compareNumber(a.leadCount ?? 0, b.leadCount ?? 0);
@@ -231,6 +278,7 @@ function InventoryContent() {
     maxMileage: searchParams.get("maxMileage") ? Number(searchParams.get("maxMileage")) : undefined,
     bodyStyle: searchParams.get("bodyStyle") || undefined,
     location: searchParams.get("location") || undefined,
+    priceUpdated: searchParams.get("priceUpdated") || "all",
     highDemand: searchParams.get("highDemand") === "true" ? true : undefined,
     lowPerforming: searchParams.get("lowPerforming") === "true" ? true : undefined,
     sortBy: searchParams.get("sortBy") || "make",
@@ -499,6 +547,10 @@ function InventoryContent() {
         return false;
       }
 
+      if (!matchesPriceUpdatedFilter(vehicle, filters.priceUpdated)) {
+        return false;
+      }
+
       if (filters.highDemand && metricsReady && (vehicle.leadCount ?? 0) < 1) {
         return false;
       }
@@ -526,6 +578,7 @@ function InventoryContent() {
     filters.maxPrice,
     filters.minMileage,
     filters.maxMileage,
+    filters.priceUpdated,
     filters.highDemand,
     filters.lowPerforming,
     metricsReady,
@@ -584,6 +637,7 @@ function InventoryContent() {
     filters.maxMileage,
     filters.bodyStyle,
     filters.location,
+    filters.priceUpdated,
     filters.highDemand,
     filters.lowPerforming,
     filters.sortBy,
@@ -619,6 +673,7 @@ function InventoryContent() {
       maxMileage: undefined,
       bodyStyle: undefined,
       location: undefined,
+      priceUpdated: "all",
       highDemand: undefined,
       lowPerforming: undefined,
       sortBy: "make",
@@ -671,6 +726,8 @@ function InventoryContent() {
         case "created-desc": sortBy = "created"; sortOrder = "desc"; break;
         case "recent-asc": sortBy = "recent"; sortOrder = "asc"; break;
         case "recent-desc": sortBy = "recent"; sortOrder = "desc"; break;
+        case "priceUpdated-desc": sortBy = "priceUpdated"; sortOrder = "desc"; break;
+        case "priceUpdated-asc": sortBy = "priceUpdated"; sortOrder = "asc"; break;
         case "cost-asc": sortBy = "cost"; sortOrder = "asc"; break;
         case "cost-desc": sortBy = "cost"; sortOrder = "desc"; break;
         case "demand-desc":
@@ -938,6 +995,7 @@ function InventoryContent() {
                     onCallUs={handleCallUs}
                     onVideo={handleVideo}
                     onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
+                    showInventoryMeta
                   />
                 ) : (
                   <CarInventoryCard
@@ -951,6 +1009,7 @@ function InventoryContent() {
                     onApplyNow={handleApplyNow}
                     onCallUs={handleCallUs}
                     onVideo={handleVideo}
+                    showInventoryMeta
                   />
                 ),
               )}

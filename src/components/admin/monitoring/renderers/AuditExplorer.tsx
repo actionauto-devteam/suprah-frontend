@@ -98,6 +98,7 @@ export function AuditExplorer() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Entities</SelectItem>
+                                    <SelectItem value="Vehicle">Vehicle</SelectItem>
                                     <SelectItem value="Organization">Organization</SelectItem>
                                     <SelectItem value="User">User</SelectItem>
                                     <SelectItem value="Lead">Lead</SelectItem>

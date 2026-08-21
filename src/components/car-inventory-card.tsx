@@ -19,8 +19,11 @@ import {
   GitCompareArrows,
   ArrowRight,
   MessageSquare,
+  CalendarClock,
+  Clock3,
 } from "lucide-react";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { VehiclePriceHistoryDialog } from "@/components/VehiclePriceHistoryDialog";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -66,6 +69,8 @@ interface CarInventoryCardProps {
   isComparing?: boolean;
   onToggleCompare?: (vehicleId: string) => void;
   canCompareMore?: boolean;
+  /** Show internal All Inventory metadata without changing other card uses. */
+  showInventoryMeta?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -323,12 +328,28 @@ export function CarInventoryCard({
   isComparing,
   onToggleCompare,
   canCompareMore,
+  showInventoryMeta = false,
 }: CarInventoryCardProps) {
   const statusCfg = vehicle.status
     ? (STATUS_CONFIG[vehicle.status] ?? null)
     : null;
   const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
   const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
+  const daysOnLot = Math.max(
+    0,
+    Number.isFinite(vehicle.daysOnLot) ? Number(vehicle.daysOnLot) : 0,
+  );
+  const priceUpdatedLabel = React.useMemo(() => {
+    if (!vehicle.priceUpdatedAt) return "No price update recorded";
+    const date = new Date(vehicle.priceUpdatedAt);
+    if (Number.isNaN(date.getTime())) return "No price update recorded";
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "America/Denver",
+    }).format(date);
+  }, [vehicle.priceUpdatedAt]);
   const { price, memberPrice, discountPct, hasDiscount, tierName } = getMemberPricing(vehicle);
 
   if (viewMode === "list") {
@@ -394,6 +415,26 @@ export function CarInventoryCard({
               <MapPinIcon className="h-4 w-4" />
               {safeLocation}
             </span>
+            {showInventoryMeta && (
+              <span className="flex items-center gap-1.5">
+                <Clock3 className="h-3.5 w-3.5 text-primary/60" />
+                Days on lot {daysOnLot}d
+              </span>
+            )}
+            {showInventoryMeta && (
+              <span
+                className="relative z-10 hidden lg:flex items-center gap-1.5"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <CalendarClock className="h-3.5 w-3.5 text-primary/60" />
+                <span>Price</span>
+                <VehiclePriceHistoryDialog
+                  vehicle={vehicle}
+                  triggerLabel={priceUpdatedLabel}
+                  triggerClassName="font-medium"
+                />
+              </span>
+            )}
             {vehicle.bodyStyle && <span className="hidden md:inline">{vehicle.bodyStyle}</span>}
             {vehicle.fuelType && <span className="hidden md:inline">{vehicle.fuelType}</span>}
           </div>

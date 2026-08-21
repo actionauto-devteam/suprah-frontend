@@ -11,9 +11,12 @@ import {
   Phone,
   Play,
   CheckCircle2,
+  Clock3,
+  CalendarClock,
 } from "lucide-react";
 import { Vehicle } from "@/types/inventory";
-import { resolveImageUrl } from "@/lib/utils";
+import { resolveImageUrl, cn } from "@/lib/utils";
+import { VehiclePriceHistoryDialog } from "@/components/VehiclePriceHistoryDialog";
 
 const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
 
@@ -42,6 +45,8 @@ interface PremiumVehicleCardProps {
   onGetQuote?: (vehicle: Vehicle) => void;
   onVehicleClick?: (vehicle: Vehicle) => void;
   onCreateLoad?: (vehicle: Vehicle) => void;
+  /** Show internal All Inventory metadata without changing customer-facing card uses. */
+  showInventoryMeta?: boolean;
 }
 
 function PremiumVehicleCardComponent({
@@ -54,6 +59,7 @@ function PremiumVehicleCardComponent({
   onGetQuote,
   onVehicleClick,
   onCreateLoad,
+  showInventoryMeta = false,
 }: PremiumVehicleCardProps) {
   const imageSignature = rawImageSignature(vehicle);
 
@@ -90,6 +96,21 @@ function PremiumVehicleCardComponent({
   const safeEngine = vehicle.engine?.trim() || "Unknown";
   const safeLocation = vehicle.location?.split(",")?.[0]?.trim() || "Unknown";
   const safeMileage = Number.isFinite(vehicle.mileage) ? vehicle.mileage : 0;
+  const daysOnLot = Math.max(
+    0,
+    Number.isFinite(vehicle.daysOnLot) ? Number(vehicle.daysOnLot) : 0,
+  );
+  const priceUpdatedLabel = React.useMemo(() => {
+    if (!vehicle.priceUpdatedAt) return "No price update recorded";
+    const date = new Date(vehicle.priceUpdatedAt);
+    if (Number.isNaN(date.getTime())) return "No price update recorded";
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "America/Denver",
+    }).format(date);
+  }, [vehicle.priceUpdatedAt]);
 
   // Mocking "Retail Price" vs "One Time Payment" for the UI showcase
   const retailPrice = vehicle.price + 0; // Mock markup
@@ -205,24 +226,43 @@ function PremiumVehicleCardComponent({
       {/* Card Body */}
       <div className="p-4 sm:p-5 flex flex-col flex-1 bg-linear-to-b from-transparent to-muted/30">
         {/* Core Specs Grid */}
-        <div className="flex items-center justify-between py-4 border-b border-border/50 mb-4">
-          <div className="flex flex-col items-center flex-1 border-r border-border/50">
-            <GaugeIcon className="w-5 h-5 text-muted-foreground mb-1" />
-            <span className="text-sm font-semibold text-foreground">
+        <div
+          className={cn(
+            "grid items-stretch py-4 border-b border-border/50 mb-4",
+            showInventoryMeta ? "grid-cols-4" : "grid-cols-3",
+          )}
+        >
+          <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
+            <GaugeIcon className="w-4 h-4 text-muted-foreground mb-1" />
+            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
               {safeMileage.toLocaleString()} mi
             </span>
           </div>
-          <div className="flex flex-col items-center flex-1 border-r border-border/50">
-            <div className="text-muted-foreground font-medium text-xs uppercase tracking-wider mb-1">
+
+          {showInventoryMeta && (
+            <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
+              <Clock3 className="w-4 h-4 text-primary/70 mb-1" />
+              <span className="text-xs sm:text-sm font-semibold text-foreground">
+                {daysOnLot}d
+              </span>
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wide text-center leading-tight">
+                Days on lot
+              </span>
+            </div>
+          )}
+
+          <div className="flex min-w-0 flex-col items-center border-r border-border/50 px-1">
+            <div className="text-muted-foreground font-medium text-[10px] uppercase tracking-wider mb-1">
               Eng
             </div>
-            <span className="text-sm font-semibold text-foreground truncate max-w-25">
+            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
               {safeEngine}
             </span>
           </div>
-          <div className="flex flex-col items-center flex-1">
-            <MapPinIcon className="w-5 h-5 text-muted-foreground mb-1" />
-            <span className="text-sm font-semibold text-foreground">
+
+          <div className="flex min-w-0 flex-col items-center px-1">
+            <MapPinIcon className="w-4 h-4 text-muted-foreground mb-1" />
+            <span className="text-xs sm:text-sm font-semibold text-foreground truncate max-w-full">
               {safeLocation}
             </span>
           </div>
@@ -246,6 +286,23 @@ function PremiumVehicleCardComponent({
               ${memberPrice.toLocaleString()}
             </span>
           </div>
+
+          {showInventoryMeta && (
+            <div
+              className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="flex items-center gap-1 font-medium">
+                <CalendarClock className="h-3.5 w-3.5 text-primary/70" />
+                Price update recorded
+              </span>
+              <VehiclePriceHistoryDialog
+                vehicle={vehicle}
+                triggerLabel={priceUpdatedLabel}
+                triggerClassName="font-semibold text-foreground/80 tabular-nums"
+              />
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -320,6 +377,9 @@ export const PremiumVehicleCard = React.memo(
       rawImageSignature(a) === rawImageSignature(b) &&
       a.stockNumber === b.stockNumber &&
       a.featured === b.featured &&
+      a.daysOnLot === b.daysOnLot &&
+      a.priceUpdatedAt === b.priceUpdatedAt &&
+      prev.showInventoryMeta === next.showInventoryMeta &&
       prev.shippingPrice === next.shippingPrice &&
       prev.onCheckAvailability === next.onCheckAvailability &&
       prev.onApplyNow === next.onApplyNow &&

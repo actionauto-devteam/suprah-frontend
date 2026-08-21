@@ -97,12 +97,34 @@ const FILTER_LABELS: Record<string, string> = {
   year: "Year",
   bodyStyle: "Style",
   location: "Location",
+  priceUpdated: "Price Last Updated",
   minPrice: "Min $",
   maxPrice: "Max $",
   minMileage: "Min mi",
   maxMileage: "Max mi",
   highDemand: "High Demand",
   lowPerforming: "Low Performing",
+};
+
+const PRICE_UPDATED_OPTIONS: PillSelectOption[] = [
+  { value: "all", label: "Price Updated: Any Time" },
+  { value: "today", label: "Price Updated: Today" },
+  { value: "last7", label: "Price Updated: Last 7 Days" },
+  { value: "last14", label: "Price Updated: Last 14 Days" },
+  { value: "last30", label: "Price Updated: Last 30 Days" },
+  { value: "stale30", label: "Not Updated: 30+ Days" },
+  { value: "stale60", label: "Not Updated: 60+ Days" },
+  { value: "stale90", label: "Not Updated: 90+ Days" },
+];
+
+const PRICE_UPDATED_CHIP_LABELS: Record<string, string> = {
+  today: "Today",
+  last7: "Last 7 Days",
+  last14: "Last 14 Days",
+  last30: "Last 30 Days",
+  stale30: "30+ Days",
+  stale60: "60+ Days",
+  stale90: "90+ Days",
 };
 
 export function ShopInventoryFilters({
@@ -384,6 +406,16 @@ export function ShopInventoryFilters({
             options={locationOptions}
           />
 
+          <PillSelect
+            value={filters.priceUpdated || "all"}
+            onValueChange={(value) =>
+              onFilterChange("priceUpdated", value === "all" ? "all" : value)
+            }
+            active={!!filters.priceUpdated && filters.priceUpdated !== "all"}
+            ariaLabel="Filter by price last updated"
+            options={PRICE_UPDATED_OPTIONS}
+          />
+
           {/* Range toggle pill */}
           <button
             onClick={() => setShowRanges((p) => !p)}
@@ -479,7 +511,12 @@ export function ShopInventoryFilters({
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           {chipEntries.map(([key, value]) => {
             const label = FILTER_LABELS[key] ?? key;
-            const displayVal = typeof value === "boolean" ? null : String(value);
+            const displayVal =
+              typeof value === "boolean"
+                ? null
+                : key === "priceUpdated"
+                  ? PRICE_UPDATED_CHIP_LABELS[String(value)] ?? String(value)
+                  : String(value);
             return (
               <span
                 key={key}

@@ -9,7 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { QuoteResultModal } from "@/components/QuoteResultModal";
-import { TransportationSidebar } from "@/components/TransportationSidebar";
+import {
+  TransportationMobileStatusPanel,
+  TransportationMobileSupportCenter,
+  TransportationSidebar,
+} from "@/components/TransportationSidebar";
 import { QuoteCard } from "@/components/QuoteCard";
 import { useRouter } from "next/navigation";
 import {
@@ -415,10 +419,15 @@ function TransportationPageInner() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
               <Button
+                type="button"
                 variant="ghost"
                 size="icon"
-                className="xl:hidden h-8 w-8 -ml-1 border-none hover:bg-secondary"
-                onClick={() => setIsSidebarOpen(true)}
+                className="hidden md:inline-flex xl:hidden relative z-10 -ml-2 h-11 w-11 min-h-11 min-w-11 shrink-0 border-none rounded-lg hover:bg-secondary active:bg-secondary touch-manipulation"
+                onClick={() => setIsSidebarOpen((open) => !open)}
+                aria-label="Open transportation filters"
+                aria-expanded={isSidebarOpen}
+                aria-controls="transportation-sidebar"
+                aria-haspopup="dialog"
               >
                 <Menu className="size-5" />
               </Button>
@@ -550,15 +559,18 @@ function TransportationPageInner() {
         </div>
       </div>
 
-      <div className="flex relative min-w-0">
-        {/* Mobile Sidebar Overlay */}
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 z-40 xl:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
+      <TransportationMobileStatusPanel
+        activeTab={activeTab}
+        selectedStatus={selectedStatus}
+        setSelectedStatus={setSelectedStatus}
+        selectedQuoteStatus={selectedQuoteStatus}
+        setSelectedQuoteStatus={setSelectedQuoteStatus}
+        stats={stats}
+        loadStats={boardStats}
+        quoteStats={quoteStats}
+      />
 
+      <div className="flex relative min-w-0">
         <TransportationSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -875,6 +887,8 @@ function TransportationPageInner() {
           )}
         </div>
       </div>
+
+      <TransportationMobileSupportCenter />
 
       <ShippingQuoteModal
         open={isQuoteModalOpen}

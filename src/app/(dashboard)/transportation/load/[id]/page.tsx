@@ -6,8 +6,9 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -359,7 +360,16 @@ export default function LoadDetailsPage() {
   const router = useRouter()
   const rawId = params?.id
   const id = Array.isArray(rawId) ? rawId[0] : rawId
-  const [isPrinting, setIsPrinting] = React.useState(false)
+  const [mobileBolPreviewOpen, setMobileBolPreviewOpen] = React.useState(false)
+  const [mobileBolPreviewScale, setMobileBolPreviewScale] = React.useState(1)
+  const [mobileBolPreviewHeight, setMobileBolPreviewHeight] = React.useState(1056)
+  const mobileBolPreviewRef = React.useRef<HTMLIFrameElement | null>(null)
+  const mobileBolPreviewViewportRef = React.useRef<HTMLDivElement | null>(null)
+
+  // Letter at 96 CSS pixels per inch. The preview keeps this exact page width
+  // internally, then scales the whole sheet down to the available phone width.
+  const BOL_PREVIEW_WIDTH = 816
+  const BOL_PREVIEW_MIN_HEIGHT = 1056
 
   const {
     data: load,
@@ -382,44 +392,74 @@ export default function LoadDetailsPage() {
     retry: 1,
   })
 
-  const handlePrintBol = () => {
-    if (!load) return
-    setIsPrinting(true)
+  const syncMobileBolPreview = React.useCallback(() => {
+    const viewport = mobileBolPreviewViewportRef.current
+    const iframe = mobileBolPreviewRef.current
+    if (!viewport || !iframe) return
 
-    const iframe = document.createElement("iframe")
-    iframe.style.position = "fixed"
-    iframe.style.right = "0"
-    iframe.style.bottom = "0"
-    iframe.style.width = "8.5in"
-    iframe.style.height = "11in"
-    iframe.style.border = "0"
-    iframe.style.visibility = "hidden"
-    document.body.appendChild(iframe)
+    const horizontalPadding =
+      window.matchMedia("(min-width: 640px)").matches ? 24 : 16
+    const availableWidth = Math.max(0, viewport.clientWidth - horizontalPadding)
+    const nextScale = Math.min(1, availableWidth / BOL_PREVIEW_WIDTH)
+    setMobileBolPreviewScale(nextScale)
 
     try {
-      const printWindow = iframe.contentWindow
-      const doc = printWindow?.document
-      if (!doc || !printWindow) throw new Error("Print unavailable")
-
-      doc.open()
-      doc.write(generateBolHtml(load))
-      doc.close()
-
-      const triggerPrint = () => {
-        printWindow.focus()
-        printWindow.print()
-      }
-      if (doc.readyState === "complete") {
-        triggerPrint()
-      } else {
-        printWindow.addEventListener("load", triggerPrint, { once: true })
-      }
+      const doc = iframe.contentDocument
+      if (!doc) return
+      const contentHeight = Math.max(
+        BOL_PREVIEW_MIN_HEIGHT,
+        doc.documentElement?.scrollHeight || 0,
+        doc.body?.scrollHeight || 0,
+      )
+      setMobileBolPreviewHeight(contentHeight)
     } catch {
-      toast.error("Unable to open the print dialog. Please try again.")
-    } finally {
-      setIsPrinting(false)
-      setTimeout(() => iframe.remove(), 1000)
+      setMobileBolPreviewHeight(BOL_PREVIEW_MIN_HEIGHT)
     }
+  }, [])
+
+  React.useEffect(() => {
+    if (!mobileBolPreviewOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileBolPreviewOpen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [mobileBolPreviewOpen])
+
+  React.useEffect(() => {
+    if (!mobileBolPreviewOpen) return
+
+    const viewport = mobileBolPreviewViewportRef.current
+    if (!viewport) return
+
+    const frame = window.requestAnimationFrame(syncMobileBolPreview)
+    const observer = new ResizeObserver(syncMobileBolPreview)
+    observer.observe(viewport)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [mobileBolPreviewOpen, syncMobileBolPreview])
+
+  const handleBolPreviewPrint = React.useCallback(() => {
+    const previewWindow = mobileBolPreviewRef.current?.contentWindow
+    if (!previewWindow) {
+      toast.error("The BOL preview is not ready yet.")
+      return
+    }
+
+    previewWindow.focus()
+    previewWindow.print()
+  }, [])
+
+  const handlePrintBol = () => {
+    if (!load) return
+    setMobileBolPreviewOpen(true)
   }
 
   if (isLoading) return <LoadDetailsSkeleton />
@@ -486,7 +526,7 @@ export default function LoadDetailsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol} disabled={isPrinting}><FileText className="size-4 mr-2 text-muted-foreground" /> Print Bol</Button>
+          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
           <Button
             variant="default"
             size="sm"
@@ -858,6 +898,97 @@ export default function LoadDetailsPage() {
         </div>
 
       </div>
+
+      {mobileBolPreviewOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bol-preview-title"
+            className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black/65 p-3"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setMobileBolPreviewOpen(false)
+              }
+            }}
+          >
+            <div
+              className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl"
+              style={{
+                width: "min(calc(100vw - 24px), 880px)",
+                height: "min(calc(100dvh - 24px), 1120px)",
+              }}
+            >
+              <div className="shrink-0 border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p
+                      id="bol-preview-title"
+                      className="truncate text-sm font-black text-foreground"
+                    >
+                      BOL Preview
+                    </p>
+                    <p className="truncate text-[10px] font-medium text-muted-foreground">
+                      {load.loadNumber}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileBolPreviewOpen(false)}
+                    aria-label="Close BOL preview"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                ref={mobileBolPreviewViewportRef}
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-muted/30 p-2 sm:p-3"
+              >
+                <div className="flex min-h-full w-full items-start justify-center py-1 sm:items-center">
+                  <div
+                    className="relative shrink-0 overflow-visible bg-white shadow-[0_8px_30px_rgba(15,23,42,0.16)]"
+                    style={{
+                      width: `${BOL_PREVIEW_WIDTH * mobileBolPreviewScale}px`,
+                      height: `${mobileBolPreviewHeight * mobileBolPreviewScale}px`,
+                    }}
+                  >
+                    <iframe
+                      ref={mobileBolPreviewRef}
+                      title={`BOL Preview ${load.loadNumber}`}
+                      srcDoc={generateBolHtml(load)}
+                      onLoad={syncMobileBolPreview}
+                      scrolling="no"
+                      className="absolute left-0 top-0 border-0 bg-white"
+                      style={{
+                        width: `${BOL_PREVIEW_WIDTH}px`,
+                        height: `${mobileBolPreviewHeight}px`,
+                        transform: `scale(${mobileBolPreviewScale})`,
+                        transformOrigin: "top left",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="shrink-0 border-t border-border bg-background/98 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleBolPreviewPrint}
+                  className="h-10 w-full gap-2 text-sm font-bold"
+                >
+                  <Printer className="size-4" />
+                  Print
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

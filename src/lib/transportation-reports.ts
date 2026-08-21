@@ -290,20 +290,21 @@ export function generateBolHtml(load: Load): string {
       padding: 0;
     }
 
-    html,
-    body {
-      background: #ffffff;
+    html {
+      background: #eef1f5;
     }
 
     body {
-      width: 100%;
+      width: 8.5in;
       max-width: 8.5in;
+      min-height: 11in;
       margin: 0 auto;
-      padding: 18px 22px;
+      padding: 0.28in;
+      background: #ffffff;
       color: var(--ink);
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 10px;
-      line-height: 1.35;
+      font-size: 11.5pt;
+      line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -642,24 +643,324 @@ export function generateBolHtml(load: Load): string {
       text-transform: uppercase;
     }
 
+
+
+    @media screen {
+      body {
+        box-shadow: 0 10px 34px rgba(15, 23, 42, 0.14);
+      }
+
+      .header {
+        gap: 14pt;
+        padding-bottom: 9pt;
+        margin-bottom: 9pt;
+      }
+
+      .route-grid {
+        gap: 7pt;
+        margin-bottom: 7pt;
+      }
+
+      .route-box {
+        padding: 9pt 10pt;
+      }
+
+      .dates-grid {
+        gap: 6pt;
+        margin-bottom: 7pt;
+      }
+
+      .date-item,
+      .metric {
+        padding: 7pt 8pt;
+      }
+
+      .section {
+        margin-bottom: 8pt;
+      }
+
+      .section-title {
+        margin-bottom: 5pt;
+        padding-bottom: 4pt;
+      }
+
+      .summary-grid {
+        gap: 6pt;
+        margin-bottom: 8pt;
+      }
+
+      .bottom-grid {
+        gap: 7pt;
+        margin-top: 3pt;
+      }
+
+      .panel {
+        padding: 8pt 9pt;
+      }
+
+      .note-block {
+        padding: 7pt;
+      }
+
+      .signature-area {
+        gap: 18pt;
+        margin-top: 20pt;
+      }
+
+      .company { font-size: 20pt; }
+      .doc-title { font-size: 10pt; }
+      .load-number { font-size: 15pt; }
+      .generated { font-size: 9pt; }
+      .status { font-size: 9pt; padding: 2.5pt 8pt; }
+
+      .route-label,
+      .section-title,
+      .item-label,
+      .note-label,
+      .metric-label {
+        font-size: 9pt;
+      }
+
+      .route-value {
+        font-size: 10.5pt;
+        line-height: 1.45;
+      }
+
+      .date-value,
+      .contract-line {
+        font-size: 10.5pt;
+      }
+
+      th {
+        font-size: 8.5pt;
+        padding: 5.5pt;
+      }
+
+      td {
+        font-size: 9.5pt;
+        padding: 5.5pt;
+      }
+
+      .cell-vin {
+        font-size: 9pt;
+      }
+
+      .metric-value {
+        font-size: 13.5pt;
+      }
+
+      .note-text {
+        max-height: none;
+        overflow: visible;
+        font-size: 9.5pt;
+        line-height: 1.4;
+      }
+
+      .signature-box {
+        font-size: 9pt;
+      }
+
+      .footer {
+        margin-top: 9pt;
+        padding-top: 6pt;
+        font-size: 8pt;
+      }
+
+      .table-wrap {
+        overflow: visible;
+      }
+
+      table {
+        width: 100%;
+        table-layout: fixed;
+      }
+    }
+
     @media print {
       @page {
         size: Letter portrait;
-        margin: 0.32in;
+        margin: 0.28in;
       }
 
       html,
       body {
-        width: auto;
-        max-width: none;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background: #ffffff !important;
       }
 
       body {
-        padding: 0;
+        color: #172033 !important;
+        font-size: 11.5pt;
+        line-height: 1.4;
+        box-shadow: none !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
 
       .document {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+
+      .header {
+        gap: 14pt;
+        padding-bottom: 9pt;
+        margin-bottom: 9pt;
+      }
+
+      .route-grid {
+        gap: 7pt;
+        margin-bottom: 7pt;
+      }
+
+      .route-box {
+        padding: 9pt 10pt;
+      }
+
+      .dates-grid {
+        gap: 6pt;
+        margin-bottom: 7pt;
+      }
+
+      .date-item,
+      .metric {
+        padding: 7pt 8pt;
+      }
+
+      .section {
+        margin-bottom: 8pt;
+      }
+
+      .section-title {
+        margin-bottom: 5pt;
+        padding-bottom: 4pt;
+      }
+
+      .summary-grid {
+        gap: 6pt;
+        margin-bottom: 8pt;
+      }
+
+      .bottom-grid {
+        gap: 7pt;
+        margin-top: 3pt;
+      }
+
+      .panel {
+        padding: 8pt 9pt;
+      }
+
+      .note-block {
+        padding: 7pt;
+      }
+
+      .signature-area {
+        gap: 18pt;
+        margin-top: 20pt;
+      }
+
+      /* Keep individual content groups intact, but allow the overall BOL to
+         paginate naturally. Avoiding a break on the whole document can make
+         Chromium shrink a page to satisfy the constraint. */
+      .header,
+      .route-box,
+      .date-item,
+      .metric,
+      .panel,
+      .note-block,
+      .signature-area,
+      tr {
+        break-inside: avoid;
         page-break-inside: avoid;
+      }
+
+      .section,
+      .route-grid,
+      .dates-grid,
+      .summary-grid,
+      .bottom-grid {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      /* Readable physical print sizes. */
+      .company { font-size: 20pt; }
+      .doc-title { font-size: 10pt; }
+      .load-number { font-size: 15pt; }
+      .generated { font-size: 9pt; }
+      .status { font-size: 9pt; padding: 2.5pt 8pt; }
+
+      .route-label,
+      .section-title,
+      .item-label,
+      .note-label,
+      .metric-label {
+        font-size: 9pt;
+      }
+
+      .route-value {
+        font-size: 10.5pt;
+        line-height: 1.45;
+      }
+
+      .date-value,
+      .contract-line {
+        font-size: 10.5pt;
+      }
+
+      th {
+        font-size: 8.5pt;
+        padding: 5.5pt;
+      }
+
+      td {
+        font-size: 9.5pt;
+        padding: 5.5pt;
+      }
+
+      .cell-vin {
+        font-size: 9pt;
+      }
+
+      .metric-value {
+        font-size: 13.5pt;
+      }
+
+      .note-text {
+        max-height: none;
+        overflow: visible;
+        font-size: 9.5pt;
+        line-height: 1.4;
+      }
+
+      .signature-box {
+        font-size: 9pt;
+      }
+
+      .footer {
+        margin-top: 9pt;
+        padding-top: 6pt;
+        font-size: 8pt;
+      }
+
+      .table-wrap {
+        overflow: visible;
+      }
+
+      table {
+        width: 100%;
+        table-layout: fixed;
       }
     }
   </style>
