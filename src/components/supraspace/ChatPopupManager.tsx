@@ -7,6 +7,7 @@ import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smil
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+import { normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -1005,7 +1006,8 @@ function escapeRegExp(value: string): string {
 }
 
 function normalizeMessageMarkdownForDisplay(text: string): string {
-  return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(text))
+  const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
+  return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
     .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
     .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
@@ -1014,22 +1016,9 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 
 function messagePreviewText(content?: string | null): string {
   if (!content) return '';
-  return normalizeMessageMarkdownForDisplay(content)
-    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*color\s*\}/gi, '')
-    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
-    .replace(/\{\s*\/\s*font\s*\}/gi, '')
-    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*size\s*\}/gi, '')
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-    .replace(/__([^_\n]+)__/g, '$1')
-    .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
-    .replace(/\s*\n+\s*/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return stripSupraSpaceFormattingForPreview(
+    normalizeMessageMarkdownForDisplay(content),
+  );
 }
 
 function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
@@ -1076,7 +1065,11 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
       return <a key={k} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isOwn ? 'rgba(255,255,255,0.85)' : '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
     if (/^@/.test(part))
       return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)' } : { color: '#60a5fa' }}>{part}</span>;
-    return stripSupraSpaceTypographyTags(part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''));
+    return stripResidualSupraSpaceInlineControlMarkers(
+      stripSupraSpaceTypographyTags(
+        part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
+      ),
+    );
   });
 }
 
@@ -1390,8 +1383,9 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 }
 
 function hasMarkdownSyntax(text: string): boolean {
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(text)
-    || text.replace(/\r\n?/g, '\n').split('\n').some(line =>
+  const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
+    || compatibleText.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
 }
@@ -1740,10 +1734,18 @@ function htmlToMarkdown(el: HTMLElement): string {
     }
 
     if (tag === 'ul' || tag === 'ol') {
-      return Array.from(element.children)
+      const serializedList = Array.from(element.children)
         .filter(child => child.tagName.toLowerCase() === 'li')
         .map(child => walk(child, listDepth))
         .join('');
+
+      // A top-level list is a block boundary. The previous serializer returned
+      // the first bullet directly after the preceding heading/paragraph, which
+      // could create payloads such as **Current Progress**• **Continued...**.
+      // Nested lists already live inside an <li> and must not gain an extra
+      // leading line break.
+      const isNestedList = element.parentElement?.tagName.toLowerCase() === 'li';
+      return isNestedList || !serializedList ? serializedList : `\n${serializedList}`;
     }
 
     if (tag === 'li') {
@@ -1817,23 +1819,30 @@ function htmlToMarkdown(el: HTMLElement): string {
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
 
+    const hasInlineContent = Boolean(inner.trim());
     if (
-      tag === 'strong'
-      || tag === 'b'
-      || /^h[1-6]$/.test(tag)
-      || fontWeight === 'bold'
-      || Number.parseInt(fontWeight || '0', 10) >= 600
+      hasInlineContent
+      && (
+        tag === 'strong'
+        || tag === 'b'
+        || /^h[1-6]$/.test(tag)
+        || fontWeight === 'bold'
+        || Number.parseInt(fontWeight || '0', 10) >= 600
+      )
     ) inner = `**${inner}**`;
-    if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') inner = `_${inner}_`;
-    if (tag === 'u' || decoration.includes('underline')) inner = `__${inner}__`;
+    if (hasInlineContent && (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic')) inner = `_${inner}_`;
+    if (hasInlineContent && (tag === 'u' || decoration.includes('underline'))) inner = `__${inner}__`;
     if (
-      tag === 's'
-      || tag === 'strike'
-      || tag === 'del'
-      || decoration.includes('line-through')
+      hasInlineContent
+      && (
+        tag === 's'
+        || tag === 'strike'
+        || tag === 'del'
+        || decoration.includes('line-through')
+      )
     ) inner = `~~${inner}~~`;
-    if (tag === 'pre') inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if (tag === 'code' || isMonospace) inner = isSerialLikeText(inner)
+    if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
+    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = isSerialLikeText(inner)
       ? inner
       : '`' + inner.replace(/`/g, '') + '`';
     else if (tag === 'blockquote') inner = inner
@@ -1878,7 +1887,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
-  return canonicalizeColorMarkup(markdown);
+  return normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
 }
 
 function htmlAppearsToContainLists(html: string): boolean {
@@ -2390,6 +2399,85 @@ function clipboardPayloadToPlainText(text: string, html: string): string {
   );
 }
 
+
+function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
+  if (!editorHtml.trim() || typeof DOMParser === 'undefined') return editorHtml;
+
+  const doc = new DOMParser().parseFromString(
+    `<div data-ss4-rich-paste-root="true">${editorHtml}</div>`,
+    'text/html',
+  );
+  const root = doc.querySelector<HTMLElement>('[data-ss4-rich-paste-root="true"]');
+  if (!root) return editorHtml;
+
+  const collectTextNodes = (): Text[] => {
+    const nodes: Text[] = [];
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      const textNode = current as Text;
+      if (!textNode.parentElement?.closest('code, pre')) nodes.push(textNode);
+      current = walker.nextNode();
+    }
+    return nodes;
+  };
+
+  // Some rich clipboard payloads contain BOTH semantic HTML formatting and
+  // literal markdown controls. Example: <strong>Progress Report</strong>**.
+  // The HTML is the visual source of truth for a formatted paste, so consume
+  // any complete **...** runs that remain inside text nodes as <strong>, then
+  // remove only boundary/orphan ** controls that cannot represent visible text.
+  // Never touch code/pre, where literal asterisks are legitimate content.
+  collectTextNodes().forEach(textNode => {
+    const value = textNode.data;
+    if (!value.includes('**')) return;
+
+    const pairPattern = /\*\*([^*\n]+?)\*\*/g;
+    let cursor = 0;
+    let matched = false;
+    const fragment = doc.createDocumentFragment();
+    let match: RegExpExecArray | null;
+
+    while ((match = pairPattern.exec(value)) !== null) {
+      matched = true;
+      if (match.index > cursor) {
+        fragment.appendChild(doc.createTextNode(value.slice(cursor, match.index)));
+      }
+      const strong = doc.createElement('strong');
+      strong.textContent = match[1];
+      fragment.appendChild(strong);
+      cursor = match.index + match[0].length;
+    }
+
+    if (matched) {
+      if (cursor < value.length) {
+        fragment.appendChild(doc.createTextNode(value.slice(cursor)));
+      }
+      textNode.replaceWith(fragment);
+    }
+  });
+
+  collectTextNodes().forEach(textNode => {
+    const value = textNode.data;
+    if (!value.includes('**')) return;
+
+    // Marker-only clipboard artifacts are never user-visible formatting.
+    if (/^\s*\*\*\s*$/.test(value)) {
+      textNode.data = value.replace(/\*\*/g, '');
+      return;
+    }
+
+    // Consume only unmatched controls at a text-node boundary. Internal
+    // literal "A**B" text is preserved, while "**Heading" / "Heading**"
+    // from copied rich text no longer leaks into the composer or message.
+    textNode.data = value
+      .replace(/^(\s*)\*\*(?=\s*\S)/, '$1')
+      .replace(/\*\*(\s*)$/, '$1');
+  });
+
+  return root.innerHTML;
+}
+
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
   // Formatted paste uses the source HTML exactly once. Combining the HTML and
   // text/plain list representations creates duplicate bullets and extra text.
@@ -2405,9 +2493,25 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
       }
     }
 
+    // A browser often supplies text/html even when that HTML is only a plain
+    // wrapper around markdown-looking text. In that case preferring the HTML
+    // path makes ** controls literal. Only trust HTML as the formatting source
+    // when it actually carries rich formatting; otherwise let the established
+    // markdown parser interpret the text/plain representation.
+    const clipboardText = text || clipboardHtmlToPlainText(html);
+    if (!hasRichFormatting(html) && hasMarkdownSyntax(clipboardText)) {
+      return sanitizePastedEditorHtmlForTheme(
+        markdownTextToEditorHtml(clipboardText),
+      );
+    }
+
     const editorHtml = clipboardHtmlToEditorHtml(html);
     if (editorHtml.trim()) {
-      return sanitizePastedEditorHtmlForTheme(editorHtml);
+      return sanitizePastedEditorHtmlForTheme(
+        hasRichFormatting(html)
+          ? normalizeRichClipboardBoldArtifacts(editorHtml)
+          : editorHtml,
+      );
     }
   }
 
@@ -2420,7 +2524,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 
 function markdownTextToEditorHtml(text: string): string {
   const source = canonicalizeColorMarkup(
-    normalizeMessageMarkdownText(text).replace(/\r\n?/g, '\n'),
+    normalizeMessageMarkdownText(normalizeSupraSpaceLegacyMarkup(text)).replace(/\r\n?/g, '\n'),
   );
   const lines = source.split('\n');
   let activeColor: string | null = null;

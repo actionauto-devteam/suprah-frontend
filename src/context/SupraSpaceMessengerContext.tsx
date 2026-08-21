@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
 import { resolveImageUrl } from '@/lib/utils';
+import { stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
@@ -158,25 +159,7 @@ function defaultNotifPref(): NotifPref {
 // leak into OS/browser push notification text (mirrors MessengerDropdown's
 // cleanPreviewContent — kept local since this file has no shared chat-text util).
 function stripChatFormatting(content?: string | null): string {
-  if (!content) return '';
-  return content
-    .replace(/\r\n?/g, '\n')
-    .replace(/ /g, ' ')
-    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*color\s*\}/gi, '')
-    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
-    .replace(/\{\s*\/\s*font\s*\}/gi, '')
-    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*size\s*\}/gi, '')
-    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
-    .replace(/__([^_\n]+)__/g, '$1')
-    .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
-    .replace(/\s*\n+\s*/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return stripSupraSpaceFormattingForPreview(content);
 }
 
 // In-app "pop up" for a new message while the tab is focused but the user
