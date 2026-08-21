@@ -23,6 +23,7 @@ interface OrgInfo {
   orgName: string;
   orgLogo: string | null;
   expiresAt: string;
+  accountType: "customer" | "driver";
 }
 
 const REASON_MSG: Record<InvalidReason, string> = {
@@ -57,6 +58,7 @@ export default function JoinPage() {
             orgName: data.orgName,
             orgLogo: data.orgLogo,
             expiresAt: data.expiresAt,
+            accountType: data.accountType === "driver" ? "driver" : "customer",
           });
           setStep("form");
         } else {
@@ -147,7 +149,7 @@ export default function JoinPage() {
                 )}
                 <div className="text-center">
                   <p className="text-xs text-white/40 uppercase tracking-widest">
-                    You've been invited by
+                    {org.accountType === "driver" ? "Apply to drive with" : "You've been invited by"}
                   </p>
                   <h1 className="text-xl font-bold text-white mt-0.5">{org.orgName}</h1>
                 </div>
@@ -237,9 +239,13 @@ export default function JoinPage() {
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">Account created!</h2>
+                <h2 className="text-lg font-semibold text-white">
+                  {org?.accountType === "driver" ? "Application submitted!" : "Account created!"}
+                </h2>
                 <p className="mt-1 text-sm text-white/50">
-                  Check your email — we sent your login details.
+                  {org?.accountType === "driver"
+                    ? "SUPRAH.AI will review your application and email you once it's approved."
+                    : "Check your email — we sent your login details."}
                 </p>
               </div>
               <Button

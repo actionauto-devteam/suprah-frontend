@@ -74,7 +74,7 @@ function WindowsBrowserWarning({ lang }: { lang: Lang }) {
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-[10px] text-zinc-300">ActionAutoTraySetup.exe isn&apos;t commonly downloaded.</span>
+            <span className="text-[10px] text-zinc-300">SuprahTraySetup.exe isn&apos;t commonly downloaded.</span>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
         </div>
@@ -189,7 +189,7 @@ function MacDragToApps({ lang }: { lang: Lang }) {
           <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
           <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
           <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-          <span className="ml-2 text-[10px] text-zinc-400">ActionAutoTraySetup</span>
+          <span className="ml-2 text-[10px] text-zinc-400">SuprahTraySetup</span>
         </div>
         <div className="flex items-center justify-around bg-[#1c1c1e] px-6 py-5">
           <div className="flex flex-col items-center gap-1.5">
@@ -371,7 +371,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
         },
         {
           title: 'Click "Download for Windows"',
-          body: <>Click the {b("Download for Windows")} button. A file called {code("ActionAutoTraySetup.exe")} will start downloading. Wait for it to finish — check the bottom of your browser.</>,
+          body: <>Click the {b("Download for Windows")} button. A file called {code("SuprahTraySetup.exe")} will start downloading. Wait for it to finish — check the bottom of your browser.</>,
         },
         {
           title: "Your browser may warn you first — this is normal",
@@ -408,7 +408,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: 'I-click ang "Download for Windows"',
-        body: <>I-click ang {b("Download for Windows")} button. Magsisimula mag-download ang file na tinatawag na {code("ActionAutoTraySetup.exe")}. Hintayin matapos — tingnan sa ibaba ng browser mo.</>,
+        body: <>I-click ang {b("Download for Windows")} button. Magsisimula mag-download ang file na tinatawag na {code("SuprahTraySetup.exe")}. Hintayin matapos — tingnan sa ibaba ng browser mo.</>,
       },
       {
         title: "Baka mag-warning muna ang browser mo — normal lang ito",
@@ -448,7 +448,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: 'Click "Download for Mac"',
-        body: <>Click the {b("Download for Mac")} button. A file called {code("ActionAutoTraySetup.dmg")} will download to your {b("Downloads")} folder.</>,
+        body: <>Click the {b("Download for Mac")} button. A file called {code("SuprahTraySetup.dmg")} will download to your {b("Downloads")} folder.</>,
       },
       {
         title: "Open the DMG file",
@@ -499,7 +499,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
     },
     {
       title: 'I-click ang "Download for Mac"',
-      body: <>I-click ang {b("Download for Mac")} button. Mag-do-download ang file na tinatawag na {code("ActionAutoTraySetup.dmg")} sa {b("Downloads")} folder mo.</>,
+      body: <>I-click ang {b("Download for Mac")} button. Mag-do-download ang file na tinatawag na {code("SuprahTraySetup.dmg")} sa {b("Downloads")} folder mo.</>,
     },
     {
       title: "Buksan ang DMG file",

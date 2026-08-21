@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+import { stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -53,21 +54,7 @@ function relativeTime(dateStr: string): string {
 }
 
 function cleanPreviewContent(content?: string | null): string {
-  if (!content) return '';
-  return content
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*color\s*\}/gi, '')
-    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
-    .replace(/__([^_\n]+)__/g, '$1')
-    .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
-    .replace(/\s*\n+\s*/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return stripSupraSpaceFormattingForPreview(content);
 }
 
 function previewText(conv: SSConv): string {

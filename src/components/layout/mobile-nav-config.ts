@@ -30,6 +30,7 @@ export const adminNav: BottomNavItem[] = [
     { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
     { label: "Orgs", href: "/admin/organizations", icon: Building2 },
     { label: "Users", href: "/admin/users", icon: Users, isCenter: true },
+    { label: "Drivers", href: "/admin/drivers", icon: Truck },
     { label: "Payouts", href: "/admin/payouts", icon: CreditCard },
     { label: "Alerts", href: "/admin/notifications", icon: Bell },
 ];

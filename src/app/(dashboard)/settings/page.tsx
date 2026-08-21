@@ -8,8 +8,6 @@ import {
   MapPin,
   Loader2,
 } from "lucide-react";
-import { Truck } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 import {
   Card,
   CardContent,
@@ -19,8 +17,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationMembersSettings } from "@/components/settings/org-members-settings";
-import { DriverRequestsSettings } from "@/components/settings/driver-requests-settings";
-import { DriverVerificationPanel } from "@/components/settings/driver-verification-panel";
 import { ReportsFilesTab } from "@/components/settings/ReportsFilesTab";
 import { SystemSettingsTab } from "@/components/settings/SystemSettingsTab";
 
@@ -40,7 +36,7 @@ function SettingsContent() {
       </div>
 
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-card border p-1 rounded-lg h-auto min-h-11 mb-6">
+        <TabsList className="grid w-full grid-cols-3 bg-card border p-1 rounded-lg h-auto min-h-11 mb-6">
           <TabsTrigger
             value="reports"
             className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
@@ -61,13 +57,6 @@ function SettingsContent() {
           >
             <MapPin className="size-4 shrink-0 hidden sm:block" />
             <span className="truncate">Organization</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="drivers"
-            className="w-full min-w-0 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-2 sm:px-4 py-2.5 data-[state=active]:bg-secondary shadow-none"
-          >
-            <Truck className="size-4 shrink-0 hidden sm:block" />
-            <span className="truncate">Drivers</span>
           </TabsTrigger>
         </TabsList>
 
@@ -91,24 +80,6 @@ function SettingsContent() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 min-h-100">
               <OrganizationMembersSettings />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="drivers" className="m-0">
-          <Card className="border-none shadow-sm bg-card p-0 overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b pt-4 pb-3">
-              <CardTitle className="text-lg font-bold">
-                Driver Management
-              </CardTitle>
-              <CardDescription>
-                Review and manage driver access requests.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6 pt-3 sm:pt-4 pb-4 sm:pb-6 min-h-100 space-y-6">
-              <DriverRequestsSettings />
-              <Separator />
-              <DriverVerificationPanel />
             </CardContent>
           </Card>
         </TabsContent>

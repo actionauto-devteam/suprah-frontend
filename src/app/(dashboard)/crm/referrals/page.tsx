@@ -154,10 +154,13 @@ interface AccountTypeToggleProps {
   disabled?: boolean;
 }
 
+// Driver accounts are a shared platform-wide pool now, approved only by the
+// SUPRAH.AI super_admin under /admin/drivers — org admins can only create
+// customer accounts here.
 function AccountTypeToggle({ value, onChange, disabled }: AccountTypeToggleProps) {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {(["customer", "driver"] as AccountType[]).map((t) => {
+    <div className="grid grid-cols-1 gap-2">
+      {(["customer"] as AccountType[]).map((t) => {
         const active = value === t;
         return (
           <button
