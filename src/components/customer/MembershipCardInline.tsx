@@ -3,6 +3,7 @@
 import * as React from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { useUser, useAuthActions } from "@/providers/AuthProvider"
+import { useOrg } from "@/hooks/useOrg"
 import { useMyMembership } from "@/hooks/api/useMembership"
 import { ACTION_AUTO_SERVICE_DISCOUNT_PERCENT, buildMemberBenefitsUrl } from "@/lib/customer-benefits"
 
@@ -24,6 +25,8 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
   const { user } = useUser()
   const { user: rawUser } = useAuthActions()
   const { data: membership } = useMyMembership()
+  const { organization } = useOrg()
+  const dealerName = organization?.name || "Your Dealership"
 
   if (!user || !rawUser) return null
 
@@ -31,7 +34,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.fullName || rawUser.email
   const memberId = getMemberId(rawUser._id)
   const sinceYear = getSinceYear(rawUser._id)
-  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName)
+  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName, dealerName)
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
@@ -78,7 +81,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[9.5px] font-black tracking-[0.25em] uppercase text-white leading-none">
-              Action Auto
+              {dealerName}
             </p>
             <p className="text-[7.5px] tracking-[0.2em] uppercase mt-0.5" style={{ color: `${tierPrimary}cc` }}>
               Jiffy Lube Partner
@@ -150,7 +153,7 @@ export function MembershipCardInline({ onClick }: { onClick?: () => void }) {
             JS
           </div>
           <div className="min-w-0">
-            <p className="text-[8.5px] font-bold text-white/90 leading-none">Action Auto Utah Customer Benefit</p>
+            <p className="text-[8.5px] font-bold text-white/90 leading-none">{dealerName} Customer Benefit</p>
             <p className="text-[7px] text-white/60 leading-snug mt-0.5 truncate">
               {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services at participating locations
             </p>

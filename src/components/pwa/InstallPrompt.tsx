@@ -61,7 +61,7 @@ export const InstallPrompt = () => {
                             Install Dashboard
                         </h3>
                         <p className="mt-1 text-sm text-foreground/60 leading-relaxed">
-                            Install Action Auto Utah for a faster, full-screen experience and offline access.
+                            Install Suprah.AI for a faster, full-screen experience and offline access.
                         </p>
 
                         <div className="mt-4">

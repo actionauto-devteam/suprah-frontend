@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { DriverProfile, ComplianceDocument, VerificationStatus } from '@/types/driver-profile';
+import { useOrg } from '@/hooks/useOrg';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +76,7 @@ const FormSection = ({ icon, items }: { icon: string; items: Array<{ label: stri
 
 export const DocumentsPage: React.FC = () => {
   const { getToken } = useAuth();
+  const { organization } = useOrg();
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -691,7 +693,7 @@ export const DocumentsPage: React.FC = () => {
                           <div>
                             <span className="text-sm font-bold">Background Check Authorization *</span>
                             <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                              I authorize Action Auto to conduct a background check per the Fair Credit Reporting Act (FCRA).
+                              I authorize {organization?.name || "Your Dealership"} to conduct a background check per the Fair Credit Reporting Act (FCRA).
                             </p>
                           </div>
                         </motion.label>

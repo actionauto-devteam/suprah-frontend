@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useOrg } from "@/hooks/useOrg"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -272,6 +273,7 @@ function SkeletonRow() {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTableProps) {
+  const { organization } = useOrg()
   const [users, setUsers] = React.useState<CrmUserRow[]>([])
   const [fetchError, setFetchError] = React.useState<string | null>(null)
   const [pagination, setPagination] = React.useState<PaginationMeta>({
@@ -462,7 +464,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
       doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
-      doc.text("Action Auto Utah - CRM Users", 40, 42)
+      doc.text(`${organization?.name || "Your Dealership"} - CRM Users`, 40, 42)
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.text(`Generated: ${generatedAt}`, 40, 60)

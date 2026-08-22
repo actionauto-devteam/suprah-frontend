@@ -17,8 +17,8 @@ function shortMemberId(memberId: string) {
 export default async function MemberBenefitsPage({ params, searchParams }: MemberBenefitsPageProps) {
   const { memberId } = await params;
   const query = searchParams ? await searchParams : {};
-  const memberName = query.name?.trim() || "Action Auto Utah Customer";
-  const dealer = query.dealer?.trim() || "Action Auto Utah";
+  const memberName = query.name?.trim() || "Customer";
+  const dealer = query.dealer?.trim() || "Your Dealership";
   const memberCode = shortMemberId(memberId);
 
   return (
@@ -53,7 +53,7 @@ export default async function MemberBenefitsPage({ params, searchParams }: Membe
               off eligible services
             </p>
             <p className="mt-3 max-w-xl text-sm leading-6 text-white/75 sm:text-base">
-              This customer receives {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible service work for being an Action Auto Utah customer.
+              This customer receives {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible service work for being a {dealer} customer.
               Please confirm customer status and service eligibility before checkout.
             </p>
 

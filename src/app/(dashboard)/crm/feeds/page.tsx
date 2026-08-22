@@ -49,6 +49,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { apiClient } from "@/lib/api-client"
+import { useOrg } from "@/hooks/useOrg"
 import {
   useFeedBadge,
   refreshFeedBadge,
@@ -1831,6 +1832,7 @@ const INIT_TIMEOUT_MS = 15000
 
 export default function FeedsPage() {
   const router = useRouter()
+  const { organization } = useOrg()
   const [activeTab, setActiveTab] = React.useState<FeedTab>("feeds")
   const [currentUser, setCurrentUser] = React.useState<CrmUser | null>(null)
   const [token, setToken] = React.useState("")
@@ -2207,7 +2209,7 @@ export default function FeedsPage() {
           </div>
           <div className="text-center space-y-1">
             <p className="text-sm font-medium text-muted-foreground/80">Loading your feed</p>
-            <p className="text-xs text-muted-foreground/50">Action Auto CRM</p>
+            <p className="text-xs text-muted-foreground/50">{organization?.name || "Your Dealership"} CRM</p>
           </div>
         </div>
       </div>

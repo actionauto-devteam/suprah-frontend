@@ -3,8 +3,8 @@ import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
     return {
         id: 'suprah-ai-dashboard',
-        name: 'Suprah AI',
-        short_name: 'Suprah AI',
+        name: 'Suprah.AI',
+        short_name: 'Suprah.AI',
         description: 'Dealership Intelligence System',
         start_url: '/',
         display: 'standalone',

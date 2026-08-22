@@ -42,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
 import { generateLoadPDF } from "@/utils/pdfGenerator"
+import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
 
@@ -339,6 +340,7 @@ type LoadInfoModal = "vehicles" | "financials" | "dates" | null
 
 export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   const router = useRouter()
+  const { organization } = useOrg()
   const [isExporting, setIsExporting] = React.useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
   const [activeInfoModal, setActiveInfoModal] = React.useState<LoadInfoModal>(null)
@@ -370,7 +372,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
     e.preventDefault()
     setIsExporting(true)
     try {
-      generateLoadPDF(load)
+      generateLoadPDF(load, organization?.name || "Your Dealership")
     } finally {
       setIsExporting(false)
     }

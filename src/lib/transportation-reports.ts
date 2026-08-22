@@ -222,7 +222,7 @@ function bolAddressBlock(loc: Load["pickupLocation"]): string {
   return lines.map(l => escapeHtml(l)).join("<br/>") || "N/A"
 }
 
-export function generateBolHtml(load: Load): string {
+export function generateBolHtml(load: Load, companyName: string = "Your Dealership"): string {
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -969,7 +969,7 @@ export function generateBolHtml(load: Load): string {
   <main class="document">
     <header class="header">
       <div class="brand">
-        <div class="company">Action Auto</div>
+        <div class="company">${escapeHtml(companyName)}</div>
         <div class="doc-title">Bill of Lading</div>
       </div>
       <div class="header-meta">
@@ -1066,7 +1066,7 @@ export function generateBolHtml(load: Load): string {
     </section>
 
     <footer class="footer">
-      <span>Action Auto · Bill of Lading</span>
+      <span>${escapeHtml(companyName)} · Bill of Lading</span>
       <span>${escapeHtml(load.loadNumber)}</span>
     </footer>
   </main>

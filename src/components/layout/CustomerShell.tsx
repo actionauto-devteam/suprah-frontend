@@ -12,6 +12,7 @@ import { customerNav } from "@/components/layout/mobile-nav-config"
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle"
 import { useRouter } from "next/navigation"
 import { useAuthActions, useUser } from "@/providers/AuthProvider"
+import { useOrg } from "@/hooks/useOrg"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -40,6 +41,7 @@ interface CustomerShellProps {
 function CustomerShellContent({ children }: CustomerShellProps) {
     const { user } = useUser()
     const { signOut } = useAuthActions()
+    const { organization } = useOrg()
     const router = useRouter()
     const [logoutOpen, setLogoutOpen] = React.useState(false)
 
@@ -52,7 +54,7 @@ function CustomerShellContent({ children }: CustomerShellProps) {
                         <div className="flex items-center gap-4">
                             <SidebarTrigger className="-ml-2 text-zinc-500 hover:text-foreground" />
                             <div className="hidden sm:flex items-center gap-2">
-                                <h1 className="text-lg font-semibold tracking-tight">Action Auto Membership</h1>
+                                <h1 className="text-lg font-semibold tracking-tight">{organization?.name || "Your Dealership"} Membership</h1>
                             </div>
                         </div>
 

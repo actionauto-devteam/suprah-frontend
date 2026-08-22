@@ -78,7 +78,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
       });
 
       if (result.status === "complete") {
-        toast.success("Welcome back to Action Auto!");
+        toast.success("Welcome back!");
         const searchParamRedirect = sanitizeRedirectUrl(searchParams.get("redirect_url"));
         const finalUrl = searchParamRedirect || result.targetUrl || "/";
         window.location.href = finalUrl;
@@ -118,7 +118,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
     <div className="w-full space-y-6 sm:space-y-7">
       <div className="space-y-2.5 sm:space-y-3">
         <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 sm:text-base">
-          Action Auto Utah
+          Suprah.AI
         </p>
         <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl md:text-5xl">
           Welcome back<span className="text-emerald-500">!</span>

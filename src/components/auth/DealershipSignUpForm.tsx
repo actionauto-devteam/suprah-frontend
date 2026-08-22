@@ -209,7 +209,7 @@ export function DealershipSignUpForm() {
                     <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="dealershipName"
-                      placeholder="Action Auto Utah"
+                      placeholder="e.g. Suprah Motors"
                       className={`pl-10 ${AUTH_INPUT_CLASS}`}
                       value={dealershipName}
                       onChange={(e) => {

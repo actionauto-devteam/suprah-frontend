@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import type { AxiosRequestConfig } from "axios"
 import { apiClient } from "@/lib/api-client"
+import { useOrg } from "@/hooks/useOrg"
 import { initializeSocket } from "@/lib/socket.client"
 import { playOverBreakAlarm, stopOverBreakAlarm } from "@/lib/notification-sound"
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt"
@@ -337,6 +338,7 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
 export default function TimeprofClockPage() {
   const router = useRouter()
   const isMobile = useIsMobile()
+  const { organization } = useOrg()
 
   const authModeRef = React.useRef<'crm' | 'main'>('crm')
   const [user, setUser] = React.useState<CrmUserData | null>(null)
@@ -1279,7 +1281,7 @@ export default function TimeprofClockPage() {
       `${monthLabel.split(" ")[0]} Total : ${monthSummary.days} active days · ${fmtHHMM(monthSummary.seconds)}`,
       `Streak       : ${streak} consecutive day${streak !== 1 ? "s" : ""}`,
       `─────────────────────────────────`,
-      `✓ Verified via Action Auto CRM`,
+      `✓ Verified via ${organization?.name || "Your Dealership"} CRM`,
     ].join("\n"))
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
@@ -1316,9 +1318,10 @@ export default function TimeprofClockPage() {
       rateNum,
       payoutUSD,
       phpPayout: showPhp && payoutPHP !== null && phpRate !== null ? { amountPHP: payoutPHP, rate: phpRate } : null,
+      companyName: organization?.name,
     })
     openHtmlForPrint(html)
-  }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
+  }, [tpData, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel, organization])
 
   const timecardPreviewHtml = React.useMemo(() => {
     if (!tpData || !showTimecardModal) return ""
@@ -1330,8 +1333,9 @@ export default function TimeprofClockPage() {
       endDateStr: timecardEnd,
       rows,
       autoPrint: false,
+      companyName: organization?.name,
     })
-  }, [tpData, showTimecardModal, timecardStart, timecardEnd, rateNum])
+  }, [tpData, showTimecardModal, timecardStart, timecardEnd, rateNum, organization])
 
   const timecardPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printTimecard = React.useCallback(() => {
@@ -1360,8 +1364,9 @@ export default function TimeprofClockPage() {
       endDateStr: idleLogEnd,
       periods: idlePeriods,
       autoPrint: false,
+      companyName: organization?.name,
     })
-  }, [tpData, showIdleLogModal, idleLogStart, idleLogEnd, idlePeriods])
+  }, [tpData, showIdleLogModal, idleLogStart, idleLogEnd, idlePeriods, organization])
 
   const idleLogPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printIdleLog = React.useCallback(() => {
@@ -2186,7 +2191,7 @@ export default function TimeprofClockPage() {
                 </div>
                 <div>
                   <p className="text-base font-black text-white">Tray App Required</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah AI - Timeproof Clock</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah.AI - Timeproof Clock</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">

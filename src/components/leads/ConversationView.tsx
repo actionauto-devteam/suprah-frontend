@@ -11,6 +11,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
 
 interface ConversationViewProps {
@@ -531,6 +532,7 @@ export function ConversationView({
   siblingCount = 0,
   onReplyToSiblings,
 }: ConversationViewProps) {
+  const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useLayoutEffect(() => {
@@ -745,7 +747,8 @@ export function ConversationView({
                   ? message?.sentBy?.name ||
                     message?.senderName ||
                     message?.sender ||
-                    "Action Auto"
+                    organization?.name ||
+                    "Your Dealership"
                   : getLeadName(lead);
 
                 return (

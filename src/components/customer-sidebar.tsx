@@ -119,10 +119,10 @@ export function CustomerSidebar({ ...props }: React.ComponentProps<typeof Sideba
           </div>
           <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
             <span className="font-bold text-sm tracking-tight uppercase truncate max-w-35">
-              {organization?.name || "ACTION AUTO UTAH"}
+              {organization?.name || "Your Dealership"}
             </span>
             <span className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest leading-tight">
-              Powered by Supra AI
+              Powered by Suprah.AI
             </span>
           </div>
         </div>

@@ -48,7 +48,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { avatarUrl } = useProfileContext();
-  const { userRole, isLoaded } = useOrg();
+  const { userRole, isLoaded, organization } = useOrg();
   const { theme } = useTheme();
   const router = useRouter();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
@@ -86,7 +86,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
                 <div className="h-4 w-px bg-border/60" />
                 <div className="flex flex-col leading-none">
                   <span className="text-[12px] font-black text-foreground tracking-tight">
-                    Action Auto
+                    {organization?.name || "Your Dealership"}
                   </span>
                   <span className="text-[9px] text-muted-foreground mt-0.5 font-medium tracking-widest uppercase">
                     Member Portal

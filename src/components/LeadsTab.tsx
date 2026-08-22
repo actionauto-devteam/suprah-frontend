@@ -329,7 +329,7 @@ export function LeadsTab({
       model: vehicle.model || vehicle.modelName || "Vehicle",
       stockNumber: vehicle.stockNumber || vehicle.stock || "N/A",
       vin: vehicle.vin || vehicle.VIN || vehicle.vinNumber || "",
-      location: vehicle.location || "Action Auto - Orem, UT",
+      location: vehicle.location || "Unknown Location",
       image: vehicle.image || vehicle.imageUrl || "",
       price: Number(vehicle.price) || 0,
     } as Vehicle;

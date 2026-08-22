@@ -497,7 +497,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           </div>
           <div className="flex min-w-0 flex-col gap-1 leading-none group-data-[collapsible=icon]:hidden">
             <span className="dsb-brand text-sm truncate">
-              {organization?.name || "SUPRAH AI"}
+              {organization?.name || "Your Dealership"}
             </span>
             <span className="dsb-telemetry">
               <i /> Driver Portal · Online<span className="dsb-cursor">_</span>

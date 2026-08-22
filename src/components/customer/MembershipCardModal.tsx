@@ -3,6 +3,7 @@
 import * as React from "react"
 import { QRCodeSVG } from "qrcode.react"
 import { useUser, useAuthActions } from "@/providers/AuthProvider"
+import { useOrg } from "@/hooks/useOrg"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CarFront, ExternalLink, Share2 } from "lucide-react"
@@ -34,6 +35,8 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
   const { user } = useUser()
   const { user: rawUser } = useAuthActions()
   const { data: membership } = useMyMembership()
+  const { organization } = useOrg()
+  const dealerName = organization?.name || "Your Dealership"
 
   if (!user || !rawUser) return null
 
@@ -41,7 +44,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
     `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.fullName || rawUser.email
   const memberId = getMemberId(rawUser._id)
   const sinceYear = getSinceYear(rawUser._id)
-  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName)
+  const qrValue = buildMemberBenefitsUrl(rawUser._id, memberName, dealerName)
 
   const tier = membership?.currentTier
   const tierName = tier?.name ?? "Ignition"
@@ -50,9 +53,9 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
   const lifetimePts = membership?.points.lifetimePoints ?? 0
 
   const handleShare = async () => {
-    const text = `${memberName} - Action Auto ${tierName} Member - ${memberId} - ${ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% service benefit`
+    const text = `${memberName} - ${dealerName} ${tierName} Member - ${memberId} - ${ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% service benefit`
     if (navigator.share) {
-      try { await navigator.share({ title: "Action Auto Membership Card", text }) } catch { /* cancelled */ }
+      try { await navigator.share({ title: `${dealerName} Membership Card`, text }) } catch { /* cancelled */ }
     } else {
       navigator.clipboard.writeText(text)
       toast.success("Member ID copied!")
@@ -102,7 +105,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[11px] font-black tracking-[0.28em] uppercase text-white leading-none">
-                  Action Auto
+                  {dealerName}
                 </p>
                 <p className="text-[8.5px] tracking-[0.22em] uppercase mt-1" style={{ color: `${tierPrimary}cc` }}>
                   Jiffy Lube Partner
@@ -188,7 +191,7 @@ export function MembershipCardModal({ isOpen, onOpenChange }: MembershipCardModa
                 {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
               </p>
               <p className="text-[8px] text-white/65 leading-snug mt-0.5">
-                Verify Action Auto Utah customer status with {ACTION_AUTO_BENEFITS_REP.name}.
+                Verify {dealerName} customer status with {ACTION_AUTO_BENEFITS_REP.name}.
               </p>
             </div>
 

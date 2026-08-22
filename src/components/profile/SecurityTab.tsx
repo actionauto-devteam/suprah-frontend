@@ -130,7 +130,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({
                                 <div>
                                     <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Account Control</p>
                                     <p className="text-sm text-blue-700 dark:text-blue-300 mt-1.5 leading-relaxed">
-                                        Email changes, password updates, and account recovery are handled natively through your Action Auto account.
+                                        Email changes, password updates, and account recovery are handled natively through your Suprah.AI account.
                                     </p>
                                 </div>
                             </div>

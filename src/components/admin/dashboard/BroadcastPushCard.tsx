@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Megaphone, Send, Loader2, Globe } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { useOrg } from '@/hooks/useOrg';
 import { toast } from 'sonner';
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -19,6 +20,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export function BroadcastPushCard() {
+    const { organization } = useOrg();
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
     const [roleTarget, setRoleTarget] = useState('driver');
@@ -159,7 +161,7 @@ export function BroadcastPushCard() {
                                         <div className="h-5 w-5 rounded-md bg-white overflow-hidden">
                                             {icon ? <img src={icon} alt="icon" className="h-full w-full object-cover" /> : <div className="bg-emerald-500 h-full w-full" />}
                                         </div>
-                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tighter">ACTION AUTO</span>
+                                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tighter">{organization?.name || "Your Dealership"}</span>
                                     </div>
                                     <span className="text-[9px] text-white/30 tracking-tighter">NOW</span>
                                 </div>

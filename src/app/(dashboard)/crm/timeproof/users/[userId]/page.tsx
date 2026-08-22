@@ -27,6 +27,7 @@ import { LiveClock } from "@/components/crm/LiveClock"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { resolveImageUrl } from "@/lib/utils"
 import { useCrmUser } from "@/hooks/useCrmUser"
+import { useOrg } from "@/hooks/useOrg"
 import { isTimeEditExempt } from "@/lib/departments"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -104,6 +105,7 @@ export default function AdminUserTimeprofPage() {
   const { userId } = useParams<{ userId: string }>()
   const router = useRouter()
   const { user: currentUser } = useCrmUser()
+  const { organization } = useOrg()
   const isAdmin = currentUser?.role === "admin"
   const isAdminOrManager = currentUser?.role === "admin" || currentUser?.role === "manager"
   const isMobile = useIsMobile()
@@ -562,9 +564,10 @@ export default function AdminUserTimeprofPage() {
       rateNum,
       payoutUSD,
       phpPayout: showPhp && payoutPHP !== null && phpRate !== null ? { amountPHP: payoutPHP, rate: phpRate } : null,
+      companyName: organization?.name,
     })
     openHtmlForPrint(html)
-  }, [data, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel])
+  }, [data, payoutPeriod, nowMonthLong, cutoffSummary.lastDay, calcSeconds, calcWholeHours, calcRemainderMins, calcDroppedMins, rateNum, payoutUSD, showPhp, payoutPHP, phpRate, payDayLabel, organization])
 
   /* ── Timecard preview + print (HR pay-period summary, arbitrary date range) ── */
   const timecardPreviewHtml = React.useMemo(() => {
@@ -577,8 +580,9 @@ export default function AdminUserTimeprofPage() {
       endDateStr: timecardEnd,
       rows,
       autoPrint: false,
+      companyName: organization?.name,
     })
-  }, [data, showTimecardForm, timecardStart, timecardEnd, rateNum])
+  }, [data, showTimecardForm, timecardStart, timecardEnd, rateNum, organization])
 
   const timecardPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printTimecard = React.useCallback(() => {
@@ -594,8 +598,9 @@ export default function AdminUserTimeprofPage() {
       endDateStr: idleLogEnd,
       periods: idlePeriods,
       autoPrint: false,
+      companyName: organization?.name,
     })
-  }, [data, showIdleLogForm, idleLogStart, idleLogEnd, idlePeriods])
+  }, [data, showIdleLogForm, idleLogStart, idleLogEnd, idlePeriods, organization])
 
   const idleLogPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printIdleLog = React.useCallback(() => {
@@ -663,7 +668,7 @@ export default function AdminUserTimeprofPage() {
         `${monthLabel.split(" ")[0]} Total : ${monthSummary.days} active days · ${fmtHHMM(monthSummary.seconds)}`,
         `Streak       : ${streak} consecutive day${streak !== 1 ? "s" : ""}`,
         `─────────────────────────────────`,
-        `✓ Verified via Action Auto CRM`,
+        `✓ Verified via ${organization?.name || "Your Dealership"} CRM`,
       ].join("\n")
     )
     setCopied(true)

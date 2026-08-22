@@ -168,6 +168,7 @@ function getStatusColor(status?: LoadStatus): string {
  */
 export const generateLoadPDF = async (
   load: Load,
+  dealerName: string = "Your Dealership",
 ): Promise<LoadPDFResult> => {
   const pdf = new jsPDF("p", "mm", "a4");
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -352,12 +353,12 @@ export const generateLoadPDF = async (
   pdf.setFont(F.heading, "bold");
   pdf.setFontSize(12);
   pdf.setCharSpace(0.08);
-  pdf.text("ACTION AUTO UTAH", marginX + 12.5, 11);
+  pdf.text(dealerName.toUpperCase(), marginX + 12.5, 11);
   pdf.setCharSpace(0);
 
   pdf.setFont(F.body, "normal");
   pdf.setFontSize(7.4);
-  pdf.text("Powered by Supra AI", marginX + 12.5, 15.8);
+  pdf.text("Powered by Suprah.AI", marginX + 12.5, 15.8);
 
   const issueDate = generatedAt.toLocaleDateString("en-US", {
     month: "long",
@@ -785,7 +786,7 @@ export const generateLoadPDF = async (
   pdf.setFontSize(6.9);
   setTextHex(colors.textSoft);
   pdf.text(
-    "Action Auto Utah  •  support@actionautoutah.com",
+    dealerName,
     pageWidth / 2,
     footerY + 2.8,
     { align: "center" },

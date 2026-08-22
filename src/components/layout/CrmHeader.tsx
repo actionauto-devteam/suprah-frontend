@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api-client';
 import { useCrmUser } from '@/hooks/useCrmUser';
+import { useOrg } from '@/hooks/useOrg';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { CrmNotificationBell } from '@/components/notifications';
 import { MessengerDropdown } from '@/components/supraspace/MessengerDropdown';
@@ -38,6 +39,7 @@ export function CrmHeader({
 }: CrmHeaderProps) {
   const router = useRouter();
   const { user, token } = useCrmUser();
+  const { organization } = useOrg();
 
   const handleExit = async () => {
     try {
@@ -61,7 +63,7 @@ export function CrmHeader({
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-black text-zinc-900 dark:text-white leading-none tracking-tight">
-              Action Auto
+              {organization?.name || "Your Dealership"}
             </p>
             <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 mt-0.5 font-bold">
               Workspace

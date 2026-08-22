@@ -366,7 +366,7 @@ export default function CrmLoginPage() {
             </span>
           </div>
           <div className="text-center leading-tight py-0.5">
-            <p className="text-base font-bold tracking-tight">Action Auto</p>
+            <p className="text-base font-bold tracking-tight">Suprah.AI</p>
             <p className="text-[9px] font-bold uppercase tracking-[0.28em] text-emerald-600 mt-1">
               CRM System
             </p>
@@ -710,7 +710,7 @@ export default function CrmLoginPage() {
 
         {/* ── Footer ── */}
         <p className="text-center text-xs text-muted-foreground/50">
-          Action Auto CRM v1.0 &middot; Customer Lifecycle Management
+          Suprah.AI CRM v1.0 &middot; Customer Lifecycle Management
         </p>
       </div>
 

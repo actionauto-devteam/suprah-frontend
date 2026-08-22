@@ -9,6 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { deptLabel, deptColorHex } from "@/lib/departments";
+import { useOrg } from "@/hooks/useOrg";
 
 interface EmployeeIdCardUser {
   _id: string;
@@ -44,6 +45,8 @@ function initials(name: string) {
 }
 
 export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCardModalProps) {
+  const { organization } = useOrg();
+  const dealerName = organization?.name || "Your Dealership";
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = React.useState<"download" | "share" | null>(null);
 
@@ -75,7 +78,7 @@ export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCard
     "BEGIN:VCARD",
     "VERSION:3.0",
     `FN:${user.fullName}`,
-    "ORG:Action Auto",
+    `ORG:${dealerName}`,
     `TITLE:${jobTitle || deptText}`,
     `EMAIL:${user.email}`,
     "END:VCARD",
@@ -120,11 +123,11 @@ export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCard
       if (file && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `${user.fullName} — Action Auto Employee ID`,
+          title: `${user.fullName} — ${dealerName} Employee ID`,
         });
       } else if (canUseWebShare) {
         await navigator.share({
-          title: `${user.fullName} — Action Auto Employee ID`,
+          title: `${user.fullName} — ${dealerName} Employee ID`,
           text: `${user.fullName} · ${deptText}`,
         });
       } else {
@@ -171,7 +174,7 @@ export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCard
               <Car className="h-3.5 w-3.5 text-white" />
             </div>
             <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white leading-none">
-              Action Auto
+              {dealerName}
             </p>
             <p className="text-[7px] tracking-[0.18em] uppercase text-white/85 mt-1 font-semibold leading-none">
               Employee Identification
@@ -253,7 +256,7 @@ export function EmployeeIdCardModal({ open, onOpenChange, user }: EmployeeIdCard
               <QRCodeSVG value={qrValue} size={44} bgColor="#ffffff" fgColor="#18181b" level="M" marginSize={0} />
             </div>
             <p className="text-[6px] tracking-[0.14em] uppercase text-zinc-400 font-bold mt-1.5 text-center leading-relaxed">
-              Property of Action Auto — if found, please return
+              Property of {dealerName} — if found, please return
             </p>
           </div>
 

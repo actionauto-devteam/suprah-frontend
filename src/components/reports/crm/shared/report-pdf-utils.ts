@@ -102,7 +102,7 @@ export function addPdfFooter(
     doc.setFontSize(7);
     doc.setTextColor(100, 116, 139);
 
-    doc.text(`Suprah AI • ${label}`, 14, height - 7);
+    doc.text(`Suprah.AI • ${label}`, 14, height - 7);
 
     doc.text(generatedAt, width / 2, height - 7, {
       align: "center",
@@ -152,7 +152,7 @@ export function drawPdfHeader(
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(203, 213, 225);
-  doc.text("Generated locally in Suprah AI", width - 14, 17, {
+  doc.text("Generated locally in Suprah.AI", width - 14, 17, {
     align: "right",
   });
 }

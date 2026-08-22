@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useAuth } from '@/providers/AuthProvider';
+import { useOrg } from '@/hooks/useOrg';
 import { apiClient } from '@/lib/api-client';
 import { ComplianceDocument } from '@/types/driver-profile';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const fmtSize = (b: number) => (b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024
 
 export function DriverVerificationForm({ onComplete }: { onComplete: () => void }) {
   const { getToken } = useAuth();
+  const { organization } = useOrg();
 
   const [loading, setLoading] = React.useState(true);
   const [activeStep, setActiveStep] = React.useState<ApplicationStepId>('documents');
@@ -409,7 +411,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                 <input type="checkbox" checked={bgCheckConsent} onChange={e => setBgCheckConsent(e.target.checked)} className="mt-0.5 size-4 rounded border-white/20 accent-emerald-600" />
                 <div>
                   <span className="text-sm font-bold text-white">Background Check Authorization *</span>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">I authorize Action Auto to conduct a background check per the FCRA.</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">I authorize {organization?.name || "Your Dealership"} to conduct a background check per the FCRA.</p>
                 </div>
               </label>
 

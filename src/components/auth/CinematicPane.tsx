@@ -8,20 +8,11 @@ export function CinematicPane() {
     return (
         <div className="relative w-full h-full overflow-hidden bg-black select-none">
             <motion.div
-                initial={{ scale: 1.1, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ duration: 1.5, ease: "easeOut" }}
-                className="absolute inset-0 z-0"
-            >
-                <Image
-                    src="/camaro.png"
-                    alt="Cinematic Corvette"
-                    fill
-                    className="object-cover object-center md:object-[center_48%]"
-                    priority
-                    quality={100}
-                />
-            </motion.div>
+                className="absolute inset-0 z-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-950"
+            />
 
             <div className="absolute inset-0 bg-black/15 pointer-events-none" />
             <div className="absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/70 to-transparent pointer-events-none" />
