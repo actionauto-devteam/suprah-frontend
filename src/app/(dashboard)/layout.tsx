@@ -102,7 +102,7 @@ function DashboardLayoutContent({
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
   const [mailWorkspaceActive, setMailWorkspaceActive] = React.useState(false);
-  const [crmNotificationDrawerOpen, setCrmNotificationDrawerOpen] = React.useState(false);
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -129,10 +129,10 @@ function DashboardLayoutContent({
   }, [pathname]);
 
   React.useEffect(() => {
-    if (!showCrmHeader) {
-      setCrmNotificationDrawerOpen(false);
-    }
-  }, [showCrmHeader, pathname]);
+    // A notification click can navigate between modules. Close the drawer on
+    // route changes so the destination always opens with its full workspace.
+    setNotificationDrawerOpen(false);
+  }, [pathname]);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
   const [hasResolvedOrgAccess, setHasResolvedOrgAccess] = React.useState(false);
@@ -251,14 +251,14 @@ function DashboardLayoutContent({
       <SidebarInset
         className={cn(
           "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out",
-          showCrmHeader && crmNotificationDrawerOpen && "lg:pr-85 xl:pr-95",
+          notificationDrawerOpen && "lg:pr-85 xl:pr-95",
         )}
       >
         {showCrmHeader && (
           <CrmHeader
             showMessenger={showCrmMessenger}
-            notificationDrawerOpen={crmNotificationDrawerOpen}
-            onNotificationDrawerOpenChange={setCrmNotificationDrawerOpen}
+            notificationDrawerOpen={notificationDrawerOpen}
+            onNotificationDrawerOpenChange={setNotificationDrawerOpen}
           />
         )}
         {!isCrmRoute && (
@@ -304,7 +304,10 @@ function DashboardLayoutContent({
                 <Pulse360Bell />
 
                 { }
-                <NotificationBell />
+                <NotificationBell
+                  open={notificationDrawerOpen}
+                  onOpenChange={setNotificationDrawerOpen}
+                />
 
                 { }
                 <MessengerDropdown />
@@ -441,11 +444,10 @@ export default function DashboardLayout({
     <ProfileProvider>
       <ProfileToastProvider>
         <NotificationProvider>
-          {isCrmRoute ? (
-            <CrmNotificationProvider>{content}</CrmNotificationProvider>
-          ) : (
-            content
-          )}
+          {/* Keep both notification identities available in the shared drawer.
+              CrmNotificationProvider is safe outside CRM routes: without a
+              crm_token it remains idle and exposes an empty CRM feed. */}
+          <CrmNotificationProvider>{content}</CrmNotificationProvider>
         </NotificationProvider>
       </ProfileToastProvider>
     </ProfileProvider>

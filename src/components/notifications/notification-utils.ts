@@ -361,6 +361,51 @@ const ADMIN_ROUTE_MAP: Record<string, string> = {
   profile_updated: '/admin/dashboard', login_alert: '/admin/dashboard',
 };
 
+const PROJECT_MANAGEMENT_NOTIFICATION_TYPES = new Set([
+  'pm_task_assigned',
+  'pm_task_comment',
+  'pm_task_status',
+  'pm_task_updated',
+  'pm_group_added',
+  'pm_task_mention',
+  'pm_task_deadline',
+]);
+
+const LEGACY_PROJECT_MANAGEMENT_PATHS = new Set([
+  '/crm/project',
+  '/crm/project/',
+  '/projects',
+  '/projects/',
+]);
+
+function parseInternalRoute(route: string): URL | null {
+  try {
+    return new URL(route, 'http://suprah.local');
+  } catch {
+    return null;
+  }
+}
+
+function getProjectManagementNotificationRoute(notification: Notification): string {
+  const metadataTaskId = String(notification.metadata?.taskId ?? '').trim();
+  const metadataGroupId = String(notification.metadata?.groupId ?? '').trim();
+  const metadataRoute = typeof notification.metadata?.route === 'string'
+    ? notification.metadata.route.trim()
+    : '';
+  const parsedRoute = metadataRoute ? parseInternalRoute(metadataRoute) : null;
+  const routeTaskId = String(parsedRoute?.searchParams.get('task') ?? '').trim();
+  const routeGroupId = String(parsedRoute?.searchParams.get('group') ?? '').trim();
+  const taskId = metadataTaskId || routeTaskId;
+  const groupId = metadataGroupId || routeGroupId;
+
+  const params = new URLSearchParams();
+  if (groupId) params.set('group', groupId);
+  if (taskId) params.set('task', taskId);
+
+  const query = params.toString();
+  return query ? `/project?${query}` : '/project';
+}
+
 function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'dashboard' {
   if (pathname.startsWith('/driver')) return 'driver';
   if (pathname.startsWith('/customer')) return 'customer';
@@ -383,8 +428,31 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
     return '/driver-tracker';
   }
 
+  const metadataRoute = typeof notification.metadata?.route === 'string'
+    ? notification.metadata.route
+    : '';
+
+  // Project Management's actual frontend route is /project. Repair the old
+  // /crm/project alias and the short-lived mistaken /projects alias (or a
+  // missing route) so stored notifications keep working, while preserving any
+  // future valid custom PM destination supplied in metadata.
+  if (PROJECT_MANAGEMENT_NOTIFICATION_TYPES.has(notification.type)) {
+    const normalizedRoute = metadataRoute.trim();
+    const parsedRoute = normalizedRoute ? parseInternalRoute(normalizedRoute) : null;
+    const routePathname = parsedRoute?.pathname ?? '';
+
+    // Compare the pathname, not the full route string. Existing notifications
+    // can contain `/projects?task=...`; an exact-string comparison would miss
+    // that legacy route and incorrectly pass it through to Next.js as a 404.
+    if (!normalizedRoute || LEGACY_PROJECT_MANAGEMENT_PATHS.has(routePathname)) {
+      return getProjectManagementNotificationRoute(notification);
+    }
+
+    return metadataRoute;
+  }
+
   // Prefer the contextual route embedded in metadata for all other types.
-  if (notification.metadata?.route) return notification.metadata.route as string;
+  if (metadataRoute) return metadataRoute;
 
   if (!pathname) return ROUTE_MAP[notification.type] || '/notifications';
 

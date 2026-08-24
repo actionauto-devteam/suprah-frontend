@@ -474,7 +474,22 @@ function ItemMediaUploader({
 
 /* ── Editor dialog (create + edit) ──────────────────────────────────────── */
 
-const EMPTY_ITEM = (): ReleaseItem => ({ title: "", description: "", kind: "feature", media: [] });
+type EditorReleaseItem = ReleaseItem & { _clientId: string };
+
+type ReleaseFieldErrors = {
+  title?: string;
+  description?: string;
+};
+
+type ItemFieldErrors = Record<string, ReleaseFieldErrors>;
+
+const EMPTY_EDITOR_ITEM = (clientId: string): EditorReleaseItem => ({
+  _clientId: clientId,
+  title: "",
+  description: "",
+  kind: "feature",
+  media: [],
+});
 
 function ReleaseEditorDialog({
   open,
@@ -489,36 +504,188 @@ function ReleaseEditorDialog({
 }) {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [items, setItems] = React.useState<ReleaseItem[]>([EMPTY_ITEM()]);
+  const [items, setItems] = React.useState<EditorReleaseItem[]>([
+    EMPTY_EDITOR_ITEM("new-0"),
+  ]);
   const [saving, setSaving] = React.useState(false);
+  const [releaseErrors, setReleaseErrors] = React.useState<ReleaseFieldErrors>({});
+  const [itemErrors, setItemErrors] = React.useState<ItemFieldErrors>({});
+
+  const nextItemIdRef = React.useRef(1);
+  const releaseTitleRef = React.useRef<HTMLInputElement>(null);
+  const releaseDescriptionRef = React.useRef<HTMLTextAreaElement>(null);
+  const itemCardRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
+  const itemTitleRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
+  const itemDescriptionRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   React.useEffect(() => {
     if (!open) return;
+
+    setReleaseErrors({});
+    setItemErrors({});
+    nextItemIdRef.current = 1;
+
     if (editing) {
       setTitle(editing.title);
       setDescription(editing.description);
-      setItems(editing.items.map((it) => ({ ...it, media: [...it.media] })));
+      setItems(
+        editing.items.map((it, idx) => ({
+          ...it,
+          media: [...it.media],
+          _clientId: `existing-${editing._id}-${idx}`,
+        })),
+      );
     } else {
       setTitle("");
       setDescription("");
-      setItems([EMPTY_ITEM()]);
+      setItems([EMPTY_EDITOR_ITEM("new-0")]);
     }
   }, [open, editing]);
 
   const patchItem = (idx: number, patch: Partial<ReleaseItem>) =>
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
+  const clearItemFieldError = (
+    clientId: string,
+    field: keyof ReleaseFieldErrors,
+  ) => {
+    setItemErrors((prev) => {
+      if (!prev[clientId]?.[field]) return prev;
+      const next = { ...prev };
+      const nextForItem = { ...next[clientId] };
+      delete nextForItem[field];
+
+      if (!nextForItem.title && !nextForItem.description) {
+        delete next[clientId];
+      } else {
+        next[clientId] = nextForItem;
+      }
+      return next;
+    });
+  };
+
+  const removeItemById = React.useCallback((clientId: string) => {
+    setItems((prev) => {
+      // The backend/model require at least one update item. Never let Undo or
+      // Remove Update leave the release with zero items.
+      if (prev.length <= 1) return prev;
+      return prev.filter((it) => it._clientId !== clientId);
+    });
+    setItemErrors((prev) => {
+      if (!prev[clientId]) return prev;
+      const next = { ...prev };
+      delete next[clientId];
+      return next;
+    });
+  }, []);
+
+  const addUpdate = () => {
+    const clientId = `added-${Date.now()}-${nextItemIdRef.current++}`;
+    const nextItem = EMPTY_EDITOR_ITEM(clientId);
+
+    setItems((prev) => [...prev, nextItem]);
+
+    toast("New update section added", {
+      description: "Fill in the new update, or choose Undo if you added it by mistake.",
+      duration: 7000,
+      action: {
+        label: "Undo",
+        onClick: () => removeItemById(clientId),
+      },
+    });
+
+    // Bring the newly-created section into view after React mounts it.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        itemCardRefs.current[clientId]?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        itemTitleRefs.current[clientId]?.focus({ preventScroll: true });
+      });
+    });
+  };
+
+  const focusFirstInvalidField = (
+    nextReleaseErrors: ReleaseFieldErrors,
+    nextItemErrors: ItemFieldErrors,
+  ) => {
+    if (nextReleaseErrors.title) {
+      releaseTitleRef.current?.focus();
+      releaseTitleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (nextReleaseErrors.description) {
+      releaseDescriptionRef.current?.focus();
+      releaseDescriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const firstInvalidItem = items.find((it) => nextItemErrors[it._clientId]);
+    if (!firstInvalidItem) return;
+
+    const errors = nextItemErrors[firstInvalidItem._clientId];
+
+    requestAnimationFrame(() => {
+      itemCardRefs.current[firstInvalidItem._clientId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      window.setTimeout(() => {
+        if (errors.title) {
+          itemTitleRefs.current[firstInvalidItem._clientId]?.focus({ preventScroll: true });
+        } else if (errors.description) {
+          itemDescriptionRefs.current[firstInvalidItem._clientId]?.focus({ preventScroll: true });
+        }
+      }, 250);
+    });
+  };
+
   const save = async () => {
-    if (!title.trim()) return toast.error("Release title is required");
-    if (!description.trim()) return toast.error("Release summary is required");
-    for (let i = 0; i < items.length; i++) {
-      if (!items[i].title.trim()) return toast.error(`Update ${i + 1}: title is required`);
-      if (!items[i].description.trim()) return toast.error(`Update ${i + 1}: description is required`);
+    const nextReleaseErrors: ReleaseFieldErrors = {};
+    const nextItemErrors: ItemFieldErrors = {};
+
+    if (!title.trim()) nextReleaseErrors.title = "Release title is required.";
+    if (!description.trim()) nextReleaseErrors.description = "Release summary is required.";
+
+    items.forEach((item) => {
+      const errors: ReleaseFieldErrors = {};
+      if (!item.title.trim()) errors.title = "Update title is required.";
+      if (!item.description.trim()) errors.description = "Update description is required.";
+      if (errors.title || errors.description) {
+        nextItemErrors[item._clientId] = errors;
+      }
+    });
+
+    setReleaseErrors(nextReleaseErrors);
+    setItemErrors(nextItemErrors);
+
+    const hasReleaseErrors = !!(nextReleaseErrors.title || nextReleaseErrors.description);
+    const firstInvalidIndex = items.findIndex((it) => !!nextItemErrors[it._clientId]);
+
+    if (hasReleaseErrors || firstInvalidIndex !== -1) {
+      focusFirstInvalidField(nextReleaseErrors, nextItemErrors);
+
+      if (firstInvalidIndex !== -1) {
+        toast.error(`Update ${firstInvalidIndex + 1} is incomplete`, {
+          description: "Fill in the required fields or remove this update before publishing.",
+        });
+      } else {
+        toast.error("Release details are incomplete", {
+          description: "Fill in the highlighted required fields before publishing.",
+        });
+      }
+      return;
     }
 
     setSaving(true);
     try {
-      const payload = { title: title.trim(), description: description.trim(), items };
+      // _clientId exists only to keep Undo/Remove Update stable in the editor.
+      // Strip it before sending the payload so the API contract is unchanged.
+      const cleanItems: ReleaseItem[] = items.map(({ _clientId, ...item }) => item);
+      const payload = { title: title.trim(), description: description.trim(), items: cleanItems };
       if (editing) {
         await apiClient.patch(`/api/crm/whats-new/${editing._id}`, payload);
         toast.success("Release updated");
@@ -554,11 +721,22 @@ function ReleaseEditorDialog({
               Release title
             </label>
             <Input
+              ref={releaseTitleRef}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (releaseErrors.title) {
+                  setReleaseErrors((prev) => ({ ...prev, title: undefined }));
+                }
+              }}
               placeholder='e.g. "July 2026 Platform Update"'
               maxLength={140}
+              aria-invalid={!!releaseErrors.title}
+              className={cn(releaseErrors.title && "border-destructive focus-visible:ring-destructive/25")}
             />
+            {releaseErrors.title && (
+              <p className="text-[11px] font-medium text-destructive">{releaseErrors.title}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -566,12 +744,23 @@ function ReleaseEditorDialog({
               Summary
             </label>
             <Textarea
+              ref={releaseDescriptionRef}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                if (releaseErrors.description) {
+                  setReleaseErrors((prev) => ({ ...prev, description: undefined }));
+                }
+              }}
               placeholder="A short overview of what shipped in this release…"
               rows={2}
               maxLength={2000}
+              aria-invalid={!!releaseErrors.description}
+              className={cn(releaseErrors.description && "border-destructive focus-visible:ring-destructive/25")}
             />
+            {releaseErrors.description && (
+              <p className="text-[11px] font-medium text-destructive">{releaseErrors.description}</p>
+            )}
           </div>
 
           {/* Update items */}
@@ -586,16 +775,23 @@ function ReleaseEditorDialog({
                 variant="outline"
                 size="sm"
                 className="gap-1 h-7 text-xs"
-                onClick={() => setItems((prev) => [...prev, EMPTY_ITEM()])}
+                onClick={addUpdate}
               >
                 <Plus className="size-3.5" />
                 Add update
               </Button>
             </div>
 
-            {items.map((it, idx) => (
+            {items.map((it, idx) => {
+              const validation = itemErrors[it._clientId];
+              const isIncomplete = !!(validation?.title || validation?.description);
+
+              return (
               <div
-                key={idx}
+                key={it._clientId}
+                ref={(node) => {
+                  itemCardRefs.current[it._clientId] = node;
+                }}
                 className="rounded-2xl border border-border/40 bg-background/40 p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
@@ -605,10 +801,13 @@ function ReleaseEditorDialog({
                   {items.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => setItems((prev) => prev.filter((_, j) => j !== idx))}
-                      className="p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      onClick={() => removeItemById(it._clientId)}
+                      title={`Remove Update ${idx + 1}`}
+                      aria-label={`Remove Update ${idx + 1}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="size-3.5" />
+                      <span>Remove update</span>
                     </button>
                   )}
                 </div>
@@ -638,26 +837,54 @@ function ReleaseEditorDialog({
                   })}
                 </div>
 
-                <Input
-                  value={it.title}
-                  onChange={(e) => patchItem(idx, { title: e.target.value })}
-                  placeholder="Update title"
-                  maxLength={140}
-                />
-                <Textarea
-                  value={it.description}
-                  onChange={(e) => patchItem(idx, { description: e.target.value })}
-                  placeholder="Describe this update — what changed and why it matters…"
-                  rows={3}
-                  maxLength={4000}
-                />
+                <div className="space-y-1">
+                  <Input
+                    ref={(node) => {
+                      itemTitleRefs.current[it._clientId] = node;
+                    }}
+                    value={it.title}
+                    onChange={(e) => {
+                      patchItem(idx, { title: e.target.value });
+                      clearItemFieldError(it._clientId, "title");
+                    }}
+                    placeholder="Update title"
+                    maxLength={140}
+                    aria-invalid={!!validation?.title}
+                    className={cn(validation?.title && "border-destructive focus-visible:ring-destructive/25")}
+                  />
+                  {validation?.title && (
+                    <p className="text-[11px] font-medium text-destructive">{validation.title}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Textarea
+                    ref={(node) => {
+                      itemDescriptionRefs.current[it._clientId] = node;
+                    }}
+                    value={it.description}
+                    onChange={(e) => {
+                      patchItem(idx, { description: e.target.value });
+                      clearItemFieldError(it._clientId, "description");
+                    }}
+                    placeholder="Describe this update — what changed and why it matters…"
+                    rows={3}
+                    maxLength={4000}
+                    aria-invalid={!!validation?.description}
+                    className={cn(validation?.description && "border-destructive focus-visible:ring-destructive/25")}
+                  />
+                  {validation?.description && (
+                    <p className="text-[11px] font-medium text-destructive">{validation.description}</p>
+                  )}
+                </div>
 
                 <ItemMediaUploader
                   media={it.media}
                   onChange={(media) => patchItem(idx, { media })}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

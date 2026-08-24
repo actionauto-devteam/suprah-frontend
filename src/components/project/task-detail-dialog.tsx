@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Shared Project Management pieces used by both the /projects workspace and
+ * Shared Project Management pieces used by both the /project workspace and
  * the My Tasks / Completed Tasks panels:
  *
  *   - TaskDetailDialog  — full task view: status control, EDIT + DELETE
@@ -958,6 +958,13 @@ export function TaskDetailDialog({
         showCloseButton={false}
         className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-2xl sm:rounded-2xl sm:border"
       >
+        {/* Radix requires a DialogTitle as soon as DialogContent mounts.
+            Keep one present during the loading state too; the visible heading
+            below remains visually identical. */}
+        <DialogTitle className="sr-only">
+          {task?.title || "Task details"}
+        </DialogTitle>
+
         {loading || !task ? (
           <div className="flex items-center justify-center py-16">
             {error ? (
@@ -971,9 +978,9 @@ export function TaskDetailDialog({
             {/* Header */}
             <DialogHeader className="space-y-3 border-b border-border/40 px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6">
               <div className="flex items-start justify-between gap-3">
-                <DialogTitle className="min-w-0 flex-1 text-base font-bold leading-snug">
+                <h2 className="min-w-0 flex-1 text-base font-bold leading-snug">
                   {task.title}
-                </DialogTitle>
+                </h2>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={openEdit}

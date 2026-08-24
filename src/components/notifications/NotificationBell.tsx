@@ -1,236 +1,88 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import Link from 'next/link';
-import { Bell, CheckCheck, Trash2, AlertCircle, ArrowUpRight, Settings } from 'lucide-react';
+import React from 'react';
+import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/context/NotificationContext';
-import { Notification } from '@/types/notification';
-import { NotificationList } from './NotificationList';
-import { NotificationDriverModal } from './NotificationDriverModal';
-import { NotificationDetailsModal } from './NotificationDetailsModal';
-import { NotificationErrorBoundary } from './NotificationErrorBoundary';
-import { usePathname, useRouter } from 'next/navigation';
-import { getNotificationRoute } from './notification-utils';
+import { useOptionalCrmNotifications } from '@/hooks/useCrmNotifications';
+import { useCrmToken } from '@/hooks/useCrmToken';
+import { resolveNotificationCategory } from './notification-utils';
+import { NotificationDrawer } from './NotificationDrawer';
 
-function useNotificationsPath() {
-  const pathname = usePathname();
-  if (pathname.startsWith('/admin')) return '/admin/notifications';
-  if (pathname.startsWith('/driver')) return '/driver/notifications';
-  if (pathname.startsWith('/customer')) return '/customer/notifications';
-  return '/notifications';
+interface NotificationBellProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-function NotificationDropdownContent({ onNotificationClick }: { onNotificationClick: (n: Notification) => boolean | void }) {
-  const {
-    notifications,
-    unreadCount,
-    isLoading,
-    error,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    deleteAllRead,
-  } = useNotifications();
-  const notificationsPath = useNotificationsPath();
+export function NotificationBell({
+  open: controlledOpen,
+  onOpenChange,
+}: NotificationBellProps = {}) {
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = controlledOpen ?? internalOpen;
 
-  return (
-    <>
-      <div className="shrink-0 px-4 py-3 border-b border-border/50 bg-card/90 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-              <Bell className="size-4" />
-            </div>
-            <div>
-              <h3 className="text-[13px] font-bold text-foreground tracking-tight">Notifications</h3>
-              <p className="text-[10px] text-muted-foreground font-medium">
-                {unreadCount > 0 ? (
-                  <span className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    {unreadCount} new
-                  </span>
-                ) : 'All caught up'}
-              </p>
-            </div>
-          </div>
-          {notifications.length > 0 && (
-            <div className="flex items-center gap-0.5">
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[10px] text-muted-foreground hover:bg-muted/60 hover:text-foreground rounded-lg"
-                  onClick={markAllAsRead}
-                >
-                  <CheckCheck className="size-3 mr-1" />
-                  Read all
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-[10px] text-muted-foreground hover:bg-muted/60 hover:text-foreground rounded-lg"
-                onClick={deleteAllRead}
-              >
-                <Trash2 className="size-3 mr-1" />
-                Clear
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <div className="px-4 py-2 bg-red-50 dark:bg-red-950/20 border-b border-red-200 dark:border-red-900">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertCircle className="size-3.5" />
-            <p className="text-[11px]">{error}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="notification-scrollbar flex-1 overflow-y-auto min-h-0 bg-card/80 pr-1">
-        <NotificationList
-          notifications={notifications}
-          isLoading={isLoading}
-          onMarkAsRead={markAsRead}
-          onDelete={deleteNotification}
-          onItemClick={onNotificationClick}
-          compact
-        />
-      </div>
-
-      {notifications.length > 0 && (
-        <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90 flex items-center justify-between gap-2">
-          <Link
-            href={{
-              pathname: notificationsPath,
-              query: {
-                tab: 'all',
-                source: 'header',
-              },
-            }}
-            className="flex items-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-semibold transition-colors"
-          >
-            View all notifications
-            <ArrowUpRight className="size-3" />
-          </Link>
-          <Link
-            href={`${notificationsPath}/preferences`}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium transition-colors"
-          >
-            <Settings className="size-3" />
-            Preferences
-          </Link>
-        </div>
-      )}
-    </>
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (controlledOpen === undefined) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [controlledOpen, onOpenChange],
   );
-}
+  const general = useNotifications();
+  const crm = useOptionalCrmNotifications();
+  const crmToken = useCrmToken();
 
-export function NotificationBell() {
-  const { unreadCount, markAsRead } = useNotifications();
-  const pathname = usePathname();
-  const router = useRouter();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [modalNotification, setModalNotification] = useState<Notification | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailsNotification, setDetailsNotification] = useState<Notification | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-
-  const handleNotificationClick = useCallback((notification: Notification) => {
-    if (notification.type === 'driver_request') {
-      setModalNotification(notification);
-      setModalOpen(true);
-      if (!notification.isRead) markAsRead(notification._id);
-      return true;
-    }
-
-    if (notification.type === 'driver_dispatch_alert') {
-      setDetailsNotification(notification);
-      setDetailsOpen(true);
-      if (!notification.isRead) markAsRead(notification._id);
-      return true;
-    }
-
-    if (notification.type === 'driver_tracker_offline_alert') {
-      const route = getNotificationRoute(notification, pathname);
-
-      if (!notification.isRead) {
-        markAsRead(notification._id);
-      }
-
-      setDropdownOpen(false);
-
-      if (route) {
-        router.push(route);
-      }
-
-      return true;
-    }
-
-    return false;
-  }, [markAsRead, pathname, router]);
+  const generalUnread = React.useMemo(
+    () => general.notifications.filter(
+      (notification) => !notification.isRead && resolveNotificationCategory(notification) !== 'crm',
+    ).length,
+    [general.notifications],
+  );
+  const unreadCount = generalUnread + (crmToken && crm ? crm.unreadCount : 0);
 
   return (
     <>
-      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className={cn(
-              'h-9 w-9 rounded-full relative overflow-visible transition-all duration-300',
-              unreadCount > 0
-                ? 'border-emerald-300 dark:border-emerald-700 shadow-sm shadow-emerald-500/10'
-                : 'border-border/80 bg-background text-foreground/85 dark:text-foreground shadow-sm ring-1 ring-border/35 dark:ring-border/45'
-            )}
-          >
-            <Bell className={cn(
-              'size-4',
-              unreadCount > 0
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-foreground/80 dark:text-foreground'
-            )} />
-            {unreadCount === 0 && (
-              <span className="absolute -top-0.5 -right-0.5 z-10 h-2.5 w-2.5 rounded-full bg-muted-foreground/80 dark:bg-muted-foreground border-2 border-background shadow-sm" />
-            )}
-            {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 z-20 flex items-center justify-center min-w-4.5 h-4.5 px-1 text-[10px] font-bold text-white bg-linear-to-br from-red-500 to-rose-600 rounded-full shadow-sm border-2 border-background animate-in zoom-in-50">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={cn(
+          'relative h-9 w-9 overflow-visible rounded-full transition-all duration-200',
+          open && 'border-emerald-400 bg-emerald-500/10 text-emerald-600 dark:border-emerald-700 dark:text-emerald-400',
+          !open && unreadCount > 0
+            ? 'border-emerald-300 shadow-sm shadow-emerald-500/10 dark:border-emerald-700'
+            : !open && 'border-border/80 bg-background text-foreground/85 shadow-sm ring-1 ring-border/35 dark:text-foreground dark:ring-border/45',
+        )}
+        title={open ? 'Close notifications' : 'Open notifications'}
+        aria-label={open ? 'Close notifications' : 'Open notifications'}
+        aria-expanded={open}
+        aria-controls="notification-drawer"
+        onClick={() => handleOpenChange(!open)}
+      >
+        <Bell
+          className={cn(
+            'size-4',
+            open || unreadCount > 0
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-foreground/80 dark:text-foreground',
+          )}
+        />
 
-        <DropdownMenuContent
-          align="end"
-          className="w-95 sm:w-105 p-0 shadow-xl border border-border/50 rounded-2xl overflow-hidden flex flex-col max-h-[min(70vh,540px)] bg-card transform-gpu"
-        >
-          <NotificationErrorBoundary>
-            <NotificationDropdownContent onNotificationClick={handleNotificationClick} />
-          </NotificationErrorBoundary>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        {unreadCount === 0 && !open && (
+          <span className="absolute -right-0.5 -top-0.5 z-10 h-2.5 w-2.5 rounded-full border-2 border-background bg-muted-foreground/80 shadow-sm dark:bg-muted-foreground" />
+        )}
 
-      <NotificationDriverModal
-        notification={modalNotification}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-      />
+        {unreadCount > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 z-20 flex h-4.5 min-w-4.5 items-center justify-center rounded-full border-2 border-background bg-linear-to-br from-red-500 to-rose-600 px-1 text-[10px] font-bold text-white shadow-sm">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </Button>
 
-      <NotificationDetailsModal
-        notification={detailsNotification}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
+      <NotificationDrawer open={open} onOpenChange={handleOpenChange} />
     </>
   );
 }

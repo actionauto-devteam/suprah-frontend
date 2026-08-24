@@ -279,8 +279,12 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
     );
 }
 
+export function useOptionalCrmNotificationContext() {
+    return useContext(CrmNotificationContext);
+}
+
 export function useCrmNotificationContext() {
-    const context = useContext(CrmNotificationContext);
+    const context = useOptionalCrmNotificationContext();
     if (!context) throw new Error('useCrmNotificationContext must be used within CrmNotificationProvider');
     return context;
 }

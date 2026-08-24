@@ -115,12 +115,17 @@ interface MentionCandidate {
   role?: string
 }
 
-/** Row in the Activity panel — mirrors the FeedNotification backend model. */
-interface FeedNotificationItem {
-  _id: string
-  type: "mention_post" | "mention_comment" | "comment_on_post" | "all_announcement"
+type FeedActivityType = "post" | "mention_post" | "mention_comment" | "comment_on_post" | "all_announcement"
+
+/** Lightweight row returned by GET /api/crm/feeds/activity. */
+interface FeedActivityItem {
+  activityId: string
+  source: "post" | "notification"
+  sourceId: string
+  type: FeedActivityType
   postId: string
   commentId?: string | null
+  actorId: string
   actorName: string
   snippet: string
   readAt: string | null
@@ -1690,9 +1695,14 @@ function Composer({ currentUser, token, onPosted, mentionCandidates }: {
   )
 }
 
-// --- Activity Panel (mentions & comments on your posts) -----------------------
+// --- Activity Panel -------------------------------------------------------------
 
-const NOTIF_META: Record<FeedNotificationItem["type"], { icon: React.ReactNode; text: string; iconBg: string }> = {
+const ACTIVITY_META: Record<FeedActivityType, { icon: React.ReactNode; text: string; iconBg: string }> = {
+  post: {
+    icon: <Rss className="h-3.5 w-3.5 text-emerald-600" />,
+    text: "posted in Team Feeds",
+    iconBg: "bg-emerald-500/12 border-emerald-500/25",
+  },
   mention_post: {
     icon: <AtSign className="h-3.5 w-3.5 text-emerald-600" />,
     text: "mentioned you in a post",
@@ -1715,14 +1725,94 @@ const NOTIF_META: Record<FeedNotificationItem["type"], { icon: React.ReactNode; 
   },
 }
 
-function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: {
-  items: FeedNotificationItem[]
+function activityFromPost(post: Post): FeedActivityItem {
+  const snippet = stripMentions(post.content || "").replace(/\s+/g, " ").trim().slice(0, 200)
+  return {
+    activityId: `post:${post._id}`,
+    source: "post",
+    sourceId: post._id,
+    type: "post",
+    postId: post._id,
+    commentId: null,
+    actorId: post.userId,
+    actorName: post.authorName,
+    snippet: snippet || (post.attachments?.length ? "Shared an attachment" : "Posted an update"),
+    readAt: null,
+    createdAt: post.createdAt,
+  }
+}
+
+function activityFromNotification(notification: any): FeedActivityItem {
+  return {
+    activityId: `notification:${notification._id || notification.sourceId}`,
+    source: "notification",
+    sourceId: String(notification._id || notification.sourceId || ""),
+    type: notification.type,
+    postId: String(notification.postId || ""),
+    commentId: notification.commentId ?? null,
+    actorId: String(notification.actorId || ""),
+    actorName: notification.actorName || "Team member",
+    snippet: notification.snippet || "",
+    readAt: notification.readAt ?? null,
+    createdAt: notification.createdAt,
+  }
+}
+
+/**
+ * Merge socket/REST pages without duplicates. If a post-level targeted event
+ * (mention or @Everyone) represents the same post, prefer that more-specific
+ * row over the generic "posted in Team Feeds" row.
+ */
+function mergeActivityItems(items: FeedActivityItem[]): FeedActivityItem[] {
+  const byId = new Map<string, FeedActivityItem>()
+  for (const item of items) byId.set(item.activityId, item)
+
+  const merged = Array.from(byId.values())
+  const specificPostIds = new Set(
+    merged
+      .filter((item) => item.source === "notification" && (item.type === "mention_post" || item.type === "all_announcement"))
+      .map((item) => item.postId),
+  )
+
+  return merged
+    .filter((item) => !(item.source === "post" && specificPostIds.has(item.postId)))
+    .sort((a, b) => {
+      const timeDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      return timeDiff !== 0 ? timeDiff : b.activityId.localeCompare(a.activityId)
+    })
+}
+
+function ActivityPanel({
+  items,
+  loading,
+  loadingMore,
+  hasMore,
+  isPostUnread,
+  onItemClick,
+  onMarkAllRead,
+  onLoadMore,
+  onClose,
+}: {
+  items: FeedActivityItem[]
   loading: boolean
-  onItemClick: (n: FeedNotificationItem) => void
+  loadingMore: boolean
+  hasMore: boolean
+  isPostUnread: (item: FeedActivityItem) => boolean
+  onItemClick: (item: FeedActivityItem) => void
   onMarkAllRead: () => void
+  onLoadMore: () => void
   onClose: () => void
 }) {
-  const hasUnread = items.some((n) => !n.readAt)
+  const hasUnread = items.some((item) =>
+    (item.source === "notification" && !item.readAt) || isPostUnread(item)
+  )
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (!hasMore || loadingMore) return
+    const el = event.currentTarget
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) onLoadMore()
+  }
+
   return (
     <div className="absolute right-0 top-full z-50 mt-2 w-88 max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-border/50 bg-card/95 backdrop-blur-2xl shadow-2xl shadow-black/30">
       <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
@@ -1746,7 +1836,7 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
         </div>
       </div>
 
-      <div className="max-h-104 overflow-y-auto p-1.5">
+      <div className="max-h-104 overflow-y-auto p-1.5" onScroll={handleScroll}>
         {loading && (
           <div className="flex justify-center py-8">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
@@ -1758,17 +1848,19 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
               <Bell className="h-4 w-4 text-muted-foreground/25" />
             </div>
             <p className="text-xs text-muted-foreground/50">No activity yet.</p>
-            <p className="text-[10px] text-muted-foreground/40 max-w-60">Mentions, comments on your posts, and team-wide announcements will show up here.</p>
+            <p className="text-[10px] text-muted-foreground/40 max-w-60">
+              Recent Team Feed posts, mentions, comments on your posts, and team-wide announcements will show up here.
+            </p>
           </div>
         )}
-        {!loading && items.map((n) => {
-          const meta = NOTIF_META[n.type] ?? NOTIF_META.comment_on_post
-          const unread = !n.readAt
+        {!loading && items.map((item) => {
+          const meta = ACTIVITY_META[item.type] ?? ACTIVITY_META.post
+          const unread = (item.source === "notification" && !item.readAt) || isPostUnread(item)
           return (
             <button
-              key={n._id}
+              key={item.activityId}
               type="button"
-              onClick={() => onItemClick(n)}
+              onClick={() => onItemClick(item)}
               className={`flex w-full items-start gap-2.5 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-muted/40 ${unread ? "bg-emerald-500/5" : ""}`}
             >
               <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${meta.iconBg}`}>
@@ -1776,18 +1868,32 @@ function ActivityPanel({ items, loading, onItemClick, onMarkAllRead, onClose }: 
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs leading-snug text-foreground/85">
-                  <span className="font-semibold">{n.actorName}</span>{" "}
+                  <span className="font-semibold">{item.actorName}</span>{" "}
                   <span className="text-muted-foreground/70">{meta.text}</span>
                 </p>
-                {n.snippet && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">“{n.snippet}”</p>
+                {item.snippet && (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/55">“{item.snippet}”</p>
                 )}
-                <p className="mt-1 text-[10px] text-muted-foreground/45" title={fullDate(n.createdAt)}>{timeAgo(n.createdAt)}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground/45" title={fullDate(item.createdAt)}>{timeAgo(item.createdAt)}</p>
               </div>
               {unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />}
             </button>
           )
         })}
+        {!loading && loadingMore && (
+          <div className="flex items-center justify-center gap-2 py-3 text-[10px] text-muted-foreground/50">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading older activity
+          </div>
+        )}
+        {!loading && !loadingMore && hasMore && items.length > 0 && (
+          <button
+            type="button"
+            onClick={onLoadMore}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[10px] font-semibold text-muted-foreground/55 hover:bg-muted/30 hover:text-emerald-600 transition-colors"
+          >
+            <ChevronDown className="h-3 w-3" /> Load older activity
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1857,9 +1963,11 @@ export default function FeedsPage() {
   const [flashPostId, setFlashPostId] = React.useState<string | null>(null)
   const [mentionCandidates, setMentionCandidates] = React.useState<MentionCandidate[]>([])
   const [activityOpen, setActivityOpen] = React.useState(false)
-  const [activityItems, setActivityItems] = React.useState<FeedNotificationItem[]>([])
+  const [activityItems, setActivityItems] = React.useState<FeedActivityItem[]>([])
   const [activityLoading, setActivityLoading] = React.useState(false)
-  const activityFetchedRef = React.useRef(false)
+  const [activityLoadingMore, setActivityLoadingMore] = React.useState(false)
+  const [activityHasMore, setActivityHasMore] = React.useState(false)
+  const [activityCursor, setActivityCursor] = React.useState<string | null>(null)
   const activityWrapRef = React.useRef<HTMLDivElement>(null)
   const autoScrolledRef = React.useRef(false)
   const flashTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1870,6 +1978,27 @@ export default function FeedsPage() {
     if (locallyRead.has(post._id)) return false
     return new Date(post.createdAt).getTime() > new Date(unreadSince).getTime()
   }, [unreadSince, currentUser, locallyRead])
+
+  const isUnreadActivityPost = React.useCallback((item: FeedActivityItem): boolean => {
+    const representsPostCreation =
+      item.source === "post" || item.type === "mention_post" || item.type === "all_announcement"
+    if (!representsPostCreation || !unreadSince || !currentUser) return false
+    if (item.actorId === currentUser._id) return false
+    if (locallyRead.has(item.postId)) return false
+    return new Date(item.createdAt).getTime() > new Date(unreadSince).getTime()
+  }, [unreadSince, currentUser, locallyRead])
+
+  const fetchActivity = React.useCallback(async (cursor?: string | null, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ limit: "30" })
+    if (cursor) params.set("cursor", cursor)
+    const res = await apiClient.get(`/api/crm/feeds/activity?${params.toString()}`, { signal })
+    const data = res.data?.data || {}
+    return {
+      items: Array.isArray(data.items) ? data.items as FeedActivityItem[] : [],
+      hasMore: Boolean(data.hasMore),
+      nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : null,
+    }
+  }, [])
 
   const scrollToPost = React.useCallback((postId: string) => {
     if (typeof document === "undefined") return
@@ -2029,12 +2158,17 @@ export default function FeedsPage() {
       })
       socket.on("feed:new", ({ post }: { post: Post }) => {
         setPosts((prev) => { if (prev.some((p) => p._id === post._id)) return prev; setNewPostCount((c) => c + 1); return prev })
+        setActivityItems((prev) => mergeActivityItems([activityFromPost(post), ...prev]))
       })
       socket.on("feed:updated", ({ post }: { post: Post }) => {
         setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)))
+        setActivityItems((prev) => mergeActivityItems(prev.map((item) =>
+          item.source === "post" && item.postId === post._id ? activityFromPost(post) : item
+        )))
       })
       socket.on("feed:deleted", ({ postId }: { postId: string }) => {
         setPosts((prev) => prev.filter((p) => p._id !== postId))
+        setActivityItems((prev) => prev.filter((item) => !(item.source === "post" && item.postId === postId)))
       })
       socket.on("feed:reactions_updated", ({ targetType, targetId, summary }: { targetType: "post" | "comment"; targetId: string; summary: ReactionSummary }) => {
         if (targetType === "post") {
@@ -2044,9 +2178,10 @@ export default function FeedsPage() {
       // Targeted notification for THIS user (mention / comment / announcement).
       // The badge count itself is bumped by the feed-notification store's own
       // socket — here we only keep the Activity panel list fresh.
-      socket.on("feed:notify", ({ notification }: { notification: FeedNotificationItem }) => {
+      socket.on("feed:notify", ({ notification }: { notification: any }) => {
         if (!notification?._id) return
-        setActivityItems((prev) => prev.some((n) => n._id === notification._id) ? prev : [notification, ...prev])
+        const item = activityFromNotification(notification)
+        setActivityItems((prev) => mergeActivityItems([item, ...prev]))
       })
       socketRef.current = socket
     }).catch(() => { })
@@ -2062,6 +2197,7 @@ export default function FeedsPage() {
       })
       ssSocket.on("feed:new", ({ post }: { post: Post }) => {
         setPosts((prev) => { if (prev.some((p) => p._id === post._id)) return prev; setNewPostCount((c) => c + 1); return prev })
+        setActivityItems((prev) => mergeActivityItems([activityFromPost(post), ...prev]))
       })
       ssSocketRef.current = ssSocket
     }).catch(() => { })
@@ -2151,44 +2287,86 @@ export default function FeedsPage() {
     const willOpen = !activityOpen
     setActivityOpen(willOpen)
     if (!willOpen) return
-    if (activityFetchedRef.current && activityItems.length > 0) return
+
     setActivityLoading(true)
     try {
-      const res = await apiClient.get("/api/crm/feeds/notifications?page=1&limit=30")
-      setActivityItems(res.data?.data?.notifications || [])
-      activityFetchedRef.current = true
+      const firstPage = await fetchActivity(null)
+      setActivityItems(mergeActivityItems(firstPage.items))
+      setActivityHasMore(firstPage.hasMore)
+      setActivityCursor(firstPage.nextCursor)
     } catch { }
     finally { setActivityLoading(false) }
   }
 
-  const handleActivityItemClick = async (n: FeedNotificationItem) => {
+  const loadMoreActivity = async () => {
+    if (activityLoadingMore || !activityHasMore || !activityCursor) return
+    setActivityLoadingMore(true)
+    try {
+      const nextPage = await fetchActivity(activityCursor)
+      setActivityItems((prev) => mergeActivityItems([...prev, ...nextPage.items]))
+      setActivityHasMore(nextPage.hasMore)
+      setActivityCursor(nextPage.nextCursor)
+    } catch { }
+    finally { setActivityLoadingMore(false) }
+  }
+
+  const handleActivityItemClick = async (item: FeedActivityItem) => {
     setActivityOpen(false)
-    if (!n.readAt) {
-      setActivityItems((prev) => prev.map((x) => x._id === n._id ? { ...x, readAt: new Date().toISOString() } : x))
+
+    if (item.source === "notification" && !item.readAt) {
+      setActivityItems((prev) => prev.map((x) =>
+        x.activityId === item.activityId ? { ...x, readAt: new Date().toISOString() } : x
+      ))
       decrementFeedNotifications(1)
-      apiClient.patch("/api/crm/feeds/notifications/read", { ids: [n._id] }).catch(() => { })
+      apiClient.patch("/api/crm/feeds/notifications/read", { ids: [item.sourceId] }).catch(() => { })
     }
+
+    if (isUnreadActivityPost(item)) {
+      setLocallyRead((prev) => { const next = new Set(prev); next.add(item.postId); return next })
+      apiClient.post("/api/crm/feeds/read-state/posts", { postIds: [item.postId] })
+        .then(() => refreshFeedBadge())
+        .catch(() => { })
+    }
+
     setActiveTab("feeds")
-    // Deep-link to the post: scroll if loaded, otherwise refresh page 1 first
-    // (comment/announcement targets are usually recent). Older DayPulse or
-    // paged-out targets simply won't scroll — the row itself carries context.
-    if (posts.some((p) => p._id === n.postId)) {
-      setTimeout(() => scrollToPost(n.postId), 100)
+    if (posts.some((post) => post._id === item.postId)) {
+      setTimeout(() => scrollToPost(item.postId), 100)
       return
     }
+
+    // Keep the existing low-risk deep-link behaviour: refresh the newest feed
+    // page and scroll when the target is there. Activity history itself remains
+    // fully pageable even when an old post is outside the currently loaded feed.
     try {
       const { posts: fresh, hasMore } = await fetchPosts(1)
       setPosts(fresh); setHasMore(hasMore); setPage(1)
       fetchReactions(fresh.map((post) => post._id)).then(setPostReactions)
-      setTimeout(() => scrollToPost(n.postId), 300)
+      setTimeout(() => scrollToPost(item.postId), 300)
     } catch { }
   }
 
   const handleMarkAllActivityRead = async () => {
-    setActivityItems((prev) => prev.map((x) => x.readAt ? x : { ...x, readAt: new Date().toISOString() }))
+    const markedAt = new Date().toISOString()
+    setActivityItems((prev) => prev.map((item) =>
+      item.source === "notification" && !item.readAt ? { ...item, readAt: markedAt } : item
+    ))
+    setLocallyRead((prev) => {
+      const next = new Set(prev)
+      for (const item of activityItems) {
+        if (item.source === "post") next.add(item.postId)
+      }
+      return next
+    })
     clearFeedNotificationsBadge()
+    clearUnseenPosts()
+
     try {
-      await apiClient.patch("/api/crm/feeds/notifications/read", {})
+      const [, readState] = await Promise.all([
+        apiClient.patch("/api/crm/feeds/notifications/read", {}),
+        apiClient.post("/api/crm/feeds/read-state", {}),
+      ])
+      const newWatermark = readState.data?.data?.lastSeenAt
+      if (newWatermark) setUnreadSince(newWatermark)
       refreshFeedBadge()
     } catch { }
   }
@@ -2260,7 +2438,7 @@ export default function FeedsPage() {
             </p>
           </div>
 
-          {/* Activity bell — mentions, comments on your posts, announcements */}
+          {/* Activity bell — recent Team Feed posts + targeted feed activity */}
           <div ref={activityWrapRef} className="relative shrink-0">
             <Button
               variant="ghost"
@@ -2280,8 +2458,12 @@ export default function FeedsPage() {
               <ActivityPanel
                 items={activityItems}
                 loading={activityLoading}
+                loadingMore={activityLoadingMore}
+                hasMore={activityHasMore}
+                isPostUnread={isUnreadActivityPost}
                 onItemClick={handleActivityItemClick}
                 onMarkAllRead={handleMarkAllActivityRead}
+                onLoadMore={loadMoreActivity}
                 onClose={() => setActivityOpen(false)}
               />
             )}

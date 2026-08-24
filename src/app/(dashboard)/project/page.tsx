@@ -2,7 +2,7 @@
 
 /**
  * Project Management workspace
- * Route: /projects
+ * Route: /project
  *
  * Views (tabs):
  *   Workspace        → Project Group → Sections → Folder Groups → Tasks
@@ -143,6 +143,12 @@ export default function ProjectManagementPage() {
 
 function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   const { refresh: refreshBadge, markAllRead } = useProjectNotifications();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const deepLinkTaskId = searchParams.get("task");
+  const deepLinkGroupParam = searchParams.get("group");
 
   const [tab, setTab] = React.useState<PageTab>("workspace");
   const [meId, setMeId] = React.useState<string>("");
@@ -151,6 +157,10 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   const [selectedGroupId, setSelectedGroupId] = React.useState<string | null>(null);
   const [pageError, setPageError] = React.useState("");
   const [groupOrderIds, setGroupOrderIds] = React.useState<string[]>([]);
+  const [deepLinkGroupId, setDeepLinkGroupId] = React.useState<string | null>(
+    deepLinkGroupParam,
+  );
+  const [resolvingDeepLink, setResolvingDeepLink] = React.useState(false);
 
   // Group dialogs
   const [groupDialogMode, setGroupDialogMode] = React.useState<"closed" | "create" | "edit">("closed");
@@ -187,6 +197,69 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
   React.useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  // Notification deep-link coordinator. New PM notifications include both
+  // ?group=<groupId> and ?task=<taskId>. Older notifications may contain only
+  // ?task=, so resolve the task once to discover its project group before the
+  // workspace is rendered. This keeps the task dialog and the page underneath
+  // it on the same group.
+  React.useEffect(() => {
+    if (!deepLinkTaskId) {
+      setDeepLinkGroupId(null);
+      setResolvingDeepLink(false);
+      return;
+    }
+
+    // A task notification always belongs in the Workspace tab.
+    setTab("workspace");
+
+    if (deepLinkGroupParam) {
+      setDeepLinkGroupId(deepLinkGroupParam);
+      setResolvingDeepLink(false);
+      return;
+    }
+
+    let cancelled = false;
+    setResolvingDeepLink(true);
+
+    apiClient
+      .get(`/api/crm/projects/tasks/${deepLinkTaskId}`)
+      .then((res) => {
+        if (cancelled) return;
+        const targetGroupId = String(res.data?.data?.task?.groupId ?? "").trim();
+        setDeepLinkGroupId(targetGroupId || null);
+      })
+      .catch(() => {
+        if (!cancelled) setDeepLinkGroupId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setResolvingDeepLink(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLinkTaskId, deepLinkGroupParam]);
+
+  // Once the user's group list is available, select the group that owns the
+  // notification's task. Membership is still enforced by the backend.
+  React.useEffect(() => {
+    if (!deepLinkTaskId || !deepLinkGroupId || groupsLoading) return;
+    if (groups.some((g) => g._id === deepLinkGroupId)) {
+      setSelectedGroupId(deepLinkGroupId);
+    }
+  }, [deepLinkTaskId, deepLinkGroupId, groups, groupsLoading]);
+
+  const consumeProjectDeepLink = React.useCallback(() => {
+    if (!deepLinkTaskId) return;
+
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("task");
+    next.delete("group");
+
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [deepLinkTaskId, pathname, router, searchParams]);
 
   // Personal, per-user display order for "My Project Groups" — a browser-local
   // preference, not shared group data, so it's stored client-side per meId.
@@ -442,8 +515,23 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
 
           {/* ── Workspace ── */}
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-            {selectedGroupId ? (
-              <GroupWorkspace key={selectedGroupId} groupId={selectedGroupId} meId={meId} socket={socket} />
+            {selectedGroupId && (!deepLinkTaskId || !resolvingDeepLink) ? (
+              <GroupWorkspace
+                key={selectedGroupId}
+                groupId={selectedGroupId}
+                meId={meId}
+                socket={socket}
+                deepLinkTaskId={
+                  deepLinkTaskId && deepLinkGroupId === selectedGroupId
+                    ? deepLinkTaskId
+                    : null
+                }
+                onDeepLinkPrepared={consumeProjectDeepLink}
+              />
+            ) : deepLinkTaskId && resolvingDeepLink ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+              </div>
             ) : (
               !groupsLoading && (
                 <div className="flex h-full flex-col items-center justify-center gap-3 p-10 text-center">
@@ -748,10 +836,14 @@ function GroupWorkspace({
   groupId,
   meId,
   socket,
+  deepLinkTaskId,
+  onDeepLinkPrepared,
 }: {
   groupId: string;
   meId: string;
   socket: Socket | null;
+  deepLinkTaskId?: string | null;
+  onDeepLinkPrepared?: () => void;
 }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -767,19 +859,9 @@ function GroupWorkspace({
   const [sectionDialogOpen, setSectionDialogOpen] = React.useState(false);
   const [folderDialogFor, setFolderDialogFor] = React.useState<Section | null>(null);
   const [taskDialogFor, setTaskDialogFor] = React.useState<FolderGroup | null>(null);
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [openTaskId, setOpenTaskId] = React.useState<string | null>(
-    () => searchParams.get("task"),
-  );
-
-  // Deep link from a Pulse360 alert ("open this task") — consume the query
-  // param once so switching project groups doesn't keep re-opening it.
-  React.useEffect(() => {
-    if (searchParams.get("task")) router.replace(pathname, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [openTaskId, setOpenTaskId] = React.useState<string | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = React.useState<string | null>(null);
+  const consumedDeepLinkRef = React.useRef<string | null>(null);
 
   // Rename / delete dialogs
   const [sectionToRename, setSectionToRename] = React.useState<Section | null>(null);
@@ -843,6 +925,73 @@ function GroupWorkspace({
     () => tasks.filter((t) => t.status === "completed").length,
     [tasks],
   );
+
+  // Prepare the workspace underneath a notification-opened task dialog:
+  // 1) find the task in this group's loaded tree,
+  // 2) reveal completed tasks if the target is completed,
+  // 3) expand the containing section,
+  // 4) scroll the exact task row into view,
+  // 5) then open its task dialog.
+  //
+  // Folders are not independently collapsible in this workspace; revealing
+  // the section automatically reveals the folder that owns the task.
+  React.useEffect(() => {
+    if (!deepLinkTaskId || loading) return;
+    if (consumedDeepLinkRef.current === deepLinkTaskId) return;
+
+    const target = tasks.find((t) => t._id === deepLinkTaskId);
+    if (!target) return;
+
+    consumedDeepLinkRef.current = deepLinkTaskId;
+    setFocusedTaskId(deepLinkTaskId);
+    setCollapsed((current) => ({
+      ...current,
+      [target.sectionId]: false,
+    }));
+
+    if (target.status === "completed") {
+      setShowCompleted(true);
+    }
+
+    setOpenTaskId(deepLinkTaskId);
+    onDeepLinkPrepared?.();
+
+    // Allow the section expansion / completed-task reveal to commit before
+    // querying for the row in the DOM.
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        document
+          .getElementById(`pm-task-${deepLinkTaskId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      if (frame2) cancelAnimationFrame(frame2);
+    };
+  }, [deepLinkTaskId, loading, tasks, onDeepLinkPrepared]);
+
+  const closeTaskDialog = React.useCallback(() => {
+    const taskIdToFocus = openTaskId;
+    setOpenTaskId(null);
+
+    if (!taskIdToFocus || focusedTaskId !== taskIdToFocus) return;
+
+    requestAnimationFrame(() => {
+      const row = document.getElementById(`pm-task-${taskIdToFocus}`);
+      row?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // Keep a short visual locator after the modal closes, then return the
+      // row to its normal appearance without changing task state.
+      window.setTimeout(() => {
+        setFocusedTaskId((current) =>
+          current === taskIdToFocus ? null : current,
+        );
+      }, 3200);
+    });
+  }, [focusedTaskId, openTaskId]);
 
   const deleteSection = async () => {
     if (!sectionToDelete) return;
@@ -1044,6 +1193,7 @@ function GroupWorkspace({
                       return (
                         <div
                           key={folder._id}
+                          id={`pm-folder-${folder._id}`}
                           className="rounded-xl border border-border/40 bg-background/60"
                         >
                           <div className="group/fold flex flex-wrap items-center gap-2 px-3.5 py-2.5">
@@ -1090,11 +1240,14 @@ function GroupWorkspace({
                                 return (
                                   <button
                                     key={task._id}
+                                    id={`pm-task-${task._id}`}
                                     onClick={() => setOpenTaskId(task._id)}
                                     className={cn(
-                                      "flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3.5 py-2.5 text-left transition-colors hover:bg-muted/30",
+                                      "flex w-full scroll-m-6 flex-wrap items-center gap-x-3 gap-y-1.5 px-3.5 py-2.5 text-left transition-all duration-500 hover:bg-muted/30",
                                       task.unseenForMe &&
                                         "border-l-2 border-l-emerald-500 bg-emerald-500/6",
+                                      focusedTaskId === task._id &&
+                                        "relative z-[1] bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/60",
                                     )}
                                   >
                                     <TaskStatusBadge status={task.status} />
@@ -1262,7 +1415,7 @@ function GroupWorkspace({
         taskId={openTaskId}
         meId={meId}
         socket={socket}
-        onClose={() => setOpenTaskId(null)}
+        onClose={closeTaskDialog}
         onChanged={loadTree}
         onDeleted={loadTree}
       />
