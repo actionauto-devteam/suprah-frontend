@@ -63,7 +63,7 @@ export function Panel({
           </button>
         )}
       </div>
-      <div className="flex-1 p-5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
     </section>
   );
 }

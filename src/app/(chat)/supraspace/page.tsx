@@ -3061,11 +3061,24 @@ function normalizePastedListArtifacts(text: string): string {
 // (not just on send) so it also self-heals already-stored messages the next
 // time they're rendered/edited, not only new ones going forward.
 function stripOrphanedBoldMarker(text: string): string {
-  const count = (text.match(/\*\*/g) || []).length;
-  if (count % 2 === 0) return text;
-  const lastIndex = text.lastIndexOf('**');
-  if (lastIndex === -1) return text;
-  return text.slice(0, lastIndex) + text.slice(lastIndex + 2);
+  // Scoped per line rather than to the whole message: on a long message with
+  // many legitimate, separate "**...**" pairs, counting "**" across the
+  // entire text and deleting the LAST occurrence anywhere almost never hits
+  // the actual stray marker — it breaks whichever real bold pair happens to
+  // sit closest to the end instead, and that corruption then cascades through
+  // normalizeMultilineMarkdownBlocks. The stray marker from the paste-reset
+  // wrapper this guards against always lands on one specific line, so fixing
+  // it there leaves every other, unrelated line's markup untouched.
+  return text
+    .split('\n')
+    .map(line => {
+      const count = (line.match(/\*\*/g) || []).length;
+      if (count % 2 === 0) return line;
+      const lastIndex = line.lastIndexOf('**');
+      if (lastIndex === -1) return line;
+      return line.slice(0, lastIndex) + line.slice(lastIndex + 2);
+    })
+    .join('\n');
 }
 
 function normalizeMessageMarkdownText(text: string): string {
@@ -4722,6 +4735,7 @@ const Bubble = React.memo(function Bubble({
     if (columnRef.current) {
       columnRef.current.style.transform = '';
       columnRef.current.style.transition = 'transform 180ms cubic-bezier(.2,.8,.2,1)';
+      columnRef.current.style.willChange = 'auto';
     }
     if (swipeCueRef.current) {
       swipeCueRef.current.style.opacity = '0';
@@ -4784,7 +4798,10 @@ const Bubble = React.memo(function Bubble({
       active: true,
       direction: isOwn ? -1 : 1,
     };
-    if (columnRef.current) columnRef.current.style.transition = 'none';
+    if (columnRef.current) {
+      columnRef.current.style.transition = 'none';
+      columnRef.current.style.willChange = 'transform';
+    }
     longPressTimer.current = setTimeout(() => {
       if (touchMovedRef.current || !swipeStartRef.current?.active) return;
       openMobileActions();
@@ -4852,7 +4869,7 @@ const Bubble = React.memo(function Bubble({
     ? `@${_nameParts[0]} ${_nameParts[_nameParts.length - 1]}`
     : `@${_nameParts[0]}`).toLowerCase();
   const currentUserFirstName = _nameParts[0].toLowerCase();
-  const isMentioned = !isOwn && !!message.content && (
+  const isMentioned = !isOwn && !!message.content && !message.readBy?.includes(uid) && (
     message.content.includes('@all') ||
     message.content.toLowerCase().includes(currentUserMention) ||
     message.content.toLowerCase().includes(`@${currentUserFirstName}`)
@@ -4917,7 +4934,7 @@ const Bubble = React.memo(function Bubble({
 
       <div
         ref={columnRef}
-        className={cn('ss4-msg-column flex flex-col gap-1 will-change-transform', isOwn && 'items-end')}
+        className={cn('ss4-msg-column flex flex-col gap-1', isOwn && 'items-end')}
         style={{
           transition: 'transform 180ms cubic-bezier(.2,.8,.2,1)',
         }}
@@ -12057,6 +12074,20 @@ export default function SupraSpacePage() {
                               }}
                               onPaste={e => {
                                 const items = e.clipboardData?.items;
+                                // Copying an image file (e.g. from Windows Explorer or a
+                                // screenshot tool) commonly puts the filename on the
+                                // clipboard as text/plain ALONGSIDE the actual image
+                                // data. Checking image items first — before falling
+                                // through to the text/html branch below — makes sure
+                                // the real image gets pasted instead of just its name.
+                                const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
+                                if (imgItems.length > 0) {
+                                  e.preventDefault();
+                                  const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
+                                  if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
+                                  return;
+                                }
+
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
                                 const shortcutPlainText = pastePlainTextShortcutRef.current;
@@ -12084,13 +12115,6 @@ export default function SupraSpacePage() {
                                     }
                                   });
                                   return;
-                                }
-
-                                const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
-                                if (imgItems.length > 0) {
-                                  e.preventDefault();
-                                  const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
-                                  if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
                                 }
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}

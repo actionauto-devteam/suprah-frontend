@@ -123,6 +123,10 @@ interface UseSupraSpaceReturn {
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const socketRef = React.useRef<Socket | null>(null);
   const typingStartLastSentRef = React.useRef<Record<string, number>>({});
+  // Watchdog per conversationId:userId — self-heals a stuck "is typing..."
+  // if a typing:stop is ever missed (crashed tab, dropped packet, etc.),
+  // independent of the server-side disconnect cleanup.
+  const typingExpiryTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [socketState, setSocketState] = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected] = React.useState(false);
   const [presence, setPresence] = React.useState<PresenceMap>({});
@@ -184,15 +188,34 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       setPresence((prev) => ({ ...prev, [userId]: { onlineStatus, customStatus, lastDeviceType } }));
     });
 
+    const clearTypingWatchdog = (key: string) => {
+      const timer = typingExpiryTimersRef.current[key];
+      if (timer) {
+        clearTimeout(timer);
+        delete typingExpiryTimersRef.current[key];
+      }
+    };
+
     socket.on('typing:start', ({ conversationId, userId, fullName }: any) => {
       setTyping((prev) => {
         const existing = prev[conversationId] || [];
         if (existing.find((t) => t.userId === userId)) return prev;
         return { ...prev, [conversationId]: [...existing, { userId, fullName }] };
       });
+
+      const key = `${conversationId}:${userId}`;
+      clearTypingWatchdog(key);
+      typingExpiryTimersRef.current[key] = setTimeout(() => {
+        delete typingExpiryTimersRef.current[key];
+        setTyping((prev) => ({
+          ...prev,
+          [conversationId]: (prev[conversationId] || []).filter((t) => t.userId !== userId),
+        }));
+      }, 6000);
     });
 
     socket.on('typing:stop', ({ conversationId, userId }: any) => {
+      clearTypingWatchdog(`${conversationId}:${userId}`);
       setTyping((prev) => ({
         ...prev,
         [conversationId]: (prev[conversationId] || []).filter((t) => t.userId !== userId),
@@ -213,6 +236,8 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       socketRef.current = null;
       setSocketState(null);
       setIsConnected(false);
+      Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
+      typingExpiryTimersRef.current = {};
     };
   }, [token]);
 
