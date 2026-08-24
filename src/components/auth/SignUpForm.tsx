@@ -367,7 +367,7 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
                 Create Account <Sparkles className="h-8 w-8 text-emerald-500" />
               </h1>
               <p className="text-zinc-500 text-lg font-light">
-                Let&apos;s get you started with Action Auto Utah.
+                Let&apos;s get you started with Suprah.AI.
               </p>
             </div>
 

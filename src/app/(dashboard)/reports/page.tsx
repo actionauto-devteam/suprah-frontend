@@ -4,6 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
+import { useOrg } from "@/hooks/useOrg";
 import { apiClient } from "@/lib/api-client";
 import {
   FileText,
@@ -367,6 +368,7 @@ function sameSharedPeriod(
 
 export default function ReportsPage() {
   const { getToken } = useAuth();
+  const { organization } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1131,6 +1133,7 @@ export default function ReportsPage() {
       reportId,
       title: REPORT_LABELS[reportId],
       periodLabel,
+      organizationName: organization?.name,
       recordCount: reportRecordCount,
       sectionCounts:
         reportId === "driver-report"
@@ -1479,7 +1482,7 @@ export default function ReportsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h1 className="truncate text-base font-bold tracking-tight text-foreground sm:text-xl">
-                    Suprah AI Reports
+                    Suprah.AI Reports
                   </h1>
                   <span className="hidden rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary sm:inline-flex">
                     Local Workspace

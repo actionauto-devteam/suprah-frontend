@@ -76,7 +76,7 @@ export default function SupportCallPage() {
       <div className="mb-10 text-center select-none">
         <div className="inline-flex items-center gap-1.5 mb-1">
           <Car className="h-5 w-5 text-primary" />
-          <span className="text-white font-black text-lg tracking-tight">ACTION AUTO</span>
+          <span className="text-white font-black text-lg tracking-tight">Your Dealership</span>
         </div>
         <p className="text-[9px] text-zinc-600 tracking-[0.35em] uppercase font-semibold">
           Support Center
@@ -132,7 +132,7 @@ export default function SupportCallPage() {
                     You&apos;ve been invited to a call
                   </p>
                   <h1 className="text-xl font-black text-white">
-                    Action Auto Support
+                    Your Dealership Support
                   </h1>
                 </div>
                 <p className="text-xs text-zinc-500 leading-relaxed">
@@ -182,7 +182,7 @@ export default function SupportCallPage() {
               <div className="flex items-start gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-zinc-600 mt-0.5 shrink-0" />
                 <p className="text-[10px] text-zinc-600 leading-relaxed">
-                  By joining, you acknowledge that this call may be recorded by Action Auto Utah for quality assurance and training purposes.
+                  By joining, you acknowledge that this call may be recorded by Your Dealership for quality assurance and training purposes.
                 </p>
               </div>
             </form>
@@ -192,7 +192,7 @@ export default function SupportCallPage() {
       </div>
 
       <p className="mt-12 text-[10px] text-zinc-800">
-        © {new Date().getFullYear()} Action Auto Utah. All rights reserved.
+        © {new Date().getFullYear()} Your Dealership. All rights reserved.
       </p>
     </div>
   );

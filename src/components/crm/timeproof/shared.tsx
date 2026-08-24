@@ -98,7 +98,9 @@ export function generatePayslipHtml(p: {
   rateNum: number
   payoutUSD: number
   phpPayout?: { amountPHP: number; rate: number } | null
+  companyName?: string
 }): string {
+  const companyName = p.companyName || "Your Dealership"
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
   })
@@ -133,7 +135,7 @@ export function generatePayslipHtml(p: {
   .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
   @media print { body { padding: 24px 32px; } @page { size: A4; margin: 20mm; } }
 </style></head><body>
-  <div class="header"><div class="company">Action Auto</div><div class="doc-title">Employee Payslip</div></div>
+  <div class="header"><div class="company">${companyName}</div><div class="doc-title">Employee Payslip</div></div>
   <div class="meta-grid">
     <div class="row"><span class="meta-label">Employee</span><span class="meta-value">${p.fullName}</span></div>
     <div class="row"><span class="meta-label">Username</span><span class="meta-value">${p.username}</span></div>
@@ -150,12 +152,12 @@ export function generatePayslipHtml(p: {
     <tr class="total-row"><td>Gross Pay (USD)</td><td class="amount">$${p.payoutUSD.toFixed(2)}</td></tr>
     ${phpRow}
   </table>
-  <div class="verified">✓ Hours verified via Action Auto Timeproof System — server-validated timestamps</div>
+  <div class="verified">✓ Hours verified via ${companyName} Timeproof System — server-validated timestamps</div>
   <div class="sig-area">
     <div class="sig-box">Employee Signature</div>
     <div class="sig-box">Authorized Signature</div>
   </div>
-  <div class="footer">ACTION AUTO · CONFIDENTIAL · ${new Date().getFullYear()}</div>
+  <div class="footer">${companyName.toUpperCase()} · CONFIDENTIAL · ${new Date().getFullYear()}</div>
   <script>window.onload = function() { window.print(); }<\/script>
 </body></html>`
 }
@@ -240,7 +242,9 @@ export function generateTimecardHtml(p: {
   /** Set false for an on-screen preview (e.g. inside an iframe) so it doesn't
    *  immediately pop the print dialog on every re-render. Defaults to true. */
   autoPrint?: boolean
+  companyName?: string
 }): string {
+  const companyName = p.companyName || "Your Dealership"
   const totalSeconds = p.rows.reduce((sum, r) => sum + r.totalSeconds, 0)
   const totalWholeHours = Math.floor(totalSeconds / 3600)
   const totalIncome = totalWholeHours * p.rateNum
@@ -283,7 +287,7 @@ export function generateTimecardHtml(p: {
   .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
   @media print { body { padding: 24px 32px; } @page { size: A4 landscape; margin: 16mm; } }
 </style></head><body>
-  <div class="header"><div class="company">Action Auto</div><div class="doc-title">Timecard — Pay Period Summary</div></div>
+  <div class="header"><div class="company">${companyName}</div><div class="doc-title">Timecard — Pay Period Summary</div></div>
   <div class="meta-grid">
     <div class="row"><span class="meta-label">Employee</span><span class="meta-value">${p.fullName}</span></div>
     <div class="row"><span class="meta-label">Rate / hr</span><span class="meta-value">$${p.rateNum.toFixed(2)}</span></div>
@@ -298,12 +302,12 @@ export function generateTimecardHtml(p: {
     <div class="item">Total Hours: ${fmtHHMMSS(totalSeconds)}</div>
     <div class="item">Total Income: $${totalIncome.toFixed(2)}</div>
   </div>
-  <div class="verified">✓ Hours verified via Action Auto Timeproof System — server-validated timestamps</div>
+  <div class="verified">✓ Hours verified via ${companyName} Timeproof System — server-validated timestamps</div>
   <div class="sig-area">
     <div class="sig-box">Employee Signature</div>
     <div class="sig-box">Authorized Signature</div>
   </div>
-  <div class="footer">ACTION AUTO · CONFIDENTIAL · Generated ${generatedAt}</div>
+  <div class="footer">${companyName.toUpperCase()} · CONFIDENTIAL · Generated ${generatedAt}</div>
   ${p.autoPrint === false ? "" : "<script>window.onload = function() { window.print(); }<\/script>"}
 </body></html>`
 }
@@ -333,7 +337,9 @@ export function generateIdleLogHtml(p: {
   endDateStr: string
   periods: IdlePeriod[]
   autoPrint?: boolean
+  companyName?: string
 }): string {
+  const companyName = p.companyName || "Your Dealership"
   const totalSeconds = p.periods.reduce((sum, r) => sum + r.durationSeconds, 0)
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
@@ -374,7 +380,7 @@ export function generateIdleLogHtml(p: {
   .footer { text-align: center; font-size: 9px; color: #bbb; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; letter-spacing: 1px; }
   @media print { body { padding: 24px 32px; } @page { size: A4; margin: 20mm; } }
 </style></head><body>
-  <div class="header"><div class="company">Action Auto</div><div class="doc-title">Idle Activity Log</div></div>
+  <div class="header"><div class="company">${companyName}</div><div class="doc-title">Idle Activity Log</div></div>
   <div class="meta-grid">
     <div class="row"><span class="meta-label">Employee</span><span class="meta-value">${p.fullName}</span></div>
     <div class="row"><span class="meta-label">Date Start</span><span class="meta-value">${p.startDateStr}</span></div>
@@ -389,7 +395,7 @@ export function generateIdleLogHtml(p: {
     <div class="item">Occurrences: ${p.periods.length}</div>
   </div>
   <div class="note">Derived from tray-detected inactivity (10+ minutes without keyboard/mouse input) while clocked in. Days without tray data are excluded, not counted as idle. This is a read-only record — not editable.</div>
-  <div class="footer">ACTION AUTO · CONFIDENTIAL · Generated ${generatedAt}</div>
+  <div class="footer">${companyName.toUpperCase()} · CONFIDENTIAL · Generated ${generatedAt}</div>
   ${p.autoPrint === false ? "" : "<script>window.onload = function() { window.print(); }<\/script>"}
 </body></html>`
 }

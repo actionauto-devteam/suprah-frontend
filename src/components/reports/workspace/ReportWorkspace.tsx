@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import ReportFilters from "@/components/reports/ReportFilters";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/AuthProvider";
+import { useOrg } from "@/hooks/useOrg";
 import { apiClient } from "@/lib/api-client";
 import {
   filterLeads,
@@ -237,6 +238,7 @@ function SummaryCards({ metrics }: { metrics: SummaryMetric[] }) {
 
 export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const { getToken } = useAuth();
+  const { organization } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -737,6 +739,7 @@ export default function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         reportId,
         title: REPORT_LABELS[reportId],
         periodLabel,
+        organizationName: organization?.name,
         recordCount: filteredCount,
         sectionCounts:
           reportId === "driver-report"

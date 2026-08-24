@@ -699,7 +699,7 @@ function GroupDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Suprah AI v2 Launch"
+              placeholder="e.g. Suprah.AI v2 Launch"
               disabled={saving}
               className="h-10 rounded-xl border-border/70 text-sm focus-visible:ring-emerald-500/30"
             />

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { UserProfile, OnlineStatus } from "@/types/user";
 import { cn, resolveImageUrl, getInitials } from "@/lib/utils";
+import { useOrg } from "@/hooks/useOrg";
 import { apiClient } from "@/lib/api-client";
 import ProfileImageCropper from "@/components/ProfileImageCropper";
 import { onlineStatusOptions, languageOptions } from "./profile-constants";
@@ -112,6 +113,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   setShowStatusDialog,
   onEditProfile,
 }) => {
+  const { organization } = useOrg();
   const [isCropperOpen, setIsCropperOpen] = React.useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = React.useState(false);
   const currentStatus =
@@ -205,8 +207,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     platform: "facebook" | "x" | "linkedin" | "whatsapp" | "email",
   ) => {
     const url = getProfileShareUrl();
-    const title = `${displayName} • Action Auto`;
-    const text = `View ${displayName}'s profile on Action Auto`;
+    const dealerName = organization?.name || "Your Dealership";
+    const title = `${displayName} • ${dealerName}`;
+    const text = `View ${displayName}'s profile on ${dealerName}`;
     const encodedUrl = encodeURIComponent(url);
     const encodedTitle = encodeURIComponent(title);
     const encodedText = encodeURIComponent(text);

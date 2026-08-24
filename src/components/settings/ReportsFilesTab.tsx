@@ -54,9 +54,11 @@ import {
 } from "./settings-constants";
 import { ReportCategoryCard } from "./ReportCategoryCard";
 import { FileRow } from "./FileRow";
+import { useOrg } from "@/hooks/useOrg";
 
 export function ReportsFilesTab() {
   const router = useRouter();
+  const { organization } = useOrg();
 
   const [files, setFiles] = React.useState<FileEntry[]>([]);
   const [isShareAccessOpen, setIsShareAccessOpen] = React.useState(false);
@@ -283,7 +285,7 @@ export function ReportsFilesTab() {
     </style>
   </head>
   <body>
-    <h1>Action Auto Utah - Reports Print Batch</h1>
+    <h1>${escapeHtml(organization?.name || "Your Dealership")} - Reports Print Batch</h1>
     <p>Generated ${escapeHtml(generatedAt)} • ${printableFiles.length} report${printableFiles.length === 1 ? "" : "s"}</p>
     <table>
       <thead>

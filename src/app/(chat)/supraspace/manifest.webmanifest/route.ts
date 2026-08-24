@@ -8,7 +8,7 @@ export function GET() {
             id: 'suprah-space',
             name: 'SupraSpace',
             short_name: 'SupraSpace',
-            description: 'Team messaging, calls, and status for Suprah AI',
+            description: 'Team messaging, calls, and status for Suprah.AI',
             start_url: '/supraspace',
             scope: '/supraspace/',
             display: 'standalone',

@@ -28,15 +28,15 @@ const UI = {
     langLabel: "Language",
     tabDownload: "Download & Install",
     tabUsage: "How to Use It",
-    heading: "Set Up Suprah AI - Timeproof Clock",
+    heading: "Set Up Suprah.AI - Timeproof Clock",
     subheading: "Follow these steps on your computer. It only takes a few minutes!",
-    usageHeading: "Using Suprah AI - Timeproof Clock",
+    usageHeading: "Using Suprah.AI - Timeproof Clock",
     usageSubheading: "What the app does every day, explained simply.",
     windows: "Windows",
     mac: "macOS",
     doneTitle: "All done! The app starts automatically",
     doneBody: (icon: string) => (
-      <>Every time you turn on your computer, Suprah AI - Timeproof Clock will start on its own. You don&apos;t need to open it again — just look for the <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
+      <>Every time you turn on your computer, Suprah.AI - Timeproof Clock will start on its own. You don&apos;t need to open it again — just look for the <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
     ),
     trayIconWin: "in the system tray (bottom-right).",
     trayIconMac: "in the menu bar (top-right).",
@@ -46,15 +46,15 @@ const UI = {
     langLabel: "Wika",
     tabDownload: "Pag-download at Pag-install",
     tabUsage: "Paano Gamitin",
-    heading: "I-set Up ang Suprah AI - Timeproof Clock",
+    heading: "I-set Up ang Suprah.AI - Timeproof Clock",
     subheading: "Sundan ang mga hakbang na ito sa iyong computer. Ilang minuto lang ito!",
-    usageHeading: "Paggamit ng Suprah AI - Timeproof Clock",
+    usageHeading: "Paggamit ng Suprah.AI - Timeproof Clock",
     usageSubheading: "Simpleng paliwanag kung ano ang ginagawa ng app araw-araw.",
     windows: "Windows",
     mac: "macOS",
     doneTitle: "Tapos na! Awtomatikong bubukas ang app",
     doneBody: (icon: string) => (
-      <>Tuwing bubuksan mo ang computer mo, awtomatikong tatakbo ang Suprah AI - Timeproof Clock. Hindi mo na ito kailangang buksan ulit — hanapin lang ang <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
+      <>Tuwing bubuksan mo ang computer mo, awtomatikong tatakbo ang Suprah.AI - Timeproof Clock. Hindi mo na ito kailangang buksan ulit — hanapin lang ang <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
     ),
     trayIconWin: "sa system tray (kanang-baba).",
     trayIconMac: "sa menu bar (kanang-taas).",
@@ -196,7 +196,7 @@ function MacDragToApps({ lang }: { lang: Lang }) {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30">
               <span className="text-[10px] font-black text-emerald-400">AA</span>
             </div>
-            <span className="text-[9px] text-zinc-400">Suprah AI - Timeproof Clock</span>
+            <span className="text-[9px] text-zinc-400">Suprah.AI - Timeproof Clock</span>
           </div>
           <div className="flex flex-col items-center gap-1">
             <ChevronRight className="h-6 w-6 text-zinc-400" />
@@ -244,7 +244,7 @@ function MacGatekeeper({ lang }: { lang: Lang }) {
             </div>
           </div>
           <p className="text-[11px] font-semibold text-white leading-snug">
-            &quot;Suprah AI - Timeproof Clock&quot; cannot be opened because the developer cannot be verified.
+            &quot;Suprah.AI - Timeproof Clock&quot; cannot be opened because the developer cannot be verified.
           </p>
           <p className="mt-1 text-[10px] text-zinc-400">macOS cannot verify that this app is free from malware.</p>
           <div className="mt-3 flex justify-center gap-2">
@@ -269,7 +269,7 @@ function MacGatekeeper({ lang }: { lang: Lang }) {
         <div className="p-3">
           <div className="rounded-lg border border-zinc-700 bg-[#2c2c2e] p-3">
             <p className="text-[9px] text-zinc-400 leading-relaxed">
-              &quot;Suprah AI - Timeproof Clock&quot; was blocked from use because it is not from an identified developer.
+              &quot;Suprah.AI - Timeproof Clock&quot; was blocked from use because it is not from an identified developer.
             </p>
             <div className="mt-2 flex justify-end">
               <div className="rounded-md bg-[#0a7aff] px-3 py-1 text-[9px] font-semibold text-white ring-2 ring-emerald-400">Open Anyway</div>
@@ -325,7 +325,7 @@ function TrayPopupMockup({ lang, waiting }: { lang: Lang; waiting: boolean }) {
         <div className="flex items-center gap-2.5 border-b border-zinc-800 px-3.5 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 text-[11px] font-black text-white">AA</div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-bold text-zinc-200">{waiting ? "Suprah AI - Timeproof Clock" : "Jane Dela Cruz"}</p>
+            <p className="truncate text-[11px] font-bold text-zinc-200">{waiting ? "Suprah.AI - Timeproof Clock" : "Jane Dela Cruz"}</p>
             <p className="text-[9px] text-zinc-600">{waiting ? (lang === "en" ? "Waiting for sign-in" : "Naghihintay ng sign-in") : "Employee"}</p>
           </div>
           <div className={cn("h-2 w-2 rounded-full", waiting ? "bg-zinc-700" : "bg-emerald-500")} />
@@ -367,7 +367,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       return [
         {
           title: "Go to the Timeproof Clock page",
-          body: <>Log in to the Action Auto website. On the left menu, click {b("Timeproof Clock")}. Scroll down until you see the {b("Desktop Tray App")} section.</>,
+          body: <>Log in to the Suprah.AI dashboard. On the left menu, click {b("Timeproof Clock")}. Scroll down until you see the {b("Desktop Tray App")} section.</>,
         },
         {
           title: 'Click "Download for Windows"',
@@ -404,7 +404,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
     return [
       {
         title: "Pumunta sa Timeproof Clock page",
-        body: <>Mag-log in sa Action Auto website. Sa kaliwang menu, i-click ang {b("Timeproof Clock")}. I-scroll pababa hanggang makita mo ang {b("Desktop Tray App")} section.</>,
+        body: <>Mag-log in sa Suprah.AI dashboard. Sa kaliwang menu, i-click ang {b("Timeproof Clock")}. I-scroll pababa hanggang makita mo ang {b("Desktop Tray App")} section.</>,
       },
       {
         title: 'I-click ang "Download for Windows"',
@@ -444,7 +444,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
     return [
       {
         title: "Go to the Timeproof Clock page",
-        body: <>Log in to the Action Auto website. On the left menu, click {b("Timeproof Clock")}. Scroll down until you see the {b("Desktop Tray App")} section.</>,
+        body: <>Log in to the Suprah.AI dashboard. On the left menu, click {b("Timeproof Clock")}. Scroll down until you see the {b("Desktop Tray App")} section.</>,
       },
       {
         title: 'Click "Download for Mac"',
@@ -461,14 +461,14 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: "Open the app — your Mac will warn you (this is normal!)",
-        body: <>Go to your {b("Applications")} folder and double-click {b("Suprah AI - Timeproof Clock")}. Your Mac will show a pop-up saying it can&apos;t be opened. Don&apos;t worry — just follow the two steps below. The exact button names can differ by macOS version (some say &quot;Show in Finder&quot; / &quot;OK&quot;, others say &quot;Move to Trash&quot; / &quot;Cancel&quot;) — that&apos;s normal too.</>,
+        body: <>Go to your {b("Applications")} folder and double-click {b("Suprah.AI - Timeproof Clock")}. Your Mac will show a pop-up saying it can&apos;t be opened. Don&apos;t worry — just follow the two steps below. The exact button names can differ by macOS version (some say &quot;Show in Finder&quot; / &quot;OK&quot;, others say &quot;Move to Trash&quot; / &quot;Cancel&quot;) — that&apos;s normal too.</>,
         visual: <MacGatekeeper lang={lang} />,
         warning: <>This warning is {<span className="font-semibold">normal</span>} — it appears for any app not sold through the App Store. Just follow the steps in the picture above, and {<span className="font-semibold">never click &quot;Move to Trash&quot;</span>} — that deletes the app. Click &quot;Cancel&quot; (or &quot;OK&quot;) instead to just close the pop-up.</>,
       },
       {
         title: "Allow Screen Recording when asked",
         body: <>The first time the app opens, it will ask for permission to record your screen. This is needed so it can take automatic screenshots as proof of your work. Click {b("Allow")} when the pop-up appears.</>,
-        tip: <>If you accidentally clicked {<span className="font-semibold">Don&apos;t Allow</span>}, go to {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} and turn the toggle {b("ON")} for Suprah AI - Timeproof Clock.</>,
+        tip: <>If you accidentally clicked {<span className="font-semibold">Don&apos;t Allow</span>}, go to {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} and turn the toggle {b("ON")} for Suprah.AI - Timeproof Clock.</>,
       },
       {
         title: "Screenshots stopped working after a while? Here's the fix",
@@ -478,9 +478,9 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
             <p>1. Click the {b("Apple menu")} (🍎) at the top-left of your screen, then click {b("System Settings")}.</p>
             <p>2. Click {b("Privacy & Security")} on the left side.</p>
             <p>3. Click {b("Screen Recording")}.</p>
-            <p>4. Find {b("Suprah AI - Timeproof Clock")} in the list.</p>
+            <p>4. Find {b("Suprah.AI - Timeproof Clock")} in the list.</p>
             <p>5. If the switch is already ON, turn it {b("OFF")}, wait a second, then turn it {b("ON")} again. If it&apos;s OFF, just turn it {b("ON")}.</p>
-            <p>6. Quit the app completely — click the small {b("AA")} icon in your menu bar, then {b("Sign Out")} — then open {b("Suprah AI - Timeproof Clock")} again from your {b("Applications")} folder.</p>
+            <p>6. Quit the app completely — click the small {b("AA")} icon in your menu bar, then {b("Sign Out")} — then open {b("Suprah.AI - Timeproof Clock")} again from your {b("Applications")} folder.</p>
           </div>
         ),
       },
@@ -495,7 +495,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
   return [
     {
       title: "Pumunta sa Timeproof Clock page",
-      body: <>Mag-log in sa Action Auto website. Sa kaliwang menu, i-click ang {b("Timeproof Clock")}. I-scroll pababa hanggang makita mo ang {b("Desktop Tray App")} section.</>,
+      body: <>Mag-log in sa Suprah.AI dashboard. Sa kaliwang menu, i-click ang {b("Timeproof Clock")}. I-scroll pababa hanggang makita mo ang {b("Desktop Tray App")} section.</>,
     },
     {
       title: 'I-click ang "Download for Mac"',
@@ -512,14 +512,14 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
     },
     {
       title: "Buksan ang app — magwa-warning ang Mac mo (normal lang ito!)",
-      body: <>Pumunta sa {b("Applications")} folder mo at i-double-click ang {b("Suprah AI - Timeproof Clock")}. Magpapakita ang Mac mo ng pop-up na sabing hindi ito mabuksan. Wag mag-alala — sundan lang ang dalawang hakbang sa ibaba. Maaaring magkaiba ang eksaktong pangalan ng button depende sa macOS version (may &quot;Show in Finder&quot; / &quot;OK&quot;, may &quot;Move to Trash&quot; / &quot;Cancel&quot;) — normal lang din iyon.</>,
+      body: <>Pumunta sa {b("Applications")} folder mo at i-double-click ang {b("Suprah.AI - Timeproof Clock")}. Magpapakita ang Mac mo ng pop-up na sabing hindi ito mabuksan. Wag mag-alala — sundan lang ang dalawang hakbang sa ibaba. Maaaring magkaiba ang eksaktong pangalan ng button depende sa macOS version (may &quot;Show in Finder&quot; / &quot;OK&quot;, may &quot;Move to Trash&quot; / &quot;Cancel&quot;) — normal lang din iyon.</>,
       visual: <MacGatekeeper lang={lang} />,
       warning: <>Normal lang ang warning na ito — lumalabas ito para sa kahit anong app na hindi binenta sa App Store. Sundan lang ang mga hakbang sa larawan sa itaas, at {<span className="font-semibold">huwag kailanman i-click ang &quot;Move to Trash&quot;</span>} — made-delete nito ang app. I-click na lang ang &quot;Cancel&quot; (o &quot;OK&quot;) para lang isara ang pop-up.</>,
     },
     {
       title: "Payagan ang Screen Recording kapag tinanong",
       body: <>Sa unang beses na buksan ang app, hihingi ito ng permiso na i-record ang screen mo. Kailangan ito para makakuha ito ng automatic screenshots bilang proof ng trabaho mo. I-click ang {b("Allow")} kapag lumabas ang pop-up.</>,
-      tip: <>Kung na-click mo nang aksidente ang {<span className="font-semibold">Don&apos;t Allow</span>}, pumunta sa {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} at i-on ang toggle para sa Suprah AI - Timeproof Clock.</>,
+      tip: <>Kung na-click mo nang aksidente ang {<span className="font-semibold">Don&apos;t Allow</span>}, pumunta sa {<span className="font-semibold">System Settings → Privacy &amp; Security → Screen Recording</span>} at i-on ang toggle para sa Suprah.AI - Timeproof Clock.</>,
     },
     {
       title: "Tumigil ba ang screenshots pagkalipas ng ilang araw? Ito ang ayos",
@@ -529,9 +529,9 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
           <p>1. I-click ang {b("Apple menu")} (🍎) sa kaliwang-itaas ng screen mo, tapos i-click ang {b("System Settings")}.</p>
           <p>2. I-click ang {b("Privacy & Security")} sa kaliwang bahagi.</p>
           <p>3. I-click ang {b("Screen Recording")}.</p>
-          <p>4. Hanapin ang {b("Suprah AI - Timeproof Clock")} sa listahan.</p>
+          <p>4. Hanapin ang {b("Suprah.AI - Timeproof Clock")} sa listahan.</p>
           <p>5. Kung naka-ON na ang switch, i-OFF muna ito, maghintay ng isang segundo, tapos i-ON ulit. Kung naka-OFF ito, i-ON lang.</p>
-          <p>6. I-close nang tuluyan ang app — i-click ang maliit na {b("AA")} icon sa menu bar mo, tapos {b("Sign Out")} — pagkatapos buksan ulit ang {b("Suprah AI - Timeproof Clock")} mula sa {b("Applications")} folder mo.</p>
+          <p>6. I-close nang tuluyan ang app — i-click ang maliit na {b("AA")} icon sa menu bar mo, tapos {b("Sign Out")} — pagkatapos buksan ulit ang {b("Suprah.AI - Timeproof Clock")} mula sa {b("Applications")} folder mo.</p>
         </div>
       ),
     },
@@ -563,7 +563,7 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: 'If it says "Waiting for sign-in"',
-        body: <>That just means the app hasn&apos;t connected yet. Go to the Action Auto website in your browser and log in — the app will connect itself within a few seconds. You never type a password into the app itself.</>,
+        body: <>That just means the app hasn&apos;t connected yet. Go to the Suprah.AI dashboard in your browser and log in — the app will connect itself within a few seconds. You never type a password into the app itself.</>,
         visual: <TrayPopupMockup lang={lang} waiting />,
       },
       {
@@ -600,7 +600,7 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
     },
     {
       title: 'Kung sabing "Waiting for sign-in"',
-      body: <>Ibig sabihin lang nito ay hindi pa nakakonekta ang app. Pumunta sa Action Auto website gamit ang browser mo at mag-log in — awtomatiko na itong kokonekta sa loob ng ilang segundo. Hindi ka kailanman magta-type ng password sa app mismo.</>,
+      body: <>Ibig sabihin lang nito ay hindi pa nakakonekta ang app. Pumunta sa Suprah.AI dashboard gamit ang browser mo at mag-log in — awtomatiko na itong kokonekta sa loob ng ilang segundo. Hindi ka kailanman magta-type ng password sa app mismo.</>,
       visual: <TrayPopupMockup lang={lang} waiting />,
     },
     {

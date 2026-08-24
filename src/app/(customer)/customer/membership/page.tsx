@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useMyMembership, useAllTiers, useMyPointHistory } from "@/hooks/api/useMembership";
 import { useUser, useAuthActions } from "@/providers/AuthProvider";
+import { useOrg } from "@/hooks/useOrg";
 import { MembershipCardModal } from "@/components/customer/MembershipCardModal";
 import type { PointSourceType } from "@/types/membership";
 import { cn } from "@/lib/utils";
@@ -100,6 +101,8 @@ export default function MembershipPage() {
   const { data: history, isLoading: loadingHistory } = useMyPointHistory(historyPage);
   const { user } = useUser();
   const { user: rawUser } = useAuthActions();
+  const { organization } = useOrg();
+  const dealerName = organization?.name || "Your Dealership";
   const [cardOpen, setCardOpen] = useState(false);
   const [mobilePerkTier, setMobilePerkTier] = useState<string | null>(null);
   const prevTierRankRef = useRef<number | null>(null);
@@ -174,7 +177,7 @@ export default function MembershipPage() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
             <span className="text-[10px] font-black uppercase tracking-[0.28em] text-primary/80">
-              Action Auto · Drivers Club
+              {dealerName} · Drivers Club
             </span>
           </div>
           <h1 className="mt-1.5 text-2xl font-black uppercase tracking-tight text-foreground sm:text-3xl">
@@ -289,7 +292,7 @@ export default function MembershipPage() {
                 {ACTION_AUTO_SERVICE_DISCOUNT_PERCENT}% off eligible services
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Show your virtual card QR at participating service locations. Stores can verify your Action Auto Utah customer benefit with {ACTION_AUTO_BENEFITS_REP.name}.
+                Show your virtual card QR at participating service locations. Stores can verify your {dealerName} customer benefit with {ACTION_AUTO_BENEFITS_REP.name}.
               </p>
             </div>
           </div>

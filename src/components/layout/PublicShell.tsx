@@ -17,8 +17,8 @@ export function PublicShell({
     children, 
     hideNav = false, 
     hideThemeToggle = false, 
-    logoText = "Action Auto", 
-    logoIcon = "A" 
+    logoText = "Suprah.AI",
+    logoIcon = "S"
 }: PublicShellProps) {
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -54,7 +54,7 @@ export function PublicShell({
             <footer className="py-12 border-t bg-muted/30">
                 <div className="container mx-auto px-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                        © {new Date().getFullYear()} Action Auto Utah. All rights reserved.
+                        © {new Date().getFullYear()} Suprah.AI. All rights reserved.
                     </p>
                 </div>
             </footer>

@@ -109,10 +109,10 @@ export default function ReferralLandingPage() {
       <div className="mb-10 text-center select-none">
         <div className="inline-flex items-center gap-1.5 mb-1">
           <Car className="h-5 w-5 text-primary" />
-          <span className="text-white font-black text-lg tracking-tight">ACTION AUTO</span>
+          <span className="text-white font-black text-lg tracking-tight">Your Dealership</span>
         </div>
         <p className="text-[9px] text-zinc-600 tracking-[0.35em] uppercase font-semibold">
-          Powered by Suprah AI
+          Powered by Suprah.AI
         </p>
       </div>
 
@@ -320,7 +320,7 @@ export default function ReferralLandingPage() {
             </div>
             <div className="pt-4 border-t border-white/5">
               <p className="text-[10px] text-zinc-600">
-                Action Auto Utah · Powered by Suprah AI
+                Your Dealership · Powered by Suprah.AI
               </p>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function ReferralLandingPage() {
 
             <div className="pt-4 border-t border-white/5">
               <p className="text-[10px] text-zinc-600">
-                Action Auto Utah · Powered by Suprah AI
+                Your Dealership · Powered by Suprah.AI
               </p>
             </div>
           </div>
@@ -362,7 +362,7 @@ export default function ReferralLandingPage() {
 
       {/* Footer */}
       <p className="mt-12 text-[10px] text-zinc-800">
-        © {new Date().getFullYear()} Action Auto Utah. All rights reserved.
+        © {new Date().getFullYear()} Your Dealership. All rights reserved.
       </p>
     </div>
   );

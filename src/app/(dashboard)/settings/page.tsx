@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { useOrg } from "@/hooks/useOrg";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -23,12 +24,13 @@ import { SystemSettingsTab } from "@/components/settings/SystemSettingsTab";
 function SettingsContent() {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "reports";
+  const { organization } = useOrg();
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-background min-h-screen">
       <div>
         <h1 className="text-lg sm:text-xl font-bold truncate">
-          Action Auto Utah
+          {organization?.name || "Your Dealership"}
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
           System Administrator Settings

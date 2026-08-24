@@ -74,9 +74,9 @@ export default function OrgSelectionPage() {
                     <Car className="size-8" />
                 </div>
                 <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold tracking-tight">ACTION AUTO UTAH</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">SUPRAH.AI</h1>
                     <p className="text-[10px] font-extrabold text-green-600 uppercase tracking-widest leading-none">
-                        Powered by Supra AI
+                        Powered by Suprah.AI
                     </p>
                 </div>
             </div>
@@ -96,7 +96,7 @@ export default function OrgSelectionPage() {
                                     <Label htmlFor="orgName">Dealership Name</Label>
                                     <Input
                                         id="orgName"
-                                        placeholder="e.g. Action Auto Lehi"
+                                        placeholder="e.g. Suprah Motors"
                                         value={newOrgName}
                                         onChange={(e) => setNewOrgName(e.target.value)}
                                         required

@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useOrg } from "@/hooks/useOrg"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -272,6 +273,7 @@ function SkeletonRow() {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTableProps) {
+  const { organization } = useOrg()
   const [users, setUsers] = React.useState<CrmUserRow[]>([])
   const [fetchError, setFetchError] = React.useState<string | null>(null)
   const [pagination, setPagination] = React.useState<PaginationMeta>({
@@ -462,7 +464,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
 
       doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
-      doc.text("Action Auto Utah - CRM Users", 40, 42)
+      doc.text(`${organization?.name || "Your Dealership"} - CRM Users`, 40, 42)
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.text(`Generated: ${generatedAt}`, 40, 60)
@@ -898,7 +900,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b border-border/30 bg-muted/2">
                 <th className="px-5 py-3 text-left">
@@ -949,7 +951,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                     onSort={handleSort}
                   />
                 </th>
-                <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <th className="w-16 px-5 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   Actions
                 </th>
               </tr>
@@ -1031,7 +1033,7 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
                         </td>
 
                         <td className="px-5 py-3.5">
-                          <span className="text-xs font-mono font-semibold text-foreground/80 bg-muted/40 px-2 py-0.5 rounded-md">
+                          <span className="whitespace-nowrap text-xs font-mono font-semibold text-foreground/80 bg-muted/40 px-2 py-0.5 rounded-md">
                             {u.username}
                           </span>
                         </td>

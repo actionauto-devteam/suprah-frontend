@@ -581,7 +581,7 @@ export function VehicleDetailView({
   isComparing,
   onToggleCompare,
 }: VehicleDetailViewProps) {
-  const { userRole, isSuperAdmin } = useOrg();
+  const { userRole, isSuperAdmin, organization } = useOrg();
   const isAdmin =
     userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
 
@@ -611,7 +611,7 @@ export function VehicleDetailView({
     (hasKnownLocation ? locationFromApi : "") ||
     fallbackDealerLocation ||
     "Orem, UT";
-  const locationMapQuery = `Action Auto Utah ${displayLocation}`;
+  const locationMapQuery = `${vehicle.dealerName || organization?.name || "Your Dealership"} ${displayLocation}`;
 
   React.useEffect(() => {
     setTab("overview");
@@ -1499,7 +1499,7 @@ export function VehicleDetailView({
                 <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-3.5 py-3 dark:bg-zinc-900/40">
                   <div>
                     <p className="text-xs font-semibold">
-                      {vehicle.dealerName || "Action Auto Utah"}
+                      {vehicle.dealerName || organization?.name || "Your Dealership"}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {displayLocation}

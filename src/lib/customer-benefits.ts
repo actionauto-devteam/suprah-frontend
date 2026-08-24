@@ -6,10 +6,10 @@ export const ACTION_AUTO_BENEFITS_REP = {
   company: "Lube Management Corp, Utah",
 };
 
-export function buildMemberBenefitsUrl(memberId: string, memberName: string) {
+export function buildMemberBenefitsUrl(memberId: string, memberName: string, dealerName: string = "Your Dealership") {
   const params = new URLSearchParams({
     name: memberName,
-    dealer: "Action Auto Utah",
+    dealer: dealerName,
   });
 
   if (typeof window !== "undefined") {

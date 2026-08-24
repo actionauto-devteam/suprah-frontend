@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Copy, Share2, Wallet, ArrowUpRight, TrendingUp, Users, CheckCircle2, Loader2, Receipt, Lightbulb } from "lucide-react"
 import { useWalletDashboard, useRequestWithdrawal } from "@/hooks/api/useWallet"
+import { useOrg } from "@/hooks/useOrg"
 import { toast } from "sonner"
 import {
     Dialog,
@@ -28,6 +29,8 @@ import {
 export default function ReferAndEarnPage() {
     const { data: dashboard, isLoading } = useWalletDashboard();
     const { mutate: withdrawFunds, isPending: isWithdrawing } = useRequestWithdrawal();
+    const { organization } = useOrg();
+    const dealerName = organization?.name || "Your Dealership";
 
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -49,13 +52,13 @@ export default function ReferAndEarnPage() {
     const shareToWhatsApp = () => {
         const link = getShareLink();
         if (!link) return;
-        window.open(`https://wa.me/?text=${encodeURIComponent('Hey! Check out Action Auto using my referral link: ' + link)}`, '_blank');
+        window.open(`https://wa.me/?text=${encodeURIComponent(`Hey! Check out ${dealerName} using my referral link: ` + link)}`, '_blank');
     }
 
     const shareToTwitter = () => {
         const link = getShareLink();
         if (!link) return;
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent('Buy your next car from Action Auto and we both get rewarded!')}&url=${encodeURIComponent(link)}`, '_blank');
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Buy your next car from ${dealerName} and we both get rewarded!`)}&url=${encodeURIComponent(link)}`, '_blank');
     }
 
     const shareToFacebook = () => {
@@ -71,8 +74,8 @@ export default function ReferAndEarnPage() {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Action Auto Referral',
-                    text: 'Buy your next car from Action Auto and we both get rewarded!',
+                    title: `${dealerName} Referral`,
+                    text: `Buy your next car from ${dealerName} and we both get rewarded!`,
                     url: link,
                 });
             } catch (error) {
@@ -138,7 +141,7 @@ export default function ReferAndEarnPage() {
                         <Wallet className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" /> Refer & Earn
                     </h1>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base lg:text-lg">
-                        Share Action Auto with friends and family. When they buy a car using your code, you instantly earn <strong className="text-primary">$100 cash</strong>.
+                        Share {dealerName} with friends and family. When they buy a car using your code, you instantly earn <strong className="text-primary">$100 cash</strong>.
                     </p>
                 </div>
             </div>
@@ -148,7 +151,7 @@ export default function ReferAndEarnPage() {
                 {/* Left Col: Digital Wallet & Link (Takes 2 columns) */}
                 <div className="lg:col-span-2 space-y-6 sm:space-y-8">
 
-                    {/* Action Auto Black Card (Digital Wallet) */}
+                    {/* Dealership Black Card (Digital Wallet) */}
                     <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-zinc-950 text-white shadow-2xl border border-zinc-800 p-5 sm:p-8 lg:p-10 group">
                         <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors duration-1000" />
                         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/15 rounded-full blur-3xl group-hover:bg-primary/25 transition-colors duration-1000" />

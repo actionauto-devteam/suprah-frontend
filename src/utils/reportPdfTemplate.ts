@@ -183,8 +183,8 @@ export function drawReportPageHeader(
 ): void {
   const {
     reportTitle,
-    orgName = "Action Auto Utah",
-    productName = "Suprah AI Reports",
+    orgName = "Your Dealership",
+    productName = "Suprah.AI Reports",
     periodLabel,
     subtitle,
     logoBase64,
@@ -586,8 +586,8 @@ export function drawPageFooter(
     docId,
     generatedAtLabel,
     reportTitle,
-    orgName = "Action Auto Utah",
-    productName = "Suprah AI Reports",
+    orgName = "Your Dealership",
+    productName = "Suprah.AI Reports",
     pageWidth,
     pageHeight,
     left,

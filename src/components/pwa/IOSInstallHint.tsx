@@ -63,7 +63,7 @@ export function IOSInstallHint() {
                         <div className="space-y-2">
                             <h3 className="text-xl font-bold tracking-tight">Enable Push Notifications</h3>
                             <p className="text-sm text-muted-foreground leading-relaxed px-2">
-                                Action Auto requires being added to your Home Screen to deliver real-time alerts on iOS.
+                                Suprah.AI requires being added to your Home Screen to deliver real-time alerts on iOS.
                             </p>
                         </div>
 

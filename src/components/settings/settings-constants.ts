@@ -51,7 +51,7 @@ export type SystemSettings = {
 
 export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   account: {
-    dealershipName: "Action Auto Utah",
+    dealershipName: "Your Dealership",
     primaryLocation: "Lehi, UT",
     autoSyncDms: true,
     publicConditionReports: true,

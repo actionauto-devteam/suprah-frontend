@@ -72,7 +72,7 @@ export function VerifyEmailForm() {
 
             if (result.status === "complete") {
                 setIsSuccess(true);
-                toast.success("Email verified successfully! Welcome to Action Auto.");
+                toast.success("Email verified successfully! Welcome to Suprah.AI.");
                 setTimeout(() => {
                     window.location.href = "/";
                 }, 2000);

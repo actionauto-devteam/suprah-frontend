@@ -8,6 +8,7 @@ import { Search, MapPin, Navigation, Phone, Clock, Navigation2, Crosshair, Refre
 import mapboxgl from "mapbox-gl"
 
 import { useAuth } from "@/providers/AuthProvider"
+import { useOrg } from "@/hooks/useOrg"
 import { apiClient } from "@/lib/api-client"
 import { useTheme } from "@/context/ThemeContext"
 
@@ -134,6 +135,7 @@ async function geocodeAddress(address: string, city: string, state: string, zip:
 // ---------------------------------------------------------------------------
 export default function ServiceNetworkPage() {
   const { getToken } = useAuth()
+  const { organization } = useOrg()
   const { theme } = useTheme()
   const [locations, setLocations] = React.useState<any[]>([])
   const [sortedLocations, setSortedLocations] = React.useState<any[]>([])
@@ -421,7 +423,7 @@ export default function ServiceNetworkPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">Service Network</h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-base max-w-2xl hidden sm:block">
-              Find an Action Auto partner location near you. Simply show your membership card to redeem exclusive service discounts.
+              Find a {organization?.name || "Your Dealership"} partner location near you. Simply show your membership card to redeem exclusive service discounts.
             </p>
           </div>
           <div className="flex gap-2 w-full">

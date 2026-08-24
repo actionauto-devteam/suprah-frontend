@@ -1092,6 +1092,7 @@ if (typeof document !== 'undefined') {
     .ss4-new-btn:hover { background:rgba(91,124,246,0.25); }
     .ss4-theme-btn { background:var(--bg-hover); border:1px solid var(--border-2); border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; }
     .ss4-theme-btn:hover { color:var(--text-primary); border-color:var(--border-3); }
+    .ss4[data-theme="dark"] .ss4-theme-btn { color:rgba(255,255,255,0.78); }
     .ss4-file-own { background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.12); border-radius:10px; }
     .ss4-file-other { background:var(--surface-2); border:1px solid var(--border-1); border-radius:10px; }
     .ss4-badge { background:var(--accent); color:#fff; font-size:9px; font-weight:700; border-radius:10px; min-width:16px; height:16px; line-height:16px; padding:0 4px; text-align:center; }
@@ -1908,7 +1909,13 @@ function normalizeSerialSearchText(text: string): string {
 }
 
 function isEmptyVinLabelLine(line: string): boolean {
-  return /^\s*VIN\s*#?\s*:\s*$/i.test(line);
+  // A "VIN:" label inside a bulleted/numbered list (e.g. "• VIN: ", "1. VIN: ")
+  // is what these labels actually look like once serialized — without the
+  // optional leading marker here, every bulleted VIN line fails this check,
+  // which sends every restored VIN through the "append at end of message"
+  // fallback below instead of back into its own line (the exact bug where a
+  // multi-vehicle report's VINs all end up clumped at the bottom).
+  return /^\s*(?:[•◦▪]\s+|\d+[.)]\s+)?VIN\s*#?\s*:\s*$/i.test(line);
 }
 
 function restoreMissingSerialsFromSources(serialized: string, sources: Array<string | null | undefined>): string {
@@ -3044,12 +3051,31 @@ function normalizePastedListArtifacts(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+// Word/Google Docs paste HTML often wraps a selection in an outer <b> tag
+// purely as a formatting-reset container (its own inline style says
+// font-weight:normal, but our converter still sees tag==='b') alongside the
+// real bold run inside \u2014 leaving one dangling, unpaired "**" in the
+// serialized text with nothing to close. Left alone, that stray marker
+// pairs incorrectly with the NEXT real "**" pair down the line, making
+// otherwise-correct bold markup show up as literal asterisks. Applied here
+// (not just on send) so it also self-heals already-stored messages the next
+// time they're rendered/edited, not only new ones going forward.
+function stripOrphanedBoldMarker(text: string): string {
+  const count = (text.match(/\*\*/g) || []).length;
+  if (count % 2 === 0) return text;
+  const lastIndex = text.lastIndexOf('**');
+  if (lastIndex === -1) return text;
+  return text.slice(0, lastIndex) + text.slice(lastIndex + 2);
+}
+
 function normalizeMessageMarkdownText(text: string): string {
-  return normalizeListExitLineSpacing(
-    normalizePastedListArtifacts(
-      text
-        .replace(/\r\n?/g, '\n')
-        .replace(/\u00a0/g, ' '),
+  return stripOrphanedBoldMarker(
+    normalizeListExitLineSpacing(
+      normalizePastedListArtifacts(
+        text
+          .replace(/\r\n?/g, '\n')
+          .replace(/\u00a0/g, ' '),
+      ),
     ),
   ).trim();
 }
@@ -4091,8 +4117,12 @@ const Bubble = React.memo(function Bubble({
   const enterEdit = () => {
     const measuredWidth = bubbleRef.current?.getBoundingClientRect().width || 0;
     const rowWidth = bubbleRowRef.current?.getBoundingClientRect().width
-      || (typeof window !== 'undefined' ? window.innerWidth : 560);
-    const maxResponsiveWidth = Math.max(280, Math.min(560, rowWidth - 72));
+      || (typeof window !== 'undefined' ? window.innerWidth : 672);
+    // Cap matched to .ss4-msg-column's own max-width (min(72%, 42rem) = 672px)
+    // — it used to be 560, narrower than a normal bubble can actually grow to,
+    // so editing a long message visibly shrank/re-wrapped its body into a
+    // tighter box than how it displayed a moment earlier.
+    const maxResponsiveWidth = Math.max(280, Math.min(672, rowWidth - 72));
     setEditWidth(Math.min(Math.max(measuredWidth, 360), maxResponsiveWidth));
     setEditDraft(message.content || '');
     setEditTextColor('#ffffff');
@@ -4938,6 +4968,7 @@ const Bubble = React.memo(function Bubble({
 
         <div ref={bubbleRef} className="relative w-fit">
           {editMode ? (
+            <>
             <div
               className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
               style={{
@@ -5254,7 +5285,7 @@ const Bubble = React.memo(function Bubble({
                   });
                 }}
                 className="ss4-copyable-text ss4-rich-edit min-h-7 max-h-56 overflow-y-auto outline-none"
-                style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--accent)' }}
+                style={{ color: 'inherit', minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: '#fff' }}
               />
               {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
                 <div className="mt-2 space-y-2 rounded-xl p-2" style={{ background: 'rgba(0,0,0,0.14)', border: '1px solid rgba(255,255,255,0.14)' }}>
@@ -5285,56 +5316,62 @@ const Bubble = React.memo(function Bubble({
                   )}
                 </div>
               )}
-              <div
-                className="mt-2 flex flex-col gap-2 pt-2 sm:flex-row sm:items-center"
-                style={{ borderTop: '1px solid rgba(255,255,255,0.16)' }}
-              >
-                <span className="min-w-0 truncate" style={{ fontSize: 11, opacity: 0.5 }}>
-                  Alt+Enter or Shift+Enter adds a line break · Ctrl/Cmd+Enter saves · Esc cancels
-                </span>
+            </div>
+            <div
+              className="flex flex-col gap-2 rounded-xl p-2 sm:flex-row sm:items-center"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-2)',
+                width: editWidth ? `${editWidth}px` : 'min(34rem, calc(100vw - 3rem))',
+                maxWidth: 'min(100%, calc(100vw - 3rem))',
+              }}
+            >
+              <span className="min-w-0 truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                Alt+Enter or Shift+Enter adds a line break · Ctrl/Cmd+Enter saves · Esc cancels
+              </span>
 
-                <input
-                  ref={editFileInputRef}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={e => {
-                    setEditReplacementFiles(Array.from(e.target.files || []));
-                    syncEditDraft();
-                  }}
-                />
+              <input
+                ref={editFileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={e => {
+                  setEditReplacementFiles(Array.from(e.target.files || []));
+                  syncEditDraft();
+                }}
+              />
 
-                <div className="grid w-full grid-cols-3 gap-2 sm:ml-auto sm:flex sm:w-auto sm:items-center">
-                  <button
-                    type="button"
-                    onClick={() => editFileInputRef.current?.click()}
-                    className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium"
-                    style={{ background: 'rgba(255,255,255,0.12)', color: 'inherit' }}
-                    title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
-                  >
-                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
-                  </button>
+              <div className="grid w-full grid-cols-3 gap-2 sm:ml-auto sm:flex sm:w-auto sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => editFileInputRef.current?.click()}
+                  className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium"
+                  style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)' }}
+                  title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
+                >
+                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                </button>
 
-                  <button
-                    onClick={cancelEdit}
-                    className="h-8 min-w-0 rounded-lg px-2 text-xs font-medium"
-                    style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit' }}
-                  >
-                    Cancel
-                  </button>
+                <button
+                  onClick={cancelEdit}
+                  className="h-8 min-w-0 rounded-lg px-2 text-xs font-medium"
+                  style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)' }}
+                >
+                  Cancel
+                </button>
 
-                  <button
-                    onClick={saveEdit}
-                    disabled={!canSaveEdit}
-                    className="h-8 min-w-0 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-40"
-                    style={{ background: 'var(--positive,#34c97d)' }}
-                  >
-                    {editSaving ? '...' : 'Update'}
-                  </button>
-                </div>
+                <button
+                  onClick={saveEdit}
+                  disabled={!canSaveEdit}
+                  className="h-8 min-w-0 rounded-lg px-2 text-xs font-semibold text-white disabled:opacity-40"
+                  style={{ background: 'var(--positive,#34c97d)' }}
+                >
+                  {editSaving ? '...' : 'Update'}
+                </button>
               </div>
             </div>
+            </>
           ) : message.content ? (
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
@@ -6007,12 +6044,12 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
         <div className="px-4 pb-4 space-y-3">
           {tab === 'group' && (
             <div className="flex gap-2">
-              <input value={groupEmoji} onChange={e => setGroupEmoji(e.target.value)} placeholder="#" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'Geist, sans-serif', fontSize: 18 }} maxLength={4} />
-              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+              <input value={groupEmoji} onChange={e => setGroupEmoji(e.target.value)} placeholder="#" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif', fontSize: 18 }} maxLength={4} />
+              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
             </div>
           )}
           {tab === 'space' && (
-            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
           )}
           {tab === 'dm' && selectedUsers.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pb-1">
@@ -6036,7 +6073,7 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
                 <input value={q} onChange={e => setQ(e.target.value)}
                   placeholder="Search people..."
                   className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input"
-                  style={{ fontFamily: 'Geist, sans-serif', color: 'var(--text-primary)', fontWeight: 500 }} />
+                  style={{ fontFamily: 'var(--font-geist-sans), sans-serif', color: 'var(--text-primary)', fontWeight: 500 }} />
               </div>
               <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
                 {list.map(u => {
@@ -7109,7 +7146,7 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
             onChange={e => setQuery(e.target.value)}
             placeholder="Search people…"
             className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input"
-            style={{ fontFamily: 'Geist, sans-serif' }}
+            style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}
           />
         </div>
       </div>
@@ -10936,24 +10973,32 @@ export default function SupraSpacePage() {
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <div className="hidden sm:flex items-center gap-2">
+              <div className="hidden lg:flex items-center gap-2">
                 <MountainTimeClock compact />
                 <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
                   <Wifi className="h-3.5 w-3.5" />
                   <span className="font-semibold" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
                 </button>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="ss4-icon-btn h-8 w-8 sm:hidden" title="More"><MoreVertical className="h-4 w-4" /></button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                  <div className="px-3 py-2"><MountainTimeClock compact /></div>
-                  <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setActiveUsersOpen(true)}>
-                    <Wifi className="h-3.5 w-3.5" /> {allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active now
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {isMobileViewport && (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    {/* .ss4-icon-btn's own base rule sets display:flex unconditionally;
+                        since it's injected at runtime (after Tailwind's own stylesheet),
+                        it wins the cascade over a lg:hidden utility class at equal
+                        specificity — the class alone can't hide this button on desktop.
+                        Gating the whole trigger in JS via useIsMobile() sidesteps that
+                        entirely instead of fighting the CSS cascade. */}
+                    <button className="ss4-icon-btn h-8 w-8" title="More"><MoreVertical className="h-4 w-4" /></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                    <div className="px-3 py-2"><MountainTimeClock compact /></div>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setActiveUsersOpen(true)}>
+                      <Wifi className="h-3.5 w-3.5" /> {allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active now
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
               {!isStandaloneApp && (
                 <button onClick={() => setAppSettingsOpen(true)} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Settings">
@@ -11031,7 +11076,7 @@ export default function SupraSpacePage() {
                       <CheckCheck className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  <DropdownMenu>
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
                     </DropdownMenuTrigger>
@@ -11079,7 +11124,7 @@ export default function SupraSpacePage() {
               </div>
               <div className="relative">
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'Geist, sans-serif' }} />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
               </div>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
                 {CONVERSATION_FILTERS.map((filter) => {
@@ -11101,7 +11146,7 @@ export default function SupraSpacePage() {
                         minHeight: '26px',
                         maxHeight: '26px',
                         padding: '0 10px',
-                        fontFamily: 'Geist, sans-serif',
+                        fontFamily: 'var(--font-geist-sans), sans-serif',
                         fontSize: '10.5px',
                         fontWeight: 600,
                         lineHeight: 1,
@@ -11352,7 +11397,7 @@ export default function SupraSpacePage() {
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <DropdownMenu>
+                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild><button className="ss4-video-btn h-10 min-w-10 px-2.5 lg:h-8 lg:min-w-0 lg:px-3 flex items-center justify-center gap-1.5" title="Start a call"><Phone className="h-5 w-5 lg:h-3.5 lg:w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 12 }}>Call</span></button></DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
@@ -12050,7 +12095,7 @@ export default function SupraSpacePage() {
                               }}
                               onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
                               className="ss4-composer-editor ss4-rich-edit text-sm focus:outline-none max-h-36 min-h-7 py-0.5 overflow-y-auto"
-                              style={{ fontFamily: 'Geist, sans-serif', lineHeight: '1.55', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%', overflowX: 'hidden', outline: 'none' }}
+                              style={{ fontFamily: 'var(--font-geist-sans), sans-serif', lineHeight: '1.55', caretColor: 'var(--accent)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%', overflowX: 'hidden', outline: 'none' }}
                             />
                             <div ref={mobileEmojiRef} className="relative ss4-mobile-emoji flex md:hidden">
                               <button
@@ -12385,7 +12430,7 @@ export default function SupraSpacePage() {
                               onChange={e => setConvSearchQuery(e.target.value)}
                               placeholder={`Search in ${cName}…`}
                               className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input"
-                              style={{ fontFamily: 'Geist, sans-serif' }}
+                              style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}
                             />
                           </div>
                           {convSearchQuery.trim().length >= 2 && (

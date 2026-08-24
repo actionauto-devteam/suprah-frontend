@@ -12,7 +12,7 @@ export default function OfflinePage() {
             </div>
             <h1 className="text-4xl font-bold mb-4 tracking-tight">You're Offline</h1>
             <p className="text-zinc-400 max-w-md mb-8">
-                It looks like you've lost your connection. Don't worry, you can still access some parts of the Action Auto Utah Dashboard that were previously loaded.
+                It looks like you've lost your connection. Don't worry, you can still access some parts of the Suprah.AI Dashboard that were previously loaded.
             </p>
             <div className="flex flex-col gap-4 w-full max-w-xs">
                 <Link
@@ -29,7 +29,7 @@ export default function OfflinePage() {
                 </button>
             </div>
             <div className="mt-12 text-zinc-500 text-sm">
-                Action Auto Utah • Offline Mode
+                Suprah.AI • Offline Mode
             </div>
         </div>
     );

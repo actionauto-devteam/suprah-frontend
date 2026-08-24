@@ -6,6 +6,7 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
+import { useOrg } from "@/hooks/useOrg"
 import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
@@ -358,6 +359,7 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
 export default function LoadDetailsPage() {
   const params = useParams()
   const router = useRouter()
+  const { organization } = useOrg()
   const rawId = params?.id
   const id = Array.isArray(rawId) ? rawId[0] : rawId
   const [mobileBolPreviewOpen, setMobileBolPreviewOpen] = React.useState(false)
@@ -959,7 +961,7 @@ export default function LoadDetailsPage() {
                     <iframe
                       ref={mobileBolPreviewRef}
                       title={`BOL Preview ${load.loadNumber}`}
-                      srcDoc={generateBolHtml(load)}
+                      srcDoc={generateBolHtml(load, organization?.name || "Your Dealership")}
                       onLoad={syncMobileBolPreview}
                       scrolling="no"
                       className="absolute left-0 top-0 border-0 bg-white"

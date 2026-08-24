@@ -24,6 +24,7 @@ import {
   Heart,
 } from "lucide-react";
 import { useMyMembership } from "@/hooks/api/useMembership";
+import { useOrg } from "@/hooks/useOrg";
 import { useAuthActions, useUser } from "@/providers/AuthProvider";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -159,6 +160,7 @@ export function CustomerSidebar() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(pathname.startsWith("/customer/shop"));
   const { data: membership } = useMyMembership();
+  const { organization } = useOrg();
 
   const resolvedAvatar = resolveImageUrl(
     avatarUrl !== null ? avatarUrl : user?.imageUrl,
@@ -174,7 +176,7 @@ export function CustomerSidebar() {
           <div className="shrink-0 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8 w-10 h-10 flex items-center justify-center">
             <Image
               src="/favicon.png"
-              alt="Action Auto"
+              alt={organization?.name || "Your Dealership"}
               width={40}
               height={40}
               className="object-contain invert dark:invert-0 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8"
@@ -183,12 +185,12 @@ export function CustomerSidebar() {
           </div>
           <div className="group-data-[collapsible=icon]:hidden min-w-0">
             <p className="text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-zinc-50 leading-none truncate">
-              ACTION AUTO UTAH
+              {organization?.name || "Your Dealership"}
             </p>
             <div className="flex items-center gap-1 mt-1.5">
               <Zap className="w-2.5 h-2.5 text-green-500 fill-green-500" />
               <span className="text-[9px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest leading-none">
-                Powered by Supra AI
+                Powered by Suprah.AI
               </span>
             </div>
           </div>

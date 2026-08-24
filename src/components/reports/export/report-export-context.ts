@@ -60,8 +60,8 @@ export function normalizeReportExportContext(
           ? input.recordCount
           : defaults.recordCount,
       sectionCounts: input.sectionCounts ?? defaults.sectionCounts,
-      organizationName: input.organizationName || "Action Auto Utah",
-      productName: input.productName || "Suprah AI Reports",
+      organizationName: input.organizationName || "Your Dealership",
+      productName: input.productName || "Suprah.AI Reports",
       generatedAt:
         input.generatedAt instanceof Date &&
         !Number.isNaN(input.generatedAt.getTime())
@@ -85,8 +85,8 @@ export function normalizeReportExportContext(
     generatedAt: new Date(),
     recordCount: defaults.recordCount,
     sectionCounts: defaults.sectionCounts,
-    organizationName: "Action Auto Utah",
-    productName: "Suprah AI Reports",
+    organizationName: "Your Dealership",
+    productName: "Suprah.AI Reports",
   };
 }
 
@@ -128,8 +128,8 @@ export function createReportExportContext(input: {
     generatedAt: input.generatedAt ?? new Date(),
     recordCount: Math.max(0, input.recordCount),
     sectionCounts: input.sectionCounts,
-    organizationName: input.organizationName || "Action Auto Utah",
-    productName: input.productName || "Suprah AI Reports",
+    organizationName: input.organizationName || "Your Dealership",
+    productName: input.productName || "Suprah.AI Reports",
   };
 }
 

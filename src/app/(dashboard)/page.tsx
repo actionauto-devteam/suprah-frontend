@@ -649,7 +649,7 @@ export default function Dashboard() {
                 variant="outline"
                 className="border-emerald-500/25 bg-emerald-500/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-500"
               >
-                Suprah AI
+                Suprah.AI
               </Badge>
               <span className="flex items-center gap-1.5">
                 <span className="relative flex size-1.5">
@@ -673,7 +673,7 @@ export default function Dashboard() {
             <h1 className="text-xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               Welcome to{" "}
               <span className="bg-linear-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(34,197,94,0.25)]">
-                Suprah AI
+                Suprah.AI
               </span>
             </h1>
             <p className="mt-1 text-xs font-medium text-muted-foreground/70 sm:text-sm">

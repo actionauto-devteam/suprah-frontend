@@ -4,6 +4,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronRight, Zap, Car, Shield, Clock, MessageSquare, Rss, Calendar } from 'lucide-react'
 import { SupraLeoAvatar } from './SupraLeoAvatar'
+import { useOrg } from '@/hooks/useOrg'
 
 const GLOBAL_WELCOME_KEY = 'autrix_welcomed_v1'
 
@@ -446,13 +447,13 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     highlight: 'Social',
     iconComponent: <Rss color="#06B6D4" />,
     color: '#06B6D4',
-    description: "The heartbeat of Action Auto. Share wins, post updates, celebrate team milestones, and keep everyone connected — on the floor and off it.",
+    description: "The heartbeat of your dealership. Share wins, post updates, celebrate team milestones, and keep everyone connected — on the floor and off it.",
     tips: [
       'Share shoutouts to celebrate your team\'s wins.',
       'React and comment to stay engaged with colleagues.',
       'Ask me to write a motivational post or team announcement.',
     ],
-    voiceGreeting: "Welcome to Team Feeds — the social hub of Action Auto. Share updates, celebrate wins, and keep your team energized.",
+    voiceGreeting: "Welcome to Team Feeds — your dealership's social hub. Share updates, celebrate wins, and keep your team energized.",
   },
 }
 
@@ -462,6 +463,8 @@ interface DashboardWelcomeProps {
 }
 
 function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
+  const { organization } = useOrg()
+  const dealerName = organization?.name || "Your Dealership"
   const [closing, setClosing] = React.useState(false)
   const [speaking, setSpeaking] = React.useState(false)
 
@@ -476,7 +479,7 @@ function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
     const t = setTimeout(() => {
       const firstName = userName.split(' ')[0]
       setSpeaking(true)
-      const msg = `Welcome to Action Auto CRM, ${firstName}. I'm Autrix, your AI co-pilot. I help you manage leads, schedule appointments, track attendance, and keep your team connected. You'll find me in the bottom right — tap anytime. The Appointments module handles your full lead pipeline. Supra Space is your team messaging hub. Timeproof logs your shifts. Biometrics keeps you secure. And Team Feeds keeps everyone connected. Let's close some deals.`
+      const msg = `Welcome to ${dealerName} CRM, ${firstName}. I'm Autrix, your AI co-pilot. I help you manage leads, schedule appointments, track attendance, and keep your team connected. You'll find me in the bottom right — tap anytime. The Appointments module handles your full lead pipeline. Supra Space is your team messaging hub. Timeproof logs your shifts. Biometrics keeps you secure. And Team Feeds keeps everyone connected. Let's close some deals.`
       const utt = speak(msg, 0.9)
       utt.onend = () => setSpeaking(false)
       utt.onerror = () => setSpeaking(false)
@@ -520,7 +523,7 @@ function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
           <div className="aw-header-row">
             <div className="aw-header-divider" />
             <Car size={11} color="rgba(0,180,80,.5)" />
-            <span>Action Auto CRM</span>
+            <span>{dealerName} CRM</span>
             <div className="aw-header-divider" />
           </div>
 
@@ -555,7 +558,7 @@ function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
 
           {/* Message */}
           <div className="aw-message">
-            Welcome, <strong>{userName.split(' ')[0]}</strong>. I'm your AI co-pilot for the Action Auto CRM — here to help you close more deals, stay on schedule, and keep your team running at full throttle.
+            Welcome, <strong>{userName.split(' ')[0]}</strong>. I'm your AI co-pilot for the {dealerName} CRM — here to help you close more deals, stay on schedule, and keep your team running at full throttle.
           </div>
 
           {/* Pills */}
