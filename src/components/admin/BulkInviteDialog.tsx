@@ -117,7 +117,6 @@ export function BulkInviteDialog() {
                                 <SelectContent>
                                     <SelectItem value="member">Member (Employee)</SelectItem>
                                     <SelectItem value="admin">Admin (Manager)</SelectItem>
-                                    <SelectItem value="driver">Driver (Logistics)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthActions, useUser } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
-import { UserCheck, Briefcase, Loader2, ArrowRight, Building2 } from 'lucide-react';
+import { UserCheck, Loader2, ArrowRight, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function OnboardingPage() {
@@ -103,14 +103,6 @@ export default function OnboardingPage() {
               description="I want to browse vehicles and manage my appointments."
               onClick={() => handleRoleSelection('customer')}
               isLoading={isLoading && selectedRole === 'customer'}
-              disabled={isLoading}
-            />
-            <IdentityCard
-              icon={<Briefcase className="h-6 w-6" />}
-              title="I am a Dealer"
-              description="I want to manage my dealership and inventory."
-              onClick={() => handleRoleSelection('dealership')}
-              isLoading={isLoading && selectedRole === 'dealership'}
               disabled={isLoading}
             />
           </motion.div>

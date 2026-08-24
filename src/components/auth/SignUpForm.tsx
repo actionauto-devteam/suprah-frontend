@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useSignUp } from "@/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,156 +8,60 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2,
-  Mail,
-  Lock,
-  User,
   ArrowRight,
   AlertCircle,
   Sparkles,
   Car,
-  ShieldCheck,
-  UserCheck,
-  Briefcase,
   Building2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
   AUTH_INPUT_CLASS,
   AUTH_LABEL_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
-  AUTH_SECONDARY_BUTTON_CLASS,
 } from "./theme";
 
-type SignUpStep = "details" | "identity" | "dealership";
-type UserRole = "customer" | "driver" | "dealership";
-
-interface PublicOrg {
-  _id: string;
-  name: string;
-}
+type SignUpStep = "details" | "identity";
 
 export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp } = useSignUp();
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("token");
 
-  // Invited users already have a role from the invite itself, so they skip
-  // straight to the details form. Everyone else picks an account type first.
-  const [step, setStep] = useState<SignUpStep>(inviteToken ? "details" : "identity");
+  // Invited team members (org staff) already have a role from the invite
+  // itself, so they skip straight to the details form. Everyone else lands
+  // on the identity step — the only self-serve account type left is driver;
+  // customer and dealership accounts are invite-only now.
+  const [step] = useState<SignUpStep>(inviteToken ? "details" : "identity");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dealership selection (customers)
-  const [orgs, setOrgs] = useState<PublicOrg[]>([]);
-  const [organizationId, setOrganizationId] = useState("");
-
-  // Load the public dealership list once, for the customer signup picker.
-  useEffect(() => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      "https://xj3pd14h-5000.asse.devtunnels.ms";
-    fetch(`${backendUrl}/api/organizations/public`)
-      .then((r) => r.json())
-      .then((j) => setOrgs(Array.isArray(j?.data) ? j.data : []))
-      .catch(() => setOrgs([]));
-  }, []);
-
-  // Submit for the "details" (name/email/password) form — either an invited
-  // user registering directly, or a customer/dealer who already picked their
-  // account type on the previous step.
+  // Submit for the "details" (name/email/password) form — only reachable via
+  // an org team-member invite link now.
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password) return;
+    if (!name || !email || !password || !inviteToken) return;
     setError(null);
-
-    if (inviteToken) {
-      setIsLoading(true);
-      try {
-        const firstName = name.split(" ")[0] || "";
-        const lastName = name.split(" ").slice(1).join(" ") || "";
-
-        const result = await (signUp as any).create({
-          emailAddress: email,
-          password: password,
-          firstName,
-          lastName,
-          inviteToken,
-        });
-
-        if (result.status === "needs_verification") {
-          toast.success("Account created! Please verify your email.");
-          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-        }
-      } catch (err: any) {
-        const errorMessage =
-          err.errors?.[0]?.longMessage || "Failed to create account";
-        setError(errorMessage);
-        toast.error(errorMessage);
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    if (!selectedRole) return;
-    await handleSubmit(selectedRole, organizationId || undefined);
-  };
-
-  // Manual (email/password) account-type pick — driver goes straight to its
-  // own dedicated page; customer/dealer advance to the one details form.
-  const chooseRole = (role: UserRole) => {
-    setError(null);
-    if (role === "driver") {
-      router.push("/sign-up/driver");
-      return;
-    }
-    setSelectedRole(role);
-    setStep("details");
-  };
-
-  // Google account-type pick — no password needed, so only a dealership
-  // picker (when a customer has more than one org to choose from) stands
-  // between account-type selection and the OAuth redirect.
-  const chooseRoleGoogle = (role: UserRole) => {
-    setError(null);
-    if (role === "driver") {
-      router.push("/sign-up/driver");
-      return;
-    }
-    if (role === "customer" && orgs.length > 1) {
-      setSelectedRole("customer");
-      setStep("dealership");
-      return;
-    }
-    handleGoogleSignUp(role);
-  };
-
-  const handleSubmit = async (role: UserRole, orgId?: string) => {
-    if (!isLoaded) return;
-    setSelectedRole(role);
     setIsLoading(true);
-    setError(null);
 
     try {
       const firstName = name.split(" ")[0] || "";
       const lastName = name.split(" ").slice(1).join(" ") || "";
-      const token = searchParams.get("token");
 
       const result = await (signUp as any).create({
         emailAddress: email,
         password: password,
         firstName,
         lastName,
-        role: role, // 'customer', 'driver', or 'dealership'
-        inviteToken: token || undefined,
-        organizationId: orgId || undefined, // dealership the customer chose
+        inviteToken,
       });
 
       if (result.status === "needs_verification") {
@@ -171,25 +75,6 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
       toast.error(errorMessage);
       setIsLoading(false);
     }
-  };
-
-  const handleGoogleSignUp = (role: UserRole, orgId?: string) => {
-    const backendUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      "https://xj3pd14h-5000.asse.devtunnels.ms";
-    const redirectUrl = searchParams.get("redirect_url");
-    const token = searchParams.get("token");
-    let url = `${backendUrl}/api/auth/google?role=${role}`;
-    if (redirectUrl) {
-      url += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
-    }
-    if (token) {
-      url += `&inviteToken=${token}`;
-    }
-    if (orgId) {
-      url += `&organizationId=${orgId}`;
-    }
-    window.location.href = url;
   };
 
   const containerVariants = {
@@ -213,36 +98,32 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
                 Create Account <Sparkles className="h-8 w-8 text-emerald-500" />
               </h1>
               <p className="text-zinc-500 text-lg font-light leading-relaxed">
-                Choose how you want to use the platform.
+                Sign up as a driver, or find your invite link below.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {/* Role Cards */}
-              <IdentityCard
-                icon={<UserCheck className="h-6 w-6" />}
-                title="I am a Customer"
-                description="I want to browse vehicles and manage my appointments."
-                onClick={() => chooseRole("customer")}
-                onGoogleClick={() => chooseRoleGoogle("customer")}
-                disabled={isLoading}
-              />
               <IdentityCard
                 icon={<Car className="h-6 w-6" />}
                 title="I am a Driver"
                 description="I want to sign up as a transportation provider."
-                onClick={() => chooseRole("driver")}
-                onGoogleClick={() => chooseRoleGoogle("driver")}
-                disabled={isLoading}
+                onClick={() => router.push("/sign-up/driver")}
               />
-              <IdentityCard
-                icon={<Briefcase className="h-6 w-6" />}
-                title="I am a Dealer"
-                description="I want to manage my dealership and inventory."
-                onClick={() => chooseRole("dealership")}
-                onGoogleClick={() => chooseRoleGoogle("dealership")}
-                disabled={isLoading}
-              />
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+              <p className="text-zinc-400 text-sm font-light leading-relaxed">
+                <span className="text-white font-medium">Customer?</span>{" "}
+                Accounts are created by invitation from your dealership only —
+                ask them for your invite link.
+              </p>
+              <p className="text-zinc-400 text-sm font-light leading-relaxed flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-zinc-500 shrink-0" />
+                <span className="text-white font-medium">Dealership?</span>{" "}
+                <Link href="/sign-up/dealership" className={AUTH_LINK_CLASS}>
+                  Request an invite to register
+                </Link>
+              </p>
             </div>
 
             {error && (
@@ -260,91 +141,6 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
               By clicking an option, you agree to our Terms of Service.
             </p>
           </motion.div>
-        ) : step === "dealership" ? (
-          <motion.div
-            key="step-dealership"
-            {...containerVariants}
-            className="space-y-8"
-          >
-            <div className="space-y-3">
-              <button
-                onClick={() => {
-                  setStep("identity");
-                  setError(null);
-                }}
-                className="text-emerald-500 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all mb-4"
-              >
-                ← Back to account type
-              </button>
-              <h1 className="text-4xl font-bold tracking-tight text-white flex items-center gap-3">
-                Choose Your Dealership
-              </h1>
-              <p className="text-zinc-500 text-lg font-light leading-relaxed">
-                Select the dealership you&apos;re signing up with.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className={AUTH_LABEL_CLASS}>Dealership</Label>
-                <div className="relative">
-                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 pointer-events-none" />
-                  <select
-                    value={organizationId}
-                    onChange={(e) => setOrganizationId(e.target.value)}
-                    className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl w-full pl-12 appearance-none bg-transparent`}
-                    required
-                  >
-                    <option value="" disabled>
-                      Select your dealership
-                    </option>
-                    {orgs.map((o) => (
-                      <option key={o._id} value={o._id} className="bg-zinc-900">
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <Button
-                onClick={() => handleGoogleSignUp("customer", organizationId)}
-                disabled={!organizationId || isLoading}
-                className={`w-full h-12 text-sm font-semibold gap-2 ${AUTH_PRIMARY_BUTTON_CLASS}`}
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Sign up with Google
-              </Button>
-            </div>
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 p-4 text-sm font-medium bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20"
-              >
-                <AlertCircle className="h-5 w-5 shrink-0" />
-                <span>{error}</span>
-              </motion.div>
-            )}
-          </motion.div>
         ) : (
           <motion.div
             key="step-details"
@@ -352,17 +148,6 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
             className="space-y-8"
           >
             <div className="space-y-3">
-              {!inviteToken && (
-                <button
-                  onClick={() => {
-                    setStep("identity");
-                    setError(null);
-                  }}
-                  className="text-emerald-500 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all mb-4"
-                >
-                  ← Back to account type
-                </button>
-              )}
               <h1 className="text-4xl font-bold tracking-tight text-white flex items-center gap-3">
                 Create Account <Sparkles className="h-8 w-8 text-emerald-500" />
               </h1>
@@ -406,29 +191,6 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
                     minLength={8}
                   />
                 </div>
-                {!inviteToken && selectedRole === "customer" && orgs.length > 1 && (
-                  <div className="space-y-2">
-                    <Label className={AUTH_LABEL_CLASS}>Dealership</Label>
-                    <div className="relative">
-                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 pointer-events-none" />
-                      <select
-                        value={organizationId}
-                        onChange={(e) => setOrganizationId(e.target.value)}
-                        className={`${AUTH_INPUT_CLASS} h-14 rounded-2xl w-full pl-12 appearance-none bg-transparent`}
-                        required
-                      >
-                        <option value="" disabled>
-                          Select your dealership
-                        </option>
-                        {orgs.map((o) => (
-                          <option key={o._id} value={o._id} className="bg-zinc-900">
-                            {o.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {error && (
@@ -477,8 +239,6 @@ function IdentityCard({
   title,
   description,
   onClick,
-  onGoogleClick,
-  isLoading,
   disabled,
 }: any) {
   return (
@@ -489,7 +249,7 @@ function IdentityCard({
         className="flex items-center gap-6 p-6 text-left w-full active:scale-[0.98] transition-transform"
       >
         <div className="h-12 w-12 rounded-xl bg-white/[0.05] group-hover:bg-emerald-500/10 flex items-center justify-center text-zinc-400 group-hover:text-emerald-500 transition-colors shrink-0">
-          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : icon}
+          {icon}
         </div>
         <div className="flex-1">
           <h3 className="text-white font-bold text-lg group-hover:text-emerald-400 transition-colors">
@@ -501,35 +261,6 @@ function IdentityCard({
         </div>
         <ArrowRight className="h-5 w-5 text-zinc-700 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
       </button>
-
-      <div className="px-6 pb-6 pt-0">
-        <Button
-          variant="outline"
-          onClick={onGoogleClick}
-          disabled={disabled}
-          className={`w-full h-10 text-xs font-semibold gap-2 ${AUTH_SECONDARY_BUTTON_CLASS}`}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          Sign up with Google
-        </Button>
-      </div>
     </div>
   );
 }
