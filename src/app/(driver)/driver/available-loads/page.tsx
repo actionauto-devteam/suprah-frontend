@@ -120,6 +120,11 @@ interface AvailableLoad {
   createdAt: string;
 }
 
+interface PublicOrg {
+  _id: string;
+  name: string;
+}
+
 const trailerLabel = (value?: string) =>
   trailerTypeOptions.find((item) => item.value === value)?.label || value || 'Any';
 
@@ -292,6 +297,8 @@ export default function AvailableLoadsPage() {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const [trailerFilter, setTrailerFilter] = React.useState('all');
+  const [orgFilter, setOrgFilter] = React.useState('all');
+  const [orgs, setOrgs] = React.useState<PublicOrg[]>([]);
   const [driverTrailerType, setDriverTrailerType] = React.useState<string | null>(null);
   const [equipmentCapacity, setEquipmentCapacity] = React.useState<number | null>(null);
   const [sortBy, setSortBy] = React.useState<SortMode>('newest');
@@ -330,6 +337,13 @@ export default function AvailableLoadsPage() {
   }, [fetchDriverProfile]);
 
   React.useEffect(() => {
+    apiClient
+      .getPublicOrganizations()
+      .then((res) => setOrgs(Array.isArray(res.data?.data) ? res.data.data : []))
+      .catch(() => setOrgs([]));
+  }, []);
+
+  React.useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void fetchDriverProfile();
     };
@@ -341,8 +355,9 @@ export default function AvailableLoadsPage() {
     async (pageNumber = 1, append = false) => {
       try {
         const token = await getToken();
+        const orgParam = orgFilter !== 'all' ? `&organizationId=${orgFilter}` : '';
         const response = await apiClient.get(
-          `/api/driver-tracking/available-loads?page=${pageNumber}`,
+          `/api/driver-tracking/available-loads?page=${pageNumber}${orgParam}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         const responseData = response.data?.data;
@@ -359,7 +374,7 @@ export default function AvailableLoadsPage() {
         setLoadingMore(false);
       }
     },
-    [getToken],
+    [getToken, orgFilter],
   );
 
   React.useEffect(() => {
@@ -646,6 +661,23 @@ export default function AvailableLoadsPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={cn('h-10 gap-1.5 rounded-xl', orgFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
+                  <Truck className="size-3.5" />
+                  <span className="hidden sm:inline">{orgFilter === 'all' ? 'All Dealerships' : orgs.find((org) => org._id === orgFilter)?.name || 'Dealership'}</span>
+                  <ChevronDown className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Dealership</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setOrgFilter('all')} className={orgFilter === 'all' ? 'bg-accent' : ''}>All Dealerships</DropdownMenuItem>
+                {orgs.map((org) => (
+                  <DropdownMenuItem key={org._id} onClick={() => setOrgFilter(org._id)} className={orgFilter === org._id ? 'bg-accent' : ''}>{org.name}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -658,7 +690,7 @@ export default function AvailableLoadsPage() {
           <Card className="rounded-2xl border-border/60">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
               <Package className="mb-3 size-8 opacity-30" />
-              <p className="text-sm font-bold">{search || trailerFilter !== 'all' ? 'No loads match your filters' : 'No loads posted to the board right now'}</p>
+              <p className="text-sm font-bold">{search || trailerFilter !== 'all' || orgFilter !== 'all' ? 'No loads match your filters' : 'No loads posted to the board right now'}</p>
             </CardContent>
           </Card>
         ) : (

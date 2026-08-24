@@ -13,7 +13,8 @@ import {
     LogOut,
     ChevronUp,
     User2,
-    Truck
+    Truck,
+    Mail
 } from "lucide-react"
 
 import {
@@ -62,6 +63,11 @@ const data = {
             title: "Organizations",
             url: "/admin/organizations",
             icon: Building2,
+        },
+        {
+            title: "Dealership Inquiries",
+            url: "/admin/dealership-inquiries",
+            icon: Mail,
         },
         {
             title: "Users",

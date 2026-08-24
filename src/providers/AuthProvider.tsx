@@ -637,36 +637,6 @@ export function useSignUp() {
         };
       }
     },
-    createDealership: async (data: any) => {
-      try {
-        const response = await apiClient.post("/api/auth/register-dealership", {
-          name: data.name,
-          email: data.email,
-          password: data.password,
-          dealershipName: data.dealershipName,
-          dealershipSlug: data.dealershipSlug,
-        });
-
-        const userObj = response.data?.data?.user || response.data?.user;
-
-        setSignUpState({
-          emailAddress: data.email,
-          firstName: data.name,
-          status: "needs_verification",
-        });
-
-        return { status: "needs_verification" };
-      } catch (e: any) {
-        throw {
-          errors: [
-            {
-              longMessage:
-                e.response?.data?.message || "Dealership registration failed",
-            },
-          ],
-        };
-      }
-    },
     prepareEmailAddressVerification: async (params: any) => {
       try {
         const emailToVerify = params?.email || signUpState.emailAddress;
