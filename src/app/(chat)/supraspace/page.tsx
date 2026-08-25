@@ -137,6 +137,13 @@ function setUnreadDotColor(color: string): void {
   localStorage.setItem(SS4_UNREAD_COLOR_STORAGE_KEY, color);
   window.dispatchEvent(new CustomEvent(SS4_UNREAD_COLOR_CHANGED_EVENT, { detail: color }));
 }
+// Temporary — SupraSpace's dedicated install still needs its own subdomain
+// (installing it from the same domain as the main app conflicts with the
+// main app's own install). Until that's live, every "Install SupraSpace"
+// entry point shows this instead of actually navigating/prompting install.
+// Safe to delete this constant and revert these call sites once the
+// subdomain is live.
+const SS4_INSTALL_COMING_SOON_MESSAGE = "SupraSpace's dedicated app is still being set up — check back soon!";
 const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
 const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
 const SS4_FONT_FAMILIES: Array<{
@@ -7338,9 +7345,10 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
           {pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/') ? (
             <InstallSupraSpaceButton variant="row" />
           ) : (
-            <a
-              href="/supraspace"
-              className="flex items-center gap-3 py-1"
+            <button
+              type="button"
+              onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)}
+              className="flex items-center gap-3 py-1 w-full text-left"
               style={{ color: 'var(--text-primary)' }}
             >
               <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
@@ -7348,7 +7356,7 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
                 <p style={{ fontSize: 13, fontWeight: 600 }}>Get SupraSpace as its own app</p>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Install a lighter, dedicated SupraSpace on your phone</p>
               </div>
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -7714,14 +7722,16 @@ export default function SupraSpacePage() {
   // link them to /supraspace first — a real page navigation, not router.push,
   // so the correct manifest is the one active when they actually install.
   const isSupraSpaceStandaloneUrl = pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/');
-  // Mobile-only: the dashboard-embedded route (/crm/supra-space) gates
-  // behind an "install the dedicated app" screen instead of showing chat —
-  // on a phone, messaging is meant to live in the dedicated SupraSpace PWA
-  // only. Desktop is unaffected. Scoped to !embedded specifically (i.e. only
-  // this exact route) — /crm/conversations' embedded view is deliberately
-  // left alone.
+  // Mobile-only: the dashboard-embedded route (/crm/supra-space) shows a
+  // dismissible "install the dedicated app" prompt over the real chat —
+  // on a phone, messaging is meant to live in the dedicated SupraSpace PWA,
+  // but closing this just reveals the normal conversation list underneath
+  // (it's a nudge, not a hard block). Desktop is unaffected. Scoped to
+  // !embedded specifically (i.e. only this exact route) — /crm/conversations'
+  // embedded view is deliberately left alone.
   const isMobileViewport = useIsMobile();
-  const showMobileInstallGate = !embedded && isMobileViewport;
+  const [mobileInstallPromptDismissed, setMobileInstallPromptDismissed] = React.useState(false);
+  const showMobileInstallGate = !embedded && isMobileViewport && !mobileInstallPromptDismissed;
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -10922,34 +10932,6 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  if (showMobileInstallGate) return (
-    <div className="ss4 flex items-center justify-center h-full min-h-screen px-6" data-theme={theme}>
-      <div className="flex flex-col items-center gap-5 text-center max-w-xs">
-        <SupraSpaceLogo size={64} />
-        <div className="flex flex-col items-center gap-2">
-          <p className="ss4-display font-bold" style={{ fontSize: 19, color: 'var(--text-primary)' }}>Get SupraSpace</p>
-          <p style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-            Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.
-          </p>
-        </div>
-        <a
-          href="/supraspace"
-          className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
-          style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
-        >
-          <Download className="h-4 w-4" /> Install SupraSpace
-        </a>
-        <button
-          type="button"
-          onClick={() => router.push('/crm/dashboard')}
-          style={{ fontSize: 12, color: 'var(--text-tertiary)' }}
-        >
-          Back to dashboard
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <>
       {me?.role && <CrmPushPrompt role={me.role} />}
@@ -11025,9 +11007,9 @@ export default function SupraSpacePage() {
               {isSupraSpaceStandaloneUrl ? (
                 <InstallSupraSpaceButton variant="icon" />
               ) : (
-                <a href="/supraspace" className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
+                <button type="button" onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
                   <Download className="h-3.5 w-3.5" />
-                </a>
+                </button>
               )}
             </div>
           </div>
@@ -12555,6 +12537,36 @@ export default function SupraSpacePage() {
               members: c.members.map(m => m._id === uid ? { ...m, displayNickname: settings.nickname || undefined } : m),
             }))}
           />
+        )}
+        {showMobileInstallGate && (
+          <div className="ss4 fixed inset-0 z-200 flex items-center justify-center p-4" data-theme={theme} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setMobileInstallPromptDismissed(true)}>
+            <div className="relative flex flex-col items-center gap-5 text-center w-full max-w-xs rounded-2xl px-6 py-8" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setMobileInstallPromptDismissed(true)}
+                className="absolute right-3 top-3 h-8 w-8 rounded-full flex items-center justify-center"
+                style={{ color: 'var(--text-tertiary)' }}
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <SupraSpaceLogo size={64} />
+              <div className="flex flex-col items-center gap-2">
+                <p className="ss4-display font-bold" style={{ fontSize: 19, color: 'var(--text-primary)' }}>Get SupraSpace</p>
+                <p style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                  Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)}
+                className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
+                style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
+              >
+                <Download className="h-4 w-4" /> Install SupraSpace
+              </button>
+            </div>
+          </div>
         )}
         {appSettingsOpen && (
           <div className="ss4-overlay fixed inset-0 z-200 flex items-center justify-center p-4" onClick={() => setAppSettingsOpen(false)}>

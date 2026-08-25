@@ -3,6 +3,13 @@
 import * as React from 'react';
 import { Download, Share, PlusSquare, X, Check, MoreVertical, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
+
+// Temporary — SupraSpace's dedicated install still needs its own subdomain
+// (installing it from the same domain as the main app conflicts with the
+// main app's own install). Until that's live, this shows instead of
+// actually prompting install. Safe to delete once the subdomain is live.
+const INSTALL_COMING_SOON_MESSAGE = "SupraSpace's dedicated app is still being set up — check back soon!";
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -51,13 +58,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   }, []);
 
   const handleClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      setDeferredPrompt(null);
-      return;
-    }
-    setShowHint(true);
+    toast.info(INSTALL_COMING_SOON_MESSAGE);
   };
 
   if (installed) {

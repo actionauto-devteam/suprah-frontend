@@ -37,6 +37,10 @@ interface Screenshot {
   // it renders fine either way, but callers should label it distinctly
   // rather than presenting it as an actual screenshot.
   isPlaceholder?: boolean
+  // Proof-of-work shot the tray takes automatically at the exact moment a break
+  // started/ended — independent of idleDetected, shows what was really on screen
+  // (and the real time) right then, regardless of what the recorded TimeLog says.
+  breakEvent?: 'break-in' | 'break-out' | null
 }
 
 interface BreakSegment {
@@ -302,7 +306,12 @@ const Lightbox = ({
           <span className="text-xs text-white/80 font-medium">
             {fmtTime(s.capturedAt)}
           </span>
-          {s.idleDetected && (
+          {s.breakEvent ? (
+            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-500/30">
+              <Coffee className="h-2.5 w-2.5" />
+              {s.breakEvent === 'break-in' ? 'Break In' : 'Break Out'}
+            </span>
+          ) : s.idleDetected && (
             <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-500/30">
               <AlertTriangle className="h-2.5 w-2.5" />
               Idle
@@ -1169,6 +1178,11 @@ export default function ScreenshotGalleryPage() {
                             <ImageOff className="h-2.5 w-2.5" />
                             No Capture
                           </span>
+                        ) : s.breakEvent ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                            <Coffee className="h-2.5 w-2.5" />
+                            {s.breakEvent === 'break-in' ? 'Break In' : 'Break Out'}
+                          </span>
                         ) : s.idleDetected && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
                             <AlertTriangle className="h-2.5 w-2.5" />
@@ -1201,8 +1215,12 @@ export default function ScreenshotGalleryPage() {
                           />
                         )}
 
-                        {/* Idle overlay */}
-                        {!s.isPlaceholder && s.idleDetected && (
+                        {/* Break-event overlay takes priority over idle — a break-in/out shot is
+                            never also flagged idle (captured with idleDetected=false) but keep the
+                            precedence explicit in case that ever changes. */}
+                        {!s.isPlaceholder && s.breakEvent ? (
+                          <div className="absolute inset-0 bg-amber-500/20 border-2 border-amber-500/40 rounded-xl" />
+                        ) : !s.isPlaceholder && s.idleDetected && (
                           <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
                         )}
 
