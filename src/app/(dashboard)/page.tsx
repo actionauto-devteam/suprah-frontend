@@ -101,14 +101,67 @@ function greeting(): string {
   return "Good evening";
 }
 
-/** Small uppercase zone label with a fading rule — groups the widget grids. */
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/**
+ * Stronger dashboard zone heading.
+ *
+ * Keeps the QA-approved grouped layout intact while making each group easier
+ * to scan. Color is deliberately limited to the small icon treatment and
+ * divider so the cards themselves continue to carry the content hierarchy.
+ */
+type SectionLabelTone = "emerald" | "cyan" | "violet" | "amber";
+
+const SECTION_LABEL_TONES: Record<
+  SectionLabelTone,
+  { iconShell: string; icon: string; rule: string }
+> = {
+  emerald: {
+    iconShell: "border-emerald-500/20 bg-emerald-500/8 dark:bg-emerald-500/10",
+    icon: "text-emerald-500",
+    rule: "from-emerald-500/35 via-border/35 to-transparent",
+  },
+  cyan: {
+    iconShell: "border-cyan-500/20 bg-cyan-500/8 dark:bg-cyan-500/10",
+    icon: "text-cyan-500",
+    rule: "from-cyan-500/35 via-border/35 to-transparent",
+  },
+  violet: {
+    iconShell: "border-violet-500/20 bg-violet-500/8 dark:bg-violet-500/10",
+    icon: "text-violet-500",
+    rule: "from-violet-500/35 via-border/35 to-transparent",
+  },
+  amber: {
+    iconShell: "border-amber-500/20 bg-amber-500/8 dark:bg-amber-500/10",
+    icon: "text-amber-500",
+    rule: "from-amber-500/35 via-border/35 to-transparent",
+  },
+};
+
+function SectionLabel({
+  children,
+  icon: Icon,
+  tone = "emerald",
+}: {
+  children: React.ReactNode;
+  icon: LucideIcon;
+  tone?: SectionLabelTone;
+}) {
+  const styles = SECTION_LABEL_TONES[tone];
+
   return (
-    <div className="flex items-center gap-3 px-1">
-      <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground/45">
-        {children}
+    <div className="flex items-center gap-3 px-1 py-0.5">
+      <span
+        aria-hidden="true"
+        className={`flex size-7 shrink-0 items-center justify-center rounded-lg border ${styles.iconShell}`}
+      >
+        <Icon className={`size-3.5 ${styles.icon}`} />
       </span>
-      <span className="h-px flex-1 bg-linear-to-r from-border/50 via-border/20 to-transparent" />
+      <h2 className="shrink-0 text-xs font-black uppercase tracking-[0.16em] text-foreground/90 sm:text-sm">
+        {children}
+      </h2>
+      <span
+        aria-hidden="true"
+        className={`h-px flex-1 bg-linear-to-r ${styles.rule}`}
+      />
     </div>
   );
 }
@@ -271,18 +324,15 @@ function CalendarSummary() {
 
   const { items, loading } = useCalendar(fromZoned(wallStart), fromZoned(wallEnd));
 
-  const { today, upcoming, overdue, next } = React.useMemo(() => {
+  const { today, upcoming, next } = React.useMemo(() => {
     const occ = expandOccurrences(items || [], wallStart, wallEnd).sort(
       (a, b) => a.start.getTime() - b.start.getTime(),
     );
     const nowT = now.getTime();
     const todayList = occ.filter((o) => sameDay(o.start, now));
     const upcomingList = occ.filter((o) => o.start.getTime() > nowT && !sameDay(o.start, now));
-    const overdueList = occ.filter(
-      (o) => o.end.getTime() < nowT && ["task", "reminder"].includes(o.item.type),
-    );
     const nextEvent = occ.find((o) => o.start.getTime() > nowT) || null;
-    return { today: todayList, upcoming: upcomingList, overdue: overdueList, next: nextEvent };
+    return { today: todayList, upcoming: upcomingList, next: nextEvent };
   }, [items, wallStart, wallEnd, now]);
 
   return (
@@ -311,11 +361,10 @@ function CalendarSummary() {
             <p className="text-xs text-muted-foreground/60 text-center py-2">Nothing scheduled soon.</p>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Today", value: today.length, tone: "text-emerald-500" },
               { label: "Upcoming", value: upcoming.length, tone: "text-cyan-500" },
-              { label: "Overdue", value: overdue.length, tone: "text-rose-500" },
             ].map((c) => (
               <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
                 <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
@@ -575,11 +624,14 @@ function AftermarketSummary() {
  * Dashboard
  * ──────────────────────────────────────────────────────────────────────────── */
 
-// Responsive card grid: 1 column on phones, 2 on tablets, 3 on desktop.
-const CARD_GRID =
-  "grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
-const WIDE_GRID =
-  "grid items-stretch gap-3 sm:gap-4 lg:gap-6 grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]";
+// Dashboard hierarchy grids. Grouping cards by purpose keeps each row
+// visually coherent instead of forcing unrelated widgets into one 3×3 wall.
+const THREE_CARD_GRID =
+  "grid items-stretch gap-3 sm:gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
+const FOUR_CARD_GRID =
+  "grid items-stretch gap-3 sm:gap-4 lg:gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
+const TWO_CARD_GRID =
+  "grid items-stretch gap-3 sm:gap-4 lg:gap-5 grid-cols-1 lg:grid-cols-2";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -601,7 +653,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [revenuePeriod, setRevenuePeriod] = React.useState<string>("1Y");
 
-  const { data: metrics, isLoading, error } = useDashboardStats(revenuePeriod, "Mar");
+  const { data: metrics, isLoading, error } = useDashboardStats(revenuePeriod);
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -764,48 +816,86 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* ── Zone: Feed & Voice ── */}
+      {/* ── Zone: Feed & Voice — primary content, matching the original dashboard flow ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel>Feed &amp; Voice</SectionLabel>
+        <SectionLabel icon={Rss} tone="emerald">Feed &amp; Voice</SectionLabel>
         <LatestPosts />
         <YapLineWidget />
       </section>
 
-      {/* ── Widgets — one grid, 3 per line (3 × 3) ── */}
+      {/* ── Zone: Today — immediate personal actions ── */}
       <section className="space-y-3 sm:space-y-4">
-        <div className={CARD_GRID}>
-          <TeamPulseSnapshot />
+        <SectionLabel icon={CalendarDays} tone="cyan">Today</SectionLabel>
+        <div className={THREE_CARD_GRID}>
           <CalendarSummary />
-          <LeadsSummary />
-          <ReviewsSummary />
-          <AftermarketSummary />
-          <MyClockStatus />
           <MyTasksSummary />
-          <WhoIsOut />
-          <InventorySnapshot />
+          <MyClockStatus />
         </div>
       </section>
 
-      {/* ── Zone: Operations ── */}
+      {/* ── Zone: Business overview — compact dealership health ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel>Operations</SectionLabel>
-        <div className={WIDE_GRID}>
-          <Panel title="Driver Status" icon={Truck} accent="text-emerald-500" action="Transportation" onAction={() => router.push("/transportation")}>
-            <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
+        <SectionLabel icon={LayoutDashboard} tone="emerald">Business Overview</SectionLabel>
+        <div className={FOUR_CARD_GRID}>
+          <LeadsSummary />
+          <InventorySnapshot />
+          <ReviewsSummary />
+          <AftermarketSummary />
+        </div>
+      </section>
+
+      {/* ── Zone: Team availability ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel icon={Users} tone="violet">Team</SectionLabel>
+        <div className={TWO_CARD_GRID}>
+          <TeamPulseSnapshot />
+          <WhoIsOut />
+        </div>
+      </section>
+
+      {/* ── Zone: Operations — driver/load information is no longer duplicated ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel icon={Truck} tone="amber">Operations</SectionLabel>
+        <div className={TWO_CARD_GRID}>
+          <Panel
+            title="Driver Status"
+            icon={Truck}
+            accent="text-emerald-500"
+            action="Driver Tracker"
+            onAction={() => router.push("/driver-tracker")}
+          >
+            <LogisticsMonitor
+              data={metrics?.logistics}
+              isLoading={isLoading}
+              mode="drivers"
+              embedded
+            />
           </Panel>
-          <Panel title="Load Status" icon={Package} accent="text-cyan-500" action="Loads" onAction={() => router.push("/loads")}>
-            <LogisticsMonitor data={metrics?.logistics} isLoading={isLoading} />
+
+          <Panel
+            title="Load Status"
+            icon={Package}
+            accent="text-cyan-500"
+            action="Transportation"
+            onAction={() => router.push("/transportation")}
+          >
+            <LogisticsMonitor
+              data={metrics?.logistics}
+              isLoading={isLoading}
+              mode="loads"
+              embedded
+            />
           </Panel>
         </div>
       </section>
 
       {/* ── Zone: Performance ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel>Performance</SectionLabel>
+        <SectionLabel icon={Activity} tone="emerald">Performance</SectionLabel>
         <div className="min-w-0 max-w-full overflow-x-auto">
           <RevenueIntelligence
             trajectory={metrics?.revenueTrajectory || []}
-            livePayments={[]}
+            livePayments={metrics?.livePayments || []}
             period={revenuePeriod}
             onPeriodChange={setRevenuePeriod}
             isLoading={isLoading}

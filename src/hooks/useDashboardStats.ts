@@ -20,7 +20,10 @@ export interface DashboardMetrics {
     }>;
     logistics: {
         drivers: { active: number; ready: number };
-        shipments: Record<string, number>;
+        // Canonical backend field. `shipments` stays optional temporarily so
+        // a rolling deployment / old cached response cannot break the UI.
+        loads: Record<string, number>;
+        shipments?: Record<string, number>;
     };
     intelligence: {
         netMargin: number;

@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertCircle, MapPin, Link as LinkIcon, Loader2,
@@ -115,6 +114,73 @@ function FieldLabel({ htmlFor, children, required }: { htmlFor?: string; childre
   )
 }
 
+function getAppointmentRequestErrorMessage(err: any): string {
+  const responseMessage = err?.response?.data?.message
+  if (typeof responseMessage === "string" && responseMessage.trim()) {
+    return responseMessage.trim()
+  }
+
+  const nestedMessage = err?.response?.data?.error?.message
+  if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+    return nestedMessage.trim()
+  }
+
+  if (typeof err?.message === "string" && err.message.trim()) {
+    return err.message.trim()
+  }
+
+  return "Failed to create appointment. Please try again."
+}
+
+function isExpectedAppointmentSchedulingConflict(err: any, message: string): boolean {
+  if (err?.response?.status !== 409) return false
+
+  return (
+    /^double-booking conflict:/i.test(message) ||
+    /time slot is no longer available/i.test(message)
+  )
+}
+
+type AppointmentErrorPresentation = {
+  title: string
+  message: string
+  hint?: string
+}
+
+function getAppointmentErrorPresentation(error: string): AppointmentErrorPresentation {
+  const message = error.trim()
+
+  if (/^double-booking conflict:/i.test(message)) {
+    return {
+      title: "Schedule conflict",
+      message: message.replace(/^double-booking conflict:\s*/i, ""),
+      hint: "Choose a different start or end time, then try again.",
+    }
+  }
+
+  if (/time slot is no longer available/i.test(message)) {
+    return {
+      title: "Time slot unavailable",
+      message,
+      hint: "Choose another available time before creating the appointment.",
+    }
+  }
+
+  if (/cannot schedule.*past|schedule.*past/i.test(message)) {
+    return {
+      title: "Invalid schedule",
+      message,
+      hint: "Select a future date and time, then try again.",
+    }
+  }
+
+  return {
+    title: "Unable to create appointment",
+    message,
+    hint: "Review the details below and try again.",
+  }
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function CreateAppointmentModal({
@@ -166,14 +232,14 @@ export function CreateAppointmentModal({
   // ── Initializers ─────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
-    if (draftLoadedRef.current) return
+    if (!open || draftLoadedRef.current) return
     if (preselectedDate) setFormData((prev) => ({ ...prev, startDate: preselectedDate, endDate: preselectedDate }))
-  }, [preselectedDate])
+  }, [open, preselectedDate])
 
   React.useEffect(() => {
-    if (draftLoadedRef.current) return
+    if (!open || draftLoadedRef.current) return
     if (preselectedConversation) setFormData((prev) => ({ ...prev, conversationId: preselectedConversation }))
-  }, [preselectedConversation])
+  }, [open, preselectedConversation])
 
   React.useEffect(() => {
     if (!open) return
@@ -229,6 +295,17 @@ export function CreateAppointmentModal({
       setSelectedVehicles([])
     }
   }, [open, readDraft])
+
+  // A hidden Dialog stays mounted, so clear request/validation state whenever
+  // it is closed. This prevents a previous 409 (or validation error) from
+  // leaking into the next create attempt, even if the parent closes it.
+  React.useEffect(() => {
+    if (open) return
+    setError(null)
+    setCustomerErrors({})
+    setIsSubmitting(false)
+    setPickerModalOpen(false)
+  }, [open])
 
   // senior dev: auto-populate the current user as a default internal participant
   const autoPopulatedRef = React.useRef(false)
@@ -368,20 +445,42 @@ export function CreateAppointmentModal({
       setError(null)
       setCustomerErrors({})
     } catch (err: any) {
-      console.error("Failed to create appointment:", err)
-      setError(err.message || "Failed to create appointment. Please try again.")
+      // Known scheduling conflicts are an expected business-rule response, not
+      // an application crash. Keep the rejected request so this modal can show
+      // the backend's actionable message, but avoid console.error because the
+      // Next.js development overlay treats logged Axios errors as runtime errors.
+      const requestErrorMessage = getAppointmentRequestErrorMessage(err)
+      if (!isExpectedAppointmentSchedulingConflict(err, requestErrorMessage)) {
+        console.error("Failed to create appointment:", err)
+      }
+      setError(requestErrorMessage)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) clearDraft()
+    if (!nextOpen) {
+      clearDraft()
+      setError(null)
+      setCustomerErrors({})
+      setIsSubmitting(false)
+      setPickerModalOpen(false)
+      setSelectedVehicles([])
+      setDraftMeta(null)
+      setFormData({
+        title: "", description: "", startDate: new Date(), startTime: "", endDate: new Date(), endTime: "",
+        location: "", type: "in-person", customTypeDetails: "", entryType: entryTypeLock || "appointment",
+        conversationId: "", participants: [], guestEmails: [], meetingLink: "", notes: "",
+        isCustomerBooking: false, customerBooking: { firstName: "", lastName: "", email: "", phone: "" },
+      })
+    }
     onOpenChange(nextOpen)
   }
 
   const entryLabel = (entryTypeLock || formData.entryType).charAt(0).toUpperCase() +
     (entryTypeLock || formData.entryType).slice(1)
+  const errorPresentation = error ? getAppointmentErrorPresentation(error) : null
 
   return (
     <>
@@ -406,13 +505,31 @@ export function CreateAppointmentModal({
           <div className="overflow-y-auto max-h-[calc(90dvh-130px)] modal-scrollbar px-4 sm:px-6 py-5">
             <form id="create-apt-form" onSubmit={handleSubmit} className="space-y-0">
 
-              {error && (
-                <Alert variant="destructive" className="mb-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50">
-                  <div className="flex items-start gap-2.5">
-                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <AlertDescription className="text-sm">{error}</AlertDescription>
+              {errorPresentation && (
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="mb-4 w-full rounded-xl border border-destructive/35 bg-destructive/10 p-4 text-left"
+                >
+                  <div className="flex w-full items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-destructive/15 text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold leading-5 text-destructive">
+                        {errorPresentation.title}
+                      </p>
+                      <p className="mt-1 w-full whitespace-normal break-words text-sm leading-6 text-foreground">
+                        {errorPresentation.message}
+                      </p>
+                      {errorPresentation.hint && (
+                        <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                          {errorPresentation.hint}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </Alert>
+                </div>
               )}
 
               {/* ── Entry Type ── */}

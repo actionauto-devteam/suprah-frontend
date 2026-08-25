@@ -2,17 +2,12 @@
 
 import * as React from "react";
 import {
-  ArrowDownRight,
   ArrowRight,
-  ArrowUpRight,
   Check,
-  ChevronDown,
-  Download,
   Eye,
   FileSpreadsheet,
   FileText,
   Loader2,
-  Minus,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,109 +51,55 @@ interface ReportCardProps {
   onPreview: () => void;
 }
 
-function DownloadMenu({
+function IndividualExportButtons({
+  title,
   isDownloading,
   onDownload,
 }: {
+  title: string;
   isDownloading: boolean;
   onDownload: (format: ExportFormat) => void;
 }) {
-  const [open, setOpen] = React.useState(false);
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
-
   return (
-    <div ref={menuRef} className="relative">
+    <div
+      className="flex shrink-0 items-center gap-1.5"
+      aria-label={`${title} download options`}
+    >
       <Button
         type="button"
         variant="outline"
-        size="icon"
-        className="size-9 shrink-0"
+        size="sm"
+        className="h-7 gap-1 rounded-md px-2 text-[10px] font-bold"
         disabled={isDownloading}
-        aria-label="Download report"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        aria-label={`Download ${title} as PDF`}
+        title={`Download ${title} as PDF`}
+        onClick={() => onDownload("pdf")}
       >
         {isDownloading ? (
-          <Loader2 className="size-4 animate-spin" />
+          <Loader2 className="size-3 animate-spin" />
         ) : (
-          <Download className="size-4" />
+          <FileText className="size-3 text-red-500" />
         )}
-        <ChevronDown className="absolute bottom-0.5 right-0.5 size-2.5 text-muted-foreground" />
+        PDF
       </Button>
 
-      {open && !isDownloading ? (
-        <div
-          role="menu"
-          className="absolute bottom-[calc(100%+0.45rem)] right-0 z-50 w-44 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted"
-            onClick={() => {
-              setOpen(false);
-              onDownload("pdf");
-            }}
-          >
-            <FileText className="size-4 text-red-500" />
-            Download PDF
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted"
-            onClick={() => {
-              setOpen(false);
-              onDownload("xlsx");
-            }}
-          >
-            <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
-            Download Excel
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TrendRow({ trend }: { trend: ReportCardTrend }) {
-  const TrendIcon =
-    trend.direction === "up"
-      ? ArrowUpRight
-      : trend.direction === "down"
-        ? ArrowDownRight
-        : trend.label.toLowerCase().includes("data")
-          ? Minus
-          : Minus;
-
-  const tone =
-    trend.direction === "up"
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-      : trend.direction === "down"
-        ? "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300"
-        : "border-border/80 bg-muted/45 text-slate-700 dark:text-slate-300";
-
-  return (
-    <div
-      className={`flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-center text-[13px] font-semibold leading-snug ${tone}`}
-    >
-      <TrendIcon className="size-3.5 shrink-0" />
-      <span className="break-words">{trend.label}</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1 rounded-md px-2 text-[10px] font-bold"
+        disabled={isDownloading}
+        aria-label={`Download ${title} as Excel`}
+        title={`Download ${title} as Excel`}
+        onClick={() => onDownload("xlsx")}
+      >
+        {isDownloading ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <FileSpreadsheet className="size-3 text-emerald-600 dark:text-emerald-400" />
+        )}
+        Excel
+      </Button>
     </div>
   );
 }
@@ -182,123 +123,153 @@ export function ReportCard({
   onOpen,
   onPreview,
 }: ReportCardProps) {
+  const primaryMetric = highlights[0];
+  const secondaryMetric = highlights[1];
+  const primaryStat = stats[0];
+
   return (
     <article
-      className={`relative flex h-full w-full max-w-[29rem] min-w-0 justify-self-center flex-col overflow-visible rounded-xl border bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md sm:p-4 ${
+      className={`relative flex h-full w-full max-w-[29rem] min-w-0 justify-self-center flex-col overflow-visible rounded-xl border bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md ${
         isSelected
           ? "border-primary ring-2 ring-primary/20"
           : "border-border/80"
       } ${className ?? ""}`}
     >
-      {selectionMode ? (
-        <button
-          type="button"
-          aria-label={`${isSelected ? "Deselect" : "Select"} ${title}`}
-          onClick={onToggle}
-          className={`absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-lg border shadow-sm transition-colors ${
-            isSelected
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"
-          }`}
-        >
-          {isSelected ? <Check className="size-4" /> : null}
-        </button>
-      ) : null}
-
-      <div className="flex min-h-[6.25rem] min-w-0 items-start gap-2.5 pr-8">
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
           <FileText className="size-4.5" />
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h3 className="min-w-0 break-words text-base font-bold tracking-tight text-foreground">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+            <h3 className="min-w-0 truncate text-[15px] font-bold leading-5 tracking-tight text-foreground" title={title}>
               {title}
             </h3>
             <span
-              className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${categoryClass}`}
+              className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-bold leading-none ${categoryClass}`}
             >
               {category}
             </span>
           </div>
-          <p className="mt-1 text-[13px] font-semibold leading-5 text-primary">
+
+          <p className="mt-0.5 truncate text-[12px] font-semibold leading-4 text-primary" title={subtitle}>
             {subtitle}
           </p>
-          <p className="mt-1 text-[13px] font-medium leading-5 text-slate-700 dark:text-slate-300">
+          <p className="mt-0.5 text-[11px] font-medium leading-4 text-muted-foreground">
             {period}
           </p>
         </div>
+
+        {selectionMode ? (
+          <button
+            type="button"
+            aria-label={`${isSelected ? "Deselect" : "Select"} ${title}`}
+            onClick={onToggle}
+            className={`flex size-8 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-colors ${
+              isSelected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-primary"
+            }`}
+          >
+            {isSelected ? <Check className="size-4" /> : null}
+          </button>
+        ) : (
+          <IndividualExportButtons
+            title={title}
+            isDownloading={isDownloading}
+            onDownload={onDownload}
+          />
+        )}
       </div>
 
-      <p className="mt-3 min-h-[4.5rem] break-words text-sm leading-6 text-slate-800 dark:text-slate-200">
-        {description}
-      </p>
+      <div className="mt-3 grid min-h-[5.75rem] grid-cols-3 overflow-hidden rounded-xl border border-border/70 bg-muted/20">
+        <div className="grid min-w-0 grid-rows-[1.15rem_1.75rem] content-center px-3 py-2.5">
+          {primaryMetric ? (
+            <>
+              <p className="h-[1.15rem] truncate whitespace-nowrap text-[9px] font-bold uppercase leading-[1.15rem] tracking-[0.05em] text-muted-foreground">
+                {primaryMetric.label}
+              </p>
+              <p
+                className={`flex h-[1.75rem] min-w-0 items-center truncate whitespace-nowrap text-[18px] font-bold leading-none tracking-tight ${
+                  primaryMetric.color ?? "text-foreground"
+                }`}
+                title={String(primaryMetric.value)}
+              >
+                {primaryMetric.value}
+              </p>
+            </>
+          ) : null}
+        </div>
 
-      <div className="mt-2.5 grid min-h-[4.75rem] grid-cols-2 gap-2">
-        {highlights.map((highlight) => (
-          <div
-            key={highlight.label}
-            className="min-w-0 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-2 text-center"
-          >
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
-              {highlight.label}
-            </p>
-            <p
-              className={`mt-1 break-words text-base font-bold ${highlight.color ?? "text-foreground"}`}
-              title={String(highlight.value)}
-            >
-              {highlight.value}
-            </p>
-          </div>
+        <div className="grid min-w-0 grid-rows-[1.15rem_1.75rem] content-center border-l border-border/60 px-3 py-2.5">
+          {secondaryMetric ? (
+            <>
+              <p className="h-[1.15rem] truncate whitespace-nowrap text-[9px] font-bold uppercase leading-[1.15rem] tracking-[0.05em] text-muted-foreground">
+                {secondaryMetric.label}
+              </p>
+              <p
+                className={`flex h-[1.75rem] min-w-0 items-center truncate whitespace-nowrap text-[13px] font-bold leading-none tracking-tight ${
+                  secondaryMetric.color ?? "text-foreground"
+                }`}
+                title={String(secondaryMetric.value)}
+              >
+                {secondaryMetric.value}
+              </p>
+            </>
+          ) : null}
+        </div>
+
+        <div className="grid min-w-0 grid-rows-[1.15rem_1.75rem] content-center border-l border-border/60 px-3 py-2.5">
+          {primaryStat ? (
+            <>
+              <p className="h-[1.15rem] truncate whitespace-nowrap text-[9px] font-bold uppercase leading-[1.15rem] tracking-[0.05em] text-muted-foreground">
+                Records
+              </p>
+              <div className="flex h-[1.75rem] min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[13px] font-semibold leading-none text-foreground">
+                <span className="shrink-0 text-muted-foreground">{primaryStat.icon}</span>
+                <span className="min-w-0 truncate whitespace-nowrap" title={primaryStat.label}>{primaryStat.label}</span>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="sr-only">
+        <p>{description}</p>
+        <p>{trend.label}</p>
+        {stats.slice(1).map((stat, index) => (
+          <span key={`${stat.label}-${index}`}>{stat.label}</span>
         ))}
       </div>
 
-      <div className="mt-2 min-h-[2.75rem]">
-        <TrendRow trend={trend} />
-      </div>
-
-      <div className="mt-2.5 grid min-h-[3.75rem] min-w-0 grid-cols-2 items-center gap-2 border-y border-border/70 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-        {stats.map((stat, index) => (
-          <span
-            key={`${stat.label}-${index}`}
-            className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-slate-800 dark:text-slate-200"
-          >
-            <span className="shrink-0 text-muted-foreground">{stat.icon}</span>
-            <span className="break-words">{stat.label}</span>
-          </span>
-        ))}
-        <span className="col-span-2 shrink-0 text-[13px] font-semibold text-slate-700 dark:text-slate-300 sm:col-span-1 sm:justify-self-end">
-          PDF · Excel
-        </span>
-      </div>
-
-      <div className="mt-auto flex items-center gap-2 pt-2.5">
+      <div className="grid grid-cols-2 gap-2 pt-3">
         <Button
           type="button"
-          className="h-9 min-w-0 flex-1 gap-2 font-semibold"
+          className="h-9 min-w-0 gap-1.5 font-semibold"
           onClick={selectionMode ? onToggle : onOpen}
         >
-          {selectionMode ? (isSelected ? "Selected" : "Select Report") : "Open Report"}
+          {selectionMode
+            ? isSelected
+              ? "Selected"
+              : "Select Report"
+            : "Open Report"}
           {selectionMode && isSelected ? (
             <Check className="size-4" />
           ) : (
             <ArrowRight className="size-4" />
           )}
         </Button>
+
         <Button
           type="button"
           variant="outline"
-          size="icon"
-          className="size-9 shrink-0"
+          className="h-9 min-w-0 gap-1.5 font-semibold"
           onClick={onPreview}
           aria-label={`Preview ${title}`}
         >
           <Eye className="size-4" />
+          Preview Report
         </Button>
-        <DownloadMenu
-          isDownloading={isDownloading}
-          onDownload={onDownload}
-        />
       </div>
     </article>
   );

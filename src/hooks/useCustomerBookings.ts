@@ -59,13 +59,22 @@ export const useCustomerBookings = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const isMountedRef = useRef(true)
+  const isMountedRef = useRef(false)
   const pendingRequestsRef = useRef(0)
   const requestIdRef = useRef(0)
+  const activeRequestControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    // React Strict Mode intentionally runs effect setup/cleanup twice in
+    // development. Restore the mounted flag on every setup so a simulated
+    // cleanup cannot leave this hook permanently "unmounted".
+    isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
+      activeRequestControllerRef.current?.abort()
+      activeRequestControllerRef.current = null
+      pendingRequestsRef.current = 0
     }
   }, [])
 
@@ -160,7 +169,12 @@ export const useCustomerBookings = () => {
       ? `/api/appointments/customer-bookings/list?${queryString}`
       : '/api/appointments/customer-bookings/list'
 
+    // Only the newest bookings request should remain active. This prevents a
+    // slower previous filter request from racing a newer one and also gives
+    // Strict Mode cleanup something concrete to cancel.
+    activeRequestControllerRef.current?.abort()
     const controller = new AbortController()
+    activeRequestControllerRef.current = controller
     let requestTimeoutMs: ReturnType<typeof setTimeout> | null = null
 
     try {
@@ -214,6 +228,9 @@ export const useCustomerBookings = () => {
       setBookings([])
     } finally {
       if (requestTimeoutMs) clearTimeout(requestTimeoutMs)
+      if (activeRequestControllerRef.current === controller) {
+        activeRequestControllerRef.current = null
+      }
 
       pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1)
       if (isMountedRef.current) {

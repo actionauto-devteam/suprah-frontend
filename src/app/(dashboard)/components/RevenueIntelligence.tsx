@@ -91,7 +91,7 @@ export function RevenueIntelligence({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-6">
       { }
       <Card className="lg:col-span-7 border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
-        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 lg:min-h-28">
+        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 lg:min-h-20">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
             <div>
               <CardTitle className="text-sm sm:text-lg font-black flex items-center gap-1.5 sm:gap-2">
@@ -131,7 +131,7 @@ export function RevenueIntelligence({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-h-44 sm:min-h-80">
+        <CardContent className="p-0 flex-1 min-h-44 sm:min-h-64">
           {isLoading ? (
             <div className="h-full w-full p-8 space-y-4">
               <Skeleton className="h-full w-full rounded-2xl" />
@@ -206,7 +206,7 @@ export function RevenueIntelligence({
 
       {/* Live Payments Feed */}
       <Card className="lg:col-span-5 border-border/40 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col p-0">
-        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 flex flex-row items-center justify-between lg:min-h-28">
+        <CardHeader className="py-2.5 px-3 sm:py-5 sm:px-6 border-b border-border/10 flex flex-row items-center justify-between lg:min-h-20">
           <div>
             <CardTitle className="text-sm sm:text-lg font-black flex items-center gap-1.5 sm:gap-2">
               <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-indigo-500/10 text-indigo-500">
@@ -222,52 +222,72 @@ export function RevenueIntelligence({
             All <ChevronRight className="h-3 w-3 group-hover:translate-x-1" />
           </Link>
         </CardHeader>
-        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-64 sm:max-h-120 touch-pan-y overscroll-contain scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
-          <Table className="table-fixed w-full">
-            <TableBody>
-              {isLoading
-                ? [1, 2, 3, 4, 5].map((i) => (
+        <CardContent className="p-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden max-h-64 sm:max-h-96 touch-pan-y overscroll-contain scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+          {isLoading ? (
+            <Table className="table-fixed w-full">
+              <TableBody>
+                {[1, 2, 3, 4].map((i) => (
                   <TableRow key={i}>
                     <TableCell>
                       <Skeleton className="h-10 w-full" />
                     </TableCell>
                   </TableRow>
-                ))
-                : livePayments.map((payment, i) => (
+                ))}
+              </TableBody>
+            </Table>
+          ) : livePayments.length === 0 ? (
+            <div className="flex min-h-44 items-center justify-center px-6 text-center">
+              <div>
+                <p className="text-sm font-bold text-foreground/80">No recent payments</p>
+                <p className="mt-1 text-xs text-muted-foreground/60">
+                  New payment activity will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Table className="table-fixed w-full">
+              <TableBody>
+                {livePayments.map((payment, i) => (
                   <TableRow
-                    key={i}
-                    className="hover:bg-muted/30 border-border/30 transition-colors h-11 sm:h-16 group"
+                    key={`${payment.createdAt}-${i}`}
+                    className="group h-11 border-border/30 transition-colors hover:bg-muted/30 sm:h-14"
                   >
-                    <TableCell className="pl-3 sm:pl-5 w-[55%] max-w-0">
+                    <TableCell className="w-[55%] max-w-0 pl-3 sm:pl-5">
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-xs sm:text-sm font-bold text-foreground leading-none">
+                        <span className="truncate text-xs font-bold leading-none text-foreground sm:text-sm">
                           {payment.customerName}
                         </span>
-                        <span className="mt-0.5 sm:mt-1 block truncate text-[8px] sm:text-[9px] text-muted-foreground/60 font-medium uppercase tracking-tighter">
+                        <span className="mt-1 block truncate text-[9px] font-medium uppercase tracking-tighter text-muted-foreground/60">
                           {payment.description}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="w-20 sm:w-28 font-black text-xs sm:text-sm tabular-nums text-right whitespace-nowrap">
+                    <TableCell className="w-20 whitespace-nowrap text-right text-xs font-black tabular-nums sm:w-28 sm:text-sm">
                       {formatCurrency(payment.amount)}
                     </TableCell>
-                    <TableCell className="pr-3 sm:pr-5 w-16 sm:w-24 text-right whitespace-nowrap">
+                    <TableCell className="w-16 whitespace-nowrap pr-3 text-right sm:w-24 sm:pr-5">
                       <Badge
                         variant="secondary"
-                        className={`text-[7px] sm:text-[8px] font-black uppercase px-1.5 sm:px-2 py-0.5 border-none ${payment.status === "succeeded"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : payment.status === "processing"
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-rose-500/10 text-rose-500"
-                          }`}
+                        className={`border-none px-1.5 py-0.5 text-[8px] font-black uppercase sm:px-2 ${
+                          payment.status === "succeeded"
+                            ? "bg-emerald-500/10 text-emerald-500"
+                            : payment.status === "processing"
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-rose-500/10 text-rose-500"
+                        }`}
                       >
-                        {payment.status === "succeeded" ? "Paid" : payment.status === "processing" ? "Pending" : "Failed"}
+                        {payment.status === "succeeded"
+                          ? "Paid"
+                          : payment.status === "processing"
+                            ? "Pending"
+                            : "Failed"}
                       </Badge>
                     </TableCell>
                   </TableRow>
                 ))}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

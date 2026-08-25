@@ -125,6 +125,17 @@ function isExpectedMailClientTimeout(
   );
 }
 
+function isClientTimeoutError(error: any): boolean {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    code === "ECONNABORTED" ||
+    code === "ETIMEDOUT" ||
+    message.includes("timeout") ||
+    message.includes("timed out")
+  );
+}
+
 function isExpectedDriverLoadCompatibilityError(
   status: number | undefined,
   responseData: any
@@ -140,6 +151,46 @@ function isExpectedDriverLoadCompatibilityError(
         item?.compatibility != null
     )
   );
+}
+
+function isExpectedAppointmentSchedulingConflict(
+  status: number | undefined,
+  requestUrl: string,
+  responseData: any
+): boolean {
+  if (status !== 409) return false;
+
+  // Scope this exception to the appointment-create endpoint only. This keeps
+  // unrelated 409 responses (including appointment update/delete problems) on
+  // the existing console.error path so unexpected regressions stay visible.
+  const requestPath = requestUrl.split("?")[0].replace(/\/+$/, "");
+  if (!requestPath.endsWith("/api/crm/calendar/appointments")) return false;
+
+  const rawMessage =
+    responseData?.message ??
+    responseData?.error?.message ??
+    "";
+  const message = String(rawMessage).trim();
+
+  return (
+    /^double-booking conflict:/i.test(message) ||
+    /time slot is no longer available/i.test(message)
+  );
+}
+
+function isExpectedAppointmentPollingNotFound(
+  status: number | undefined,
+  requestUrl: string,
+  requestConfig: any
+): boolean {
+  if (status !== 404 || requestConfig?._appointmentPolling !== true) {
+    return false;
+  }
+
+  // Only the live details-polling endpoint can opt into this behavior. A 404
+  // from any other appointment request remains on the normal error path.
+  const requestPath = requestUrl.split("?")[0].replace(/\/+$/, "");
+  return /^\/api\/appointments\/[^/]+$/.test(requestPath);
 }
 
 class ApiClient {
@@ -326,6 +377,15 @@ class ApiClient {
           console.warn(
             `[apiClient] Suprah One Desk mail request timed out: ${requestUrl}`
           );
+        } else if (isClientTimeoutError(error)) {
+          // A client-side timeout has no HTTP response and is a transient
+          // transport condition, not an application exception. Callers such as
+          // React Query and background pollers still receive the rejected Axios
+          // error and keep their existing retry/error behavior; using warn here
+          // prevents Next.js dev from opening a full-screen console-error overlay.
+          console.warn(
+            `[apiClient] Request timed out: ${requestUrl || error.config?.url || API_URL}`
+          );
         } else if (error.response) {
           const status = error.response.status;
           if (isExpectedMailTransientResponse(status, requestUrl)) {
@@ -355,6 +415,35 @@ class ApiClient {
             console.warn(
               `[apiClient] Driver/load compatibility review required (${status}):`,
               error.response.data
+            );
+          } else if (
+            isExpectedAppointmentSchedulingConflict(
+              status,
+              requestUrl,
+              error.response.data
+            )
+          ) {
+            // Appointment creation intentionally uses 409 for schedule conflicts.
+            // The modal consumes the same rejected Axios error to explain the
+            // conflict to the user. Log as a warning so development diagnostics
+            // remain available without triggering the Next.js error overlay.
+            console.warn(
+              `[apiClient] Appointment scheduling conflict (${status}):`,
+              error.response.data?.message ?? error.response.data
+            );
+          } else if (
+            isExpectedAppointmentPollingNotFound(
+              status,
+              requestUrl,
+              originalRequest
+            )
+          ) {
+            // A details modal can have one polling request in flight while the
+            // same appointment is being deleted. The resulting 404 is expected
+            // lifecycle behavior, not an application crash. Keep rejecting so
+            // the polling hook can stop itself and close the stale details view.
+            console.warn(
+              `[apiClient] Appointment polling stopped because the record no longer exists (${status}): ${requestUrl}`
             );
           } else {
             console.error(

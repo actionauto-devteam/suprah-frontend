@@ -112,3 +112,83 @@ export function isTomorrowMDT(v: Date | string): boolean {
 export function todayStrMDT(offsetDays = 0): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ })
 }
+
+
+/**
+ * Convert a calendar date (YYYY-MM-DD) in America/Denver into the exact UTC
+ * boundaries for that Mountain Time day. This is DST-safe: winter dates use
+ * MST (UTC-7) and summer dates use MDT (UTC-6).
+ *
+ * Use this for API date filters instead of `new Date("YYYY-MM-DDT00:00:00")`,
+ * because the latter is interpreted in the browser's local timezone.
+ */
+export function mdtDayRangeUtc(dateStr: string): { start: string; end: string } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
+  if (!match) {
+    throw new Error(`Invalid Mountain Time calendar date: ${dateStr}`)
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+
+  const startMs = mountainWallTimeToUtcMs(year, month, day)
+
+  // Move to the next calendar day without involving the browser timezone, then
+  // convert that next Mountain Time midnight independently. Subtracting 1 ms
+  // gives an inclusive end boundary and also handles 23/25-hour DST days.
+  const nextCalendarDay = new Date(Date.UTC(year, month - 1, day + 1))
+  const nextYear = nextCalendarDay.getUTCFullYear()
+  const nextMonth = nextCalendarDay.getUTCMonth() + 1
+  const nextDay = nextCalendarDay.getUTCDate()
+  const nextStartMs = mountainWallTimeToUtcMs(nextYear, nextMonth, nextDay)
+
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(nextStartMs - 1).toISOString(),
+  }
+}
+
+const mountainPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: MDT_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+
+/** Resolve Mountain Time midnight to UTC without a fixed offset. */
+function mountainWallTimeToUtcMs(year: number, month: number, day: number): number {
+  const desiredWallClockAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0, 0)
+  let guess = desiredWallClockAsUtc
+
+  // Two/three iterations are enough because timezone offsets are piecewise
+  // constant around a normal wall-clock time. Keeping three makes DST edges
+  // deterministic without introducing an external timezone dependency.
+  for (let i = 0; i < 3; i += 1) {
+    const parts = mountainPartsFormatter.formatToParts(new Date(guess))
+    const values: Record<string, string> = {}
+    for (const part of parts) {
+      if (part.type !== 'literal') values[part.type] = part.value
+    }
+
+    const representedWallClockAsUtc = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour),
+      Number(values.minute),
+      Number(values.second),
+      0,
+    )
+
+    const correction = desiredWallClockAsUtc - representedWallClockAsUtc
+    if (correction === 0) break
+    guess += correction
+  }
+
+  return guess
+}

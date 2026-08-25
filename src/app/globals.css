@@ -1691,3 +1691,46 @@ body.theme-switching *::after {
   color: currentColor;
   stroke: currentColor;
 }
+
+/* ==========================================================
+   Service Hub native date/month controls
+   ----------------------------------------------------------
+   Service Hub intentionally uses browser-native date/month pickers. Keep their
+   popup appearance tied to Suprah's actual theme class instead of allowing the
+   browser/OS to independently choose between light and dark. This is scoped so
+   other native controls and existing module-specific fixes remain unchanged.
+   ========================================================== */
+.service-hub-native-picker {
+  color-scheme: light;
+}
+
+.dark .service-hub-native-picker {
+  color-scheme: dark;
+}
+
+/* ==========================================================
+   Service Hub app-rendered select stabilization
+   ----------------------------------------------------------
+   Status and Type use Radix Select instead of the browser/OS native <select>
+   popup. Keep this portal surface opaque and on a stable compositor layer,
+   and disable its zoom/fade transition so Chromium never exposes an
+   unpainted white/black rectangle during the first popup frame. Scoped to
+   Service Hub so every other Select in Suprah keeps its existing behavior.
+   ========================================================== */
+.service-hub-select-content {
+  isolation: isolate;
+  contain: layout paint style;
+  opacity: 1 !important;
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: auto;
+}
+
+.service-hub-select-content[data-state="open"],
+.service-hub-select-content[data-state="closed"] {
+  animation: none !important;
+  transition: none !important;
+}
