@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { fmtFullDateTime24MDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
+import { generateAppointmentDashboardExcel } from "@/lib/appointment-dashboard-export";
 import {
   ArrowLeft, Calendar, CalendarDays, Car, ChevronRight, Clock,
   Download, Eye, FileText, Loader2, Plus, RefreshCw, Search,
@@ -16,6 +17,13 @@ import { AppointmentChat } from "@/components/AppointmentChat";
 import { VehicleHistory } from "@/components/VehicleHistory";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 
@@ -695,19 +703,31 @@ function AppointmentDashboard() {
 
   const handleExport = async () => {
     try {
-      const h = await getHeaders();
-      const r = await apiClient.get("/api/appointments/dashboard/export", {
-        ...h, params: { ...rangeParams, format: "csv" }, responseType: "text",
+      // Build the user-facing workbook from the same records currently visible
+      // in Service Hub so date/status/type/search filters stay perfectly aligned
+      // with the export. CSV remains available on the backend for raw-data use,
+      // but the primary UI export is XLSX because CSV cannot preserve branding,
+      // column widths, wrapping, row heights, or cell styling.
+      const blob = await generateAppointmentDashboardExcel(filtered, {
+        periodLabel: displayDate,
+        viewMode,
+        statusFilter,
+        typeFilter,
+        searchQuery,
       });
-      const blob = new Blob([r.data], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const fileTag = viewMode === "month" ? selectedMonth : selectedDate;
-      const a = Object.assign(document.createElement("a"), { href: url, download: `appointments-${fileTag}.csv` });
+      const a = Object.assign(document.createElement("a"), {
+        href: url,
+        download: `Suprah_AI_Service_Hub_Appointments_${fileTag}.xlsx`,
+      });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (e) { console.error("Export failed:", e); }
+    } catch (e) {
+      console.error("Export failed:", e);
+    }
   };
 
   const showFiltersActive = statusFilter !== "all" || typeFilter !== "all" || searchQuery.trim() !== "";
@@ -758,16 +778,20 @@ function AppointmentDashboard() {
             {viewMode === "month" ? (
               <input
                 type="month"
-                className={cn(FIELD, "w-full cursor-pointer scheme-light-dark sm:w-40")}
+                className={cn(FIELD, "service-hub-native-picker w-full cursor-pointer sm:w-40")}
                 value={selectedMonth}
                 onChange={(e) => handleMonthChange(e.target.value)}
+                autoComplete="off"
+                aria-label="Select appointment month"
               />
             ) : (
               <input
                 type="date"
-                className={cn(FIELD, "w-full cursor-pointer scheme-light-dark sm:w-40")}
+                className={cn(FIELD, "service-hub-native-picker w-full cursor-pointer sm:w-40")}
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
+                autoComplete="off"
+                aria-label="Select appointment date"
               />
             )}
           </div>
@@ -787,38 +811,53 @@ function AppointmentDashboard() {
 
           <div className="hidden h-9 w-px self-end bg-border sm:block" />
 
-          {/* Status */}
+          {/* Status — Radix Select avoids the OS/native dropdown surface that
+              was briefly painting a white/black rectangle in Chromium. */}
           <div className="flex min-w-32 flex-1 flex-col gap-1.5">
             <span className={EYEBROW}>Status</span>
-            <select
-              className={cn(FIELD, "w-full cursor-pointer appearance-none pr-7 sm:w-36")}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Statuses</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger
+                aria-label="Filter appointments by status"
+                className={cn(FIELD, "w-full cursor-pointer sm:w-36")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className="service-hub-select-content z-[300]"
+                align="start"
+              >
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Type */}
+          {/* Type — same app-rendered dropdown path as Status. */}
           <div className="flex min-w-32 flex-1 flex-col gap-1.5">
             <span className={EYEBROW}>Type</span>
-            <select
-              className={cn(FIELD, "w-full cursor-pointer appearance-none pr-7 sm:w-36")}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="appointment">Appointment</option>
-              <option value="test-drive">Test Drive</option>
-              <option value="phone-call">Phone Call</option>
-              <option value="meeting">Meeting</option>
-              <option value="event">Event</option>
-              <option value="task">Task</option>
-            </select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger
+                aria-label="Filter appointments by type"
+                className={cn(FIELD, "w-full cursor-pointer sm:w-36")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className="service-hub-select-content z-[300]"
+                align="start"
+              >
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="appointment">Appointment</SelectItem>
+                <SelectItem value="test-drive">Test Drive</SelectItem>
+                <SelectItem value="phone-call">Phone Call</SelectItem>
+                <SelectItem value="meeting">Meeting</SelectItem>
+                <SelectItem value="event">Event</SelectItem>
+                <SelectItem value="task">Task</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="hidden h-9 w-px self-end bg-border sm:block" />
@@ -829,8 +868,17 @@ function AppointmentDashboard() {
             <div className="relative">
               <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" strokeWidth={2} />
               <Input
+                type="search"
+                name="service-hub-appointment-search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                enterKeyHint="search"
+                aria-label="Search appointments"
+                title="Search by customer name, email, or phone"
                 className="h-9 w-full rounded-lg border-border bg-muted/40 pl-8 text-[13px] focus:border-primary sm:max-w-55"
-                placeholder="Name, email, phone…"
+                placeholder="Search appointments…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -856,7 +904,7 @@ function AppointmentDashboard() {
           >
             <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={handleExport} disabled={isLoading || !filtered.length}>
               <Download size={12} strokeWidth={2} />
-              Export CSV
+              Export Excel
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg text-xs" onClick={() => refetch()} disabled={isFetching}>
               {/* isLoading only covers the very first load — a manual refetch on an
@@ -978,16 +1026,26 @@ function AppointmentDashboard() {
                     className="h-9 min-w-52 flex-1 rounded-lg bg-background text-[13px]"
                     required
                   />
-                  <select
+                  <Select
                     value={postType}
-                    onChange={(e) => setPostType(e.target.value as DashboardPost["type"])}
-                    className={cn(FIELD, "w-40 cursor-pointer appearance-none bg-background pr-7")}
+                    onValueChange={(value) => setPostType(value as DashboardPost["type"])}
                   >
-                    <option value="event">Event</option>
-                    <option value="news">News</option>
-                    <option value="announcement">Announcement</option>
-                    <option value="update">Update</option>
-                  </select>
+                    <SelectTrigger
+                      aria-label="Post type"
+                      className={cn(FIELD, "w-40 cursor-pointer bg-background")}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      className="service-hub-select-content z-[300]"
+                      align="start"
+                    >
+                      <SelectItem value="event">Event</SelectItem>
+                      <SelectItem value="news">News</SelectItem>
+                      <SelectItem value="announcement">Announcement</SelectItem>
+                      <SelectItem value="update">Update</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <textarea
                   placeholder="Write your update…"

@@ -46,9 +46,9 @@ export function Panel({
 }) {
   return (
     <section
-      className={`relative flex h-full flex-col overflow-hidden rounded-3xl border border-border/40 bg-card/40 backdrop-blur-md shadow-sm ${className}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/40 bg-card/40 backdrop-blur-md shadow-sm ${className}`}
     >
-      <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-border/20">
+      <div className="flex items-center justify-between gap-3 border-b border-border/20 px-4 py-3.5 sm:px-5">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className={`size-4 shrink-0 ${accent}`} />
           <h2 className="text-base font-black tracking-tight truncate">{title}</h2>
@@ -63,7 +63,7 @@ export function Panel({
           </button>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
     </section>
   );
 }

@@ -72,6 +72,37 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+// Appointment records can arrive from more than one endpoint. Most detail
+// queries return populated participant objects, while older/customer-booking
+// responses may still contain raw ObjectId strings. Normalize both shapes so
+// the details modal remains safe during rolling frontend/backend deployments.
+function getParticipantId(participant: any): string {
+  if (participant == null) return ""
+  if (typeof participant === "string" || typeof participant === "number") {
+    return String(participant)
+  }
+
+  const rawId = participant._id ?? participant.id
+  if (rawId == null) return ""
+  if (typeof rawId === "string" || typeof rawId === "number") return String(rawId)
+  if (typeof rawId?.toString === "function") {
+    const value = rawId.toString()
+    return value === "[object Object]" ? "" : value
+  }
+  return ""
+}
+
+function getParticipantEmail(participant: any): string {
+  return typeof participant === "object" && participant?.email
+    ? String(participant.email)
+    : ""
+}
+
+function getParticipantName(participant: any): string {
+  if (typeof participant !== "object" || participant == null) return "Participant"
+  return participant.fullName || participant.name || participant.email || "Participant"
+}
+
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function Section({ title, icon, children }: {
@@ -113,9 +144,18 @@ export function AppointmentDetailsModal({
     fetchNotifications()
   }, [fetchNotifications])
 
+  const handleAppointmentNotFound = React.useCallback(() => {
+    // A 404 during live polling means this appointment no longer exists
+    // (for example, it was just deleted here or by another user). Close the
+    // stale details view instead of continuing to poll a deleted record.
+    setAppointment(null)
+    onOpenChange(false)
+  }, [onOpenChange])
+
   useAppointmentPolling({
     appointmentId: appointment?._id || null,
     onUpdate: handleAppointmentUpdate,
+    onNotFound: handleAppointmentNotFound,
     enabled: open && !isEditing,
     intervalMs: 10000,
   })
@@ -125,14 +165,14 @@ export function AppointmentDetailsModal({
   }, [initialAppointment])
 
   const isRegisteredParticipant = React.useMemo(() => {
-    if (!currentUser?.id || !appointment?.participants) return false
-    const currentUserId    = currentUser.id
+    if (!currentUser?.id || !Array.isArray(appointment?.participants)) return false
+    const currentUserId    = String(currentUser.id)
     const currentUserEmail = currentUser.primaryEmailAddress?.emailAddress || currentUser.emailAddresses?.[0]?.emailAddress
-    return appointment.participants.some((participant) => {
-      const participantId    = participant._id || ""
-      const participantEmail = participant.email || ""
+    return appointment.participants.some((participant: any) => {
+      const participantId    = getParticipantId(participant)
+      const participantEmail = getParticipantEmail(participant)
       return (
-        String(participantId) === String(currentUserId) ||
+        participantId === currentUserId ||
         (participantEmail && currentUserEmail && participantEmail.toLowerCase() === currentUserEmail.toLowerCase())
       )
     })
@@ -172,7 +212,9 @@ export function AppointmentDetailsModal({
       meetingLink:     appointment.meetingLink || "",
       notes:           appointment.notes || "",
       outcomeNotes:    appointment.outcomeNotes || "",
-      participants:    appointment.participants.map((p) => p._id),
+      participants:    (Array.isArray(appointment.participants) ? appointment.participants : [])
+        .map((p: any) => getParticipantId(p))
+        .filter(Boolean),
       guestEmailsData: appointment.guestEmails || [],
       guestEmails:     appointment.guestEmails?.map((g: any) => {
         if (typeof g === "string") return g
@@ -529,7 +571,14 @@ export function AppointmentDetailsModal({
           </Section>
 
           {/* ── Participants ── */}
-          <Section title={`Participants (${isEditing ? editData.participants.length : appointment.participants.length})`} icon={<Users className="size-3.5" />}>
+          <Section
+            title={`Participants (${
+              isEditing
+                ? editData.participants.length
+                : (Array.isArray(appointment.participants) ? appointment.participants.length : 0)
+            })`}
+            icon={<Users className="size-3.5" />}
+          >
             {isEditing ? (
               <UserSearch
                 selectedUsers={editData.participants}
@@ -540,21 +589,32 @@ export function AppointmentDetailsModal({
               />
             ) : (
               <div className="flex flex-wrap gap-2">
-                {appointment.participants.map((participant) => (
-                  <div key={participant._id} className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5">
-                    {participant.avatar ? (
-                      <img src={participant.avatar} alt="" className="size-5 rounded-full object-cover" />
-                    ) : (
-                      <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                        {(participant.fullName || participant.name || "?").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-sm font-medium">{participant.fullName || participant.name}</span>
-                    {participant._id === appointment.createdBy._id && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Organizer</span>
-                    )}
-                  </div>
-                ))}
+                {(Array.isArray(appointment.participants) ? appointment.participants : []).map((participant: any, index: number) => {
+                  const participantId = getParticipantId(participant)
+                  const participantEmail = getParticipantEmail(participant)
+                  const participantName = getParticipantName(participant)
+                  const participantAvatar = typeof participant === "object" && participant?.avatar
+                    ? String(participant.avatar)
+                    : ""
+                  const creatorId = getParticipantId(appointment.createdBy as any)
+                  const stableKey = participantId || participantEmail || `participant-${index}`
+
+                  return (
+                    <div key={stableKey} className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                      {participantAvatar ? (
+                        <img src={participantAvatar} alt="" className="size-5 rounded-full object-cover" />
+                      ) : (
+                        <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                          {participantName.charAt(0).toUpperCase() || "?"}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium">{participantName}</span>
+                      {participantId && creatorId && participantId === creatorId && (
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Organizer</span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </Section>

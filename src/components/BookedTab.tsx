@@ -34,7 +34,7 @@ import {
   MapPin,
   History,
 } from "lucide-react";
-import { fmtLongDateTimeMDT, isTodayMDT, MDT_TZ } from "@/lib/timezone";
+import { fmtLongDateTimeMDT, isTodayMDT, MDT_TZ, mdtDayRangeUtc } from "@/lib/timezone";
 import { useCustomerBookings } from "@/hooks/useCustomerBookings";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -474,10 +474,9 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 export function BookedTab() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
-  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = React.useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = React.useState<any>(null);
   const [historyModalOpen, setHistoryModalOpen] = React.useState(false);
-  const lastFetchKeyRef = React.useRef<string>("");
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const { width: paneWidth, isPaneContent } = usePaneContentMetrics();
   const compactPane = isPaneContent && (paneWidth === 0 || paneWidth < 560);
@@ -497,19 +496,23 @@ export function BookedTab() {
     const filters: any = {};
     if (statusFilter !== "all") filters.status = statusFilter;
     if (selectedDate) {
-      filters.startDate = selectedDate.toISOString();
-      const endDate = new Date(selectedDate);
-      endDate.setHours(23, 59, 59, 999);
-      filters.endDate = endDate.toISOString();
+      // Treat the selected calendar day as an America/Denver day, not as the
+      // browser's local day (for example PHT). This keeps the filter aligned
+      // with the MDT/MST dates shown on each booking card.
+      const range = mdtDayRangeUtc(selectedDate);
+      filters.startDate = range.start;
+      filters.endDate = range.end;
     }
     return filters;
   }, [statusFilter, selectedDate]);
 
   React.useEffect(() => {
     if (!isAuthLoaded || !isSignedIn) return;
-    const fetchKey = JSON.stringify(activeFilters);
-    if (lastFetchKeyRef.current === fetchKey) return;
-    lastFetchKeyRef.current = fetchKey;
+
+    // Let the hook own request de-duplication/cancellation. Avoid caching the
+    // last filter key here because React Strict Mode can run effect cleanup and
+    // setup again while preserving refs, which previously prevented the second
+    // setup from retrying a request that had just been cancelled.
     void fetchCustomerBookings(activeFilters);
   }, [activeFilters, fetchCustomerBookings, isAuthLoaded, isSignedIn]);
 
@@ -531,16 +534,11 @@ export function BookedTab() {
 
   const stats = React.useMemo(() => {
     if (!bookings) return { total: 0, todays: 0, confirmed: 0, cancelled: 0 };
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
     return {
       total: bookings.length,
-      todays: bookings.filter((b: any) => {
-        const s = new Date(b.startTime);
-        return s >= today && s < tomorrow;
-      }).length,
+      // "Today" follows the same America/Denver business timezone as the
+      // booking card date/time, regardless of the user's browser timezone.
+      todays: bookings.filter((b: any) => isTodayMDT(b.startTime)).length,
       confirmed: bookings.filter((b: any) => b.status === "confirmed").length,
       cancelled: bookings.filter((b: any) => b.status === "cancelled").length,
     };
@@ -561,7 +559,7 @@ export function BookedTab() {
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
-    setSelectedDate(null);
+    setSelectedDate("");
   };
   const isFetchingInitial = (!isAuthLoaded || isLoading) && bookings.length === 0;
   const [showLoading, setShowLoading] = React.useState(false);
@@ -577,7 +575,6 @@ export function BookedTab() {
 
   const handleRetry = () => {
     if (!isAuthLoaded || !isSignedIn) return;
-    lastFetchKeyRef.current = "";
     void fetchCustomerBookings(activeFilters);
   };
 
@@ -686,10 +683,8 @@ export function BookedTab() {
         {/* Date */}
         <input
           type="date"
-          value={selectedDate ? selectedDate.toLocaleDateString('en-CA') : ""}
-          onChange={(e) =>
-            setSelectedDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : null)
-          }
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
           className={cn(
             "h-8 px-2.5 rounded-md border border-input bg-muted/40 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all scheme-light-dark",
             compactPane ? "w-full" : "w-36",

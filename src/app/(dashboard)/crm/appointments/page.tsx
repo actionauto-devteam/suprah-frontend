@@ -16,6 +16,7 @@ import {
   MapPin,
   Sparkles,
   ChevronRight,
+  History,
 } from "lucide-react";
 import { AppointmentCalendar } from "@/components/AppointmentCalendar";
 import { BookedTab } from "@/components/BookedTab";
@@ -46,6 +47,7 @@ import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
 const TAB_OPTIONS: TabOption[] = [
   { id: "calendar",  label: "Calendar View",        icon: <Calendar className="h-3.5 w-3.5" /> },
   { id: "upcoming",  label: "Upcoming",             icon: <Clock    className="h-3.5 w-3.5" /> },
+  { id: "history",   label: "History",              icon: <History  className="h-3.5 w-3.5" /> },
   { id: "booked",    label: "Booked",               icon: <Users    className="h-3.5 w-3.5" /> },
   { id: "customers", label: "Customer Credentials", icon: <Contact  className="h-3.5 w-3.5" /> },
 ];
@@ -233,6 +235,7 @@ interface CustomTabBarProps {
   value: string;
   onChange: (id: string) => void;
   upcomingCount: number;
+  historyCount: number;
   bookedCount: number;
   customerCount: number;
 }
@@ -241,6 +244,7 @@ function CustomTabBar({
   value,
   onChange,
   upcomingCount,
+  historyCount,
   bookedCount,
   customerCount,
 }: CustomTabBarProps) {
@@ -256,6 +260,12 @@ function CustomTabBar({
       label: "Upcoming",
       icon: <Clock className="h-3.5 w-3.5" />,
       count: upcomingCount > 0 ? upcomingCount : null,
+    },
+    {
+      id: "history",
+      label: "History",
+      icon: <History className="h-3.5 w-3.5" />,
+      count: historyCount > 0 ? historyCount : null,
     },
     {
       id: "booked",
@@ -383,6 +393,91 @@ function SectionHeader({
   );
 }
 
+type HistoryFilter = "all" | "cancelled" | "completed" | "no-show";
+
+function HistoryPanel({
+  appointments,
+  loading,
+  filter,
+  onFilterChange,
+  counts,
+  onAppointmentClick,
+}: {
+  appointments: any[];
+  loading: boolean;
+  filter: HistoryFilter;
+  onFilterChange: (filter: HistoryFilter) => void;
+  counts: { all: number; cancelled: number; completed: number; noShow: number };
+  onAppointmentClick: (appointment: any) => void;
+}) {
+  const filters: Array<{ id: HistoryFilter; label: string; count: number }> = [
+    { id: "all", label: "All", count: counts.all },
+    { id: "cancelled", label: "Cancelled", count: counts.cancelled },
+    { id: "completed", label: "Completed", count: counts.completed },
+    { id: "no-show", label: "No-show", count: counts.noShow },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <SectionHeader
+        title="Appointment History"
+        subtitle="Cancelled, completed, and no-show appointments"
+        count={appointments.length}
+      />
+
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-max gap-1 rounded-xl border bg-muted/40 p-1">
+          {filters.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onFilterChange(item.id)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                filter === item.id
+                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+              )}
+            >
+              {item.label}
+              <span className={cn(
+                "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
+                filter === item.id ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                {item.count > 99 ? "99+" : item.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <AppointmentSkeleton />
+      ) : appointments.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed bg-muted/20 py-12 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+            <History className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">No appointments in this history view</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Cancelled, completed, or no-show appointments will appear here.
+            </p>
+          </div>
+        </div>
+      ) : (
+        appointments.map((apt: any) => (
+          <UpcomingAppointmentCard
+            key={apt._id}
+            appointment={apt}
+            onClick={() => onAppointmentClick(apt)}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
 
 function AppointmentsPageInner() {
   const router = useRouter();
@@ -391,6 +486,7 @@ function AppointmentsPageInner() {
   const { isFullscreen } = useFullscreen();
 
   const [activeTab, setActiveTab] = React.useState("upcoming");
+  const [historyFilter, setHistoryFilter] = React.useState<HistoryFilter>("all");
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
   const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
@@ -515,6 +611,32 @@ function AppointmentsPageInner() {
     },
   });
 
+  const {
+    data: customerBookingHistoryAppointments = [],
+    isLoading: isCustomerBookingHistoryLoading,
+  } = useQuery({
+    // History needs the organization-wide customer-booking records as well as
+    // the user-scoped appointments query. Use a separate cache key so the
+    // existing customer-bookings-count query keeps its numeric data contract.
+    queryKey: ["customer-bookings-history-source"],
+    queryFn: async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const response = await apiClient.get(
+          "/api/appointments/customer-bookings/list",
+          headers
+        );
+        const data = response.data?.data || response.data;
+        if (Array.isArray(data?.appointments)) return data.appointments;
+        if (Array.isArray(data)) return data;
+        return [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 30_000,
+  });
+
   const { data: customerCount = 0 } = useQuery({
     queryKey: ["customers-count"],
     queryFn: async () => {
@@ -556,6 +678,15 @@ function AppointmentsPageInner() {
       cancelled: globalAppointments.filter(
         (apt: any) => apt.status === "cancelled"
       ).length,
+      completed: globalAppointments.filter(
+        (apt: any) => apt.status === "completed"
+      ).length,
+      noShow: globalAppointments.filter(
+        (apt: any) => apt.status === "no-show"
+      ).length,
+      history: globalAppointments.filter((apt: any) =>
+        ["cancelled", "completed", "no-show"].includes(apt.status)
+      ).length,
     };
   }, [globalAppointments]);
 
@@ -577,6 +708,51 @@ function AppointmentsPageInner() {
       .slice(0, 20);
   }, [globalAppointments]);
 
+  const historyAppointments = React.useMemo(() => {
+    const terminalStatuses = new Set(["cancelled", "completed", "no-show"]);
+    const byId = new Map<string, any>();
+
+    // Customer bookings are organization-wide and are not guaranteed to be
+    // returned by the user-scoped globalAppointments query. Add them first,
+    // then let globalAppointments replace duplicates because it normally has
+    // the richer populated participant data used by the details modal.
+    for (const apt of customerBookingHistoryAppointments) {
+      const status = String(apt?.status || "").toLowerCase();
+      const id = String(apt?._id || "");
+      if (id && terminalStatuses.has(status)) {
+        byId.set(id, apt);
+      }
+    }
+
+    for (const apt of globalAppointments) {
+      const status = String(apt?.status || "").toLowerCase();
+      const id = String(apt?._id || "");
+      if (id && terminalStatuses.has(status)) {
+        byId.set(id, apt);
+      }
+    }
+
+    // History is activity-oriented: a recently cancelled/completed appointment
+    // should be easy to find even when its original scheduled date is older.
+    return Array.from(byId.values()).sort((a: any, b: any) => {
+      const aDate = new Date(a.updatedAt || a.startTime).getTime();
+      const bDate = new Date(b.updatedAt || b.startTime).getTime();
+      return bDate - aDate;
+    });
+  }, [globalAppointments, customerBookingHistoryAppointments]);
+
+  const historyCounts = React.useMemo(() => ({
+    all: historyAppointments.length,
+    cancelled: historyAppointments.filter((apt: any) => apt.status === "cancelled").length,
+    completed: historyAppointments.filter((apt: any) => apt.status === "completed").length,
+    noShow: historyAppointments.filter((apt: any) => apt.status === "no-show").length,
+  }), [historyAppointments]);
+
+  const filteredHistoryAppointments = React.useMemo(() => {
+    if (historyFilter === "all") return historyAppointments;
+    return historyAppointments.filter((apt: any) => apt.status === historyFilter);
+  }, [historyAppointments, historyFilter]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateAppointment = React.useCallback(() => {
@@ -593,6 +769,7 @@ function AppointmentsPageInner() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["appointments"] }),
       queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
+      queryClient.invalidateQueries({ queryKey: ["customer-bookings-history-source"] }),
       refetchGlobal(),
       refetchCalendar(),
     ]);
@@ -610,6 +787,7 @@ function AppointmentsPageInner() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-bookings-history-source"] }),
         refetchGlobal(),
         refetchCalendar(),
       ]);
@@ -628,6 +806,7 @@ function AppointmentsPageInner() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-bookings-history-source"] }),
         refetchGlobal(),
         refetchCalendar(),
       ]);
@@ -639,10 +818,18 @@ function AppointmentsPageInner() {
     async (id: string) => {
       const headers = await getAuthHeaders();
       await apiClient.delete(`/api/crm/calendar/appointments/${id}`, headers);
+
+      // Unmount the details modal immediately after a successful delete so its
+      // live polling hook cannot issue another request for the deleted record.
+      // This happens before list refetches because those can take longer than
+      // the modal lifecycle transition.
       setDetailsModalOpen(false);
+      setSelectedAppointment(null);
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-bookings-history-source"] }),
         refetchGlobal(),
         refetchCalendar(),
       ]);
@@ -658,6 +845,7 @@ function AppointmentsPageInner() {
         refetchGlobal(),
         refetchCalendar(),
         queryClient.invalidateQueries({ queryKey: ["customer-bookings-count"] }),
+        queryClient.invalidateQueries({ queryKey: ["customer-bookings-history-source"] }),
       ]);
     },
     [refetchGlobal, refetchCalendar, queryClient]
@@ -706,6 +894,20 @@ function AppointmentsPageInner() {
             </div>
           );
 
+        case "history":
+          return (
+            <div className="p-4">
+              <HistoryPanel
+                appointments={filteredHistoryAppointments}
+                loading={isGlobalLoading || isCustomerBookingHistoryLoading}
+                filter={historyFilter}
+                onFilterChange={setHistoryFilter}
+                counts={historyCounts}
+                onAppointmentClick={handleAppointmentClick}
+              />
+            </div>
+          );
+
         case "booked":
           return (
             <div className="p-4">
@@ -732,6 +934,10 @@ function AppointmentsPageInner() {
       calendarAppointments,
       isCalendarLoading,
       upcomingAppointments,
+      filteredHistoryAppointments,
+      historyFilter,
+      historyCounts,
+      isCustomerBookingHistoryLoading,
       isGlobalLoading,
       handleCreateAppointment,
       handleDateClick,
@@ -906,6 +1112,7 @@ function AppointmentsPageInner() {
                 value={activeTab}
                 onChange={setActiveTab}
                 upcomingCount={stats.upcoming}
+                historyCount={historyCounts.all}
                 bookedCount={customerBookingsCount}
                 customerCount={customerCount}
               />
@@ -954,6 +1161,17 @@ function AppointmentsPageInner() {
                       ))
                     )}
                   </div>
+                )}
+
+                {activeTab === "history" && (
+                  <HistoryPanel
+                    appointments={filteredHistoryAppointments}
+                    loading={isGlobalLoading || isCustomerBookingHistoryLoading}
+                    filter={historyFilter}
+                    onFilterChange={setHistoryFilter}
+                    counts={historyCounts}
+                    onAppointmentClick={handleAppointmentClick}
+                  />
                 )}
 
                 {activeTab === "booked" && <BookedTab />}

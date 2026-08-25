@@ -155,7 +155,9 @@ const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.type, r])) as Re
 const PAGE_PANEL = "rounded-3xl border border-border/40 bg-card/60 backdrop-blur-xl"
 const MAX_DAYPULSE_ATTACHMENTS_PER_SECTION = 5
 
-// DayPulse -> SupraSpace report channel
+// Backend owns DayPulse -> Suprah Space synchronization. This endpoint is
+// retained only as an automatic retry path if the create response reports a
+// transient synchronization failure.
 const DAYPULSE_REPORT_ENDPOINT = '/api/supraspace/daypulse-report'
 const toMDTDate = (date: Date) => new Date(date.getTime() + MDT_OFFSET_MS)
 
@@ -168,63 +170,6 @@ function toMDTDateKey(date: Date): string {
   ].join("-")
 }
 
-function reportDateKey(dateStr: string): string {
-  const match = dateStr.match(/^\d{4}-\d{2}-\d{2}/)
-  return match ? match[0] : toMDTDateKey(new Date(dateStr))
-}
-
-function formatMDTTime(dateStr: string): string {
-  return toMDTDate(new Date(dateStr)).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  })
-}
-
-function toBullets(text: string): string {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  return lines.map((line) => {
-    const normalized = line.replace(/^[-•]\s+/, "")
-    return `- ${normalized}`
-  }).join('\n')
-}
-
-async function postDayPulseToGroupChat(report: DayPulseReport): Promise<void> {
-  const buildBody = (): Record<string, unknown> => {
-    const dept = DEPARTMENTS.find(d => d.key === report.department)
-    const deptLabel = dept?.label ?? report.department
-    const dateStr = formatReportDate(reportDateKey(report.reportDate))
-    const timeStr = formatMDTTime(report.createdAt)
-
-    const content =
-      `Department - ${deptLabel}\n` +
-      `Name - ${report.authorName}\n\n` +
-      `**Accomplishments**\n${toBullets(report.accomplishment)}\n\n` +
-      `**Blockers**\n${toBullets(report.blockers)}\n\n` +
-      `**In Progress**\n${toBullets(report.inProgress)}` +
-      `\n\nDaily Report - Generated on ${dateStr} at ${timeStr}`
-
-    const body: Record<string, unknown> = { content }
-    if (report.attachments && report.attachments.length > 0) {
-      body.attachments = report.attachments.map(a => ({
-        url: a.url,
-        fileKey: a.fileKey,
-        originalName: a.originalName,
-        mimeType: a.mimeType,
-        size: a.size,
-        thumbnailUrl: a.thumbnailUrl ?? null,
-      }))
-    }
-    return body
-  }
-
-  try {
-    await apiClient.post(DAYPULSE_REPORT_ENDPOINT, buildBody())
-    localStorage.removeItem('dp_groupchat_id')
-  } catch {
-    // silent fail - DayPulse was already posted successfully
-  }
-}
 const MAX_DAYPULSE_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 const DAYPULSE_ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -1590,9 +1535,21 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
 
       const res = await apiClient.post("/api/crm/daypulse", payload)
       const report: DayPulseReport = res.data?.data?.report
+      const supraSpaceSync = res.data?.data?.supraSpaceSync
       onPosted(report)
-      // DayPulse -> SupraSpace report channel
-      postDayPulseToGroupChat(report)
+
+      // The backend is the primary owner of synchronization. If it reports a
+      // transient failure, perform one automatic idempotent retry by report id
+      // before closing the editor. No report content or signed attachment URL
+      // is duplicated through the browser anymore.
+      if (report?._id && supraSpaceSync?.synced === false) {
+        try {
+          await apiClient.post(DAYPULSE_REPORT_ENDPOINT, { dayPulseReportId: report._id })
+        } catch (syncError) {
+          console.error("[DayPulse] Suprah Space retry failed", syncError)
+        }
+      }
+
       setAcc(""); setBlk(""); setInp("")
       setPendingAttachments({ accomplishment: [], blockers: [], inProgress: [] })
       setActiveAttachmentSection(null)
@@ -1619,31 +1576,44 @@ function ReportComposer({ currentUser, token, selectedDept, onPosted }: {
         />
       )}
 
-      {/* Collapsed trigger */}
+      {/* Collapsed trigger — make the required first action unmistakable. */}
       {!open ? (
         <button
+          type="button"
           onClick={() => setOpen(true)}
-          className="w-full flex items-center gap-4 p-5 text-left"
+          aria-expanded={false}
+          aria-controls="daypulse-report-editor"
+          className="group relative w-full cursor-pointer overflow-hidden rounded-3xl px-5 py-7 text-center outline-none transition-all duration-200 hover:bg-emerald-500/5 focus-visible:ring-2 focus-visible:ring-emerald-500/50 sm:px-8 sm:py-8"
         >
-          <Avatar className="h-10 w-10 shrink-0 ring-1 ring-emerald-500/25">
-            <AvatarImage src={currentUser.avatar} />
-            <AvatarFallback className="bg-emerald-600 text-white text-xs font-semibold">
-              {ini(currentUser.fullName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 rounded-2xl bg-muted/30 border border-border/40 px-4 py-3 text-sm text-muted-foreground/50 hover:bg-muted/50 transition-colors">
-            <span className="mb-0.5 block text-[11px] font-medium text-muted-foreground/40">
-              New report
-            </span>
-            File your DayPulse update…
-          </div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground/50 shrink-0">
+          <div className="absolute right-5 top-4 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/45 sm:right-6 sm:top-5 sm:text-xs">
             <CalendarDays className="h-3.5 w-3.5" />
-            {date}
+            <span>{date}</span>
+          </div>
+
+          <div className="mx-auto flex max-w-xl flex-col items-center">
+            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow-sm shadow-emerald-500/10 transition-all duration-200 group-hover:scale-105 group-hover:border-emerald-500/35 group-hover:bg-emerald-500/15">
+              <Pencil className="h-5 w-5" />
+            </span>
+
+            <span className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+              Create your DayPulse report
+            </span>
+            <span className="mt-1.5 max-w-lg text-xs leading-5 text-muted-foreground/60 sm:text-sm sm:leading-6">
+              Share what you completed, what&apos;s blocking you, and what you&apos;re working on today.
+            </span>
+
+            <span className="mt-4 inline-flex min-h-10 min-w-50 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:bg-emerald-500 group-hover:shadow-md group-hover:shadow-emerald-500/25 sm:text-sm">
+              <Pencil className="h-3.5 w-3.5" />
+              Start today&apos;s DayPulse
+            </span>
+
+            <span className="mt-2.5 text-[11px] leading-4 text-muted-foreground/40 sm:text-xs">
+              You can review and edit your report before submitting.
+            </span>
           </div>
         </button>
       ) : (
-        <div className="p-6 space-y-5">
+        <div id="daypulse-report-editor" className="p-6 space-y-5">
           {/* Form header */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
@@ -2143,7 +2113,7 @@ export default function DayPulsePage({ currentUser, token }: {
             <div className="max-w-md space-y-2 text-center">
               <p className="text-base font-medium tracking-tight text-muted-foreground/60">No reports for this day</p>
               <p className="text-sm leading-6 text-muted-foreground/40">
-                {selectedDept ? `No #${deptMeta?.label} reports on ${selectedDate}.` : `No reports on ${selectedDate}.`} Be the first to file one!
+                {selectedDept ? `No #${deptMeta?.label} reports on ${selectedDate}.` : `No reports on ${selectedDate}.`} Use the <span className="font-medium text-emerald-500">Create your DayPulse report</span> button above to add the first one.
               </p>
             </div>
           </div>

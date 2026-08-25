@@ -906,6 +906,37 @@ export default function ReportsPage() {
     [filteredDriverLoads],
   );
 
+  const filteredDriverCount = React.useMemo(() => {
+    const ids = new Set<string>();
+
+    filteredDriverLoads.forEach((load) => {
+      const assigned = load.assignedDriverId;
+      if (!assigned) return;
+
+      if (typeof assigned === "string") {
+        ids.add(assigned);
+        return;
+      }
+
+      if (assigned._id) {
+        ids.add(String(assigned._id));
+      }
+    });
+
+    filteredDriverPayouts.forEach((payout) => {
+      const driverId =
+        typeof payout.driverId === "string"
+          ? payout.driverId
+          : payout.driverId?._id;
+
+      if (driverId) {
+        ids.add(String(driverId));
+      }
+    });
+
+    return ids.size;
+  }, [filteredDriverLoads, filteredDriverPayouts]);
+
   const driverDeliveredLoads = React.useMemo(
     () => driverAssignedLoads.filter((load) => load.status === "Delivered"),
     [driverAssignedLoads],
@@ -1679,7 +1710,7 @@ export default function ReportsPage() {
                         color: "text-emerald-600 dark:text-emerald-400",
                       },
                       {
-                        label: "Total Load Value",
+                        label: "Load Value",
                         value: transportFmtCurrency(loadSummary.totalRate),
                         color: "text-foreground",
                       },
@@ -1704,7 +1735,7 @@ export default function ReportsPage() {
                     stats={[
                       {
                         icon: <FileText className="size-4" />,
-                        label: `${filteredQuotes.length} customer quote${filteredQuotes.length === 1 ? "" : "s"}`,
+                        label: `${filteredQuotes.length} Quote${filteredQuotes.length === 1 ? "" : "s"}`,
                       },
                       {
                         icon: <Users className="size-4" />,
@@ -1718,7 +1749,7 @@ export default function ReportsPage() {
                         color: "text-amber-600 dark:text-amber-400",
                       },
                       {
-                        label: "Average Quote",
+                        label: "Avg. Quote",
                         value: transportFmtCurrency(quoteSummary.avgRate),
                         color: "text-foreground",
                       },
@@ -1755,12 +1786,12 @@ export default function ReportsPage() {
                   ]}
                   highlights={[
                     {
-                      label: "Completed Leads",
+                      label: "Completed",
                       value: leadStats.closed,
                       color: "text-emerald-600 dark:text-emerald-400",
                     },
                     {
-                      label: "Needs Follow-up",
+                      label: "Follow-up",
                       value: leadStats.pending,
                       color: "text-amber-600 dark:text-amber-400",
                     },
@@ -1802,7 +1833,7 @@ export default function ReportsPage() {
                       color: "text-cyan-600 dark:text-cyan-400",
                     },
                     {
-                      label: "Leads from Top Source",
+                      label: "Top Source Leads",
                       value: leadSourceStats.topSourceCount,
                       color: "text-foreground",
                     },
@@ -1828,7 +1859,10 @@ export default function ReportsPage() {
                   period={reportPeriodLabels["driver-report"]}
                   trend={displayTrend(driverPayoutTotal, previousDriverPayoutTotal)}
                   stats={[
-                    { icon: <Truck className="size-4" />, label: "All Drivers" },
+                    {
+                      icon: <Truck className="size-4" />,
+                      label: `${filteredDriverCount} Driver${filteredDriverCount === 1 ? "" : "s"}`,
+                    },
                     {
                       icon: <CheckSquare className="size-4" />,
                       label: `${driverAssignedLoads.length} assigned load${driverAssignedLoads.length === 1 ? "" : "s"}`,
@@ -1836,12 +1870,12 @@ export default function ReportsPage() {
                   ]}
                   highlights={[
                     {
-                      label: "Delivery Completion",
+                      label: "Completion Rate",
                       value: `${driverDeliveryRate}%`,
                       color: "text-blue-600 dark:text-blue-400",
                     },
                     {
-                      label: "Driver Payments",
+                      label: "Payments",
                       value: formatCurrency(driverPayoutTotal),
                       color: "text-foreground",
                     },
@@ -1869,7 +1903,7 @@ export default function ReportsPage() {
                   stats={[
                     {
                       icon: <CreditCard className="size-4" />,
-                      label: "Payment Records",
+                      label: `${filteredBillingPayments.length} Payment${filteredBillingPayments.length === 1 ? "" : "s"}`,
                     },
                     {
                       icon: <Search className="size-4" />,
@@ -1878,12 +1912,12 @@ export default function ReportsPage() {
                   ]}
                   highlights={[
                     {
-                      label: "Payments Collected",
+                      label: "Collected",
                       value: formatCurrency(revenueTotal),
                       color: "text-violet-600 dark:text-violet-400",
                     },
                     {
-                      label: "Payment Records",
+                      label: "Payments",
                       value: filteredBillingPayments.length,
                       color: "text-foreground",
                     },
