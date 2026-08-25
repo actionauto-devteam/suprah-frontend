@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   AUTH_INPUT_CLASS,
+  AUTH_KICKER_CLASS,
   AUTH_LABEL_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
@@ -116,15 +117,16 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
   return (
     <div className="w-full space-y-6 sm:space-y-7">
-      <div className="space-y-2.5 sm:space-y-3">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 sm:text-base">
-          Suprah.AI
-        </p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl md:text-5xl">
-          Welcome back<span className="text-emerald-500">!</span>
+      <div className="space-y-3 sm:space-y-4">
+        <span className={AUTH_KICKER_CLASS}>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Suprah.AI Dispatch
+        </span>
+        <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl md:text-6xl">
+          Sign in.
         </h1>
         <p className="max-w-md text-sm font-normal leading-6 text-muted-foreground sm:text-base sm:leading-7">
-          Sign in to your workspace.
+          Pick up where you left off.
         </p>
       </div>
 

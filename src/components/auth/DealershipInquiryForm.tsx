@@ -4,23 +4,15 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Loader2, Mail, Building2, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Building2, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import {
   AUTH_INPUT_CLASS,
+  AUTH_KICKER_CLASS,
   AUTH_LABEL_CLASS,
   AUTH_LINK_CLASS,
-  AUTH_PANEL_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
 } from "./theme";
 
@@ -49,93 +41,84 @@ export function DealershipInquiryForm() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-lg mx-auto"
+      className="w-full"
     >
-      <Card className={AUTH_PANEL_CLASS}>
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <Link
+        href="/sign-up"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Exit
+      </Link>
 
-        <CardHeader className="space-y-1 pb-8 text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
-            <Building2 className="h-6 w-6" />
+      <div className="mb-7 space-y-2">
+        <span className={AUTH_KICKER_CLASS}>
+          <Building2 className="h-3.5 w-3.5" />
+          Dealership
+        </span>
+        <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
+          {submitted ? "Request received." : "Register."}
+        </h1>
+      </div>
+
+      {submitted ? (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-5 py-6"
+        >
+          <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-500" />
+          <p className="text-sm text-foreground">We&apos;ll email you a setup link.</p>
+        </motion.div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email" className={AUTH_LABEL_CLASS}>
+              Work Email
+            </Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="admin@dealership.com"
+                className={`pl-10 h-12 ${AUTH_INPUT_CLASS}`}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight text-zinc-100">
-            Register Your Dealership
-          </CardTitle>
-          <CardDescription className="text-zinc-400">
-            {submitted
-              ? "We've got your request"
-              : "Leave your email and our team will follow up to get you set up"}
-          </CardDescription>
-        </CardHeader>
 
-        <CardContent>
-          {submitted ? (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center gap-4 py-6 text-center"
-            >
-              <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-7 w-7 text-emerald-400" />
-              </div>
-              <p className="text-sm text-zinc-400 max-w-xs">
-                Thanks — our team will review your request and follow up by
-                email with a private setup link.
-              </p>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className={AUTH_LABEL_CLASS}>
-                  Work Email
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="admin@dealership.com"
-                    className={`pl-10 ${AUTH_INPUT_CLASS}`}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 p-3 text-xs font-medium bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className={`${AUTH_PRIMARY_BUTTON_CLASS} h-11 w-full`}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    Request an invite <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </form>
+          {error && (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
           )}
-        </CardContent>
 
-        <CardFooter className="pt-2 pb-8 flex flex-col space-y-4">
-          <div className="text-sm text-center text-muted-foreground">
-            Already have an account?{" "}
-            <Link href="/sign-in" className={AUTH_LINK_CLASS}>
-              Sign In
-            </Link>
-          </div>
-        </CardFooter>
-      </Card>
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className={`${AUTH_PRIMARY_BUTTON_CLASS} h-13 text-base w-full`}
+          >
+            {isLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <>
+                Request an invite <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </form>
+      )}
+
+      <div className="pt-8 text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href="/sign-in" className={AUTH_LINK_CLASS}>
+          Sign In
+        </Link>
+      </div>
     </motion.div>
   );
 }

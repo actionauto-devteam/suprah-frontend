@@ -102,7 +102,16 @@ export function useOrg() {
         }
     });
 
-    const userRole = orgContext?.data?.role as 'customer' | 'employee' | 'admin' | 'super_admin' | 'driver' | undefined;
+    const realUserRole = orgContext?.data?.role as 'customer' | 'employee' | 'admin' | 'super_admin' | 'driver' | undefined;
+
+    // Dev-only: DevRoleSwitcher writes this to preview other roles' shells
+    // without changing the real backend role. Keep in sync with the same
+    // NEXT_PUBLIC_ENABLE_DEV_TOOLS gate used there and in AuthProvider.
+    const devRoleOverride =
+        process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === 'true' && typeof window !== 'undefined'
+            ? (localStorage.getItem('dev_role_override') as typeof realUserRole | null)
+            : null;
+    const userRole = devRoleOverride || realUserRole;
 
     return {
         isLoaded: isLoaded && !isLoadingOrgContext && (!organizationId || !isLoadingOrgDetails),
