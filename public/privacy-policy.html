@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy | Suprah AI</title>
+<meta name="description" content="Privacy Policy for the Suprah AI platform and communications sent on behalf of its dealership clients, including SMS/text messaging consent and opt-out terms." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://www.suprah-app.com/privacy-policy" />
+<style>
+  :root {
+    --bg: #0a0f0d;
+    --card: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.10);
+    --border-soft: rgba(255, 255, 255, 0.07);
+    --fg: #e7ece9;
+    --fg-soft: rgba(231, 236, 233, 0.72);
+    --muted: rgba(231, 236, 233, 0.5);
+    --emerald: #34d399;
+    --emerald-soft: rgba(52, 211, 153, 0.08);
+    --emerald-border: rgba(52, 211, 153, 0.25);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(700px circle at 15% -5%, rgba(16, 185, 129, 0.08), transparent 55%),
+      radial-gradient(600px circle at 85% 0%, rgba(34, 211, 238, 0.05), transparent 55%),
+      var(--bg);
+    color: var(--fg-soft);
+    line-height: 1.7;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; }
+
+  /* Header */
+  .hero {
+    position: relative;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 24px;
+    padding: 32px 28px;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(52, 211, 153, 0.5), transparent);
+  }
+  .badge {
+    display: inline-block;
+    border: 1px solid var(--emerald-border);
+    background: var(--emerald-soft);
+    color: var(--emerald);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  h1 {
+    margin-top: 14px;
+    color: var(--fg);
+    font-size: clamp(26px, 5vw, 38px);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+  h1 .accent {
+    background: linear-gradient(to right, #4ade80, #34d399);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero .meta { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* TOC */
+  .toc {
+    margin-top: 24px;
+    border: 1px solid var(--border-soft);
+    border-radius: 18px;
+    padding: 18px 20px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .toc-label {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .toc ol {
+    margin-top: 10px;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 24px;
+    font-size: 12.5px;
+  }
+  @media (max-width: 560px) { .toc ol { grid-template-columns: 1fr; } }
+
+  /* Body */
+  main { margin-top: 36px; }
+  section { margin-bottom: 40px; }
+  h2 {
+    color: var(--fg);
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    scroll-margin-top: 24px;
+  }
+  p { margin-bottom: 12px; }
+  ul { margin: 0 0 12px 22px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--fg); font-weight: 700; }
+  a { color: var(--emerald); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* SMS highlight box */
+  .sms-box {
+    border: 1px solid var(--emerald-border);
+    background: var(--emerald-soft);
+    border-radius: 18px;
+    padding: 20px 22px;
+  }
+  .sms-box p:last-child, .sms-box ul:last-child { margin-bottom: 0; }
+
+  .contact-box {
+    border: 1px solid var(--border-soft);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 18px;
+    padding: 20px 22px;
+  }
+  .contact-box p:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-soft);
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="badge">Suprah.AI</span>
+    <h1>Privacy <span class="accent">Policy</span></h1>
+    <p class="meta">Last updated: August 25, 2026 &nbsp;·&nbsp; <a href="https://www.suprah-app.com">www.suprah-app.com</a></p>
+  </header>
+
+  <p style="margin-top:24px;">
+    Suprah AI (&ldquo;Suprah,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;)
+    provides a customer relationship management and communications platform used by automotive
+    dealerships to manage customer inquiries, appointments, purchases, and communications,
+    including text messaging.
+  </p>
+  <p>
+    This Privacy Policy applies to the Suprah AI platform and to customer communications sent
+    through it on behalf of the dealerships that use our platform (&ldquo;Dealership
+    Clients&rdquo;). <strong>All Dealership Clients on the Suprah AI platform — including Action
+    Auto Utah (Action Auto Sales and Finance, LLC), 170 W State Street, Lehi, UT 84043 — adhere
+    to this Privacy Policy for communications sent through the platform.</strong> When you
+    interact with a Dealership Client by phone, text message, or through their website forms,
+    this policy governs how that information is collected and handled within the Suprah AI
+    platform, together with any privacy policy published by the Dealership Client itself.
+  </p>
+
+  <nav class="toc" aria-label="Table of contents">
+    <p class="toc-label">On this page</p>
+    <ol>
+      <li><a href="#information-we-collect">1. Information We Collect</a></li>
+      <li><a href="#how-information-is-used">2. How Your Information Is Used</a></li>
+      <li><a href="#sms-text-messaging">3. SMS / Text Messaging</a></li>
+      <li><a href="#how-information-is-shared">4. How Information Is Shared</a></li>
+      <li><a href="#cookies">5. Cookies and Website Analytics</a></li>
+      <li><a href="#data-security">6. Data Security</a></li>
+      <li><a href="#data-retention">7. Data Retention</a></li>
+      <li><a href="#your-choices">8. Your Choices and Rights</a></li>
+      <li><a href="#childrens-privacy">9. Children's Privacy</a></li>
+      <li><a href="#changes">10. Changes to This Policy</a></li>
+      <li><a href="#contact">11. Contact</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="information-we-collect">
+      <h2>1. Information We Collect</h2>
+      <p>Through the platform, we and our Dealership Clients may collect:</p>
+      <ul>
+        <li><strong>Contact information:</strong> your name, phone number, email address, and mailing address.</li>
+        <li><strong>Inquiry and transaction information:</strong> the vehicles you ask about, appointments you schedule, and details related to your purchase, trade-in, financing, or service visit with a Dealership Client.</li>
+        <li><strong>Communications:</strong> records of calls, emails, and text messages exchanged with a Dealership Client through the platform.</li>
+        <li><strong>Website usage information:</strong> basic technical data such as IP address, browser type, and pages visited, collected through cookies and similar technologies on our website.</li>
+      </ul>
+    </section>
+
+    <section id="how-information-is-used">
+      <h2>2. How Your Information Is Used</h2>
+      <p>Information collected through the platform is used to:</p>
+      <ul>
+        <li>Respond to your inquiries about vehicles, pricing, and availability;</li>
+        <li>Schedule and confirm appointments and test drives;</li>
+        <li>Support purchases, trade-ins, financing, and service handled by the Dealership Client;</li>
+        <li>Send you updates about your transaction or appointment;</li>
+        <li>Send occasional promotional offers from the Dealership Client if you have consented to receive them;</li>
+        <li>Operate, secure, and improve the Suprah AI platform; and</li>
+        <li>Comply with legal and regulatory requirements.</li>
+      </ul>
+    </section>
+
+    <section id="sms-text-messaging">
+      <h2>3. SMS / Text Messaging</h2>
+      <div class="sms-box">
+        <p>
+          By providing your mobile phone number to a Dealership Client on the Suprah AI platform
+          — in person, over the phone, or through forms on the dealership's website — you consent
+          to receive text messages from that dealership regarding your inquiries, appointments,
+          vehicle purchase, financing status, and occasional promotional offers.
+        </p>
+        <ul>
+          <li><strong>Message frequency varies.</strong></li>
+          <li><strong>Message and data rates may apply.</strong></li>
+          <li><strong>Consent is not a condition of purchase.</strong></li>
+          <li>Reply <strong>STOP</strong> at any time to opt out of text messages.</li>
+          <li>Reply <strong>HELP</strong> for assistance, or contact the dealership directly. For Action Auto Utah: <a href="https://www.actionautoutah.com">www.actionautoutah.com</a> or <a href="tel:+13852303168">+1&nbsp;385&nbsp;230&nbsp;3168</a>.</li>
+        </ul>
+        <p>
+          <strong>No mobile opt-in data or telephone numbers will be shared with, or sold to,
+          third parties or affiliates for marketing or promotional purposes.</strong> Text
+          messaging originator opt-in data and consent will not be shared with any third parties,
+          excluding vendors and service providers acting on behalf of Suprah AI or the Dealership
+          Client solely to deliver those messages (such as the SMS carrier service provider), who
+          are contractually prohibited from using your information for any other purpose. This
+          commitment applies to Suprah AI and to every Dealership Client on the platform,
+          including Action Auto Utah (Action Auto Sales and Finance, LLC).
+        </p>
+      </div>
+    </section>
+
+    <section id="how-information-is-shared">
+      <h2>4. How Information Is Shared</h2>
+      <p>We do not sell your personal information. Information within the platform is shared only:</p>
+      <ul>
+        <li>Between <strong>you and the Dealership Client</strong> you are communicating with — your information belongs to that dealership relationship and is not shared with other dealerships on the platform;</li>
+        <li>With <strong>service providers</strong> that help operate the platform (such as hosting, telephony, and messaging carriers), only so they can perform services on our or the Dealership Client's behalf;</li>
+        <li>With <strong>lenders and financial institutions</strong>, at your request, to process a financing application with the Dealership Client;</li>
+        <li>With <strong>government agencies</strong> as required for vehicle titling, registration, and other legal obligations;</li>
+        <li>When <strong>required by law</strong>, such as in response to a subpoena or other legal process; or</li>
+        <li>In connection with a <strong>business transfer</strong>, such as a merger or sale, in which case this policy will continue to apply to your information.</li>
+      </ul>
+      <p>
+        As stated above, mobile phone numbers and text-messaging opt-in data are never shared
+        with or sold to third parties or affiliates for their own marketing or promotional
+        purposes.
+      </p>
+    </section>
+
+    <section id="cookies">
+      <h2>5. Cookies and Website Analytics</h2>
+      <p>
+        Our website may use cookies and similar technologies to remember preferences and
+        understand how visitors use the site. You can control cookies through your browser
+        settings. Disabling cookies may affect some features.
+      </p>
+    </section>
+
+    <section id="data-security">
+      <h2>6. Data Security</h2>
+      <p>
+        We use reasonable administrative, technical, and physical safeguards designed to protect
+        personal information processed on the platform. However, no method of transmission or
+        storage is completely secure, and we cannot guarantee absolute security.
+      </p>
+    </section>
+
+    <section id="data-retention">
+      <h2>7. Data Retention</h2>
+      <p>
+        Personal information is retained only as long as needed for the purposes described in
+        this policy, to meet the Dealership Client's legal obligations (such as vehicle sales and
+        financing record-keeping requirements), and to resolve disputes.
+      </p>
+    </section>
+
+    <section id="your-choices">
+      <h2>8. Your Choices and Rights</h2>
+      <ul>
+        <li><strong>Text messages:</strong> reply STOP to any message to opt out at any time.</li>
+        <li><strong>Marketing emails:</strong> use the unsubscribe link in any promotional email.</li>
+        <li><strong>Access, correction, or deletion:</strong> you may request access to, correction of, or deletion of your personal information by contacting the Dealership Client you interacted with, or by contacting us using the details below. Requests will be honored as required by applicable law.</li>
+      </ul>
+    </section>
+
+    <section id="childrens-privacy">
+      <h2>9. Children's Privacy</h2>
+      <p>
+        The platform and Dealership Client services are intended for adults. We do not knowingly
+        collect personal information from children under 13.
+      </p>
+    </section>
+
+    <section id="changes">
+      <h2>10. Changes to This Policy</h2>
+      <p>
+        We may update this Privacy Policy from time to time. The &ldquo;Last updated&rdquo; date
+        at the top shows when it was last revised. Material changes will be posted on this page.
+      </p>
+    </section>
+
+    <section id="contact">
+      <h2>11. Contact</h2>
+      <div class="contact-box">
+        <p><strong>Suprah AI</strong> — <a href="https://www.suprah-app.com">www.suprah-app.com</a></p>
+        <p>For dealership-specific questions, contact the Dealership Client directly:</p>
+        <p>
+          <strong>Action Auto Utah</strong> (Action Auto Sales and Finance, LLC),
+          170 W State Street, Lehi, UT 84043 —
+          <a href="tel:+13852303168">+1&nbsp;385&nbsp;230&nbsp;3168</a> —
+          <a href="https://www.actionautoutah.com">www.actionautoutah.com</a>
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    © 2026 Suprah AI · Last updated August 25, 2026
+  </footer>
+
+</div>
+</body>
+</html>
