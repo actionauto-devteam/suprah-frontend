@@ -6,6 +6,13 @@ const enableSwInDev = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  // Lets the dev server (HTTP requests AND the webpack/turbopack HMR
+  // WebSocket) accept connections arriving with a Host header other than
+  // localhost — needed to locally test SupraSpace's dedicated subdomain via
+  // a hosts-file entry (127.0.0.1 space.suprah-app.com). Without this, Next
+  // treats the request as a potential DNS-rebinding attempt and blocks it,
+  // which is what got the page stuck at a permanent "0%" compiling overlay.
+  allowedDevOrigins: ["space.suprah-app.com"],
   async headers() {
     return [
       {

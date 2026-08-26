@@ -117,6 +117,10 @@ type SS4FontFamilyId =
   | 'courier';
 type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 
+// SupraSpace's dedicated PWA subdomain — see src/proxy.ts for the middleware
+// rewrite that routes it to this same page.tsx.
+const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
+
 // Fixed (not per-conversation-theme) unread-indicator color — a custom
 // conversation theme can override --accent to anything, which made the old
 // accent-colored unread dot blend in or be hard to distinguish (raised by a
@@ -137,13 +141,6 @@ function setUnreadDotColor(color: string): void {
   localStorage.setItem(SS4_UNREAD_COLOR_STORAGE_KEY, color);
   window.dispatchEvent(new CustomEvent(SS4_UNREAD_COLOR_CHANGED_EVENT, { detail: color }));
 }
-// Temporary — SupraSpace's dedicated install still needs its own subdomain
-// (installing it from the same domain as the main app conflicts with the
-// main app's own install). Until that's live, every "Install SupraSpace"
-// entry point shows this instead of actually navigating/prompting install.
-// Safe to delete this constant and revert these call sites once the
-// subdomain is live.
-const SS4_INSTALL_COMING_SOON_MESSAGE = "SupraSpace's dedicated app is still being set up — check back soon!";
 const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
 const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
 const SS4_FONT_FAMILIES: Array<{
@@ -7196,6 +7193,11 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
 
 function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
   const pathname = usePathname();
+  const [isOnSupraSpaceSubdomain, setIsOnSupraSpaceSubdomain] = React.useState(false);
+  React.useEffect(() => {
+    setIsOnSupraSpaceSubdomain(window.location.hostname === SUPRASPACE_SUBDOMAIN);
+  }, []);
+  const isSupraSpaceStandaloneUrl = pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/') || isOnSupraSpaceSubdomain;
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshSubscription } = useCrmWebPush();
   const { theme, setTheme } = useTheme();
   const [soundOn, setSoundOnState] = React.useState(true);
@@ -7342,13 +7344,12 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
       <div className="py-1">
         <span className="ss4-section-label">App</span>
         <div className="py-2">
-          {pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/') ? (
+          {isSupraSpaceStandaloneUrl ? (
             <InstallSupraSpaceButton variant="row" />
           ) : (
-            <button
-              type="button"
-              onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)}
-              className="flex items-center gap-3 py-1 w-full text-left"
+            <a
+              href="/supraspace"
+              className="flex items-center gap-3 py-1"
               style={{ color: 'var(--text-primary)' }}
             >
               <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
@@ -7356,7 +7357,7 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
                 <p style={{ fontSize: 13, fontWeight: 600 }}>Get SupraSpace as its own app</p>
                 <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Install a lighter, dedicated SupraSpace on your phone</p>
               </div>
-            </button>
+            </a>
           )}
         </div>
       </div>
@@ -7721,7 +7722,23 @@ export default function SupraSpacePage() {
   // installing the main dashboard app mislabeled as SupraSpace. Elsewhere,
   // link them to /supraspace first — a real page navigation, not router.push,
   // so the correct manifest is the one active when they actually install.
-  const isSupraSpaceStandaloneUrl = pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/');
+  //
+  // On SupraSpace's own subdomain (space.suprah-app.com), the middleware
+  // rewrite that routes it here is invisible to the browser — pathname
+  // stays whatever the visitor actually typed (e.g. "/"), never becomes
+  // "/supraspace" — so pathname alone can't detect it. hostname is only
+  // known client-side, so this starts pathname-only (SSR-safe, correct for
+  // every other case) and is corrected after mount.
+  const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(
+    pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/'),
+  );
+  React.useEffect(() => {
+    setIsSupraSpaceStandaloneUrl(
+      pathname === '/supraspace'
+      || !!pathname?.startsWith('/supraspace/')
+      || window.location.hostname === SUPRASPACE_SUBDOMAIN,
+    );
+  }, [pathname]);
   // Mobile-only: the dashboard-embedded route (/crm/supra-space) shows a
   // dismissible "install the dedicated app" prompt over the real chat —
   // on a phone, messaging is meant to live in the dedicated SupraSpace PWA,
@@ -11007,9 +11024,9 @@ export default function SupraSpacePage() {
               {isSupraSpaceStandaloneUrl ? (
                 <InstallSupraSpaceButton variant="icon" />
               ) : (
-                <button type="button" onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
+                <a href="/supraspace" className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
                   <Download className="h-3.5 w-3.5" />
-                </button>
+                </a>
               )}
             </div>
           </div>
@@ -12557,14 +12574,13 @@ export default function SupraSpacePage() {
                   Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => toast.info(SS4_INSTALL_COMING_SOON_MESSAGE)}
+              <a
+                href="/supraspace"
                 className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
                 style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
               >
                 <Download className="h-4 w-4" /> Install SupraSpace
-              </button>
+              </a>
             </div>
           </div>
         )}
