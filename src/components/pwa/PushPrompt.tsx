@@ -7,10 +7,24 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
 
+// SupraSpace already registers its own SW and handles its own push
+// subscription via CrmPushPrompt/useCrmWebPush() — this prompt's UI never
+// shows there anyway (see isDashboard/scope checks below), so running this
+// hook's SW registration + navigator.serviceWorker.ready race there too is
+// pure redundant work. On a brand-new origin (the SupraSpace subdomain's
+// first-ever visit, no cached SW) that race can genuinely exceed the 12s
+// timeout, producing a noisy "[WebPush] Initialization error or timeout"
+// console warning for a prompt that was never going to render.
+const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+
 export function PushPrompt() {
-    const { isSupported, isSubscribed, subscribe, isLoading } = useWebPush();
-    const [showPrompt, setShowPrompt] = useState(false);
     const pathname = usePathname();
+    const isSupraSpaceContext =
+        !!pathname?.startsWith("/crm") ||
+        !!pathname?.startsWith("/supraspace") ||
+        (typeof window !== "undefined" && window.location.hostname === SUPRASPACE_SUBDOMAIN);
+    const { isSupported, isSubscribed, subscribe, isLoading } = useWebPush({ disabled: isSupraSpaceContext });
+    const [showPrompt, setShowPrompt] = useState(false);
 
     useEffect(() => {
         // If not supported, already subscribed, or loading, do nothing
@@ -27,13 +41,13 @@ export function PushPrompt() {
 
         if (!isDashboard) return;
 
-        // SCOPE PROTECTION: Strictly exclude CRM routes as per user instruction
-        if (pathname?.startsWith("/crm")) return;
+        // SCOPE PROTECTION: Strictly exclude CRM/SupraSpace routes as per user instruction
+        if (isSupraSpaceContext) return;
 
         // Show prompt after a delay to ensure it feels non-intrusive
         const timer = setTimeout(() => setShowPrompt(true), 4000);
         return () => clearTimeout(timer);
-    }, [isSupported, isSubscribed, isLoading, pathname]);
+    }, [isSupported, isSubscribed, isLoading, pathname, isSupraSpaceContext]);
 
     const handleDismiss = () => {
         setShowPrompt(false);

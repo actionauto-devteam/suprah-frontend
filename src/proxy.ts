@@ -24,18 +24,27 @@ export async function proxy(request: any) {
     if (hostname === SUPRASPACE_SUBDOMAIN) {
         const url = request.nextUrl.clone();
         const isPublicRoute = publicRoutes.some((route) => url.pathname === route || url.pathname.startsWith(`${route}/`));
+        // A trailing "*.ext" segment means this is a request for a root-level
+        // public/ file (sw.js, /sounds/*.wav, /supra-space/icon-*.png, the
+        // favicon, etc.) — those live at the SAME path on every origin this
+        // app serves, there's no "/supraspace/sounds/..." equivalent, so they
+        // must never get the /supraspace prefix. manifest.webmanifest is the
+        // one deliberate exception: SupraSpace's own manifest really does
+        // live nested at /supraspace/manifest.webmanifest.
+        const isStaticAssetPath = /\.[a-zA-Z0-9]+$/.test(url.pathname) && url.pathname !== '/manifest.webmanifest';
         // Never rewrite: API calls (already have their own rewrite in
         // next.config.ts to the backend), anything already under
         // /supraspace (avoids a rewrite loop if this ever runs twice),
         // internal Next.js paths (HMR/RSC/etc — most are already excluded by
-        // the matcher below, this is defense in depth), or the shared
-        // public routes like /sign-in — a visitor with no session on this
-        // origin yet still needs a real, working sign-in page, not a 404.
+        // the matcher below, this is defense in depth), root-level static
+        // files, or the shared public routes like /sign-in — a visitor with
+        // no session on this origin yet still needs a real, working sign-in
+        // page, not a 404.
         if (
             !url.pathname.startsWith('/api')
             && !url.pathname.startsWith('/supraspace')
             && !url.pathname.startsWith('/_next')
-            && url.pathname !== '/sw.js'
+            && !isStaticAssetPath
             && !isPublicRoute
         ) {
             url.pathname = url.pathname === '/' ? '/supraspace' : `/supraspace${url.pathname}`;
