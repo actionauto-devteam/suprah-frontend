@@ -65,6 +65,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Public routes
+ *
+ * Paths listed here are rendered COMPLETELY BARE: no auth providers, no
+ * sign-in checks, no org redirects, no sidebar/header chrome, no presence
+ * sockets. Anyone — logged in or not, including automated compliance
+ * crawlers (10DLC/TCR carrier review) — gets the page content directly.
+ *
+ * The bypass happens in DashboardLayout (bottom of file) BEFORE any provider
+ * or DashboardLayoutContent mounts, so none of the auth logic ever runs for
+ * these paths.
+ * ──────────────────────────────────────────────────────────────────────────── */
+const PUBLIC_PATHS = ["/privacy-policy", "/terms"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 function DashboardLayoutContent({
   children,
 }: Readonly<{
@@ -432,6 +450,16 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+
+  // ── Public-route bypass ──
+  // Must come before any provider or DashboardLayoutContent mounts so that
+  // no auth check, org redirect, socket, or dashboard chrome runs for these
+  // paths. Logged-out visitors (and carrier compliance crawlers) see the
+  // page content directly.
+  if (isPublicPath(pathname)) {
+    return <>{children}</>;
+  }
+
   const isCrmRoute = pathname === "/crm" || pathname.startsWith("/crm/");
 
   const content = (
