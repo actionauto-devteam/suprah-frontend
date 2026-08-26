@@ -120,6 +120,11 @@ type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 // SupraSpace's dedicated PWA subdomain — see src/proxy.ts for the middleware
 // rewrite that routes it to this same page.tsx.
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
+// "Get SupraSpace" discovery links point straight here now, not at
+// /supraspace on the main domain — that path still works for browsing, but
+// only a document whose origin truly is the subdomain avoids the
+// install-identity collision with the main app (see isSupraSpaceStandaloneUrl).
+const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/`;
 
 // Fixed (not per-conversation-theme) unread-indicator color — a custom
 // conversation theme can override --accent to anything, which made the old
@@ -7192,12 +7197,14 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
 }
 
 function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
-  const pathname = usePathname();
-  const [isOnSupraSpaceSubdomain, setIsOnSupraSpaceSubdomain] = React.useState(false);
+  // Only the actual subdomain counts as "standalone" for install-button
+  // purposes — see the matching comment on the main page component. A
+  // pathname check would also match /supraspace on the main domain, which
+  // is exactly the origin the real install trigger must never fire from.
+  const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(false);
   React.useEffect(() => {
-    setIsOnSupraSpaceSubdomain(window.location.hostname === SUPRASPACE_SUBDOMAIN);
+    setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, []);
-  const isSupraSpaceStandaloneUrl = pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/') || isOnSupraSpaceSubdomain;
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshSubscription } = useCrmWebPush();
   const { theme, setTheme } = useTheme();
   const [soundOn, setSoundOnState] = React.useState(true);
@@ -7348,7 +7355,7 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
             <InstallSupraSpaceButton variant="row" />
           ) : (
             <a
-              href="/supraspace"
+              href={SUPRASPACE_SUBDOMAIN_URL}
               className="flex items-center gap-3 py-1"
               style={{ color: 'var(--text-primary)' }}
             >
@@ -7713,31 +7720,24 @@ export default function SupraSpacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const embedded = pathname !== '/crm/supra-space';
-  // This same page.tsx now renders at 3 different URLs (see the "Dedicated
-  // SupraSpace PWA" work) — only /supraspace actually has SupraSpace's own
-  // manifest linked (via (chat)/supraspace/layout.tsx's metadata). Showing
-  // the real install button anywhere else would capture/act on the WRONG
-  // manifest's beforeinstallprompt (or walk the user through "Add to Home
-  // Screen" while the *main* Suprah manifest is what's active on the page),
-  // installing the main dashboard app mislabeled as SupraSpace. Elsewhere,
-  // link them to /supraspace first — a real page navigation, not router.push,
-  // so the correct manifest is the one active when they actually install.
-  //
-  // On SupraSpace's own subdomain (space.suprah-app.com), the middleware
-  // rewrite that routes it here is invisible to the browser — pathname
-  // stays whatever the visitor actually typed (e.g. "/"), never becomes
-  // "/supraspace" — so pathname alone can't detect it. hostname is only
-  // known client-side, so this starts pathname-only (SSR-safe, correct for
-  // every other case) and is corrected after mount.
-  const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(
-    pathname === '/supraspace' || !!pathname?.startsWith('/supraspace/'),
-  );
+  // This same page.tsx now renders at multiple URLs (see the "Dedicated
+  // SupraSpace PWA" work) — only SupraSpace's own subdomain is actually
+  // installable as SupraSpace. /supraspace on the MAIN domain still exists
+  // (and still has SupraSpace's manifest linked), but showing the real
+  // install button there is exactly what caused the real bug this was meant
+  // to prevent: Chrome/Android's installability check runs against the
+  // CURRENT PAGE'S ORIGIN, not just whatever start_url the manifest
+  // declares — so triggering install while still on suprah-app.com (even
+  // from /supraspace) gets deduped against the already-installed main app
+  // ("This app is already installed"), regardless of SupraSpace's manifest
+  // having its own id/start_url. Only a document whose origin truly IS the
+  // subdomain avoids that collision. So this used to also treat
+  // pathname === '/supraspace' as standalone — deliberately removed;
+  // everywhere else must link to the subdomain first (a real navigation),
+  // never show the real install trigger merely for being on that path.
+  const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(false);
   React.useEffect(() => {
-    setIsSupraSpaceStandaloneUrl(
-      pathname === '/supraspace'
-      || !!pathname?.startsWith('/supraspace/')
-      || window.location.hostname === SUPRASPACE_SUBDOMAIN,
-    );
+    setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, [pathname]);
   // Mobile-only: the dashboard-embedded route (/crm/supra-space) shows a
   // dismissible "install the dedicated app" prompt over the real chat —
@@ -11024,7 +11024,7 @@ export default function SupraSpacePage() {
               {isSupraSpaceStandaloneUrl ? (
                 <InstallSupraSpaceButton variant="icon" />
               ) : (
-                <a href="/supraspace" className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
+                <a href={SUPRASPACE_SUBDOMAIN_URL} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
                   <Download className="h-3.5 w-3.5" />
                 </a>
               )}
@@ -12575,7 +12575,7 @@ export default function SupraSpacePage() {
                 </p>
               </div>
               <a
-                href="/supraspace"
+                href={SUPRASPACE_SUBDOMAIN_URL}
                 className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
                 style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
               >
