@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === 'true';
-const SUPRA_SPACE_SCOPE = '/supraspace/';
+const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 
 // Registers /sw.js under a scope narrower than the root registration's
 // (see ServiceWorkerRegistration.tsx). A script served from / is allowed to
@@ -17,9 +17,14 @@ export function SupraSpaceServiceWorkerRegistration() {
         if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
         if (process.env.NODE_ENV === 'development' && !ENABLE_SW_DEV) return;
 
+        // On the subdomain, the middleware rewrite is invisible to the
+        // browser — window.location.pathname stays "/", there's no
+        // "/supraspace" path to scope under. Scope to root there instead.
+        const scope = window.location.hostname === SUPRASPACE_SUBDOMAIN ? '/' : '/supraspace/';
+
         let cancelled = false;
         navigator.serviceWorker
-            .register('/sw.js', { scope: SUPRA_SPACE_SCOPE, updateViaCache: 'none' })
+            .register('/sw.js', { scope, updateViaCache: 'none' })
             .then((registration) => {
                 if (!cancelled) console.log('[SW] SupraSpace scope registered:', registration.scope);
             })

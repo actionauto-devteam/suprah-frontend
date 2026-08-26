@@ -9,8 +9,15 @@ export function GET() {
             name: 'SupraSpace',
             short_name: 'SupraSpace',
             description: 'Team messaging, calls, and status for Suprah.AI',
-            start_url: '/supraspace',
-            scope: '/supraspace/',
+            // Absolute, pointing at SupraSpace's own subdomain rather than a
+            // path on the main app's origin — this is what actually makes
+            // it a genuinely separate installable PWA (distinct origin),
+            // not just a differently-scoped path on the same one. This same
+            // manifest is also reachable at /supraspace/manifest.webmanifest
+            // on the main domain (dashboard-embedded route); start_url/scope
+            // being absolute means it still resolves correctly either way.
+            start_url: 'https://space.suprah-app.com/',
+            scope: 'https://space.suprah-app.com/',
             display: 'standalone',
             background_color: '#0b1f14',
             theme_color: '#16a34a',

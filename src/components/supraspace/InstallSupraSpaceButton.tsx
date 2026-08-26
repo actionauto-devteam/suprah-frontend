@@ -3,13 +3,6 @@
 import * as React from 'react';
 import { Download, Share, PlusSquare, X, Check, MoreVertical, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
-
-// Temporary — SupraSpace's dedicated install still needs its own subdomain
-// (installing it from the same domain as the main app conflicts with the
-// main app's own install). Until that's live, this shows instead of
-// actually prompting install. Safe to delete once the subdomain is live.
-const INSTALL_COMING_SOON_MESSAGE = "SupraSpace's dedicated app is still being set up — check back soon!";
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -21,21 +14,25 @@ function detectPlatform(): Platform {
   return 'desktop';
 }
 
+const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
+
 // There's no cross-browser API to ask "was I launched from the SupraSpace
-// install or the main app install" — both share an origin. A standalone
-// window's Navigation Timing entry records the URL the *document* actually
-// loaded at, which stays fixed across later client-side (SPA) navigation —
-// unlike location.pathname, which would also read /supraspace if the
-// main app's shell was simply navigated there. Only a document that was
-// entered directly at /supraspace (SupraSpace's own start_url) means
-// SupraSpace itself was launched, not the main app's shell.
+// install or the main app install" — both share an origin (main app) or,
+// now, could both be running standalone at once (SupraSpace on its own
+// subdomain). A standalone window's Navigation Timing entry records the URL
+// the *document* actually loaded at, which stays fixed across later
+// client-side (SPA) navigation — unlike location.pathname/hostname, which
+// would also read the subdomain if the main app's shell was simply
+// navigated there. Only a document that was entered directly at
+// SupraSpace's own start_url (its subdomain, or historically /supraspace)
+// means SupraSpace itself was launched, not the main app's shell.
 export function isRunningAsSupraSpaceStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
   if (!standalone) return false;
   const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-  const entryPath = nav ? new URL(nav.name).pathname : window.location.pathname;
-  return entryPath.startsWith('/supraspace');
+  const entryUrl = nav ? new URL(nav.name) : window.location;
+  return entryUrl.hostname === SUPRASPACE_SUBDOMAIN || entryUrl.pathname.startsWith('/supraspace');
 }
 
 export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon' | 'row' }) {
@@ -58,7 +55,13 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   }, []);
 
   const handleClick = async () => {
-    toast.info(INSTALL_COMING_SOON_MESSAGE);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      setDeferredPrompt(null);
+      return;
+    }
+    setShowHint(true);
   };
 
   if (installed) {
