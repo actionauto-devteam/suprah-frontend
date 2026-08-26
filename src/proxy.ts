@@ -35,6 +35,7 @@ export async function proxy(request: any) {
             !url.pathname.startsWith('/api')
             && !url.pathname.startsWith('/supraspace')
             && !url.pathname.startsWith('/_next')
+            && url.pathname !== '/sw.js'
             && !isPublicRoute
         ) {
             url.pathname = url.pathname === '/' ? '/supraspace' : `/supraspace${url.pathname}`;
