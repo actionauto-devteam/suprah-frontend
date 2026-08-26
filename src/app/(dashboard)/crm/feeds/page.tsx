@@ -632,6 +632,8 @@ function AttachmentGrid({ attachments, compact = false }: { attachments: Attachm
   const [preview, setPreview] = React.useState<Attachment | null>(null)
   if (!attachments?.length) return null
 
+  const single = attachments.length === 1
+
   return (
     <>
       {preview && <AttachmentPreviewModal attachment={preview} onClose={() => setPreview(null)} />}
@@ -644,9 +646,14 @@ function AttachmentGrid({ attachments, compact = false }: { attachments: Attachm
                 key={a.fileKey}
                 type="button"
                 onClick={() => setPreview(a)}
-                className={`overflow-hidden rounded-2xl border border-border/40 bg-muted/15 ${compact ? "h-28" : "h-44"}`}
+                className="overflow-hidden rounded-2xl border border-border/40 bg-muted/15"
               >
-                <img src={a.thumbnailUrl || a.url} alt={a.originalName} className="h-full w-full object-cover" />
+                <img
+                  src={single ? a.url : (a.thumbnailUrl || a.url)}
+                  alt={a.originalName}
+                  loading="lazy"
+                  className={`w-full h-auto object-contain ${compact ? "max-h-48" : "max-h-[480px]"}`}
+                />
               </button>
             )
           }
