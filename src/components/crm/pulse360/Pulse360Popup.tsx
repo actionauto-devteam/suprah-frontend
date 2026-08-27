@@ -35,10 +35,11 @@ import {
  * singleton with no provider, this component is the only thing that needs to
  * exist for alerts to appear on every route in the platform.
  *
- * Design intent: this interrupts someone mid-task, so it earns the interruption
- * by being specific. Every popup answers four things in order — what happened,
- * why it fired, what to do, and one button that takes you there. No generic
- * "you have a new notification".
+ * Design intent: this surfaces next to someone's work without blocking it, so
+ * it earns the interruption by being specific. Every popup answers four things
+ * in order — what happened, why it fired, what to do, and one button that
+ * takes you there. No generic "you have a new notification". Critical alerts
+ * stay visible until acted on, but never trap focus or dim the page.
  */
 
 const ICONS: Record<string, LucideIcon> = {
@@ -93,12 +94,12 @@ function PulseAlertCard({ alert, onClose }: { alert: PulseAlert; onClose: () => 
 
   return (
     <div
-      role="alertdialog"
-      aria-modal="true"
+      role="alert"
+      aria-live={isCritical ? "assertive" : "polite"}
       aria-labelledby={`pulse-alert-title-${alert._id}`}
       aria-describedby={`pulse-alert-reason-${alert._id}`}
       className={cn(
-        "relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-border/50",
+        "pointer-events-auto relative w-full overflow-hidden rounded-2xl border border-border/50",
         "bg-card/95 shadow-2xl ring-1 backdrop-blur-xl",
         meta.ring
       )}
@@ -263,21 +264,14 @@ export function Pulse360Popup() {
 
   if (!enabled || !current) return null;
 
-  const isCritical = current.severity >= 90;
-
   return (
-    <div className="fixed inset-0 z-250 flex items-end justify-center p-4 sm:items-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => {
-          if (!isCritical) dismissPopup(current._id);
-        }}
-        aria-hidden
-      />
-      <PulseAlertCard alert={current} onClose={() => dismissPopup(current._id)} />
+    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-250 flex flex-col items-center gap-2 px-3 md:inset-x-auto md:right-0 md:bottom-5 md:items-end md:p-5">
+      <div className="w-full max-w-sm">
+        <PulseAlertCard alert={current} onClose={() => dismissPopup(current._id)} />
+      </div>
 
       {popupQueue.length > 1 && (
-        <span className="pointer-events-none absolute bottom-6 z-10 rounded-full border border-border/40 bg-card/90 px-3 py-1 text-[10px] font-bold text-muted-foreground/70 backdrop-blur sm:bottom-8">
+        <span className="pointer-events-none rounded-full border border-border/40 bg-card/90 px-3 py-1 text-[10px] font-bold text-muted-foreground/70 backdrop-blur">
           {popupQueue.length - 1} more waiting
         </span>
       )}

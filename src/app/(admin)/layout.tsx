@@ -26,14 +26,14 @@ function AdminLayoutContent({
         <SidebarProvider>
             <AdminSidebar />
             <SidebarInset>
-                <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 border-b px-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-                    <div className="flex items-center gap-2">
+                <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 border-b px-2 sm:px-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+                    <div className="flex min-w-0 items-center gap-2">
                         <SidebarTrigger className="-ml-1" />
-                        <Separator orientation="vertical" className="mr-2 h-4" />
-                        <span className="font-medium">Admin Dashboard </span>
+                        <Separator orientation="vertical" className="mr-1 h-4 sm:mr-2" />
+                        <span className="truncate text-sm text-muted-foreground sm:text-base">Super Admin</span>
                     </div>
-                    <div className="flex items-center gap-1 sm:gap-2">
-                        <MountainTimeClock compact />
+                    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                        <MountainTimeClock compact className="hidden xs:inline-flex" />
                         <ThemeModeToggle compact />
                         <NotificationBell />
                     </div>

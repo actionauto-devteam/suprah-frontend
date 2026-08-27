@@ -4,8 +4,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
 
 export interface AdminDriver {
   id: string;
@@ -31,8 +33,31 @@ const getInitials = (name?: string) => {
 
 export const columns: ColumnDef<AdminDriver>[] = [
   {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        onClick={(e) => e.stopPropagation()}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     accessorKey: "name",
-    header: "Driver",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Driver" />,
     cell: ({ row }) => {
       const driver = row.original;
       return (
@@ -53,7 +78,8 @@ export const columns: ColumnDef<AdminDriver>[] = [
   },
   {
     accessorKey: "applicationStatus",
-    header: "Application",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Application" />,
+    filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => {
       const status = row.original.applicationStatus;
       return (
@@ -73,7 +99,8 @@ export const columns: ColumnDef<AdminDriver>[] = [
   },
   {
     accessorKey: "verificationStatus",
-    header: "Verification",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Verification" />,
+    filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => (
       <Badge variant="secondary" className="capitalize">
         {row.original.verificationStatus.replace(/_/g, " ")}
@@ -82,7 +109,7 @@ export const columns: ColumnDef<AdminDriver>[] = [
   },
   {
     accessorKey: "profileCompletionScore",
-    header: "Profile",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
     cell: ({ row }) => (
       <span className="text-sm font-semibold tabular-nums">
         {row.original.profileCompletionScore}%
@@ -91,7 +118,8 @@ export const columns: ColumnDef<AdminDriver>[] = [
   },
   {
     accessorKey: "isActive",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+    filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => (
       <Badge variant={row.original.isActive ? "outline" : "destructive"}>
         {row.original.isActive ? "Active" : "Suspended"}

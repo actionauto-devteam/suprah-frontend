@@ -1034,8 +1034,17 @@ if (typeof document !== 'undefined') {
     .ss4-send-btn:disabled { background:var(--surface-2); box-shadow:none; cursor:not-allowed; }
     .ss4-icon-btn { border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; display:flex; align-items:center; justify-content:center; }
     .ss4-icon-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .ss4-icon-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     .ss4-pill-btn { border-radius:8px; border:1px solid var(--border-2); background:var(--bg-hover); color:var(--text-secondary); transition:all .15s ease; }
     .ss4-pill-btn:hover { background:var(--bg-active); border-color:var(--border-3); color:var(--text-primary); }
+    .ss4-settings-row { border-radius:10px; margin:0 -8px; padding-left:8px; padding-right:8px; transition:background .15s ease; }
+    .ss4-settings-row:hover { background:var(--bg-hover); }
+    .ss4-settings-action { border-radius:999px; background:var(--accent-muted); color:var(--accent-text); border:1px solid transparent; font-weight:700; transition:all .15s ease; }
+    .ss4-settings-action:hover { background:var(--accent); color:#fff; }
+    .ss4-settings-action:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .ss4-settings-swatch { transition:transform .15s ease,box-shadow .15s ease; cursor:pointer; }
+    .ss4-settings-swatch:hover { transform:scale(1.08); }
+    .ss4-settings-swatch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     .ss4-video-btn { background:rgba(91,124,246,0.1); border:1px solid rgba(91,124,246,0.2); color:var(--accent-text); border-radius:8px; transition:all .15s ease; }
     .ss4-video-btn:hover { background:rgba(91,124,246,0.18); border-color:rgba(91,124,246,0.35); }
     .ss4-ai-btn { background:linear-gradient(135deg,rgba(120,80,220,0.12),rgba(91,124,246,0.08)); border:1px solid rgba(150,100,240,0.2); color:#b49dff; border-radius:8px; transition:all .15s ease; position:relative; overflow:hidden; }
@@ -7241,132 +7250,136 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
   const permissionColor = permission === 'granted' ? 'var(--positive)' : permission === 'denied' ? 'var(--negative, #ef4444)' : 'var(--text-tertiary)';
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 sm:px-5 pt-4 pb-6">
       {me && (
-        <div className="flex items-center gap-3 pb-4 mb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+        <div className="flex items-center gap-3 pb-4 mb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
             {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{me.fullName}</p>
-            <p className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{me.role || 'Team member'}</p>
+            <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{me.role || 'Team member'}</p>
           </div>
         </div>
       )}
 
       <span className="ss4-section-label">Notifications</span>
-      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-3 min-w-0">
-          <Bell className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-          <div className="min-w-0">
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Push notifications</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {!isSupported ? 'Not supported on this browser' : isSubscribed ? 'Enabled on this device' : 'Off on this device'}
-            </p>
+      <div className="mt-2">
+        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <Bell className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Push notifications</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {!isSupported ? 'Not supported on this browser' : isSubscribed ? 'Enabled on this device' : 'Off on this device'}
+              </p>
+            </div>
           </div>
-        </div>
-        {isSupported && (
-          <button
-            disabled={isLoading}
-            onClick={() => (isSubscribed ? unsubscribe() : subscribe())}
-            className="ss4-icon-btn h-7 px-3 shrink-0"
-            style={{ fontSize: 11, fontWeight: 600, opacity: isLoading ? 0.6 : 1 }}
-          >
-            {isSubscribed ? 'Disable' : 'Enable'}
-          </button>
-        )}
-      </div>
-      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: permissionColor }} />
-          <div className="min-w-0">
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Notification permission</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {permissionLabel}{permission === 'denied' && ' — re-enable in site settings'}
-            </p>
-          </div>
-        </div>
-        <button
-          disabled={rechecking}
-          onClick={recheckPermission}
-          className="ss4-icon-btn h-7 w-7 shrink-0 flex items-center justify-center"
-          style={{ opacity: rechecking ? 0.6 : 1 }}
-          title="Recheck permission"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', rechecking && 'animate-spin')} />
-        </button>
-      </div>
-      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-3 min-w-0">
-          {soundOn ? <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <VolumeX className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
-          <div className="min-w-0">
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Message sound</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Play a sound for new messages</p>
-          </div>
-        </div>
-        <button onClick={() => setSoundEnabled(!soundOn)} className="ss4-icon-btn h-7 px-3 shrink-0" style={{ fontSize: 11, fontWeight: 600 }}>
-          {soundOn ? 'On' : 'Off'}
-        </button>
-      </div>
-      <div className="py-3">
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Per-conversation alerts (mute, mentions-only, etc.) are set from a chat&apos;s <strong>⋮ → Notification settings</strong>.</p>
-      </div>
-
-      <span className="ss4-section-label">Appearance</span>
-      <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-3 min-w-0">
-          {theme === 'dark' ? <Moon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
-          <div className="min-w-0">
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Theme</p>
-            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
-          </div>
-        </div>
-        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="ss4-icon-btn h-7 px-3 shrink-0" style={{ fontSize: 11, fontWeight: 600 }}>
-          Switch
-        </button>
-      </div>
-
-      <div className="py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Unread chat color</p>
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>The dot that marks unread chats in your conversation list.</p>
-        <div className="flex items-center gap-2">
-          {SS4_UNREAD_COLOR_PRESETS.map(c => (
+          {isSupported && (
             <button
-              key={c}
-              type="button"
-              onClick={() => { setUnreadDotColor(c); setUnreadColorState(c); }}
-              title={c}
-              className="h-7 w-7 rounded-full shrink-0"
-              style={{
-                background: c,
-                border: c === '#ffffff' ? '1px solid var(--border-2)' : 'none',
-                outline: unreadColor === c ? '2px solid var(--text-primary)' : 'none',
-                outlineOffset: 2,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="py-1">
-        <span className="ss4-section-label">App</span>
-        <div className="py-2">
-          {isSupraSpaceStandaloneUrl ? (
-            <InstallSupraSpaceButton variant="row" />
-          ) : (
-            <a
-              href={SUPRASPACE_SUBDOMAIN_URL}
-              className="flex items-center gap-3 py-1"
-              style={{ color: 'var(--text-primary)' }}
+              disabled={isLoading}
+              onClick={() => (isSubscribed ? unsubscribe() : subscribe())}
+              className="ss4-settings-action h-8 px-3.5 shrink-0"
+              style={{ fontSize: 12, opacity: isLoading ? 0.6 : 1 }}
             >
-              <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-              <div className="min-w-0">
-                <p style={{ fontSize: 13, fontWeight: 600 }}>Get SupraSpace as its own app</p>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Install a lighter, dedicated SupraSpace on your phone</p>
-              </div>
-            </a>
+              {isSubscribed ? 'Disable' : 'Enable'}
+            </button>
           )}
         </div>
+        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: permissionColor }} />
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Notification permission</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {permissionLabel}{permission === 'denied' && ' — re-enable in site settings'}
+              </p>
+            </div>
+          </div>
+          <button
+            disabled={rechecking}
+            onClick={recheckPermission}
+            className="ss4-icon-btn h-8 w-8 shrink-0 flex items-center justify-center"
+            style={{ opacity: rechecking ? 0.6 : 1 }}
+            title="Recheck permission"
+            aria-label="Recheck notification permission"
+          >
+            <RefreshCw className={cn('h-4 w-4', rechecking && 'animate-spin')} />
+          </button>
+        </div>
+        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            {soundOn ? <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <VolumeX className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Message sound</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Play a sound for new messages</p>
+            </div>
+          </div>
+          <button onClick={() => setSoundEnabled(!soundOn)} className="ss4-settings-action h-8 px-3.5 shrink-0" style={{ fontSize: 12 }}>
+            {soundOn ? 'On' : 'Off'}
+          </button>
+        </div>
+        <div className="py-3">
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>Per-conversation alerts (mute, mentions-only, etc.) are set from a chat&apos;s <strong>⋮ → Notification settings</strong>.</p>
+        </div>
+      </div>
+
+      <span className="ss4-section-label mt-6 inline-flex">Appearance</span>
+      <div className="mt-2">
+        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            {theme === 'dark' ? <Moon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Theme</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
+            </div>
+          </div>
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="ss4-settings-action h-8 px-3.5 shrink-0" style={{ fontSize: 12 }}>
+            Switch
+          </button>
+        </div>
+
+        <div className="ss4-settings-row py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Unread chat color</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, marginBottom: 10 }}>The dot that marks unread chats in your conversation list.</p>
+          <div className="flex items-center gap-2.5">
+            {SS4_UNREAD_COLOR_PRESETS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { setUnreadDotColor(c); setUnreadColorState(c); }}
+                title={c}
+                aria-label={`Set unread color ${c}`}
+                className="ss4-settings-swatch h-8 w-8 rounded-full shrink-0"
+                style={{
+                  background: c,
+                  border: c === '#ffffff' ? '1px solid var(--border-2)' : 'none',
+                  outline: unreadColor === c ? '2px solid var(--text-primary)' : 'none',
+                  outlineOffset: 2,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <span className="ss4-section-label mt-6 inline-flex">App</span>
+      <div className="mt-2 py-1">
+        {isSupraSpaceStandaloneUrl ? (
+          <InstallSupraSpaceButton variant="row" />
+        ) : (
+          <a
+            href={SUPRASPACE_SUBDOMAIN_URL}
+            className="ss4-settings-row flex items-center gap-3 py-2.5"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600 }}>Get SupraSpace as its own app</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Install a lighter, dedicated SupraSpace on your phone</p>
+            </div>
+          </a>
+        )}
       </div>
     </div>
   );
@@ -12590,11 +12603,11 @@ export default function SupraSpacePage() {
               className="ss4"
               data-theme={theme}
               onClick={e => e.stopPropagation()}
-              style={{ background: 'var(--bg-elevated)', borderRadius: 12, width: '100%', maxWidth: 420, maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}
+              style={{ background: 'var(--bg-elevated)', borderRadius: 14, width: '100%', maxWidth: 440, maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}
             >
-              <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Settings</h2>
-                <button onClick={() => setAppSettingsOpen(false)} className="ss4-icon-btn h-7 w-7 flex items-center justify-center">
+              <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Settings</h2>
+                <button onClick={() => setAppSettingsOpen(false)} className="ss4-icon-btn h-8 w-8 flex items-center justify-center" aria-label="Close settings">
                   <X className="h-4 w-4" />
                 </button>
               </div>

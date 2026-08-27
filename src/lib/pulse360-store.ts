@@ -30,7 +30,7 @@ export interface Pulse360State {
   health: PulseHealth | null;
   alerts: PulseAlert[];
   nextActions: PulseNextAction[];
-  /** Alerts waiting to be shown as a blocking popup, most severe first. */
+  /** Alerts waiting to be shown as a non-blocking corner notification, most severe first. */
   popupQueue: PulseAlert[];
   error: string | null;
   lastSyncAt: number | null;

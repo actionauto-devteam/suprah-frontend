@@ -37,12 +37,12 @@ import { toast } from "sonner" // Assuming sonner or useToast is available. If n
 import { SUBSCRIPTION_TIERS, getTierDefinition } from "@/data/subscriptionTiers"
 
 // Extend Organization type to include status if not present
-interface AdminOrganization extends Organization {
+export interface AdminOrganization extends Organization {
     status?: 'active' | 'suspended' | 'archived';
     ownerId?: any; // populated
 }
 
-const TIER_BADGE_CLASSES: Record<string, string> = {
+export const TIER_BADGE_CLASSES: Record<string, string> = {
     zinc: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-none",
     blue: "bg-blue-500/10 text-blue-600 border-none",
     violet: "bg-violet-500/10 text-violet-600 border-none",
@@ -96,7 +96,7 @@ export const columns: ColumnDef<AdminOrganization>[] = [
     },
 ]
 
-function OrgActionsCell({ org }: { org: AdminOrganization }) {
+export function OrgActionsCell({ org }: { org: AdminOrganization }) {
     const router = useRouter();
     const { startImpersonation } = adminStore.useStore();
     const { getToken } = useAuth();

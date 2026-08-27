@@ -1,34 +1,26 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
     LayoutDashboard,
     Users,
     Building2,
-    Settings,
-    Shield,
-    LifeBuoy,
-    Send,
-    CreditCard,
     LogOut,
-    ChevronUp,
+    ChevronRight,
     User2,
     Truck,
-    Mail
+    CreditCard,
 } from "lucide-react"
 
 import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-    SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -50,41 +42,37 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Menu items.
 const data = {
     navMain: [
-        {
-            title: "Overview",
-            url: "/admin/dashboard",
-            icon: LayoutDashboard,
-            isActive: true,
-        },
-        {
-            title: "Organizations",
-            url: "/admin/organizations",
-            icon: Building2,
-        },
-        {
-            title: "Dealership Inquiries",
-            url: "/admin/dealership-inquiries",
-            icon: Mail,
-        },
-        {
-            title: "Users",
-            url: "/admin/users",
-            icon: Users,
-        },
-        {
-            title: "Drivers",
-            url: "/admin/drivers",
-            icon: Truck,
-        },
-        {
-            title: "Payouts",
-            url: "/admin/payouts",
-            icon: CreditCard,
-        }
+        { title: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
+        { title: "Dealerships", url: "/admin/organizations", icon: Building2 },
+        { title: "Users", url: "/admin/users", icon: Users },
+        { title: "Drivers", url: "/admin/drivers", icon: Truck },
+        { title: "Payouts", url: "/admin/payouts", icon: CreditCard },
     ],
+}
+
+// Same signature nav treatment as the dealership-facing AppSidebar: a subtle
+// primary tint on the active row plus a glowing rail indicator, instead of a
+// flat highlight.
+const navItemClass =
+    "group/item relative transition-all duration-200 hover:translate-x-0.5 " +
+    "data-[active=true]:bg-primary/10 data-[active=true]:text-primary " +
+    "data-[active=true]:font-medium data-[active=true]:shadow-sm data-[active=true]:shadow-primary/10";
+
+function ActiveStrip() {
+    return (
+        <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-0.75 -translate-y-1/2 rounded-full bg-linear-to-b from-primary to-primary/40 shadow-md shadow-primary/50" />
+    );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="mt-4 flex items-center gap-2 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+            <span className="h-px w-3 bg-linear-to-r from-primary/60 to-transparent" />
+            {children}
+        </div>
+    );
 }
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -94,60 +82,64 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     const [logoutOpen, setLogoutOpen] = React.useState(false)
 
     return (
-        <Sidebar variant="inset" {...props}>
-            <SidebarHeader>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href="/admin/dashboard">
-                                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                    <Shield className="size-4" />
-                                </div>
-                                <div className="grid flex-1 text-left text-sm leading-tight">
-                                    <span className="truncate font-semibold">Suprah AI</span>
-                                    <span className="truncate text-xs">Super Admin Portal</span>
-                                </div>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
+        <Sidebar variant="inset" className="border-r bg-sidebar" {...props}>
+            <SidebarHeader className="relative flex h-16 items-center justify-center px-6 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-linear-to-r after:from-transparent after:via-border after:to-transparent">
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute left-1/2 top-1/2 size-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary opacity-[0.10] blur-2xl"
+                />
+                <Link href="/admin/dashboard" className="relative flex w-full items-center justify-center">
+                    <Image
+                        src="/favicon.png"
+                        alt="Suprah AI"
+                        width={300}
+                        height={300}
+                        className="object-contain dark:invert-0 invert"
+                        priority
+                    />
+                </Link>
             </SidebarHeader>
-            <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Platform</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {data.navMain.map((item) => (
-                                <SidebarMenuItem key={item.title}>
-                                    <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
-                                        <Link href={item.url}>
-                                            <item.icon />
-                                            <span>{item.title}</span>
-                                        </Link>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
+            <SidebarContent className="p-2">
+                <SectionLabel>Super Admin</SectionLabel>
+                <SidebarMenu>
+                    {data.navMain.map((item) => {
+                        const isActive = pathname === item.url || pathname.startsWith(item.url + "/");
+                        return (
+                            <SidebarMenuItem key={item.title}>
+                                <SidebarMenuButton
+                                    asChild
+                                    isActive={isActive}
+                                    tooltip={item.title}
+                                    className={navItemClass}
+                                >
+                                    <Link href={item.url}>
+                                        {isActive && <ActiveStrip />}
+                                        <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
+                                        <span>{item.title}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        );
+                    })}
+                </SidebarMenu>
             </SidebarContent>
-            <SidebarFooter>
+            <SidebarFooter className="border-t bg-sidebar px-2 py-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <SidebarMenuButton
                                     size="lg"
-                                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                                    className="w-full gap-3 rounded-lg border border-transparent data-[state=open]:border-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                                 >
-                                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                                    <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                         <User2 className="size-4" />
                                     </div>
                                     <div className="grid flex-1 text-left text-sm leading-tight">
                                         <span className="truncate font-semibold">{user?.fullName || 'Admin User'}</span>
-                                        <span className="truncate text-xs">{user?.primaryEmailAddress?.emailAddress || 'admin@example.com'}</span>
+                                        <span className="truncate text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress || 'admin@example.com'}</span>
                                     </div>
-                                    <ChevronUp className="ml-auto size-4" />
+                                    <ChevronRight className="ml-auto size-4 shrink-0" />
                                 </SidebarMenuButton>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent

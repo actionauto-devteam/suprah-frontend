@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Check,
   Clock,
+  Copy,
   Download,
   FileText,
   Loader2,
@@ -599,6 +600,7 @@ export function TaskDetailDialog({
   const [editLoading, setEditLoading] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
 
   // Comments
   const [comments, setComments] = React.useState<Comment[]>([]);
@@ -858,6 +860,18 @@ export function TaskDetailDialog({
     }
   };
 
+  const copyTaskText = async () => {
+    if (!task) return;
+    const text = task.description ? `${task.title}\n\n${task.description}` : task.title;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — no-op */
+    }
+  };
+
   const confirmDelete = async () => {
     if (!task) return;
     setDeleting(true);
@@ -982,6 +996,17 @@ export function TaskDetailDialog({
                   {task.title}
                 </h2>
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={copyTaskText}
+                    title="Copy title & description"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
+                  >
+                    {copied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                   <button
                     onClick={openEdit}
                     disabled={editLoading}
