@@ -49,6 +49,7 @@ import { useOrg } from "@/hooks/useOrg";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProfileContext } from "@/context/ProfileContext";
 import { resolveImageUrl, cn } from "@/lib/utils";
+import { isSupraSpaceInstalled } from "@/lib/supraspace-install";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -288,6 +289,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
   const { totalUnread } = useSupraSpaceMessenger();
+  // Once this device has SupraSpace's own PWA installed, "Suprah Space" in
+  // the sidebar should hand off there directly instead of opening the
+  // embedded dashboard view — there's a real dedicated app waiting for it.
+  // See lib/supraspace-install.ts: set by the subdomain itself, read here
+  // across origins via a shared-parent-domain cookie.
+  const [supraSpaceInstalledElsewhere, setSupraSpaceInstalledElsewhere] = React.useState(false);
+  React.useEffect(() => {
+    setSupraSpaceInstalledElsewhere(isSupraSpaceInstalled());
+  }, []);
   const { unreadCount: pmUnread } = useProjectNotifications();
   const { unreadCount: whatsNewUnread } = useWhatsNew();
   // Feeds badge — singleton useSyncExternalStore store (no provider needed).
@@ -470,6 +480,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {data.apps.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
+                const isSupraSpaceItem = item.title === "Suprah Space";
+                const handoffToInstalledApp = isSupraSpaceItem && supraSpaceInstalledElsewhere;
+                const href = handoffToInstalledApp ? "https://space.suprah-app.com/" : item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -478,7 +491,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={navItemClass}
                     >
-                      <Link href={item.url}>
+                      {/* Once SupraSpace is installed as its own app on this
+                          device, hand off there directly instead of opening
+                          the embedded dashboard view — target="_blank" is
+                          required, not cosmetic: from inside the ALREADY-
+                          installed Suprah AI standalone window, a same-tab
+                          link to another origin has no browser chrome to
+                          escape to (especially iOS), so it would just
+                          navigate in place with nothing to actually open. */}
+                      <Link href={href} {...(handoffToInstalledApp ? { target: '_blank', rel: 'noopener' } : {})}>
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>

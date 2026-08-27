@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 import { type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { isSupraSpaceInstalled } from "@/lib/supraspace-install";
+
+const SUPRASPACE_EMBEDDED_HREF = "/crm/supra-space";
+const SUPRASPACE_SUBDOMAIN_URL = "https://space.suprah-app.com/";
 
 export type BottomNavItem = {
     label: string;
@@ -26,6 +30,13 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
     const [hiddenForMailWorkspace, setHiddenForMailWorkspace] = React.useState(false);
     const [pendingHref, setPendingHref] = React.useState<string | null>(null);
     const lastScrollY = React.useRef(0);
+    // Once this device has SupraSpace's own PWA installed, the SupraSpace tab
+    // should hand off there directly instead of opening the embedded
+    // dashboard view — see lib/supraspace-install.ts (cross-origin cookie).
+    const [supraSpaceInstalledElsewhere, setSupraSpaceInstalledElsewhere] = React.useState(false);
+    React.useEffect(() => {
+        setSupraSpaceInstalledElsewhere(isSupraSpaceInstalled());
+    }, []);
 
     React.useEffect(() => {
         setPendingHref(null);
@@ -96,6 +107,14 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                         {items.map((item, index) => {
                             const active = pendingHref === item.href || isActive(item.href);
                             const Icon = item.icon;
+                            const handoffToInstalledApp = item.href === SUPRASPACE_EMBEDDED_HREF && supraSpaceInstalledElsewhere;
+                            const linkHref = handoffToInstalledApp ? SUPRASPACE_SUBDOMAIN_URL : item.href;
+                            // target="_blank" is required, not cosmetic: from inside the
+                            // already-installed Suprah AI standalone window, a same-tab
+                            // link to another origin has no browser chrome to escape to
+                            // (especially iOS) — it would just navigate in place with
+                            // nothing to actually open.
+                            const linkTargetProps = handoffToInstalledApp ? { target: '_blank' as const, rel: 'noopener' } : {};
 
                             if (item.isCenter) {
                                 return (
@@ -107,7 +126,8 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                                         className="flex justify-center"
                                     >
                                         <Link
-                                            href={item.href}
+                                            href={linkHref}
+                                            {...linkTargetProps}
                                             aria-current={active ? "page" : undefined}
                                             onClick={() => {
                                                 setPendingHref(item.href);
@@ -153,7 +173,8 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
                                     transition={{ delay: index * 0.03, duration: 0.22, ease: "easeOut" }}
                                 >
                                     <Link
-                                        href={item.href}
+                                        href={linkHref}
+                                        {...linkTargetProps}
                                         aria-current={active ? "page" : undefined}
                                         onClick={() => {
                                             setPendingHref(item.href);
