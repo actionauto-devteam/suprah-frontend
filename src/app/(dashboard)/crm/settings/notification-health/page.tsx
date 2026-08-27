@@ -28,6 +28,8 @@ type DeviceStatus = "healthy" | "stale" | "never-confirmed" | "failing";
 
 interface DeviceHealth {
   deviceHint: string;
+  appSource: "main" | "supraspace" | null;
+  endpointHost: string;
   createdAt: string;
   lastSuccessAt: string | null;
   failureCount: number;
@@ -303,6 +305,10 @@ export default function NotificationHealthPage() {
                               {meta.label}
                             </span>
                             <span className="text-muted-foreground/70 font-mono">{d.deviceHint}</span>
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-semibold ${d.appSource === "supraspace" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : d.appSource === "main" ? "bg-sky-500/10 text-sky-600 border-sky-500/20" : "bg-muted text-muted-foreground/60 border-border/40"}`}>
+                              {d.appSource || "no appSource (legacy)"}
+                            </span>
+                            <span className="text-muted-foreground/40 font-mono">{d.endpointHost}</span>
                             <span className="text-muted-foreground/50 ml-auto">Last success: {fmtDate(d.lastSuccessAt)}</span>
                             <span className="text-muted-foreground/50">Created: {fmtDate(d.createdAt)}</span>
                             {d.failureCount > 0 && (

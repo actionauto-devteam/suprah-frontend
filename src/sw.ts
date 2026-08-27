@@ -129,12 +129,25 @@ async function showBurstSummary(data: any): Promise<void> {
     `You have ${count} new notification${count === 1 ? "" : "s"}`,
     {
       body: count === 1 ? latest : `Latest: ${latest}`,
-      icon: DEFAULT_NOTIFICATION_ICON,
+      // Carries the LATEST push's own icon (sender/group avatar, when this
+      // is SupraSpace — see pushToConversationMembers) instead of always the
+      // generic app icon, same as the standard notification path below.
+      icon: data.icon || DEFAULT_NOTIFICATION_ICON,
       badge: DEFAULT_NOTIFICATION_ICON,
       tag: SUMMARY_NOTIFICATION_TAG,
       renotify: true,
       vibrate: [100, 50, 100],
-      data: { url: "/notifications", count },
+      // Tapping this collapsed summary should open the most recent thing it
+      // summarizes, not a generic page with no way back to it — carry the
+      // latest push's own conversationId/messageId through so
+      // notificationclick's URL-resolution logic (below) can use them same
+      // as it would for a non-collapsed push.
+      data: {
+        url: data.data?.url || "/notifications",
+        conversationId: data.data?.conversationId,
+        messageId: data.data?.messageId,
+        count,
+      },
     },
   );
 }
