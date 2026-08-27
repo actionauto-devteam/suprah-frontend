@@ -404,7 +404,24 @@ self.addEventListener("notificationclick", (event: any) => {
     return;
   }
 
-  const urlToOpen = new URL(notificationData.url || "/", self.location.origin)
+  // SupraSpace messages: build the target path from this SW's own origin at
+  // click time rather than trusting the path baked into the push payload at
+  // send time. The backend has no way to know, when a message is sent,
+  // whether a given push subscription belongs to a device that installed
+  // the dedicated SupraSpace subdomain app (where the conversation lives at
+  // "/") or one still using the main-domain embedded view (where it's at
+  // "/crm/supra-space") — see proxy.ts. Resolving it here, against whichever
+  // origin is actually running this worker, is the only place that's known.
+  let urlToOpen: URL;
+  if (notificationData.conversationId) {
+    const isSupraSpaceSubdomain = self.location.origin === "https://space.suprah-app.com";
+    const params = new URLSearchParams({ conversationId: notificationData.conversationId });
+    if (notificationData.messageId) params.set("messageId", notificationData.messageId);
+    const base = isSupraSpaceSubdomain ? "/" : "/crm/supra-space";
+    urlToOpen = new URL(`${base}?${params.toString()}`, self.location.origin);
+  } else {
+    urlToOpen = new URL(notificationData.url || "/", self.location.origin);
+  }
   const targetHref = urlToOpen.href;
   const targetPathname = urlToOpen.pathname;
 

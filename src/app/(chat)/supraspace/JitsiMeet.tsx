@@ -84,8 +84,15 @@ export function JitsiMeet({
         }}
         onReadyToClose={onClose}
         getIFrameRef={(iframeRef) => {
-          iframeRef.style.height = '100vh';
-          iframeRef.style.width = '100vw';
+          // 100vh/100vw don't account for iOS's dynamic browser chrome and
+          // safe areas (notch/Dynamic Island) — Jitsi's own internal layout
+          // (its top call-info bar, bottom toolbar) then computes against an
+          // incorrect viewport, pushing its own controls up under the notch
+          // (unreachable) and leaving dead space elsewhere. 100dvh/100dvw
+          // resolve to the actual visible viewport instead — same fix this
+          // codebase already uses elsewhere (see ss4-mobile-emoji-panel).
+          iframeRef.style.height = '100dvh';
+          iframeRef.style.width = '100dvw';
         }}
       />
     </div>

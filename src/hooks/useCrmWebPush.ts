@@ -48,6 +48,16 @@ function getDeviceHint() {
   return standalone ? "desktop-pwa" : "desktop";
 }
 
+const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+
+// Which app registered this subscription — lets the dedicated SupraSpace
+// app's notifications stay independent of the main Suprah AI app's
+// "Messages" mute toggle (see pushToConversationMembers, backend).
+function getAppSource(): "main" | "supraspace" {
+  if (typeof window === "undefined") return "main";
+  return window.location.hostname === SUPRASPACE_SUBDOMAIN ? "supraspace" : "main";
+}
+
 export function useCrmWebPush() {
   const crmToken = useCrmToken();
   const [isSupported, setIsSupported] = useState(false);
@@ -133,7 +143,7 @@ export function useCrmWebPush() {
 
           const saved = await postWithRetry(
             CRM_SUBSCRIBE_URL,
-            { subscription, deviceHint: getDeviceHint() },
+            { subscription, deviceHint: getDeviceHint(), appSource: getAppSource() },
             { Authorization: `Bearer ${token}` },
           );
           if (saved) localStorage.setItem(LAST_VERIFIED_KEY, String(Date.now()));
@@ -188,7 +198,7 @@ export function useCrmWebPush() {
       }
       const saved = await postWithRetry(
         CRM_SUBSCRIBE_URL,
-        { subscription, deviceHint: getDeviceHint() },
+        { subscription, deviceHint: getDeviceHint(), appSource: getAppSource() },
         { Authorization: `Bearer ${token}` },
       );
       if (!saved) {
