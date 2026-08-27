@@ -223,12 +223,17 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const [myAvatar, setMyAvatar]           = React.useState<string | undefined>(undefined);
   const [myFullName, setMyFullName]       = React.useState('');
   const [notifPrefs, setNotifPrefs]       = React.useState<Record<string, NotifPref>>({});
+  // People this viewer wants to always be notified by, bypassing per-conversation
+  // mute — see PrioritySendersModal (supraspace/page.tsx) for where it's set.
+  const [prioritySenders, setPrioritySenders] = React.useState<string[]>([]);
 
   // Refs so socket handlers always see current values (stale-closure safety)
   const notifPrefsRef  = React.useRef<Record<string, NotifPref>>({});
   const myFullNameRef  = React.useRef('');
+  const prioritySendersRef = React.useRef<string[]>([]);
   React.useEffect(() => { notifPrefsRef.current = notifPrefs; }, [notifPrefs]);
   React.useEffect(() => { myFullNameRef.current = myFullName; }, [myFullName]);
+  React.useEffect(() => { prioritySendersRef.current = prioritySenders; }, [prioritySenders]);
 
   const resolveNotifPref = React.useCallback((conversationId: string): NotifPref => {
     const serverPref = conversationsRef.current.find(c => c._id === conversationId)?.notificationPreference;
@@ -294,6 +299,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     if (!crmToken) return;
     apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${crmToken}` } })
       .then(r => { const d = r.data?.data || r.data; if (d?.avatar) setMyAvatar(d.avatar); if (d?.fullName) setMyFullName(d.fullName); })
+      .catch(() => {});
+  }, [crmToken]);
+
+  React.useEffect(() => {
+    if (!crmToken) return;
+    apiClient.get('/api/crm/notifications/preferences', { headers: { Authorization: `Bearer ${crmToken}` } })
+      .then(r => setPrioritySenders(r.data?.data?.preferences?.prioritySenders || []))
       .catch(() => {});
   }, [crmToken]);
 
@@ -405,7 +417,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       if (message.sender?._id !== crmUserId) {
         const pref = resolveNotifPref(conversationId);
         const isMentioned = isUserMentioned(message.content || '', myFullNameRef.current);
-        if (shouldNotify(pref, isMentioned)) {
+        const isPrioritySender = !!message.sender?._id && prioritySendersRef.current.includes(message.sender._id);
+        if (isPrioritySender || shouldNotify(pref, isMentioned)) {
           playMessageSound();
           // visibilityState alone misses the common desktop case of the
           // browser window sitting unfocused behind other apps (or on
