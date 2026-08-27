@@ -16,6 +16,7 @@ import {
   MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2, RefreshCw,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
+  ExternalLink,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -32,6 +33,7 @@ import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants
 import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
+import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
 import { DEPARTMENTS, deptLabel } from '@/lib/departments';
 import nextDynamic from 'next/dynamic';
 import { useCall, CallSession } from '@/hooks/useCall';
@@ -7196,7 +7198,99 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
   );
 }
 
-function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
+// Boss Erik's ask: pick specific people whose messages always notify you,
+// even in a conversation (group or DM) you've muted, set to "for you," or
+// turned off entirely. Backed by CrmUser.notificationPreferences.prioritySenders
+// — see the bypass in supraspace.controller.ts's pushToConversationMembers
+// and notifyMentionedMembers.
+function PrioritySendersModal({ users, selfId, onClose }: {
+  users: CrmUser[]; selfId: string; onClose: () => void;
+}) {
+  const [q, setQ] = React.useState('');
+  const [selected, setSelected] = React.useState<string[]>([]);
+  const [loaded, setLoaded] = React.useState(false);
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('crm_token');
+    if (!token) { setLoaded(true); return; }
+    apiClient.get('/api/crm/notifications/preferences', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setSelected(r.data?.data?.preferences?.prioritySenders || []))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const list = users.filter(u => u._id !== selfId && (u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())));
+
+  const toggle = async (id: string) => {
+    const prev = selected;
+    const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
+    setSelected(next);
+    setSavingId(id);
+    try {
+      const token = localStorage.getItem('crm_token');
+      await apiClient.patch('/api/crm/notifications/preferences', { prioritySenders: next }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      setSelected(prev);
+      toast.error('Could not update priority senders.');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ss4-modal w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4" style={{ color: 'var(--accent)' }} />
+            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Always notify me</h2>
+          </div>
+          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+            Messages from people you pick here always notify you — even in a group or DM you&apos;ve muted, set to &quot;for you,&quot; or turned off.
+          </p>
+          <div className="relative">
+            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
+          </div>
+          <div className="space-y-0.5 max-h-72 overflow-y-auto ss4-scroll -mx-1 px-1">
+            {!loaded && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>}
+            {loaded && list.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No one found</p>}
+            {loaded && list.map(u => {
+              const active = selected.includes(u._id);
+              return (
+                <button
+                  key={u._id}
+                  disabled={savingId === u._id}
+                  onClick={() => toggle(u._id)}
+                  className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
+                  style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}
+                >
+                  <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
+                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
+                    <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
+                  </div>
+                  {savingId === u._id
+                    ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+                    : active ? <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupraSpaceSettingsPanel({ me, allUsers }: { me?: CrmUser; allUsers: CrmUser[] }) {
+  const [showPrioritySenders, setShowPrioritySenders] = React.useState(false);
   // Only the actual subdomain counts as "standalone" for install-button
   // purposes — see the matching comment on the main page component. A
   // pathname check would also match /supraspace on the main domain, which
@@ -7204,6 +7298,12 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
   const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(false);
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
+  }, []);
+  // See the matching state on the main page component — cookie-based signal
+  // for "already installed on this device", read across origins.
+  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
+  React.useEffect(() => {
+    setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
   }, []);
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshSubscription } = useCrmWebPush();
   const { theme, setTheme } = useTheme();
@@ -7311,6 +7411,27 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
       <div className="py-3">
         <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Per-conversation alerts (mute, mentions-only, etc.) are set from a chat&apos;s <strong>⋮ → Notification settings</strong>.</p>
       </div>
+      <button
+        onClick={() => setShowPrioritySenders(true)}
+        className="w-full flex items-center justify-between gap-3 py-3 text-left"
+        style={{ borderBottom: '1px solid var(--border-1)', borderTop: '1px solid var(--border-1)' }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Bell className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+          <div className="min-w-0">
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Always notify me from</p>
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Bypass mute for specific people, everywhere</p>
+          </div>
+        </div>
+        <ChevronDown className="h-4 w-4 shrink-0 -rotate-90" style={{ color: 'var(--text-tertiary)' }} />
+      </button>
+      {showPrioritySenders && (
+        // selfId only excludes "yourself" from the picker list — the actual
+        // save is identified server-side by the auth token, not this prop —
+        // so this doesn't need to wait on `me` resolving (it doesn't always,
+        // see the missing profile card above; a separate, pre-existing issue).
+        <PrioritySendersModal users={allUsers} selfId={me?._id || ''} onClose={() => setShowPrioritySenders(false)} />
+      )}
 
       <span className="ss4-section-label">Appearance</span>
       <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
@@ -7356,13 +7477,21 @@ function SupraSpaceSettingsPanel({ me }: { me?: CrmUser }) {
           ) : (
             <a
               href={SUPRASPACE_SUBDOMAIN_URL}
+              target="_blank"
+              rel="noopener"
               className="flex items-center gap-3 py-1"
               style={{ color: 'var(--text-primary)' }}
             >
-              <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+              {isSupraSpaceAlreadyInstalled
+                ? <ExternalLink className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                : <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
               <div className="min-w-0">
-                <p style={{ fontSize: 13, fontWeight: 600 }}>Get SupraSpace as its own app</p>
-                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Install a lighter, dedicated SupraSpace on your phone</p>
+                <p style={{ fontSize: 13, fontWeight: 600 }}>
+                  {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Get SupraSpace as its own app'}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                  {isSupraSpaceAlreadyInstalled ? 'Already installed on this device' : 'Install a lighter, dedicated SupraSpace on your phone'}
+                </p>
               </div>
             </a>
           )}
@@ -7739,6 +7868,14 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, [pathname]);
+  // Whether THIS device already has SupraSpace's own PWA installed (set by
+  // the subdomain itself, read here via a shared-parent-domain cookie — see
+  // lib/supraspace-install.ts). Drives every "Get SupraSpace" affordance
+  // below: not installed yet -> install CTA, already installed -> open CTA.
+  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
+  React.useEffect(() => {
+    setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
+  }, []);
   // Mobile-only: the dashboard-embedded route (/crm/supra-space) shows a
   // dismissible "install the dedicated app" prompt over the real chat —
   // on a phone, messaging is meant to live in the dedicated SupraSpace PWA,
@@ -11024,8 +11161,14 @@ export default function SupraSpacePage() {
               {isSupraSpaceStandaloneUrl ? (
                 <InstallSupraSpaceButton variant="icon" />
               ) : (
-                <a href={SUPRASPACE_SUBDOMAIN_URL} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Get SupraSpace as its own app">
-                  <Download className="h-3.5 w-3.5" />
+                <a
+                  href={SUPRASPACE_SUBDOMAIN_URL}
+                  target="_blank"
+                  rel="noopener"
+                  className="ss4-theme-btn h-8 w-8 flex items-center justify-center"
+                  title={isSupraSpaceAlreadyInstalled ? "Open SupraSpace" : "Get SupraSpace as its own app"}
+                >
+                  {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
                 </a>
               )}
             </div>
@@ -11347,7 +11490,7 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel me={me} />}
+            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel me={me} allUsers={allUsers} />}
           </aside>
 
           { }
@@ -12569,17 +12712,30 @@ export default function SupraSpacePage() {
               </button>
               <SupraSpaceLogo size={64} />
               <div className="flex flex-col items-center gap-2">
-                <p className="ss4-display font-bold" style={{ fontSize: 19, color: 'var(--text-primary)' }}>Get SupraSpace</p>
+                <p className="ss4-display font-bold" style={{ fontSize: 19, color: 'var(--text-primary)' }}>
+                  {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Get SupraSpace'}
+                </p>
                 <p style={{ fontSize: 13, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-                  Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.
+                  {isSupraSpaceAlreadyInstalled
+                    ? "You already installed SupraSpace on this device — messaging now lives there. Tap below to open it."
+                    : 'Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.'}
                 </p>
               </div>
+              {/* target="_blank" matters here, not just for a new browser
+                  tab: a same-window href from inside the ALREADY-installed
+                  Suprah AI standalone app has no browser chrome to escape
+                  to on iOS, so the link just navigates in place with no way
+                  to actually install/open anything. target="_blank" forces
+                  Safari/Chrome to break out to a real, chrome-ful window. */}
               <a
                 href={SUPRASPACE_SUBDOMAIN_URL}
+                target="_blank"
+                rel="noopener"
                 className="w-full h-11 rounded-xl flex items-center justify-center gap-2 font-semibold"
                 style={{ background: 'var(--accent)', color: '#fff', fontSize: 14 }}
               >
-                <Download className="h-4 w-4" /> Install SupraSpace
+                {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Install SupraSpace'}
               </a>
             </div>
           </div>
@@ -12598,7 +12754,7 @@ export default function SupraSpacePage() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <SupraSpaceSettingsPanel me={me} />
+              <SupraSpaceSettingsPanel me={me} allUsers={allUsers} />
             </div>
           </div>
         )}

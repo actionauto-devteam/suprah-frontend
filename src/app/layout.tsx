@@ -69,7 +69,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="scrollbar-thin" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {/* No hardcoded apple-touch-icon link here — metadata.icons.apple
+            above already generates it for every route, and being a static
+            tag here (unlike the metadata one) it can't be overridden by a
+            nested layout. It was clobbering SupraSpace's own icon
+            (supraspace/layout.tsx's metadata.icons.apple) since this one's
+            explicit sizes="180x180" wins iOS's tie-break over an unsized tag. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){var DARK_BG='oklch(0.15 0.02 269.18)';var LIGHT_BG='oklch(0.99 0 0)';var root=document.documentElement;try{var t=localStorage.getItem('theme');var isLight=t==='light';root.classList.add(isLight?'light':'dark');root.style.backgroundColor=isLight?LIGHT_BG:DARK_BG;root.style.colorScheme=isLight?'light':'dark'}catch(e){root.classList.add('dark');root.style.backgroundColor=DARK_BG;root.style.colorScheme='dark'}})()`,

@@ -9,14 +9,23 @@ import { motion, AnimatePresence } from "framer-motion";
  * Technical Note: iOS Web Push requires the app to be "Added to Home Screen".
  * This component handles the discovery gating for iOS users.
  */
+const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+
 export function IOSInstallHint() {
     const pathname = usePathname();
     const [show, setShow] = useState(false);
 
     useEffect(() => {
         // SupraSpace has its own iOS install hint (different manifest/copy) —
-        // skip this one there so the two don't stack.
+        // skip this one there so the two don't stack. Covers every surface
+        // SupraSpace's page.tsx is reached from — see the matching comment
+        // in InstallPrompt.tsx. The subdomain rewrite is invisible to the
+        // browser (usePathname() still reads "/" there), so a hostname check
+        // is needed alongside the path checks.
         if (pathname?.startsWith("/supraspace")) return;
+        if (pathname?.startsWith("/crm/supra-space")) return;
+        if (pathname?.startsWith("/crm/conversations")) return;
+        if (typeof window !== "undefined" && window.location.hostname === SUPRASPACE_SUBDOMAIN) return;
 
         // Detect iOS Browser (not already a standalone app)
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;

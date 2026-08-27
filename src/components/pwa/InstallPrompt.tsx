@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { X, Share, PlusSquare, Download } from "lucide-react";
 
+const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+
 export const InstallPrompt = () => {
     const pathname = usePathname();
     const { isInstallable, isIOS, isStandalone, handleInstallClick } = usePWAInstall();
@@ -13,8 +15,16 @@ export const InstallPrompt = () => {
 
     // SupraSpace has its own install affordance (its manifest/scope is
     // different from this one) — showing this banner there too would offer
-    // two competing "install" actions for the same click.
-    const inSupraSpace = pathname?.startsWith("/supraspace");
+    // two competing "install" actions for the same click. Covers every
+    // surface SupraSpace's page.tsx is actually reached from: its own
+    // subdomain (usePathname() there still reads "/" — the middleware
+    // rewrite is invisible to the browser, so a hostname check is required
+    // too), the main-domain path, and the dashboard-embedded routes.
+    const inSupraSpace =
+        pathname?.startsWith("/supraspace") ||
+        pathname?.startsWith("/crm/supra-space") ||
+        pathname?.startsWith("/crm/conversations") ||
+        (typeof window !== "undefined" && window.location.hostname === SUPRASPACE_SUBDOMAIN);
 
     useEffect(() => {
         if (inSupraSpace) return;

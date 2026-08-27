@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Download, Share, PlusSquare, X, Check, MoreVertical, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { markSupraSpaceInstalled, isSupraSpaceInstalled } from '@/lib/supraspace-install';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -40,12 +41,26 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   const [installed, setInstalled] = React.useState(false);
   const [showHint, setShowHint] = React.useState(false);
   const [platform, setPlatform] = React.useState<Platform>('desktop');
+  // Landed here (e.g. redirected from the main Suprah AI app) in a plain
+  // browser tab, but this device already installed SupraSpace before — walking
+  // through "Add to Home Screen" again would be confusing. Point back at the
+  // existing icon instead.
+  const [alreadyInstalledElsewhere, setAlreadyInstalledElsewhere] = React.useState(false);
 
   React.useEffect(() => {
-    setInstalled(isRunningAsSupraSpaceStandalone());
+    const standalone = isRunningAsSupraSpaceStandalone();
+    setInstalled(standalone);
+    if (!standalone) setAlreadyInstalledElsewhere(isSupraSpaceInstalled());
+    // appinstalled (Android) confirms install directly. iOS never fires it —
+    // the first standalone launch (user tapped the Home Screen icon) is the
+    // only signal we get there, so treat it the same way. Either one means
+    // this device genuinely has SupraSpace installed; record it so the main
+    // Suprah AI app (a different origin — see markSupraSpaceInstalled) can
+    // offer "open" instead of "install" there.
+    if (standalone) markSupraSpaceInstalled();
     setPlatform(detectPlatform());
     const onBip = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
-    const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); };
+    const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); markSupraSpaceInstalled(); };
     window.addEventListener('beforeinstallprompt', onBip);
     window.addEventListener('appinstalled', onInstalled);
     return () => {
@@ -78,12 +93,12 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     <>
       <button
         onClick={handleClick}
-        title="Install SupraSpace"
+        title={alreadyInstalledElsewhere ? 'Open SupraSpace' : 'Install SupraSpace'}
         className={variant === 'icon' ? 'ss4-theme-btn h-8 w-8 flex items-center justify-center' : 'ss4-icon-btn h-7 px-3 flex items-center gap-1.5'}
         style={variant === 'row' ? { fontSize: 11, fontWeight: 600 } : undefined}
       >
         <Download className="h-3.5 w-3.5" />
-        {variant === 'row' && <span>Install App</span>}
+        {variant === 'row' && <span>{alreadyInstalledElsewhere ? 'Open App' : 'Install App'}</span>}
       </button>
 
       <AnimatePresence>
@@ -105,11 +120,16 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
               </button>
               <div className="space-y-6 text-center pb-4">
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold tracking-tight">Install SupraSpace</h3>
+                  <h3 className="text-xl font-bold tracking-tight">
+                    {alreadyInstalledElsewhere ? 'Already Installed' : 'Install SupraSpace'}
+                  </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed px-2">
-                    Add SupraSpace to your Home Screen for its own app icon and reliable message notifications.
+                    {alreadyInstalledElsewhere
+                      ? 'You already added SupraSpace to your Home Screen on this device — open it from there instead of here.'
+                      : 'Add SupraSpace to your Home Screen for its own app icon and reliable message notifications.'}
                   </p>
                 </div>
+                {alreadyInstalledElsewhere ? null : (
                 <div className="bg-muted/20 rounded-2xl p-5 space-y-5">
                   {platform === 'ios' ? (
                     <>
@@ -180,6 +200,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
                     </>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </motion.div>
