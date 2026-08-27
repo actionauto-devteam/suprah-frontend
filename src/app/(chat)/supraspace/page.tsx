@@ -126,7 +126,12 @@ const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 // /supraspace on the main domain — that path still works for browsing, but
 // only a document whose origin truly is the subdomain avoids the
 // install-identity collision with the main app (see isSupraSpaceStandaloneUrl).
-const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/`;
+// ?install=1 tells InstallSupraSpaceButton (mounted there) to fire the
+// install prompt automatically on arrival — a real install can only be
+// triggered from that origin, so this is what makes clicking "Install
+// SupraSpace" here feel like one action instead of "redirect, then figure
+// out there's another button to press."
+const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/?install=1`;
 
 // Fixed (not per-conversation-theme) unread-indicator color — a custom
 // conversation theme can override --accent to anything, which made the old
@@ -7206,6 +7211,14 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
 function PrioritySendersModal({ users, selfId, onClose }: {
   users: CrmUser[]; selfId: string; onClose: () => void;
 }) {
+  // SupraSpaceMessengerContext keeps its own copy of this list (fetched once
+  // on mount) so the socket handler that decides "should this open tab
+  // notify me right now" can read it without an extra request per message.
+  // Without pushing updates into it here too, a toggle made mid-session
+  // would only take effect for OTHER devices/after this tab reloads — the
+  // one you're actively testing from would keep using the stale pre-toggle
+  // list until then, which is exactly what looked like a desktop-only bug.
+  const { setPrioritySenders: setCtxPrioritySenders } = useSupraSpaceMessenger();
   const [q, setQ] = React.useState('');
   const [selected, setSelected] = React.useState<string[]>([]);
   const [loaded, setLoaded] = React.useState(false);
@@ -7230,6 +7243,7 @@ function PrioritySendersModal({ users, selfId, onClose }: {
     try {
       const token = localStorage.getItem('crm_token');
       await apiClient.patch('/api/crm/notifications/preferences', { prioritySenders: next }, { headers: { Authorization: `Bearer ${token}` } });
+      setCtxPrioritySenders(next);
     } catch {
       setSelected(prev);
       toast.error('Could not update priority senders.');
@@ -7283,6 +7297,13 @@ function PrioritySendersModal({ users, selfId, onClose }: {
               );
             })}
           </div>
+          {/* Each toggle above already saves instantly (see the try/catch in
+              toggle()) — this isn't a "Cancel" (there's nothing pending to
+              discard) but a plain, clear way to close once you're done, since
+              tapping the backdrop is the only other way out otherwise. */}
+          <button onClick={onClose} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
+            Done
+          </button>
         </div>
       </div>
     </div>

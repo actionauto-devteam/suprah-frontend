@@ -79,6 +79,43 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     setShowHint(true);
   };
 
+  // "Get SupraSpace" links on the main Suprah AI domain append ?install=1
+  // before sending the user here (a real install can only be triggered from
+  // SupraSpace's own origin — see the comment on those links). This is what
+  // turns that redirect into a true one-more-tap install instead of dumping
+  // the user on a page with nothing obviously to do: fire the same flow
+  // handleClick would, automatically, as soon as we know what's available.
+  const autoTriggeredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const autoInstallRequested = new URLSearchParams(window.location.search).get('install') === '1';
+    if (!autoInstallRequested || autoTriggeredRef.current || installed || alreadyInstalledElsewhere) return;
+
+    // Drop the param so a later refresh of this tab doesn't re-trigger.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('install');
+    window.history.replaceState(null, '', cleanUrl.toString());
+
+    if (deferredPrompt) {
+      autoTriggeredRef.current = true;
+      handleClick();
+      return;
+    }
+    // Android/Chrome's beforeinstallprompt can take a moment to fire (or
+    // never will — already installed elsewhere, browser doesn't support it,
+    // Chrome is throttling repeat prompts). iOS never fires it at all — Apple
+    // has no programmatic install API, full stop. Either way, show the
+    // manual instructions instead of leaving the user with nothing.
+    const t = setTimeout(() => {
+      if (!autoTriggeredRef.current) {
+        autoTriggeredRef.current = true;
+        setShowHint(true);
+      }
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferredPrompt, installed, alreadyInstalledElsewhere]);
+
   if (installed) {
     if (variant !== 'row') return null;
     return (

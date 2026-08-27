@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { watchForServiceWorkerUpdate, applyServiceWorkerUpdate } from '@/lib/sw-update';
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === 'true';
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
@@ -26,7 +28,16 @@ export function SupraSpaceServiceWorkerRegistration() {
         navigator.serviceWorker
             .register('/sw.js', { scope, updateViaCache: 'none' })
             .then((registration) => {
-                if (!cancelled) console.log('[SW] SupraSpace scope registered:', registration.scope);
+                if (!cancelled) {
+                    console.log('[SW] SupraSpace scope registered:', registration.scope);
+                    watchForServiceWorkerUpdate(registration, () => {
+                        if (cancelled) return;
+                        toast.info('A new version of SupraSpace is available.', {
+                            duration: Infinity,
+                            action: { label: 'Refresh', onClick: () => applyServiceWorkerUpdate(registration) },
+                        });
+                    });
+                }
             })
             .catch((error) => {
                 if (!cancelled) console.warn('[SW] SupraSpace scope registration failed:', error);

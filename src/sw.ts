@@ -71,6 +71,17 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// Lets a waiting worker be told to activate on demand — see sw-update.ts's
+// applyServiceWorkerUpdate(), the other half of this: skipWaiting is false
+// above so a deploy never yanks a page out from under the user, but that
+// means someone has to actually ask this worker to take over once they're
+// ready (an "Update available" toast's Refresh button, currently).
+self.addEventListener("message", (event: any) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    (self as any).skipWaiting();
+  }
+});
+
 // --- CUSTOM WEB PUSH LISTENERS ---
 // (unchanged from your original — carried over verbatim)
 

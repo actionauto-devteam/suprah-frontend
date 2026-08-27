@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { playShiftAlertSound } from "@/lib/notification-sound";
+import { watchForServiceWorkerUpdate, applyServiceWorkerUpdate } from "@/lib/sw-update";
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
@@ -37,6 +39,13 @@ export function ServiceWorkerRegistration() {
                 });
                 if (!cancelled) {
                     console.log("[SW] Registered:", registration.scope);
+                    watchForServiceWorkerUpdate(registration, () => {
+                        if (cancelled) return;
+                        toast.info("A new version of Suprah.AI is available.", {
+                            duration: Infinity,
+                            action: { label: "Refresh", onClick: () => applyServiceWorkerUpdate(registration) },
+                        });
+                    });
                 }
             } catch (error) {
                 if (!cancelled) {

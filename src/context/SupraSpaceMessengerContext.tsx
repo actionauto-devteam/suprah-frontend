@@ -87,6 +87,8 @@ interface MessengerCtxValue {
   myAvatar: string | undefined;
   notifPrefs: Record<string, NotifPref>;
   setNotifPrefs: React.Dispatch<React.SetStateAction<Record<string, NotifPref>>>;
+  prioritySenders: string[];
+  setPrioritySenders: React.Dispatch<React.SetStateAction<string[]>>;
   openChatPopup: (convId: string) => void;
   openDirectChat: (targetUserId: string) => Promise<SSConv>;
   closeChatPopup: (convId: string) => void;
@@ -787,6 +789,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         myAvatar,
         notifPrefs,
         setNotifPrefs,
+        prioritySenders,
+        setPrioritySenders,
         openChatPopup,
         openDirectChat,
         closeChatPopup,
