@@ -332,7 +332,16 @@ self.addEventListener("push", (event: any) => {
       // summary tag instead, splitting into a SECOND tray entry alongside
       // the per-conversation one the moment foreground state flipped
       // mid-burst — the exact "two notifications, same conversation" report.
-      if (!data.data?.playSound && data.source !== 'SupraSpace' && !(await isAppActive())) {
+      //
+      // Detected via data.data.conversationId, not a `source` field — the
+      // backend deliberately never sends `source` for SupraSpace pushes (see
+      // pushToConversationMembers), since normalizePushPayload would have
+      // prepended it onto the title as redundant "SupraSpace •" noise on an
+      // app whose OS-level notification header already reads "SupraSpace".
+      // conversationId is the one thing every SupraSpace push always carries
+      // that nothing else does.
+      const isSupraSpaceMessage = !!data.data?.conversationId;
+      if (!data.data?.playSound && !isSupraSpaceMessage && !(await isAppActive())) {
         await showBurstSummary(data);
         return;
       }
@@ -414,19 +423,11 @@ self.addEventListener("pushsubscriptionchange", (event: any) => {
   event.waitUntil(renewPushSubscription(event.newSubscription, applicationServerKey));
 });
 
-self.addEventListener("notificationclick", (event: any) => {
-  event.notification.close();
-  const notificationData = event.notification?.data || {};
-
-  if (event.action) {
-    const actionInProgress = handleBackgroundAction(
-      event.action,
-      notificationData,
-    );
-    event.waitUntil(actionInProgress);
-    return;
-  }
-
+// Focuses an already-open window on the target conversation, navigating it
+// there first if needed, or opens a new one — shared by a plain notification
+// click and by an action click that turned out to have nothing to actually
+// do in the background (see the 'reply' fallback in notificationclick).
+function openOrFocusNotificationTarget(notificationData: any) {
   // SupraSpace messages: build the target path from this SW's own origin at
   // click time rather than trusting the path baked into the push payload at
   // send time. The backend has no way to know, when a message is sent,
@@ -448,36 +449,100 @@ self.addEventListener("notificationclick", (event: any) => {
   const targetHref = urlToOpen.href;
   const targetPathname = urlToOpen.pathname;
 
-  event.waitUntil(
-    (self as any).clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList: any) => {
-        for (const client of clientList) {
-          const clientUrl = new URL(client.url);
-          if (client.url === targetHref && "focus" in client) {
-            return client.focus();
-          }
-          if (clientUrl.pathname === targetPathname && "focus" in client) {
-            if ("navigate" in client) {
-              return client.navigate(targetHref).then((navigatedClient: any) =>
-                navigatedClient?.focus ? navigatedClient.focus() : client.focus(),
-              );
-            }
-            return client.focus();
-          }
+  return (self as any).clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clientList: any) => {
+      for (const client of clientList) {
+        const clientUrl = new URL(client.url);
+        if (client.url === targetHref && "focus" in client) {
+          return client.focus();
         }
-        if ((self as any).clients.openWindow) {
-          return (self as any).clients.openWindow(targetHref);
+        if (clientUrl.pathname === targetPathname && "focus" in client) {
+          if ("navigate" in client) {
+            return client.navigate(targetHref).then((navigatedClient: any) =>
+              navigatedClient?.focus ? navigatedClient.focus() : client.focus(),
+            );
+          }
+          return client.focus();
         }
+      }
+      if ((self as any).clients.openWindow) {
+        return (self as any).clients.openWindow(targetHref);
+      }
+    });
+}
+
+self.addEventListener("notificationclick", (event: any) => {
+  event.notification.close();
+  const notificationData = event.notification?.data || {};
+
+  if (event.action) {
+    // event.reply only exists on browsers that support inline notification
+    // replies (the 'reply' action's type: 'text' — see
+    // pushToConversationMembers) and only when the user actually typed one;
+    // undefined everywhere else, including when 'reply' rendered as a plain
+    // button there — handleBackgroundAction returns false in that case
+    // (nothing to do in the background), and this falls through to the
+    // normal "open the conversation" behavior instead of doing nothing.
+    event.waitUntil(
+      handleBackgroundAction(event.action, notificationData, event.reply).then((handled: boolean) => {
+        if (!handled) return openOrFocusNotificationTarget(notificationData);
       }),
-  );
+    );
+    return;
+  }
+
+  event.waitUntil(openOrFocusNotificationTarget(notificationData));
 });
 
+// SupraSpace's own "Mark as Read" / "Reply" actions — CRM-authenticated
+// (crmAccessToken, not the main-site accessToken the actions below use),
+// so handled entirely separately. Both reuse existing REST endpoints rather
+// than needing new ones: GET .../messages already marks everything read as
+// a side effect (see getMessages), and POST .../messages is the same one
+// the app itself sends through.
+async function handleSupraSpaceBackgroundAction(action: "mark_read" | "reply", data: any, replyText?: string): Promise<boolean> {
+  if (!data?.conversationId) return false;
+
+  const token = await getStoredToken("crmAccessToken");
+  if (!token) return true; // recognized action, nothing we can do without a session
+
+  try {
+    if (action === "mark_read") {
+      await fetch(`${API_BASE_URL}/api/supraspace/conversations/${data.conversationId}/messages?limit=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return true;
+    }
+    // "reply" without typed text means the browser rendered it as a plain
+    // button (no inline text-reply support) — fall through to the normal
+    // click behavior (open the conversation) instead of silently no-oping.
+    if (!replyText?.trim()) return false;
+    await fetch(`${API_BASE_URL}/api/supraspace/conversations/${data.conversationId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content: replyText.trim() }),
+    });
+    return true;
+  } catch (err) {
+    console.error(`[SW] SupraSpace ${action} failed:`, err);
+    return true;
+  }
+}
+
 /**
- * Handles background actions (Approve/Reject) triggered from notifications.
+ * Handles background actions (Approve/Reject/SupraSpace Mark as Read/Reply)
+ * triggered from notifications. Returns true when the action was fully
+ * handled here (caller should NOT also open the app), false when there was
+ * nothing to do in the background (caller should fall back to the normal
+ * "open the conversation" click behavior).
  */
-async function handleBackgroundAction(action: string, data: any) {
+async function handleBackgroundAction(action: string, data: any, replyText?: string): Promise<boolean> {
   console.log(`[SW] Handling action: ${action}`, data);
+
+  if (action === "mark_read" || action === "reply") {
+    return handleSupraSpaceBackgroundAction(action, data, replyText);
+  }
 
   try {
     const token = await getStoredToken("accessToken");
@@ -505,12 +570,12 @@ async function handleBackgroundAction(action: string, data: any) {
         icon: DEFAULT_NOTIFICATION_ICON,
         tag: `driver-alert-response:${data.alertId}`,
       });
-      return;
+      return true;
     }
 
     // Existing driver-request approval/rejection actions
     const requestId = data?.driverRequestId;
-    if (!requestId) return;
+    if (!requestId) return false;
 
     await (self as any).registration.showNotification("Processing Request", {
       body: `Your request to ${action} this driver is being processed...`,
@@ -536,11 +601,13 @@ async function handleBackgroundAction(action: string, data: any) {
       body: `Driver request has been successfully ${action}ed.`,
       icon: DEFAULT_NOTIFICATION_ICON,
     });
+    return true;
   } catch (err) {
     console.error("[SW] Background action failed:", err);
     await (self as any).registration.showNotification("Action Failed", {
       body: "Could not process the request in the background. Please open the app.",
       icon: DEFAULT_NOTIFICATION_ICON,
     });
+    return true;
   }
 }
