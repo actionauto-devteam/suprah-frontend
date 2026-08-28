@@ -319,10 +319,20 @@ self.addEventListener("push", (event: any) => {
 
       // 2. BURST COLLAPSE — app closed/backgrounded and this isn't a
       // safety-critical Shift Alert (those keep their dedicated sound and
-      // always surface standalone). Everything else folds into one running
-      // summary tray notification so reconnecting after being away shows
-      // "You have N notifications" instead of a wall of individual toasts.
-      if (!data.data?.playSound && !(await isAppActive())) {
+      // always surface standalone) or a SupraSpace message. Everything else
+      // folds into one running summary tray notification so reconnecting
+      // after being away shows "You have N notifications" instead of a wall
+      // of individual toasts.
+      //
+      // SupraSpace is exempt: pushToConversationMembers already collapses a
+      // burst of messages in the SAME conversation into one updating
+      // notification on its own (tag: conversationId, body progressively
+      // "N new messages"). Routing it through this GLOBAL collapse too meant
+      // whichever pushes arrived while backgrounded landed under the generic
+      // summary tag instead, splitting into a SECOND tray entry alongside
+      // the per-conversation one the moment foreground state flipped
+      // mid-burst — the exact "two notifications, same conversation" report.
+      if (!data.data?.playSound && data.source !== 'SupraSpace' && !(await isAppActive())) {
         await showBurstSummary(data);
         return;
       }
