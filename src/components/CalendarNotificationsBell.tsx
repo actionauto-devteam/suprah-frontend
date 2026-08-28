@@ -33,15 +33,15 @@ function Section({
   children: React.ReactNode;
 }) {
   const tones = {
-    rose: "text-rose-300 border-rose-400/25",
-    amber: "text-amber-300 border-amber-400/25",
-    emerald: "text-emerald-300 border-emerald-400/25",
-    cyan: "text-cyan-300 border-cyan-400/25",
+    rose: "text-rose-700 dark:text-rose-300 border-rose-500/25",
+    amber: "text-amber-700 dark:text-amber-300 border-amber-500/25",
+    emerald: "text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
+    cyan: "text-cyan-700 dark:text-cyan-300 border-cyan-500/25",
   } as const;
   return (
     <div className="px-3 pb-2 pt-2.5">
       <p
-        className={`mb-1.5 inline-flex rounded border bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] ${tones[tone]}`}
+        className={`mb-1.5 inline-flex rounded border bg-muted/40 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] ${tones[tone]}`}
       >
         {label}
       </p>
@@ -83,8 +83,8 @@ export function CalendarNotificationsBell() {
         title="Calendar notifications"
         className={`relative rounded-lg border px-2.5 py-1.5 text-xs transition ${
           open
-            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
-            : "border-white/10 text-zinc-300 hover:bg-white/5"
+            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+            : "border-border text-foreground hover:bg-accent"
         }`}
       >
         {/* bell glyph kept inline to avoid icon-library coupling in this file */}
@@ -93,23 +93,23 @@ export function CalendarNotificationsBell() {
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
         {badgeCount > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 font-mono text-[9px] font-bold text-zinc-950 shadow-[0_0_10px_rgba(52,211,153,0.8)]">
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 font-mono text-[9px] font-bold text-white shadow-[0_0_10px_rgba(16,185,129,0.8)]">
             {badgeCount > 99 ? "99+" : badgeCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 max-h-[440px] w-80 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl [scrollbar-width:thin]">
-          <div className="border-b border-white/10 px-3 py-2">
-            <p className="text-xs font-semibold text-zinc-100">Calendar updates</p>
-            <p className="text-[10px] text-zinc-500">
+        <div className="absolute right-0 top-full z-40 mt-2 max-h-[440px] w-[min(20rem,90vw)] overflow-y-auto rounded-xl border border-border bg-popover shadow-2xl backdrop-blur-xl [scrollbar-width:thin]">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-semibold text-popover-foreground">Calendar updates</p>
+            <p className="text-[10px] text-muted-foreground">
               Today's schedule, deadlines, and what's next
             </p>
           </div>
 
           {empty ? (
-            <p className="px-4 py-8 text-center text-xs text-zinc-500">
+            <p className="px-4 py-8 text-center text-xs text-muted-foreground">
               Nothing needs your attention — no events today and no
               approaching deadlines.
             </p>
@@ -122,10 +122,10 @@ export function CalendarNotificationsBell() {
                       key={t.id}
                       className="rounded-md border border-rose-400/20 bg-rose-400/[0.06] px-2 py-1.5"
                     >
-                      <p className="truncate text-[11px] font-semibold text-rose-200">
+                      <p className="truncate text-[11px] font-semibold text-rose-700 dark:text-rose-200">
                         {t.title}
                       </p>
-                      <p className="text-[9px] text-rose-300/70">
+                      <p className="text-[9px] text-rose-600/70 dark:text-rose-300/70">
                         {t.groupName} · was due {fmtDay(t.deadline)}
                       </p>
                     </div>
@@ -140,10 +140,10 @@ export function CalendarNotificationsBell() {
                       key={t.id}
                       className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-2 py-1.5"
                     >
-                      <p className="truncate text-[11px] font-semibold text-amber-200">
+                      <p className="truncate text-[11px] font-semibold text-amber-700 dark:text-amber-200">
                         {t.title}
                       </p>
-                      <p className="text-[9px] text-amber-300/70">
+                      <p className="text-[9px] text-amber-600/70 dark:text-amber-300/70">
                         {t.groupName} · due {fmtDay(t.deadline)} {fmtTime(t.deadline)}
                       </p>
                     </div>
@@ -158,13 +158,13 @@ export function CalendarNotificationsBell() {
                       key={e.id}
                       className="flex items-center gap-2 rounded-md border border-emerald-400/15 bg-emerald-400/[0.05] px-2 py-1.5"
                     >
-                      <span className="w-14 shrink-0 font-mono text-[10px] tabular-nums text-emerald-300">
+                      <span className="w-14 shrink-0 font-mono text-[10px] tabular-nums text-emerald-700 dark:text-emerald-300">
                         {e.allDay ? "All day" : fmtTime(e.start)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-200">
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
                         {e.title}
                       </span>
-                      <span className="shrink-0 rounded border border-white/10 bg-white/[0.05] px-1 py-0.5 text-[8px] uppercase tracking-wider text-zinc-400">
+                      <span className="shrink-0 rounded border border-border bg-muted/40 px-1 py-0.5 text-[8px] uppercase tracking-wider text-muted-foreground">
                         {e.type}
                       </span>
                     </div>
@@ -179,10 +179,10 @@ export function CalendarNotificationsBell() {
                       key={e.id}
                       className="flex items-center gap-2 rounded-md border border-cyan-400/15 bg-cyan-400/[0.05] px-2 py-1.5"
                     >
-                      <span className="w-20 shrink-0 font-mono text-[10px] tabular-nums text-cyan-300">
+                      <span className="w-20 shrink-0 font-mono text-[10px] tabular-nums text-cyan-700 dark:text-cyan-300">
                         {fmtDay(e.start)} {fmtTime(e.start)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-zinc-200">
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
                         {e.title}
                       </span>
                     </div>

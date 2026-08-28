@@ -2,11 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
+import { initializeSocket } from "@/lib/socket.client";
 import type { CalendarItem, EventDraft } from "@/types/calendar.types";
-
-// TODO(integration): swap the placeholder below for your shared Socket.io
-// client singleton so real-time sync activates:
-//   import { getSocket } from "@/lib/socket";
 
 type SocketPayload =
   | { source: string; item: CalendarItem }
@@ -43,11 +40,11 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
     void refetch();
   }, [refetch, rangeStart.getTime(), rangeEnd.getTime()]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Real-time sync — same events the Appointment calendar emits. */
+  /** Real-time sync — same events the Appointment calendar emits, over the shared CRM socket connection. */
   useEffect(() => {
-    // TODO(integration): const socket = getSocket();
-    const socket: any = (globalThis as any).__suprahSocket; // placeholder
-    if (!socket) return;
+    const token = typeof window !== "undefined" ? localStorage.getItem("crm_token") : null;
+    if (!token) return;
+    const socket = initializeSocket(token);
 
     const inRange = (it: CalendarItem) =>
       new Date(it.start) < range.current.to &&

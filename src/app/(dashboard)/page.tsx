@@ -58,6 +58,7 @@ import { WhoIsOut } from "./components/WhoIsOut";
 import { InventorySnapshot } from "./components/InventorySnapshot";
 import { StoriesRail } from "@/components/dashboard/StoriesRail";
 import { YouTubeMusicPanel } from "@/components/dashboard/YouTubeMusicPanel";
+import { EmployeeOfMonthPanel } from "./components/EmployeeOfMonthPanel";
 // Suprah YapLine — live PTT channels + recent voice activity, embedded
 // directly below the Feeds section per the dashboard layout spec.
 import { YapLineWidget } from "@/components/yapline/YapLineWidget";
@@ -821,6 +822,12 @@ export default function Dashboard() {
         <SectionLabel icon={Rss} tone="emerald">Feed &amp; Voice</SectionLabel>
         <LatestPosts />
         <YapLineWidget />
+      </section>
+
+      {/* ── Zone: Recognition — Employee of the Month ── */}
+      <section className="space-y-3 sm:space-y-4">
+        <SectionLabel icon={Star} tone="amber">Recognition</SectionLabel>
+        <EmployeeOfMonthPanel />
       </section>
 
       {/* ── Zone: Today — immediate personal actions ── */}

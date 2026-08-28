@@ -208,7 +208,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                     alt={vehicleName}
                                     loading="lazy"
                                     onError={() => setImageFailed(true)}
-                                    className="w-full h-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105"
+                                    className="w-full h-full object-contain object-center transition-transform duration-500 motion-safe:group-hover:scale-105"
                                 />
                             ) : (
                                 /* Schematic placeholder — same treatment as LoadCard */
@@ -309,62 +309,66 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                 {/* Customer + Route */}
                                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-3">
                                     {/* Customer panel */}
-                                    <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0">
+                                    <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0 h-full flex flex-col">
                                         <span className="block text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                                             Customer
                                         </span>
-                                        <p className="text-sm font-black tracking-tight text-foreground truncate">
-                                            {quote.firstName} {quote.lastName}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground truncate mt-0.5">{quote.email}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{quote.phone}</p>
-                                        {quote.createdBy && (
-                                            <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
-                                                {quote.createdBy.avatar ? (
-                                                    <img
-                                                        src={quote.createdBy.avatar}
-                                                        alt={quote.createdBy.name || quote.createdBy.email || "User"}
-                                                        className="size-4 rounded-full object-cover shrink-0"
-                                                    />
-                                                ) : (
-                                                    <div className="size-4 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                                                        <User className="size-2.5 text-emerald-500" />
-                                                    </div>
-                                                )}
-                                                <span className="text-[11px] text-muted-foreground truncate">
-                                                    By <span className="font-bold text-foreground">{quote.createdBy.name || quote.createdBy.email || "Unknown"}</span>
-                                                </span>
-                                            </div>
-                                        )}
+                                        <div className="flex-1 flex flex-col justify-center min-w-0">
+                                            <p className="text-sm font-black tracking-tight text-foreground truncate">
+                                                {quote.firstName} {quote.lastName}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground truncate mt-0.5">{quote.email}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{quote.phone}</p>
+                                            {quote.createdBy && (
+                                                <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-border/40 min-w-0">
+                                                    {quote.createdBy.avatar ? (
+                                                        <img
+                                                            src={quote.createdBy.avatar}
+                                                            alt={quote.createdBy.name || quote.createdBy.email || "User"}
+                                                            className="size-4 rounded-full object-cover shrink-0"
+                                                        />
+                                                    ) : (
+                                                        <div className="size-4 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                                                            <User className="size-2.5 text-emerald-500" />
+                                                        </div>
+                                                    )}
+                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                        By <span className="font-bold text-foreground">{quote.createdBy.name || quote.createdBy.email || "Unknown"}</span>
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Route panel — vertical telemetry for full addresses */}
-                                    <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0">
+                                    <div className="rounded-xl border border-border/50 bg-background/40 p-3.5 min-w-0 h-full flex flex-col">
                                         <span className="block text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                                             Route
                                         </span>
-                                        <div className="flex items-start gap-2.5 min-w-0">
-                                            <MapPin className="size-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold text-foreground truncate">{quote.fromAddress}</p>
-                                                <p className="text-[11px] font-mono text-muted-foreground">{quote.fromZip}</p>
+                                        <div className="flex-1 flex flex-col justify-center min-w-0">
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                                <MapPin className="size-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-foreground truncate">{quote.fromAddress}</p>
+                                                    <p className="text-[11px] font-mono text-muted-foreground">{quote.fromZip}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="ml-1.5 my-1 h-4 w-px bg-linear-to-b from-emerald-500/60 to-cyan-500/60" />
-                                        <div className="flex items-start gap-2.5 min-w-0">
-                                            <MapPin className="size-3.5 text-cyan-500 mt-0.5 shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold text-foreground truncate">{quote.toAddress}</p>
-                                                <p className="text-[11px] font-mono text-muted-foreground">{quote.toZip}</p>
+                                            <div className="ml-1.5 my-1 h-4 w-px bg-linear-to-b from-emerald-500/60 to-cyan-500/60" />
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                                <MapPin className="size-3.5 text-cyan-500 mt-0.5 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-bold text-foreground truncate">{quote.toAddress}</p>
+                                                    <p className="text-[11px] font-mono text-muted-foreground">{quote.toZip}</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Rate readout + HUD tiles */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-5 gap-2.5">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                                     {/* Featured rate — the number this card exists for */}
-                                    <div className="col-span-2 sm:col-span-1 rounded-xl border border-emerald-500/30 bg-linear-to-br from-emerald-500/10 to-cyan-500/5 px-3 py-2.5 relative overflow-hidden min-w-0">
+                                    <div className="col-span-2 sm:col-span-4 2xl:col-span-1 rounded-xl border border-emerald-500/30 bg-linear-to-br from-emerald-500/10 to-cyan-500/5 px-3 py-2.5 relative overflow-hidden min-w-0">
                                         <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
                                         <span className="block text-[10px] sm:text-[11px] font-black text-emerald-600/90 dark:text-emerald-400/90 uppercase tracking-widest mb-1">
                                             Quote Rate

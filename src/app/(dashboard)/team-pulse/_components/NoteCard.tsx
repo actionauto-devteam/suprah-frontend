@@ -253,7 +253,7 @@ export function NoteCard({
                 </span>
               )}
               {note.title ? (
-                <p className="text-sm font-black tracking-tight leading-snug wrap-break-word">
+                <p className="text-[15px] font-black tracking-tight leading-snug wrap-break-word text-foreground">
                   {note.title}
                 </p>
               ) : (
@@ -321,7 +321,7 @@ export function NoteCard({
           </div>
 
           <div className="px-3.5 py-3 flex-1">
-            <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/95">
               {note.content}
             </p>
           </div>

@@ -50,6 +50,7 @@ export interface EventDraft {
   includedDates: string[];
   assignees: string[];
   generateMeetingLink: boolean;
+  status: "scheduled" | "completed" | "cancelled";
 }
 
 export interface MySchedulePayload {

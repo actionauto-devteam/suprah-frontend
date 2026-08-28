@@ -70,8 +70,8 @@ export default function DepartmentsSettingsPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+    <div className="w-full bg-background">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-10 space-y-6">
         <div className="flex items-center gap-3 sm:gap-4">
           <Button variant="ghost" size="sm" onClick={() => router.push("/crm/dashboard")} className="h-9 w-9 p-0 rounded-xl border border-border/40 hover:bg-muted/50 shrink-0">
             <ArrowLeft className="h-4 w-4" />

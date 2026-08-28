@@ -266,7 +266,8 @@ export function MessengerDropdown() {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="p-0 w-[min(320px,calc(100vw-16px))] max-h-[min(480px,80dvh)] flex flex-col overflow-hidden rounded-xl shadow-xl border-border/60"
+        collisionPadding={{ top: 12, bottom: 96, left: 12, right: 12 }}
+        className="p-0 w-[min(320px,calc(100vw-24px))] max-h-[min(420px,var(--radix-dropdown-menu-content-available-height))] flex flex-col overflow-hidden rounded-xl shadow-xl border-border/60"
       >
         {/* -- Header -- */}
         <div className="shrink-0 px-4 py-3 border-b border-border/50 bg-card/90 backdrop-blur-sm">

@@ -674,8 +674,8 @@ export function TeamBoard({
                     </span>
                   )}
                   <div className="space-y-1 pr-8">
-                    {noteTitle && <p className="font-black text-sm tracking-tight">{noteTitle}</p>}
-                    {noteBody && <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/80">{noteBody}</p>}
+                    {noteTitle && <p className="font-black text-[15px] tracking-tight text-foreground">{noteTitle}</p>}
+                    {noteBody && <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground/95">{noteBody}</p>}
                   </div>
                 </div>
               </div>

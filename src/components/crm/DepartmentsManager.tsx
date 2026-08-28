@@ -152,7 +152,7 @@ export function DepartmentsManager({ token, currentAdminDepartment }: Department
   }
 
   return (
-    <div className="flex flex-col lg:flex-row lg:h-160">
+    <div className="flex flex-col lg:flex-row lg:h-[min(40rem,70vh)]">
       <div className={cn("lg:w-72 lg:shrink-0 lg:border-r border-border/30 flex flex-col", selectedId && "hidden lg:flex")}>
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-border/30">
           <div className="flex items-center gap-3 min-w-0">

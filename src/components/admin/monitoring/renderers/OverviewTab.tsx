@@ -2,10 +2,13 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Users, Building2, ArrowUpRight, CreditCard } from 'lucide-react';
+import { DollarSign, Users, Building2, CreditCard } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ActivityGraph } from '@/components/admin/dashboard/ActivityGraph';
 import { RecentActivity } from '@/components/admin/dashboard/RecentActivity';
+import { StatCard } from '@/components/admin/StatCard';
+import { ADMIN_PANEL_CLASS } from '@/components/admin/theme';
+import { cn } from '@/lib/utils';
 
 interface OverviewTabProps {
     systemStats?: { organizations: number; users: number };
@@ -27,63 +30,39 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
         <div className="space-y-6">
             {/* Premium Stats Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${financials?.mrr?.toLocaleString() || '0'}</div>
-                        <p className="text-xs text-muted-foreground flex items-center mt-1">
-                            <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-                            <span className="text-green-500 font-medium">+20.1%</span>
-                            <span className="ml-1">from last month</span>
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{financials?.activeSubscriptions || 0}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Across all pricing tiers
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{systemStats?.organizations || 0}</div>
-                        <p className="text-xs text-muted-foreground flex items-center mt-1">
-                            <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-                            <span className="text-green-500 font-medium">+12%</span>
-                            <span className="ml-1">new this month</span>
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{systemStats?.users || 0}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Active platform users
-                        </p>
-                    </CardContent>
-                </Card>
+                <StatCard
+                    icon={DollarSign}
+                    label="Monthly Revenue"
+                    value={`$${financials?.mrr?.toLocaleString() || '0'}`}
+                    helper="Recurring, current month"
+                    color="emerald"
+                />
+                <StatCard
+                    icon={CreditCard}
+                    label="Active Subscriptions"
+                    value={financials?.activeSubscriptions || 0}
+                    helper="Across all pricing tiers"
+                    color="blue"
+                />
+                <StatCard
+                    icon={Building2}
+                    label="Total Dealerships"
+                    value={systemStats?.organizations || 0}
+                    helper="Registered on the platform"
+                    color="violet"
+                />
+                <StatCard
+                    icon={Users}
+                    label="Total Users"
+                    value={systemStats?.users || 0}
+                    helper="Active platform users"
+                    color="amber"
+                />
             </div>
 
             {/* Charts & Activity Section */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 shadow-sm">
+                <Card className={cn(ADMIN_PANEL_CLASS, "col-span-4 py-6")}>
                     <CardHeader>
                         <CardTitle>Revenue Overview</CardTitle>
                         <CardDescription>
@@ -136,7 +115,7 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
                     </CardContent>
                 </Card>
 
-                <Card className="col-span-4 md:col-span-3 shadow-sm">
+                <Card className={cn(ADMIN_PANEL_CLASS, "col-span-4 md:col-span-3 py-6")}>
                     <CardHeader>
                         <CardTitle>Recent Activity</CardTitle>
                         <CardDescription>Latest system events and signups.</CardDescription>

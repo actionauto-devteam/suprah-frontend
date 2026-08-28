@@ -94,32 +94,32 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
     const totalEvidence = lineage.reduce((sum, e) => sum + e.amount, 0);
 
     return (
-        <div className="p-8 space-y-8 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header / Navigation */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button asChild variant="ghost" size="icon" className="rounded-full">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <Button asChild variant="ghost" size="icon" className="rounded-full shrink-0">
                         <Link href="/admin/payouts">
                             <ArrowLeft className="w-5 h-5" />
                         </Link>
                     </Button>
-                    <div>
-                        <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-3xl font-black tracking-tight flex items-center gap-2 sm:gap-3 truncate">
                             Payout Audit <span className="text-muted-foreground/30 font-light">/</span> {request._id.slice(-6)}
                         </h1>
-                        <p className="text-muted-foreground">Comprehensive verification of referral credits.</p>
+                        <p className="text-sm sm:text-base text-muted-foreground">Comprehensive verification of referral credits.</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Button
                         variant="ghost"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        className="flex-1 sm:flex-none text-red-500 hover:text-red-600 hover:bg-red-50"
                         onClick={() => setIsRejectModalOpen(true)}
                     >
                         <XCircle className="w-4 h-4 mr-2" /> Reject
                     </Button>
                     <Button
-                        className="bg-green-600 hover:bg-green-500 text-white"
+                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-500 text-white"
                         onClick={handleApprove}
                     >
                         <CheckCircle2 className="w-4 h-4 mr-2" /> Approve & Mark Paid

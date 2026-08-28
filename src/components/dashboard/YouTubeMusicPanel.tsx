@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Music2, Search, Play, Pause, SkipBack, SkipForward, X, Loader2 } from "lucide-react";
+import { useMusicStore, playAt, togglePlayback, step, seekTo, searchTracks, type Track } from "@/lib/music-store";
 
 /**
  * Music player (Audius-powered) — album-art-focused design.
@@ -11,41 +12,11 @@ import { Music2, Search, Play, Pause, SkipBack, SkipForward, X, Loader2 } from "
  * it streams from the public Audius API: no API key, no OAuth, no quota, no
  * embed, no cookies, no ads. Full tracks stream into a normal <audio> element,
  * so it plays on any machine/network. Catalog = independent artists.
+ *
+ * Playback state and the <audio> element itself live in `music-store` (a
+ * module-level singleton), not in this component — so navigating away from
+ * whatever page renders this panel no longer stops the music.
  */
-
-const APP_NAME = "SuprahAI";
-const FALLBACK_HOST = "https://discoveryprovider.audius.co";
-
-interface Track {
-  id: string;
-  title: string;
-  artist: string;
-  artwork?: string;
-  durationSec: number;
-}
-
-let hostPromise: Promise<string> | null = null;
-function getHost(): Promise<string> {
-  if (hostPromise) return hostPromise;
-  hostPromise = fetch("https://api.audius.co")
-    .then((r) => r.json())
-    .then((j) => {
-      const hosts: string[] = j?.data || [];
-      return hosts.length ? hosts[Math.floor(Math.random() * hosts.length)] : FALLBACK_HOST;
-    })
-    .catch(() => FALLBACK_HOST);
-  return hostPromise;
-}
-
-function mapTrack(t: any): Track {
-  return {
-    id: t.id,
-    title: t.title,
-    artist: t.user?.name || t.user?.handle || "Unknown artist",
-    artwork: t.artwork?.["480x480"] || t.artwork?.["150x150"],
-    durationSec: t.duration || 0,
-  };
-}
 
 function fmt(s: number) {
   if (!s || !isFinite(s)) return "0:00";
@@ -54,86 +25,38 @@ function fmt(s: number) {
 }
 
 export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?: boolean; bare?: boolean }) {
+  const { queue, index, playing, progress, current } = useMusicStore();
   const [open, setOpen] = React.useState(!compact);
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<Track[]>([]);
   const [searching, setSearching] = React.useState(false);
-  const [queue, setQueue] = React.useState<Track[]>([]);
-  const [index, setIndex] = React.useState(-1);
-  const [playing, setPlaying] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [current, setCurrent] = React.useState(0);
-  const audioRef = React.useRef<HTMLAudioElement>(null);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
   const track = index >= 0 ? queue[index] : null;
   const onSearchToggle = () => setOpen((v) => !v);
 
-  const search = React.useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
-    setSearching(true);
-    try {
-      const host = await getHost();
-      const res = await fetch(`${host}/v1/tracks/search?query=${encodeURIComponent(q.trim())}&app_name=${APP_NAME}`);
-      const json = await res.json();
-      setResults((json?.data || []).map(mapTrack));
-    } catch {
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
   React.useEffect(() => {
-    const id = setTimeout(() => search(query), 400);
+    if (!query.trim()) { setResults([]); return; }
+    setSearching(true);
+    const id = setTimeout(async () => {
+      try {
+        setResults(await searchTracks(query));
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
     return () => clearTimeout(id);
-  }, [query, search]);
+  }, [query]);
 
-  const playAt = async (list: Track[], i: number) => {
-    setQueue(list);
-    setIndex(i);
-    const host = await getHost();
-    const el = audioRef.current;
-    if (!el) return;
-    el.src = `${host}/v1/tracks/${list[i].id}/stream?app_name=${APP_NAME}`;
-    el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-  };
-
-  const toggle = () => {
-    const el = audioRef.current;
-    if (!el || !track) return;
-    if (el.paused) el.play().then(() => setPlaying(true)).catch(() => { });
-    else { el.pause(); setPlaying(false); }
-  };
-
-  const step = (dir: 1 | -1) => {
-    if (index < 0) return;
-    const ni = index + dir;
-    if (ni >= 0 && ni < queue.length) playAt(queue, ni);
-  };
+  const toggle = () => togglePlayback();
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = audioRef.current;
-    if (!el || !el.duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
+    seekTo((e.clientX - rect.left) / rect.width);
   };
-
-  const audio = (
-    <audio
-      ref={audioRef}
-      onTimeUpdate={(e) => {
-        const el = e.currentTarget;
-        setCurrent(el.currentTime);
-        setProgress(el.duration ? el.currentTime / el.duration : 0);
-      }}
-      onEnded={() => step(1)}
-      onPlay={() => setPlaying(true)}
-      onPause={() => setPlaying(false)}
-      hidden
-    />
-  );
 
   // ── Album cover tile ────────────────────────────────────────────────────────
   const Cover = ({ size, glow }: { size: string; glow?: boolean }) => (
@@ -259,7 +182,6 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
             <div className="absolute inset-0 bg-linear-to-t from-card via-card/80 to-card/50" />
           </div>
         )}
-        {audio}
         <div className="relative space-y-3">
           <div className="flex items-center gap-3">
             <Cover size="size-16" glow />
@@ -288,7 +210,6 @@ export function YouTubeMusicPanel({ compact = false, bare = false }: { compact?:
           <div className="absolute inset-0 bg-linear-to-t from-card via-card/85 to-card/60" />
         </div>
       )}
-      {audio}
       <div className="relative">
         <div className="flex items-center justify-between gap-2 border-b border-border/20 px-5 pt-4 pb-3">
           <div className="flex items-center gap-2">

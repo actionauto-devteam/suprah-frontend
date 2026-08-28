@@ -1,4 +1,5 @@
 import SuprahCalendar from "@/components/SuprahCalendar";
+import { CalendarNotificationProvider } from "@/context/CalendarNotificationContext";
 
 export const metadata = { title: "Suprah Calendar" };
 
@@ -13,7 +14,9 @@ export const metadata = { title: "Suprah Calendar" };
 export default function SuprahCalendarPage() {
   return (
     <div className="h-full min-h-0 p-4">
-      <SuprahCalendar />
+      <CalendarNotificationProvider>
+        <SuprahCalendar />
+      </CalendarNotificationProvider>
     </div>
   );
 }

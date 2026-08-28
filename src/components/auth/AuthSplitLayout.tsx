@@ -3,6 +3,7 @@
 import React from "react";
 import { CinematicPane } from "./CinematicPane";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
+import { AUTH_LINK_CLASS } from "./theme";
 
 export function AuthSplitLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,14 +19,20 @@ export function AuthSplitLayout({ children }: { children: React.ReactNode }) {
           />
         </div>
 
-        <div className="relative z-10 h-[26svh] min-h-42.5 w-full landscape:h-[40svh] md:h-full md:w-[55%] md:landscape:h-full">
+        <div className="relative z-10 h-[16svh] min-h-28 w-full landscape:h-[30svh] md:h-full md:w-[55%] md:landscape:h-full">
           <CinematicPane />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-card via-card/75 to-transparent md:hidden" />
           <div className="absolute inset-y-0 right-0 w-32 bg-linear-to-l from-card to-transparent z-20 pointer-events-none hidden md:block" />
         </div>
 
-        <div className="relative z-20 -mt-6 flex flex-1 items-start justify-center overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-card px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_30px_-20px_rgba(0,0,0,0.15)] custom-scrollbar xs:px-6 sm:px-8 md:mt-0 md:h-full md:w-[45%] md:items-center md:rounded-none md:p-12 md:shadow-none lg:p-20">
-          {children}
+        <div className="relative z-20 -mt-6 flex flex-1 flex-col items-center justify-start overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-card px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-[0_-12px_30px_-20px_rgba(0,0,0,0.15)] custom-scrollbar xs:px-6 sm:px-8 md:mt-0 md:h-full md:w-[45%] md:justify-center md:rounded-none md:p-12 md:shadow-none lg:p-20">
+          <div className="w-full">{children}</div>
+          <a
+            href="https://suprah.ai/"
+            className={`${AUTH_LINK_CLASS} mt-4 mb-2 text-xs sm:mt-6 sm:text-sm`}
+          >
+            Learn more about Suprah AI
+          </a>
         </div>
 
         <div className="absolute inset-0 hidden dark:block bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.02] pointer-events-none z-40" />

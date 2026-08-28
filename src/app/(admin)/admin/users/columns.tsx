@@ -41,9 +41,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { UserProfile } from "@/types/user";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
 
 interface OrgOption {
   _id: string;
@@ -51,7 +53,7 @@ interface OrgOption {
 }
 
 // Extend User type if needed for extra fields returned by admin API
-interface AdminUser extends UserProfile {
+export interface AdminUser extends UserProfile {
   isActive: boolean;
   organizationId?: any; // Populated with { _id, name }
 }
@@ -306,8 +308,31 @@ function ActionsCell({ user }: { user: AdminUser }) {
 
 export const columns: ColumnDef<AdminUser>[] = [
   {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        onClick={(e) => e.stopPropagation()}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     accessorKey: "name",
-    header: "Name",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
     cell: ({ row }) => {
       const user = row.original;
       return (
@@ -320,7 +345,8 @@ export const columns: ColumnDef<AdminUser>[] = [
   },
   {
     accessorKey: "role",
-    header: "Role",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
+    filterFn: (row, id, value: string[]) => value.includes(row.getValue(id)),
     cell: ({ row }) => {
       const role = row.getValue("role") as string;
       return (
@@ -331,7 +357,8 @@ export const columns: ColumnDef<AdminUser>[] = [
     },
   },
   {
-    accessorKey: "organization",
+    id: "organization",
+    accessorFn: (row) => row.organizationId?.name ?? "",
     header: "Organization",
     cell: ({ row }) => {
       const org = row.original.organizationId;
@@ -344,7 +371,8 @@ export const columns: ColumnDef<AdminUser>[] = [
   },
   {
     accessorKey: "isActive",
-    header: "Status",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+    filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => {
       const isActive = row.original.isActive;
       return (

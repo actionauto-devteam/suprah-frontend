@@ -49,6 +49,10 @@ import {
 } from "@/hooks/api/useAdminReferral"
 import { fmtDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/admin/PageHeader"
+import { StatCard } from "@/components/admin/StatCard"
+import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
+import { cn } from "@/lib/utils"
 
 export default function AdminPayoutsPage() {
     const { data: withdrawals, isLoading } = useAdminPendingWithdrawals();
@@ -97,32 +101,32 @@ export default function AdminPayoutsPage() {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 container mx-auto">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2 sm:gap-3">
-                    <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" /> Referral Payouts
-                </h1>
-                <p className="text-muted-foreground mt-2 text-sm sm:text-lg">
-                    Verify and manage withdrawal requests from your referral partners.
-                </p>
-            </div>
+            <PageHeader
+                eyebrow="Finance"
+                title="Referral"
+                accent="Payouts"
+            />
 
-            {/* Stats Overview (Optional Placeholder) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="p-6">
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Total Pending</p>
-                    <h3 className="text-2xl font-bold">{withdrawals?.length || 0} Requests</h3>
-                </Card>
-                <Card className="p-6">
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Pending Amount</p>
-                    <h3 className="text-2xl font-bold text-green-600">
-                        ${withdrawals?.reduce((sum, w) => sum + w.amount, 0).toFixed(2) || "0.00"}
-                    </h3>
-                </Card>
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                <StatCard
+                    icon={History}
+                    label="Total Pending"
+                    value={withdrawals?.length || 0}
+                    helper="Withdrawal requests"
+                    color="blue"
+                />
+                <StatCard
+                    icon={CreditCard}
+                    label="Pending Amount"
+                    value={`$${withdrawals?.reduce((sum, w) => sum + w.amount, 0).toFixed(2) || "0.00"}`}
+                    helper="Awaiting approval"
+                    color="emerald"
+                />
             </div>
 
             {/* Main Content */}
-            <Card className="overflow-hidden border-border/50">
+            <Card className={cn(ADMIN_PANEL_CLASS, "overflow-hidden py-0")}>
                 <div className="p-4 border-b bg-muted/30 flex items-center gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -138,7 +142,7 @@ export default function AdminPayoutsPage() {
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow>,
+                            <TableRow>
                                 <TableHead>Partner</TableHead>
                                 <TableHead>Amount</TableHead>
                                 <TableHead>Method</TableHead>

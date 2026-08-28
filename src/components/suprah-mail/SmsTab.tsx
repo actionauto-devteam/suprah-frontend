@@ -474,7 +474,10 @@ export function SmsTab({ token }: { token: string }) {
             </div>
 
             {/* Thread */}
-            <div ref={scrollRef} className="sm5-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div
+              ref={scrollRef}
+              className="sm5-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6"
+            >
               {threadLoading && messages.length === 0 ? (
                 <p className="pt-8 text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
                   Loading conversation…
@@ -495,7 +498,7 @@ export function SmsTab({ token }: { token: string }) {
                   </p>
                 </div>
               ) : (
-                <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
+                <div className="mx-auto mt-auto flex w-full max-w-3xl flex-col gap-2.5">
                   {messages.map((message) => {
                     const outbound = message.direction === "outbound";
                     return (

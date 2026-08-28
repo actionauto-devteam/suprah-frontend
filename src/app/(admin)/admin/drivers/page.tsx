@@ -5,14 +5,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from '@/lib/api-client';
 import { columns, AdminDriver } from "./columns"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
     flexRender,
     getCoreRowModel,
     useReactTable,
     getPaginationRowModel,
     getFilteredRowModel,
+    getSortedRowModel,
+    getFacetedRowModel,
+    getFacetedUniqueValues,
     ColumnFiltersState,
+    SortingState,
+    RowSelectionState,
 } from "@tanstack/react-table"
 import {
     Table,
@@ -24,8 +29,25 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { AlertCircle, Link2, Loader2, RefreshCw } from 'lucide-react';
+import { Link2, Loader2, Truck, ShieldBan, ShieldCheck, X } from 'lucide-react';
 import { DriverInviteLinkModal } from "./DriverInviteLinkModal"
+import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
+import { AdminErrorState } from "@/components/admin/AdminErrorState"
+import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
+import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
+import { BulkActionBar } from "@/components/admin/BulkActionBar"
+import { cn } from "@/lib/utils"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface ApiResponse<T> {
     statusCode: number;
@@ -34,9 +56,33 @@ interface ApiResponse<T> {
     success: boolean;
 }
 
+const APPLICATION_OPTIONS = [
+    { label: "Pending", value: "pending" },
+    { label: "Approved", value: "approved" },
+    { label: "Rejected", value: "rejected" },
+    { label: "No application", value: "null" },
+];
+
+const VERIFICATION_OPTIONS = [
+    { label: "Not started", value: "not_started" },
+    { label: "In review", value: "in_review" },
+    { label: "Verified", value: "verified" },
+    { label: "Rejected", value: "rejected" },
+];
+
+const STATUS_OPTIONS = [
+    { label: "Active", value: "true" },
+    { label: "Suspended", value: "false" },
+];
+
 export default function AdminDriversPage() {
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+    const [globalFilter, setGlobalFilter] = useState("");
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [inviteOpen, setInviteOpen] = useState(false);
+    const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
     const { getToken } = useAuth();
 
     const { data, error, isError, isLoading, refetch } = useQuery({
@@ -58,12 +104,58 @@ export default function AdminDriversPage() {
         columns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFacetedRowModel: getFacetedRowModel(),
+        getFacetedUniqueValues: getFacetedUniqueValues(),
         onColumnFiltersChange: setColumnFilters,
         getFilteredRowModel: getFilteredRowModel(),
+        onSortingChange: setSorting,
+        onRowSelectionChange: setRowSelection,
+        onGlobalFilterChange: setGlobalFilter,
+        getRowId: (row) => row.id,
+        globalFilterFn: (row, _columnId, filterValue: string) => {
+            const q = filterValue.trim().toLowerCase();
+            if (!q) return true;
+            const driver = row.original as AdminDriver;
+            return (
+                driver.name?.toLowerCase().includes(q) ||
+                driver.email?.toLowerCase().includes(q)
+            );
+        },
         state: {
             columnFilters,
+            sorting,
+            rowSelection,
+            globalFilter,
         },
     })
+
+    const selectedRows = table.getFilteredSelectedRowModel().rows;
+    const selectedIds = selectedRows.map((r) => (r.original as AdminDriver).id);
+    const isFiltered = columnFilters.length > 0 || globalFilter.length > 0;
+
+    const runBulkAction = async () => {
+        if (!bulkAction || selectedIds.length === 0) return;
+        setBulkBusy(true);
+        try {
+            const token = await getToken();
+            const headers = { Authorization: `Bearer ${token}` };
+            await Promise.all(
+                selectedIds.map((id) =>
+                    apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers })
+                )
+            );
+            toast.success(`${selectedIds.length} driver(s) ${bulkAction === "suspend" ? "suspended" : "activated"}`);
+            setRowSelection({});
+            setBulkAction(null);
+            refetch();
+        } catch (err) {
+            const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(message || `Failed to ${bulkAction} selected drivers`);
+        } finally {
+            setBulkBusy(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -75,66 +167,90 @@ export default function AdminDriversPage() {
 
     if (isError) {
         return (
-            <div className="container mx-auto flex min-h-[60vh] items-center justify-center">
-                <Card className="max-w-md border-destructive/30 bg-destructive/5">
-                    <CardHeader className="text-center">
-                        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-                            <AlertCircle className="h-5 w-5 text-destructive" />
-                        </div>
-                        <CardTitle>Unable to Load Drivers</CardTitle>
-                        <CardDescription>
-                            {error instanceof Error
-                                ? error.message
-                                : "The driver directory request failed. Please try again."}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex justify-center">
-                        <Button onClick={() => refetch()} className="gap-2">
-                            <RefreshCw className="h-4 w-4" />
-                            Retry
-                        </Button>
-                    </CardContent>
-                </Card>
+            <div className="space-y-6 container mx-auto">
+                <PageHeader eyebrow="Platform" title="All" accent="Drivers" />
+                <AdminErrorState
+                    message={error instanceof Error ? error.message : "The driver directory request failed. Please try again."}
+                    onRetry={() => refetch()}
+                />
             </div>
         );
     }
 
     return (
         <div className="space-y-6 container mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Drivers</h2>
-                    <p className="text-muted-foreground text-sm sm:text-base">
-                        Review applications and manage the shared driver pool across every organization.
-                    </p>
-                </div>
-                <div className="flex items-center space-x-2 shrink-0">
-                    <Button onClick={() => setInviteOpen(true)} className="gap-2">
-                        <Link2 className="h-4 w-4" /> Invite Link
+            <PageHeader
+                eyebrow="Platform"
+                title="All"
+                accent="Drivers"
+                meta={<PageHeaderPill><Truck className="h-3 w-3" /> {data?.length ?? 0} drivers</PageHeaderPill>}
+                actions={
+                    <Button onClick={() => setInviteOpen(true)} size="sm" className="gap-1.5">
+                        <Link2 className="h-3.5 w-3.5" /> Invite Link
                     </Button>
-                </div>
-            </div>
+                }
+            />
 
             <DriverInviteLinkModal open={inviteOpen} onOpenChange={setInviteOpen} />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>All Drivers</CardTitle>
-                    <CardDescription>
-                        Every driver account on the platform, regardless of which org they applied through.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center py-4">
+            <Card className={cn(ADMIN_PANEL_CLASS, "py-6")}>
+                <CardContent className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2 py-1">
                         <Input
-                            placeholder="Filter by name..."
-                            value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-                            onChange={(event) =>
-                                table.getColumn("name")?.setFilterValue(event.target.value)
-                            }
+                            placeholder="Search by name or email..."
+                            value={globalFilter}
+                            onChange={(event) => setGlobalFilter(event.target.value)}
                             className="max-w-sm w-full"
                         />
+                        <DataTableFacetedFilter
+                            column={table.getColumn("applicationStatus")}
+                            title="Application"
+                            options={APPLICATION_OPTIONS}
+                        />
+                        <DataTableFacetedFilter
+                            column={table.getColumn("verificationStatus")}
+                            title="Verification"
+                            options={VERIFICATION_OPTIONS}
+                        />
+                        <DataTableFacetedFilter
+                            column={table.getColumn("isActive")}
+                            title="Status"
+                            options={STATUS_OPTIONS}
+                        />
+                        {isFiltered && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 px-2"
+                                onClick={() => {
+                                    setColumnFilters([]);
+                                    setGlobalFilter("");
+                                }}
+                            >
+                                Reset <X className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                     </div>
+
+                    <BulkActionBar count={selectedIds.length} onClear={() => setRowSelection({})}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
+                            onClick={() => setBulkAction("activate")}
+                        >
+                            <ShieldCheck className="h-3.5 w-3.5" /> Activate
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                            onClick={() => setBulkAction("suspend")}
+                        >
+                            <ShieldBan className="h-3.5 w-3.5" /> Suspend
+                        </Button>
+                    </BulkActionBar>
+
                     <div className="rounded-md border overflow-x-auto">
                         <Table>
                             <TableHeader>
@@ -179,7 +295,10 @@ export default function AdminDriversPage() {
                             </TableBody>
                         </Table>
                     </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-3 py-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
+                        <span className="text-sm text-muted-foreground">
+                            {selectedIds.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
+                        </span>
                         <div className="flex items-center space-x-2">
                             <Button
                                 variant="outline"
@@ -201,6 +320,31 @@ export default function AdminDriversPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {bulkAction === "suspend" ? "Suspend" : "Activate"} {selectedIds.length} driver(s)
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will {bulkAction} the selected driver accounts immediately.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={runBulkAction} disabled={bulkBusy}>
+                            {bulkBusy ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...
+                                </>
+                            ) : (
+                                "Confirm"
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

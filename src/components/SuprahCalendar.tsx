@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CalendarItem,
   CalendarView,
+  CrmUserLite,
   EventDraft,
 } from "@/types/calendar.types";
 import {
@@ -22,6 +23,33 @@ import {
 import { useCalendar } from "@/hooks/useCalendar";
 import { EventModal } from "@/components/EventModal";
 import { MySchedule } from "@/components/MySchedule";
+import { CalendarNotificationsBell } from "@/components/CalendarNotificationsBell";
+import { apiClient } from "@/lib/api-client";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+function initials(name?: string) {
+  return (name || "U")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+async function fetchTeamMembers(): Promise<CrmUserLite[]> {
+  try {
+    const res = await apiClient.getTeamMembers();
+    const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
+    return (Array.isArray(raw) ? raw : []).map((u: any) => ({
+      _id: String(u._id ?? u.id),
+      fullName: u.fullName ?? u.name,
+      username: u.username,
+      email: u.email,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Suprah Calendar — cockpit-styled, Google Calendar-class scheduling.
@@ -294,8 +322,25 @@ export default function SuprahCalendar() {
   }, [view, cursor]);
 
   // Grid math runs in Mountain Time wall-clock space; the API needs instants.
-  const { items, loading, error, createItem, updateItem, deleteItem } =
+  const { items: allItems, loading, error, createItem, updateItem, deleteItem } =
     useCalendar(fromZoned(rangeStart), fromZoned(rangeEnd));
+
+  const [teamMembers, setTeamMembers] = useState<CrmUserLite[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>("all");
+
+  useEffect(() => {
+    void fetchTeamMembers().then(setTeamMembers);
+  }, []);
+
+  /** "What's my team doing this week" — narrows the grid to one teammate's items. */
+  const items = useMemo(() => {
+    if (teamFilter === "all") return allItems;
+    return allItems.filter(
+      (item) =>
+        item.assignees?.some((a) => a._id === teamFilter) ||
+        item.createdBy?._id === teamFilter,
+    );
+  }, [allItems, teamFilter]);
 
   const step = (dir: 1 | -1) => {
     if (view === "month")
@@ -326,118 +371,103 @@ export default function SuprahCalendar() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white text-zinc-950 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90 dark:text-zinc-100">
-      <style jsx global>{`
-        /*
-         * MySchedule was originally styled only for a dark surface. These
-         * scoped mappings preserve its accent colors while making its neutral
-         * title, task, description, and time text readable in light mode.
-         */
-        .suprah-my-schedule .text-zinc-100 {
-          color: rgb(24 24 27) !important;
-        }
-
-        .suprah-my-schedule .text-zinc-200 {
-          color: rgb(39 39 42) !important;
-        }
-
-        .suprah-my-schedule .text-zinc-300 {
-          color: rgb(63 63 70) !important;
-        }
-
-        .suprah-my-schedule .text-zinc-400 {
-          color: rgb(82 82 91) !important;
-        }
-
-        .suprah-my-schedule .text-zinc-500 {
-          color: rgb(82 82 91) !important;
-        }
-
-        .dark .suprah-my-schedule .text-zinc-100 {
-          color: rgb(244 244 245) !important;
-        }
-
-        .dark .suprah-my-schedule .text-zinc-200 {
-          color: rgb(228 228 231) !important;
-        }
-
-        .dark .suprah-my-schedule .text-zinc-300 {
-          color: rgb(212 212 216) !important;
-        }
-
-        .dark .suprah-my-schedule .text-zinc-400 {
-          color: rgb(161 161 170) !important;
-        }
-
-        .dark .suprah-my-schedule .text-zinc-500 {
-          color: rgb(161 161 170) !important;
-        }
-      `}</style>
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl">
       {/* Ambient blobs — cockpit atmosphere */}
       <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
 
       {/* Toolbar */}
-      <header className="relative z-10 flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-white/95 px-5 py-3 dark:border-white/10 dark:bg-zinc-950/85">
+      <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 px-3 py-3 sm:gap-3 sm:px-5">
         <div className="flex h-9 shrink-0 items-center gap-2">
           <button
             onClick={() => setCursor(startOfDay(zonedNow()))}
-            className="flex h-9 items-center rounded-lg border border-emerald-600/35 bg-emerald-50 px-3 text-xs font-semibold leading-none text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-400/35 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/20"
+            className="flex h-9 items-center rounded-lg border border-emerald-600/35 bg-emerald-500/10 px-3 text-xs font-semibold leading-none text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-200"
           >
             Today
           </button>
           <button
             aria-label="Previous"
             onClick={() => step(-1)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-white leading-none text-zinc-800 transition hover:bg-zinc-100 dark:border-white/10 dark:bg-transparent dark:text-zinc-200 dark:hover:bg-white/5"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background leading-none text-foreground transition hover:bg-accent"
           >
             ‹
           </button>
           <button
             aria-label="Next"
             onClick={() => step(1)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-white leading-none text-zinc-800 transition hover:bg-zinc-100 dark:border-white/10 dark:bg-transparent dark:text-zinc-200 dark:hover:bg-white/5"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background leading-none text-foreground transition hover:bg-accent"
           >
             ›
           </button>
         </div>
 
         <div className="flex h-9 min-w-0 items-center gap-2">
-          <h1 className="truncate text-lg font-semibold leading-none tracking-tight text-zinc-950 dark:text-zinc-100">
+          <h1 className="truncate text-base font-semibold leading-none tracking-tight text-foreground sm:text-lg">
             {headline}
           </h1>
-          <span className="flex h-6 shrink-0 items-center rounded-md border border-zinc-300 bg-zinc-100 px-2 font-mono text-[10px] font-semibold leading-none tabular-nums text-zinc-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
+          <span className="hidden h-6 shrink-0 items-center rounded-md border border-border bg-muted px-2 font-mono text-[10px] font-semibold leading-none tabular-nums text-muted-foreground sm:flex">
             {CALENDAR_TZ_LABEL} · Mountain Time
           </span>
         </div>
 
-        <div className="ml-auto flex h-9 shrink-0 items-center gap-2">
-          <div className="flex h-9 items-center overflow-hidden rounded-lg border border-zinc-300 bg-white dark:border-white/10 dark:bg-transparent">
+        <div className="ml-auto flex h-9 shrink-0 flex-wrap items-center gap-2">
+          <select
+            aria-label="Team"
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none transition hover:bg-accent"
+          >
+            <option value="all">Everyone</option>
+            {teamMembers.map((m) => (
+              <option key={m._id} value={m._id}>
+                {m.fullName || m.username || m.email}
+              </option>
+            ))}
+          </select>
+
+          {/* View switcher: buttons on wider screens, a select below sm */}
+          <select
+            aria-label="Calendar view"
+            value={view}
+            onChange={(e) => setView(e.target.value as CalendarView)}
+            className="h-9 rounded-lg border border-border bg-background px-2 text-xs capitalize text-foreground outline-none transition hover:bg-accent sm:hidden"
+          >
+            {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <div className="hidden h-9 items-center overflow-hidden rounded-lg border border-border bg-background sm:flex">
             {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
                 className={`flex h-full items-center px-3 text-xs capitalize leading-none transition ${view === v
-                  ? "bg-emerald-100 font-semibold text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/5"
+                  ? "bg-emerald-500/15 font-semibold text-emerald-700 dark:text-emerald-200"
+                  : "text-muted-foreground hover:bg-accent"
                   }`}
               >
                 {v}
               </button>
             ))}
           </div>
+
+          <CalendarNotificationsBell />
+
           <button
             onClick={() => setShowMySchedule((s) => !s)}
             className={`flex h-9 items-center rounded-lg border px-3 text-xs font-medium leading-none transition ${showMySchedule
-              ? "border-cyan-600/35 bg-cyan-50 font-semibold text-cyan-800 dark:border-cyan-400/40 dark:bg-cyan-400/15 dark:text-cyan-200"
-              : "border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5"
+              ? "border-cyan-600/35 bg-cyan-500/10 font-semibold text-cyan-700 dark:text-cyan-200"
+              : "border-border text-foreground hover:bg-accent"
               }`}
           >
-            My Schedule
+            <span className="hidden sm:inline">My Schedule</span>
+            <span className="sm:hidden">Mine</span>
           </button>
           <button
             onClick={() => openCreate()}
-            className="flex h-9 items-center rounded-lg bg-emerald-400/90 px-4 text-xs font-semibold leading-none text-zinc-950 shadow-[0_0_20px_-6px_rgba(52,211,153,0.9)] transition hover:bg-emerald-300"
+            className="flex h-9 items-center rounded-lg bg-emerald-500 px-4 text-xs font-semibold leading-none text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400"
           >
             + Create
           </button>
@@ -474,14 +504,23 @@ export default function SuprahCalendar() {
             <AgendaView items={items} onItemClick={openEdit} />
           )}
           {loading && (
-            <p className="p-4 font-mono text-xs font-medium tabular-nums text-zinc-600 dark:text-zinc-400">
+            <p className="p-4 font-mono text-xs font-medium tabular-nums text-muted-foreground">
               syncing…
             </p>
           )}
         </div>
 
         {showMySchedule && (
-          <aside className="suprah-my-schedule w-90 shrink-0 overflow-y-auto border-l border-zinc-200 bg-white/98 shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.18)] dark:border-white/10 dark:bg-zinc-950/95 dark:shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.9)]">
+          <aside className="fixed inset-0 z-40 overflow-y-auto bg-background shadow-2xl md:static md:z-auto md:w-90 md:shrink-0 md:border-l md:border-border md:bg-card/98 md:shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
+              <span className="text-sm font-semibold text-foreground">My Schedule</span>
+              <button
+                onClick={() => setShowMySchedule(false)}
+                className="rounded-lg border border-border px-2.5 py-1 text-xs text-foreground hover:bg-accent"
+              >
+                Close
+              </button>
+            </div>
             <MySchedule onItemClick={openEdit} />
           </aside>
         )}
@@ -588,7 +627,7 @@ function MonthView({
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div
             key={d}
-            className="border-b border-r border-zinc-200 bg-zinc-50 px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-700 dark:border-white/5 dark:bg-zinc-950 dark:text-zinc-400"
+            className="border-b border-r border-border bg-muted/40 px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
           >
             {d}
           </div>
@@ -614,7 +653,7 @@ function MonthView({
               key={day.toISOString()}
               type="button"
               onClick={() => onDayClick(day)}
-              className={`group flex min-h-0 flex-col gap-1.5 border-b border-r border-zinc-200 bg-white p-1.5 text-center align-top transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/50 dark:border-white/5 dark:bg-zinc-950 dark:hover:bg-white/4 ${inMonth ? "" : "opacity-45"
+              className={`group flex min-h-0 flex-col gap-1.5 border-b border-r border-border bg-card p-1.5 text-center align-top transition hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/50 ${inMonth ? "" : "opacity-45"
                 }`}
               aria-label={day.toLocaleDateString([], {
                 weekday: "long",
@@ -625,8 +664,8 @@ function MonthView({
             >
               <span
                 className={`mx-auto inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-mono text-xs tabular-nums ${today
-                    ? "bg-emerald-400/90 font-semibold text-zinc-950"
-                    : "text-zinc-700 dark:text-zinc-300"
+                    ? "bg-emerald-500 font-semibold text-white"
+                    : "text-foreground"
                   }`}
               >
                 {day.getDate()}
@@ -731,32 +770,33 @@ function TimeGridView({
   const headerHeight = 64;
 
   return (
-    <div className="relative min-w-190 bg-white text-zinc-950 dark:bg-zinc-950 dark:text-zinc-100">
+    <div className="overflow-x-auto">
+    <div className="relative min-w-190 bg-background text-foreground">
       {isEmpty && (
         <div className="pointer-events-none sticky left-0 z-20 flex h-0 w-full items-start justify-center">
-          <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3 rounded-2xl border border-zinc-200 bg-white/95 px-8 py-10 text-center shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/95">
+          <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3 rounded-2xl border border-border bg-card/95 px-8 py-10 text-center shadow-xl backdrop-blur-md">
             <span className="text-3xl" aria-hidden>
               🗓️
             </span>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            <p className="text-sm font-semibold text-foreground">
               {days === 1
                 ? "Nothing scheduled today"
                 : "Nothing scheduled this week"}
             </p>
-            <p className="max-w-xs text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            <p className="max-w-xs text-xs font-medium text-muted-foreground">
               Select any time slot on the grid to add an event, or use a quick
               shortcut below.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => onSlotClick(quickSlot(9))}
-                className="rounded-lg border border-emerald-600/35 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/20"
+                className="rounded-lg border border-emerald-600/35 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-200"
               >
                 + 9:00 AM today
               </button>
               <button
                 onClick={() => onSlotClick(quickSlot(14))}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-white/10 dark:bg-transparent dark:text-zinc-200 dark:hover:bg-white/5"
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-accent"
               >
                 + 2:00 PM today
               </button>
@@ -767,14 +807,14 @@ function TimeGridView({
 
       {/* Sticky day header */}
       <div
-        className="sticky top-0 z-30 grid border-b border-zinc-200 bg-white/95 shadow-sm backdrop-blur-xl dark:border-white/8 dark:bg-zinc-950/95"
+        className="sticky top-0 z-30 grid border-b border-border bg-card/95 shadow-sm backdrop-blur-xl"
         style={{
           gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
           minHeight: headerHeight,
         }}
       >
-        <div className="flex items-center justify-center border-r border-zinc-200 px-2 dark:border-white/6">
-          <span className="inline-flex h-5 items-center justify-center rounded border border-emerald-600/25 bg-emerald-50 px-2 text-[9px] font-bold uppercase leading-none tracking-[0.14em] text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/[0.07] dark:text-emerald-200">
+        <div className="flex items-center justify-center border-r border-border px-2">
+          <span className="inline-flex h-5 items-center justify-center rounded border border-emerald-600/25 bg-emerald-500/10 px-2 text-[9px] font-bold uppercase leading-none tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
             MDT
           </span>
         </div>
@@ -784,18 +824,18 @@ function TimeGridView({
           return (
             <div
               key={`header-${day.toISOString()}`}
-              className={`min-w-0 border-r border-zinc-200 px-2 py-1.5 text-center dark:border-white/6 ${
+              className={`min-w-0 border-r border-border px-2 py-1.5 text-center ${
                 today
-                  ? "bg-emerald-50 dark:bg-emerald-400/[0.055]"
-                  : "bg-white dark:bg-zinc-900/35"
+                  ? "bg-emerald-500/8"
+                  : "bg-card"
               }`}
             >
               <div className="flex min-h-10 flex-col items-center justify-center">
                 <span
                   className={`text-[10px] font-bold uppercase tracking-[0.14em] ${
                     today
-                      ? "text-emerald-800 dark:text-emerald-200"
-                      : "text-zinc-600 dark:text-zinc-400"
+                      ? "text-emerald-700 dark:text-emerald-200"
+                      : "text-muted-foreground"
                   }`}
                 >
                   {day.toLocaleDateString([], { weekday: "short" })}
@@ -804,8 +844,8 @@ function TimeGridView({
                 <span
                   className={`mt-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-mono text-sm font-bold tabular-nums ${
                     today
-                      ? "bg-emerald-500 text-white shadow-[0_0_18px_-5px_rgba(16,185,129,0.65)] dark:bg-emerald-400 dark:text-zinc-950"
-                      : "text-zinc-950 dark:text-zinc-100"
+                      ? "bg-emerald-500 text-white shadow-[0_0_18px_-5px_rgba(16,185,129,0.65)]"
+                      : "text-foreground"
                   }`}
                 >
                   {day.getDate()}
@@ -819,13 +859,13 @@ function TimeGridView({
       {/* Dedicated all-day lane. It stays compact and scrolls when many items exist. */}
       {allDayOcc.length > 0 && (
         <div
-          className="grid border-b border-zinc-300 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900/85"
+          className="grid border-b border-border bg-muted/40"
           style={{
             gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
           }}
         >
-          <div className="flex items-start justify-center border-r border-zinc-200 px-2 py-3 dark:border-white/6">
-            <span className="rounded-md bg-zinc-200 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-700 dark:bg-white/8 dark:text-zinc-300">
+          <div className="flex items-start justify-center border-r border-border px-2 py-3">
+            <span className="rounded-md bg-muted px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
               All day
             </span>
           </div>
@@ -836,7 +876,7 @@ function TimeGridView({
             return (
               <div
                 key={`all-day-${day.toISOString()}`}
-                className="min-h-16 max-h-44 overflow-y-auto border-r border-zinc-200 p-1.5 dark:border-white/6"
+                className="min-h-16 max-h-44 overflow-y-auto border-r border-border p-1.5"
               >
                 <div className="flex flex-col gap-1.5">
                   {dayAllDay.map((o) => {
@@ -885,7 +925,7 @@ function TimeGridView({
           gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
         }}
       >
-        <div className="relative border-r border-zinc-200 bg-zinc-50 dark:border-white/6 dark:bg-zinc-900/35">
+        <div className="relative border-r border-border bg-muted/40">
           {HOURS.map((h) => (
             <div
               key={h}
@@ -896,7 +936,7 @@ function TimeGridView({
               className="absolute inset-x-0"
             >
               <span
-                className={`absolute right-3 rounded bg-zinc-50 px-1.5 font-mono text-[10.5px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-200 ${
+                className={`absolute right-3 rounded bg-muted/40 px-1.5 font-mono text-[10.5px] font-semibold tabular-nums text-muted-foreground ${
                   h === 0 ? "top-1.5" : "-top-2.5"
                 }`}
               >
@@ -919,10 +959,10 @@ function TimeGridView({
           return (
             <div
               key={day.toISOString()}
-              className={`relative min-w-0 border-r border-zinc-200 dark:border-white/6 ${
+              className={`relative min-w-0 border-r border-border ${
                 today
-                  ? "bg-emerald-50/55 dark:bg-emerald-400/[0.035]"
-                  : "bg-white dark:bg-zinc-900/35"
+                  ? "bg-emerald-500/6"
+                  : "bg-background"
               }`}
             >
               <div className="relative" style={{ height: HOUR_PX * 24 }}>
@@ -937,13 +977,13 @@ function TimeGridView({
                       onSlotClick(d);
                     }}
                     style={{ top: h * HOUR_PX, height: HOUR_PX }}
-                    className={`group absolute inset-x-0 border-b border-zinc-200/90 transition hover:bg-emerald-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-500/50 dark:border-white/5 dark:hover:bg-emerald-400/[0.035] ${
+                    className={`group absolute inset-x-0 border-b border-border/90 transition hover:bg-emerald-500/6 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-500/50 ${
                       h === 0
-                        ? "border-t border-zinc-200/90 dark:border-white/5"
+                        ? "border-t border-border/90"
                         : ""
                     }`}
                   >
-                    <span className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-zinc-200/70 dark:border-white/[0.035]" />
+                    <span className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-border/70" />
                   </button>
                 ))}
 
@@ -997,6 +1037,16 @@ function TimeGridView({
                         aria-label={`${o.item.title}, ${timeLabel}, ${durationLabel}`}
                         className={`absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-2 text-left transition duration-150 hover:z-10 hover:-translate-y-px hover:brightness-105 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 ${TYPE_STYLES[o.item.type]}`}
                       >
+                        {renderedHeight >= 46 && o.item.assignees && o.item.assignees.length > 0 && (
+                          <Avatar
+                            className="absolute right-1.5 top-1.5 size-5 shrink-0 ring-1 ring-current/20"
+                            title={o.item.assignees.map((a) => a.fullName || a.username || a.email).join(", ")}
+                          >
+                            <AvatarFallback className="bg-current/15 text-[8px] font-bold">
+                              {initials(o.item.assignees[0].fullName || o.item.assignees[0].username)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                         <span className="flex min-w-0 flex-1 flex-col items-start justify-center text-left">
                           <span
                             className={`block w-full overflow-hidden font-bold leading-[1.25] ${
@@ -1105,6 +1155,7 @@ function TimeGridView({
         })}
       </div>
     </div>
+    </div>
   );
 }
 
@@ -1121,10 +1172,10 @@ function NowLine({ showLabel = false }: { showLabel?: boolean }) {
       style={{ top }}
       className="pointer-events-none absolute inset-x-0 z-8 h-px bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_10px_rgba(52,211,153,0.75)]"
     >
-      <span className="absolute -left-1.5 -top-1.25 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.55)] dark:border-zinc-950 dark:bg-emerald-400 dark:shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+      <span className="absolute -left-1.5 -top-1.25 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
 
       {showLabel && (
-        <span className="absolute left-2 top-1 rounded-md border border-emerald-600/30 bg-white/95 px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums text-emerald-800 shadow-sm dark:border-emerald-400/25 dark:bg-zinc-950/95 dark:text-emerald-200">
+        <span className="absolute left-2 top-1 rounded-md border border-emerald-600/30 bg-background/95 px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums text-emerald-700 shadow-sm dark:border-emerald-400/25 dark:text-emerald-200">
           {timeLabel}
         </span>
       )}
@@ -1159,11 +1210,11 @@ function AgendaView({
   if (groupedByDay.size === 0) {
     return (
       <div className="flex min-h-90 items-center justify-center px-6 py-12">
-        <div className="rounded-xl border border-zinc-200 bg-white px-8 py-6 text-center shadow-sm dark:border-white/10 dark:bg-white/3">
-          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-200">
+        <div className="rounded-xl border border-border bg-card px-8 py-6 text-center shadow-sm">
+          <p className="text-sm font-semibold text-foreground">
             Nothing scheduled
           </p>
-          <p className="mt-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-xs font-medium text-muted-foreground">
             No calendar items are scheduled in the next 60 days.
           </p>
         </div>
@@ -1172,7 +1223,7 @@ function AgendaView({
   }
 
   return (
-    <div className="w-full divide-y divide-zinc-200 bg-white dark:divide-white/8 dark:bg-zinc-950">
+    <div className="w-full divide-y divide-border bg-background">
       {[...groupedByDay.entries()].map(([dayKey, dayOccurrences]) => {
         const day = new Date(dayKey);
         const isToday = sameDay(day, zonedNow());
@@ -1180,22 +1231,22 @@ function AgendaView({
         return (
           <section
             key={dayKey}
-            className="grid grid-cols-[112px_minmax(0,1fr)] gap-4 px-5 py-4 transition hover:bg-zinc-50 dark:hover:bg-white/1.5"
+            className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 px-3 py-4 transition hover:bg-accent/30 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-4 sm:px-5"
           >
             <div className="pt-1">
               <div
-                className={`inline-flex min-w-22 flex-col rounded-lg border px-3 py-2 ${isToday
-                    ? "border-emerald-600/30 bg-emerald-50 dark:border-emerald-400/30 dark:bg-emerald-400/10"
-                    : "border-zinc-200 bg-zinc-50 dark:border-white/8 dark:bg-white/2.5"
+                className={`inline-flex min-w-16 flex-col rounded-lg border px-2 py-1.5 sm:min-w-22 sm:px-3 sm:py-2 ${isToday
+                    ? "border-emerald-600/30 bg-emerald-500/10"
+                    : "border-border bg-muted/40"
                   }`}
               >
                 <span
-                  className={`text-[11px] font-semibold ${isToday ? "text-emerald-800 dark:text-emerald-200" : "text-zinc-800 dark:text-zinc-200"
+                  className={`text-[11px] font-semibold ${isToday ? "text-emerald-700 dark:text-emerald-200" : "text-foreground"
                     }`}
                 >
                   {day.toLocaleDateString([], { weekday: "short" })}
                 </span>
-                <span className="mt-0.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                <span className="mt-0.5 text-xs font-semibold text-muted-foreground">
                   {day.toLocaleDateString([], {
                     month: "short",
                     day: "numeric",
@@ -1215,37 +1266,49 @@ function AgendaView({
                 const timeLabel = item.allDay
                   ? "All Day"
                   : formatSegmentTimeRange(start, end);
+                const owner = item.assignees?.[0] ?? item.createdBy;
 
                 return (
                   <button
                     key={`${item.id}-${start.toISOString()}`}
                     type="button"
                     onClick={() => onItemClick(item)}
-                    className={`group flex min-h-13 w-full min-w-0 items-center rounded-lg border px-4 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${TYPE_STYLES[item.type]}`}
+                    className={`group flex min-h-13 w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:flex-nowrap sm:px-4 ${TYPE_STYLES[item.type]}`}
                   >
-                    <div className="w-37.5 shrink-0 border-r border-current/15 pr-4">
+                    <div className="shrink-0 border-r border-current/15 pr-3 sm:w-37.5 sm:pr-4">
                       <span className="block whitespace-nowrap font-mono text-[11px] font-semibold tabular-nums opacity-95">
                         {timeLabel}
                       </span>
                       {!item.allDay && (
-                        <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-75">
+                        <span className="mt-0.5 hidden text-[10px] font-semibold uppercase tracking-wide opacity-75 sm:block">
                           Mountain Time
                         </span>
                       )}
                     </div>
 
-                    <div className="min-w-0 flex-1 px-4">
+                    <div className="min-w-0 flex-1 px-1 sm:px-4">
                       <span className="block truncate text-[13px] font-bold">
                         {item.title}
                       </span>
                       {item.description && (
-                        <span className="mt-1 block truncate text-[11px] font-medium opacity-80">
+                        <span className="mt-1 hidden truncate text-[11px] font-medium opacity-80 sm:block">
                           {item.description}
                         </span>
                       )}
                     </div>
 
-                    <span className="ml-3 shrink-0 rounded-md border border-current/15 bg-white/6 px-2 py-1 text-[9px] font-semibold uppercase tracking-wider opacity-90">
+                    {owner && (
+                      <Avatar
+                        className="hidden size-6 shrink-0 ring-1 ring-current/20 sm:flex"
+                        title={owner.fullName || owner.username || owner.email}
+                      >
+                        <AvatarFallback className="bg-current/15 text-[9px] font-bold">
+                          {initials(owner.fullName || owner.username)}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+
+                    <span className="ml-auto shrink-0 rounded-md border border-current/15 bg-current/6 px-2 py-1 text-[9px] font-semibold uppercase tracking-wider opacity-90 sm:ml-0">
                       {item.type}
                     </span>
                   </button>
