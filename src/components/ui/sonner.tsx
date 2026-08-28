@@ -17,6 +17,22 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // A toast pinned to the literal top of the viewport renders straight
+      // under the Dynamic Island / notch on an installed iOS PWA (no browser
+      // chrome there to naturally push it down) — max() keeps the same
+      // default spacing on devices with no safe-area-inset-top at all.
+      offset={{
+        top: "max(env(safe-area-inset-top), 1rem)",
+        bottom: "max(env(safe-area-inset-bottom), 1rem)",
+        left: "1rem",
+        right: "1rem",
+      }}
+      mobileOffset={{
+        top: "max(env(safe-area-inset-top), 1rem)",
+        bottom: "max(env(safe-area-inset-bottom), 1rem)",
+        left: "1rem",
+        right: "1rem",
+      }}
       toastOptions={{
         classNames: {
           toast:
