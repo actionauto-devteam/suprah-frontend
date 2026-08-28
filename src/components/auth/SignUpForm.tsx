@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useSignUp } from "@/providers/AuthProvider";
+import { AuthLogo } from "./AuthLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -90,20 +91,23 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
   return (
     <div className="w-full">
+      <div className="mb-1.5 flex justify-center">
+        <AuthLogo />
+      </div>
       <AnimatePresence mode="wait">
         {step === "identity" ? (
           <motion.div
             key="step-identity"
             {...containerVariants}
-            className="space-y-6"
+            className="space-y-5"
           >
-            <div className="space-y-3">
-              <span className={AUTH_KICKER_CLASS}>
+            <div className="space-y-0.5 text-center">
+              <span className={`${AUTH_KICKER_CLASS} justify-center`}>
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Get Started
               </span>
-              <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
-                Sign up.
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Sign up
               </h1>
               <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground/70">
                 Choose an account type
@@ -185,15 +189,15 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
           <motion.div
             key="step-details"
             {...containerVariants}
-            className="space-y-8"
+            className="space-y-6"
           >
-            <div className="space-y-3">
-              <span className={AUTH_KICKER_CLASS}>
+            <div className="space-y-0.5 text-center">
+              <span className={`${AUTH_KICKER_CLASS} justify-center`}>
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Team Invite
               </span>
-              <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
-                Create account.
+              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+                Create account
               </h1>
             </div>
 

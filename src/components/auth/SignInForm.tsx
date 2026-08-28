@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useSignIn } from "@/providers/AuthProvider";
+import { AuthLogo } from "./AuthLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -116,18 +117,21 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
   };
 
   return (
-    <div className="w-full space-y-6 sm:space-y-7">
-      <div className="space-y-3 sm:space-y-4">
-        <span className={AUTH_KICKER_CLASS}>
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Suprah.AI Dispatch
-        </span>
-        <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl md:text-6xl">
-          Sign in.
-        </h1>
-        <p className="max-w-md text-sm font-normal leading-6 text-muted-foreground sm:text-base sm:leading-7">
-          Pick up where you left off.
-        </p>
+    <div className="w-full space-y-4 sm:space-y-5">
+      <div className="flex flex-col items-center gap-1.5 pb-1 text-center">
+        <AuthLogo />
+        <div className="space-y-0.5">
+          <span className={`${AUTH_KICKER_CLASS} justify-center`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Suprah.AI Dispatch
+          </span>
+          <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
+            Sign in
+          </h1>
+          <p className="mx-auto max-w-sm text-xs font-normal leading-5 text-muted-foreground sm:text-sm sm:leading-6">
+            Pick up where you left off.
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
