@@ -3596,8 +3596,16 @@ function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: 
 }
 
 function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; name: string; avatar?: string | null; size?: number }) {
+  // A group's own photo is its real, primary identity — it must never
+  // disappear from the app just because a custom emoji is also set. The
+  // emoji's actual job is being an iOS notification-banner marker (Apple
+  // doesn't show custom photos there — see pushToConversationMembers,
+  // backend), not a replacement for the photo everywhere else. Emoji only
+  // ever shows here as a fallback, same as the initial-letter avatar below,
+  // for a group that has no photo at all yet.
   const emoji = getConvEmoji(conv);
-  if (emoji) return <span style={{ fontSize: size + 4, lineHeight: 1 }}>{emoji}</span>;
+  const resolved = resolveImageUrl(avatar);
+  if (!resolved && emoji) return <span style={{ fontSize: size + 4, lineHeight: 1 }}>{emoji}</span>;
   return <GroupAvatarFace src={avatar} name={name} size={size} />;
 }
 
@@ -12524,9 +12532,15 @@ export default function SupraSpacePage() {
                           <button onClick={() => { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
-                          <p className="ss4-display font-bold text-center" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
-                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6"><Pencil className="h-3 w-3" /></button>}
+                        <div className="flex items-center gap-1.5 max-w-full">
+                          {/* truncate + min-w-0 so a long group name shrinks
+                              instead of pushing the pencil button off the
+                              edge of a narrow mobile viewport — it was still
+                              in the DOM there, just scrolled/clipped out of
+                              reach, which read as "the pencil is missing on
+                              mobile" even though nothing was actually hidden. */}
+                          <p className="ss4-display font-bold text-center truncate min-w-0" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
+                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
                         </div>
                       )}
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
