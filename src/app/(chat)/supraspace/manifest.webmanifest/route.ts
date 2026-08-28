@@ -19,7 +19,15 @@ export function GET() {
             start_url: 'https://space.suprah-app.com/',
             scope: 'https://space.suprah-app.com/',
             display: 'standalone',
-            background_color: '#0b1f14',
+            // Matches --bg-base (the app's own actual dark-theme background,
+            // page.tsx's injected ss4 stylesheet) rather than an arbitrary
+            // greener shade. iOS uses this for the standalone launch screen
+            // and, more importantly, as the fallback paint for any safe-area
+            // strip (bottom home-indicator zone, etc.) the actual page
+            // content doesn't visibly extend into — a mismatch there reads
+            // as a stray colored box that doesn't correspond to any real
+            // element, which is exactly what was reported.
+            background_color: '#0e0f11',
             theme_color: '#16a34a',
             icons: [
                 { src: '/supra-space/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },

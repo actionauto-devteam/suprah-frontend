@@ -2,13 +2,44 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+
+const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+
+// SupraSpace is meant to feel like its own dedicated, focused messaging app —
+// this "SUPRAH." branded splash (with its own ~1.35s forced duration) is
+// Suprah AI's, and showing it first made every SupraSpace load look like two
+// stacked loading screens back to back. SupraSpace's own loading state (its
+// logo + "Suprah Space" text, in supraspace/page.tsx) already covers this
+// route on its own. Path-only check (no hostname) so the server-rendered
+// initial value matches the client's — safe for every surface reached by
+// pathname (/supraspace, /crm/supra-space, /crm/conversations). The
+// subdomain needs an extra client-only check below since its middleware
+// rewrite is invisible to the browser (usePathname() there still reads "/").
+function isSupraSpacePathname(pathname: string | null): boolean {
+    return !!pathname && (
+        pathname.startsWith("/supraspace") ||
+        pathname.startsWith("/crm/supra-space") ||
+        pathname.startsWith("/crm/conversations")
+    );
+}
 
 export const SplashScreen = () => {
-    const [isVisible, setIsVisible] = useState(true);
+    const pathname = usePathname();
+    const skipForSupraSpace = isSupraSpacePathname(pathname);
+
+    const [isVisible, setIsVisible] = useState(!skipForSupraSpace);
     const [count, setCount] = useState(0);
     const [status, setStatus] = useState("Initializing Core...");
 
+    // Catches the SupraSpace subdomain specifically — hostname is only known
+    // client-side, so this can't be part of the SSR-safe initial state above.
     useEffect(() => {
+        if (window.location.hostname === SUPRASPACE_SUBDOMAIN) setIsVisible(false);
+    }, []);
+
+    useEffect(() => {
+        if (skipForSupraSpace) return;
         // Force scroll lock on initial load so user can't scroll past the splash
         document.body.style.overflow = "hidden";
 

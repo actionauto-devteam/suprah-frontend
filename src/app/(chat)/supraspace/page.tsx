@@ -11146,7 +11146,14 @@ export default function SupraSpacePage() {
         }} />,
         document.body
       )}
-      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme}>
+      {/* paddingTop reserves the iOS status bar / notch / Dynamic Island area.
+          The root layout sets viewport-fit=cover so installed-PWA content
+          draws edge-to-edge behind it by default — every other safe area in
+          this file is already handled (see the various safe-area-inset-bottom
+          uses below), but nothing here ever compensated for the TOP inset,
+          so the header rendered flush under the status bar on a standalone
+          iPhone install instead of below it. */}
+      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">

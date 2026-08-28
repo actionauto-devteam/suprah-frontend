@@ -7,6 +7,7 @@ import { useOrg } from "@/hooks/useOrg";
 import { adminStore } from "@/store/admin-store";
 import { apiClient } from "@/lib/api-client";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
+import { SupraSpaceLogo } from "@/components/supraspace/SupraSpaceLogo";
 
 /**
  * Minimal shell for routes meant to feel like their own dedicated app rather
@@ -100,11 +101,29 @@ export default function ChatLayout({
     (!organization && isEmployee && !isSuperAdmin) ||
     isRedirecting
   ) {
+    // Same branded feel as supraspace/page.tsx's own loading state (its logo
+    // + "Suprah Space" text) — this gate runs BEFORE that page's module has
+    // necessarily loaded, so it can't lean on the .ss4/--accent CSS that
+    // page injects into <head> on its own mount; colors are hardcoded here
+    // instead (same approach SplashScreen.tsx already uses for its brief
+    // loading screen). Point was just to stop showing a plain, visibly
+    // different generic spinner before the real branded one landed.
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex items-center justify-center h-full min-h-screen" style={{ background: '#0e0f11' }}>
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground animate-pulse">Loading...</p>
+          <SupraSpaceLogo size={56} />
+          <div className="flex flex-col items-center gap-2">
+            <p className="font-bold" style={{ fontSize: 16, color: 'rgba(255,255,255,0.92)' }}>Suprah <span style={{ color: '#34c97d' }}>Space</span></p>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map(i => (
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full animate-bounce"
+                  style={{ background: '#5b7cf6', animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
