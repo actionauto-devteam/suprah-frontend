@@ -12540,7 +12540,10 @@ export default function SupraSpacePage() {
                               reach, which read as "the pencil is missing on
                               mobile" even though nothing was actually hidden. */}
                           <p className="ss4-display font-bold text-center truncate min-w-0" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
-                          {activeConv.type === 'group' && isAdmin && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
+                          {/* Any member can rename/set the emoji now, same as the
+                              group photo — matches the backend's updateConversation,
+                              which no longer requires isAdmin for name/emoji either. */}
+                          {activeConv.type === 'group' && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
                         </div>
                       )}
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
