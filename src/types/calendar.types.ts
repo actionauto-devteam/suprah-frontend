@@ -5,6 +5,15 @@ export type CalendarItemType =
   | "meeting"
   | "appointment";
 
+/** Single source of truth for type labels — used by both the toolbar's Type filter and My Schedule's chip row so they can't drift out of sync. */
+export const CALENDAR_TYPE_OPTIONS: { value: CalendarItemType; label: string }[] = [
+  { value: "event", label: "Event" },
+  { value: "task", label: "Task" },
+  { value: "reminder", label: "Reminder" },
+  { value: "meeting", label: "Meeting" },
+  { value: "appointment", label: "Appointment" },
+];
+
 export type CalendarView = "day" | "week" | "month" | "agenda";
 
 export interface CrmUserLite {
@@ -58,11 +67,3 @@ export interface MySchedulePayload {
   pendingTasks: CalendarItem[];
   meetings: CalendarItem[];
 }
-
-export const TYPE_ACCENTS: Record<CalendarItemType, string> = {
-  event: "emerald",
-  meeting: "cyan",
-  task: "amber",
-  reminder: "violet",
-  appointment: "mint",
-};

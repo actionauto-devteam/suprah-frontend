@@ -6,12 +6,13 @@ import { DateTimePicker } from "@/components/ui/datetime-picker";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { CalendarItem, CrmUserLite, EventDraft } from "@/types/calendar.types";
 import {
-  CALENDAR_TZ_LABEL,
+  calendarTzLabel,
   addDays,
   fmtDayLabel,
   fromZoned,
@@ -229,12 +230,15 @@ export function EventModal({
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-lg overflow-hidden">
-        <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15" />
 
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
             {editing ? (readOnly ? "Schedule details" : "Edit item") : "New item"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {editing ? "View or edit this calendar item's details." : "Create a new calendar item."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="relative">
@@ -257,8 +261,10 @@ export function EventModal({
             {TYPES.map((t) => (
               <button
                 key={t.value}
+                type="button"
                 disabled={readOnly}
                 onClick={() => set("type", t.value)}
+                aria-pressed={draft.type === t.value}
                 className={`rounded-lg border px-3 py-1.5 text-xs transition ${
                   draft.type === t.value
                     ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
@@ -276,8 +282,10 @@ export function EventModal({
               {STATUSES.map((s) => (
                 <button
                   key={s.value}
+                  type="button"
                   disabled={readOnly}
                   onClick={() => set("status", s.value)}
+                  aria-pressed={draft.status === s.value}
                   className={`rounded-lg border px-3 py-1.5 text-xs transition ${
                     draft.status === s.value
                       ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300"
@@ -317,7 +325,7 @@ export function EventModal({
           {/* Timing */}
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={label} htmlFor="sc-start">Starts ({CALENDAR_TZ_LABEL})</label>
+              <label className={label} htmlFor="sc-start">Starts ({calendarTzLabel()})</label>
               <DateTimePicker
                 id="sc-start"
                 value={draft.start}
@@ -327,7 +335,7 @@ export function EventModal({
               />
             </div>
             <div>
-              <label className={label} htmlFor="sc-end">Ends ({CALENDAR_TZ_LABEL})</label>
+              <label className={label} htmlFor="sc-end">Ends ({calendarTzLabel()})</label>
               <DateTimePicker
                 id="sc-end"
                 value={draft.end}
@@ -362,7 +370,7 @@ export function EventModal({
           </div>
 
           {draft.repeatsDailyWindow && (
-            <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 sm:grid-cols-2">
+            <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 dark:border-emerald-400/25 dark:bg-emerald-400/10 sm:grid-cols-2">
               <div>
                 <label className={label} htmlFor="sc-dstart">Daily start</label>
                 <input
@@ -548,7 +556,7 @@ export function EventModal({
               <button
                 onClick={() => void submit()}
                 disabled={saving}
-                className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 disabled:opacity-50"
+                className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {saving ? "Saving…" : editing ? "Save changes" : "Create"}
               </button>

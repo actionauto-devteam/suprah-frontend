@@ -10,7 +10,23 @@ export const DAY_MS = 86_400_000;
  * toZoned / fromZoned below.
  */
 export const CALENDAR_TZ = "America/Denver";
-export const CALENDAR_TZ_LABEL = "MDT";
+
+const tzLabelFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: CALENDAR_TZ,
+  timeZoneName: "short",
+});
+
+/**
+ * "MDT" or "MST" depending on the actual date — America/Denver spends
+ * roughly half the year in each, so this must be computed per-call rather
+ * than hardcoded (a previous static "MDT" constant was wrong Nov–Mar).
+ */
+export function calendarTzLabel(date: Date = new Date()): string {
+  return (
+    tzLabelFormatter.formatToParts(date).find((p) => p.type === "timeZoneName")
+      ?.value ?? "MT"
+  );
+}
 
 const tzFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: CALENDAR_TZ,

@@ -46,10 +46,18 @@ export type CalendarSummary = {
   badgeCount: number;
 };
 
+/** Minimal socket surface consumers need — enough for .on/.off listeners. */
+export type CalendarSocketLike = {
+  on: (e: string, cb: (...args: unknown[]) => void) => void;
+  off: (e: string, cb: (...args: unknown[]) => void) => void;
+};
+
 type Ctx = {
   summary: CalendarSummary | null;
   badgeCount: number;
   refresh: () => Promise<void>;
+  /** The shared calendar socket this provider was given, if any — reuse this instead of calling useCalendarSocket() again. */
+  socket: CalendarSocketLike | null;
 };
 
 const EMPTY: CalendarSummary = {
@@ -64,6 +72,7 @@ const CalendarNotificationContext = React.createContext<Ctx>({
   summary: null,
   badgeCount: 0,
   refresh: async () => {},
+  socket: null,
 });
 
 export function useCalendarNotifications() {
@@ -86,10 +95,7 @@ export function CalendarNotificationProvider({
 }: {
   children: React.ReactNode;
   /** Optional connected socket.io client (same singleton the calendar uses). */
-  socket?: {
-    on: (e: string, cb: (...args: any[]) => void) => void;
-    off: (e: string, cb: (...args: any[]) => void) => void;
-  } | null;
+  socket?: CalendarSocketLike | null;
 }) {
   const [summary, setSummary] = React.useState<CalendarSummary | null>(null);
 
@@ -127,8 +133,9 @@ export function CalendarNotificationProvider({
       summary: summary ?? EMPTY,
       badgeCount: summary?.badgeCount ?? 0,
       refresh,
+      socket: socket ?? null,
     }),
-    [summary, refresh],
+    [summary, refresh, socket],
   );
 
   return (

@@ -74,15 +74,26 @@ export function useCalendar(rangeStart: Date, rangeEnd: Date) {
       if ("id" in p) setItems((prev) => prev.filter((x) => x.id !== p.id));
     };
 
+    // A dropped connection (phone sleeps, network switch, backgrounded tab —
+    // all routine on mobile) means any calendar:* events fired while
+    // disconnected are simply never received. socket.io reconnects on its
+    // own, but reconnecting doesn't retroactively deliver what was missed —
+    // without this, the grid would silently go stale until the user
+    // happened to change the date range. Refetching on every "connect"
+    // (including the first) resyncs it either way.
+    const onConnect = () => void refetch();
+    socket.on("connect", onConnect);
+
     socket.on("calendar:created", onCreated);
     socket.on("calendar:updated", onUpdated);
     socket.on("calendar:deleted", onDeleted);
     return () => {
+      socket.off("connect", onConnect);
       socket.off("calendar:created", onCreated);
       socket.off("calendar:updated", onUpdated);
       socket.off("calendar:deleted", onDeleted);
     };
-  }, []);
+  }, [refetch]);
 
   const createItem = useCallback(async (draft: EventDraft) => {
     const res = await apiClient.post<{ item: CalendarItem }>(

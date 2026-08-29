@@ -15,6 +15,8 @@ import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { CrmNotificationProvider } from "@/context/CrmNotificationContext";
+import { CalendarNotificationProvider } from "@/context/CalendarNotificationContext";
+import { useCalendarSocket } from "@/hooks/useCalendarSocket";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
@@ -444,6 +446,20 @@ function DashboardLayoutContent({
   );
 }
 
+/**
+ * Owns the shared calendar socket + notification provider at the layout
+ * level (not page-scoped) so both AppSidebar's badge and the Suprah
+ * Calendar page itself read from one live instance.
+ */
+function CalendarNotificationsGate({ children }: { children: React.ReactNode }) {
+  const socket = useCalendarSocket();
+  return (
+    <CalendarNotificationProvider socket={socket}>
+      {children}
+    </CalendarNotificationProvider>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: Readonly<{
@@ -475,7 +491,9 @@ export default function DashboardLayout({
           {/* Keep both notification identities available in the shared drawer.
               CrmNotificationProvider is safe outside CRM routes: without a
               crm_token it remains idle and exposes an empty CRM feed. */}
-          <CrmNotificationProvider>{content}</CrmNotificationProvider>
+          <CrmNotificationProvider>
+            <CalendarNotificationsGate>{content}</CalendarNotificationsGate>
+          </CrmNotificationProvider>
         </NotificationProvider>
       </ProfileToastProvider>
     </ProfileProvider>

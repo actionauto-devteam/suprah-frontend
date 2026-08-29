@@ -66,6 +66,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useSupraSpaceMessenger } from "@/context/SupraSpaceMessengerContext";
 import { useProjectNotifications } from "@/context/ProjectNotificationContext";
+import { useCalendarNotifications } from "@/context/CalendarNotificationContext";
 import { useWhatsNew } from "@/context/WhatsNewContext";
 import { useFeedBadge } from "@/lib/feed-notification-store";
 import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
@@ -299,6 +300,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     setSupraSpaceInstalledElsewhere(isSupraSpaceInstalled());
   }, []);
   const { unreadCount: pmUnread } = useProjectNotifications();
+  const { badgeCount: calendarUnread } = useCalendarNotifications();
   const { unreadCount: whatsNewUnread } = useWhatsNew();
   // Feeds badge — singleton useSyncExternalStore store (no provider needed).
   // total = unseen posts since last visit + unread mentions/comments/@all.
@@ -503,6 +505,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
+
+                        {/* Suprah Calendar: today's remaining items + overdue/
+                            due-today tasks — same count as the in-page bell
+                            (CalendarNotificationContext, layout-mounted so it's
+                            live everywhere, not just on the calendar page). */}
+                        {item.title === "Suprah Calendar" && calendarUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {calendarUnread > 99 ? "99+" : calendarUnread}
+                          </Badge>
+                        )}
 
                         {/* Suprah Space: unread team-chat messages. */}
                         {item.title === "Suprah Space" && totalUnread > 0 && (

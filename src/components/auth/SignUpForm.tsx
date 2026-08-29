@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useSignUp } from "@/providers/AuthProvider";
 import { AuthLogo } from "./AuthLogo";
+import { AuthHeading } from "./AuthHeading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -23,7 +24,6 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import {
   AUTH_INPUT_CLASS,
-  AUTH_KICKER_CLASS,
   AUTH_LABEL_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
@@ -91,7 +91,7 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
   return (
     <div className="w-full">
-      <div className="mb-1.5 flex justify-center">
+      <div className="mb-6 flex justify-center">
         <AuthLogo />
       </div>
       <AnimatePresence mode="wait">
@@ -101,18 +101,11 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
             {...containerVariants}
             className="space-y-5"
           >
-            <div className="space-y-0.5 text-center">
-              <span className={`${AUTH_KICKER_CLASS} justify-center`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Get Started
-              </span>
-              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
-                Sign up
-              </h1>
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground/70">
-                Choose an account type
-              </p>
-            </div>
+            <AuthHeading
+              kicker="Get Started"
+              title="Sign up"
+              subtitle="Choose an account type"
+            />
 
             <div className="grid grid-cols-1 gap-3">
               <IdentityCard
@@ -191,15 +184,7 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
             {...containerVariants}
             className="space-y-6"
           >
-            <div className="space-y-0.5 text-center">
-              <span className={`${AUTH_KICKER_CLASS} justify-center`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Team Invite
-              </span>
-              <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
-                Create account
-              </h1>
-            </div>
+            <AuthHeading kicker="Team Invite" title="Create account" />
 
             <form onSubmit={handleDetailsSubmit} className="space-y-6">
               <div className="space-y-4">
@@ -348,19 +333,21 @@ function IdentityCard({
     <div className="group relative flex flex-col overflow-hidden rounded-md border border-border bg-card transition-all hover:border-emerald-500/50">
       <button
         onClick={onClick}
-        className="flex w-full items-center gap-4 p-5 text-left transition-transform active:scale-[0.98]"
+        className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 p-5 text-left transition-transform active:scale-[0.98]"
       >
-        <span className="w-5 shrink-0 font-mono text-xs font-semibold text-muted-foreground/50">
-          {index}
+        <span className="flex min-w-0 flex-1 items-center gap-4">
+          <span className="w-5 shrink-0 font-mono text-xs font-semibold text-muted-foreground/50">
+            {index}
+          </span>
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-emerald-500/10 group-hover:text-emerald-500">
+            {icon}
+          </span>
+          <h3 className="min-w-0 flex-1 truncate text-foreground font-bold text-lg transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
+            {title}
+          </h3>
         </span>
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-emerald-500/10 group-hover:text-emerald-500">
-          {icon}
-        </div>
-        <h3 className="flex-1 text-foreground font-bold text-lg transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-          {title}
-        </h3>
         {locked ? (
-          <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
             <Lock className="h-3 w-3" />
             Invite Only
           </span>

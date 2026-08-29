@@ -26,10 +26,19 @@ export function AuthSplitLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="relative z-20 -mt-6 flex flex-1 flex-col items-center justify-start overflow-y-auto overscroll-contain rounded-t-[1.75rem] bg-card px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-5 shadow-[0_-12px_30px_-20px_rgba(0,0,0,0.15)] custom-scrollbar xs:px-6 sm:px-8 md:mt-0 md:h-full md:w-[45%] md:justify-center md:rounded-none md:p-12 md:shadow-none lg:p-20">
-          <div className="w-full">{children}</div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 overflow-hidden rounded-t-[1.75rem] md:rounded-none"
+          >
+            <span className="auth-ambient-glow absolute left-1/2 top-0 hidden h-64 w-64 -translate-x-1/2 -translate-y-1/3 rounded-full bg-emerald-400/15 blur-3xl dark:block sm:h-80 sm:w-80" />
+            <span className="auth-ambient-glow absolute left-1/2 top-0 block h-64 w-64 -translate-x-1/2 -translate-y-1/3 rounded-full bg-rose-400/12 blur-3xl dark:hidden sm:h-80 sm:w-80" />
+            <div className="auth-dot-grid absolute inset-0 opacity-[0.5]" />
+          </div>
+
+          <div className="relative z-10 w-full">{children}</div>
           <a
             href="https://suprah.ai/"
-            className={`${AUTH_LINK_CLASS} mt-4 mb-2 text-xs sm:mt-6 sm:text-sm`}
+            className={`${AUTH_LINK_CLASS} relative z-10 mt-4 mb-2 text-xs sm:mt-6 sm:text-sm`}
           >
             Learn more about Suprah AI
           </a>
@@ -68,6 +77,57 @@ export function AuthSplitLayout({ children }: { children: React.ReactNode }) {
           caret-color: #f4f4f5;
           box-shadow: 0 0 0 1000px rgba(9, 9, 11, 0.94) inset;
           border-color: rgba(52, 211, 153, 0.55);
+        }
+        .auth-dot-grid {
+          background-image: radial-gradient(
+            color-mix(in oklch, var(--foreground) 14%, transparent) 1px,
+            transparent 1px
+          );
+          background-size: 22px 22px;
+          mask-image: radial-gradient(
+            ellipse 65% 55% at 50% 0%,
+            black 0%,
+            transparent 72%
+          );
+          -webkit-mask-image: radial-gradient(
+            ellipse 65% 55% at 50% 0%,
+            black 0%,
+            transparent 72%
+          );
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .auth-ambient-glow {
+            animation: auth-ambient-breathe 9s ease-in-out infinite;
+          }
+          .auth-logo-glow {
+            animation: auth-logo-pulse 7s ease-in-out infinite;
+          }
+        }
+        @keyframes auth-ambient-breathe {
+          0%,
+          100% {
+            transform: translate(-50%, -33%) scale(1);
+            opacity: 0.7;
+          }
+          50% {
+            transform: translate(-50%, -33%) scale(1.12);
+            opacity: 1;
+          }
+        }
+        @keyframes auth-logo-pulse {
+          0%,
+          100% {
+            transform: scale(2.2);
+            opacity: 0.7;
+          }
+          50% {
+            transform: scale(2.42);
+            opacity: 1;
+          }
+        }
+        .auth-logo-glow {
+          transform: scale(2.2);
+          transform-origin: center;
         }
       `}</style>
     </div>

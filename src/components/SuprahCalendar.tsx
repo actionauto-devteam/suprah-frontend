@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type {
-  CalendarItem,
-  CalendarView,
-  CrmUserLite,
-  EventDraft,
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  CALENDAR_TYPE_OPTIONS,
+  type CalendarItem,
+  type CalendarView,
+  type CrmUserLite,
+  type EventDraft,
 } from "@/types/calendar.types";
 import {
-  CALENDAR_TZ_LABEL,
+  calendarTzLabel,
   addDays,
   expandOccurrences,
   fmtTime,
@@ -17,6 +19,7 @@ import {
   startOfDay,
   startOfMonth,
   startOfWeek,
+  toZoned,
   zonedNow,
   type Occurrence,
 } from "@/utils/calendar.utils";
@@ -26,6 +29,35 @@ import { MySchedule } from "@/components/MySchedule";
 import { CalendarNotificationsBell } from "@/components/CalendarNotificationsBell";
 import { apiClient } from "@/lib/api-client";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter";
+import { SavedViewsMenu, type CalendarSavedView } from "@/components/calendar/SavedViewsMenu";
+import { CalendarEmptyState } from "@/components/calendar/CalendarEmptyState";
+import { BulkActionBar } from "@/components/admin/BulkActionBar";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  CalendarDays,
+  CheckSquare,
+  CircleDot,
+  Download,
+  Loader2,
+  Printer,
+  Search,
+  Tag,
+  Users,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 
 function initials(name?: string) {
   return (name || "U")
@@ -120,6 +152,12 @@ const TYPE_GROUP_STYLES: Record<string, string> = {
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const HOUR_PX = 64;
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 /**
  * Splits every multi-day occurrence into one visual segment per calendar day.
@@ -218,27 +256,44 @@ function formatDuration(start: Date, end: Date): string {
 }
 
 /**
- * Treat genuine all-day items and midnight-to-midnight blocks as all-day-like
- * for Week/Day presentation. This keeps 24-hour items out of the timed grid,
- * where they would otherwise become a full-height column with tiny text.
+ * Treat genuine all-day items and long blocks anchored to a midnight
+ * boundary as all-day-like for Week/Day presentation. This keeps near-full-
+ * day blocks (a day-off running 12:00 AM–5:59 PM, ~18h; or 6:00 PM–End of
+ * day, ~6h) out of the timed grid, where they'd otherwise render as an
+ * uncapped stack that pushes the whole column tall — the compact all-day
+ * lane already caps height and scrolls internally.
+ *
+ * The two boundary directions get independently tuned floors rather than
+ * one shared number, because they can't share a single safe threshold:
+ * - starts-at-midnight needs a HIGH floor (16h) so a genuine multi-hour
+ *   midnight-start meeting (e.g. 12:00 AM–1:00 PM, 13h) stays in the timed
+ *   grid with its precise time visible.
+ * - ends-at-midnight uses a 5h floor — low enough to catch the "day off
+ *   after work" pattern (e.g. 6:00 PM–End of day, ~6h) this exists for,
+ *   but high enough to stay clear of a genuine multi-hour evening meeting
+ *   that happens to end at midnight (e.g. an 8:00 PM–12:00 AM, 4h event).
  */
 function isAllDayLikeOccurrence(occurrence: Occurrence): boolean {
   if (occurrence.item.allDay) return true;
 
-  const startsAtMidnight =
-    occurrence.start.getHours() === 0 && occurrence.start.getMinutes() === 0;
-  const endsAtMidnight =
-    occurrence.end.getHours() === 0 && occurrence.end.getMinutes() === 0;
-  const durationMinutes = Math.round(
-    (occurrence.end.getTime() - occurrence.start.getTime()) / 60000,
-  );
+  // Judge the FULL item's real span, not this occurrence's day-clipped
+  // segment. splitOccurrencesByDay clips every segment's boundaries to
+  // midnight, so a genuine single "8:00 PM–2:00 AM" overnight meeting would
+  // otherwise get its day-1 segment mechanically clipped to "8:00 PM–
+  // midnight" and misread as an all-day block purely because of where the
+  // day boundary happened to fall — not because of anything about the real
+  // event. For single-day items (the common case, including the day-off
+  // patterns this exists for) the item's real start/end already equal the
+  // occurrence's own, so this changes nothing for them.
+  const realStart = toZoned(new Date(occurrence.item.start));
+  const realEnd = toZoned(new Date(occurrence.item.end));
+  const startsAtMidnight = realStart.getHours() === 0 && realStart.getMinutes() === 0;
+  const endsAtMidnight = realEnd.getHours() === 0 && realEnd.getMinutes() === 0;
+  const durationMinutes = Math.round((realEnd.getTime() - realStart.getTime()) / 60000);
 
-  return (
-    startsAtMidnight &&
-    endsAtMidnight &&
-    !sameDay(occurrence.start, occurrence.end) &&
-    durationMinutes >= 23 * 60
-  );
+  if (startsAtMidnight && durationMinutes >= 16 * 60) return true;
+  if (endsAtMidnight && durationMinutes >= 5 * 60) return true;
+  return false;
 }
 
 interface OverlapGroup {
@@ -326,21 +381,198 @@ export default function SuprahCalendar() {
     useCalendar(fromZoned(rangeStart), fromZoned(rangeEnd));
 
   const [teamMembers, setTeamMembers] = useState<CrmUserLite[]>([]);
-  const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  // The input itself stays bound to `query` for zero-lag typing; filtering
+  // reacts to this debounced copy instead, so a large item list isn't
+  // re-filtered on every single keystroke.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
     void fetchTeamMembers().then(setTeamMembers);
   }, []);
 
-  /** "What's my team doing this week" — narrows the grid to one teammate's items. */
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  /** Shared by the toolbar's team filter and the bulk-reassign picker below. */
+  const teamMemberOptions = useMemo(
+    () =>
+      teamMembers.map((m) => ({
+        value: m._id,
+        label: m.fullName || m.username || m.email || "Unknown",
+      })),
+    [teamMembers],
+  );
+
+  const applySavedView = (savedView: CalendarSavedView) => {
+    setTeamFilter(savedView.teamFilter);
+    setTypeFilter(savedView.typeFilter);
+    setStatusFilter(savedView.statusFilter);
+    setQuery(savedView.query);
+  };
+
+  // Deep-link support: clicking a calendar item from the notification bell
+  // or a push notification lands here with ?event=<id> — open it directly
+  // instead of leaving the user to hunt for it. Clears the param once
+  // handled (found or not) so it doesn't re-trigger or linger in the URL.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Adjusting state in response to a changed value (the URL) during render,
+  // guarded by comparing against the last-consumed id — React's documented
+  // pattern for this (not an effect, since it should apply before paint;
+  // not a ref, since this project's stricter lint config requires render to
+  // stay pure — refs may only be touched in effects/event handlers).
+  const [consumedEventId, setConsumedEventId] = useState<string | null>(null);
+  const deepLinkEventId = searchParams.get("event");
+  if (deepLinkEventId && deepLinkEventId !== consumedEventId && !loading) {
+    const match = allItems.find((i) => i.id === deepLinkEventId);
+    if (match) {
+      setConsumedEventId(deepLinkEventId);
+      setModal({ open: true, editing: match });
+    }
+  }
+
+  useEffect(() => {
+    const eventId = searchParams.get("event");
+    if (!eventId || loading) return;
+    // allItems is scoped to the currently loaded view/date range, so a link
+    // to an item outside it (e.g. a "next 24h" notification for an event
+    // just past the current week) won't be found here — tell the user
+    // rather than silently clearing the param with no explanation.
+    if (!allItems.some((i) => i.id === eventId)) {
+      toast.error("Couldn't find that item in the current view — try Agenda view or a different date range.");
+    }
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("event");
+    router.replace(next.toString() ? `${pathname}?${next.toString()}` : pathname, {
+      scroll: false,
+    });
+  }, [searchParams, loading, allItems, router, pathname]);
+
+  /** Combined toolbar filters: team, type, status, and a free-text title search. Each empty = no restriction. */
   const items = useMemo(() => {
-    if (teamFilter === "all") return allItems;
-    return allItems.filter(
-      (item) =>
-        item.assignees?.some((a) => a._id === teamFilter) ||
-        item.createdBy?._id === teamFilter,
-    );
-  }, [allItems, teamFilter]);
+    const q = debouncedQuery.trim().toLowerCase();
+    return allItems.filter((item) => {
+      if (
+        teamFilter.length > 0 &&
+        !(
+          item.assignees?.some((a) => teamFilter.includes(a._id)) ||
+          (item.createdBy?._id && teamFilter.includes(item.createdBy._id))
+        )
+      ) {
+        return false;
+      }
+      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+      if (statusFilter.length > 0 && !statusFilter.includes(item.status)) return false;
+      if (q && !item.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [allItems, teamFilter, typeFilter, statusFilter, debouncedQuery]);
+
+  // Bulk actions — Agenda view only. Real calendar products (and this app's
+  // own sibling bulk-select in the timeproof screenshots page) restrict
+  // multi-select to list views; cramming checkboxes into the small Month/
+  // Week/Day grid cells would fight the density work already done there.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [reassignTargets, setReassignTargets] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<
+    "delete" | "completed" | "cancelled" | "reassign" | null
+  >(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const runBulkAction = async () => {
+    if (!bulkAction || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res =
+        bulkAction === "delete"
+          ? await apiClient.patch("/api/calendar/events/bulk-delete", { ids })
+          : bulkAction === "reassign"
+            ? await apiClient.patch("/api/calendar/events/bulk-reassign", {
+              ids,
+              assignees: reassignTargets,
+            })
+            : await apiClient.patch("/api/calendar/events/bulk-status", {
+              ids,
+              status: bulkAction,
+            });
+      const { succeeded, failed } = res.data as {
+        succeeded: string[];
+        failed: { id: string; reason: string }[];
+      };
+      if (failed.length === 0) {
+        toast.success(`${succeeded.length} item${succeeded.length === 1 ? "" : "s"} updated.`);
+        setSelectedIds(new Set());
+        setSelectMode(false);
+      } else {
+        toast.error(`${succeeded.length} updated, ${failed.length} failed.`);
+        setSelectedIds(new Set(failed.map((f) => f.id)));
+      }
+    } catch {
+      toast.error("Bulk action failed. Try again.");
+    } finally {
+      setBulkBusy(false);
+      setBulkAction(null);
+      setReassignTargets([]);
+    }
+  };
+
+  const handleExportIcs = async () => {
+    try {
+      const res = await apiClient.get("/api/calendar/export.ics", {
+        params: {
+          from: fromZoned(rangeStart).toISOString(),
+          to: fromZoned(rangeEnd).toISOString(),
+        },
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], { type: "text/calendar" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "suprah-calendar.ics";
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("Calendar exported.");
+    } catch {
+      toast.error("Couldn't export the calendar.");
+    }
+  };
+
+  /** Commits a drag-to-move/resize from TimeGridView. Optimistic via updateItem's own state merge; reverts visually on failure since the item's real start/end come back from the server response. */
+  const handleItemDragCommit = async (id: string, start: Date, end: Date) => {
+    try {
+      await updateItem(id, {
+        start: fromZoned(start).toISOString(),
+        end: fromZoned(end).toISOString(),
+      });
+    } catch {
+      toast.error("Couldn't reschedule the item.");
+    }
+  };
 
   const step = (dir: 1 | -1) => {
     if (view === "month")
@@ -365,19 +597,23 @@ export default function SuprahCalendar() {
     setModal({ open: true, editing: item });
 
   const handleSave = async (draft: EventDraft) => {
+    // No toast.error here: on failure this rethrows into EventModal's own
+    // catch, which already shows an inline error inside the still-open
+    // modal — a toast on top would just repeat the same failure twice.
     if (draft.id) await updateItem(draft.id, draft);
     else await createItem(draft);
     setModal({ open: false });
+    toast.success(draft.id ? "Updated." : "Created.");
   };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
       {/* Ambient blobs — cockpit atmosphere */}
-      <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15 print:hidden" />
+      <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-500/15 print:hidden" />
 
       {/* Toolbar */}
-      <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 px-3 py-3 sm:gap-3 sm:px-5">
+      <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 px-3 py-3 sm:gap-3 sm:px-5 print:hidden">
         <div className="flex h-9 shrink-0 items-center gap-2">
           <button
             onClick={() => setCursor(startOfDay(zonedNow()))}
@@ -406,25 +642,11 @@ export default function SuprahCalendar() {
             {headline}
           </h1>
           <span className="hidden h-6 shrink-0 items-center rounded-md border border-border bg-muted px-2 font-mono text-[10px] font-semibold leading-none tabular-nums text-muted-foreground sm:flex">
-            {CALENDAR_TZ_LABEL} · Mountain Time
+            {calendarTzLabel()} · Mountain Time
           </span>
         </div>
 
         <div className="ml-auto flex h-9 shrink-0 flex-wrap items-center gap-2">
-          <select
-            aria-label="Team"
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none transition hover:bg-accent"
-          >
-            <option value="all">Everyone</option>
-            {teamMembers.map((m) => (
-              <option key={m._id} value={m._id}>
-                {m.fullName || m.username || m.email}
-              </option>
-            ))}
-          </select>
-
           {/* View switcher: buttons on wider screens, a select below sm */}
           <select
             aria-label="Calendar view"
@@ -455,6 +677,19 @@ export default function SuprahCalendar() {
 
           <CalendarNotificationsBell />
 
+          {view === "agenda" && (
+            <button
+              onClick={toggleSelectMode}
+              className={`hidden h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium leading-none transition sm:flex ${selectMode
+                ? "border-emerald-600/35 bg-emerald-500/10 font-semibold text-emerald-700 dark:text-emerald-200"
+                : "border-border text-foreground hover:bg-accent"
+                }`}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              Select
+            </button>
+          )}
+
           <button
             onClick={() => setShowMySchedule((s) => !s)}
             className={`flex h-9 items-center rounded-lg border px-3 text-xs font-medium leading-none transition ${showMySchedule
@@ -466,17 +701,94 @@ export default function SuprahCalendar() {
             <span className="sm:hidden">Mine</span>
           </button>
           <button
+            onClick={handleExportIcs}
+            title="Export visible range as .ics"
+            aria-label="Export visible range as .ics"
+            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-foreground transition hover:bg-accent sm:flex"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => window.print()}
+            title="Print"
+            aria-label="Print"
+            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-foreground transition hover:bg-accent sm:flex"
+          >
+            <Printer className="h-3.5 w-3.5" />
+          </button>
+
+          <button
             onClick={() => openCreate()}
-            className="flex h-9 items-center rounded-lg bg-emerald-500 px-4 text-xs font-semibold leading-none text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400"
+            className="flex h-9 items-center rounded-lg bg-emerald-500 px-4 text-xs font-semibold leading-none text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             + Create
           </button>
         </div>
       </header>
 
+      {/* Filters — one row shared by every view (Month/Week/Day/Agenda all
+          read from the same filtered `items`), so filtering isn't agenda-only. */}
+      <div className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/70 px-3 py-2 sm:px-5 print:hidden">
+        <div className="relative min-w-0 flex-1 sm:max-w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search titles…"
+            className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <MultiSelectFilter
+          filterLabel="Team"
+          icon={Users}
+          allLabel="Everyone"
+          options={teamMemberOptions}
+          value={teamFilter}
+          onChange={setTeamFilter}
+          searchPlaceholder="Search teammates…"
+          emptyLabel="No teammates found."
+        />
+        <MultiSelectFilter
+          filterLabel="Type"
+          icon={Tag}
+          allLabel="All types"
+          options={CALENDAR_TYPE_OPTIONS}
+          value={typeFilter}
+          onChange={setTypeFilter}
+          searchable={false}
+          emptyLabel="No types."
+        />
+        <MultiSelectFilter
+          filterLabel="Status"
+          icon={CircleDot}
+          allLabel="All statuses"
+          options={STATUS_FILTER_OPTIONS}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          searchable={false}
+          emptyLabel="No statuses."
+        />
+
+        <SavedViewsMenu
+          current={{ teamFilter, typeFilter, statusFilter, query }}
+          onApply={applySavedView}
+        />
+      </div>
+
       {/* Body */}
-      <div className="relative z-10 flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-auto">
+      <div className="relative z-10 flex min-h-0 flex-1 print:h-auto print:flex-none">
+        <div className="min-h-0 flex-1 overflow-auto print:h-auto print:overflow-visible">
           {error && (
             <p className="p-6 text-sm font-medium text-rose-700 dark:text-rose-300">
               Couldn’t load the calendar — {error}. Check your connection and
@@ -498,20 +810,84 @@ export default function SuprahCalendar() {
               items={items}
               onSlotClick={(d) => openCreate(d)}
               onItemClick={openEdit}
+              onItemDragCommit={handleItemDragCommit}
             />
           )}
           {view === "agenda" && (
-            <AgendaView items={items} onItemClick={openEdit} />
+            <>
+              {selectMode && selectedIds.size > 0 && (
+                <div className="sticky top-0 z-20 border-b border-border bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+                  <BulkActionBar
+                    count={selectedIds.size}
+                    onClear={() => setSelectedIds(new Set())}
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setBulkAction("completed")}
+                    >
+                      Mark completed
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setBulkAction("cancelled")}
+                    >
+                      Mark cancelled
+                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <MultiSelectFilter
+                        filterLabel="Reassign to"
+                        icon={Users}
+                        allLabel="Reassign to…"
+                        options={teamMemberOptions}
+                        value={reassignTargets}
+                        onChange={setReassignTargets}
+                        searchPlaceholder="Search teammates…"
+                        emptyLabel="No teammates found."
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={reassignTargets.length === 0}
+                        onClick={() => setBulkAction("reassign")}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-7 text-xs"
+                      onClick={() => setBulkAction("delete")}
+                    >
+                      Delete
+                    </Button>
+                  </BulkActionBar>
+                </div>
+              )}
+              <AgendaView
+                items={items}
+                onItemClick={openEdit}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelected={toggleSelected}
+              />
+            </>
           )}
           {loading && (
-            <p className="p-4 font-mono text-xs font-medium tabular-nums text-muted-foreground">
-              syncing…
-            </p>
+            <div className="flex items-center justify-center gap-2 p-4 text-xs font-medium text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+              Syncing…
+            </div>
           )}
         </div>
 
         {showMySchedule && (
-          <aside className="fixed inset-0 z-40 overflow-y-auto bg-background shadow-2xl md:static md:z-auto md:w-90 md:shrink-0 md:border-l md:border-border md:bg-card/98 md:shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.18)]">
+          <aside className="fixed inset-0 z-40 overflow-y-auto bg-background shadow-2xl md:static md:z-auto md:w-90 md:shrink-0 md:border-l md:border-border md:bg-card/98 md:shadow-[-12px_0_30px_-24px_rgba(0,0,0,0.18)] print:hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
               <span className="text-sm font-semibold text-foreground">My Schedule</span>
               <button
@@ -536,13 +912,56 @@ export default function SuprahCalendar() {
             modal.editing?.source === "calendarEvent" &&
               modal.editing?.canEdit !== false
               ? async () => {
-                await deleteItem(modal.editing!.id);
-                setModal({ open: false });
+                try {
+                  await deleteItem(modal.editing!.id);
+                  setModal({ open: false });
+                  toast.success("Deleted.");
+                } catch {
+                  toast.error("Couldn't delete the item.");
+                }
               }
               : undefined
           }
         />
       )}
+
+      <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === "delete"
+                ? `Delete ${selectedIds.size} item${selectedIds.size === 1 ? "" : "s"}?`
+                : bulkAction === "reassign"
+                  ? `Reassign ${selectedIds.size} item${selectedIds.size === 1 ? "" : "s"}?`
+                  : `Mark ${selectedIds.size} item${selectedIds.size === 1 ? "" : "s"} as ${bulkAction}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === "delete"
+                ? "This can't be undone from here."
+                : bulkAction === "reassign"
+                  ? "This replaces the current assignees on every selected item."
+                  : "This updates the status on every selected item."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void runBulkAction();
+              }}
+              className={
+                bulkAction === "delete"
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : undefined
+              }
+            >
+              {bulkBusy ? "Working…" : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -664,7 +1083,7 @@ function MonthView({
             >
               <span
                 className={`mx-auto inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-mono text-xs tabular-nums ${today
-                    ? "bg-emerald-500 font-semibold text-white"
+                    ? "bg-emerald-500 font-semibold text-white dark:bg-emerald-600"
                     : "text-foreground"
                   }`}
               >
@@ -715,18 +1134,18 @@ function MonthView({
                           ? `${item.title} — All Day`
                           : `${item.title} — ${timeLabel} (${durationLabel})`
                       }
-                      className={`flex min-h-12 w-full shrink-0 flex-col items-center justify-center rounded-md border px-2 py-1.5 text-center transition hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
+                      className={`flex min-h-12 w-full shrink-0 flex-col items-center justify-center rounded-lg border px-2.5 py-1.5 text-center transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
                     >
                       <span className="block w-full whitespace-normal break-words text-[12px] font-bold leading-snug">
                         {item.title}
                       </span>
 
-                      <span className="mt-1 block w-full font-mono text-[10.5px] font-semibold leading-tight tabular-nums opacity-95">
+                      <span className={`mt-1 block w-full font-mono text-[10.5px] font-semibold leading-tight tabular-nums ${TYPE_TIME_STYLES[item.type]}`}>
                         {timeLabel}
                       </span>
 
                       {durationLabel && (
-                        <span className="mt-0.5 block text-[10px] font-semibold leading-tight opacity-80">
+                        <span className={`mt-0.5 block text-[10px] font-semibold leading-tight ${TYPE_DURATION_STYLES[item.type]}`}>
                           Duration: {durationLabel}
                         </span>
                       )}
@@ -744,63 +1163,155 @@ function MonthView({
 
 /* ── Day / Week time grid ───────────────────────────────────────────────── */
 
+const DRAG_SNAP_MINUTES = 15;
+const DRAG_THRESHOLD_PX = 6;
+
 function TimeGridView({
   days,
   anchor,
   items,
   onSlotClick,
   onItemClick,
+  onItemDragCommit,
 }: {
   days: number;
   anchor: Date;
   items: CalendarItem[];
   onSlotClick: (d: Date) => void;
   onItemClick: (i: CalendarItem) => void;
+  onItemDragCommit?: (id: string, start: Date, end: Date) => void;
 }) {
-  const cols = Array.from({ length: days }, (_, i) => addDays(anchor, i));
-  const rangeEnd = addDays(anchor, days);
-  const occ = splitOccurrencesByDay(
-    expandOccurrences(items, anchor, rangeEnd),
-    anchor,
-    rangeEnd,
-  );
+  // Live preview state during a move/resize drag — the actual commit only
+  // happens on pointerup, via onItemDragCommit. onMove/onUp below are plain
+  // closures scoped to one gesture (mirroring useDraggableWidget.ts), so
+  // add/removeEventListener always reference the same instances regardless
+  // of how many re-renders happen mid-drag from the setDrag calls here.
+  const [drag, setDrag] = useState<{
+    itemId: string;
+    mode: "move" | "resize";
+    deltaMinutes: number;
+  } | null>(null);
+  // Set right before the synthetic click that follows a real drag's pointerup,
+  // and consumed by onClickCapture below — `drag` state is already cleared by
+  // then, so it can't tell "just finished dragging" from "never dragged".
+  const justDraggedRef = useRef(false);
 
-  const allDayOcc = occ.filter(isAllDayLikeOccurrence);
+  const beginDrag = (
+    e: React.PointerEvent,
+    mode: "move" | "resize",
+    item: CalendarItem,
+    originalStart: Date,
+    originalEnd: Date,
+  ) => {
+    if (item.canEdit === false) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const gesture = { moved: false, deltaMinutes: 0 };
+    const startClientY = e.clientY;
+
+    const onMove = (ev: PointerEvent) => {
+      const deltaY = ev.clientY - startClientY;
+      if (!gesture.moved && Math.abs(deltaY) < DRAG_THRESHOLD_PX) return;
+      gesture.moved = true;
+      const rawMinutes = (deltaY / HOUR_PX) * 60;
+      gesture.deltaMinutes = Math.round(rawMinutes / DRAG_SNAP_MINUTES) * DRAG_SNAP_MINUTES;
+      setDrag({ itemId: item.id, mode, deltaMinutes: gesture.deltaMinutes });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", cleanup);
+      setDrag(null);
+    };
+
+    const onUp = () => {
+      cleanup();
+      if (!gesture.moved || gesture.deltaMinutes === 0) return;
+      justDraggedRef.current = true;
+      if (mode === "move") {
+        const newStart = new Date(originalStart.getTime() + gesture.deltaMinutes * 60000);
+        const newEnd = new Date(originalEnd.getTime() + gesture.deltaMinutes * 60000);
+        onItemDragCommit?.(item.id, newStart, newEnd);
+      } else {
+        const minEnd = new Date(originalStart.getTime() + DRAG_SNAP_MINUTES * 60000);
+        const rawNewEnd = new Date(originalEnd.getTime() + gesture.deltaMinutes * 60000);
+        onItemDragCommit?.(item.id, originalStart, rawNewEnd < minEnd ? minEnd : rawNewEnd);
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", cleanup);
+  };
+
+  const cols = Array.from({ length: days }, (_, i) => addDays(anchor, i));
+  // Memoized so a drag's frequent setDrag() re-renders (one per pointermove
+  // tick, per the live-preview logic above) don't re-split/re-group every
+  // occurrence across all visible days each time — only recomputes when the
+  // actual data or visible range changes, not on every drag-preview frame.
+  // anchor is a prop recomputed fresh on every parent render (startOfWeek(
+  // cursor) allocates a new Date even when cursor's value is unchanged), so
+  // this keys on its primitive time value rather than object identity.
+  const occ = useMemo(() => {
+    const rangeEnd = addDays(anchor, days);
+    return splitOccurrencesByDay(
+      expandOccurrences(items, anchor, rangeEnd),
+      anchor,
+      rangeEnd,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, anchor.getTime(), days]);
+
+  const allDayOcc = useMemo(() => occ.filter(isAllDayLikeOccurrence), [occ]);
   const isEmpty = occ.length === 0;
   const headerHeight = 64;
 
   return (
     <div className="overflow-x-auto">
-    <div className="relative min-w-190 bg-background text-foreground">
+    <div className={`relative bg-background text-foreground ${days > 1 ? "min-w-190" : "min-w-0"}`}>
+      <style jsx global>{`
+        .time-grid-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(161, 161, 170, 0.5) transparent;
+        }
+        .time-grid-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .time-grid-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .time-grid-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(161, 161, 170, 0.5);
+          border-radius: 9999px;
+        }
+      `}</style>
+
       {isEmpty && (
         <div className="pointer-events-none sticky left-0 z-20 flex h-0 w-full items-start justify-center">
-          <div className="pointer-events-auto mt-24 flex flex-col items-center gap-3 rounded-2xl border border-border bg-card/95 px-8 py-10 text-center shadow-xl backdrop-blur-md">
-            <span className="text-3xl" aria-hidden>
-              🗓️
-            </span>
-            <p className="text-sm font-semibold text-foreground">
-              {days === 1
-                ? "Nothing scheduled today"
-                : "Nothing scheduled this week"}
-            </p>
-            <p className="max-w-xs text-xs font-medium text-muted-foreground">
-              Select any time slot on the grid to add an event, or use a quick
-              shortcut below.
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <button
-                onClick={() => onSlotClick(quickSlot(9))}
-                className="rounded-lg border border-emerald-600/35 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-200"
-              >
-                + 9:00 AM today
-              </button>
-              <button
-                onClick={() => onSlotClick(quickSlot(14))}
-                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-accent"
-              >
-                + 2:00 PM today
-              </button>
-            </div>
+          <div className="pointer-events-auto mt-24">
+            <CalendarEmptyState
+              icon={CalendarDays}
+              title={days === 1 ? "Nothing scheduled today" : "Nothing scheduled this week"}
+              subtitle="Select any time slot on the grid to add an event, or use a quick shortcut below."
+              actions={
+                <>
+                  <button
+                    onClick={() => onSlotClick(quickSlot(9))}
+                    className="rounded-lg border border-emerald-600/35 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/15 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-200"
+                  >
+                    + 9:00 AM today
+                  </button>
+                  <button
+                    onClick={() => onSlotClick(quickSlot(14))}
+                    className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-accent"
+                  >
+                    + 2:00 PM today
+                  </button>
+                </>
+              }
+            />
           </div>
         </div>
       )}
@@ -815,7 +1326,7 @@ function TimeGridView({
       >
         <div className="flex items-center justify-center border-r border-border px-2">
           <span className="inline-flex h-5 items-center justify-center rounded border border-emerald-600/25 bg-emerald-500/10 px-2 text-[9px] font-bold uppercase leading-none tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
-            MDT
+            {calendarTzLabel()}
           </span>
         </div>
 
@@ -826,7 +1337,7 @@ function TimeGridView({
               key={`header-${day.toISOString()}`}
               className={`min-w-0 border-r border-border px-2 py-1.5 text-center ${
                 today
-                  ? "bg-emerald-500/8"
+                  ? "bg-emerald-500/8 dark:bg-emerald-500/12"
                   : "bg-card"
               }`}
             >
@@ -844,7 +1355,7 @@ function TimeGridView({
                 <span
                   className={`mt-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-mono text-sm font-bold tabular-nums ${
                     today
-                      ? "bg-emerald-500 text-white shadow-[0_0_18px_-5px_rgba(16,185,129,0.65)]"
+                      ? "bg-emerald-500 text-white shadow-[0_0_18px_-5px_rgba(16,185,129,0.65)] dark:bg-emerald-600"
                       : "text-foreground"
                   }`}
                 >
@@ -876,7 +1387,7 @@ function TimeGridView({
             return (
               <div
                 key={`all-day-${day.toISOString()}`}
-                className="min-h-16 max-h-44 overflow-y-auto border-r border-border p-1.5"
+                className="time-grid-scrollbar min-h-16 max-h-64 overflow-y-auto border-r border-border p-1.5"
               >
                 <div className="flex flex-col gap-1.5">
                   {dayAllDay.map((o) => {
@@ -961,7 +1472,7 @@ function TimeGridView({
               key={day.toISOString()}
               className={`relative min-w-0 border-r border-border ${
                 today
-                  ? "bg-emerald-500/6"
+                  ? "bg-emerald-500/6 dark:bg-emerald-500/10"
                   : "bg-background"
               }`}
             >
@@ -976,8 +1487,20 @@ function TimeGridView({
                       d.setHours(h, 0, 0, 0);
                       onSlotClick(d);
                     }}
+                    onClickCapture={(e) => {
+                      // A drag that releases over empty space (rather than
+                      // back over the dragged item's own, snap-repositioned
+                      // box) would otherwise let this slot's click through
+                      // and spuriously open "create event" right after a
+                      // reschedule — same guard as the occurrence buttons.
+                      if (justDraggedRef.current) {
+                        justDraggedRef.current = false;
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                     style={{ top: h * HOUR_PX, height: HOUR_PX }}
-                    className={`group absolute inset-x-0 border-b border-border/90 transition hover:bg-emerald-500/6 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-500/50 ${
+                    className={`group absolute inset-x-0 border-b border-border/90 transition hover:bg-emerald-500/6 dark:hover:bg-emerald-500/10 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-500/50 ${
                       h === 0
                         ? "border-t border-border/90"
                         : ""
@@ -1021,21 +1544,55 @@ function TimeGridView({
                     const timeLabel = formatSegmentTimeRange(o.start, o.end);
                     const durationLabel = formatDuration(o.start, o.end);
 
+                    // Drag-to-move/resize is scoped to single, non-repeating,
+                    // single-day occurrences. Repeating items have the same
+                    // "which day is this segment" ambiguity noted below; a
+                    // multi-day (non-repeating) item's occurrence here is
+                    // clipped to this one day by splitOccurrencesByDay, so
+                    // dragging it would commit the clipped segment as the
+                    // item's new start/end and silently truncate the rest of
+                    // its real span — isFullSpan guards against that.
+                    const itemRealStart = toZoned(new Date(o.item.start));
+                    const itemRealEnd = toZoned(new Date(o.item.end));
+                    const isFullSpan =
+                      o.start.getTime() === itemRealStart.getTime() &&
+                      o.end.getTime() === itemRealEnd.getTime();
+                    const canDrag =
+                      o.item.canEdit !== false && !o.item.repeatsDailyWindow && isFullSpan;
+                    const isDraggingThis = drag?.itemId === o.item.id;
+                    const dragDeltaPx = isDraggingThis
+                      ? (drag!.deltaMinutes / 60) * HOUR_PX
+                      : 0;
+                    const previewTop =
+                      isDraggingThis && drag!.mode === "move" ? top + dragDeltaPx : top;
+                    const previewBottom = isDraggingThis ? bottom - dragDeltaPx : bottom;
+
                     return (
                       <button
                         key={`${o.item.id}-${o.start.toISOString()}`}
                         type="button"
                         onClick={() => onItemClick(o.item)}
+                        onClickCapture={(e) => {
+                          if (justDraggedRef.current) {
+                            justDraggedRef.current = false;
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                        onPointerDown={
+                          canDrag ? (e) => beginDrag(e, "move", o.item, o.start, o.end) : undefined
+                        }
                         style={{
-                          top,
-                          bottom,
+                          top: previewTop,
+                          bottom: previewBottom,
                           height: "auto",
                           minHeight: renderedHeight < 20 ? 18 : 0,
                           boxSizing: "border-box",
+                          touchAction: canDrag ? "none" : undefined,
                         }}
                         title={`${o.item.title} — ${timeLabel} (${durationLabel})`}
                         aria-label={`${o.item.title}, ${timeLabel}, ${durationLabel}`}
-                        className={`absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-2 text-left transition duration-150 hover:z-10 hover:-translate-y-px hover:brightness-105 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 ${TYPE_STYLES[o.item.type]}`}
+                        className={`group absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-2 text-left transition duration-150 hover:z-10 hover:-translate-y-px hover:brightness-105 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 ${TYPE_STYLES[o.item.type]} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${isDraggingThis ? "opacity-90 shadow-xl" : ""}`}
                       >
                         {renderedHeight >= 46 && o.item.assignees && o.item.assignees.length > 0 && (
                           <Avatar
@@ -1083,6 +1640,18 @@ function TimeGridView({
                             </span>
                           )}
                         </span>
+
+                        {canDrag && renderedHeight >= 30 && (
+                          <div
+                            onPointerDown={(e) => beginDrag(e, "resize", o.item, o.start, o.end)}
+                            title="Drag to resize"
+                            aria-hidden="true"
+                            style={{ touchAction: "none" }}
+                            className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
+                          >
+                            <span className="absolute inset-x-0 bottom-0.5 mx-auto block h-0.5 w-6 rounded-full bg-current/50" />
+                          </div>
+                        )}
                       </button>
                     );
                   }
@@ -1110,7 +1679,12 @@ function TimeGridView({
                       }}
                       className={`absolute inset-x-1.5 z-6 overflow-hidden rounded-lg bg-transparent ${TYPE_GROUP_STYLES[groupType ?? "mixed"] ?? TYPE_GROUP_STYLES.mixed}`}
                     >
-                      <div className="flex h-full flex-col overflow-y-auto overscroll-contain">
+                      {/* No overscroll-contain: this box sits inside the page's own
+                          scroll area, so once its internal scroll bottoms out, wheel
+                          input should keep flowing to the page — containing it here
+                          traps the user's scroll gesture whenever the cursor happens
+                          to be over a dense cluster (e.g. many "On Day Off" entries). */}
+                      <div className="time-grid-scrollbar flex h-full flex-col overflow-y-auto">
                         {group.occurrences.map((o) => {
                           const timeLabel = formatSegmentTimeRange(
                             o.start,
@@ -1188,13 +1762,22 @@ function NowLine({ showLabel = false }: { showLabel?: boolean }) {
 function AgendaView({
   items,
   onItemClick,
+  selectMode = false,
+  selectedIds,
+  onToggleSelected,
 }: {
   items: CalendarItem[];
   onItemClick: (item: CalendarItem) => void;
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelected?: (id: string) => void;
 }) {
   const from = startOfDay(zonedNow());
   const rangeEnd = addDays(from, 60);
 
+  // `items` already reflects the toolbar's team/type/status/search filters —
+  // AgendaView doesn't filter on its own, so results stay consistent with
+  // whatever Month/Week/Day are also showing.
   const occurrences = expandOccurrences(items, from, rangeEnd).sort(
     (a, b) => a.start.getTime() - b.start.getTime(),
   );
@@ -1210,20 +1793,22 @@ function AgendaView({
   if (groupedByDay.size === 0) {
     return (
       <div className="flex min-h-90 items-center justify-center px-6 py-12">
-        <div className="rounded-xl border border-border bg-card px-8 py-6 text-center shadow-sm">
-          <p className="text-sm font-semibold text-foreground">
-            Nothing scheduled
-          </p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">
-            No calendar items are scheduled in the next 60 days.
-          </p>
-        </div>
+        <CalendarEmptyState
+          icon={CalendarDays}
+          title={items.length === 0 ? "Nothing scheduled" : "No matches"}
+          subtitle={
+            items.length === 0
+              ? "No calendar items are scheduled in the next 60 days."
+              : "Nothing in the next 60 days matches the current filters."
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="w-full divide-y divide-border bg-background">
+    <div className="w-full bg-background">
+      <div className="divide-y divide-border">
       {[...groupedByDay.entries()].map(([dayKey, dayOccurrences]) => {
         const day = new Date(dayKey);
         const isToday = sameDay(day, zonedNow());
@@ -1268,26 +1853,39 @@ function AgendaView({
                   : formatSegmentTimeRange(start, end);
                 const owner = item.assignees?.[0] ?? item.createdBy;
 
+                const selected = selectedIds?.has(item.id) ?? false;
+
                 return (
                   <button
                     key={`${item.id}-${start.toISOString()}`}
                     type="button"
-                    onClick={() => onItemClick(item)}
-                    className={`group flex min-h-13 w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:flex-nowrap sm:px-4 ${TYPE_STYLES[item.type]}`}
+                    onClick={() =>
+                      selectMode ? onToggleSelected?.(item.id) : onItemClick(item)
+                    }
+                    className={`group flex min-h-13 w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:flex-nowrap sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
                   >
+                    {selectMode && (
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => onToggleSelected?.(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={selected ? `Deselect ${item.title}` : `Select ${item.title}`}
+                        className="shrink-0 border-current/40 data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500 dark:data-[state=checked]:border-emerald-600 dark:data-[state=checked]:bg-emerald-600"
+                      />
+                    )}
                     <div className="shrink-0 border-r border-current/15 pr-3 sm:w-37.5 sm:pr-4">
-                      <span className="block whitespace-nowrap font-mono text-[11px] font-semibold tabular-nums opacity-95">
+                      <span className={`block whitespace-nowrap font-mono text-[10.5px] font-semibold tabular-nums ${TYPE_TIME_STYLES[item.type]}`}>
                         {timeLabel}
                       </span>
                       {!item.allDay && (
                         <span className="mt-0.5 hidden text-[10px] font-semibold uppercase tracking-wide opacity-75 sm:block">
-                          Mountain Time
+                          {calendarTzLabel(start)} · Mountain Time
                         </span>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1 px-1 sm:px-4">
-                      <span className="block truncate text-[13px] font-bold">
+                      <span className="block truncate text-[12px] font-bold">
                         {item.title}
                       </span>
                       {item.description && (
@@ -1318,6 +1916,7 @@ function AgendaView({
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useSignIn } from "@/providers/AuthProvider";
 import { AuthLogo } from "./AuthLogo";
+import { AuthHeading } from "./AuthHeading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -14,7 +15,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   AUTH_INPUT_CLASS,
-  AUTH_KICKER_CLASS,
   AUTH_LABEL_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
@@ -118,20 +118,13 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
 
   return (
     <div className="w-full space-y-4 sm:space-y-5">
-      <div className="flex flex-col items-center gap-1.5 pb-1 text-center">
+      <div className="flex flex-col items-center gap-4 pb-2 text-center">
         <AuthLogo />
-        <div className="space-y-0.5">
-          <span className={`${AUTH_KICKER_CLASS} justify-center`}>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Suprah.AI Dispatch
-          </span>
-          <h1 className="text-xl font-black tracking-tight text-foreground sm:text-2xl">
-            Sign in
-          </h1>
-          <p className="mx-auto max-w-sm text-xs font-normal leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-            Pick up where you left off.
-          </p>
-        </div>
+        <AuthHeading
+          kicker="Suprah.AI Dispatch"
+          title="Sign in"
+          subtitle="Pick up where you left off."
+        />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
