@@ -1088,6 +1088,10 @@ if (typeof document !== 'undefined') {
     @keyframes ss4-mobile-sheet-in { from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);} }
     @keyframes ss4-mobile-pop-in { from{opacity:0;transform:translateY(8px) scale(.96);} to{opacity:1;transform:translateY(0) scale(1);} }
     .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
+    /* Composer's own visual confirmation that an @mention was actually
+       inserted — matches renderMessageContent's styling for the same token
+       once sent, so what you see while typing is what it'll look like. */
+    .ss4-mention-chip { color:var(--accent-text); font-weight:700; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
     .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
     .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
@@ -7293,6 +7297,10 @@ function PrioritySendersModal({ users, selfId, onClose }: {
   const [selected, setSelected] = React.useState<string[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [savingId, setSavingId] = React.useState<string | null>(null);
+  // With a large org, the people you've already picked can be scattered
+  // anywhere in an alphabetical list of everyone — this tab filters down to
+  // just the checked ones so you can actually see who you picked at a glance.
+  const [view, setView] = React.useState<'all' | 'selected'>('all');
 
   React.useEffect(() => {
     const token = localStorage.getItem('crm_token');
@@ -7303,7 +7311,11 @@ function PrioritySendersModal({ users, selfId, onClose }: {
       .finally(() => setLoaded(true));
   }, []);
 
-  const list = users.filter(u => u._id !== selfId && (u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())));
+  const list = users.filter(u =>
+    u._id !== selfId &&
+    (view === 'all' || selected.includes(u._id)) &&
+    (u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()))
+  );
 
   const toggle = async (id: string) => {
     const prev = selected;
@@ -7336,13 +7348,42 @@ function PrioritySendersModal({ users, selfId, onClose }: {
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
             Messages from people you pick here always notify you — even in a group or DM you&apos;ve muted, set to &quot;for you,&quot; or turned off.
           </p>
+          <div className="flex gap-1.5">
+            {([
+              { key: 'all', label: 'All' },
+              { key: 'selected', label: `Selected${selected.length ? ` · ${selected.length}` : ''}` },
+            ] as const).map(t => {
+              const active = view === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setView(t.key)}
+                  className="rounded-full transition-colors"
+                  style={{
+                    background: active ? 'var(--accent)' : 'var(--bg-hover)',
+                    color: active ? '#fff' : 'var(--text-secondary)',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
           <div className="relative">
             <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
           </div>
           <div className="space-y-0.5 max-h-72 overflow-y-auto ss4-scroll -mx-1 px-1">
             {!loaded && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</p>}
-            {loaded && list.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No one found</p>}
+            {loaded && list.length === 0 && (
+              <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                {view === 'selected' ? "You haven't picked anyone yet" : 'No one found'}
+              </p>
+            )}
             {loaded && list.map(u => {
               const active = selected.includes(u._id);
               return (
@@ -7513,12 +7554,42 @@ function ss4NotifDayBucket(dateStr: string): 'today' | 'yesterday' | 'older' {
 // from local state right on tap, not just marked read) or once it's more
 // than a day old and still unopened (dropped client-side) — so the feed
 // never just accumulates forever. Only unread items are fetched at all.
-function NotificationsPanel({ token, onOpenNotification }: {
+//
+// Filter chips: which bucket a notification falls into is derived, not
+// stored — a mention (metadata.kind === 'mention', set by
+// notifyMentionedMembers for both an @name and an @all) is always "For
+// You" regardless of that conversation's notification setting; everything
+// else is classified by the conversation's CURRENT live pref (notifPrefs,
+// already loaded elsewhere in the app) into Muted / None / Main. "All"
+// always shows every unread item no matter its bucket — Main has no chip
+// of its own since it's the default, ordinary case.
+type Ss4NotifBucket = 'foryou' | 'muted' | 'none' | 'main';
+function ss4NotifBucket(
+  n: any,
+  notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>,
+): Ss4NotifBucket {
+  if (n.metadata?.kind === 'mention') return 'foryou';
+  const pref = notifPrefs[n.metadata?.conversationId];
+  if (pref?.muted) return 'muted';
+  if (pref?.type === 'none') return 'none';
+  return 'main';
+}
+
+const SS4_NOTIF_FILTERS: { key: 'all' | 'foryou' | 'muted' | 'none'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'foryou', label: 'For You' },
+  { key: 'muted', label: 'Muted' },
+  { key: 'none', label: 'None' },
+];
+
+function NotificationsPanel({ token, notifPrefs, onOpenNotification }: {
   token: string;
+  notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>;
   onOpenNotification: (conversationId: string, messageId?: string) => void;
 }) {
   const [items, setItems] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [filter, setFilter] = React.useState<'all' | 'foryou' | 'muted' | 'none'>('all');
 
   const load = React.useCallback(() => {
     if (!token) { setLoading(false); return; }
@@ -7533,41 +7604,101 @@ function NotificationsPanel({ token, onOpenNotification }: {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const handleTap = (n: any) => {
-    apiClient.patch(`/api/crm/notifications/${n._id}/read`, {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-    setItems(prev => prev.filter(x => x._id !== n._id));
-    const conversationId = n.metadata?.conversationId;
-    if (conversationId) onOpenNotification(conversationId, n.metadata?.messageId);
+  // One row per conversation, not one per message — a busy group chat could
+  // otherwise flood this list with dozens of near-identical entries. Each
+  // group is represented by its most recent notification (name, latest
+  // sender + message, timestamp all come from that one); the rest just
+  // contribute to the count badge on the right, same idea as the unread
+  // count already shown on Home's conversation rows.
+  const grouped = React.useMemo(() => {
+    const byConv = new Map<string, any[]>();
+    for (const n of items) {
+      const convId = n.metadata?.conversationId;
+      if (!convId) continue;
+      const arr = byConv.get(convId);
+      if (arr) arr.push(n); else byConv.set(convId, [n]);
+    }
+    return Array.from(byConv.values()).map(group => {
+      const sorted = [...group].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return { latest: sorted[0], all: sorted, count: sorted.length };
+    });
+  }, [items]);
+
+  const handleTap = (group: { latest: any; all: any[] }) => {
+    const ids = group.all.map(n => n._id);
+    Promise.allSettled(ids.map(id => apiClient.patch(`/api/crm/notifications/${id}/read`, {}, { headers: { Authorization: `Bearer ${token}` } }))).catch(() => {});
+    setItems(prev => prev.filter(x => !ids.includes(x._id)));
+    const conversationId = group.latest.metadata?.conversationId;
+    if (conversationId) onOpenNotification(conversationId, group.latest.metadata?.messageId);
   };
 
-  const today = items.filter(n => ss4NotifDayBucket(n.createdAt) === 'today');
-  const yesterday = items.filter(n => ss4NotifDayBucket(n.createdAt) === 'yesterday');
+  // Every unread item always counts toward "All"; the other three chips
+  // narrow to just groups whose latest message matches that bucket.
+  const filteredGroups = filter === 'all' ? grouped : grouped.filter(g => ss4NotifBucket(g.latest, notifPrefs) === filter);
+  const today = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'today');
+  const yesterday = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'yesterday');
 
-  const Row = (n: any) => (
-    <button
-      key={n._id}
-      onClick={() => handleTap(n)}
-      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-(--bg-hover)"
-      style={{ background: 'var(--bg-subtle)' }}
-    >
-      <span className="h-2 w-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--accent)' }} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-          {n.metadata?.kind === 'mention' ? '@ ' : ''}{n.title}
-        </p>
-        <p className="truncate mt-0.5" style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{n.message}</p>
-        <p className="mt-0.5" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(n.createdAt)}</p>
-      </div>
-    </button>
-  );
+  const Row = (g: { latest: any; all: any[]; count: number }) => {
+    const n = g.latest;
+    return (
+      <button
+        key={n.metadata?.conversationId || n._id}
+        onClick={() => handleTap(g)}
+        className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-(--bg-hover)"
+        style={{ background: 'var(--bg-subtle)' }}
+      >
+        <span className="h-2 w-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--accent)' }} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+            {n.metadata?.kind === 'mention' ? '@ ' : ''}{n.title}
+          </p>
+          <p className="truncate mt-0.5" style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{n.message}</p>
+          <p className="mt-0.5" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(n.createdAt)}</p>
+        </div>
+        {g.count > 1 && (
+          <span
+            className="shrink-0 rounded-full font-bold flex items-center justify-center"
+            style={{ minWidth: 22, height: 22, padding: '0 6px', fontSize: 11, background: 'var(--accent)', color: '#fff' }}
+          >
+            {g.count > 99 ? '99+' : g.count}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
       <p className="ss4-display font-bold mb-3" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Notifications</p>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-4">
+        {SS4_NOTIF_FILTERS.map(f => {
+          const active = filter === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className="shrink-0 rounded-full transition-colors"
+              style={{
+                background: active ? 'var(--accent)' : 'var(--bg-hover)',
+                color: active ? '#fff' : 'var(--text-secondary)',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                padding: '6px 14px',
+                fontSize: 11.5,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>
-      ) : items.length === 0 ? (
-        <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No notifications yet</p>
+      ) : filteredGroups.length === 0 ? (
+        <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+          {items.length === 0 ? 'No notifications yet' : 'No notifications in this filter'}
+        </p>
       ) : (
         <>
           {today.length > 0 && (
@@ -8919,6 +9050,15 @@ export default function SupraSpacePage() {
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
+  // Where to float the @mention suggestion list — it used to render pinned
+  // to the top of the composer regardless of where the caret actually was,
+  // which worked fine for an @ typed at the very start of an empty message
+  // but left the list nowhere near the cursor for one typed mid-message
+  // (e.g. writing a shout-out and mentioning someone partway through) —
+  // easy to miss/dismiss, which is what actually drove the "@ only works at
+  // the start, copy-paste it into place after" workaround. Tracks the
+  // caret's own screen position instead, like Slack/Discord/Google Chat.
+  const [mentionDropdownRect, setMentionDropdownRect] = React.useState<{ left: number; bottom: number; top: number } | null>(null);
 
   // #channel-mention state
   const [channelMentionQuery, setChannelMentionQuery] = React.useState<string | null>(null);
@@ -10558,6 +10698,25 @@ export default function SupraSpacePage() {
     return true;
   }, [activeConv, uid]);
 
+  // Recomputes on every keystroke of the mention query (the caret shifts
+  // slightly as more of the name is typed) — cheap, and keeps the floating
+  // dropdown genuinely tracking the caret rather than a position captured
+  // once when the @ was first typed.
+  React.useEffect(() => {
+    if (mentionQuery === null || mentionAnchor < 0) { setMentionDropdownRect(null); return; }
+    const el = textareaRef.current;
+    const sel = window.getSelection();
+    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    let rect = range.getBoundingClientRect();
+    // A collapsed range right at a line boundary can report an empty
+    // (0,0,0,0) rect in some browsers — fall back to the composer's own box
+    // rather than floating the dropdown into the corner of the screen.
+    if (!rect.width && !rect.height && !rect.top && !rect.left) rect = el.getBoundingClientRect();
+    setMentionDropdownRect({ left: rect.left, top: rect.top, bottom: rect.bottom });
+  }, [mentionQuery, mentionAnchor]);
+
   const insertMention = React.useCallback((name: string) => {
     const el = textareaRef.current;
     if (!el || mentionAnchor < 0) return;
@@ -10567,7 +10726,15 @@ export default function SupraSpacePage() {
     range.setEnd(endRange.startContainer, endRange.startOffset);
     selection?.removeAllRanges();
     selection?.addRange(range);
-    document.execCommand('insertText', false, `@${name} `);
+    // Styled the same bold/accent way renderMessageContent already renders
+    // an @mention token in a SENT message — an immediate, visible
+    // confirmation this was recognized as a real mention and not just the
+    // literal characters "@Name" (the ask was for something like Google
+    // Chat's own mention confirmation). The plain text content extraction
+    // below (el.innerText) is unaffected — a styled span's text still
+    // flattens into the same "@Name" either way.
+    const safeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    document.execCommand('insertHTML', false, `<span class="ss4-mention-chip">@${safeName}</span> `);
     const next = el.innerText.replace(/\n$/, '');
     const caretOffset = mentionAnchor + name.length + 2;
     syncComposerText(next, true);
@@ -12297,6 +12464,7 @@ export default function SupraSpacePage() {
             {isStandaloneApp && sidebarTab === 'notifications' && (
               <NotificationsPanel
                 token={token || ''}
+                notifPrefs={notifPrefs}
                 onOpenNotification={(conversationId, messageId) => {
                   setSidebarTab('chats');
                   if (messageId) openSearchResult(conversationId, messageId);
@@ -12609,8 +12777,28 @@ export default function SupraSpacePage() {
                       </div>
                     ) : (
                       <div className="ss4-input-wrap flex flex-col">
-                        {mentionQuery !== null && mentionOptions.length > 0 && (
-                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                        {mentionQuery !== null && mentionOptions.length > 0 && mentionDropdownRect && createPortal(
+                          <div
+                            className="rounded-xl overflow-hidden p-1"
+                            style={{
+                              position: 'fixed',
+                              // Anchored by its OWN bottom edge to the caret's
+                              // top, not a fixed top offset — grows upward as
+                              // options are added/removed without jumping,
+                              // and naturally sits above the on-screen
+                              // keyboard on mobile since the composer (and so
+                              // the caret) is always above it.
+                              bottom: Math.max(8, window.innerHeight - mentionDropdownRect.top + 6),
+                              left: Math.min(Math.max(8, mentionDropdownRect.left), window.innerWidth - 268),
+                              width: 260,
+                              maxHeight: '40vh',
+                              overflowY: 'auto',
+                              zIndex: 200,
+                              background: 'var(--bg-elevated)',
+                              border: '1px solid var(--border-2)',
+                              boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.4))',
+                            }}
+                          >
                             {mentionOptions.map((opt, idx) => (
                               <button key={opt.id}
                                 onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
@@ -12631,7 +12819,8 @@ export default function SupraSpacePage() {
                                 </div>
                               </button>
                             ))}
-                          </div>
+                          </div>,
+                          document.body
                         )}
                         {channelMentionQuery !== null && channelMentionOptions.length > 0 && (
                           <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
