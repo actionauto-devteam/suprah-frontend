@@ -12,7 +12,7 @@ import { useCrmUser } from "@/hooks/useCrmUser";
 // (1) a long random secret in the query string, AND (2) the logged-in CRM
 // account must match a specific, hardcoded email. Both must hold at once.
 const DEBUG_SECRET = "ss-mobile-push-9f2a7c4e1b6d8035";
-const ALLOWED_EMAIL = "charl@actionautoutah.com";
+const ALLOWED_EMAIL = "charl@suprahai.com";
 
 export function DebugConsole() {
   const searchParams = useSearchParams();

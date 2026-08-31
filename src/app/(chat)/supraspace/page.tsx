@@ -3625,7 +3625,7 @@ function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; 
   return <GroupAvatarFace src={avatar} name={name} size={size} />;
 }
 
-interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string }
+interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string; department?: string | null }
 type ConversationFilter = 'all' | 'unread' | 'read' | 'mentions';
 const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = [
   { key: 'all', label: 'All' },
@@ -7606,8 +7606,8 @@ const SS4_STATUS_OPTIONS: { key: SSOnlineStatus; label: string; color: string }[
 function MenuProfilePanel({ me, presence, uid, token }: {
   me?: CrmUser; presence: PresenceMap; uid: string; token: string;
 }) {
-  const { theme, setTheme } = useTheme();
   const [saving, setSaving] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
   const currentStatus: SSOnlineStatus = presence[uid]?.onlineStatus ?? 'offline';
 
   const setStatus = async (status: SSOnlineStatus) => {
@@ -7622,6 +7622,30 @@ function MenuProfilePanel({ me, presence, uid, token }: {
     }
   };
 
+  // Clearing only the local crm_token isn't a real sign-out — the shared
+  // refreshToken cookie (set against the API host itself, so it's sent on
+  // requests from either frontend origin — see sanitizeRedirectUrl) would
+  // just silently re-authenticate the next load via SSO, landing back in
+  // whichever app "/" resolves to on that origin instead of ever showing a
+  // login screen. POST /api/auth/logout invalidates and clears that cookie
+  // server-side — apiClient already sends it cross-origin via
+  // withCredentials — so this actually ends the session, and going straight
+  // to /sign-in (rather than "/", which the SupraSpace subdomain's own
+  // fallback would otherwise still route back through) guarantees landing
+  // on a real login screen every time, not just when SSO happens to fail.
+  // Carries the same redirect_url the "not authenticated at all" init-effect
+  // fallback uses (page.tsx's main init effect) — without it, /sign-in has
+  // nothing telling it to come back here and just lands on the main
+  // dashboard after a successful login instead of back in SupraSpace.
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try { await apiClient.post('/api/auth/logout'); } catch { }
+    try { localStorage.removeItem('crm_token'); } catch { }
+    const isSupraSpaceSubdomain = typeof window !== 'undefined' && window.location.hostname === SUPRASPACE_SUBDOMAIN;
+    const returnTo = isSupraSpaceSubdomain ? `${window.location.origin}/` : '/crm/supra-space';
+    window.location.href = `/sign-in?redirect_url=${encodeURIComponent(returnTo)}`;
+  };
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 sm:px-5 pt-4 pb-6">
       {me && (
@@ -7631,33 +7655,16 @@ function MenuProfilePanel({ me, presence, uid, token }: {
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me.fullName}</p>
-            <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{me.role || 'Team member'}</p>
+            <p className="truncate flex items-center gap-1.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              <span className="capitalize">{me.role || 'Team member'}</span>
+              {me.department && (<><span style={{ color: 'var(--text-disabled)' }}>·</span><span>{me.department}</span></>)}
+            </p>
           </div>
         </div>
       )}
 
-      <span className="ss4-section-label">Appearance</span>
-      <div className="mt-2 mb-5">
-        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-3 min-w-0">
-            {theme === 'dark' ? <Moon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
-            <div className="min-w-0">
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dark mode</p>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{theme === 'dark' ? 'On' : 'Off'}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="ss4-settings-action h-8 px-3.5 shrink-0"
-            style={{ fontSize: 12 }}
-          >
-            {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          </button>
-        </div>
-      </div>
-
       <span className="ss4-section-label">Status</span>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 mb-5 space-y-1">
         {SS4_STATUS_OPTIONS.map(opt => {
           const active = currentStatus === opt.key;
           return (
@@ -7675,6 +7682,16 @@ function MenuProfilePanel({ me, presence, uid, token }: {
           );
         })}
       </div>
+
+      <button
+        onClick={handleSignOut}
+        disabled={signingOut}
+        className="w-full flex items-center justify-center gap-2 rounded-xl py-3"
+        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 14, fontWeight: 600, opacity: signingOut ? 0.6 : 1 }}
+      >
+        {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+        Sign Out
+      </button>
     </div>
   );
 }
@@ -8468,7 +8485,6 @@ export default function SupraSpacePage() {
   // embedded view is deliberately left alone.
   const isMobileViewport = useIsMobile();
   const [mobileInstallPromptDismissed, setMobileInstallPromptDismissed] = React.useState(false);
-  const showMobileInstallGate = !embedded && isMobileViewport && !mobileInstallPromptDismissed;
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -8595,6 +8611,13 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
+  // Never nudge someone to "Get SupraSpace" while they're already running
+  // the real installed app — isMobileViewport is a width check (narrow
+  // window), not an install check, so without excluding isStandaloneApp
+  // this fired even inside the genuine standalone app whenever its window
+  // happened to be narrow, telling the user to go install the very app
+  // they're already in.
+  const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -9251,7 +9274,21 @@ export default function SupraSpacePage() {
         } catch { }
       }
 
-      if (!t) { router.replace('/crm'); return; }
+      if (!t) {
+        // Reuse the main app's own sign-in (Google or password) rather than
+        // /crm's separate Employee-ID login — no second login UI to build or
+        // maintain. redirect_url is what brings them back to SupraSpace
+        // specifically (not the main dashboard) once they're done: a full
+        // cross-origin URL when this really is the dedicated subdomain app,
+        // a same-origin relative path otherwise (embedded in the main app,
+        // where landing back on / after sign-in already re-enters this same
+        // view). See sanitizeRedirectUrl (lib/navigation.ts) for the
+        // narrowly-scoped exception that lets the subdomain case through.
+        const isSupraSpaceSubdomain = typeof window !== 'undefined' && window.location.hostname === SUPRASPACE_SUBDOMAIN;
+        const returnTo = isSupraSpaceSubdomain ? `${window.location.origin}/` : '/crm/supra-space';
+        router.replace(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`);
+        return;
+      }
       setToken(t);
 
       try {
@@ -10772,6 +10809,13 @@ export default function SupraSpacePage() {
       setConvos(p => p.filter(x => x._id !== c._id));
       setActiveId(prev => prev === c._id ? null : prev);
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
+      // SupraSpaceMessengerContext keeps its own independent copy of the
+      // conversation list (ctxConversations) — without telling it about the
+      // deletion too, its next refresh still had the old snapshot, and the
+      // effect below that merges "conversations the context has but convos
+      // doesn't" back in would resurrect the just-deleted conversation a few
+      // seconds later. Refreshing it here keeps both copies in sync.
+      ctxRefreshConvosRef.current();
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
   };
   const addMembers = async (ids: string[]) => {
@@ -11740,7 +11784,12 @@ export default function SupraSpacePage() {
           uses below), but nothing here ever compensated for the TOP inset,
           so the header rendered flush under the status bar on a standalone
           iPhone install instead of below it. */}
-      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* height: 100dvh (standalone only) — iOS Safari's dynamic toolbar means
+          an ancestor's percentage-based height can go stale relative to the
+          real visual viewport, leaving a gap below absolute inset-0's box
+          that isn't actually the true bottom of the screen. dvh recalculates
+          live against the real viewport instead of inheriting a % chain. */}
+      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: '100dvh' } : {}) }}>
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">

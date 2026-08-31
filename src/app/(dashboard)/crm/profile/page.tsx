@@ -194,7 +194,7 @@ export default function CrmProfilePage() {
   // here ever see the screenshot-privacy toggle. Add more emails here
   // (lowercase) to extend access — must match the same list on the backend
   // (crm.controller.ts's SCREENSHOT_PRIVACY_ALLOWED_EMAILS).
-  const SCREENSHOT_PRIVACY_ALLOWED_EMAILS = ["charl@actionautoutah.com"];
+  const SCREENSHOT_PRIVACY_ALLOWED_EMAILS = ["charl@suprahai.com"];
   const canSeeScreenshotPrivacy =
     isOwnProfile &&
     SCREENSHOT_PRIVACY_ALLOWED_EMAILS.includes(

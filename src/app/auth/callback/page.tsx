@@ -25,6 +25,17 @@ function CallbackContent() {
         if (token) {
             // Push to dashboard or specify redirect and force a full refresh so layout triggers the token sync properly.
             const redirectUrl = sanitizeRedirectUrl(searchParams.get("redirect_url"));
+            // A SupraSpace return trip is a full cross-origin URL (see
+            // sanitizeRedirectUrl) — router.push can't navigate off-origin,
+            // so it needs a real navigation instead. The refreshToken cookie
+            // that makes the session available there was set against the API
+            // host itself (not this frontend origin), so it's already usable
+            // the moment the browser lands on that origin — no token needs
+            // to be threaded through the URL by hand.
+            if (redirectUrl?.startsWith("http")) {
+                window.location.href = redirectUrl;
+                return;
+            }
             router.push(redirectUrl || "/");
             router.refresh();
         } else {
