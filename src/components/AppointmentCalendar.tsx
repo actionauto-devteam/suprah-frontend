@@ -162,18 +162,18 @@ function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSel
 
         {inCurrentMonth && (
           <button
-            className="visible flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary sm:invisible sm:h-5 sm:w-5 sm:group-hover:visible"
+            className="hidden sm:invisible sm:flex sm:h-5 sm:w-5 sm:items-center sm:justify-center sm:rounded sm:text-muted-foreground sm:transition-colors sm:hover:bg-primary/10 sm:hover:text-primary sm:group-hover:visible"
             onClick={(e) => { e.stopPropagation(); onAddAppointment(day) }}
             title="Add appointment"
             aria-label={`Add appointment on ${format(day, "MMMM d")}`}
           >
-            <Plus className="h-3 w-3 sm:h-3 sm:w-3" />
+            <Plus className="h-3 w-3" />
           </button>
         )}
       </div>
 
       {/* Event chips */}
-      <div className="space-y-0.5 flex-1">
+      <div className="space-y-0.5 flex-1 pb-6 sm:pb-0">
         {visible.map((apt) => (
           <EventChip key={apt._id} apt={apt} onClick={() => onSelectAppointment(apt)} />
         ))}
@@ -241,6 +241,17 @@ function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSel
           </Popover>
         )}
       </div>
+
+      {inCurrentMonth && (
+        <button
+          className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm ring-1 ring-border/60 transition-colors active:scale-95 hover:bg-primary/10 hover:text-primary sm:hidden"
+          onClick={(e) => { e.stopPropagation(); onAddAppointment(day) }}
+          title="Add appointment"
+          aria-label={`Add appointment on ${format(day, "MMMM d")}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   )
 }

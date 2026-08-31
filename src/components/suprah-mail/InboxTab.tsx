@@ -370,10 +370,11 @@ function DraftRow({
  *  - ≥ lg: Gmail-style single line (sender | subject — snippet | date) that
  *    uses the full width freed by moving reading into a modal.
  */
-function MessageRow({ msg, onOpen, onAction }: {
+function MessageRow({ msg, onOpen, onAction, inTrash }: {
   msg: MailMessageMeta;
   onOpen: () => void;
   onAction: (action: string) => void;
+  inTrash?: boolean;
 }) {
   return (
     <div
@@ -433,7 +434,11 @@ function MessageRow({ msg, onOpen, onAction }: {
           <button onClick={(e) => { e.stopPropagation(); onAction('archive'); }} className="sm5-icon-btn h-7 w-7" title="Archive">
             <Archive className="h-3.5 w-3.5" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onAction('trash'); }} className="sm5-icon-btn h-7 w-7" title="Trash">
+          <button
+            onClick={(e) => { e.stopPropagation(); onAction(inTrash ? 'delete' : 'trash'); }}
+            className="sm5-icon-btn h-7 w-7"
+            title={inTrash ? 'Delete forever' : 'Trash'}
+          >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -534,7 +539,7 @@ function ThreadMessageCard({ msg, theme, expanded, downloadingKey, onToggle, onR
  * Big, readable reading surface: full-screen on phones, a large centered
  * dialog (max-w-4xl, ~92dvh) on bigger screens. Compose stacks above (z-50).
  */
-function ThreadReaderModal({ subject, msgs, theme, loading, expandedIds, downloadingKey, onToggle, onClose, onAction, onReply, onForward, onDownload }: {
+function ThreadReaderModal({ subject, msgs, theme, loading, expandedIds, downloadingKey, onToggle, onClose, onAction, onReply, onForward, onDownload, inTrash }: {
   subject: string;
   msgs: MailMessageMeta[];
   theme: 'dark' | 'light';
@@ -547,6 +552,7 @@ function ThreadReaderModal({ subject, msgs, theme, loading, expandedIds, downloa
   onReply: (msg: MailMessageMeta) => void;
   onForward: (msg: MailMessageMeta) => void;
   onDownload: (msg: MailMessageMeta, att: MailAttachmentMeta) => void;
+  inTrash?: boolean;
 }) {
   const last = msgs[msgs.length - 1];
 
@@ -576,7 +582,11 @@ function ThreadReaderModal({ subject, msgs, theme, loading, expandedIds, downloa
               <button onClick={() => onAction(last, 'archive')} className="sm5-icon-btn h-8 w-8" title="Archive">
                 <Archive className="h-4 w-4" />
               </button>
-              <button onClick={() => onAction(last, 'trash')} className="sm5-icon-btn h-8 w-8" title="Trash">
+              <button
+                onClick={() => onAction(last, inTrash ? 'delete' : 'trash')}
+                className="sm5-icon-btn h-8 w-8"
+                title={inTrash ? 'Delete forever' : 'Trash'}
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -1869,6 +1879,28 @@ export function InboxTab({
       }
     }
 
+    if (action === 'delete') {
+      localMutationRevisionRef.current += 1;
+
+      // Permanent delete from Trash. The message is gone everywhere, so it
+      // must disappear from the current list regardless of activeLabel.
+      removeMessageFromMailboxCaches(msg.id, {
+        removeFromAll: true,
+      });
+
+      setMessages((current) =>
+        current.filter(
+          (message) => message.id !== msg.id,
+        ),
+      );
+
+      if (openThreadId === msg.threadId) {
+        openThreadIdRef.current = null;
+        ++openThreadRequestSeqRef.current;
+        setOpenThreadId(null);
+      }
+    }
+
     try {
       await apiClient.patch(
         `/api/mail/messages/${msg.id}`,
@@ -1892,6 +1924,9 @@ export function InboxTab({
 
       if (action === 'trash') {
         toast.success('Moved to trash');
+      }
+      if (action === 'delete') {
+        toast.success('Deleted permanently');
       }
       if (action === 'archive') {
         toast.success('Archived');
@@ -2352,6 +2387,7 @@ export function InboxTab({
                 })
               }
               onAction={(action) => runAction(m, action)}
+              inTrash={activeLabel === 'TRASH'}
             />
           ))}
 
@@ -2393,6 +2429,7 @@ export function InboxTab({
           onReply={startReply}
           onForward={startForward}
           onDownload={downloadGmailAttachment}
+          inTrash={activeLabel === 'TRASH'}
         />
       )}
 

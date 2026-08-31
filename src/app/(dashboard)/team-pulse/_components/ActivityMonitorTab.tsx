@@ -383,7 +383,7 @@ function SectionHeading({
   );
 }
 
-const LIST_HEIGHT = "h-[60vh] sm:h-160";
+const LIST_HEIGHT = "h-[calc(60vh-var(--mobile-bottom-nav-offset,0px))] sm:h-160";
 
 export function ActivityMonitorTab({ members, myUserId, isAdmin }: Props) {
   const [rosterFilter, setRosterFilter] = React.useState<RosterFilter>("all");

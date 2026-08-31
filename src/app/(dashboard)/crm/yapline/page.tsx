@@ -167,7 +167,7 @@ function ChannelRow({
             {name}
             {isMonitored && <span className="ml-1.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">Monitoring</span>}
           </p>
-          <p className="truncate text-[10px] text-muted-foreground/50">
+          <p className="truncate text-[11px] sm:text-[10px] text-muted-foreground/70 sm:text-muted-foreground/50">
             {live
               ? `${live.participants.length} on the line`
               : `${c.members?.length ?? 0} members`}
@@ -373,7 +373,7 @@ export default function YapLinePage() {
                   </span>
                 )}
               </h1>
-              <p className="truncate text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              <p className="truncate text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 sm:text-muted-foreground/60">
                 Open mic · Screen share
               </p>
             </div>
@@ -400,11 +400,11 @@ export default function YapLinePage() {
             <>
               {pinned.length > 0 && (
                 <>
-                  <p className="px-2 pb-1 pt-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">Pinned</p>
+                  <p className="px-2 pb-1 pt-1 text-[10px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 sm:text-muted-foreground/40">Pinned</p>
                   {pinned.map((c) => (
                     <ChannelRow key={c._id} c={c} s={s} isCurrent={cur?.conversationId === c._id} isPinned onTogglePin={togglePin} onInvite={setInviteConv} />
                   ))}
-                  <p className="px-2 pb-1 pt-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">All channels</p>
+                  <p className="px-2 pb-1 pt-2 text-[10px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 sm:text-muted-foreground/40">All channels</p>
                 </>
               )}
               {unpinned.map((c) => (

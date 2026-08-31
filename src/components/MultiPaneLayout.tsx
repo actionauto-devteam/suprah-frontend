@@ -300,7 +300,7 @@ export function MultiPaneContainer({
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {/* Tab bar */}
-        <div className="flex items-center gap-1 px-4 py-2 border-b border-border/40 bg-muted/20 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-border/40 bg-muted/20 shrink-0 overflow-x-auto touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabOptions.map((tab) => {
             const isActive = tab.id === singlePane.selectedTab
             return (
@@ -308,7 +308,7 @@ export function MultiPaneContainer({
                 key={tab.id}
                 onClick={() => setPaneTab(singlePane.id, tab.id)}
                 className={`
-                  inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                  inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
                   transition-all whitespace-nowrap
                   ${isActive
                     ? "bg-emerald-600 text-white shadow-sm"

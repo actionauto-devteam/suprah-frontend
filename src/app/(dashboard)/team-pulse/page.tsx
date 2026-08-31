@@ -418,7 +418,7 @@ export default function TeamPulsePage() {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 sm:px-8 pb-20 pt-6">
+        <div className="container mx-auto px-4 sm:px-8 pt-6 pb-[calc(5rem+var(--mobile-bottom-nav-offset,0px))] md:pb-8">
           <div className="animate-in fade-in duration-200">
             {tab === "overview" && (
               <div className="space-y-6">

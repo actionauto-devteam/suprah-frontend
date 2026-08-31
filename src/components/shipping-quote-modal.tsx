@@ -9,7 +9,6 @@ import {
   MapPinned,
   Package,
   Loader2,
-  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -22,6 +21,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 
 interface ShippingQuoteModalProps {
@@ -258,23 +264,28 @@ export function ShippingQuoteModal({
               <Label htmlFor="vehicle" className="text-xs">
                 Select Vehicle ({vehicles?.length || 0} available)
               </Label>
-              <div className="relative">
-                <select
-                  id="vehicle"
-                  className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none pr-10"
-                  onChange={(e) => handleVehicleSelect(e.target.value)}
-                  value={selectedVehicle?.id || ""}
+              <Select
+                value={selectedVehicle?.id || "__none__"}
+                onValueChange={(v) => handleVehicleSelect(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger id="vehicle" className="w-full h-10 text-sm">
+                  <SelectValue placeholder="Select a vehicle..." />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="max-w-[calc(100vw-3rem)]"
                 >
-                  <option value="">Select a vehicle...</option>
+                  <SelectItem value="__none__">Select a vehicle...</SelectItem>
                   {vehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.year} {vehicle.make} {vehicle.model} -{" "}
-                      {vehicle.stockNumber}
-                    </option>
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      <span className="block min-w-0 flex-1 truncate">
+                        {vehicle.year} {vehicle.make} {vehicle.model} -{" "}
+                        {vehicle.stockNumber}
+                      </span>
+                    </SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
-              </div>
+                </SelectContent>
+              </Select>
             </div>
 
             {selectedVehicle && (

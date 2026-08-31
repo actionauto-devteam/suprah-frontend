@@ -179,7 +179,7 @@ function SupportCenterView() {
           </div>
 
           {/* Tab nav — underline style */}
-          <div className="shrink-0 flex gap-6 overflow-x-auto border-b border-border -mt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="shrink-0 flex overflow-x-auto border-b border-border -mt-1 sm:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map((tab) => {
               const active = activeTab === tab.id;
               return (
@@ -188,18 +188,18 @@ function SupportCenterView() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "relative flex shrink-0 items-center gap-2 whitespace-nowrap py-3 text-sm font-bold transition-colors border-b-2 -mb-px",
+                    "relative flex flex-1 min-w-0 sm:flex-none sm:shrink-0 items-center justify-center sm:justify-start gap-2 py-3 text-sm font-bold transition-colors border-b-2 -mb-px",
                     active
                       ? "text-foreground border-primary"
                       : "text-muted-foreground border-transparent hover:text-foreground/80"
                   )}
                 >
                   {tab.icon}
-                  {tab.label}
+                  <span className="min-w-0 truncate">{tab.label}</span>
                   {tab.count > 0 && (
                     <span
                       className={cn(
-                        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums font-mono",
+                        "flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums font-mono",
                         active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       )}
                     >

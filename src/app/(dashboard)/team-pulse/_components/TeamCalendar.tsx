@@ -53,6 +53,10 @@ import {
 } from "@/hooks/useTeamPulse";
 import { A } from "./team-pulse-constants";
 
+function absenceDate(date: string): Date {
+  return new Date(`${(date || "").slice(0, 10)}T00:00:00`);
+}
+
 export function TeamCalendar({
   members,
   userName,
@@ -127,16 +131,16 @@ export function TeamCalendar({
   }, [absences, calDeptFilter, calTypeFilter, members]);
 
   const todayAbsences = React.useMemo(
-    () => absences.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), new Date())),
+    () => absences.filter((a) => isSameDay(absenceDate(a.date), new Date())),
     [absences],
   );
 
   const dayAbsences = selectedDay
-    ? calAbsences.filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), selectedDay))
+    ? calAbsences.filter((a) => isSameDay(absenceDate(a.date), selectedDay))
     : [];
   const myDayAbsence = selectedDay
     ? absences
-        .filter((a) => isSameDay(new Date(a.date + 'T00:00:00'), selectedDay))
+        .filter((a) => isSameDay(absenceDate(a.date), selectedDay))
         .find((a) => a.userName === userName)
     : undefined;
   const myMonthAbsences = absences.filter((a) => a.userName === userName);
@@ -148,10 +152,10 @@ export function TeamCalendar({
     weekEnd.setDate(todayStart.getDate() + 6);
     return calAbsences
       .filter((a) => {
-        const d = new Date(a.date + 'T00:00:00');
+        const d = absenceDate(a.date);
         return d >= todayStart && d <= weekEnd;
       })
-      .sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime());
+      .sort((a, b) => absenceDate(a.date).getTime() - absenceDate(b.date).getTime());
   }, [calAbsences]);
 
   const monthStats = React.useMemo(() => {
@@ -489,19 +493,29 @@ export function TeamCalendar({
                 components={{
                   DayButton: ({ day, modifiers, ...props }: any) => {
                     const hits = calAbsences.filter((a) =>
-                      isSameDay(new Date(a.date + 'T00:00:00'), day.date),
+                      isSameDay(absenceDate(a.date), day.date),
                     );
                     const isSel =
                       selectedDay && isSameDay(day.date, selectedDay);
                     const isToday = isSameDay(day.date, new Date());
                     const isWknd =
                       day.date.getDay() === 0 || day.date.getDay() === 6;
-                    // Google-Calendar style — show text labels per absence instead of
-                    // avatars: "FirstName Status" (e.g. "Charl Early Out", "Aldana On Day Off").
+                    // Availability chips stay compact and grouped by status so they
+                    // read as secondary metadata, not competing calendar events:
+                    // "3 Absent" instead of three separate name pills.
                     const MAX_LABELS = 3;
                     const typeCounts: Record<string, number> = {};
                     hits.forEach((h) => {
                       typeCounts[h.type] = (typeCounts[h.type] || 0) + 1;
+                    });
+                    const groupedHits: { type: AbsenceType; otherText?: string; members: typeof hits }[] = [];
+                    hits.forEach((h) => {
+                      const key = h.type === "other" ? `other:${h.otherText || ""}` : h.type;
+                      const group = groupedHits.find(
+                        (g) => (g.type === "other" ? `other:${g.otherText || ""}` : g.type) === key,
+                      );
+                      if (group) group.members.push(h);
+                      else groupedHits.push({ type: h.type as AbsenceType, otherText: h.otherText, members: [h] });
                     });
 
                     return (
@@ -555,52 +569,53 @@ export function TeamCalendar({
                         )}
                         {hits.length > 0 && (
                           <div className="hidden sm:flex flex-col gap-0.5 mt-1 w-full z-10">
-                            {hits.slice(0, MAX_LABELS).map((a) => {
-                              const cfg = A[a.type as AbsenceType];
-                              const firstName =
-                                a.userName.split(/[\s,]+/)[0] || a.userName;
+                            {groupedHits.slice(0, MAX_LABELS).map((g) => {
+                              const cfg = A[g.type];
                               const statusLabel =
-                                a.type === "other" && a.otherText
-                                  ? a.otherText
+                                g.type === "other" && g.otherText
+                                  ? g.otherText
                                   : (cfg?.label ?? "Absent");
-                              const fullLabel = `${firstName} ${statusLabel}`;
+                              const label =
+                                g.members.length === 1
+                                  ? `${g.members[0].userName.split(/[\s,]+/)[0] || g.members[0].userName} ${statusLabel}`
+                                  : `${g.members.length} ${statusLabel}`;
+                              const groupKey = g.type === "other" ? `other:${g.otherText || ""}` : g.type;
                               return (
-                                <Tooltip key={a._id}>
+                                <Tooltip key={groupKey}>
                                   <TooltipTrigger asChild>
                                     <span
                                       className={cn(
-                                        "block text-[9px] font-bold leading-tight px-1 py-px rounded truncate w-full text-left",
-                                        cfg?.pill ??
-                                          "bg-gray-200 text-gray-700",
+                                        "flex items-center gap-1 text-[8.5px] font-semibold leading-tight px-1 py-px rounded-sm truncate w-full text-left bg-muted/50 text-muted-foreground",
                                       )}
                                     >
-                                      {fullLabel}
+                                      <span className={cn("size-1.5 rounded-full shrink-0", cfg?.dot ?? "bg-gray-400")} />
+                                      {label}
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent className="text-xs">
-                                    <p className="font-bold">{a.userName}</p>
-                                    <p className="text-muted-foreground">
-                                      {statusLabel}
-                                    </p>
-                                    {a.status === "pending" && (
-                                      <p className="text-amber-500 text-[10px] mt-0.5">
-                                        Pending approval
+                                    <p className="font-bold">{statusLabel}</p>
+                                    {g.members.map((a) => (
+                                      <p key={a._id} className="text-muted-foreground">
+                                        {a.userName}
+                                        {a.status === "pending" && (
+                                          <span className="text-amber-500"> · pending</span>
+                                        )}
                                       </p>
-                                    )}
+                                    ))}
                                   </TooltipContent>
                                 </Tooltip>
                               );
                             })}
-                            {hits.length > MAX_LABELS && (
+                            {groupedHits.length > MAX_LABELS && (
                               <span
                                 className={cn(
-                                  "text-[9px] font-bold leading-tight px-1 py-px rounded text-left",
+                                  "text-[8.5px] font-semibold leading-tight px-1 py-px rounded-sm text-left",
                                   isSel
                                     ? "text-primary-foreground/70 bg-primary-foreground/20"
                                     : "text-muted-foreground bg-muted/60",
                                 )}
                               >
-                                +{hits.length - MAX_LABELS} more
+                                +{groupedHits.length - MAX_LABELS} more
                               </span>
                             )}
                           </div>
@@ -699,7 +714,7 @@ export function TeamCalendar({
                           </p>
                         </div>
                         <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                          {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}
+                          {absenceDate(a.date).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}
                         </span>
                         <span
                           className={cn(
@@ -1132,7 +1147,7 @@ export function TeamCalendar({
                           )}
                         />
                         <span className="text-xs font-bold tabular-nums">
-                          {new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {absenceDate(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
                         <span
                           className={cn(

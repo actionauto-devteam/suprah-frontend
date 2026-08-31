@@ -144,8 +144,8 @@ export function DateTimePicker({
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-300" align="start">
-        <div className="flex">
+      <PopoverContent className="w-auto max-w-[calc(100vw-1.5rem)] p-0 z-300" align="start">
+        <div className="flex flex-col sm:flex-row">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -153,8 +153,8 @@ export function DateTimePicker({
             disabled={minDate ? (d) => d < minDate : undefined}
             initialFocus
           />
-          <div className="flex">
-            <TimeColumn values={HOURS} selected={hour12} onSelect={(v) => commitTime(v, minute, period)} />
+          <div className="flex border-t border-border/50 sm:border-t-0">
+            <TimeColumn values={HOURS} selected={hour12} onSelect={(v) => commitTime(v, minute, period)} className="border-l-0 sm:border-l" />
             <TimeColumn values={MINUTES} selected={minute} onSelect={(v) => commitTime(hour12, v, period)} />
             <div className="flex h-56 w-14 shrink-0 flex-col border-l border-border/50">
               {(["AM", "PM"] as const).map((p) => (

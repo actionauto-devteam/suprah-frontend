@@ -2979,6 +2979,76 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
   );
 }
 
+function PopupFontSizeMenu({
+  sizes, value, onSelect, onClose, anchorRef, boundaryRef,
+}: {
+  sizes: readonly number[];
+  value: number;
+  onSelect: (size: number) => void;
+  onClose: () => void;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  boundaryRef?: React.RefObject<HTMLElement | null>;
+}) {
+  const MENU_W = 64;
+  const [pos, setPos] = React.useState<{ top: number; left: number; maxHeight: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    const anchor = anchorRef.current?.getBoundingClientRect();
+    if (!anchor) return;
+    const boundary = boundaryRef?.current?.getBoundingClientRect();
+    const minLeft = (boundary?.left ?? 8) + 8;
+    const maxLeft = (boundary?.right ?? window.innerWidth) - MENU_W - 8;
+    const minTop = (boundary?.top ?? 8) + 8;
+    const maxBottom = (boundary?.bottom ?? window.innerHeight) - 8;
+    const spaceAbove = anchor.top - minTop - 6;
+    const spaceBelow = maxBottom - anchor.bottom - 6;
+    const openUp = spaceAbove >= spaceBelow;
+    const maxHeight = Math.max(80, Math.min(224, openUp ? spaceAbove : spaceBelow));
+    const top = openUp ? anchor.top - 6 - maxHeight : anchor.bottom + 6;
+    const left = Math.max(minLeft, Math.min(anchor.left, maxLeft));
+    setPos({ top, left, maxHeight });
+  }, [anchorRef, boundaryRef]);
+
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const h = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (anchorRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose, anchorRef]);
+
+  if (!pos || typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      ref={panelRef}
+      role="listbox"
+      className="fixed z-9998 overflow-y-auto rounded-lg border bg-card py-1 shadow-xl [scrollbar-width:thin]"
+      style={{ width: MENU_W, top: pos.top, left: pos.left, maxHeight: pos.maxHeight, borderColor: 'var(--border, rgba(128,128,128,0.25))' }}
+    >
+      {sizes.map(size => (
+        <button
+          key={size}
+          type="button"
+          role="option"
+          aria-selected={size === value}
+          onClick={() => { onSelect(size); onClose(); }}
+          className={cn(
+            'block w-full px-3 py-1.5 text-left text-[12px] text-popover-foreground hover:bg-muted/60',
+            size === value && 'bg-primary/10 text-primary font-semibold',
+          )}
+        >
+          {size}
+        </button>
+      ))}
+    </div>,
+    document.body
+  );
+}
+
 // ─── Voice message playback ─────────────────────────────────────────────────────
 function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: string; msgId: string; duration?: number; own: boolean; crmToken: string | null }) {
   const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -3636,6 +3706,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [composerFontFamilyChosen, setComposerFontFamilyChosen] = React.useState(false);
   const [composerFontSize, setComposerFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [composerFontSizeChosen, setComposerFontSizeChosen] = React.useState(false);
+  const [composerSizeMenuOpen, setComposerSizeMenuOpen] = React.useState(false);
+  const composerSizeBtnRef = React.useRef<HTMLButtonElement>(null);
   const [composerTextColor, setComposerTextColor] = React.useState('#ffffff');
   const [composerTextColorChosen, setComposerTextColorChosen] = React.useState(false);
   const [composerTypingFormats, setComposerTypingFormats] =
@@ -6526,17 +6598,32 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   <option value="" disabled>Font</option>
                   {SS4_FONT_FAMILIES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
-                <select
-                  value={composerFontSize}
-                  onPointerDown={() => rememberComposerSelection()}
-                  onChange={event => applyComposerFontSize(Number.parseInt(event.target.value, 10) as SS4FontSize)}
-                  className="h-7 w-14 shrink-0 rounded-md border border-border bg-muted/60 px-1 text-[10px] text-foreground outline-none"
-                  aria-label="Font size"
-                  title="Choose a size before typing or apply it to selected text"
-                >
-                  <option value="" disabled>Size</option>
-                  {SS4_FONT_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-                </select>
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    ref={composerSizeBtnRef}
+                    onPointerDown={() => rememberComposerSelection()}
+                    onClick={() => setComposerSizeMenuOpen(v => !v)}
+                    className="flex h-7 w-14 items-center justify-between gap-0.5 rounded-md border border-border bg-muted/60 px-1.5 text-[10px] text-foreground outline-none"
+                    aria-label="Font size"
+                    aria-haspopup="listbox"
+                    aria-expanded={composerSizeMenuOpen}
+                    title="Choose a size before typing or apply it to selected text"
+                  >
+                    {composerFontSize}
+                    <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                  </button>
+                  {composerSizeMenuOpen && (
+                    <PopupFontSizeMenu
+                      sizes={SS4_FONT_SIZES}
+                      value={composerFontSize}
+                      onSelect={size => applyComposerFontSize(size as SS4FontSize)}
+                      onClose={() => setComposerSizeMenuOpen(false)}
+                      anchorRef={composerSizeBtnRef}
+                      boundaryRef={popupShellRef}
+                    />
+                  )}
+                </div>
                 <button
                   type="button"
                   onMouseDown={event => {

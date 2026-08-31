@@ -621,7 +621,7 @@ export default function SuprahMailPage() {
 
   const globalRefreshAvailable =
     focusedChannel === "dispatch"
-      ? dispatchChatEnabled
+      ? true
       : focusedChannel === "inbox" ||
           focusedChannel === "conversation"
         ? Boolean(status?.connected)
@@ -643,7 +643,7 @@ export default function SuprahMailPage() {
   const handleGlobalRefresh = React.useCallback(() => {
     const canRefreshFocusedPane =
       focusedChannel === "dispatch"
-        ? dispatchChatEnabled
+        ? true
         : focusedChannel === "inbox" ||
             focusedChannel === "conversation"
           ? Boolean(status?.connected)
@@ -657,7 +657,6 @@ export default function SuprahMailPage() {
         (current[focusedPaneId] || 0) + 1,
     }));
   }, [
-    dispatchChatEnabled,
     focusedChannel,
     focusedPaneId,
     status?.connected,

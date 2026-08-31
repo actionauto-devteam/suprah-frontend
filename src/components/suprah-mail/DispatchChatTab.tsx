@@ -532,6 +532,7 @@ export function DispatchChatTab({
   const driversRef = React.useRef<DirectoryDriver[]>([]);
   const selectedIdRef = React.useRef<string | null>(selectedId);
   const requestInFlightRef = React.useRef(false);
+  const driversPendingRef = React.useRef(false);
 
   // Per-driver unread metadata must never drop a socket reconciliation just
   // because /dispatch-chat/threads is already in flight.
@@ -683,9 +684,15 @@ export function DispatchChatTab({
 
   const fetchDrivers = React.useCallback(
     async (silent = false) => {
-      if (!isSignedIn || requestInFlightRef.current) return;
+      if (!isSignedIn) return;
+
+      if (requestInFlightRef.current) {
+        driversPendingRef.current = true;
+        return;
+      }
 
       requestInFlightRef.current = true;
+      driversPendingRef.current = false;
       const hasCachedDrivers = driversRef.current.length > 0;
 
       if (!hasCachedDrivers) setLoading(true);
@@ -743,6 +750,11 @@ export function DispatchChatTab({
       }
 
       void fetchThreadMeta();
+
+      if (driversPendingRef.current) {
+        driversPendingRef.current = false;
+        void fetchDrivers(true);
+      }
     },
     [fetchThreadMeta, getToken, isSignedIn],
   );

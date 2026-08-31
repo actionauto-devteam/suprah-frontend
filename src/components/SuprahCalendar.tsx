@@ -1862,7 +1862,7 @@ function AgendaView({
                     onClick={() =>
                       selectMode ? onToggleSelected?.(item.id) : onItemClick(item)
                     }
-                    className={`group flex min-h-13 w-full min-w-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:flex-nowrap sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
+                    className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
                   >
                     {selectMode && (
                       <Checkbox

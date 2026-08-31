@@ -117,7 +117,7 @@ export function YapLineWidget() {
             <h3 className="text-sm font-black tracking-tight">
               Suprah <span className="text-emerald-500">YapLine</span>
             </h3>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+            <p className="text-[10px] sm:text-[9px] font-bold uppercase tracking-widest text-muted-foreground/70 sm:text-muted-foreground/50">
               {liveSessions.length > 0
                 ? `${liveSessions.length} live ${liveSessions.length === 1 ? "channel" : "channels"}`
                 : "All channels quiet"}
@@ -135,7 +135,7 @@ export function YapLineWidget() {
       <div className="grid gap-3 md:grid-cols-2">
         {/* ── Live now ── */}
         <div className="space-y-2">
-          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Live now</p>
+          <p className="text-[10px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 sm:text-muted-foreground/50">Live now</p>
 
           {/* My active session first */}
           {cur && curSession && (
@@ -146,8 +146,8 @@ export function YapLineWidget() {
                   <Headphones className="size-3" /> Connected
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="flex -space-x-2">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex -space-x-2 shrink-0">
                   {curSession.participants.slice(0, 5).map((p) => (
                     <Avatar
                       key={p.userId}
@@ -160,7 +160,7 @@ export function YapLineWidget() {
                     </Avatar>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
                   <button
                     onClick={() => void yapline.toggleMic()}
                     className={cn(
@@ -225,7 +225,7 @@ export function YapLineWidget() {
               return (
                 <div
                   key={live.conversationId}
-                  className="flex items-center gap-3 rounded-2xl border border-border/30 bg-background/40 p-3"
+                  className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/30 bg-background/40 p-3"
                 >
                   <div className="flex -space-x-2 shrink-0">
                     {live.participants.slice(0, 3).map((p) => (
@@ -242,14 +242,14 @@ export function YapLineWidget() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-bold">{live.conversationName || "Direct YapLine"}</p>
-                    <p className="flex items-center gap-1 truncate text-[10px] font-medium text-muted-foreground/60">
+                    <p className="flex items-center gap-1 truncate text-[11px] sm:text-[10px] font-medium text-muted-foreground/70 sm:text-muted-foreground/60">
                       {live.screenSharerId && <MonitorUp className="size-3 shrink-0 text-cyan-400" />}
                       {speaker
                         ? <><Radio className="size-3 shrink-0 animate-pulse text-emerald-500" /> {speaker.fullName.split(" ")[0]} speaking</>
                         : `${live.participants.length} on the line`}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex w-full shrink-0 items-center justify-end gap-1.5 sm:w-auto">
                     <button
                       onClick={() => yapline.join(live.conversationId, live.conversationName)}
                       title="Join and listen"
@@ -257,8 +257,6 @@ export function YapLineWidget() {
                     >
                       Join
                     </button>
-                    {/* One-press talk: auto-joins this line, then transmits
-                        while held — release to stop talking, stay connected. */}
                     <button
                       onClick={() => void talkDown(live.conversationId, live.conversationName)}
                       title="Join this line with your mic open"
@@ -283,7 +281,7 @@ export function YapLineWidget() {
 
         {/* ── Recent activity ── */}
         <div className="space-y-2">
-          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Recent activity</p>
+          <p className="text-[10px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 sm:text-muted-foreground/50">Recent activity</p>
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
@@ -311,7 +309,7 @@ export function YapLineWidget() {
                       <p className="truncate text-[11px] font-bold">
                         {r.conversationName || "Direct YapLine"}
                       </p>
-                      <p className="truncate text-[10px] text-muted-foreground/60">
+                      <p className="truncate text-[11px] sm:text-[10px] text-muted-foreground/80 sm:text-muted-foreground/60">
                         {last
                           ? `${last.name.split(" ")[0]} ${ACTIVITY_LABEL[last.type] || last.type}`
                           : `Started by ${r.startedBy?.fullName?.split(" ")[0] || "someone"}`}
@@ -319,7 +317,7 @@ export function YapLineWidget() {
                         {timeAgo(last?.at || r.startedAt)}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[9px] font-bold text-muted-foreground/40">
+                    <span className="shrink-0 text-[10px] sm:text-[9px] font-bold text-muted-foreground/60 sm:text-muted-foreground/40">
                       peak {r.peakParticipants}
                     </span>
                   </div>
