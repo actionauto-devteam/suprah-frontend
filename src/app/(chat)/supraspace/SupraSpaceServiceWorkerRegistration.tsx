@@ -32,10 +32,27 @@ export function SupraSpaceServiceWorkerRegistration() {
                     console.log('[SW] SupraSpace scope registered:', registration.scope);
                     watchForServiceWorkerUpdate(registration, () => {
                         if (cancelled) return;
-                        toast.info('A new version of SupraSpace is available.', {
-                            duration: Infinity,
-                            action: { label: 'Refresh', onClick: () => applyServiceWorkerUpdate(registration) },
-                        });
+                        // Used to be a manual "Refresh" toast action — on iOS
+                        // the toast sits high enough (Dynamic Island / notch
+                        // area) that the button was sometimes unreachable, so
+                        // an update could get stuck waiting on a tap nobody
+                        // could make. Auto-applies instead; the only guard is
+                        // not yanking someone out from under active typing
+                        // (a focused text input/textarea/contenteditable —
+                        // the message composer) — it waits for that focus to
+                        // clear (blur, or message sent) before reloading.
+                        const isTypingTarget = (el: Element | null) =>
+                            !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || (el as HTMLElement).isContentEditable);
+                        const tryApply = () => {
+                            if (cancelled) return;
+                            if (isTypingTarget(document.activeElement)) {
+                                document.addEventListener('focusout', tryApply, { once: true });
+                                return;
+                            }
+                            toast.info('Updating SupraSpace…', { duration: 2000 });
+                            applyServiceWorkerUpdate(registration);
+                        };
+                        setTimeout(tryApply, 1500);
                     });
                 }
             })

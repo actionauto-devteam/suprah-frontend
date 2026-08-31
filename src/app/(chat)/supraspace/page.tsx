@@ -8611,6 +8611,29 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
+  // 100dvh (added for the standalone shell's height, below) recalculates
+  // live as iOS's on-screen keyboard opens/closes — good for tracking the
+  // keyboard while it's open, but iOS Safari has a known quirk where dvh
+  // doesn't always settle back to the correct value once the keyboard
+  // closes again (most reliably right after a message send, which blurs
+  // the composer), leaving a stale gap at the bottom of whichever view is
+  // visible. visualViewport.height is the more reliable, purpose-built
+  // signal for "how tall is the actually-visible area right now" — using it
+  // as an explicit pixel height instead, when available, sidesteps that
+  // dvh-settling bug entirely.
+  const [vvHeight, setVvHeight] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const update = () => setVvHeight(vv.height);
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [isStandaloneApp]);
   // Never nudge someone to "Get SupraSpace" while they're already running
   // the real installed app — isMobileViewport is a width check (narrow
   // window), not an install check, so without excluding isStandaloneApp
@@ -11789,7 +11812,7 @@ export default function SupraSpacePage() {
           real visual viewport, leaving a gap below absolute inset-0's box
           that isn't actually the true bottom of the screen. dvh recalculates
           live against the real viewport instead of inheriting a % chain. */}
-      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: '100dvh' } : {}) }}>
+      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: vvHeight ? `${vvHeight}px` : '100dvh' } : {}) }}>
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -12318,17 +12341,17 @@ export default function SupraSpacePage() {
                     >
                       {active && <span className="absolute top-0 rounded-full" style={{ width: 28, height: 3, background: 'var(--accent)' }} />}
                       <span className="relative">
-                        <Icon className="h-5 w-5" strokeWidth={active ? 2.3 : 1.8} />
+                        <Icon className="h-6.5 w-6.5" strokeWidth={active ? 2.3 : 1.8} />
                         {badgeCount > 0 && (
                           <span
                             className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
-                            style={{ minWidth: 15, height: 15, padding: '0 3px', fontSize: 9, background: '#ef4444', color: '#fff' }}
+                            style={{ minWidth: 16, height: 16, padding: '0 3px', fontSize: 9.5, background: '#ef4444', color: '#fff' }}
                           >
                             {badgeCount > 9 ? '9+' : badgeCount}
                           </span>
                         )}
                       </span>
-                      <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{label}</span>
+                      <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500 }}>{label}</span>
                     </button>
                   );
                 })}
