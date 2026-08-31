@@ -705,7 +705,15 @@ export default function AdminUserTimeprofPage() {
       >
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
-            onClick={() => router.push("/crm/timeproof/users")}
+            onClick={() => {
+              // router.back() so the roster's department filter (kept in its URL query
+              // string) is restored automatically — a hardcoded push here always landed
+              // on the bare, filter-less roster URL, resetting the selection every time.
+              // Falls back to a plain push only if there's no in-app history to go back to
+              // (e.g. this profile was opened directly via a shared link).
+              if (window.history.length > 1) router.back()
+              else router.push("/crm/timeproof/users")
+            }}
             className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />

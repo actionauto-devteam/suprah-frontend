@@ -217,6 +217,19 @@ function setStoredValue(key: string, value: string): Promise<void> {
 const PUSH_RESUBSCRIBE_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 const SW_LAST_VERIFIED_KEY = "swPushLastVerified";
 
+// Mirrors useCrmWebPush.ts's getDeviceHint() naming exactly, using what's
+// actually available in SW scope (navigator.userAgent; no matchMedia here).
+// isSupraSpaceOrigin doubles as the "standalone" signal — that subdomain has
+// no other embedded browsing context, so a live push subscription on it can
+// only belong to the installed dedicated app.
+function getSwDeviceHint(isSupraSpaceOrigin: boolean): string {
+  const ua = (self as any).navigator?.userAgent || "";
+  if (/iPad|iPhone|iPod/i.test(ua)) return isSupraSpaceOrigin ? "ios-pwa-mobile" : "ios-mobile";
+  if (/Android/i.test(ua)) return isSupraSpaceOrigin ? "android-pwa-mobile" : "android-mobile";
+  if (/Mobile/i.test(ua)) return isSupraSpaceOrigin ? "pwa-mobile" : "mobile";
+  return isSupraSpaceOrigin ? "desktop-pwa" : "desktop";
+}
+
 async function renewPushSubscription(existingSubscription?: any, applicationServerKeyHint?: any): Promise<void> {
   try {
     const applicationServerKey = existingSubscription?.options?.applicationServerKey ?? applicationServerKeyHint;
@@ -227,7 +240,22 @@ async function renewPushSubscription(existingSubscription?: any, applicationServ
         applicationServerKey,
       }));
 
-    const body = JSON.stringify({ subscription, deviceHint: "unknown" });
+    // A SW-initiated resubscribe (browser-rotated subscription — iOS does
+    // this periodically on its own — or the periodic self-heal below) used
+    // to always POST deviceHint:"unknown" and no appSource at all. The
+    // backend defaults a missing appSource to 'main' (crmTimeproof.controller
+    // .ts's subscribeCrmPush), which silently downgraded an installed
+    // SupraSpace app's subscription back to a main-app one on every
+    // rotation — letting unrelated main-app notifications reach a
+    // SupraSpace-only device, and breaking the "unknown" deviceHint's match
+    // against the backend's own-device double-notify exclusion logic (which
+    // keys off the hint containing "mobile"). Both values are derivable in
+    // SW scope the same way openOrFocusNotificationTarget above resolves
+    // origin.
+    const isSupraSpaceOrigin = self.location.origin === "https://space.suprah-app.com";
+    const appSource = isSupraSpaceOrigin ? "supraspace" : "main";
+    const deviceHint = getSwDeviceHint(isSupraSpaceOrigin);
+    const body = JSON.stringify({ subscription, deviceHint, appSource });
     const [accessToken, crmAccessToken] = await Promise.all([
       getStoredToken("accessToken"),
       getStoredToken("crmAccessToken"),

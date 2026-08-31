@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   Shield,
@@ -332,13 +332,29 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
 ───────────────────────────────────────────────────────────────────────── */
 export default function AdminShiftBoardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [users, setUsers] = React.useState<MergedUser[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null)
-  const [selectedDept, setSelectedDept] = React.useState<string>("all")
+  // Seeded from the URL (not just useState("all")) so the filter survives navigating into a
+  // user's profile and back — previously this reset to "all" on every remount because the
+  // filter lived only in local component state, with nothing to restore it from.
+  const [selectedDept, setSelectedDept] = React.useState<string>(() => searchParams.get("department") || "all")
   const [searchQuery, setSearchQuery] = React.useState<string>("")
   const [teamTab, setTeamTab] = React.useState<"all" | "Utah" | "Philippines">("all")
+
+  // Keep the URL in sync (replace, not push, so every filter change doesn't pile
+  // up browser history entries) — this is what makes the filter restorable via
+  // router.back() from the profile page.
+  React.useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (selectedDept === "all") params.delete("department")
+    else params.set("department", selectedDept)
+    const qs = params.toString()
+    router.replace(qs ? `/crm/timeproof/users?${qs}` : "/crm/timeproof/users", { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDept])
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
-  Search, Plus, Users, MessageSquare, Send, Paperclip,
+  Search, Plus, Users, MessageSquare, Send, Paperclip, Home, User, Menu, ChevronRight,
   X, ChevronLeft, ChevronDown, Download, FileText,
   Loader2, CheckCheck, Hash, Reply, Trash2,
   ArrowLeft, Radio, Bot, Video, Phone,
@@ -27,10 +27,10 @@ import { DateTimePicker } from '@/components/ui/datetime-picker';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSupraSpaceSocket, SSConversation, SSMessage, SSAttachment, PresenceMap } from '@/hooks/useSupraSpaceSocket';
+import { useSupraSpaceSocket, SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
-import { useSupraSpaceMessenger } from '@/context/SupraSpaceMessengerContext';
+import { useSupraSpaceMessenger, SSSpace } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
@@ -964,6 +964,22 @@ if (typeof document !== 'undefined') {
     .ss4-conv-name { color:var(--text-primary); }
     .ss4-conv-preview { color:var(--text-secondary); }
     .ss4-conv-active::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); height:60%; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
+    /* Standalone-app mobile card look for conversation rows — only applied
+       via ss4-conv--card (set when isStandaloneApp), so desktop's plain list
+       rows are untouched. */
+    .ss4-conv--card { margin:0 0 8px; padding:12px!important; border-radius:16px; border:1px solid var(--border-1); background:var(--bg-subtle); box-shadow:0 1px 2px rgba(0,0,0,0.12); }
+    .ss4-conv--card:hover { background:var(--bg-hover); }
+    /* Pinned no longer gets its own tint — it read as a permanent "selected"
+       highlight even after opening a different conversation, since it looked
+       identical to ss4-conv-active's tint; the pin icon in the row already
+       says "pinned" on its own. Only unread and truly-active state get a
+       tinted card now — bg-blue-500/5 is a Tailwind utility applied inline
+       via cn(), but ss4-conv--card's own background wins the cascade (its
+       CSS is injected after Tailwind's stylesheet), so it needs its own rule
+       here to actually show through. */
+    .ss4-conv--card.ss4-conv--unread { background:rgba(91,124,246,0.08); border-color:rgba(91,124,246,0.22); }
+    .ss4-conv--card.ss4-conv-active { border-color:var(--accent); }
+    .ss4-conv--card.ss4-conv-active::before { display:none; }
     .ss4-search-input { background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:8px; transition:border-color .15s ease,box-shadow .15s ease; }
     .ss4-search-input::placeholder { color:var(--text-tertiary); }
     .ss4-search-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
@@ -6139,7 +6155,7 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
                         <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
                         <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
                       </div>
-                      {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                      {active && <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                     </button>
                   );
                 })}
@@ -6910,7 +6926,7 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
                     {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
                   <div className="min-w-0 flex-1"><p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p></div>
-                  {active && <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
+                  {active && <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
                 </button>
               );
             })}
@@ -7160,14 +7176,27 @@ function ActiveUsersModal({ users, presence, uid, onClose }: {
   );
 }
 
-function PeoplePanel({ users, presence, uid, onSelect }: {
+const SS4_PEOPLE_FILTERS: { key: 'all' | 'active' | 'offline'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'offline', label: 'Offline' },
+];
+
+function PeoplePanel({ users, presence, uid, onSelect, showFilters }: {
   users: CrmUser[]; presence: PresenceMap; uid: string; onSelect: (userId: string) => void;
+  // The standalone People tab wants an All/Active/Offline filter strip; the
+  // original desktop People sidebar (still reachable pre-redesign) doesn't
+  // need it, so it stays off by default.
+  showFilters?: boolean;
 }) {
   const [query, setQuery] = React.useState('');
+  const [filter, setFilter] = React.useState<'all' | 'active' | 'offline'>('all');
   const q = query.trim().toLowerCase();
   const matches = (u: CrmUser) => !q || u.fullName?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q);
   const online = users.filter(u => u._id !== uid && matches(u) && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
   const offline = users.filter(u => u._id !== uid && matches(u) && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
+  const showOnline = !showFilters || filter !== 'offline';
+  const showOffline = !showFilters || filter !== 'active';
   const Row = (u: CrmUser, isOn: boolean) => {
     const status = presence[u._id]?.onlineStatus ?? 'offline';
     return (
@@ -7188,7 +7217,7 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
   };
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="px-4 pt-3 pb-2 shrink-0">
+      <div className="px-4 pt-3 pb-2 shrink-0 space-y-2.5">
         <div className="relative">
           <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
           <input
@@ -7199,12 +7228,36 @@ function PeoplePanel({ users, presence, uid, onSelect }: {
             style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}
           />
         </div>
+        {showFilters && (
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+            {SS4_PEOPLE_FILTERS.map(f => {
+              const active = filter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className="shrink-0 rounded-full transition-colors"
+                  style={{
+                    background: active ? 'var(--accent)' : 'var(--bg-hover)',
+                    color: active ? '#fff' : 'var(--text-secondary)',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                    padding: '6px 14px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
-        {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online · {online.length}</span></div>}
-        {online.map(u => Row(u, true))}
-        {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
-        {offline.map(u => Row(u, false))}
+        {showOnline && online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online · {online.length}</span></div>}
+        {showOnline && online.map(u => Row(u, true))}
+        {showOffline && offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
+        {showOffline && offline.map(u => Row(u, false))}
         {users.length <= 1 && (
           <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
             <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No teammates yet</p>
@@ -7309,7 +7362,7 @@ function PrioritySendersModal({ users, selfId, onClose }: {
                   </div>
                   {savingId === u._id
                     ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--text-tertiary)' }} />
-                    : active ? <div className="h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div> : null}
+                    : active ? <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div> : null}
                 </button>
               );
             })}
@@ -7327,7 +7380,471 @@ function PrioritySendersModal({ users, selfId, onClose }: {
   );
 }
 
-function SupraSpaceSettingsPanel({ me, allUsers }: { me?: CrmUser; allUsers: CrmUser[] }) {
+// Home-tab presence rail (standalone app only) — a lightweight, purely
+// visual "who's online" strip matching the reference mock's avatar row.
+// Deliberately NOT reusing StoriesRail (components/dashboard/StoriesRail.tsx)
+// — that component is a full 24h photo/video Stories feature with its own
+// composer, viewer, and socket wiring, which would silently add a brand-new
+// feature to SupraSpace instead of just restyling the layout. This reuses
+// only data already in scope (allUsers/presence), no new requests.
+function PresenceRail({ me, users, presence, uid, onSelectUser }: {
+  me?: CrmUser; users: CrmUser[]; presence: PresenceMap; uid: string; onSelectUser: (userId: string) => void;
+}) {
+  const isOnline = (id: string) => !!presence[id]?.onlineStatus && presence[id]?.onlineStatus !== 'offline';
+  const ordered = React.useMemo(() => {
+    const others = users.filter(u => u._id !== uid);
+    return [...others].sort((a, b) => Number(isOnline(b._id)) - Number(isOnline(a._id))).slice(0, 20);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, presence, uid]);
+
+  return (
+    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar px-4 pt-3 pb-1">
+      <div className="flex flex-col items-center gap-1 shrink-0" style={{ width: 52 }}>
+        <div className="relative">
+          <div className="h-12 w-12 rounded-full p-0.5" style={{ boxShadow: '0 0 0 2px var(--accent)' }}>
+            <div className={cn('h-full w-full rounded-full flex items-center justify-center text-white font-bold overflow-hidden', getAvaColor(me?.fullName || 'Me'))} style={{ fontSize: 14 }}>
+              {me?.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
+            </div>
+          </div>
+          <span className="absolute -bottom-0.5 -right-0.5 h-4.5 w-4.5 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-base)' }}>
+            <Plus className="h-2.5 w-2.5 text-white" />
+          </span>
+        </div>
+        <span className="truncate w-full text-center" style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)' }}>Your Status</span>
+      </div>
+      {ordered.map(u => {
+        const online = isOnline(u._id);
+        return (
+          <button key={u._id} onClick={() => onSelectUser(u._id)} className="flex flex-col items-center gap-1 shrink-0" style={{ width: 52 }}>
+            <div className="h-12 w-12 rounded-full p-0.5" style={{ boxShadow: `0 0 0 2px ${online ? 'var(--positive)' : 'var(--border-2)'}` }}>
+              <div className={cn('h-full w-full rounded-full flex items-center justify-center text-white font-bold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 14 }}>
+                {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+              </div>
+            </div>
+            <span className="truncate w-full text-center" style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)' }}>{(u.fullName || '').split(' ')[0]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Bottom-nav "Spaces" tab — grid view over the same ctxSpaces data the
+// sidebar's space grouping already uses (SupraSpaceMessengerContext). No new
+// filtering: tapping a card just jumps back to Chats, where that space's
+// conversations are already grouped and visible — keeps this a pure layout
+// addition rather than a new filter feature.
+function SpacesGridPanel({ spaces, unreadCounts, onSelectSpace, onCreateSpace }: {
+  spaces: SSSpace[];
+  unreadCounts?: Record<string, number>;
+  onSelectSpace: () => void;
+  onCreateSpace: () => void;
+}) {
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
+      <div className="flex items-center justify-between mb-3">
+        <p className="ss4-display font-bold" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Spaces</p>
+        <button onClick={onCreateSpace} className="ss4-send-btn h-8 px-3 flex items-center gap-1.5 font-semibold" style={{ fontSize: 12 }}>
+          <Plus className="h-3.5 w-3.5" /> Create
+        </button>
+      </div>
+      {spaces.length === 0 ? (
+        <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No spaces yet</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {spaces.map(sp => {
+            const unread = unreadCounts?.[sp._id] || 0;
+            return (
+              <button
+                key={sp._id}
+                onClick={onSelectSpace}
+                className="relative flex flex-col items-start gap-2.5 rounded-2xl p-3.5 text-left transition-colors hover:bg-(--bg-hover)"
+                style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-1)' }}
+              >
+                {unread > 0 && (
+                  <span
+                    className="absolute top-2.5 right-2.5 rounded-full flex items-center justify-center font-bold"
+                    style={{ minWidth: 20, height: 20, padding: '0 6px', fontSize: 10, background: 'var(--accent)', color: '#fff' }}
+                  >
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+                <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', getAvaColor(sp.name))}>
+                  {sp.emoji ? <span style={{ fontSize: 20 }}>{sp.emoji}</span> : <span className="text-white font-bold" style={{ fontSize: 16 }}>{ini(sp.name)}</span>}
+                </div>
+                <div className="min-w-0 w-full">
+                  <p className="font-semibold truncate" style={{ fontSize: 13.5, color: 'var(--text-primary)' }}>{sp.name}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{sp.members.length} member{sp.members.length === 1 ? '' : 's'}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bottom-nav "Notifications" tab — SupraSpace's OWN in-app log (messages +
+// mentions only, via ?type=crm_message), entirely separate from the OS push
+// banner and from the main Suprah AI app's general notification bell. See
+// pushToConversationMembers/notifyMentionedMembers (backend) for where these
+// get persisted — a plain DB insert, no second push fired from here.
+// "Today"/"Yesterday" — a notification older than yesterday never even shows
+// up here (dropped client-side below), so those are the only two buckets
+// that can exist.
+function ss4NotifDayBucket(dateStr: string): 'today' | 'yesterday' | 'older' {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  return 'older';
+}
+
+// Bottom-nav "Notifications" tab — SupraSpace's OWN in-app log (messages +
+// mentions only, via ?type=crm_message), entirely separate from the OS push
+// banner and from the main Suprah AI app's general notification bell. See
+// pushToConversationMembers/notifyMentionedMembers (backend) for where these
+// get persisted — a plain DB insert, no second push fired from here.
+//
+// Self-cleaning by design: a notification disappears once opened (removed
+// from local state right on tap, not just marked read) or once it's more
+// than a day old and still unopened (dropped client-side) — so the feed
+// never just accumulates forever. Only unread items are fetched at all.
+function NotificationsPanel({ token, onOpenNotification }: {
+  token: string;
+  onOpenNotification: (conversationId: string, messageId?: string) => void;
+}) {
+  const [items, setItems] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const load = React.useCallback(() => {
+    if (!token) { setLoading(false); return; }
+    apiClient.get('/api/crm/notifications', { headers: { Authorization: `Bearer ${token}` }, params: { type: 'crm_message', limit: 100, isRead: false } })
+      .then(r => {
+        const all: any[] = r.data?.data?.notifications || [];
+        setItems(all.filter(n => ss4NotifDayBucket(n.createdAt) !== 'older'));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const handleTap = (n: any) => {
+    apiClient.patch(`/api/crm/notifications/${n._id}/read`, {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    setItems(prev => prev.filter(x => x._id !== n._id));
+    const conversationId = n.metadata?.conversationId;
+    if (conversationId) onOpenNotification(conversationId, n.metadata?.messageId);
+  };
+
+  const today = items.filter(n => ss4NotifDayBucket(n.createdAt) === 'today');
+  const yesterday = items.filter(n => ss4NotifDayBucket(n.createdAt) === 'yesterday');
+
+  const Row = (n: any) => (
+    <button
+      key={n._id}
+      onClick={() => handleTap(n)}
+      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-(--bg-hover)"
+      style={{ background: 'var(--bg-subtle)' }}
+    >
+      <span className="h-2 w-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--accent)' }} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+          {n.metadata?.kind === 'mention' ? '@ ' : ''}{n.title}
+        </p>
+        <p className="truncate mt-0.5" style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{n.message}</p>
+        <p className="mt-0.5" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(n.createdAt)}</p>
+      </div>
+    </button>
+  );
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
+      <p className="ss4-display font-bold mb-3" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Notifications</p>
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No notifications yet</p>
+      ) : (
+        <>
+          {today.length > 0 && (
+            <div className="mb-4">
+              <p className="px-1 pb-1.5" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Today</p>
+              <div className="space-y-1">{today.map(Row)}</div>
+            </div>
+          )}
+          {yesterday.length > 0 && (
+            <div className="mb-4">
+              <p className="px-1 pb-1.5" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Yesterday</p>
+              <div className="space-y-1">{yesterday.map(Row)}</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const SS4_STATUS_OPTIONS: { key: SSOnlineStatus; label: string; color: string }[] = [
+  { key: 'online', label: 'Active', color: '#22c55e' },
+  { key: 'busy', label: 'Busy', color: '#ef4444' },
+  { key: 'do_not_disturb', label: 'Do Not Disturb', color: '#a855f7' },
+  { key: 'away', label: 'Away', color: '#f59e0b' },
+  { key: 'offline', label: 'Offline', color: '#6b7280' },
+];
+
+// Menu tab → "Profile" sub-tab: identity-level stuff (appearance + presence),
+// as opposed to the "Settings" sub-tab's app preferences (notifications).
+// Status changes hit a SupraSpace-specific endpoint (see supraspace.controller.ts
+// updateMyStatus) because SupraSpace's CRM token can't call the main site's own
+// PATCH /api/profile/online-status — different auth/identity model — but both
+// paths update the same underlying User.onlineStatus and broadcast the same way,
+// so the change shows up correctly in team-pulse/header too, not just here.
+function MenuProfilePanel({ me, presence, uid, token }: {
+  me?: CrmUser; presence: PresenceMap; uid: string; token: string;
+}) {
+  const { theme, setTheme } = useTheme();
+  const [saving, setSaving] = React.useState(false);
+  const currentStatus: SSOnlineStatus = presence[uid]?.onlineStatus ?? 'offline';
+
+  const setStatus = async (status: SSOnlineStatus) => {
+    if (status === currentStatus || saving) return;
+    setSaving(true);
+    try {
+      await apiClient.patch('/api/supraspace/me/status', { status }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      toast.error('Could not update your status. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 sm:px-5 pt-4 pb-6">
+      {me && (
+        <div className="flex items-center gap-3 pb-4 mb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 15 }}>
+            {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me.fullName}</p>
+            <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{me.role || 'Team member'}</p>
+          </div>
+        </div>
+      )}
+
+      <span className="ss4-section-label">Appearance</span>
+      <div className="mt-2 mb-5">
+        <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            {theme === 'dark' ? <Moon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Dark mode</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{theme === 'dark' ? 'On' : 'Off'}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="ss4-settings-action h-8 px-3.5 shrink-0"
+            style={{ fontSize: 12 }}
+          >
+            {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          </button>
+        </div>
+      </div>
+
+      <span className="ss4-section-label">Status</span>
+      <div className="mt-2 space-y-1">
+        {SS4_STATUS_OPTIONS.map(opt => {
+          const active = currentStatus === opt.key;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setStatus(opt.key)}
+              disabled={saving}
+              className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors"
+              style={{ background: active ? 'var(--bg-subtle)' : 'transparent', opacity: saving ? 0.6 : 1 }}
+            >
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: opt.color }} />
+              <span className="flex-1 text-left" style={{ fontSize: 14, fontWeight: active ? 700 : 500, color: 'var(--text-primary)' }}>{opt.label}</span>
+              {active && <CheckIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--accent)' }} />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Menu tab → "Archive" sub-tab. Own search box (separate from the Home tab's
+// `q`) so browsing/searching archived chats here never bleeds into the Home
+// list's filter state or vice versa.
+function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
+  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
+}) {
+  const [query, setQuery] = React.useState('');
+  const uid = sharedConvRowProps.uid as string;
+  const filtered = React.useMemo(() => {
+    if (!query.trim()) return archivedList;
+    const q = query.toLowerCase();
+    return archivedList.filter(c => getConvName(c, uid).toLowerCase().includes(q));
+  }, [archivedList, query, uid]);
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="px-4 pt-4 pb-3 shrink-0">
+        <div className="relative">
+          <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search archived chats…"
+            className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input"
+            style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}
+          />
+          {query.length > 0 && (
+            <button onClick={() => setQuery('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-2 pb-4">
+        {filtered.length === 0 ? (
+          <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+            {archivedList.length === 0 ? 'No archived chats' : 'No matches'}
+          </p>
+        ) : (
+          <div className="space-y-0.5">{filtered.map(c => <ConvRow key={c._id} conv={c} compact {...(sharedConvRowProps as any)} />)}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Bottom-nav "Menu" tab (was "Profile") — Profile / Settings / Archive.
+// A tappable row on the Menu root list — icon badge, label, optional count
+// badge, chevron. Matches the grouped-card list pattern from the reference
+// (Messenger's own Menu tab) rather than a pill-tab switcher.
+function MenuListRow({ icon, iconBg, iconColor, label, subtitle, badge, onClick, last }: {
+  icon: React.ReactNode; iconBg: string; iconColor: string; label: string; subtitle?: string;
+  badge?: number; onClick: () => void; last?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-3.5 py-3.5 text-left"
+      style={{ borderBottom: last ? 'none' : '1px solid var(--border-1)' }}
+    >
+      <span className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: iconBg, color: iconColor }}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <p className="truncate" style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</p>
+        {subtitle && <p className="truncate mt-0.5" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{subtitle}</p>}
+      </span>
+      {!!badge && badge > 0 && (
+        <span className="rounded-full font-bold flex items-center justify-center shrink-0" style={{ minWidth: 22, height: 22, padding: '0 6px', fontSize: 11, background: 'var(--accent)', color: '#fff' }}>
+          {badge}
+        </span>
+      )}
+      <ChevronRight className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+    </button>
+  );
+}
+
+// A pushed-in sub-view with its own back header — used for Profile/Settings/
+// Archive once tapped from the Menu root list.
+function MenuSubView({ title, onBack, children }: { title: string; onBack: () => void; children: React.ReactNode }) {
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 px-3 pt-4 pb-3 shrink-0">
+        <button onClick={onBack} className="ss4-icon-btn h-8 w-8" aria-label="Back to Menu"><ArrowLeft className="h-4 w-4" /></button>
+        <p className="ss4-display font-bold" style={{ fontSize: 17, color: 'var(--text-primary)' }}>{title}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Bottom-nav "Menu" tab (was "Profile") — a root list (Facebook-Messenger-
+// style: profile row up top, grouped rows below) that drills into Profile /
+// Settings / Archive sub-views, instead of a pill-tab switcher.
+function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvRowProps }: {
+  me?: CrmUser; allUsers: CrmUser[]; presence: PresenceMap; uid: string; token: string;
+  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
+}) {
+  const [view, setView] = React.useState<'root' | 'profile' | 'settings' | 'archive'>('root');
+
+  if (view === 'profile') {
+    return <MenuSubView title="Profile" onBack={() => setView('root')}><MenuProfilePanel me={me} presence={presence} uid={uid} token={token} /></MenuSubView>;
+  }
+  if (view === 'settings') {
+    return <MenuSubView title="Settings" onBack={() => setView('root')}><SupraSpaceSettingsPanel me={me} allUsers={allUsers} presence={presence} uid={uid} isStandaloneApp /></MenuSubView>;
+  }
+  if (view === 'archive') {
+    return <MenuSubView title="Archive" onBack={() => setView('root')}><MenuArchivePanel archivedList={archivedList} sharedConvRowProps={sharedConvRowProps} /></MenuSubView>;
+  }
+
+  const status = presence[uid]?.onlineStatus ?? 'offline';
+  const statusLabel = SS4_STATUS_OPTIONS.find(s => s.key === status)?.label ?? 'Offline';
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
+      <p className="ss4-display font-bold mb-4" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Menu</p>
+
+      <button
+        onClick={() => setView('profile')}
+        className="w-full flex items-center gap-3 rounded-2xl p-3.5 mb-4 text-left"
+        style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-1)' }}
+      >
+        <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me?.fullName || 'Me'))} style={{ fontSize: 15 }}>
+          {me?.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me?.fullName || 'You'}</p>
+          <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{statusLabel} · Tap to edit profile</p>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+      </button>
+
+      <div className="rounded-2xl overflow-hidden mb-4" style={{ border: '1px solid var(--border-1)' }}>
+        <MenuListRow
+          icon={<SettingsIcon className="h-4 w-4" />}
+          iconBg="rgba(91,124,246,0.18)" iconColor="var(--accent)"
+          label="Settings"
+          subtitle="Notification preferences"
+          onClick={() => setView('settings')}
+        />
+        <MenuListRow
+          icon={<Archive className="h-4 w-4" />}
+          iconBg="rgba(148,163,184,0.18)" iconColor="#94a3b8"
+          label="Archive"
+          subtitle="Archived chats"
+          badge={archivedList.length}
+          onClick={() => setView('archive')}
+          last
+        />
+      </div>
+    </div>
+  );
+}
+
+function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp }: {
+  me?: CrmUser; allUsers: CrmUser[];
+  // Optional — only passed from the standalone app's Profile tab, where the
+  // reference mock wants an online/offline indicator on the profile header.
+  // Desktop's Settings entry point doesn't pass these; header degrades to
+  // exactly what it rendered before.
+  presence?: PresenceMap;
+  uid?: string;
+  // Also only passed from the standalone app — the "Get SupraSpace" install
+  // row obviously shouldn't offer to install the very app it's running in.
+  isStandaloneApp?: boolean;
+}) {
   const [showPrioritySenders, setShowPrioritySenders] = React.useState(false);
   // Only the actual subdomain counts as "standalone" for install-button
   // purposes — see the matching comment on the main page component. A
@@ -7382,12 +7899,18 @@ function SupraSpaceSettingsPanel({ me, allUsers }: { me?: CrmUser; allUsers: Crm
     <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 sm:px-5 pt-4 pb-6">
       {me && (
         <div className="flex items-center gap-3 pb-4 mb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
-            {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+          <div className="relative shrink-0">
+            <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
+              {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+            </div>
+            {presence && uid && <PresenceAvatarDot status={presence[uid]?.onlineStatus ?? 'offline'} deviceType={presence[uid]?.lastDeviceType ?? undefined} />}
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{me.fullName}</p>
-            <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{me.role || 'Team member'}</p>
+            <p className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {me.role || 'Team member'}
+              {presence && uid && <span style={{ color: 'var(--text-tertiary)' }}> · {presence[uid]?.onlineStatus && presence[uid]?.onlineStatus !== 'offline' ? 'Online' : 'Offline'}</span>}
+            </p>
           </div>
         </div>
       )}
@@ -7513,32 +8036,36 @@ function SupraSpaceSettingsPanel({ me, allUsers }: { me?: CrmUser; allUsers: Crm
         </div>
       </div>
 
-      <span className="ss4-section-label mt-6 inline-flex">App</span>
-      <div className="mt-2 py-1">
-        {isSupraSpaceStandaloneUrl ? (
-          <InstallSupraSpaceButton variant="row" />
-        ) : (
-          <a
-            href={SUPRASPACE_SUBDOMAIN_URL}
-            target="_blank"
-            rel="noopener"
-            className="ss4-settings-row flex items-center gap-3 py-2.5"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {isSupraSpaceAlreadyInstalled
-              ? <ExternalLink className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-              : <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
-            <div className="min-w-0">
-              <p style={{ fontSize: 14, fontWeight: 600 }}>
-                {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Get SupraSpace as its own app'}
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                {isSupraSpaceAlreadyInstalled ? 'Already installed on this device' : 'Install a lighter, dedicated SupraSpace on your phone'}
-              </p>
-            </div>
-          </a>
-        )}
-      </div>
+      {!isStandaloneApp && (
+        <>
+          <span className="ss4-section-label mt-6 inline-flex">App</span>
+          <div className="mt-2 py-1">
+            {isSupraSpaceStandaloneUrl ? (
+              <InstallSupraSpaceButton variant="row" />
+            ) : (
+              <a
+                href={SUPRASPACE_SUBDOMAIN_URL}
+                target="_blank"
+                rel="noopener"
+                className="ss4-settings-row flex items-center gap-3 py-2.5"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {isSupraSpaceAlreadyInstalled
+                  ? <ExternalLink className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                  : <Download className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+                <div className="min-w-0">
+                  <p style={{ fontSize: 14, fontWeight: 600 }}>
+                    {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Get SupraSpace as its own app'}
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {isSupraSpaceAlreadyInstalled ? 'Already installed on this device' : 'Install a lighter, dedicated SupraSpace on your phone'}
+                  </p>
+                </div>
+              </a>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -7627,6 +8154,10 @@ interface ConvRowProps {
   setDeleteConfirmConv: (c: SSConversation | null) => void;
   setActiveId: (id: string | null) => void;
   setShowInfo: (show: boolean) => void;
+  // Standalone-app-only visual treatment (rounded card + numbered unread
+  // badge, matching the mobile reference mock) — desktop/embedded keep the
+  // plain list row untouched when this is omitted/false.
+  isStandaloneApp?: boolean;
 }
 
 // Hoisted to module scope on purpose: this used to be defined inside SupraSpacePage's
@@ -7643,6 +8174,7 @@ const ConvRow = React.memo(function ConvRow({
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
   openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
+  isStandaloneApp,
 }: ConvRowProps) {
   const [unreadDotColor, setUnreadDotColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
   React.useEffect(() => {
@@ -7684,7 +8216,7 @@ const ConvRow = React.memo(function ConvRow({
   const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
   const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
   return (
-    <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
+    <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isStandaloneApp && 'ss4-conv--card', isStandaloneApp && isUnread && 'ss4-conv--unread', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
       style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
       data-conv-before={isDraggable ? conv._id : undefined}
       data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
@@ -7735,11 +8267,20 @@ const ConvRow = React.memo(function ConvRow({
             {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
           </span>
           {isUnread && (
-            <span
-              className="shrink-0 h-2 w-2 rounded-full"
-              style={{ background: unreadDotColor }}
-              aria-hidden="true"
-            />
+            isStandaloneApp && unreadCount > 1 ? (
+              <span
+                className="shrink-0 rounded-full flex items-center justify-center font-bold"
+                style={{ minWidth: 18, height: 18, padding: '0 5px', background: unreadDotColor, color: '#fff', fontSize: 10 }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : (
+              <span
+                className="shrink-0 h-2 w-2 rounded-full"
+                style={{ background: unreadDotColor }}
+                aria-hidden="true"
+              />
+            )
           )}
         </div>
         <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
@@ -8032,6 +8573,7 @@ export default function SupraSpacePage() {
   const [localSpaceOrder, setLocalSpaceOrder] = React.useState<string[]>([]);
   const [deleteSpaceConfirm, setDeleteSpaceConfirm] = React.useState<string | null>(null);
   const [allUsers, setAllUsers] = React.useState<CrmUser[]>([]);
+  const [myProfile, setMyProfile] = React.useState<CrmUser | undefined>(undefined);
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
@@ -8040,7 +8582,9 @@ export default function SupraSpacePage() {
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
-  const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'people' | 'settings'>('chats');
+  // 'people' folded into the "+ New" compose flow, 'settings' merged into
+  // 'profile' — see the bottom tab bar in the standalone-app view below.
+  const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
   // The tabbed layout (Chats/People/Settings) + Stories rail are exclusive to
   // the installed standalone SupraSpace PWA — a regular browser tab, and the
   // main Suprah AI app's own install (which shares display-mode: standalone
@@ -8163,6 +8707,11 @@ export default function SupraSpacePage() {
   const mobileGifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
+  // Desktop moves a group into a Space via pointer-drag (see ptrStartRef
+  // below) — there's no touch equivalent, so mobile needs its own explicit
+  // "Move to Space" entry point. This is the id of the conversation whose
+  // move-target sheet is open (drilled in from the long-press sheet above).
+  const [moveSpaceSheetConv, setMoveSpaceSheetConv] = React.useState<string | null>(null);
   const [deleteConfirmConv, setDeleteConfirmConv] = React.useState<SSConversation | null>(null);
   const convLongPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -8418,7 +8967,13 @@ export default function SupraSpacePage() {
     setUploadNotice({ kind, text });
     uploadNoticeTimerRef.current = setTimeout(() => setUploadNotice(null), 3500);
   }, []);
-  const me = React.useMemo(() => allUsers.find(u => u._id === uid), [allUsers, uid]);
+  // NOT allUsers.find(u => u._id === uid) — /api/supraspace/users (allUsers)
+  // deliberately excludes the caller themselves (it's a "who can I message"
+  // picker), so that lookup always returned undefined and every "me" header
+  // (Settings panel, Menu tab) silently had no name/avatar to show. myProfile
+  // is populated straight from the /api/crm/me response the init effect
+  // already fetches below.
+  const me = myProfile;
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
     // Only splice into a conversation's message cache if that history has actually been
@@ -8614,6 +9169,10 @@ export default function SupraSpacePage() {
     suppressAutoScrollOnceRef.current = false;
     setShowJumpToLatest(false);
     setShowInfo(false);
+    // Selecting a conversation — whether from a search match or a plain list
+    // row — returns the list to its normal unfiltered state, so going back
+    // doesn't strand the user on stale search results.
+    setQ('');
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
 
@@ -8701,7 +9260,9 @@ export default function SupraSpacePage() {
           apiClient.get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } }),
           apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } }),
         ]);
-        setUid((me.data?.data || me.data)._id);
+        const myData = (me.data?.data || me.data) as CrmUser;
+        setUid(myData._id);
+        setMyProfile(myData);
         const fetchedConvos: SSConversation[] = cv.data?.data || [];
         setConvos(fetchedConvos);
         setAllUsers(us.data?.data || []);
@@ -11075,7 +11636,11 @@ export default function SupraSpacePage() {
       matchesConversationFilter(c)
     );
     const pinned = visible.filter(c => isPinnedConv(c) && !isArchivedConv(c));
-    const archived = convos.filter(c => isArchivedConv(c) && matchesConversationFilter(c));
+    const archived = convos.filter(c =>
+      isArchivedConv(c) &&
+      matchesConversationFilter(c) &&
+      getConvName(c, uid).toLowerCase().includes(q.toLowerCase())
+    );
     const normal = visible.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
     const dms = normal.filter(c => c.type === 'direct');
     return { visibleConvos: visible, pinnedList: pinned, archivedList: archived, normalList: normal, dmList: dms };
@@ -11108,11 +11673,25 @@ export default function SupraSpacePage() {
     return result;
   }, [ctxSpaces, localSpaceOrder]);
 
+  // Space cards on the standalone Spaces tab show an unread badge — derived
+  // from the same conversation list/unread accounting already in state, no
+  // extra fetch (SSSpace itself carries no unread count of its own).
+  const spaceUnreadCounts = React.useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const c of convos) {
+      const spaceId = (c as any).spaceId;
+      if (!spaceId || !isConvUnreadForUser(c, uid, manualUnread)) continue;
+      out[spaceId] = (out[spaceId] || 0) + Math.max(1, c.unreadCount || 0);
+    }
+    return out;
+  }, [convos, uid, manualUnread]);
+
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
     openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
+    isStandaloneApp,
   };
 
   if (loading) return (
@@ -11175,31 +11754,42 @@ export default function SupraSpacePage() {
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <div className="hidden lg:flex items-center gap-2">
+              {isStandaloneApp ? (
+                // The overflow menu's other two items no longer apply here —
+                // "active now" is the whole point of the People tab, and
+                // Archived moved into the Menu tab — so just show the clock
+                // directly instead of burying it behind a 3-dot menu. Its own
+                // tooltip already surfaces the full date on tap/hover.
                 <MountainTimeClock compact />
-                <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
-                  <Wifi className="h-3.5 w-3.5" />
-                  <span className="font-semibold" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
-                </button>
-              </div>
-              {isMobileViewport && (
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    {/* .ss4-icon-btn's own base rule sets display:flex unconditionally;
-                        since it's injected at runtime (after Tailwind's own stylesheet),
-                        it wins the cascade over a lg:hidden utility class at equal
-                        specificity — the class alone can't hide this button on desktop.
-                        Gating the whole trigger in JS via useIsMobile() sidesteps that
-                        entirely instead of fighting the CSS cascade. */}
-                    <button className="ss4-icon-btn h-8 w-8" title="More"><MoreVertical className="h-4 w-4" /></button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                    <div className="px-3 py-2"><MountainTimeClock compact /></div>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setActiveUsersOpen(true)}>
-                      <Wifi className="h-3.5 w-3.5" /> {allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active now
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              ) : (
+                <>
+                  <div className="hidden lg:flex items-center gap-2">
+                    <MountainTimeClock compact />
+                    <button onClick={() => setActiveUsersOpen(true)} className="ss4-video-btn h-8 px-3 flex items-center gap-1.5" title="Active users">
+                      <Wifi className="h-3.5 w-3.5" />
+                      <span className="font-semibold" style={{ fontSize: 11 }}>{allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active</span>
+                    </button>
+                  </div>
+                  {isMobileViewport && (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        {/* .ss4-icon-btn's own base rule sets display:flex unconditionally;
+                            since it's injected at runtime (after Tailwind's own stylesheet),
+                            it wins the cascade over a lg:hidden utility class at equal
+                            specificity — the class alone can't hide this button on desktop.
+                            Gating the whole trigger in JS via useIsMobile() sidesteps that
+                            entirely instead of fighting the CSS cascade. */}
+                        <button className="ss4-icon-btn h-8 w-8" title="More"><MoreVertical className="h-4 w-4" /></button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                        <div className="px-3 py-2"><MountainTimeClock compact /></div>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setActiveUsersOpen(true)}>
+                          <Wifi className="h-3.5 w-3.5" /> {allUsers.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline').length} active now
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
               )}
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
               {!isStandaloneApp && (
@@ -11207,18 +11797,25 @@ export default function SupraSpacePage() {
                   <SettingsIcon className="h-3.5 w-3.5" />
                 </button>
               )}
-              {isSupraSpaceStandaloneUrl ? (
-                <InstallSupraSpaceButton variant="icon" />
-              ) : (
-                <a
-                  href={SUPRASPACE_SUBDOMAIN_URL}
-                  target="_blank"
-                  rel="noopener"
-                  className="ss4-theme-btn h-8 w-8 flex items-center justify-center"
-                  title={isSupraSpaceAlreadyInstalled ? "Open SupraSpace" : "Get SupraSpace as its own app"}
-                >
-                  {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-                </a>
+              {/* isStandaloneApp (Navigation-Timing based) is the reliable "genuinely
+                  installed and running" signal — gate the install/open affordance on
+                  it directly instead of only on isSupraSpaceStandaloneUrl's hostname
+                  check, which never lines up on a non-production host (e.g. localhost
+                  during testing) even though the app really is installed there. */}
+              {!isStandaloneApp && (
+                isSupraSpaceStandaloneUrl ? (
+                  <InstallSupraSpaceButton variant="icon" />
+                ) : (
+                  <a
+                    href={SUPRASPACE_SUBDOMAIN_URL}
+                    target="_blank"
+                    rel="noopener"
+                    className="ss4-theme-btn h-8 w-8 flex items-center justify-center"
+                    title={isSupraSpaceAlreadyInstalled ? "Open SupraSpace" : "Get SupraSpace as its own app"}
+                  >
+                    {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                  </a>
+                )
               )}
             </div>
           </div>
@@ -11232,35 +11829,11 @@ export default function SupraSpacePage() {
             'lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-72 lg:shrink-0 lg:translate-x-0',
             activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
           )}>
-            {isStandaloneApp && (
-              <div className="flex items-center gap-1 px-3 pt-3 pb-1 shrink-0">
-                {([
-                  { key: 'chats', label: 'Chats', Icon: MessageSquare },
-                  { key: 'people', label: 'People', Icon: Users },
-                  { key: 'settings', label: 'Settings', Icon: SettingsIcon },
-                ] as const).map(({ key, label, Icon }) => {
-                  const active = sidebarTab === key;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSidebarTab(key)}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg transition-colors"
-                      style={{
-                        height: 32,
-                        background: active ? 'var(--accent)' : 'transparent',
-                        color: active ? '#fff' : 'var(--text-secondary)',
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
+            {/* Standalone-app navigation is now a bottom tab bar (Home/Spaces/
+                Notifications/Profile), matching the reference mock — see the
+                bar itself right before </aside> below. The old top segmented
+                strip (Chats/People/Settings) is gone; 'people' lives in "+
+                New" now, 'settings' merged into the Profile tab. */}
             <div style={{ display: sidebarTab === 'chats' ? 'contents' : 'none' }}>
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
@@ -11284,56 +11857,75 @@ export default function SupraSpacePage() {
                       <CheckCheck className="h-3.5 w-3.5" />
                     </button>
                   )}
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-40 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
-                        <MessageSquare className="h-3.5 w-3.5" /> Direct Message
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
-                        <Hash className="h-3.5 w-3.5" /> New Channel
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
-                        <Sparkles className="h-3.5 w-3.5" /> New Space
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <div ref={meetingMenuRef} className="relative">
-                    <button
-                      onClick={() => setMeetingMenuOpen(v => !v)}
-                      className="ss4-video-btn h-7 px-2.5 flex items-center gap-1.5"
-                      title="New meeting"
-                      disabled={!!meetingActionLoading}
-                      style={{ opacity: meetingActionLoading ? 0.7 : 1 }}
-                    >
-                      {meetingActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
-                      <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
-                    </button>
-                    {meetingMenuOpen && (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-                        <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                          <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          Create a meeting link for later
-                        </button>
-                        <button onClick={handleStartInstantMeeting} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                          <Plus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          Start an instant meeting
-                        </button>
-                        <button onClick={() => { setMeetingMenuOpen(false); setScheduleMeetingOpen(true); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                          <CalendarPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                          Schedule in Suprah Calendar
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {!isStandaloneApp && (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <button className="ss4-new-btn h-7 px-2.5 flex items-center gap-1.5" title="New conversation"><Plus className="h-3 w-3" /><span className="font-semibold" style={{ fontSize: 11 }}>New</span></button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-40 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
+                          <MessageSquare className="h-3.5 w-3.5" /> Direct Message
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
+                          <Hash className="h-3.5 w-3.5" /> New Channel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
+                          <Sparkles className="h-3.5 w-3.5" /> New Space
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {!isStandaloneApp && (
+                    <div ref={meetingMenuRef} className="relative">
+                      <button
+                        onClick={() => setMeetingMenuOpen(v => !v)}
+                        className="ss4-video-btn h-7 px-2.5 flex items-center gap-1.5"
+                        title="New meeting"
+                        disabled={!!meetingActionLoading}
+                        style={{ opacity: meetingActionLoading ? 0.7 : 1 }}
+                      >
+                        {meetingActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
+                        <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
+                      </button>
+                      {meetingMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
+                          <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                            <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                            Create a meeting link for later
+                          </button>
+                          <button onClick={handleStartInstantMeeting} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                            <Plus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                            Start an instant meeting
+                          </button>
+                          <button onClick={() => { setMeetingMenuOpen(false); setScheduleMeetingOpen(true); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                            <CalendarPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                            Schedule in Suprah Calendar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="relative">
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-3 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
+                {q.length > 0 && (
+                  <button
+                    onClick={() => setQ('')}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 rounded-full flex items-center justify-center"
+                    style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </div>
+              </div>
+              {isStandaloneApp && (
+                <PresenceRail me={me} users={allUsers} presence={presence} uid={uid} onSelectUser={handleDM} />
+              )}
+              <div className={cn('px-4 pb-3 shrink-0', isStandaloneApp ? 'pt-1' : 'pt-5')}>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
                 {CONVERSATION_FILTERS.map((filter) => {
                   const active = conversationFilter === filter.key;
@@ -11389,9 +11981,36 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
+              {/* Archived chats live in the Menu tab now, out of the normal
+                  scroll — but a name search here should still be able to find
+                  one, instead of only ever surfacing message-content matches. */}
+              {isStandaloneApp && q.trim().length >= 2 && archivedList.length > 0 && (
+                <div className="pt-1">
+                  <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
+                    <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(148,163,184,0.18)' }}>
+                      <Archive className="h-3 w-3" style={{ color: '#94a3b8' }} />
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Archived</span>
+                  </div>
+                  <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>
+                </div>
+              )}
+
               {pinnedList.length > 0 && (
                 <div className="pt-1">
-                  <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
+                  {isStandaloneApp ? (
+                    <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
+                      <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.18)' }}>
+                        <Pin className="h-3 w-3" style={{ color: '#f59e0b' }} />
+                      </span>
+                      <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Pinned</span>
+                      <span className="ml-auto rounded-full font-bold flex items-center justify-center" style={{ minWidth: 23, height: 23, padding: '0 7px', fontSize: 12, background: 'rgba(245,158,11,0.18)', color: '#f59e0b' }}>
+                        {pinnedList.length}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="px-3 pt-2 pb-1.5"><span className="ss4-section-label"><Pin className="h-2.5 w-2.5 mr-1" /> Pinned</span></div>
+                  )}
                   <div className="px-2 space-y-0.5">{pinnedList.map(c => <ConvRow key={c._id} conv={c} {...sharedConvRowProps} />)}</div>
                 </div>
               )}
@@ -11400,7 +12019,16 @@ export default function SupraSpacePage() {
               {dmList.length > 0 && (
                 <div>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
-                    <span className="ss4-section-label"><MessageSquare className="h-2.5 w-2.5 mr-1" /> Direct Messages</span>
+                    {isStandaloneApp ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(91,124,246,0.18)' }}>
+                          <MessageSquare className="h-3 w-3" style={{ color: 'var(--accent)' }} />
+                        </span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Direct Messages</span>
+                      </span>
+                    ) : (
+                      <span className="ss4-section-label"><MessageSquare className="h-2.5 w-2.5 mr-1" /> Direct Messages</span>
+                    )}
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('dm') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('dm') && <div className="px-2 space-y-0.5">{dmList.map(c => <ConvRow key={c._id} conv={c} {...sharedConvRowProps} />)}</div>}
@@ -11411,7 +12039,16 @@ export default function SupraSpacePage() {
               {orderedSpaces.length > 0 && (
                 <div>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('spaces')}>
-                    <span className="ss4-section-label"><Sparkles className="h-2.5 w-2.5 mr-1" /> Spaces</span>
+                    {isStandaloneApp ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(168,85,247,0.18)' }}>
+                          <Sparkles className="h-3 w-3" style={{ color: '#a855f7' }} />
+                        </span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Spaces</span>
+                      </span>
+                    ) : (
+                      <span className="ss4-section-label"><Sparkles className="h-2.5 w-2.5 mr-1" /> Spaces</span>
+                    )}
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('spaces') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('spaces') && orderedSpaces.map((space, idx) => {
@@ -11485,7 +12122,16 @@ export default function SupraSpacePage() {
                   data-drop-zone="__channels__"
                   style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
-                    <span className="ss4-section-label"><Hash className="h-2.5 w-2.5 mr-1" /> Channels</span>
+                    {isStandaloneApp ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(148,163,184,0.18)' }}>
+                          <Hash className="h-3 w-3" style={{ color: '#94a3b8' }} />
+                        </span>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Channels</span>
+                      </span>
+                    ) : (
+                      <span className="ss4-section-label"><Hash className="h-2.5 w-2.5 mr-1" /> Channels</span>
+                    )}
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('channels') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('channels') && (
@@ -11513,7 +12159,7 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {archivedList.length > 0 && (
+              {!isStandaloneApp && archivedList.length > 0 && (
                 <div className="pt-3">
                   <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
                     <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
@@ -11525,21 +12171,120 @@ export default function SupraSpacePage() {
               </div>
             </div>
 
-            {isStandaloneApp && sidebarTab === 'people' && (
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div className="shrink-0 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
-                  <StoriesRail me={{ fullName: myFullName, avatar: myAvatar }} />
-                </div>
-                <PeoplePanel
-                  users={allUsers}
-                  presence={presence}
-                  uid={uid}
-                  onSelect={(targetId) => { setSidebarTab('chats'); handleDM(targetId); }}
-                />
+            {isStandaloneApp && sidebarTab === 'chats' && (
+              <div className="absolute z-30" style={{ right: 18, bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="h-13 w-13 rounded-full flex items-center justify-center"
+                      style={{ background: 'linear-gradient(135deg, var(--accent), #8b7cf6)', boxShadow: '0 6px 18px rgba(91,124,246,0.45)' }}
+                      aria-label="New"
+                    >
+                      <Plus className="h-5 w-5 text-white" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="top" sideOffset={10} className="min-w-40 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'dm' })}>
+                      <MessageSquare className="h-3.5 w-3.5" /> Direct Message
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'group' })}>
+                      <Hash className="h-3.5 w-3.5" /> New Channel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
+                      <Sparkles className="h-3.5 w-3.5" /> New Space
+                    </DropdownMenuItem>
+                    <div style={{ height: 1, background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', margin: '3px 4px' }} />
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleCreateMeetingForLater}>
+                      <Link2 className="h-3.5 w-3.5" /> Create meeting link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleStartInstantMeeting}>
+                      <Video className="h-3.5 w-3.5" /> Start instant meeting
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setScheduleMeetingOpen(true)}>
+                      <CalendarPlus className="h-3.5 w-3.5" /> Schedule meeting
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
 
-            {isStandaloneApp && sidebarTab === 'settings' && <SupraSpaceSettingsPanel me={me} allUsers={allUsers} />}
+            {/* "Spaces" bottom tab is now "People" — Spaces themselves are still
+                fully reachable from the Home tab's own Spaces section and via
+                "+ New" > New Space, so nothing is lost by retiring the grid
+                view's dedicated tab slot. */}
+            {isStandaloneApp && sidebarTab === 'spaces' && (
+              <PeoplePanel
+                users={allUsers}
+                presence={presence}
+                uid={uid}
+                onSelect={(targetId) => { setSidebarTab('chats'); handleDM(targetId); }}
+                showFilters
+              />
+            )}
+
+            {isStandaloneApp && sidebarTab === 'notifications' && (
+              <NotificationsPanel
+                token={token || ''}
+                onOpenNotification={(conversationId, messageId) => {
+                  setSidebarTab('chats');
+                  if (messageId) openSearchResult(conversationId, messageId);
+                  else setActiveId(conversationId);
+                }}
+              />
+            )}
+
+            {isStandaloneApp && sidebarTab === 'profile' && (
+              <MenuTab me={me} allUsers={allUsers} presence={presence} uid={uid} token={token || ''} archivedList={archivedList} sharedConvRowProps={sharedConvRowProps} />
+            )}
+
+            {isStandaloneApp && (
+              <div
+                className="shrink-0 flex items-stretch"
+                style={{
+                  borderTop: '1px solid var(--sidebar-border)',
+                  paddingBottom: 'env(safe-area-inset-bottom)',
+                  background: 'var(--bg-base)',
+                }}
+              >
+                {([
+                  { key: 'chats', label: 'Home', Icon: Home },
+                  { key: 'spaces', label: 'People', Icon: Users },
+                  { key: 'notifications', label: 'Notifications', Icon: Bell },
+                  { key: 'profile', label: 'Menu', Icon: Menu },
+                ] as const).map(({ key, label, Icon }) => {
+                  const active = sidebarTab === key;
+                  // Reuses the conversation list's own unread accounting (no
+                  // extra fetch) as a stand-in for "unread SupraSpace
+                  // notifications" — the Notifications tab is fed by the same
+                  // message/mention events.
+                  const badgeCount = key === 'notifications'
+                    ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
+                    : 0;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSidebarTab(key)}
+                      className="relative flex-1 flex flex-col items-center justify-center gap-1 py-2"
+                      style={{ color: active ? 'var(--accent)' : 'var(--text-tertiary)' }}
+                    >
+                      {active && <span className="absolute top-0 rounded-full" style={{ width: 28, height: 3, background: 'var(--accent)' }} />}
+                      <span className="relative">
+                        <Icon className="h-5 w-5" strokeWidth={active ? 2.3 : 1.8} />
+                        {badgeCount > 0 && (
+                          <span
+                            className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
+                            style={{ minWidth: 15, height: 15, padding: '0 3px', fontSize: 9, background: '#ef4444', color: '#fff' }}
+                          >
+                            {badgeCount > 9 ? '9+' : badgeCount}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </aside>
 
           { }
@@ -12997,6 +13742,9 @@ export default function SupraSpacePage() {
           const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
             { icon: <MailOpen className="h-5 w-5" />, label: sheetIsUnread ? 'Mark as read' : 'Mark as unread', onClick: toggleSheetReadState },
             { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
+            ...(sheetConv.type === 'group' && ctxSpaces.length > 0
+              ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
+              : []),
             { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
             { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); openConversation(sheetConv._id); setConvMobileSheet(null); } },
             { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
@@ -13025,6 +13773,49 @@ export default function SupraSpacePage() {
                   </button>
                 ))}
                 <div style={{ height: 8 }} />
+              </div>
+            </div>
+          );
+        })()}
+
+        { }
+        {moveSpaceSheetConv && (() => {
+          const conv = convos.find(c => c._id === moveSpaceSheetConv);
+          if (!conv) return null;
+          const currentSpaceId = (conv as any).spaceId as string | null | undefined;
+          return (
+            <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setMoveSpaceSheetConv(null)}>
+              <div className="w-full max-h-[75vh] flex flex-col rounded-t-2xl" onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+                <div className="flex justify-center pt-3 pb-1 shrink-0">
+                  <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
+                </div>
+                <p className="text-center font-semibold px-4 pt-1 pb-3 truncate shrink-0" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Move to Space</p>
+                <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
+                <div className="flex-1 min-h-0 overflow-y-auto pb-2">
+                  {currentSpaceId && (
+                    <button
+                      className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
+                      style={{ color: 'var(--text-primary)', fontSize: 15 }}
+                      onClick={() => { handleMoveToSpace(conv._id, null); setMoveSpaceSheetConv(null); }}
+                    >
+                      <ArrowLeft className="h-5 w-5" /> Remove from Space
+                    </button>
+                  )}
+                  {ctxSpaces.filter(sp => sp._id !== currentSpaceId).map(sp => (
+                    <button
+                      key={sp._id}
+                      className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
+                      style={{ color: 'var(--text-primary)', fontSize: 15 }}
+                      onClick={() => { handleMoveToSpace(conv._id, sp._id); setMoveSpaceSheetConv(null); }}
+                    >
+                      <Sparkles className="h-5 w-5" /> {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
+                    </button>
+                  ))}
+                  {ctxSpaces.length === 0 && (
+                    <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No spaces yet</p>
+                  )}
+                </div>
               </div>
             </div>
           );
