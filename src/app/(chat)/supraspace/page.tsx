@@ -1094,7 +1094,13 @@ if (typeof document !== 'undefined') {
     /* Composer's own visual confirmation that an @mention was actually
        inserted — matches renderMessageContent's styling for the same token
        once sent, so what you see while typing is what it'll look like. */
-    .ss4-mention-chip { color:var(--accent-text); font-weight:700; }
+    /* !important: confirmed via prod DevTools that --accent-text resolves
+       correctly (#2e7fff) but a differently-ordered CSS rule in the
+       production build's optimized/reordered stylesheet chunk was still
+       winning and painting the chip near-white — dev's unoptimized CSS
+       preserves source order so it never showed there. Not relying on
+       cascade order anymore. */
+    .ss4-mention-chip { color:var(--accent-text) !important; font-weight:700 !important; }
     .ss4-section-label { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:var(--bg-subtle); border:1px solid var(--border-1); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); font-weight:700; }
     .ss4-filter-pill { height:26px!important; padding:0 10px!important; font-size:10.5px!important; line-height:1; }
     .ss4-scroll { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; touch-action:pan-y; }
@@ -3270,8 +3276,15 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         } else if (/^https?:\/\//i.test(token)) {
           nodes.push(token);
         } else {
+          // isOwn messages sit on the accent-colored bubble itself, so the
+          // mention text stays white for contrast (accent-on-accent would be
+          // unreadable) — but plain white bold text looked identical to any
+          // other **bold** word in the message, so it read as "no mention
+          // indicator at all" even though this was always intentional, not
+          // a missing/broken color. A translucent background pill keeps the
+          // mention visually distinct without touching the text color.
           nodes.push(isOwn
-            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)' }}>{token}</span>
+            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', background: 'rgba(255,255,255,0.22)', borderRadius: 4, padding: '0 3px' }}>{token}</span>
             : <span key={key} className="font-bold" style={{ color: 'var(--accent-text)' }}>{token}</span>
           );
         }
