@@ -5028,7 +5028,7 @@ const Bubble = React.memo(function Bubble({
               event.stopPropagation();
               jumpToRepliedMessage(message.replyTo);
             }}
-            className="rounded-xl px-3 py-2 mb-1 max-w-full ss4-reply-bar text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-(--accent)/50"
+            className="rounded-xl px-3 py-2 max-w-full ss4-reply-bar text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-(--accent)/50"
             title="Jump to original message"
           >
             <p className="font-semibold truncate" style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--accent-text)' }}>{message.replyTo.sender?.fullName}</p>
@@ -8399,11 +8399,26 @@ const ConvRow = React.memo(function ConvRow({
         </div>
         {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
           : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: unreadDotColor, boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
+        {/* Pin/mute moved off the name row entirely (as of this fix) — any
+            reserved space there, even just one icon's width, still read as
+            "the name is too far from the avatar" once applied uniformly to
+            every row. A small badge on the avatar's own corner marks pinned/
+            muted status without taking any space from the text column at
+            all, so the name always starts at the exact same X regardless of
+            status — genuinely zero variable gap, not just a smaller one. */}
+        {(pinned || isMuted) && (
+          <span
+            className="absolute -bottom-0.5 -left-0.5 h-3.5 w-3.5 rounded-full flex items-center justify-center"
+            style={{ background: 'var(--sidebar-bg)', boxShadow: '0 0 0 2px var(--sidebar-bg)' }}
+          >
+            {pinned
+              ? <Pin className="h-2.5 w-2.5" style={{ color: 'var(--accent)' }} />
+              : <VolumeX className="h-2.5 w-2.5" style={{ color: 'var(--text-tertiary)' }} />}
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          {pinned && <Pin className="h-3 w-3 shrink-0" style={{ color: 'var(--accent)' }} />}
-          {isMuted && <VolumeX className="h-3 w-3 shrink-0" style={{ color: 'var(--text-tertiary)' }} />}
           <p className={cn('ss4-conv-name font-semibold truncate flex-1', isUnread && 'font-bold', isMuted && 'italic')} style={{ fontSize: 17 }}>{cName}</p>
           <span
             className={cn(
@@ -8622,6 +8637,19 @@ export default function SupraSpacePage() {
   const [token, setToken] = React.useState('');
   const [uid, setUid] = React.useState('');
   const [loading, setLoading] = React.useState(true);
+  // The init effect's SSO/token-exchange chain has no per-step visible
+  // feedback and, on a slow or flaky connection, can legitimately take a
+  // while before the 30s request timeout (api-client.ts) even kicks in —
+  // reported as "sometimes it doesn't even load and you have to force
+  // close it." There was no escape hatch from this spinner at all before;
+  // this offers a manual reload once it's clearly taking too long, instead
+  // of leaving someone staring at a stuck screen with no recourse.
+  const [initSlow, setInitSlow] = React.useState(false);
+  React.useEffect(() => {
+    if (!loading) { setInitSlow(false); return; }
+    const t = setTimeout(() => setInitSlow(true), 10000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -8742,29 +8770,15 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
-  // 100dvh (added for the standalone shell's height, below) recalculates
-  // live as iOS's on-screen keyboard opens/closes — good for tracking the
-  // keyboard while it's open, but iOS Safari has a known quirk where dvh
-  // doesn't always settle back to the correct value once the keyboard
-  // closes again (most reliably right after a message send, which blurs
-  // the composer), leaving a stale gap at the bottom of whichever view is
-  // visible. visualViewport.height is the more reliable, purpose-built
-  // signal for "how tall is the actually-visible area right now" — using it
-  // as an explicit pixel height instead, when available, sidesteps that
-  // dvh-settling bug entirely.
-  const [vvHeight, setVvHeight] = React.useState<number | null>(null);
-  React.useEffect(() => {
-    if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
-    const vv = window.visualViewport;
-    const update = () => setVvHeight(vv.height);
-    update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
-    };
-  }, [isStandaloneApp]);
+  // Tried driving this off visualViewport.height instead of 100dvh (to work
+  // around a dvh-settling quirk after the keyboard closes) — reverted. On
+  // iOS, an absolutely-positioned element anchored at top:0 doesn't track
+  // visualViewport's own scroll offset (offsetTop) the way the keyboard
+  // itself does, so shrinking just the height while the OS auto-scrolls the
+  // focused input into view left the composer stranded partway up the
+  // screen with a large gap before the keyboard — worse than the original
+  // issue it was meant to fix. Plain 100dvh below doesn't have that
+  // scroll-offset mismatch.
   // Never nudge someone to "Get SupraSpace" while they're already running
   // the real installed app — isMobileViewport is a width check (narrow
   // window), not an install check, so without excluding isStandaloneApp
@@ -8913,6 +8927,14 @@ export default function SupraSpacePage() {
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
+  // Dedicated ref for the "Image" button specifically — it shared fileRef's
+  // unrestricted (no accept) input with the general "Attach files" button,
+  // so both opened the exact same native picker with no distinction (QA:
+  // "Photo Library" and "Choose Files" appearing redundant). Restricting
+  // this one to accept="image/*,video/*" narrows the native iOS/Android
+  // picker down to just the photo-related options for this button, leaving
+  // the general attach button's picker unrestricted for real documents.
+  const imageFileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLDivElement>(null);
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
@@ -9419,7 +9441,12 @@ export default function SupraSpacePage() {
         try {
           const mainToken = await getMainTokenRef.current();
           if (mainToken) {
-            const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` } });
+            // Shorter timeout than apiClient's 30s default — this is the
+            // FIRST of two SSO attempts, so on a slow/flaky connection it
+            // should fail fast and fall through to the second attempt
+            // instead of eating most of a 30s budget on this one alone
+            // (reported as SupraSpace sometimes not loading at all).
+            const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 });
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
@@ -9430,7 +9457,7 @@ export default function SupraSpacePage() {
         try {
           const mainToken = await getMainTokenRef.current();
           if (mainToken) {
-            const sso = await apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` } });
+            const sso = await apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 });
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
           }
@@ -11936,6 +11963,18 @@ export default function SupraSpacePage() {
           <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', letterSpacing: '0.01em' }}>The Communication Hub That Drives Every Deal</p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
+          {initSlow && (
+            <div className="flex flex-col items-center gap-2 mt-2">
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>This is taking longer than usual.</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-full font-semibold"
+                style={{ padding: '6px 16px', fontSize: 12, background: 'var(--accent)', color: '#fff' }}
+              >
+                Reload
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -11979,7 +12018,7 @@ export default function SupraSpacePage() {
           real visual viewport, leaving a gap below absolute inset-0's box
           that isn't actually the true bottom of the screen. dvh recalculates
           live against the real viewport instead of inheriting a % chain. */}
-      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: vvHeight ? `${vvHeight}px` : '100dvh' } : {}) }}>
+      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: '100dvh' } : {}) }}>
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -13363,7 +13402,7 @@ export default function SupraSpacePage() {
                                   </button>
                                   {gifOpen && <GifPicker mobile onPick={selectGif} onClose={() => setGifOpen(false)} />}
                                 </div>
-                                <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-10 w-10" title="Image"><ImageIcon className="h-6 w-6" /></button>
+                                <button onClick={() => imageFileRef.current?.click()} className="ss4-icon-btn h-10 w-10" title="Image"><ImageIcon className="h-6 w-6" /></button>
                                 <button onClick={startRecording} className="ss4-icon-btn h-10 w-10" title="Voice message"><Mic className="h-6 w-6" /></button>
                               </>
                             )}
@@ -13372,6 +13411,7 @@ export default function SupraSpacePage() {
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
+                            <input ref={imageFileRef} type="file" accept="image/*,video/*" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
                             <button onClick={startRecording} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
                             <div ref={gifRef} className="relative">
