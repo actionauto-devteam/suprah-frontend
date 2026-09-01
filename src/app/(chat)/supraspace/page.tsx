@@ -3233,7 +3233,13 @@ function isNearWhiteHexColor(color?: string): boolean {
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const result: React.ReactNode[] = [];
 
-  const renderInline = (text: string, keyPrefix: string): React.ReactNode[] => {
+  // insideLink stays false for every ordinary call (default) and only flips
+  // to true for a link token's OWN display text (below) — an <a> whose text
+  // happens to itself look like a raw URL (the "[url](url)" shape htmlToMarkdown
+  // produces for a plain pasted link) must not get auto-linked a second time,
+  // or React ends up with <a><a>...</a></a>, which is invalid HTML and throws
+  // a hydration error.
+  const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false): React.ReactNode[] => {
     const nodes: React.ReactNode[] = [];
     let cursor = 0;
     let index = 0;
@@ -3252,7 +3258,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         if (match.index > last) nodes.push(plain.slice(last, match.index));
         const token = match[0];
         const key = `${keyPrefix}-plain-${index++}`;
-        if (/^https?:\/\//i.test(token)) {
+        if (/^https?:\/\//i.test(token) && !insideLink) {
           const trailing = token.match(/[),.!?]+$/)?.[0] || '';
           const href = trailing ? token.slice(0, -trailing.length) : token;
           nodes.push(
@@ -3261,6 +3267,8 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
               {trailing}
             </React.Fragment>
           );
+        } else if (/^https?:\/\//i.test(token)) {
+          nodes.push(token);
         } else {
           nodes.push(isOwn
             ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)' }}>{token}</span>
@@ -3371,35 +3379,35 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
           <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
-            {renderInline(inner, key)}
+            {renderInline(inner, key, insideLink)}
           </span>
         );
       } else if (token.type === 'font') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
           <span key={key} style={{ fontFamily: ss4FontFamilyCss(token.fontFamily || SS4_DEFAULT_FONT_FAMILY) }}>
-            {renderInline(inner, key)}
+            {renderInline(inner, key, insideLink)}
           </span>
         );
       } else if (token.type === 'size') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
           <span key={key} style={{ fontSize: `${token.fontSize || SS4_DEFAULT_FONT_SIZE}px` }}>
-            {renderInline(inner, key)}
+            {renderInline(inner, key, insideLink)}
           </span>
         );
       } else if (token.type === 'bold') {
-        nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</strong>);
+        nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</strong>);
       } else if (token.type === 'strike') {
-        nodes.push(<s key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</s>);
+        nodes.push(<s key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</s>);
       } else if (token.type === 'underline') {
-        nodes.push(<u key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key)}</u>);
+        nodes.push(<u key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</u>);
       } else if (token.type === 'italic') {
-        nodes.push(<em key={key}>{renderInline(text.slice(token.start + 1, token.end - 1), key)}</em>);
+        nodes.push(<em key={key}>{renderInline(text.slice(token.start + 1, token.end - 1), key, insideLink)}</em>);
       } else if (token.type === 'link') {
         nodes.push(
           <a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>
-            {renderInline(token.linkText || '', key)}
+            {renderInline(token.linkText || '', key, true)}
           </a>
         );
       } else {
