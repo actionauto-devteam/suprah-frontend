@@ -508,7 +508,10 @@ function getRichEditorCaretFormattingSnapshot(
   const bold = boldData ?? (
     hasAncestorTag(['b', 'strong'])
     || hasInlineWeight
-    || document.queryCommandState('bold')
+    // queryCommandState('bold') is unreliable — some browsers report true
+    // just from nearby bold-looking computed style (e.g. the @mention chip's
+    // CSS font-weight), which was making text typed near/after a mention
+    // auto-bold with no real bold tag/inline-style/toolbar toggle involved.
   );
   const italic = italicData ?? (
     hasAncestorTag(['i', 'em'])
@@ -1652,7 +1655,16 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
 }
 
 function htmlToMarkdown(el: HTMLElement): string {
-  const walk = (node: Node, listDepth = 0): string => {
+  // Formatting already applied by an ancestor (e.g. pasted HTML that nests
+  // <strong><em style="font-style:italic">Leo</em></strong> instead of one
+  // flat run) must not get a second marker pair from the descendant that
+  // carries the same formatting — that produced doubled/orphaned "_**_Leo
+  // _**_" style corruption in a sent message. Threaded through every
+  // recursive call so a tag only ever contributes its OWN marker once.
+  type InheritedFormats = { bold: boolean; italic: boolean; underline: boolean; strike: boolean };
+  const NO_FORMATS: InheritedFormats = { bold: false, italic: false, underline: false, strike: false };
+
+  const walk = (node: Node, listDepth = 0, inherited: InheritedFormats = NO_FORMATS): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
     }
@@ -1677,10 +1689,24 @@ function htmlToMarkdown(el: HTMLElement): string {
       return clipboardControlValue(element);
     }
 
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    const elementIsBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
+      || fontWeight === 'bold' || Number.parseInt(fontWeight || '0', 10) >= 600;
+    const elementIsItalic = tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic';
+    const elementIsUnderline = tag === 'u' || decoration.includes('underline');
+    const elementIsStrike = tag === 's' || tag === 'strike' || tag === 'del' || decoration.includes('line-through');
+    const childInherited: InheritedFormats = {
+      bold: inherited.bold || elementIsBold,
+      italic: inherited.italic || elementIsItalic,
+      underline: inherited.underline || elementIsUnderline,
+      strike: inherited.strike || elementIsStrike,
+    };
+
     if (tag === 'ul' || tag === 'ol') {
       const serializedList = Array.from(element.children)
         .filter(child => child.tagName.toLowerCase() === 'li')
-        .map(child => walk(child, listDepth))
+        .map(child => walk(child, listDepth, childInherited))
         .join('');
 
       // A top-level list is a block boundary. The previous serializer returned
@@ -1725,9 +1751,9 @@ function htmlToMarkdown(el: HTMLElement): string {
           child.nodeType === Node.ELEMENT_NODE
           && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
         ) {
-          nestedContent += walk(child, visualDepth + 1);
+          nestedContent += walk(child, visualDepth + 1, childInherited);
         } else {
-          ownContent += walk(child, visualDepth);
+          ownContent += walk(child, visualDepth, childInherited);
         }
       });
 
@@ -1739,7 +1765,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     }
 
     let inner = Array.from(element.childNodes)
-      .map(child => walk(child, listDepth))
+      .map(child => walk(child, listDepth, childInherited))
       .join('');
     if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
       inner = clipboardControlValue(element);
@@ -1760,31 +1786,12 @@ function htmlToMarkdown(el: HTMLElement): string {
       || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
     const isMonospace = !fontFamily
       && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
-    const fontWeight = element.style.fontWeight;
-    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
 
     const hasInlineContent = Boolean(inner.trim());
-    if (
-      hasInlineContent
-      && (
-        tag === 'strong'
-        || tag === 'b'
-        || /^h[1-6]$/.test(tag)
-        || fontWeight === 'bold'
-        || Number.parseInt(fontWeight || '0', 10) >= 600
-      )
-    ) inner = `**${inner}**`;
-    if (hasInlineContent && (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic')) inner = `_${inner}_`;
-    if (hasInlineContent && (tag === 'u' || decoration.includes('underline'))) inner = `__${inner}__`;
-    if (
-      hasInlineContent
-      && (
-        tag === 's'
-        || tag === 'strike'
-        || tag === 'del'
-        || decoration.includes('line-through')
-      )
-    ) inner = `~~${inner}~~`;
+    if (hasInlineContent && elementIsBold && !inherited.bold) inner = `**${inner}**`;
+    if (hasInlineContent && elementIsItalic && !inherited.italic) inner = `_${inner}_`;
+    if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
+    if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
     else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = isSerialLikeText(inner)
       ? inner
@@ -2724,55 +2731,75 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
 
   // Some rich clipboard payloads contain BOTH semantic HTML formatting and
   // literal markdown controls. Example: <strong>Progress Report</strong>**.
-  // The HTML is the visual source of truth for a formatted paste, so consume
-  // any complete **...** runs that remain inside text nodes as <strong>, then
-  // remove only boundary/orphan ** controls that cannot represent visible text.
-  // Never touch code/pre, where literal asterisks are legitimate content.
-  collectTextNodes().forEach(textNode => {
-    const value = textNode.data;
-    if (!value.includes('**')) return;
+  // The HTML is the visual source of truth for a formatted paste, so for
+  // each marker below: consume any complete pair that remains inside a text
+  // node into the matching real element, then remove only boundary/orphan
+  // markers that can't represent visible text. Never touch code/pre, where
+  // a literal marker character is legitimate content. Originally handled
+  // only ** (bold) — generalized to the other markdown-style pair markers
+  // (underline/strike/code, then single */_ italic — reported as literal
+  // "_Leo_" left in a pasted+sent message), since the leaking-artifact
+  // pattern isn't specific to bold. Single */_ run right after their
+  // double-char counterpart so a real **/__ pair is already consumed as
+  // <strong>/<u> before the single-char pass can misread half of it.
+  const pairMarkers: { marker: string; tag: string; pattern: RegExp }[] = [
+    { marker: '**', tag: 'strong', pattern: /\*\*([^*\n]+?)\*\*/g },
+    { marker: '*', tag: 'em', pattern: /(?<![\w*])\*([^*\n]+?)\*(?!\w)/g },
+    { marker: '__', tag: 'u', pattern: /__([^_\n]+?)__/g },
+    { marker: '_', tag: 'em', pattern: /(?<![\w_])_([^_\n]+?)_(?!\w)/g },
+    { marker: '~~', tag: 's', pattern: /~~([^~\n]+?)~~/g },
+    { marker: '`', tag: 'code', pattern: /`([^`\n]+?)`/g },
+  ];
 
-    const pairPattern = /\*\*([^*\n]+?)\*\*/g;
-    let cursor = 0;
-    let matched = false;
-    const fragment = doc.createDocumentFragment();
-    let match: RegExpExecArray | null;
+  pairMarkers.forEach(({ marker, tag, pattern }) => {
+    collectTextNodes().forEach(textNode => {
+      const value = textNode.data;
+      if (!value.includes(marker)) return;
 
-    while ((match = pairPattern.exec(value)) !== null) {
-      matched = true;
-      if (match.index > cursor) {
-        fragment.appendChild(doc.createTextNode(value.slice(cursor, match.index)));
+      pattern.lastIndex = 0;
+      let cursor = 0;
+      let matched = false;
+      const fragment = doc.createDocumentFragment();
+      let match: RegExpExecArray | null;
+
+      while ((match = pattern.exec(value)) !== null) {
+        matched = true;
+        if (match.index > cursor) {
+          fragment.appendChild(doc.createTextNode(value.slice(cursor, match.index)));
+        }
+        const el = doc.createElement(tag);
+        el.textContent = match[1];
+        fragment.appendChild(el);
+        cursor = match.index + match[0].length;
       }
-      const strong = doc.createElement('strong');
-      strong.textContent = match[1];
-      fragment.appendChild(strong);
-      cursor = match.index + match[0].length;
-    }
 
-    if (matched) {
-      if (cursor < value.length) {
-        fragment.appendChild(doc.createTextNode(value.slice(cursor)));
+      if (matched) {
+        if (cursor < value.length) {
+          fragment.appendChild(doc.createTextNode(value.slice(cursor)));
+        }
+        textNode.replaceWith(fragment);
       }
-      textNode.replaceWith(fragment);
-    }
-  });
+    });
 
-  collectTextNodes().forEach(textNode => {
-    const value = textNode.data;
-    if (!value.includes('**')) return;
+    collectTextNodes().forEach(textNode => {
+      const value = textNode.data;
+      if (!value.includes(marker)) return;
 
-    // Marker-only clipboard artifacts are never user-visible formatting.
-    if (/^\s*\*\*\s*$/.test(value)) {
-      textNode.data = value.replace(/\*\*/g, '');
-      return;
-    }
+      const markerRe = new RegExp(escapeRegExp(marker), 'g');
+      // Marker-only clipboard artifacts are never user-visible formatting.
+      if (new RegExp(`^\\s*${escapeRegExp(marker)}\\s*$`).test(value)) {
+        textNode.data = value.replace(markerRe, '');
+        return;
+      }
 
-    // Consume only unmatched controls at a text-node boundary. Internal
-    // literal "A**B" text is preserved, while "**Heading" / "Heading**"
-    // from copied rich text no longer leaks into the composer or message.
-    textNode.data = value
-      .replace(/^(\s*)\*\*(?=\s*\S)/, '$1')
-      .replace(/\*\*(\s*)$/, '$1');
+      // Consume only unmatched controls at a text-node boundary. Internal
+      // literal "A**B" text is preserved, while "**Heading" / "Heading**"
+      // from copied rich text no longer leaks into the composer or message.
+      const escaped = escapeRegExp(marker);
+      textNode.data = value
+        .replace(new RegExp(`^(\\s*)${escaped}(?=\\s*\\S)`), '$1')
+        .replace(new RegExp(`${escaped}(\\s*)$`), '$1');
+    });
   });
 
   return root.innerHTML;
@@ -3313,12 +3340,21 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         const end = text.indexOf(marker, start + marker.length);
         if (end > start + marker.length) candidates.push({ start, end: end + marker.length, type });
       });
-      const italicRe = /(^|[^\w*])_([^_\n]+)_(?!\w)/g;
+      // A lookbehind instead of a consuming boundary group — the old
+      // "(^|[^\w])" consumed its boundary character as part of the match,
+      // so when an italic run starts immediately after a bold run ends
+      // (e.g. "**Name**_text_", the "_" right after "**"), that boundary
+      // char had already been consumed by the PRECEDING bold token by the
+      // time this scan resumed from cursor, leaving no character left for
+      // this regex to claim as its own opening boundary — the "_" was
+      // permanently unmatchable and shipped as a literal character in the
+      // sent message. A lookbehind only peeks, never consumes, so it isn't
+      // affected by where the previous token's match ended.
+      const italicRe = /(?<!\w)_([^_\n]+)_(?!\w)/g;
       italicRe.lastIndex = from;
       const italicMatch = italicRe.exec(text);
       if (italicMatch) {
-        const markerOffset = italicMatch[1].length;
-        candidates.push({ start: italicMatch.index + markerOffset, end: italicMatch.index + italicMatch[0].length, type: 'italic' });
+        candidates.push({ start: italicMatch.index, end: italicMatch.index + italicMatch[0].length, type: 'italic' });
       }
       return candidates.sort((a, b) => a.start - b.start || a.end - b.end)[0] || null;
     };
@@ -4067,6 +4103,7 @@ const Bubble = React.memo(function Bubble({
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
+  // Same reasoning as the main composer's pasteMode default — see there.
   const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
   const editPastePlainTextShortcutRef = React.useRef(false);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
@@ -8770,15 +8807,35 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
-  // Tried driving this off visualViewport.height instead of 100dvh (to work
-  // around a dvh-settling quirk after the keyboard closes) — reverted. On
-  // iOS, an absolutely-positioned element anchored at top:0 doesn't track
-  // visualViewport's own scroll offset (offsetTop) the way the keyboard
-  // itself does, so shrinking just the height while the OS auto-scrolls the
-  // focused input into view left the composer stranded partway up the
-  // screen with a large gap before the keyboard — worse than the original
-  // issue it was meant to fix. Plain 100dvh below doesn't have that
-  // scroll-offset mismatch.
+  // Second attempt at this, more carefully this time. Plain 100dvh has a
+  // known iOS Safari quirk: it doesn't reliably re-expand once the keyboard
+  // closes again, leaving a stale gap behind (the original report). The
+  // first fix for that tracked visualViewport.height alone on a top:0
+  // absolutely-positioned box — that shrank correctly while the keyboard
+  // was open, but ignored visualViewport's own SCROLL offset (offsetTop,
+  // which shifts when iOS auto-scrolls a focused input into view), so the
+  // box's top no longer matched the actually-visible area and the composer
+  // ended up stranded mid-screen — worse than the gap it was meant to fix.
+  // Tracking BOTH height AND offsetTop together, with position:fixed
+  // instead of absolute (fixed is what actually respects visualViewport's
+  // coordinate space), keeps the container's top edge and height in sync
+  // with the real visible area at every point in the open/close cycle, not
+  // just while the keyboard is opening.
+  const [vv, setVv] = React.useState<{ height: number; top: number } | null>(null);
+  React.useEffect(() => {
+    if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const update = () => {
+      if (viewport.height > 0) setVv({ height: viewport.height, top: viewport.offsetTop });
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+    };
+  }, [isStandaloneApp]);
   // Never nudge someone to "Get SupraSpace" while they're already running
   // the real installed app — isMobileViewport is a width check (narrow
   // window), not an install check, so without excluding isStandaloneApp
@@ -8790,6 +8847,13 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
+  // Back to "keep formatting" as the default — bold/italic/bullets from the
+  // source should survive the paste. The character-leak bug this briefly
+  // defaulted away from (see normalizeRichClipboardBoldArtifacts) has its
+  // own fix now: that cleanup pass used to catch stray artifacts for ** specifically;
+  // it's generalized to the other marker pairs (__, ~~, `) too, so formatted
+  // paste itself is safer against the same bug class instead of avoiding
+  // formatting altogether.
   const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
   const pastePlainTextShortcutRef = React.useRef(false);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
@@ -9072,15 +9136,6 @@ export default function SupraSpacePage() {
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
-  // Where to float the @mention suggestion list — it used to render pinned
-  // to the top of the composer regardless of where the caret actually was,
-  // which worked fine for an @ typed at the very start of an empty message
-  // but left the list nowhere near the cursor for one typed mid-message
-  // (e.g. writing a shout-out and mentioning someone partway through) —
-  // easy to miss/dismiss, which is what actually drove the "@ only works at
-  // the start, copy-paste it into place after" workaround. Tracks the
-  // caret's own screen position instead, like Slack/Discord/Google Chat.
-  const [mentionDropdownRect, setMentionDropdownRect] = React.useState<{ left: number; bottom: number; top: number } | null>(null);
 
   // #channel-mention state
   const [channelMentionQuery, setChannelMentionQuery] = React.useState<string | null>(null);
@@ -10725,24 +10780,67 @@ export default function SupraSpacePage() {
     return true;
   }, [activeConv, uid]);
 
-  // Recomputes on every keystroke of the mention query (the caret shifts
-  // slightly as more of the name is typed) — cheap, and keeps the floating
-  // dropdown genuinely tracking the caret rather than a position captured
-  // once when the @ was first typed.
-  React.useEffect(() => {
-    if (mentionQuery === null || mentionAnchor < 0) { setMentionDropdownRect(null); return; }
-    const el = textareaRef.current;
-    const sel = window.getSelection();
-    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
-    const range = sel.getRangeAt(0).cloneRange();
-    range.collapse(true);
-    let rect = range.getBoundingClientRect();
-    // A collapsed range right at a line boundary can report an empty
-    // (0,0,0,0) rect in some browsers — fall back to the composer's own box
-    // rather than floating the dropdown into the corner of the screen.
-    if (!rect.width && !rect.height && !rect.top && !rect.left) rect = el.getBoundingClientRect();
-    setMentionDropdownRect({ left: rect.left, top: rect.top, bottom: rect.bottom });
-  }, [mentionQuery, mentionAnchor]);
+  // Pasted text lands as plain text/HTML with no chip styling — only a
+  // mention picked from the autocomplete dropdown (insertMention below)
+  // gets that today. This walks the composer's text nodes right after a
+  // paste and wraps any @alias that matches a real member of the active
+  // conversation in the same .ss4-mention-chip span, so a pasted mention
+  // gets the same visual confirmation as a typed one. Detection/sending
+  // already worked on pasted text (inspectMentionAnywhere + backend match
+  // on final plain text) — this only adds the missing visual layer.
+  const highlightMentionsInComposer = React.useCallback((el: HTMLElement) => {
+    if (!activeConv) return;
+    const aliases = [
+      ...(activeConv.type === 'group' ? ['all'] : []),
+      ...activeConv.members
+        .filter(m => m._id !== uid)
+        .flatMap(m => {
+          const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+        }),
+    ];
+    const uniqueAliases = Array.from(new Set(aliases.map(a => a.trim()).filter(Boolean)))
+      .sort((a, b) => b.length - a.length); // longest first: "John Smith" wins over "John"
+    if (!uniqueAliases.length) return;
+    const pattern = new RegExp(
+      `@(${uniqueAliases.map(a => escapeRegExp(a).replace(/\s+/g, '\\s+')).join('|')})(?=$|[^\\w])`,
+      'gi',
+    );
+
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+      acceptNode(node: Node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        // Don't double-wrap an already-styled chip, and never touch code content.
+        if (parent.closest('.ss4-mention-chip, code, pre')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let n: Node | null;
+    while ((n = walker.nextNode())) textNodes.push(n as Text);
+
+    textNodes.forEach(node => {
+      const text = node.nodeValue || '';
+      pattern.lastIndex = 0;
+      if (!pattern.test(text)) return;
+      pattern.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        const span = document.createElement('span');
+        span.className = 'ss4-mention-chip';
+        span.textContent = `@${match[1]}`;
+        frag.appendChild(span);
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      node.parentNode?.replaceChild(frag, node);
+    });
+  }, [activeConv, uid]);
 
   const insertMention = React.useCallback((name: string) => {
     const el = textareaRef.current;
@@ -12018,7 +12116,21 @@ export default function SupraSpacePage() {
           real visual viewport, leaving a gap below absolute inset-0's box
           that isn't actually the true bottom of the screen. dvh recalculates
           live against the real viewport instead of inheriting a % chain. */}
-      <div className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')} data-theme={theme} style={{ paddingTop: 'env(safe-area-inset-top)', ...(isStandaloneApp ? { height: '100dvh' } : {}) }}>
+      <div
+        className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')}
+        data-theme={theme}
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          ...(isStandaloneApp
+            ? (vv
+              // Both top and height driven by the same live measurement —
+              // correct through the keyboard's entire open/close cycle, not
+              // just the moment it opens.
+              ? { position: 'fixed', top: vv.top, left: 0, right: 0, height: vv.height }
+              : { height: '100dvh' })
+            : {}),
+        }}
+      >
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -12816,28 +12928,20 @@ export default function SupraSpacePage() {
                       </div>
                     ) : (
                       <div className="ss4-input-wrap flex flex-col">
-                        {mentionQuery !== null && mentionOptions.length > 0 && mentionDropdownRect && createPortal(
-                          <div
-                            className="rounded-xl overflow-hidden p-1"
-                            style={{
-                              position: 'fixed',
-                              // Anchored by its OWN bottom edge to the caret's
-                              // top, not a fixed top offset — grows upward as
-                              // options are added/removed without jumping,
-                              // and naturally sits above the on-screen
-                              // keyboard on mobile since the composer (and so
-                              // the caret) is always above it.
-                              bottom: Math.max(8, window.innerHeight - mentionDropdownRect.top + 6),
-                              left: Math.min(Math.max(8, mentionDropdownRect.left), window.innerWidth - 268),
-                              width: 260,
-                              maxHeight: '40vh',
-                              overflowY: 'auto',
-                              zIndex: 200,
-                              background: 'var(--bg-elevated)',
-                              border: '1px solid var(--border-2)',
-                              boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.4))',
-                            }}
-                          >
+                        {/* Reverted from a position:fixed portal anchored to
+                            the caret's on-screen rect — that math (getBoundingClientRect
+                            on a collapsed Range, re-derived on every keystroke)
+                            turned out unreliable on real mobile devices,
+                            rendering the list full-width and overlapping other
+                            UI instead of as a small anchored box. Back to
+                            rendering inline in the composer's own normal
+                            layout flow, which has no positioning math to get
+                            wrong — the actual fix for "mentions don't work
+                            mid-message" was always in the detection logic
+                            (handleTyping/inspectMentionAnywhere), not in
+                            where this list visually sits. */}
+                        {mentionQuery !== null && mentionOptions.length > 0 && (
+                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             {mentionOptions.map((opt, idx) => (
                               <button key={opt.id}
                                 onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
@@ -12858,8 +12962,7 @@ export default function SupraSpacePage() {
                                 </div>
                               </button>
                             ))}
-                          </div>,
-                          document.body
+                          </div>
                         )}
                         {channelMentionQuery !== null && channelMentionOptions.length > 0 && (
                           <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
@@ -13344,6 +13447,7 @@ export default function SupraSpacePage() {
                                     if (el) {
                                       normalizeContentEditableListArtifacts(el);
                                       normalizeRichEditorListExitArtifacts(el);
+                                      highlightMentionsInComposer(el);
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       inspectMentionAnywhere(nextText);
