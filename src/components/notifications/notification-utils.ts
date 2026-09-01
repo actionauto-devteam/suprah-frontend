@@ -65,6 +65,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   team_member_joined: { icon: UserPlus, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
   team_member_left: { icon: User, gradient: 'from-gray-500 to-slate-500', bg: 'bg-gray-500' },
   role_changed: { icon: Shield, gradient: 'from-purple-500 to-violet-500', bg: 'bg-purple-500' },
+  eotm_winner_announced: { icon: Award, gradient: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500' },
   password_changed: { icon: ShieldCheck, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   email_changed: { icon: Mail, gradient: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500' },
   profile_updated: { icon: User, gradient: 'from-violet-500 to-purple-500', bg: 'bg-violet-500' },
@@ -176,6 +177,7 @@ const TYPE_LABELS: Record<string, string> = {
   team_member_joined: 'Team Member Joined',
   team_member_left: 'Team Member Left',
   role_changed: 'Role Changed',
+  eotm_winner_announced: 'Employee of the Month',
   password_changed: 'Password Changed',
   email_changed: 'Email Changed',
   profile_updated: 'Profile Updated',
@@ -259,7 +261,7 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type === 'driver_location_update' || type.startsWith('driver_tracker_') || type === 'driver_dispatch_alert') return 'driverTracker';
   if (type.startsWith('payment_') || type.startsWith('payout_') || type.startsWith('wallet_')) return 'wallet';
   if (type.startsWith('team_') || type === 'role_changed' || type === 'board_note_posted'
-    || type === 'ping' || type.startsWith('absence_')) return 'team';
+    || type === 'ping' || type.startsWith('absence_') || type === 'eotm_winner_announced') return 'team';
   if (['password_changed', 'email_changed', 'profile_updated', 'login_alert'].includes(type)) return 'account';
   if (type.startsWith('referral_')) return 'referrals';
   if (type === 'admin_broadcast') return 'adminBroadcasts';
@@ -332,6 +334,7 @@ const ROUTE_MAP: Record<string, string> = {
   payment_request: '/customer/payments', payment_received: '/billing', payment_pending: '/billing', payment_failed: '/billing',
   payout_processed: '/billing',
   team_invite_sent: '/settings', team_member_joined: '/settings', team_member_left: '/settings', role_changed: '/settings',
+  eotm_winner_announced: '/recognition/employee-of-the-month',
   password_changed: '/profile', email_changed: '/profile', profile_updated: '/profile', login_alert: '/profile',
   referral_joined: '/customer/refer', referral_rewarded: '/customer/refer',
   system_announcement: '/notifications', general: '/notifications',

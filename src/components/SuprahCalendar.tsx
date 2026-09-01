@@ -554,10 +554,13 @@ export default function SuprahCalendar() {
       const link = document.createElement("a");
       link.href = url;
       link.download = "suprah-calendar.ics";
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
       toast.success("Calendar exported.");
-    } catch {
+    } catch (err) {
+      console.error("Calendar export failed:", err);
       toast.error("Couldn't export the calendar.");
     }
   };
