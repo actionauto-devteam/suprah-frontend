@@ -10864,6 +10864,17 @@ export default function SupraSpacePage() {
         if (match.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         const span = document.createElement('span');
         span.className = 'ss4-mention-chip';
+        // Confirmed via prod DevTools: the .ss4-mention-chip stylesheet
+        // rule itself never reaches the page there (getPropertyPriority
+        // came back empty — no rule, important or not, was even in play),
+        // while --accent-text (defined elsewhere in the same block) does
+        // resolve fine. Setting the color inline sidesteps whatever in
+        // Next's production CSS pipeline is dropping that one rule. NOT
+        // setting font-weight inline too — htmlToMarkdown treats an inline
+        // font-weight>=600 as real bold and would wrap the mention in
+        // **markers** in the actually-sent text, which the CSS class alone
+        // never did.
+        span.style.color = 'var(--accent-text)';
         span.textContent = `@${match[1]}`;
         frag.appendChild(span);
         lastIndex = match.index + match[0].length;
@@ -10890,7 +10901,12 @@ export default function SupraSpacePage() {
     // below (el.innerText) is unaffected — a styled span's text still
     // flattens into the same "@Name" either way.
     const safeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    document.execCommand('insertHTML', false, `<span class="ss4-mention-chip">@${safeName}</span> `);
+    // Inline color, not just the class — see the matching comment in
+    // highlightMentionsInComposer: the .ss4-mention-chip stylesheet rule
+    // doesn't reliably reach the page in production. font-weight stays
+    // class-only (not inline) so htmlToMarkdown doesn't read it as real
+    // bold and wrap the mention in **markers** in the sent text.
+    document.execCommand('insertHTML', false, `<span class="ss4-mention-chip" style="color:var(--accent-text);">@${safeName}</span> `);
     const next = el.innerText.replace(/\n$/, '');
     const caretOffset = mentionAnchor + name.length + 2;
     syncComposerText(next, true);
