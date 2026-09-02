@@ -73,17 +73,8 @@ type SS4InlineTypingPreferences = Record<
   boolean | null
 >;
 
-// Stable shared reference for the common "no members" case — a fresh `[]`
-// literal at a JSX prop callsite is a new array every render even when
-// logically empty both times, which defeats React.memo's shallow prop
-// comparison on any component that reads it (e.g. Bubble's `members` prop).
 const EMPTY_MEMBERS_ARRAY: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }> = [];
 
-// Used to guard setState calls that would otherwise construct a brand-new
-// object literal on every call even when every field is unchanged — without
-// this, React can never bail out of re-rendering (a new object is never
-// Object.is-equal to the old one), which matters a lot for state updated on
-// every keystroke (see refreshActiveFormats).
 function shallowEqualFlat<T extends Record<string, unknown>>(a: T, b: T): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
@@ -119,25 +110,8 @@ type SS4FontFamilyId =
   | 'courier';
 type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 
-// SupraSpace's dedicated PWA subdomain — see src/proxy.ts for the middleware
-// rewrite that routes it to this same page.tsx.
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
-// "Get SupraSpace" discovery links point straight here now, not at
-// /supraspace on the main domain — that path still works for browsing, but
-// only a document whose origin truly is the subdomain avoids the
-// install-identity collision with the main app (see isSupraSpaceStandaloneUrl).
-// ?install=1 tells InstallSupraSpaceButton (mounted there) to fire the
-// install prompt automatically on arrival — a real install can only be
-// triggered from that origin, so this is what makes clicking "Install
-// SupraSpace" here feel like one action instead of "redirect, then figure
-// out there's another button to press."
 const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/?install=1`;
-
-// Fixed (not per-conversation-theme) unread-indicator color — a custom
-// conversation theme can override --accent to anything, which made the old
-// accent-colored unread dot blend in or be hard to distinguish (raised by a
-// colorblind user). User-customizable (Settings > Appearance), stored per
-// device in localStorage, independent of any conversation's theme.
 const SS4_UNREAD_COLOR_STORAGE_KEY = 'ss4_unread_dot_color';
 const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
@@ -412,9 +386,6 @@ function ss4TypingPreferencesFromCaretSnapshot(
   if (!caret) return createSS4InlineTypingPreferences();
 
   return {
-    // Preserve active inherited formatting, and preserve explicit OFF states.
-    // Plain inherited "off" remains null so ordinary typing does not create
-    // unnecessary wrappers.
     bold: caret.bold ? true : caret.boldExplicit ? false : null,
     italic: caret.italic ? true : caret.italicExplicit ? false : null,
     underline: caret.underline
@@ -508,10 +479,6 @@ function getRichEditorCaretFormattingSnapshot(
   const bold = boldData ?? (
     hasAncestorTag(['b', 'strong'])
     || hasInlineWeight
-    // queryCommandState('bold') is unreliable — some browsers report true
-    // just from nearby bold-looking computed style (e.g. the @mention chip's
-    // CSS font-weight), which was making text typed near/after a mention
-    // auto-bold with no real bold tag/inline-style/toolbar toggle involved.
   );
   const italic = italicData ?? (
     hasAncestorTag(['i', 'em'])
@@ -641,8 +608,6 @@ function insertTypingStyleCaretMarker(
   let marker: Text;
 
   if (existingTypingSpan && existingSpanIsMarkerOnly) {
-    // Update the existing empty caret-format run instead of nesting another
-    // span. This is important when a user changes formatting on a new line.
     span = existingTypingSpan;
     span.removeAttribute('style');
     marker = Array.from(span.childNodes)
@@ -658,9 +623,6 @@ function insertTypingStyleCaretMarker(
 
     const insertionRange = liveRange.cloneRange();
 
-    // When the caret is at the end of an existing typing run, create a sibling
-    // run rather than nesting it. A sibling can truly turn underline/bold/etc.
-    // off without inheriting the previous run's inline style.
     if (
       existingTypingSpan
       && existingTypingSpan.parentNode
@@ -739,12 +701,6 @@ function insertSoftLineBreakWithCaretFormatting(
 ): boolean {
   root.focus();
 
-  // Deliberately NOT using document.execCommand('insertLineBreak'/'insertHTML')
-  // here — Chrome's execCommand implementation is known to silently wrap the
-  // inserted content in its own inline-styled <span style="font-size:...">
-  // ("style span") to "preserve" the current computed style, independent of
-  // anything this file does. That's what was shrinking the second line after
-  // Shift+Enter. A plain Range-based <br> insertion has no such side effect.
   const selection = window.getSelection();
   if (!selection?.rangeCount) return false;
   const range = selection.getRangeAt(0);
@@ -886,9 +842,6 @@ const SS4_MORE_TEXT_COLORS = [
 ];
 
 
-// Wallpapers are an even, full-canvas wash (same color at both gradient stops) rather
-// than a corner accent that fades to transparent — so the tint reads as an actual chat
-// background behind every message (Messenger-style), not just a hint in one corner.
 const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
   { name: 'Default', accent: null, wallpaper: null },
   { name: 'Ocean', accent: '#2e7fff', wallpaper: 'linear-gradient(160deg, rgba(46,127,255,0.14) 0%, rgba(46,127,255,0.05) 100%)' },
@@ -1505,9 +1458,6 @@ function executeRichEditorCommandPreservingSelection(
 
     let firstElement = root.firstElementChild;
 
-    // Repeated browser list toggles can leave an empty DIV/P before the
-    // original text. A saved message is already trimmed, so this leading
-    // empty block is always an editor artifact rather than message content.
     while (
       firstElement
       && root.children.length > 1
@@ -1518,8 +1468,6 @@ function executeRichEditorCommandPreservingSelection(
       firstElement = root.firstElementChild;
     }
 
-    // Chrome can also create an empty first LI when a list is toggled
-    // repeatedly over the same selected lines.
     if (
       firstElement
       && ['UL', 'OL'].includes(firstElement.tagName)
@@ -1537,7 +1485,6 @@ function executeRichEditorCommandPreservingSelection(
       }
     }
 
-    // Remove an entirely empty list wrapper when meaningful content follows it.
     firstElement = root.firstElementChild;
     if (
       firstElement
@@ -1653,20 +1600,12 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
     colorSpan.appendChild(selectedNode);
   });
 
-  // Remove empty wrappers created by repeated color changes, while preserving
-  // each block element and every line break.
   root.querySelectorAll<HTMLElement>('span[style*="color"]').forEach(span => {
     if (!span.textContent && !span.querySelector('br')) span.remove();
   });
 }
 
 function htmlToMarkdown(el: HTMLElement): string {
-  // Formatting already applied by an ancestor (e.g. pasted HTML that nests
-  // <strong><em style="font-style:italic">Leo</em></strong> instead of one
-  // flat run) must not get a second marker pair from the descendant that
-  // carries the same formatting — that produced doubled/orphaned "_**_Leo
-  // _**_" style corruption in a sent message. Threaded through every
-  // recursive call so a tag only ever contributes its OWN marker once.
   type InheritedFormats = { bold: boolean; italic: boolean; underline: boolean; strike: boolean };
   const NO_FORMATS: InheritedFormats = { bold: false, italic: false, underline: false, strike: false };
 
@@ -1715,11 +1654,6 @@ function htmlToMarkdown(el: HTMLElement): string {
         .map(child => walk(child, listDepth, childInherited))
         .join('');
 
-      // A top-level list is a block boundary. The previous serializer returned
-      // the first bullet directly after the preceding heading/paragraph, which
-      // could create payloads such as **Current Progress**• **Continued...**.
-      // Nested lists already live inside an <li> and must not gain an extra
-      // leading line break.
       const isNestedList = element.parentElement?.tagName.toLowerCase() === 'li';
       return isNestedList || !serializedList ? serializedList : `\n${serializedList}`;
     }
@@ -1967,12 +1901,6 @@ function normalizeSerialSearchText(text: string): string {
 }
 
 function isEmptyVinLabelLine(line: string): boolean {
-  // A "VIN:" label inside a bulleted/numbered list (e.g. "• VIN: ", "1. VIN: ")
-  // is what these labels actually look like once serialized — without the
-  // optional leading marker here, every bulleted VIN line fails this check,
-  // which sends every restored VIN through the "append at end of message"
-  // fallback below instead of back into its own line (the exact bug where a
-  // multi-vehicle report's VINs all end up clumped at the bottom).
   return /^\s*(?:[•◦▪]\s+|\d+[.)]\s+)?VIN\s*#?\s*:\s*$/i.test(line);
 }
 
@@ -2035,8 +1963,6 @@ function canonicalizeColorMarkup(value: string): string {
     '',
   );
 
-  // Merge adjacent same-color fragments only across horizontal whitespace.
-  // Never consume \n or \r because those line boundaries are user content.
   let previous = '';
   while (previous !== result) {
     previous = result;
@@ -2051,17 +1977,6 @@ function canonicalizeColorMarkup(value: string): string {
 
 function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
-  // serialLikeTokens() is deliberately broad (it also has to catch loosely
-  // VIN-shaped text), but that same breadth means it matches plenty of
-  // ordinary 8+ char words/numbers in normal prose too. Using it unfiltered
-  // here meant pasting an ordinary bulleted list from Word/Docs would often
-  // "detect" a dropped VIN on a token that was never a VIN — HTML→plain-text
-  // reconstruction rarely round-trips whitespace/markers byte-for-byte — and
-  // silently downgrade the whole paste to plain text, losing bullets/spacing
-  // no one asked to protect. Real VINs/serials mix letters AND digits; a
-  // pure-letters or pure-digits token is almost certainly just a word or
-  // number, so only mixed tokens are allowed to trigger the plain-text
-  // fallback.
   const tokens = serialLikeTokens(plainText).filter(token => /[A-Z]/.test(token) && /[0-9]/.test(token));
   if (!tokens.length) return false;
   const htmlText = clipboardHtmlToPlainText(html).toUpperCase().replace(/-/g, '');
@@ -2107,10 +2022,6 @@ function normalizeListExitLineSpacing(value: string): string {
       && !isListLine(nextLine)
       && !/^\s*>/.test(nextLine)
     ) {
-      // Chrome can leave one invisible/NBSP/normal-space character when a
-      // list item is converted back to a normal paragraph. Remove only that
-      // browser-created first character; preserve the rest of the user's
-      // alignment and spacing.
       nextLine = nextLine.replace(/^\u00A0/, '');
       if (/^ [^ \t]/.test(nextLine)) nextLine = nextLine.slice(1);
     }
@@ -2161,8 +2072,6 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
       '',
     );
 
-    // Toggling a browser list off can leave exactly one ordinary leading
-    // space after its non-breaking placeholder. Remove one only.
     if (/^ [^ \t]/.test(normalized)) normalized = normalized.slice(1);
 
     if (normalized !== original) {
@@ -2187,9 +2096,6 @@ function isUnsafeNeutralPastedColor(color: string | null): boolean {
   const neutral = maximum - minimum <= 20;
   const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
 
-  // Very light neutral text disappears on the light composer. Very dark
-  // neutral text disappears in dark mode. Let those colors inherit the
-  // application theme instead.
   return neutral && (luminance >= 222 || luminance <= 42);
 }
 
@@ -2213,8 +2119,6 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
       element.removeAttribute('color');
     }
 
-    // Source backgrounds frequently carry the source application's theme and
-    // can make otherwise visible text unreadable in Suprah Space.
     element.style.removeProperty('background');
     element.style.removeProperty('background-color');
     element.style.removeProperty('background-image');
@@ -2417,8 +2321,6 @@ function clipboardHtmlToListAwareText(html: string): string {
       const nestedLists = directNestedLists(item);
       nestedLists.forEach(nested => walkList(nested, depth + 1));
 
-      // ChatGPT/Docs commonly use a top-level bullet as a section heading with a
-      // nested list beneath it. Preserve the visible separation between groups.
       if (depth === 0 && nestedLists.length > 0 && index < items.length - 1) pushBlankLine();
     });
   };
@@ -2735,19 +2637,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
     return nodes;
   };
 
-  // Some rich clipboard payloads contain BOTH semantic HTML formatting and
-  // literal markdown controls. Example: <strong>Progress Report</strong>**.
-  // The HTML is the visual source of truth for a formatted paste, so for
-  // each marker below: consume any complete pair that remains inside a text
-  // node into the matching real element, then remove only boundary/orphan
-  // markers that can't represent visible text. Never touch code/pre, where
-  // a literal marker character is legitimate content. Originally handled
-  // only ** (bold) — generalized to the other markdown-style pair markers
-  // (underline/strike/code, then single */_ italic — reported as literal
-  // "_Leo_" left in a pasted+sent message), since the leaking-artifact
-  // pattern isn't specific to bold. Single */_ run right after their
-  // double-char counterpart so a real **/__ pair is already consumed as
-  // <strong>/<u> before the single-char pass can misread half of it.
   const pairMarkers: { marker: string; tag: string; pattern: RegExp }[] = [
     { marker: '**', tag: 'strong', pattern: /\*\*([^*\n]+?)\*\*/g },
     { marker: '*', tag: 'em', pattern: /(?<![\w*])\*([^*\n]+?)\*(?!\w)/g },
@@ -2797,10 +2686,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
         textNode.data = value.replace(markerRe, '');
         return;
       }
-
-      // Consume only unmatched controls at a text-node boundary. Internal
-      // literal "A**B" text is preserved, while "**Heading" / "Heading**"
-      // from copied rich text no longer leaks into the composer or message.
       const escaped = escapeRegExp(marker);
       textNode.data = value
         .replace(new RegExp(`^(\\s*)${escaped}(?=\\s*\\S)`), '$1')
@@ -2812,8 +2697,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
 }
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
-  // Formatted paste uses the source HTML exactly once. Combining the HTML and
-  // text/plain list representations creates duplicate bullets and extra text.
   if (html.trim()) {
     const hasSemanticList = /<(?:ul|ol|li)\b/i.test(html);
     const hasOfficePseudoList = /mso-list\s*:|MsoListParagraph/i.test(html);
@@ -3129,24 +3012,7 @@ function normalizePastedListArtifacts(text: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
-// Word/Google Docs paste HTML often wraps a selection in an outer <b> tag
-// purely as a formatting-reset container (its own inline style says
-// font-weight:normal, but our converter still sees tag==='b') alongside the
-// real bold run inside \u2014 leaving one dangling, unpaired "**" in the
-// serialized text with nothing to close. Left alone, that stray marker
-// pairs incorrectly with the NEXT real "**" pair down the line, making
-// otherwise-correct bold markup show up as literal asterisks. Applied here
-// (not just on send) so it also self-heals already-stored messages the next
-// time they're rendered/edited, not only new ones going forward.
 function stripOrphanedBoldMarker(text: string): string {
-  // Scoped per line rather than to the whole message: on a long message with
-  // many legitimate, separate "**...**" pairs, counting "**" across the
-  // entire text and deleting the LAST occurrence anywhere almost never hits
-  // the actual stray marker — it breaks whichever real bold pair happens to
-  // sit closest to the end instead, and that corruption then cascades through
-  // normalizeMultilineMarkdownBlocks. The stray marker from the paste-reset
-  // wrapper this guards against always lands on one specific line, so fixing
-  // it there leaves every other, unrelated line's markup untouched.
   return text
     .split('\n')
     .map(line => {
@@ -3239,12 +3105,6 @@ function isNearWhiteHexColor(color?: string): boolean {
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const result: React.ReactNode[] = [];
 
-  // insideLink stays false for every ordinary call (default) and only flips
-  // to true for a link token's OWN display text (below) — an <a> whose text
-  // happens to itself look like a raw URL (the "[url](url)" shape htmlToMarkdown
-  // produces for a plain pasted link) must not get auto-linked a second time,
-  // or React ends up with <a><a>...</a></a>, which is invalid HTML and throws
-  // a hydration error.
   const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false): React.ReactNode[] => {
     const nodes: React.ReactNode[] = [];
     let cursor = 0;
@@ -3276,13 +3136,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         } else if (/^https?:\/\//i.test(token)) {
           nodes.push(token);
         } else {
-          // isOwn messages sit on the accent-colored bubble itself, so the
-          // mention text stays white for contrast (accent-on-accent would be
-          // unreadable) — but plain white bold text looked identical to any
-          // other **bold** word in the message, so it read as "no mention
-          // indicator at all" even though this was always intentional, not
-          // a missing/broken color. A translucent background pill keeps the
-          // mention visually distinct without touching the text color.
           nodes.push(isOwn
             ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', background: 'rgba(255,255,255,0.22)', borderRadius: 4, padding: '0 3px' }}>{token}</span>
             : <span key={key} className="font-bold" style={{ color: 'var(--accent-text)' }}>{token}</span>
@@ -3361,16 +3214,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         const end = text.indexOf(marker, start + marker.length);
         if (end > start + marker.length) candidates.push({ start, end: end + marker.length, type });
       });
-      // A lookbehind instead of a consuming boundary group — the old
-      // "(^|[^\w])" consumed its boundary character as part of the match,
-      // so when an italic run starts immediately after a bold run ends
-      // (e.g. "**Name**_text_", the "_" right after "**"), that boundary
-      // char had already been consumed by the PRECEDING bold token by the
-      // time this scan resumed from cursor, leaving no character left for
-      // this regex to claim as its own opening boundary — the "_" was
-      // permanently unmatchable and shipped as a literal character in the
-      // sent message. A lookbehind only peeks, never consumes, so it isn't
-      // affected by where the previous token's match ended.
       const italicRe = /(?<!\w)_([^_\n]+)_(?!\w)/g;
       italicRe.lastIndex = from;
       const italicMatch = italicRe.exec(text);
@@ -3435,8 +3278,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   const normalized = normalizeMessageMarkdownForDisplay(content);
   const rawLines = normalized.split('\n');
 
-  // Block-level syntax the composer's toolbar and rich-paste conversion produce.
-  // Nested bullets use two-space indentation and cycle through •, ◦, and ▪.
   const BULLET_RE = /^([ \t]*)([\-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]{1,4})\s+(.+)$/u;
   const NUMBERED_RE = /^(\s*)(\d+)\.\s+(.+)$/;
   const QUOTE_RE = /^>\s?(.*)$/;
@@ -3673,13 +3514,6 @@ function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: 
 }
 
 function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; name: string; avatar?: string | null; size?: number }) {
-  // A group's own photo is its real, primary identity — it must never
-  // disappear from the app just because a custom emoji is also set. The
-  // emoji's actual job is being an iOS notification-banner marker (Apple
-  // doesn't show custom photos there — see pushToConversationMembers,
-  // backend), not a replacement for the photo everywhere else. Emoji only
-  // ever shows here as a fallback, same as the initial-letter avatar below,
-  // for a group that has no photo at all yet.
   const emoji = getConvEmoji(conv);
   const resolved = resolveImageUrl(avatar);
   if (!resolved && emoji) return <span style={{ fontSize: size + 4, lineHeight: 1 }}>{emoji}</span>;
@@ -4083,10 +3917,6 @@ const Bubble = React.memo(function Bubble({
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
 }) {
-  // renderMessageContent does several sequential regex passes (links, color/
-  // font/size tags, bold/italic/underline/strike/code) — memoized so it only
-  // re-runs when the actual message content changes, not on every re-render
-  // of this Bubble (hover state, reaction picker open/close, etc.).
   const renderedContent = React.useMemo(
     () => renderMessageContent(message.content, isOwn),
     [message.content, isOwn]
@@ -4124,7 +3954,6 @@ const Bubble = React.memo(function Bubble({
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
-  // Same reasoning as the main composer's pasteMode default — see there.
   const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
   const editPastePlainTextShortcutRef = React.useRef(false);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
@@ -4242,10 +4071,6 @@ const Bubble = React.memo(function Bubble({
     const measuredWidth = bubbleRef.current?.getBoundingClientRect().width || 0;
     const rowWidth = bubbleRowRef.current?.getBoundingClientRect().width
       || (typeof window !== 'undefined' ? window.innerWidth : 672);
-    // Cap matched to .ss4-msg-column's own max-width (min(72%, 42rem) = 672px)
-    // — it used to be 560, narrower than a normal bubble can actually grow to,
-    // so editing a long message visibly shrank/re-wrapped its body into a
-    // tighter box than how it displayed a moment earlier.
     const maxResponsiveWidth = Math.max(280, Math.min(672, rowWidth - 72));
     setEditWidth(Math.min(Math.max(measuredWidth, 360), maxResponsiveWidth));
     setEditDraft(message.content || '');
@@ -4361,9 +4186,6 @@ const Bubble = React.memo(function Bubble({
       setEditFontSize(caret.fontSize);
       setEditTextColor(caret.color);
 
-      // See the matching comment in refreshActiveFormats — only trust an
-      // EXPLICIT marker here, not a "differs from computed root style"
-      // guess, which false-positives and silently re-bakes a wrong size.
       setEditFontFamilyChosen(caret.fontFamilyExplicit);
       setEditFontSizeChosen(caret.fontSizeExplicit);
       setEditTextColorChosen(caret.colorExplicit);
@@ -6151,13 +5973,6 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
           <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>New Conversation</h2>
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
-        { /* NewConvModal used to be a fixed-height block clipped by the parent's
-           overflow-hidden — fine on desktop, but on mobile with the on-screen
-           keyboard open (shrinking the visible viewport) the "Send Message /
-           Create Channel" button at the bottom could be pushed past the clip
-           and become completely unreachable, with no scrollbar to recover it.
-           Making this region scroll internally (with the header pinned above)
-           guarantees the action button is always reachable. */ }
         <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
         <div className="px-4 pt-4 pb-3">
           <div className="ss4-tab-bar flex gap-1">
@@ -7335,29 +7150,14 @@ function PeoplePanel({ users, presence, uid, onSelect, showFilters }: {
   );
 }
 
-// Boss Erik's ask: pick specific people whose messages always notify you,
-// even in a conversation (group or DM) you've muted, set to "for you," or
-// turned off entirely. Backed by CrmUser.notificationPreferences.prioritySenders
-// — see the bypass in supraspace.controller.ts's pushToConversationMembers
-// and notifyMentionedMembers.
 function PrioritySendersModal({ users, selfId, onClose }: {
   users: CrmUser[]; selfId: string; onClose: () => void;
 }) {
-  // SupraSpaceMessengerContext keeps its own copy of this list (fetched once
-  // on mount) so the socket handler that decides "should this open tab
-  // notify me right now" can read it without an extra request per message.
-  // Without pushing updates into it here too, a toggle made mid-session
-  // would only take effect for OTHER devices/after this tab reloads — the
-  // one you're actively testing from would keep using the stale pre-toggle
-  // list until then, which is exactly what looked like a desktop-only bug.
   const { setPrioritySenders: setCtxPrioritySenders } = useSupraSpaceMessenger();
   const [q, setQ] = React.useState('');
   const [selected, setSelected] = React.useState<string[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [savingId, setSavingId] = React.useState<string | null>(null);
-  // With a large org, the people you've already picked can be scattered
-  // anywhere in an alphabetical list of everyone — this tab filters down to
-  // just the checked ones so you can actually see who you picked at a glance.
   const [view, setView] = React.useState<'all' | 'selected'>('all');
 
   React.useEffect(() => {
@@ -7466,10 +7266,6 @@ function PrioritySendersModal({ users, selfId, onClose }: {
               );
             })}
           </div>
-          {/* Each toggle above already saves instantly (see the try/catch in
-              toggle()) — this isn't a "Cancel" (there's nothing pending to
-              discard) but a plain, clear way to close once you're done, since
-              tapping the backdrop is the only other way out otherwise. */}
           <button onClick={onClose} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
             Done
           </button>
@@ -7479,13 +7275,6 @@ function PrioritySendersModal({ users, selfId, onClose }: {
   );
 }
 
-// Home-tab presence rail (standalone app only) — a lightweight, purely
-// visual "who's online" strip matching the reference mock's avatar row.
-// Deliberately NOT reusing StoriesRail (components/dashboard/StoriesRail.tsx)
-// — that component is a full 24h photo/video Stories feature with its own
-// composer, viewer, and socket wiring, which would silently add a brand-new
-// feature to SupraSpace instead of just restyling the layout. This reuses
-// only data already in scope (allUsers/presence), no new requests.
 function PresenceRail({ me, users, presence, uid, onSelectUser }: {
   me?: CrmUser; users: CrmUser[]; presence: PresenceMap; uid: string; onSelectUser: (userId: string) => void;
 }) {
@@ -7528,11 +7317,6 @@ function PresenceRail({ me, users, presence, uid, onSelectUser }: {
   );
 }
 
-// Bottom-nav "Spaces" tab — grid view over the same ctxSpaces data the
-// sidebar's space grouping already uses (SupraSpaceMessengerContext). No new
-// filtering: tapping a card just jumps back to Chats, where that space's
-// conversations are already grouped and visible — keeps this a pure layout
-// addition rather than a new filter feature.
 function SpacesGridPanel({ spaces, unreadCounts, onSelectSpace, onCreateSpace }: {
   spaces: SSSpace[];
   unreadCounts?: Record<string, number>;
@@ -7584,14 +7368,6 @@ function SpacesGridPanel({ spaces, unreadCounts, onSelectSpace, onCreateSpace }:
   );
 }
 
-// Bottom-nav "Notifications" tab — SupraSpace's OWN in-app log (messages +
-// mentions only, via ?type=crm_message), entirely separate from the OS push
-// banner and from the main Suprah AI app's general notification bell. See
-// pushToConversationMembers/notifyMentionedMembers (backend) for where these
-// get persisted — a plain DB insert, no second push fired from here.
-// "Today"/"Yesterday" — a notification older than yesterday never even shows
-// up here (dropped client-side below), so those are the only two buckets
-// that can exist.
 function ss4NotifDayBucket(dateStr: string): 'today' | 'yesterday' | 'older' {
   const d = new Date(dateStr);
   const now = new Date();
@@ -7601,26 +7377,6 @@ function ss4NotifDayBucket(dateStr: string): 'today' | 'yesterday' | 'older' {
   if (diffDays === 1) return 'yesterday';
   return 'older';
 }
-
-// Bottom-nav "Notifications" tab — SupraSpace's OWN in-app log (messages +
-// mentions only, via ?type=crm_message), entirely separate from the OS push
-// banner and from the main Suprah AI app's general notification bell. See
-// pushToConversationMembers/notifyMentionedMembers (backend) for where these
-// get persisted — a plain DB insert, no second push fired from here.
-//
-// Self-cleaning by design: a notification disappears once opened (removed
-// from local state right on tap, not just marked read) or once it's more
-// than a day old and still unopened (dropped client-side) — so the feed
-// never just accumulates forever. Only unread items are fetched at all.
-//
-// Filter chips: which bucket a notification falls into is derived, not
-// stored — a mention (metadata.kind === 'mention', set by
-// notifyMentionedMembers for both an @name and an @all) is always "For
-// You" regardless of that conversation's notification setting; everything
-// else is classified by the conversation's CURRENT live pref (notifPrefs,
-// already loaded elsewhere in the app) into Muted / None / Main. "All"
-// always shows every unread item no matter its bucket — Main has no chip
-// of its own since it's the default, ordinary case.
 type Ss4NotifBucket = 'foryou' | 'muted' | 'none' | 'main';
 function ss4NotifBucket(
   n: any,
@@ -7662,12 +7418,6 @@ function NotificationsPanel({ token, notifPrefs, onOpenNotification }: {
 
   React.useEffect(() => { load(); }, [load]);
 
-  // One row per conversation, not one per message — a busy group chat could
-  // otherwise flood this list with dozens of near-identical entries. Each
-  // group is represented by its most recent notification (name, latest
-  // sender + message, timestamp all come from that one); the rest just
-  // contribute to the count badge on the right, same idea as the unread
-  // count already shown on Home's conversation rows.
   const grouped = React.useMemo(() => {
     const byConv = new Map<string, any[]>();
     for (const n of items) {
@@ -7690,8 +7440,6 @@ function NotificationsPanel({ token, notifPrefs, onOpenNotification }: {
     if (conversationId) onOpenNotification(conversationId, group.latest.metadata?.messageId);
   };
 
-  // Every unread item always counts toward "All"; the other three chips
-  // narrow to just groups whose latest message matches that bucket.
   const filteredGroups = filter === 'all' ? grouped : grouped.filter(g => ss4NotifBucket(g.latest, notifPrefs) === filter);
   const today = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'today');
   const yesterday = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'yesterday');
@@ -7785,13 +7533,6 @@ const SS4_STATUS_OPTIONS: { key: SSOnlineStatus; label: string; color: string }[
   { key: 'offline', label: 'Offline', color: '#6b7280' },
 ];
 
-// Menu tab → "Profile" sub-tab: identity-level stuff (appearance + presence),
-// as opposed to the "Settings" sub-tab's app preferences (notifications).
-// Status changes hit a SupraSpace-specific endpoint (see supraspace.controller.ts
-// updateMyStatus) because SupraSpace's CRM token can't call the main site's own
-// PATCH /api/profile/online-status — different auth/identity model — but both
-// paths update the same underlying User.onlineStatus and broadcast the same way,
-// so the change shows up correctly in team-pulse/header too, not just here.
 function MenuProfilePanel({ me, presence, uid, token }: {
   me?: CrmUser; presence: PresenceMap; uid: string; token: string;
 }) {
@@ -7811,21 +7552,6 @@ function MenuProfilePanel({ me, presence, uid, token }: {
     }
   };
 
-  // Clearing only the local crm_token isn't a real sign-out — the shared
-  // refreshToken cookie (set against the API host itself, so it's sent on
-  // requests from either frontend origin — see sanitizeRedirectUrl) would
-  // just silently re-authenticate the next load via SSO, landing back in
-  // whichever app "/" resolves to on that origin instead of ever showing a
-  // login screen. POST /api/auth/logout invalidates and clears that cookie
-  // server-side — apiClient already sends it cross-origin via
-  // withCredentials — so this actually ends the session, and going straight
-  // to /sign-in (rather than "/", which the SupraSpace subdomain's own
-  // fallback would otherwise still route back through) guarantees landing
-  // on a real login screen every time, not just when SSO happens to fail.
-  // Carries the same redirect_url the "not authenticated at all" init-effect
-  // fallback uses (page.tsx's main init effect) — without it, /sign-in has
-  // nothing telling it to come back here and just lands on the main
-  // dashboard after a successful login instead of back in SupraSpace.
   const handleSignOut = async () => {
     setSigningOut(true);
     try { await apiClient.post('/api/auth/logout'); } catch { }
@@ -7885,9 +7611,6 @@ function MenuProfilePanel({ me, presence, uid, token }: {
   );
 }
 
-// Menu tab → "Archive" sub-tab. Own search box (separate from the Home tab's
-// `q`) so browsing/searching archived chats here never bleeds into the Home
-// list's filter state or vice versa.
 function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
   archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
 }) {
@@ -7931,10 +7654,6 @@ function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
   );
 }
 
-// Bottom-nav "Menu" tab (was "Profile") — Profile / Settings / Archive.
-// A tappable row on the Menu root list — icon badge, label, optional count
-// badge, chevron. Matches the grouped-card list pattern from the reference
-// (Messenger's own Menu tab) rather than a pill-tab switcher.
 function MenuListRow({ icon, iconBg, iconColor, label, subtitle, badge, onClick, last }: {
   icon: React.ReactNode; iconBg: string; iconColor: string; label: string; subtitle?: string;
   badge?: number; onClick: () => void; last?: boolean;
@@ -7962,8 +7681,6 @@ function MenuListRow({ icon, iconBg, iconColor, label, subtitle, badge, onClick,
   );
 }
 
-// A pushed-in sub-view with its own back header — used for Profile/Settings/
-// Archive once tapped from the Menu root list.
 function MenuSubView({ title, onBack, children }: { title: string; onBack: () => void; children: React.ReactNode }) {
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -7976,9 +7693,6 @@ function MenuSubView({ title, onBack, children }: { title: string; onBack: () =>
   );
 }
 
-// Bottom-nav "Menu" tab (was "Profile") — a root list (Facebook-Messenger-
-// style: profile row up top, grouped rows below) that drills into Profile /
-// Settings / Archive sub-views, instead of a pill-tab switcher.
 function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvRowProps }: {
   me?: CrmUser; allUsers: CrmUser[]; presence: PresenceMap; uid: string; token: string;
   archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
@@ -8041,27 +7755,15 @@ function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvR
 
 function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp }: {
   me?: CrmUser; allUsers: CrmUser[];
-  // Optional — only passed from the standalone app's Profile tab, where the
-  // reference mock wants an online/offline indicator on the profile header.
-  // Desktop's Settings entry point doesn't pass these; header degrades to
-  // exactly what it rendered before.
   presence?: PresenceMap;
   uid?: string;
-  // Also only passed from the standalone app — the "Get SupraSpace" install
-  // row obviously shouldn't offer to install the very app it's running in.
   isStandaloneApp?: boolean;
 }) {
   const [showPrioritySenders, setShowPrioritySenders] = React.useState(false);
-  // Only the actual subdomain counts as "standalone" for install-button
-  // purposes — see the matching comment on the main page component. A
-  // pathname check would also match /supraspace on the main domain, which
-  // is exactly the origin the real install trigger must never fire from.
   const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(false);
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, []);
-  // See the matching state on the main page component — cookie-based signal
-  // for "already installed on this device", read across origins.
   const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
   React.useEffect(() => {
     setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
@@ -8195,10 +7897,6 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
           <ChevronDown className="h-4 w-4 shrink-0 -rotate-90" style={{ color: 'var(--text-tertiary)' }} />
         </button>
         {showPrioritySenders && (
-          // selfId only excludes "yourself" from the picker list — the actual
-          // save is identified server-side by the auth token, not this prop —
-          // so this doesn't need to wait on `me` resolving (it doesn't always,
-          // see the missing profile card above; a separate, pre-existing issue).
           <PrioritySendersModal users={allUsers} selfId={me?._id || ''} onClose={() => setShowPrioritySenders(false)} />
         )}
       </div>
@@ -8457,13 +8155,6 @@ const ConvRow = React.memo(function ConvRow({
         </div>
         {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
           : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: unreadDotColor, boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
-        {/* Pin/mute moved off the name row entirely (as of this fix) — any
-            reserved space there, even just one icon's width, still read as
-            "the name is too far from the avatar" once applied uniformly to
-            every row. A small badge on the avatar's own corner marks pinned/
-            muted status without taking any space from the text column at
-            all, so the name always starts at the exact same X regardless of
-            status — genuinely zero variable gap, not just a smaller one. */}
         {(pinned || isMuted) && (
           <span
             className="absolute -bottom-0.5 -left-0.5 h-3.5 w-3.5 rounded-full flex items-center justify-center"
@@ -8653,40 +8344,14 @@ export default function SupraSpacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const embedded = pathname !== '/crm/supra-space';
-  // This same page.tsx now renders at multiple URLs (see the "Dedicated
-  // SupraSpace PWA" work) — only SupraSpace's own subdomain is actually
-  // installable as SupraSpace. /supraspace on the MAIN domain still exists
-  // (and still has SupraSpace's manifest linked), but showing the real
-  // install button there is exactly what caused the real bug this was meant
-  // to prevent: Chrome/Android's installability check runs against the
-  // CURRENT PAGE'S ORIGIN, not just whatever start_url the manifest
-  // declares — so triggering install while still on suprah-app.com (even
-  // from /supraspace) gets deduped against the already-installed main app
-  // ("This app is already installed"), regardless of SupraSpace's manifest
-  // having its own id/start_url. Only a document whose origin truly IS the
-  // subdomain avoids that collision. So this used to also treat
-  // pathname === '/supraspace' as standalone — deliberately removed;
-  // everywhere else must link to the subdomain first (a real navigation),
-  // never show the real install trigger merely for being on that path.
   const [isSupraSpaceStandaloneUrl, setIsSupraSpaceStandaloneUrl] = React.useState(false);
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, [pathname]);
-  // Whether THIS device already has SupraSpace's own PWA installed (set by
-  // the subdomain itself, read here via a shared-parent-domain cookie — see
-  // lib/supraspace-install.ts). Drives every "Get SupraSpace" affordance
-  // below: not installed yet -> install CTA, already installed -> open CTA.
   const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
   React.useEffect(() => {
     setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
   }, []);
-  // Mobile-only: the dashboard-embedded route (/crm/supra-space) shows a
-  // dismissible "install the dedicated app" prompt over the real chat —
-  // on a phone, messaging is meant to live in the dedicated SupraSpace PWA,
-  // but closing this just reveals the normal conversation list underneath
-  // (it's a nudge, not a hard block). Desktop is unaffected. Scoped to
-  // !embedded specifically (i.e. only this exact route) — /crm/conversations'
-  // embedded view is deliberately left alone.
   const isMobileViewport = useIsMobile();
   const [mobileInstallPromptDismissed, setMobileInstallPromptDismissed] = React.useState(false);
   const { theme, setTheme } = useTheme();
@@ -8695,13 +8360,6 @@ export default function SupraSpacePage() {
   const [token, setToken] = React.useState('');
   const [uid, setUid] = React.useState('');
   const [loading, setLoading] = React.useState(true);
-  // The init effect's SSO/token-exchange chain has no per-step visible
-  // feedback and, on a slow or flaky connection, can legitimately take a
-  // while before the 30s request timeout (api-client.ts) even kicks in —
-  // reported as "sometimes it doesn't even load and you have to force
-  // close it." There was no escape hatch from this spinner at all before;
-  // this offers a manual reload once it's clearly taking too long, instead
-  // of leaving someone staring at a stuck screen with no recourse.
   const [initSlow, setInitSlow] = React.useState(false);
   React.useEffect(() => {
     if (!loading) { setInitSlow(false); return; }
@@ -8759,22 +8417,11 @@ export default function SupraSpacePage() {
   const [customScheduleAt, setCustomScheduleAt] = React.useState('');
   const sendLongPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendLongPressTriggeredRef = React.useRef(false);
-  // `sending` state flips back to false as soon as the composer is cleared
-  // (see handleSend) so typing the next message isn't blocked while an
-  // upload/post is still in flight — but that same early reset let a fast
-  // double-click/double-tap/Enter-repeat slip past the `sending` guard and
-  // re-run handleSend before the first request finished, uploading the same
-  // attachment twice. This ref is a separate, synchronous lock held for the
-  // full duration of the network call regardless of when `sending` flips.
   const sendInFlightRef = React.useRef(false);
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
   const [messageScrollActive, setMessageScrollActive] = React.useState(false);
   const messageScrollIdleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Tracks whether the *user* is actively driving the scroll (wheel/touch/scrollbar
-  // drag) vs. a programmatic scroll (auto-scroll-to-bottom, pin-to-bottom, pagination
-  // restore). Only real user gestures should suppress hover actions/reaction popovers —
-  // otherwise every app-driven scroll slams open reaction tooltips shut mid-interaction.
   const userScrollGestureRef = React.useRef(false);
   const userScrollGestureTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const markUserScrollGesture = React.useCallback((event?: React.SyntheticEvent) => {
@@ -8810,38 +8457,14 @@ export default function SupraSpacePage() {
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
-  // Keep one conversation menu open at a time. ConvRow is hoisted to module
-  // scope, so socket, typing, presence, and composer renders no longer remount it.
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
-  // 'people' folded into the "+ New" compose flow, 'settings' merged into
-  // 'profile' — see the bottom tab bar in the standalone-app view below.
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
-  // The tabbed layout (Chats/People/Settings) + Stories rail are exclusive to
-  // the installed standalone SupraSpace PWA — a regular browser tab, and the
-  // main Suprah AI app's own install (which shares display-mode: standalone
-  // but was never launched at SupraSpace's start_url) both keep the original
-  // single-list sidebar unchanged. Standalone-ness can't change during a
-  // session without a reload, so a one-time check on mount is enough.
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
   React.useEffect(() => {
     setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
   }, []);
-  // Second attempt at this, more carefully this time. Plain 100dvh has a
-  // known iOS Safari quirk: it doesn't reliably re-expand once the keyboard
-  // closes again, leaving a stale gap behind (the original report). The
-  // first fix for that tracked visualViewport.height alone on a top:0
-  // absolutely-positioned box — that shrank correctly while the keyboard
-  // was open, but ignored visualViewport's own SCROLL offset (offsetTop,
-  // which shifts when iOS auto-scrolls a focused input into view), so the
-  // box's top no longer matched the actually-visible area and the composer
-  // ended up stranded mid-screen — worse than the gap it was meant to fix.
-  // Tracking BOTH height AND offsetTop together, with position:fixed
-  // instead of absolute (fixed is what actually respects visualViewport's
-  // coordinate space), keeps the container's top edge and height in sync
-  // with the real visible area at every point in the open/close cycle, not
-  // just while the keyboard is opening.
   const [vv, setVv] = React.useState<{ height: number; top: number } | null>(null);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
@@ -8857,24 +8480,11 @@ export default function SupraSpacePage() {
       viewport.removeEventListener('scroll', update);
     };
   }, [isStandaloneApp]);
-  // Never nudge someone to "Get SupraSpace" while they're already running
-  // the real installed app — isMobileViewport is a width check (narrow
-  // window), not an install check, so without excluding isStandaloneApp
-  // this fired even inside the genuine standalone app whenever its window
-  // happened to be narrow, telling the user to go install the very app
-  // they're already in.
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
-  // Back to "keep formatting" as the default — bold/italic/bullets from the
-  // source should survive the paste. The character-leak bug this briefly
-  // defaulted away from (see normalizeRichClipboardBoldArtifacts) has its
-  // own fix now: that cleanup pass used to catch stray artifacts for ** specifically;
-  // it's generalized to the other marker pairs (__, ~~, `) too, so formatted
-  // paste itself is safer against the same bug class instead of avoiding
-  // formatting altogether.
   const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
   const pastePlainTextShortcutRef = React.useRef(false);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
@@ -8922,9 +8532,6 @@ export default function SupraSpacePage() {
   const [ssFileItems, setSsFileItems] = React.useState<Array<{ messageId: string; createdAt: string; attachment: SSAttachment }>>([]);
   const [ssAttachmentsLoading, setSsAttachmentsLoading] = React.useState(false);
 
-  // Files/Media tab: query the whole conversation directly from the DB rather than
-  // filtering only the currently-loaded page of messages — a DM can easily have its
-  // one shared file sitting further back than the last ~40 loaded messages.
   React.useEffect(() => {
     if (!showInfo || !activeId || !token) return;
     if (infoTab !== 'media' && infoTab !== 'files') return;
@@ -8960,11 +8567,6 @@ export default function SupraSpacePage() {
   const [showArchived, setShowArchived] = React.useState(false);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
-  // App-wide settings (sound, unread color, notifications, install) used to
-  // only be reachable via the standalone app's own Chats/People/Settings tab
-  // bar — meaning it was completely unreachable from the normal
-  // dashboard-embedded view most people actually use. This modal exposes
-  // the same SupraSpaceSettingsPanel there too, via a header gear icon.
   const [appSettingsOpen, setAppSettingsOpen] = React.useState(false);
   const [pollOpen, setPollOpen] = React.useState(false);
   const [eventOpen, setEventOpen] = React.useState(false);
@@ -8983,10 +8585,6 @@ export default function SupraSpacePage() {
   const mobileGifRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
-  // Desktop moves a group into a Space via pointer-drag (see ptrStartRef
-  // below) — there's no touch equivalent, so mobile needs its own explicit
-  // "Move to Space" entry point. This is the id of the conversation whose
-  // move-target sheet is open (drilled in from the long-press sheet above).
   const [moveSpaceSheetConv, setMoveSpaceSheetConv] = React.useState<string | null>(null);
   const [deleteConfirmConv, setDeleteConfirmConv] = React.useState<SSConversation | null>(null);
   const convLongPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -9012,25 +8610,12 @@ export default function SupraSpacePage() {
   const suppressAutoScrollOnceRef = React.useRef(false);
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
-  // Dedicated ref for the "Image" button specifically — it shared fileRef's
-  // unrestricted (no accept) input with the general "Attach files" button,
-  // so both opened the exact same native picker with no distinction (QA:
-  // "Photo Library" and "Choose Files" appearing redundant). Restricting
-  // this one to accept="image/*,video/*" narrows the native iOS/Android
-  // picker down to just the photo-related options for this button, leaving
-  // the general attach button's picker unrestricted for real documents.
   const imageFileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLDivElement>(null);
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
-  // Guards fetchConversationMessages against out-of-order responses — two
-  // force-refetches for the same conversation (on-focus refetch racing a
-  // retry, etc.) can resolve in a different order than they were sent; only
-  // the response matching the LATEST request for that conversation is
-  // allowed to touch state, so a stale one can never silently stomp newer
-  // messages back out of view.
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
   const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
@@ -9131,11 +8716,6 @@ export default function SupraSpacePage() {
     }, 6700);
   }, [scrollToLatest]);
 
-  // Cancels the "just opened this conversation" pin-to-bottom lock. Called the moment
-  // a *real* user scroll gesture happens while the lock is still active — otherwise the
-  // queued re-pin timers/ResizeObserver would yank the view back to the bottom a moment
-  // after the user manually scrolled up, which read as "it opens, I scroll up, then it
-  // snaps back down."
   const cancelOpenBottomLock = React.useCallback(() => {
     openScrollTimersRef.current.forEach(clearTimeout);
     openScrollTimersRef.current = [];
@@ -9251,24 +8831,9 @@ export default function SupraSpacePage() {
     setUploadNotice({ kind, text });
     uploadNoticeTimerRef.current = setTimeout(() => setUploadNotice(null), 3500);
   }, []);
-  // NOT allUsers.find(u => u._id === uid) — /api/supraspace/users (allUsers)
-  // deliberately excludes the caller themselves (it's a "who can I message"
-  // picker), so that lookup always returned undefined and every "me" header
-  // (Settings panel, Menu tab) silently had no name/avatar to show. myProfile
-  // is populated straight from the /api/crm/me response the init effect
-  // already fetches below.
   const me = myProfile;
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
-    // Only splice into a conversation's message cache if that history has actually been
-    // fetched before (conversationId already a key in msgsRef.current) — NOT just "has at
-    // least one message", since a live event can be the very first thing this client ever
-    // sees for a conversation it hasn't opened yet this session (e.g. a background channel
-    // like Shift Alerts). Seeding the cache with just that one message would make
-    // fetchConversationMessages's "already cached, skip the fetch" check (and the matching
-    // msgFetchState — see below) think the FULL history is already loaded, so opening that
-    // conversation for the first time would silently skip the real fetch and show only
-    // whatever trickled in live instead of the actual history.
     const alreadyLoaded = conversationId in msgsRef.current;
     if (alreadyLoaded) {
       setMsgs(p => {
@@ -9403,9 +8968,6 @@ export default function SupraSpacePage() {
         headers: { Authorization: `Bearer ${t}` },
         params: { limit: 40 },
       });
-      // A newer fetch for this same conversation was started after this one
-      // — this response is stale, discard it rather than let it overwrite
-      // whatever the newer (or a locally-optimistic-appended) state is.
       if (fetchSeqRef.current[conversationId] !== mySeq) return false;
       const d: SSMessage[] = r.data?.data || [];
       const conv = convosRef.current.find(c => c._id === conversationId);
@@ -9453,9 +9015,6 @@ export default function SupraSpacePage() {
     suppressAutoScrollOnceRef.current = false;
     setShowJumpToLatest(false);
     setShowInfo(false);
-    // Selecting a conversation — whether from a search match or a plain list
-    // row — returns the list to its normal unfiltered state, so going back
-    // doesn't strand the user on stale search results.
     setQ('');
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
@@ -9517,11 +9076,6 @@ export default function SupraSpacePage() {
         try {
           const mainToken = await getMainTokenRef.current();
           if (mainToken) {
-            // Shorter timeout than apiClient's 30s default — this is the
-            // FIRST of two SSO attempts, so on a slow/flaky connection it
-            // should fail fast and fall through to the second attempt
-            // instead of eating most of a 30s budget on this one alone
-            // (reported as SupraSpace sometimes not loading at all).
             const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 });
             t = sso.data?.data?.token ?? null;
             if (t) localStorage.setItem('crm_token', t);
@@ -9541,15 +9095,6 @@ export default function SupraSpacePage() {
       }
 
       if (!t) {
-        // Reuse the main app's own sign-in (Google or password) rather than
-        // /crm's separate Employee-ID login — no second login UI to build or
-        // maintain. redirect_url is what brings them back to SupraSpace
-        // specifically (not the main dashboard) once they're done: a full
-        // cross-origin URL when this really is the dedicated subdomain app,
-        // a same-origin relative path otherwise (embedded in the main app,
-        // where landing back on / after sign-in already re-enters this same
-        // view). See sanitizeRedirectUrl (lib/navigation.ts) for the
-        // narrowly-scoped exception that lets the subdomain case through.
         const isSupraSpaceSubdomain = typeof window !== 'undefined' && window.location.hostname === SUPRASPACE_SUBDOMAIN;
         const returnTo = isSupraSpaceSubdomain ? `${window.location.origin}/` : '/crm/supra-space';
         router.replace(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`);
@@ -9701,8 +9246,6 @@ export default function SupraSpacePage() {
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (el) {
         el.classList.remove('ss4-msg-highlight');
-        // Force a reflow so re-adding the class restarts the flash animation even if
-        // the same message was just jumped to a moment ago.
         void el.offsetWidth;
         el.classList.add('ss4-msg-highlight');
         window.setTimeout(() => el.classList.remove('ss4-msg-highlight'), 2300);
@@ -9734,15 +9277,6 @@ export default function SupraSpacePage() {
     const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
       appendMessageLocal(conversationId, message);
       if (conversationId === activeIdRef.current) {
-        // appendMessageLocal above already correctly splices this message into
-        // the cache (dedupes against the optimistic temp entry, updates
-        // lastMessage/unread counts) — a follow-up force-refetch here used to
-        // re-GET the whole conversation on EVERY single incoming message. Two
-        // of these firing close together (e.g. two messages arriving quickly)
-        // could resolve out of order and the earlier one's stale snapshot
-        // would silently overwrite the newer state, making a just-sent
-        // message disappear from the sender's own view. Removed — nothing
-        // here actually needed the refetch, it was pure redundant load.
         ctxMarkAsRead(conversationId);
         setConvos(prev => prev.map(c => {
           if (c._id !== conversationId || !c.lastMessage) return c;
@@ -9929,14 +9463,6 @@ export default function SupraSpacePage() {
     }
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    // Used to also auto-stick whenever a short conversation had <=40 messages loaded,
-    // regardless of scroll position — meant as a "nothing to scroll away from yet" shortcut,
-    // but it actively fights manual scrolling in any channel that keeps receiving new
-    // messages while under that count (e.g. a busy background channel like Shift Alerts):
-    // every incoming message forced the view back to the bottom even if the user had
-    // deliberately scrolled up to read older messages. Distance-from-bottom alone already
-    // covers the "nothing to scroll away from" case correctly (there's nowhere to scroll up
-    // to yet), so it's the only signal that should matter here.
     const shouldStickToBottom = distanceFromBottom < 220;
     if (shouldStickToBottom) {
       endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -10242,12 +9768,6 @@ export default function SupraSpacePage() {
           showUploadNotice('error', 'Send GIFs separately from file attachments.');
           return;
         }
-        // Optimistic preview (local blob URLs) while the upload is in
-        // flight — previously nothing appeared until the full multipart
-        // upload finished, which read as "delayed" especially for larger
-        // files/slower connections. Mirrors the text-message optimistic
-        // path below; replaced with the real server message on success,
-        // removed on failure.
         const filesToUpload = pendingFiles;
         const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         optimisticAttachmentId = tempId;
@@ -10502,15 +10022,6 @@ export default function SupraSpacePage() {
       setActiveFontSize(caret.fontSize);
       setActiveTextColor(caret.color);
 
-      // Only trust an EXPLICIT marker (inline style / dataset) here — a
-      // "does the caret's resolved size differ from the container's
-      // computed size" fallback used to also flip this true, but caret.
-      // fontSize and the container's computed style are read through two
-      // different detection paths (document.queryCommandValue vs
-      // getComputedStyle) that don't always agree even with zero user
-      // formatting. That false-positive "chosen" flag was what caused
-      // every Shift+Enter line to silently pick up and re-bake a smaller
-      // font size no one ever selected.
       setActiveFontFamilyChosen(caret.fontFamilyExplicit);
       setActiveFontSizeChosen(caret.fontSizeExplicit);
       setActiveTextColorChosen(caret.colorExplicit);
@@ -10518,18 +10029,9 @@ export default function SupraSpacePage() {
       const nextTypingFormats = ss4TypingPreferencesFromCaretSnapshot(caret);
       setActiveTypingFormats(prev => shallowEqualFlat(prev, nextTypingFormats) ? prev : nextTypingFormats);
     } catch {
-      // Browser formatting-state detection is best effort.
     }
   }, []);
 
-  // A single keystroke fires onInput + onSelect + onKeyUp on the composer, each
-  // calling refreshActiveFormats — which itself does several synchronous,
-  // layout-forcing calls (document.queryCommandValue/State, getComputedStyle).
-  // That's 2-3x the DOM-query cost per keystroke for no benefit, since it only
-  // drives the formatting toolbar's bold/italic/font/color display (nothing
-  // reads these values to decide typing/send behavior) — coalescing to once
-  // per animation frame keeps the toolbar visually in sync while cutting that
-  // cost down to 1x.
   const scheduleRefreshActiveFormats = React.useCallback(() => {
     if (refreshFormatsRafRef.current !== null) return;
     refreshFormatsRafRef.current = requestAnimationFrame(() => {
@@ -10795,14 +10297,6 @@ export default function SupraSpacePage() {
 
     const best = [...rawCandidates, ...candidates].sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
     if (!best) return false;
-    // Only arm the dropdown (and the Enter/Tab "confirm mention" hijack in
-    // the composer's keydown handler) when the match sits at/near the very
-    // end of the text — i.e. still plausibly being typed or just pasted
-    // with nothing after it. A match buried mid-message (e.g. "@Romuel
-    // Lopez for helping..." from a large paste) used to arm the same way,
-    // so pressing Enter to SEND re-inserted that mention instead — the
-    // reported "@Romuel @Romuel Lopez" duplication. Real members already
-    // get their chip styling from highlightMentionsInComposer regardless.
     const trailingAfterMatch = value.length - (best.anchor + 1 + best.query.length);
     if (trailingAfterMatch > 1) return false;
     setMentionQuery(best.query);
@@ -10811,14 +10305,6 @@ export default function SupraSpacePage() {
     return true;
   }, [activeConv, uid]);
 
-  // Pasted text lands as plain text/HTML with no chip styling — only a
-  // mention picked from the autocomplete dropdown (insertMention below)
-  // gets that today. This walks the composer's text nodes right after a
-  // paste and wraps any @alias that matches a real member of the active
-  // conversation in the same .ss4-mention-chip span, so a pasted mention
-  // gets the same visual confirmation as a typed one. Detection/sending
-  // already worked on pasted text (inspectMentionAnywhere + backend match
-  // on final plain text) — this only adds the missing visual layer.
   const highlightMentionsInComposer = React.useCallback((el: HTMLElement) => {
     if (!activeConv) return;
     const aliases = [
@@ -10844,7 +10330,6 @@ export default function SupraSpacePage() {
       acceptNode(node: Node) {
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
-        // Don't double-wrap an already-styled chip, and never touch code content.
         if (parent.closest('.ss4-mention-chip, code, pre')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
@@ -10864,16 +10349,6 @@ export default function SupraSpacePage() {
         if (match.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         const span = document.createElement('span');
         span.className = 'ss4-mention-chip';
-        // Confirmed via prod DevTools: the .ss4-mention-chip stylesheet
-        // rule itself never reaches the page there (getPropertyPriority
-        // came back empty — no rule, important or not, was even in play),
-        // while --accent-text (defined elsewhere in the same block) does
-        // resolve fine. Setting the color inline sidesteps whatever in
-        // Next's production CSS pipeline is dropping that one rule. NOT
-        // setting font-weight inline too — htmlToMarkdown treats an inline
-        // font-weight>=600 as real bold and would wrap the mention in
-        // **markers** in the actually-sent text, which the CSS class alone
-        // never did.
         span.style.color = 'var(--accent-text)';
         span.textContent = `@${match[1]}`;
         frag.appendChild(span);
@@ -10893,19 +10368,7 @@ export default function SupraSpacePage() {
     range.setEnd(endRange.startContainer, endRange.startOffset);
     selection?.removeAllRanges();
     selection?.addRange(range);
-    // Styled the same bold/accent way renderMessageContent already renders
-    // an @mention token in a SENT message — an immediate, visible
-    // confirmation this was recognized as a real mention and not just the
-    // literal characters "@Name" (the ask was for something like Google
-    // Chat's own mention confirmation). The plain text content extraction
-    // below (el.innerText) is unaffected — a styled span's text still
-    // flattens into the same "@Name" either way.
     const safeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // Inline color, not just the class — see the matching comment in
-    // highlightMentionsInComposer: the .ss4-mention-chip stylesheet rule
-    // doesn't reliably reach the page in production. font-weight stays
-    // class-only (not inline) so htmlToMarkdown doesn't read it as real
-    // bold and wrap the mention in **markers** in the sent text.
     document.execCommand('insertHTML', false, `<span class="ss4-mention-chip" style="color:var(--accent-text);">@${safeName}</span> `);
     const next = el.innerText.replace(/\n$/, '');
     const caretOffset = mentionAnchor + name.length + 2;
@@ -11171,12 +10634,6 @@ export default function SupraSpacePage() {
       setConvos(p => p.filter(x => x._id !== c._id));
       setActiveId(prev => prev === c._id ? null : prev);
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
-      // SupraSpaceMessengerContext keeps its own independent copy of the
-      // conversation list (ctxConversations) — without telling it about the
-      // deletion too, its next refresh still had the old snapshot, and the
-      // effect below that merges "conversations the context has but convos
-      // doesn't" back in would resurrect the just-deleted conversation a few
-      // seconds later. Refreshing it here keeps both copies in sync.
       ctxRefreshConvosRef.current();
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
   };
@@ -11563,10 +11020,6 @@ export default function SupraSpacePage() {
     syncComposerText,
   ]);
 
-  // Tab/Shift+Tab on a bullet or numbered-list line: Tab nests one level deeper (cycling
-  // bullet glyph •→◦→▪, or renumbering from the nearest sibling at the new indent),
-  // Shift+Tab un-nests. Returns false (and lets Tab behave normally) when the cursor
-  // isn't on a list line.
   const handleListIndent = React.useCallback((outdent: boolean): boolean => {
     const el = textareaRef.current;
     if (!el) return false;
@@ -11947,16 +11400,6 @@ export default function SupraSpacePage() {
     };
   }, []);
 
-  // Jumps to a specific message from a search hit (or the in-conversation search
-  // below) — deliberately does NOT call openConversation(), which always fetches
-  // the latest 40 messages and forces a scroll-to-bottom (it has no concept of
-  // "open, but at a specific spot"). A search hit is very often OLDER than the
-  // most recent 40, so that path would load the wrong window and the previous
-  // fixed-delay getElementById lookup would silently find nothing. Instead this
-  // fetches the messages page anchored on the target's own timestamp (so the hit
-  // is guaranteed to be in the loaded window in one request) and hands off to the
-  // same pendingNotificationTargetRef effect notifications already use, which
-  // waits for the message to actually be present in state before scrolling.
   const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
     setQ('');
     pendingScrollRestoreRef.current = null;
@@ -11984,9 +11427,6 @@ export default function SupraSpacePage() {
       setHasMore(p => ({ ...p, [convId]: d.length === 40 }));
       setMsgFetchState(p => ({ ...p, [convId]: 'loaded' }));
     } catch {
-      // Falls back to whatever openConversation-style caching already had — the
-      // pendingNotificationTargetRef effect simply won't find the target and no
-      // scroll happens, same graceful no-op as a failed notification deep link.
     } finally {
       setLoadingMsgs(false);
     }
@@ -12032,10 +11472,6 @@ export default function SupraSpacePage() {
     if (conversationFilter === 'mentions') return hasUnreadMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
     return true;
   }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
-  // Combined into one memo (rather than 5 unmemoized .filter() passes over
-  // convos on every render) — this used to re-run on every keystroke, since
-  // nothing gated it, scaling with conversation count for zero reason on
-  // renders where convos/search/filter never actually changed.
   const { visibleConvos, pinnedList, archivedList, normalList, dmList } = React.useMemo(() => {
     const visible = convos.filter(c =>
       getConvName(c, uid).toLowerCase().includes(q.toLowerCase()) &&
@@ -12079,9 +11515,6 @@ export default function SupraSpacePage() {
     return result;
   }, [ctxSpaces, localSpaceOrder]);
 
-  // Space cards on the standalone Spaces tab show an unread badge — derived
-  // from the same conversation list/unread accounting already in state, no
-  // extra fetch (SSSpace itself carries no unread count of its own).
   const spaceUnreadCounts = React.useMemo(() => {
     const out: Record<string, number> = {};
     for (const c of convos) {
@@ -12151,18 +11584,6 @@ export default function SupraSpacePage() {
         }} />,
         document.body
       )}
-      {/* paddingTop reserves the iOS status bar / notch / Dynamic Island area.
-          The root layout sets viewport-fit=cover so installed-PWA content
-          draws edge-to-edge behind it by default — every other safe area in
-          this file is already handled (see the various safe-area-inset-bottom
-          uses below), but nothing here ever compensated for the TOP inset,
-          so the header rendered flush under the status bar on a standalone
-          iPhone install instead of below it. */}
-      {/* height: 100dvh (standalone only) — iOS Safari's dynamic toolbar means
-          an ancestor's percentage-based height can go stale relative to the
-          real visual viewport, leaving a gap below absolute inset-0's box
-          that isn't actually the true bottom of the screen. dvh recalculates
-          live against the real viewport instead of inheriting a % chain. */}
       <div
         className={cn('ss4 absolute inset-0 flex flex-col overflow-hidden')}
         data-theme={theme}
@@ -12170,15 +11591,23 @@ export default function SupraSpacePage() {
           paddingTop: 'env(safe-area-inset-top)',
           ...(isStandaloneApp
             ? (vv
-              // Both top and height driven by the same live measurement —
-              // correct through the keyboard's entire open/close cycle, not
-              // just the moment it opens.
               ? { position: 'fixed', top: vv.top, left: 0, right: 0, height: vv.height }
               : { height: '100dvh' })
             : {}),
         }}
       >
         { }
+        {/* TEMP DEBUG */}
+        {isStandaloneApp && (
+          <div style={{
+            position: 'fixed', top: 4, right: 4, zIndex: 999999,
+            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
+            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
+            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
+          }}>
+            {`vv.h=${vv?.height ?? 'null'} vv.t=${vv?.top ?? 'null'}\ninnerH=${typeof window !== 'undefined' ? window.innerHeight : '?'} clientH=${typeof document !== 'undefined' ? document.documentElement.clientHeight : '?'}\nscreenH=${typeof window !== 'undefined' ? window.screen.height : '?'} dvh100=${typeof window !== 'undefined' ? Math.round(window.innerHeight) : '?'}`}
+          </div>
+        )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -12192,11 +11621,6 @@ export default function SupraSpacePage() {
             </div>
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               {isStandaloneApp ? (
-                // The overflow menu's other two items no longer apply here —
-                // "active now" is the whole point of the People tab, and
-                // Archived moved into the Menu tab — so just show the clock
-                // directly instead of burying it behind a 3-dot menu. Its own
-                // tooltip already surfaces the full date on tap/hover.
                 <MountainTimeClock compact />
               ) : (
                 <>
@@ -12210,12 +11634,6 @@ export default function SupraSpacePage() {
                   {isMobileViewport && (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        {/* .ss4-icon-btn's own base rule sets display:flex unconditionally;
-                            since it's injected at runtime (after Tailwind's own stylesheet),
-                            it wins the cascade over a lg:hidden utility class at equal
-                            specificity — the class alone can't hide this button on desktop.
-                            Gating the whole trigger in JS via useIsMobile() sidesteps that
-                            entirely instead of fighting the CSS cascade. */}
                         <button className="ss4-icon-btn h-8 w-8" title="More"><MoreVertical className="h-4 w-4" /></button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-48 rounded-xl p-1" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
@@ -12234,11 +11652,6 @@ export default function SupraSpacePage() {
                   <SettingsIcon className="h-3.5 w-3.5" />
                 </button>
               )}
-              {/* isStandaloneApp (Navigation-Timing based) is the reliable "genuinely
-                  installed and running" signal — gate the install/open affordance on
-                  it directly instead of only on isSupraSpaceStandaloneUrl's hostname
-                  check, which never lines up on a non-production host (e.g. localhost
-                  during testing) even though the app really is installed there. */}
               {!isStandaloneApp && (
                 isSupraSpaceStandaloneUrl ? (
                   <InstallSupraSpaceButton variant="icon" />
@@ -12266,11 +11679,6 @@ export default function SupraSpacePage() {
             'lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-72 lg:shrink-0 lg:translate-x-0',
             activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
           )}>
-            {/* Standalone-app navigation is now a bottom tab bar (Home/Spaces/
-                Notifications/Profile), matching the reference mock — see the
-                bar itself right before </aside> below. The old top segmented
-                strip (Chats/People/Settings) is gone; 'people' lives in "+
-                New" now, 'settings' merged into the Profile tab. */}
             <div style={{ display: sidebarTab === 'chats' ? 'contents' : 'none' }}>
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
@@ -12418,9 +11826,6 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {/* Archived chats live in the Menu tab now, out of the normal
-                  scroll — but a name search here should still be able to find
-                  one, instead of only ever surfacing message-content matches. */}
               {isStandaloneApp && q.trim().length >= 2 && archivedList.length > 0 && (
                 <div className="pt-1">
                   <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
@@ -12645,10 +12050,6 @@ export default function SupraSpacePage() {
               </div>
             )}
 
-            {/* "Spaces" bottom tab is now "People" — Spaces themselves are still
-                fully reachable from the Home tab's own Spaces section and via
-                "+ New" > New Space, so nothing is lost by retiring the grid
-                view's dedicated tab slot. */}
             {isStandaloneApp && sidebarTab === 'spaces' && (
               <PeoplePanel
                 users={allUsers}
@@ -12691,10 +12092,6 @@ export default function SupraSpacePage() {
                   { key: 'profile', label: 'Menu', Icon: Menu },
                 ] as const).map(({ key, label, Icon }) => {
                   const active = sidebarTab === key;
-                  // Reuses the conversation list's own unread accounting (no
-                  // extra fetch) as a stand-in for "unread SupraSpace
-                  // notifications" — the Notifications tab is fed by the same
-                  // message/mention events.
                   const badgeCount = key === 'notifications'
                     ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
                     : 0;
@@ -12975,18 +12372,6 @@ export default function SupraSpacePage() {
                       </div>
                     ) : (
                       <div className="ss4-input-wrap flex flex-col">
-                        {/* Reverted from a position:fixed portal anchored to
-                            the caret's on-screen rect — that math (getBoundingClientRect
-                            on a collapsed Range, re-derived on every keystroke)
-                            turned out unreliable on real mobile devices,
-                            rendering the list full-width and overlapping other
-                            UI instead of as a small anchored box. Back to
-                            rendering inline in the composer's own normal
-                            layout flow, which has no positioning math to get
-                            wrong — the actual fix for "mentions don't work
-                            mid-message" was always in the detection logic
-                            (handleTyping/inspectMentionAnywhere), not in
-                            where this list visually sits. */}
                         {mentionQuery !== null && mentionOptions.length > 0 && (
                           <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             {mentionOptions.map((opt, idx) => (
@@ -13460,12 +12845,6 @@ export default function SupraSpacePage() {
                               }}
                               onPaste={e => {
                                 const items = e.clipboardData?.items;
-                                // Copying an image file (e.g. from Windows Explorer or a
-                                // screenshot tool) commonly puts the filename on the
-                                // clipboard as text/plain ALONGSIDE the actual image
-                                // data. Checking image items first — before falling
-                                // through to the text/html branch below — makes sure
-                                // the real image gets pasted instead of just its name.
                                 const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
                                 if (imgItems.length > 0) {
                                   e.preventDefault();
@@ -13710,10 +13089,6 @@ export default function SupraSpacePage() {
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
                           {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                         </div>
-                        {/* Any member can change a group's photo, not just admins — matches
-                            the backend's actual permission check (updateAvatar in
-                            supraspace.controller.ts only requires membership, never an
-                            admin/creator check), which the frontend was under-exposing. */}
                         {activeConv.type === 'group' && (
                           <>
                             <input ref={avatarFileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
@@ -13730,16 +13105,8 @@ export default function SupraSpacePage() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 max-w-full">
-                          {/* truncate + min-w-0 so a long group name shrinks
-                              instead of pushing the pencil button off the
-                              edge of a narrow mobile viewport — it was still
-                              in the DOM there, just scrolled/clipped out of
-                              reach, which read as "the pencil is missing on
-                              mobile" even though nothing was actually hidden. */}
                           <p className="ss4-display font-bold text-center truncate min-w-0" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
-                          {/* Any member can rename/set the emoji now, same as the
-                              group photo — matches the backend's updateConversation,
-                              which no longer requires isAdmin for name/emoji either. */}
+                         
                           {activeConv.type === 'group' && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
                         </div>
                       )}
@@ -13976,12 +13343,6 @@ export default function SupraSpacePage() {
                     : 'Messaging on mobile now lives in its own dedicated app — lighter, faster, and built just for chat. Install it to keep chatting.'}
                 </p>
               </div>
-              {/* target="_blank" matters here, not just for a new browser
-                  tab: a same-window href from inside the ALREADY-installed
-                  Suprah AI standalone app has no browser chrome to escape
-                  to on iOS, so the link just navigates in place with no way
-                  to actually install/open anything. target="_blank" forces
-                  Safari/Chrome to break out to a real, chrome-ful window. */}
               <a
                 href={SUPRASPACE_SUBDOMAIN_URL}
                 target="_blank"
