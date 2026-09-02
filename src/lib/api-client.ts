@@ -82,6 +82,140 @@ function notifyServiceDegraded(message?: string) {
   );
 }
 
+let lastAccessNoticeKey = "";
+let lastAccessNoticeAt = 0;
+
+const ACCESS_NOTICE_THROTTLE_MS = 3_000;
+
+function getSecurityArea(requestUrl: string): string | null {
+  const path = requestUrl.split("?")[0];
+
+  if (
+    path.startsWith("/api/loads") ||
+    path.startsWith("/api/quotes")
+  ) {
+    return "Transportation";
+  }
+
+  if (path.startsWith("/api/driver-profile")) {
+    return "Driver Portal";
+  }
+
+  if (path.startsWith("/api/driver-tracking")) {
+    if (
+      /^\/api\/driver-tracking\/(dashboard-stats|my-loads|my-requests|available-loads)(?:\/|$)/.test(
+        path
+      ) ||
+      /^\/api\/driver-tracking\/loads(?:\/|$)/.test(path)
+    ) {
+      return "Driver Portal";
+    }
+
+    return "Driver Tracker";
+  }
+
+  return null;
+}
+
+function isProtectedDetailRead(requestUrl: string): boolean {
+  const path = requestUrl.split("?")[0].replace(/\/+$/, "");
+
+  return (
+    /^\/api\/loads\/[^/]+$/.test(path) ||
+    /^\/api\/quotes\/[^/]+$/.test(path) ||
+    /^\/api\/driver-tracking\/loads\/[^/]+$/.test(path)
+  );
+}
+
+function accessNoticeMessage(
+  status: number,
+  requestUrl: string,
+  responseData: any
+): { title: string; message: string } | null {
+  const area = getSecurityArea(requestUrl);
+  if (!area) return null;
+
+  const backendMessage = String(
+    responseData?.message ??
+      responseData?.error?.message ??
+      ""
+  ).trim();
+
+  if (status === 403) {
+    const safeBackendMessage =
+      backendMessage &&
+      !/^forbidden$/i.test(backendMessage) &&
+      !/stack|mongo|mongoose|objectid|database|token/i.test(backendMessage)
+        ? backendMessage
+        : "";
+
+    return {
+      title: "Access restricted",
+      message:
+        safeBackendMessage ||
+        `Your account does not have permission to access this ${area} feature.`,
+    };
+  }
+
+  if (status === 404 && isProtectedDetailRead(requestUrl)) {
+    return {
+      title: "Item unavailable",
+      message:
+        backendMessage &&
+        /access|unavailable|not found/i.test(backendMessage)
+          ? backendMessage
+          : "This item is unavailable or your account does not have access to it.",
+    };
+  }
+
+  return null;
+}
+
+function notifyAccessRestriction(
+  status: number | undefined,
+  requestUrl: string,
+  requestMethod: string | undefined,
+  responseData: any
+) {
+  if (
+    typeof window === "undefined" ||
+    (status !== 403 && status !== 404) ||
+    String(requestMethod || "get").toLowerCase() !== "get"
+  ) {
+    return;
+  }
+
+  const notice = accessNoticeMessage(status, requestUrl, responseData);
+  if (!notice) return;
+
+  const key = `${status}:${requestUrl.split("?")[0]}:${notice.message}`;
+  const now = Date.now();
+
+  // Background refreshes can hit the same protected endpoint more than once.
+  // Show one useful notification instead of spamming the user.
+  if (
+    key === lastAccessNoticeKey &&
+    now - lastAccessNoticeAt < ACCESS_NOTICE_THROTTLE_MS
+  ) {
+    return;
+  }
+
+  lastAccessNoticeKey = key;
+  lastAccessNoticeAt = now;
+
+  void import("sonner")
+    .then(({ toast }) => {
+      toast.error(notice.title, {
+        description: notice.message,
+        id: `security-access:${key}`,
+        duration: 5_000,
+      });
+    })
+    .catch(() => {
+      // Notification failure must never alter the original API rejection.
+    });
+}
+
 function isExpectedSupraSpaceAvailabilityError(
   status: number | undefined,
   requestUrl: string
@@ -90,7 +224,8 @@ function isExpectedSupraSpaceAvailabilityError(
 
   return (
     requestUrl.includes("/api/supraspace/conversations/direct") ||
-    requestUrl.includes("/api/supraspace/session-token")
+    requestUrl.includes("/api/supraspace/session-token") ||
+    requestUrl.includes("/api/auth/crm-sso")
   );
 }
 
@@ -360,6 +495,15 @@ class ApiClient {
           }
         }
 
+        if (error.response) {
+          notifyAccessRestriction(
+            error.response.status,
+            requestUrl,
+            originalRequest?.method,
+            error.response.data
+          );
+        }
+
         if (error.response?.status === 503) {
           notifyServiceDegraded(error.response.data?.message);
         }
@@ -398,7 +542,7 @@ class ApiClient {
             // application crash. Logging it as console.error causes the
             // Next.js development overlay even though the caller handles it.
             console.warn(
-              `[apiClient] Suprah Space is unavailable for this account (${status}):`,
+              `[apiClient] CRM / Suprah Space is unavailable for this account (${status}):`,
               error.response.data
             );
           } else if (

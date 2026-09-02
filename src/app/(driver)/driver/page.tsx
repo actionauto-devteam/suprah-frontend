@@ -74,10 +74,12 @@ import { US_STATES, AVAILABLE_DAYS } from "@/components/driver-profile/driver-pr
 import { PreferredRoutesEditor } from "@/components/driver-profile/PreferredRoutesEditor";
 import { ConfirmationModal, ConfirmationVariant } from "@/components/ui/confirmation-modal";
 import { DriverAcceptLoadDialog } from "@/components/driver/DriverAcceptLoadDialog";
+import { DriverReleaseLoadDialog } from "@/components/driver/DriverReleaseLoadDialog";
 import { DriverStatusChangeDialog } from "@/components/driver/DriverStatusChangeDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
+import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 
 type DriverStatus = "on-route" | "idle" | "on-break" | "waiting" | "offline";
 
@@ -151,20 +153,21 @@ const MAP_STYLE_BY_THEME = {
 } as const;
 
 function formatDualTime(date: Date) {
-  const mst = date.toLocaleTimeString("en-US", {
+  const mountain = date.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
     timeZone: "America/Denver",
   });
+  const mountainZone = getCalendarTimeZoneAbbreviation(date);
   const utc = date.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: "UTC",
   });
-  return { mst, utc };
+  return { mountain, mountainZone, utc };
 }
 
 type DriverKpiSnapshot = {
@@ -233,6 +236,7 @@ export default function DriverDashboardPage() {
   const { user } = useUser();
   const { theme } = useTheme();
   const [loads, setLoads] = React.useState<any[]>([]);
+  const [pendingLoadRequests, setPendingLoadRequests] = React.useState<any[]>([]);
   const [dashStats, setDashStats] = React.useState<{
     pendingRequests: number;
     totalEarnings: number;
@@ -247,8 +251,11 @@ export default function DriverDashboardPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [accepting, setAccepting] = React.useState<string | null>(null);
   const [acceptDialogLoad, setAcceptDialogLoad] = React.useState<any | null>(null);
+  const [acknowledgingAmendment, setAcknowledgingAmendment] = React.useState<string | null>(null);
   const [selectedActiveLoadId, setSelectedActiveLoadId] = React.useState<string | null>(null);
   const [dropping, setDropping] = React.useState<string | null>(null);
+  const [cancellingRelease, setCancellingRelease] = React.useState<string | null>(null);
+  const [releaseDialogLoad, setReleaseDialogLoad] = React.useState<any | null>(null);
   const [pickingUp, setPickingUp] = React.useState<string | null>(null);
   const [startingRoute, setStartingRoute] = React.useState<string | null>(null);
   const [deliveryDialogLoad, setDeliveryDialogLoad] = React.useState<any | null>(null);
@@ -428,10 +435,10 @@ export default function DriverDashboardPage() {
     const headers = { Authorization: `Bearer ${token}` };
     const profileRequestVersions = { ...logisticsVersionRef.current };
 
-    // Load the three dashboard data sources in parallel, but apply each result
-    // as soon as it arrives. Previously Promise.all kept the KPI skeletons on
-    // screen until the slowest request finished, which made the values feel
-    // delayed even when the KPI data was already available.
+    // Load the dashboard data sources in parallel, but apply each result as
+    // soon as it arrives. Current Load depends on BOTH assigned loads and the
+    // driver's pending requests, so its first-load skeleton waits only for
+    // those two requests rather than the slower stats/profile calls.
     const loadsTask = apiClient
       .get("/api/driver-tracking/my-loads", { headers })
       .then((loadsRes) => {
@@ -457,12 +464,26 @@ export default function DriverDashboardPage() {
       })
       .catch((err: any) => {
         toast.error(err?.response?.data?.message || "Failed to load dashboard");
-      })
-      .finally(() => {
-        // Current Load depends on this request, so it can stop showing its
-        // loading state independently of the slower stats/profile requests.
-        setIsLoading(false);
       });
+
+    const requestsTask = apiClient
+      .get("/api/driver-tracking/my-requests", { headers })
+      .then((requestsRes) => {
+        const requestData = requestsRes.data?.data;
+        const nextRequests = Array.isArray(requestData) ? requestData : [];
+        setPendingLoadRequests(nextRequests);
+      })
+      .catch(() => {
+        // Keep the last known pending-request card during a temporary request
+        // failure. The existing socket/fallback refresh will try again.
+      });
+
+    const currentLoadCardTask = Promise.allSettled([
+      loadsTask,
+      requestsTask,
+    ]).finally(() => {
+      setIsLoading(false);
+    });
 
     const statsTask = apiClient
       .get("/api/driver-tracking/dashboard-stats", { headers })
@@ -541,7 +562,7 @@ export default function DriverDashboardPage() {
         // secondary request is temporarily unavailable.
       });
 
-    await Promise.allSettled([loadsTask, statsTask, profileTask]);
+    await Promise.allSettled([currentLoadCardTask, statsTask, profileTask]);
   }, [getToken]);
 
   React.useEffect(() => {
@@ -620,6 +641,40 @@ export default function DriverDashboardPage() {
   const currentLoad =
     activeLoads.find((load) => String(load._id) === selectedActiveLoadId) ??
     activeLoads[0];
+  const currentLoadId = currentLoad ? String(currentLoad._id) : null;
+  const currentLoadHasPendingRelease =
+    currentLoad?.releaseRequest?.status === "pending";
+  const pendingRequestsByRecency = React.useMemo(
+    () =>
+      [...pendingLoadRequests].sort(
+        (a, b) =>
+          new Date(b?.myRequestedAt ?? b?.createdAt ?? 0).getTime() -
+          new Date(a?.myRequestedAt ?? a?.createdAt ?? 0).getTime(),
+      ),
+    [pendingLoadRequests],
+  );
+  const pendingCurrentRequest = pendingRequestsByRecency[0] ?? null;
+  const pendingRequestOrigin = pendingCurrentRequest
+    ? [
+        pendingCurrentRequest.pickupLocation?.city,
+        pendingCurrentRequest.pickupLocation?.state,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const pendingRequestDestination = pendingCurrentRequest
+    ? [
+        pendingCurrentRequest.deliveryLocation?.city,
+        pendingCurrentRequest.deliveryLocation?.state,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const currentPendingAmendment =
+    Array.isArray(currentLoad?.pendingDriverAmendments) &&
+    currentLoad.pendingDriverAmendments.length > 0
+      ? currentLoad.pendingDriverAmendments[0]
+      : null;
   const otherActiveLoads = activeLoads.filter(
     (load) => String(load._id) !== String(currentLoad?._id ?? ""),
   );
@@ -656,6 +711,45 @@ export default function DriverDashboardPage() {
       setSelectedActiveLoadId(String(activeLoads[0]._id));
     }
   }, [activeLoadIdsKey, selectedActiveLoadId]);
+
+  // All action UI is scoped to the exact selected Current Load. Switching
+  // loads invalidates dialogs opened for the previous load. If a pending
+  // release request appears for the same load while a forward-progression
+  // confirmation is open, close that stale action immediately; the backend
+  // independently enforces the same rule.
+  React.useEffect(() => {
+    const selectedId = currentLoadId;
+
+    setAcceptDialogLoad((previous: any | null) =>
+      previous &&
+      (String(previous._id) !== selectedId || currentLoadHasPendingRelease)
+        ? null
+        : previous,
+    );
+    setReleaseDialogLoad((previous: any | null) =>
+      previous &&
+      (String(previous._id) !== selectedId || currentLoadHasPendingRelease)
+        ? null
+        : previous,
+    );
+    setDeliveryDialogLoad((previous: any | null) =>
+      previous && String(previous._id) !== selectedId ? null : previous,
+    );
+    setConfirmState((previous) => {
+      if (!previous.isOpen || !previous.load?._id) return previous;
+
+      const belongsToSelectedLoad = String(previous.load._id) === selectedId;
+      const blockedByPendingRelease =
+        belongsToSelectedLoad &&
+        currentLoadHasPendingRelease &&
+        ["mark-picked-up", "start-route"].includes(previous.action);
+
+      if (!belongsToSelectedLoad || blockedByPendingRelease) {
+        return { ...previous, isOpen: false, load: null };
+      }
+      return previous;
+    });
+  }, [currentLoadId, currentLoadHasPendingRelease]);
 
   React.useEffect(() => {
     if (!mapboxToken || !mapContainerRef.current || mapRef.current) return;
@@ -838,14 +932,36 @@ export default function DriverDashboardPage() {
             agreedToTerms: true,
             signatureDataUrl,
             signerName,
+            // Echo the exact material Load version displayed when the driver
+            // signed. The backend rejects the signature if those terms changed.
+            reviewedMaterialVersion:
+              typeof load?.acceptanceMaterialVersion === "string"
+                ? load.acceptanceMaterialVersion
+                : undefined,
           },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        toast.success("Load accepted");
+        toast.success("Load accepted — required location sharing is starting", {
+          description:
+            "Only the dispatcher responsible for this accepted active load can view your live location.",
+        });
         setAcceptDialogLoad(null);
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to accept load");
+        const message =
+          err.response?.data?.message || "Failed to accept load";
+        toast.error(message);
+
+        // Force a fresh review when the server says the signed screen is stale
+        // or Dispatch must reconfirm materially changed assignment terms.
+        if (
+          message.includes("changed since you reviewed") ||
+          message.includes("changed after Dispatch assigned") ||
+          message.includes("legacy assignment was updated")
+        ) {
+          setAcceptDialogLoad(null);
+          await fetchData();
+        }
       } finally {
         setAccepting(null);
       }
@@ -853,35 +969,98 @@ export default function DriverDashboardPage() {
     [getToken, fetchData, workEligibility.canTakeNewWork, workEligibility.blockReason],
   );
 
-  const dropLoad = React.useCallback(
-    async (load: any) => {
+  const acknowledgeLoadAmendment = React.useCallback(
+    async (load: any, amendment: any) => {
+      if (!load?._id || !amendment?.id) return;
+      setAcknowledgingAmendment(String(amendment.id));
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/amendments/${encodeURIComponent(amendment.id)}/acknowledge`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Load Update acknowledged", {
+          description: "You can continue the load lifecycle using the updated Dispatch details.",
+        });
+        await fetchData();
+      } catch (err: any) {
+        toast.error(
+          err.response?.data?.message || "Failed to acknowledge the Load Update",
+        );
+      } finally {
+        setAcknowledgingAmendment(null);
+      }
+    },
+    [getToken, fetchData],
+  );
+
+  const requestLoadRelease = React.useCallback(
+    async (
+      load: any,
+      request: {
+        reason: string;
+        message: string;
+        priority: "standard" | "emergency";
+      },
+    ) => {
       setDropping(load._id);
       try {
         const token = await getToken();
         await apiClient.post(
-          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/drop`,
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/release-request`,
+          request,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Release request sent to Dispatch", {
+          description:
+            "The load remains assigned until Dispatch decides. Required GPS remains active while an accepted load is still assigned.",
+        });
+        setReleaseDialogLoad(null);
+        await fetchData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to request load release");
+      } finally {
+        setDropping(null);
+      }
+    },
+    [getToken, fetchData],
+  );
+
+  const cancelReleaseRequest = React.useCallback(
+    async (load: any) => {
+      if (!load?._id) return;
+
+      const loadId = String(load._id);
+      setCancellingRelease(loadId);
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(loadId)}/release-request/cancel`,
           {},
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        toast.success("Load released and returned to Available Loads");
 
-        // The load has already been released successfully, so clear the
-        // confirmation state immediately instead of leaving the destructive
-        // modal mounted while the refreshed load data removes the card.
-        setConfirmState({
-          isOpen: false,
-          action: "",
-          title: "",
-          description: "",
-          variant: "primary",
-          load: null,
+        toast.success("Release request cancelled", {
+          description:
+            "The load remains assigned to you. Its actions now follow the load's current status again.",
         });
-
+        setConfirmState((previous) => ({
+          ...previous,
+          isOpen: false,
+          load: null,
+        }));
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to release load");
+        toast.error(
+          err.response?.data?.message || "Failed to cancel the release request",
+        );
+        // A 409 normally means Dispatch or another lifecycle action won the
+        // race. Always refresh so the selected Current Load immediately shows
+        // the authoritative status/buttons instead of leaving stale controls.
+        await fetchData();
       } finally {
-        setDropping(null);
+        setCancellingRelease(null);
       }
     },
     [getToken, fetchData],
@@ -947,10 +1126,10 @@ export default function DriverDashboardPage() {
         description = 'Are you ready to begin the delivery route? This will notify the organization that you are in transit.';
         variant = 'success';
         break;
-      case 'drop-load':
-        title = 'Release This Load?';
-        description = 'You will no longer be responsible for this load. It will return to the Transportation Available Loads pool so Dispatch can assign it to another driver. This does not mark the delivery as completed.';
-        variant = 'danger';
+      case 'cancel-release-request':
+        title = 'Cancel Release Request?';
+        description = `Cancel your pending release request for ${getLoadReference(load)}? The load will remain assigned to you and its normal actions will return based on its current status.`;
+        variant = 'warning';
         break;
       default:
         return;
@@ -970,7 +1149,7 @@ export default function DriverDashboardPage() {
     const { action, load } = confirmState;
     if (action === 'mark-picked-up') markPickedUp(load);
     if (action === 'start-route') startRoute(load);
-    if (action === 'drop-load') dropLoad(load);
+    if (action === 'cancel-release-request') cancelReleaseRequest(load);
   };
 
   const performOpStatusUpdate = React.useCallback(
@@ -1274,7 +1453,7 @@ export default function DriverDashboardPage() {
 
   const router = useRouter();
 
-  const { mst, utc } = formatDualTime(currentTime);
+  const { mountain, mountainZone, utc } = formatDualTime(currentTime);
   const displayedDispatchLabel =
     OP_STATUS_CONFIG.find((item) => item.key === opStatus)?.label ?? "Active";
 
@@ -1293,7 +1472,7 @@ export default function DriverDashboardPage() {
               <Clock className="size-3" />
               {currentTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "America/Denver" })}
               <span className="text-primary/60 font-black tabular-nums">
-                {mst} MST
+                {mountain} {mountainZone}
               </span>
               <span className="text-muted-foreground/40 tabular-nums">
                 ({utc} UTC)
@@ -1788,7 +1967,7 @@ export default function DriverDashboardPage() {
                       <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
                         {locationRequirementReason === "dispatch_retained_load"
                           ? "GPS Required by Dispatch"
-                          : "GPS Required While Loads Are Active"}
+                          : "GPS Required After Load Acceptance"}
                       </p>
                       <p className="mt-1 break-words text-sm leading-relaxed text-muted-foreground/90 [overflow-wrap:anywhere]">
                         {locationRequirementReason === "dispatch_retained_load"
@@ -1798,10 +1977,10 @@ export default function DriverDashboardPage() {
                               ? "Connecting GPS for your retained load…"
                               : "Location permission is required for your retained load."
                           : isSharing
-                            ? "Location sharing stays automatic until you have no active loads."
+                            ? "Location sharing stays automatic while you have an Accepted, Picked Up, or In-Transit load."
                             : isStarting
-                              ? "Connecting automatically because you have an active load…"
-                              : "Location permission is required while you have an active load."}
+                              ? "Connecting automatically because you accepted an active load…"
+                              : "Location permission is required after accepting an active load."}
                       </p>
                     </div>
                   </div>
@@ -1815,7 +1994,7 @@ export default function DriverDashboardPage() {
                         ? "GPS is optional while your Work Availability is On Leave."
                         : opStatus === "maintenance"
                           ? "GPS is optional while your Work Availability is In Shop."
-                          : "No active loads. Location sharing is optional."}
+                          : "No accepted active loads. Location sharing is optional and is not visible to Dispatch unless they own an accepted active load for you."}
                   </p>
                   <Button
                     size="sm"
@@ -1878,10 +2057,18 @@ export default function DriverDashboardPage() {
                   <Package className="size-4 text-primary" />
                   Current Load
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {activeLoads.length > 0 && (
                     <Badge variant="secondary" className="text-xs font-bold">
                       {activeLoads.length} active
+                    </Badge>
+                  )}
+                  {pendingRequestsByRecency.length > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/30 bg-amber-500/5 text-xs font-bold text-amber-700 dark:text-amber-300"
+                    >
+                      {pendingRequestsByRecency.length} pending
                     </Badge>
                   )}
                   {currentLoad && activeLoads.length > 1 && (
@@ -1892,11 +2079,15 @@ export default function DriverDashboardPage() {
                       Managing {selectedActiveLoadPosition} of {activeLoads.length}
                     </Badge>
                   )}
-                  {currentLoad && (
+                  {currentLoad ? (
                     <Badge variant="outline" className={cn("text-xs font-bold px-2.5 py-1", LOAD_STATUS_COLORS[currentLoad.status] || "")}>
                       {currentLoad.status}
                     </Badge>
-                  )}
+                  ) : pendingCurrentRequest ? (
+                    <Badge className="border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">
+                      Pending Approval
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
             </CardHeader>
@@ -1950,10 +2141,69 @@ export default function DriverDashboardPage() {
 
                     <p className="text-sm text-muted-foreground/80 font-medium flex items-center gap-1">
                       <Clock className="size-3" />
-                      Pickup: {new Date(currentLoad.dates?.pickupDeadline || currentLoad.requestedPickupDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
+                      Pickup: {formatScheduleDate(
+                        currentLoad.dates?.pickupDeadline ||
+                          currentLoad.requestedPickupDate,
+                      )}
                     </p>
 
-                    {currentLoad.status === "Assigned" && (
+                    {currentPendingAmendment && (
+                      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black text-amber-800 dark:text-amber-300">
+                              Load Updated by Dispatch
+                            </p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                              Material details changed after you accepted this load. Review each change below. Pickup, route start, and delivery actions are paused until you acknowledge the update.
+                            </p>
+
+                            <div className="mt-3 space-y-2">
+                              {(currentPendingAmendment.changes ?? []).map((change: any, index: number) => (
+                                <div
+                                  key={`${currentPendingAmendment.id}-${change.field}-${index}`}
+                                  className="rounded-lg border border-border/60 bg-background/70 p-3"
+                                >
+                                  <p className="text-xs font-black uppercase tracking-wide text-foreground">
+                                    {change.label || "Load Details"}
+                                  </p>
+                                  <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-muted-foreground">Previous</p>
+                                      <p className="mt-0.5 break-words leading-relaxed text-foreground/80 [overflow-wrap:anywhere]">
+                                        {change.before || "Not set"}
+                                      </p>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-amber-700 dark:text-amber-300">Updated</p>
+                                      <p className="mt-0.5 break-words leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                                        {change.after || "Not set"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            <Button
+                              size="sm"
+                              className="mt-3 w-full font-bold"
+                              disabled={acknowledgingAmendment === String(currentPendingAmendment.id)}
+                              onClick={() => acknowledgeLoadAmendment(currentLoad, currentPendingAmendment)}
+                            >
+                              {acknowledgingAmendment === String(currentPendingAmendment.id) ? (
+                                <><Loader2 className="mr-2 size-3.5 animate-spin" />Acknowledging...</>
+                              ) : (
+                                <><CheckCircle2 className="mr-2 size-3.5" />I Acknowledge These Changes</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!currentLoadHasPendingRelease && currentLoad.status === "Assigned" && (
                       <Button
                         size="sm"
                         className="w-full h-10 text-sm font-bold shadow-sm"
@@ -1974,7 +2224,7 @@ export default function DriverDashboardPage() {
                       </Button>
                     )}
 
-                    {currentLoad.status === "Accepted" && (
+                    {!currentLoadHasPendingRelease && currentLoad.status === "Accepted" && (
                       <Button
                         size="sm"
                         className="w-full h-10 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
@@ -1989,7 +2239,7 @@ export default function DriverDashboardPage() {
                       </Button>
                     )}
 
-                    {currentLoad.status === "Picked Up" && (
+                    {!currentLoadHasPendingRelease && currentLoad.status === "Picked Up" && (
                       <Button
                         size="sm"
                         className="w-full h-10 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm"
@@ -2029,20 +2279,65 @@ export default function DriverDashboardPage() {
                       </div>
                     )}
 
-                    {["Assigned", "Accepted"].includes(currentLoad.status) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full h-10 text-sm font-semibold text-destructive border-destructive/20 hover:bg-destructive/10"
-                        disabled={dropping === currentLoad._id}
-                        onClick={() => handleAction("drop-load", currentLoad)}
-                      >
-                        {dropping === currentLoad._id ? (
-                          <><Loader2 className="size-3.5 mr-2 animate-spin" />Releasing...</>
-                        ) : (
-                          <><XCircle className="size-3.5 mr-2" />Release Load</>
-                        )}
-                      </Button>
+                    {["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status) && (
+                      currentLoadHasPendingRelease ? (
+                        <div className="space-y-2.5">
+                          <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+                            <div className="flex items-start gap-2.5">
+                              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <div className="min-w-0">
+                                <p className="font-extrabold text-amber-800 dark:text-amber-200">
+                                  Release Requested
+                                </p>
+                                <p className="mt-0.5 font-semibold text-foreground">
+                                  Awaiting Dispatch Review
+                                </p>
+                                <p className="mt-1.5">
+                                  {getLoadReference(currentLoad)} remains assigned to you until Dispatch approves the release. Forward load progression is paused while this request is pending.
+                                </p>
+                                {["Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status) && (
+                                  <p className="mt-1.5">
+                                    Required location sharing remains active while this accepted load is still assigned to you.
+                                  </p>
+                                )}
+                                {currentLoad.status === "In-Transit" && (
+                                  <p className="mt-1.5 font-medium text-foreground/80">
+                                    If delivery is already complete, you may still submit proof and complete delivery. Delivery automatically closes the pending release request.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full h-10 text-sm font-semibold border-amber-500/35 text-amber-800 hover:bg-amber-500/10 dark:text-amber-200"
+                            disabled={cancellingRelease === currentLoadId}
+                            onClick={() => handleAction("cancel-release-request", currentLoad)}
+                          >
+                            {cancellingRelease === currentLoadId ? (
+                              <><Loader2 className="size-3.5 mr-2 animate-spin" />Cancelling Request...</>
+                            ) : (
+                              <><XCircle className="size-3.5 mr-2" />Cancel Release Request</>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-10 text-sm font-semibold text-destructive border-destructive/20 hover:bg-destructive/10"
+                          disabled={dropping === currentLoad._id}
+                          onClick={() => setReleaseDialogLoad(currentLoad)}
+                        >
+                          {dropping === currentLoad._id ? (
+                            <><Loader2 className="size-3.5 mr-2 animate-spin" />Sending Request...</>
+                          ) : (
+                            <><XCircle className="size-3.5 mr-2" />{["Picked Up", "In-Transit"].includes(currentLoad.status) ? "Request Emergency Release" : "Request Release"}</>
+                          )}
+                        </Button>
+                      )
                     )}
                   </div>
 
@@ -2099,6 +2394,109 @@ export default function DriverDashboardPage() {
                       </Link>
                     </div>
                   )}
+                  {pendingCurrentRequest && (
+                    <div className="shrink-0 rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-2.5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            <Timer className="size-3.5 shrink-0" />
+                            Pending Request
+                          </p>
+                          <p className="mt-0.5 break-words font-mono text-sm font-bold text-foreground [overflow-wrap:anywhere]">
+                            {getLoadReference(pendingCurrentRequest)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Awaiting Dispatcher approval
+                            {pendingRequestsByRecency.length > 1
+                              ? ` · ${pendingRequestsByRecency.length} pending requests`
+                              : ""}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
+                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                        >
+                          View Request
+                          <ArrowRight className="size-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="shrink-0 border-t border-border/50 pt-3">
+                    <Link
+                      href="/driver/available-loads"
+                      className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background/55 px-3 text-sm font-semibold text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
+                    >
+                      Browse Loads
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              ) : pendingCurrentRequest ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.05] px-3 py-3">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            <Timer className="size-3.5 shrink-0" />
+                            Awaiting Dispatcher Approval
+                          </p>
+                          <p className="mt-1 break-words font-mono text-base font-black text-foreground [overflow-wrap:anywhere]">
+                            {getLoadReference(pendingCurrentRequest)}
+                          </p>
+                        </div>
+                        {pendingRequestsByRecency.length > 1 && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-amber-500/30 bg-background/60 text-[10px] font-bold text-amber-700 dark:text-amber-300"
+                          >
+                            1 of {pendingRequestsByRecency.length}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/50 bg-background/55 px-2.5 py-2 text-sm text-muted-foreground">
+                        <MapPin className="size-3.5 shrink-0 text-primary" />
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                          {pendingRequestOrigin || "Origin available in request details"}
+                        </span>
+                        <ArrowRight className="size-3.5 shrink-0" />
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                          {pendingRequestDestination || "Destination available in request details"}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Requested {pendingCurrentRequest.myRequestedAt
+                            ? new Date(pendingCurrentRequest.myRequestedAt).toLocaleString([], {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "recently"}.
+                        </p>
+                        <Link
+                          href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
+                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                        >
+                          View Request
+                          <ArrowRight className="size-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Link
+                    href="/driver/available-loads"
+                    className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background/55 px-3 text-sm font-semibold text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    Browse Loads
+                    <ArrowRight className="size-3.5" />
+                  </Link>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-7 gap-2.5 xl:h-full">
@@ -2274,6 +2672,16 @@ export default function DriverDashboardPage() {
         onAccept={acceptLoad}
       />
 
+      <DriverReleaseLoadDialog
+        open={!!releaseDialogLoad}
+        onOpenChange={(open) => {
+          if (!open && !dropping) setReleaseDialogLoad(null);
+        }}
+        load={releaseDialogLoad}
+        isSubmitting={!!dropping}
+        onSubmit={requestLoadRelease}
+      />
+
       <DriverDeliveryProofDialog
         load={deliveryDialogLoad}
         loadReference={deliveryDialogLoad ? getLoadReference(deliveryDialogLoad) : ""}
@@ -2330,16 +2738,22 @@ export default function DriverDashboardPage() {
         title={confirmState.title}
         description={confirmState.description}
         confirmText={
-          confirmState.action === "drop-load"
-            ? "Release Load"
-            : confirmState.action === "mark-picked-up"
-              ? "Confirm Pickup"
-              : confirmState.action === "start-route"
-                ? "Start Route"
+          confirmState.action === "mark-picked-up"
+            ? "Confirm Pickup"
+            : confirmState.action === "start-route"
+              ? "Start Route"
+              : confirmState.action === "cancel-release-request"
+                ? "Cancel Release Request"
                 : "Confirm"
         }
         variant={confirmState.variant}
-        isLoading={!!accepting || !!dropping || !!pickingUp || !!startingRoute}
+        isLoading={
+          !!accepting ||
+          !!dropping ||
+          !!cancellingRelease ||
+          !!pickingUp ||
+          !!startingRoute
+        }
       />
     </div>
   );
@@ -2407,14 +2821,17 @@ function DriverDeliveryProofDialog({
       const token = await getToken();
       if (!token) throw new Error("Authentication token is unavailable");
 
-      // Preserve the proven proof-of-delivery upload path used by My Loads.
+      // Use the Driver Tracking proof route so shared/standalone drivers do
+      // not need a home organization just to submit POD. The backend reuses
+      // the existing private-bucket proof controller and validates that this
+      // authenticated driver is the exact assigned driver.
       // Delivery is only advanced after the proof upload succeeds.
       const formData = new FormData();
       formData.append("proof", file);
       if (note.trim()) formData.append("note", note.trim());
 
       await apiClient.post(
-        `/api/loads/${encodeURIComponent(load._id)}/submit-proof`,
+        `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/submit-proof`,
         formData,
         { headers: { Authorization: `Bearer ${token}` } },
       );

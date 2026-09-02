@@ -21,6 +21,10 @@ export interface DriverStatusRequestSnapshot {
   effectiveAt?: string | null;
   estimatedReturnAt?: string | null;
   submittedAt?: string | null;
+  transitionGroupId?: string | null;
+  coordinatedOrganizationCount?: number;
+  coordinatedOpenOrganizationCount?: number;
+  coordinatedActiveLoadCount?: number;
   attachments?: Array<{
     id?: string;
     fileName: string;
@@ -42,6 +46,15 @@ function buildBlockReason(
   }
   if (request?.priority === "emergency" && ["pending", "approved_awaiting_reassignment"].includes(request.status)) {
     return "Your emergency release request is active. Dispatch is handling your current loads, and new work is blocked.";
+  }
+  if (
+    request?.transitionGroupId &&
+    ["pending", "approved_awaiting_reassignment"].includes(request.status)
+  ) {
+    const count = Math.max(1, Number(request.coordinatedOrganizationCount ?? 1));
+    return count > 1
+      ? `Your Work Availability change is being coordinated across ${count} Dispatch teams. New work is paused until every affected team resolves its part.`
+      : "Your Work Availability request is under Dispatch review. New work is paused until the transition is resolved.";
   }
   if (request?.status === "approved_awaiting_reassignment") {
     return "Your Work Availability change is approved and awaiting load reassignment. New work is blocked until the transition is complete.";

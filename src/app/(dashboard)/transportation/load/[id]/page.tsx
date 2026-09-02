@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { fmtDateMDT, fmtTimeMDT } from "@/lib/timezone"
+import { formatScheduleDate } from "@/utils/calendar.utils"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -494,7 +495,10 @@ export default function LoadDetailsPage() {
   const formatShortDate = (dateStr?: string) => {
     if (!dateStr) return "N/A"
     try {
-      return fmtDateMDT(dateStr)
+      // Schedule fields are date-only business-calendar values. Do not convert
+      // the UTC-midnight storage anchor into Mountain Time or the selected day
+      // can display one day earlier.
+      return formatScheduleDate(dateStr)
     } catch {
       return "Invalid date"
     }

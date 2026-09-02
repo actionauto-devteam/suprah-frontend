@@ -64,6 +64,7 @@ interface DriverTrackerLoadsCardProps {
   activeDrivers?: DriverTrackingItem[];
   onRemoveLoad?: (shipmentId: string) => Promise<void>;
   onReassignLoad?: (shipmentId: string, newDriverId: string) => Promise<boolean>;
+  onKeepAssigned?: (shipmentId: string) => Promise<void>;
 }
 
 export function DriverTrackerLoadsCard({
@@ -73,6 +74,7 @@ export function DriverTrackerLoadsCard({
   activeDrivers = [],
   onRemoveLoad,
   onReassignLoad,
+  onKeepAssigned,
 }: DriverTrackerLoadsCardProps) {
   const router = useRouter();
   const [viewDriver, setViewDriver] = React.useState<DriverTrackingItem | null>(null);
@@ -82,6 +84,7 @@ export function DriverTrackerLoadsCard({
   );
   const [removing, setRemoving] = React.useState<string | null>(null);
   const [reassigning, setReassigning] = React.useState<string | null>(null);
+  const [keepingAssigned, setKeepingAssigned] = React.useState<string | null>(null);
   const [reassignShipmentId, setReassignShipmentId] = React.useState<string | null>(null);
   const [driverSearch, setDriverSearch] = React.useState("");
 
@@ -92,6 +95,16 @@ export function DriverTrackerLoadsCard({
       await onRemoveLoad(shipmentId);
     } finally {
       setRemoving(null);
+    }
+  };
+
+  const handleKeepAssigned = async (shipmentId: string) => {
+    if (!onKeepAssigned) return;
+    setKeepingAssigned(shipmentId);
+    try {
+      await onKeepAssigned(shipmentId);
+    } finally {
+      setKeepingAssigned(null);
     }
   };
 
@@ -384,8 +397,45 @@ export function DriverTrackerLoadsCard({
                   </div>
                 </div>
 
-                {(onRemoveLoad || onReassignLoad) && (
+                {shipment.releaseRequest?.status === "pending" && (
+                  <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-xs leading-relaxed text-muted-foreground">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-bold text-foreground">
+                          {shipment.releaseRequest.priority === "emergency"
+                            ? "Emergency release requested"
+                            : "Driver requested release"}
+                        </p>
+                        <p>
+                          Reason: {String(shipment.releaseRequest.reason || "other").replace(/_/g, " ")}.
+                          {shipment.releaseRequest.message ? ` ${shipment.releaseRequest.message}` : ""}
+                        </p>
+                        <p className="font-medium text-amber-700 dark:text-amber-300">
+                          The load is still assigned. Dispatch must choose the final action.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(onRemoveLoad || onReassignLoad || (onKeepAssigned && shipment.releaseRequest?.status === "pending")) && (
                   <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border/20 pt-3 sm:flex sm:flex-wrap sm:items-center">
+                    {onKeepAssigned && shipment.releaseRequest?.status === "pending" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-full gap-1 border-emerald-500/25 px-2.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-500/10 sm:h-8 sm:w-auto dark:text-emerald-400"
+                        disabled={keepingAssigned === shipment.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleKeepAssigned(shipment.id);
+                        }}
+                      >
+                        {keepingAssigned === shipment.id ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" />}
+                        Keep Assigned
+                      </Button>
+                    )}
                     {onRemoveLoad && (
                       <Button
                         size="sm"
@@ -398,7 +448,7 @@ export function DriverTrackerLoadsCard({
                         }}
                       >
                         {removing === shipment.id ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-                        Remove
+                        {shipment.releaseRequest?.status === "pending" ? "Approve & Return to Available" : "Remove"}
                       </Button>
                     )}
                     {onReassignLoad && (
@@ -569,6 +619,8 @@ export function DriverTrackerLoadsCard({
                     >
                       {reassigning === reassignShipmentId ? (
                         <Loader2 className="size-3.5 animate-spin" />
+                      ) : reassignShipment?.releaseRequest?.status === "pending" ? (
+                        needsReview ? "Review & Approve Reassign" : "Approve & Reassign"
                       ) : needsReview ? (
                         "Review & Reassign"
                       ) : (

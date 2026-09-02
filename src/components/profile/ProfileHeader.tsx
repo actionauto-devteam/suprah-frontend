@@ -622,7 +622,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             color: "text-emerald-400/80",
           },
           {
-            label: "Identity",
+            // This value is email verification from /api/profile, not the
+            // driver's CDL/compliance verification status.
+            label: "Email",
             value: profile?.securityStatus?.emailVerified
               ? "Verified"
               : "Unverified",

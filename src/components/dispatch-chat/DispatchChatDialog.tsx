@@ -42,9 +42,13 @@ import { useAuth, useUser } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { toast } from "sonner";
 import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
+import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 
 export interface DispatchChatAttachment {
+  // Empty when the backend cannot safely produce a signed private URL.
+  // `available` is optional for backward compatibility with older payloads.
   url: string;
+  available?: boolean;
   originalName: string;
   mimeType: string;
   size: number;
@@ -150,6 +154,9 @@ interface DispatchChatDialogProps {
   // Optional server-authorized thread seed used by contextual entry points
   // such as Available Loads → Message Creator. Existing callers can omit it.
   initialThread?: DispatchChatThreadSummary | null;
+  // Optional Driver Tracker navigation hook. It is intentionally scoped to
+  // the exact load + driver carried by the persisted request system event.
+  onReviewLoadRequest?: (loadId: string, driverId: string) => void;
 }
 
 const EMOJIS = [
@@ -183,6 +190,7 @@ const EMOJIS = [
 // messages. Their generic Notification copies are user-wide and must never be
 // merged into whichever private conversation happens to be open.
 const PRIVATE_THREAD_SYSTEM_ONLY_NOTIFICATION_TYPES = new Set([
+  "driver_request",
   "driver_assigned",
   "driver_request_approved",
   "driver_request_rejected",
@@ -280,6 +288,65 @@ function bytesLabel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Dispatch Chat timestamps are Transportation business timestamps. Keep the
+// stored/API value as an absolute instant and convert only for presentation.
+// CALENDAR_TZ is America/Denver, so DST automatically renders MDT or MST.
+function dispatchChatDate(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function formatDispatchChatTime(value: string | Date) {
+  const date = dispatchChatDate(value);
+  if (!date) return "—";
+
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+  return `${time} ${getCalendarTimeZoneAbbreviation(date)}`;
+}
+
+function formatDispatchChatDateTime(value: string | Date) {
+  const date = dispatchChatDate(value);
+  if (!date) return "—";
+
+  const dateTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TZ,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+  return `${dateTime} ${getCalendarTimeZoneAbbreviation(date)}`;
+}
+
+function formatDispatchChatDate(value: string | Date) {
+  const date = dispatchChatDate(value);
+  if (!date) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TZ,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function isDispatchAttachmentAvailable(
+  attachment: DispatchChatAttachment,
+) {
+  return (
+    attachment.available !== false &&
+    Boolean(String(attachment.url ?? "").trim())
+  );
+}
+
 function normalizeNotification(
   notification: any,
 ): DispatchChatSystemEvent | null {
@@ -326,6 +393,48 @@ export function AttachmentView({
 }) {
   const isImage = attachment.mimeType?.startsWith("image/");
   const isVideo = attachment.mimeType?.startsWith("video/");
+  const attachmentAvailable =
+    isDispatchAttachmentAvailable(attachment);
+
+  if (!attachmentAvailable) {
+    return (
+      <div
+        className={`mt-2 flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
+          mine
+            ? "border-white/15 bg-white/10"
+            : "border-border/60 bg-background/70"
+        }`}
+      >
+        <div
+          className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+            mine ? "bg-white/15" : "bg-amber-500/10"
+          }`}
+        >
+          <AlertTriangle
+            className={`size-4 ${
+              mine
+                ? "text-emerald-50/90"
+                : "text-amber-600 dark:text-amber-400"
+            }`}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="break-all text-xs font-semibold wrap-anywhere">
+            {attachment.originalName}
+          </p>
+          <p
+            className={`mt-0.5 text-[10px] ${
+              mine
+                ? "text-emerald-50/75"
+                : "text-muted-foreground"
+            }`}
+          >
+            Attachment temporarily unavailable · {bytesLabel(attachment.size)}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isImage) {
     return (
@@ -407,7 +516,124 @@ export function AttachmentView({
   );
 }
 
-export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
+export function SystemEventCard({
+  event,
+  onReviewLoadRequest,
+}: {
+  event: DispatchChatSystemEvent;
+  onReviewLoadRequest?: (loadId: string, driverId: string) => void;
+}) {
+  const { user } = useUser();
+  const viewerId = String(user?.id ?? "").trim();
+  const viewerIsDriver = user?.role === "driver";
+  const metadata = event.metadata ?? {};
+  const audienceMessages =
+    metadata.audienceMessages &&
+    typeof metadata.audienceMessages === "object"
+      ? metadata.audienceMessages
+      : null;
+
+  const actorId = String(
+    metadata.actorId ??
+      metadata.performedByUserId ??
+      metadata.sentByUserId ??
+      "",
+  ).trim();
+  const threadDispatcherId = String(
+    metadata.threadDispatcherId ??
+      metadata.dispatcherId ??
+      metadata.originalDispatcherId ??
+      "",
+  ).trim();
+  const actorName = String(
+    metadata.actorName ??
+      metadata.performedByName ??
+      metadata.sentByName ??
+      "",
+  ).trim();
+  const action = String(metadata.action ?? "").trim();
+  const loadNumberForAudience = String(
+    metadata.loadNumber ?? "",
+  ).trim();
+  const previousDriverName = String(
+    metadata.previousDriverName ??
+      metadata.driverName ??
+      "the assigned driver",
+  ).trim();
+  const newDriverName = String(
+    metadata.newDriverName ?? "the replacement driver",
+  ).trim();
+  const supportMemberAction = Boolean(
+    actorId &&
+      threadDispatcherId &&
+      actorId !== threadDispatcherId,
+  );
+
+  const readAudienceMessage = (key: string) => {
+    const value = audienceMessages?.[key];
+    return typeof value === "string"
+      ? String(value).trim()
+      : "";
+  };
+
+  const supportDispatcherFallback = (() => {
+    if (!supportMemberAction || !actorName || !loadNumberForAudience) {
+      return "";
+    }
+
+    if (action.includes("reassign")) {
+      return `Load ${loadNumberForAudience} was reassigned from ${previousDriverName} to ${newDriverName} by ${actorName}.`;
+    }
+
+    if (action.includes("remove")) {
+      return `Load ${loadNumberForAudience} was removed from ${previousDriverName} by ${actorName}.`;
+    }
+
+    return "";
+  })();
+
+  const supportDriverFallback = (() => {
+    if (!supportMemberAction || !loadNumberForAudience) {
+      return "";
+    }
+
+    if (action.includes("reassign")) {
+      return `Your load ${loadNumberForAudience} was reassigned by another dispatcher.`;
+    }
+
+    if (action.includes("remove")) {
+      return `Your load ${loadNumberForAudience} was removed by another dispatcher.`;
+    }
+
+    return "";
+  })();
+
+  let audienceMessage = "";
+
+  if (viewerIsDriver) {
+    audienceMessage =
+      readAudienceMessage("driver") ||
+      supportDriverFallback;
+  } else if (viewerId && actorId && viewerId === actorId) {
+    audienceMessage =
+      readAudienceMessage("actorDispatcher") ||
+      readAudienceMessage("dispatcher");
+  } else if (
+    viewerId &&
+    threadDispatcherId &&
+    viewerId === threadDispatcherId
+  ) {
+    audienceMessage =
+      readAudienceMessage("threadDispatcher") ||
+      supportDispatcherFallback ||
+      readAudienceMessage("dispatcher");
+  } else {
+    audienceMessage =
+      readAudienceMessage("threadDispatcher") ||
+      readAudienceMessage("dispatcher");
+  }
+
+  const displayMessage = audienceMessage || event.message;
   const isAlert = event.kind === "alert";
   const response = event.metadata?.response;
   const destination = event.metadata?.destinationName;
@@ -417,6 +643,20 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
     event.metadata?.dispatcherMessage ?? "",
   ).trim();
   const loadNumber = event.metadata?.loadNumber;
+  const requestLoadId = String(metadata.loadId ?? "").trim();
+  const requestDriverId = String(metadata.driverId ?? "").trim();
+  const requestDispatcherId = String(
+    metadata.dispatcherId ?? metadata.threadDispatcherId ?? "",
+  ).trim();
+  const canReviewLoadRequest = Boolean(
+    onReviewLoadRequest &&
+      !viewerIsDriver &&
+      event.notificationType === "driver_load_requested" &&
+      requestLoadId &&
+      requestDriverId &&
+      viewerId &&
+      requestDispatcherId === viewerId,
+  );
   const isDispatchAlert =
     event.notificationType === "driver_dispatch_alert";
   const isLocationSilence =
@@ -425,6 +665,13 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
     event.notificationType === "driver_status_request_approved";
   const isStatusRequestRejected =
     event.notificationType === "driver_status_request_rejected";
+  const isLoadRequestNotSelected =
+    event.notificationType === "driver_load_request_not_selected" ||
+    event.notificationType === "driver_load_request_not_selected_by_org_member";
+  const isDriverLoadRequestFailure =
+    viewerIsDriver && isLoadRequestNotSelected;
+  const isRedDecision =
+    isStatusRequestRejected || isDriverLoadRequestFailure;
   const isStatusRequestDecision =
     isStatusRequestApproved || isStatusRequestRejected;
   const awaitingReassignment =
@@ -462,10 +709,10 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
             : "";
 
   return (
-    <div className="flex w-full justify-center py-1">
+    <div className="flex min-w-0 w-full justify-center py-1">
       <div
-        className={`w-full max-w-xl rounded-2xl border px-4 py-3 text-center ${
-          isStatusRequestRejected
+        className={`min-w-0 w-full max-w-xl rounded-2xl border px-4 py-3 text-center ${
+          isRedDecision
             ? "border-red-500/45 bg-red-500/[0.08] shadow-[0_0_0_1px_rgba(239,68,68,0.06)]"
             : isStatusRequestApproved
               ? awaitingReassignment
@@ -477,7 +724,7 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         }`}
       >
         <div className="flex items-center justify-center gap-2">
-          {isStatusRequestRejected ? (
+          {isRedDecision ? (
             <AlertTriangle className="size-4 text-red-500" />
           ) : isStatusRequestApproved ? (
             <CheckCheck
@@ -494,7 +741,7 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           )}
           <span
             className={`text-[11px] font-black uppercase tracking-[0.18em] ${
-              isStatusRequestRejected
+              isRedDecision
                 ? "text-red-600 dark:text-red-400"
                 : isStatusRequestApproved && awaitingReassignment
                   ? "text-amber-600 dark:text-amber-400"
@@ -505,9 +752,11 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
                       : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            {isStatusRequestDecision
-              ? "Dispatch Decision"
-              : isLocationSilence
+            {isDriverLoadRequestFailure
+              ? "Request Not Selected"
+              : isStatusRequestDecision
+                ? "Dispatch Decision"
+                : isLocationSilence
                 ? "GPS Safety Alert"
                 : isAlert
                   ? "Dispatch Alert"
@@ -520,7 +769,7 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
         </p>
         {event.message && !isDispatchAlert && !isStatusRequestDecision && (
           <p className="mx-auto mt-1 max-w-lg break-words text-[12.5px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-            {event.message}
+            {displayMessage}
           </p>
         )}
 
@@ -631,13 +880,13 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
                 </div>
               )}
 
-              {event.message && (
+              {displayMessage && (
                 <div>
                   <p className="text-[10.5px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                     Message
                   </p>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                    {event.message}
+                    {displayMessage}
                   </p>
                 </div>
               )}
@@ -696,13 +945,25 @@ export function SystemEventCard({ event }: { event: DispatchChatSystemEvent }) {
           </div>
         )}
 
+        {canReviewLoadRequest && (
+          <div className="mt-3 flex justify-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 border-amber-500/30 bg-amber-500/[0.06] px-3 text-[11px] font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+              onClick={() =>
+                onReviewLoadRequest?.(requestLoadId, requestDriverId)
+              }
+            >
+              Review Request
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
         <p className="mt-2 text-[10.5px] font-medium text-muted-foreground/70">
-          {new Date(event.createdAt).toLocaleString([], {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+{formatDispatchChatDateTime(event.createdAt)}
         </p>
       </div>
     </div>
@@ -1051,7 +1312,7 @@ export function ConversationDetailsPanel({
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-[10px] font-black">{result.author}</p>
                       <p className="shrink-0 text-[9px] text-muted-foreground">
-                        {new Date(result.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        {formatDispatchChatDateTime(result.createdAt)}
                       </p>
                     </div>
                     <p className="mt-1 line-clamp-4 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
@@ -1078,26 +1339,41 @@ export function ConversationDetailsPanel({
         ) : tab === "media" ? (
           mediaItems.length > 0 ? (
             <div className="grid grid-cols-2 gap-2">
-              {mediaItems.map(({ attachment, message }, index) => (
-                <a
-                  key={`${message.id}:${attachment.originalName}:${index}`}
-                  href={attachment.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group overflow-hidden rounded-xl border border-border/60"
-                  style={{ background: "var(--bg-elevated)" }}
-                >
-                  {attachment.mimeType?.startsWith("image/") ? (
-                    <img src={attachment.url} alt={attachment.originalName} className="aspect-square w-full object-cover transition-transform group-hover:scale-[1.02]" />
-                  ) : (
-                    <video src={attachment.url} preload="metadata" className="aspect-square w-full bg-black object-cover" />
-                  )}
-                  <div className="p-2">
-                    <p className="truncate text-[9px] font-bold">{attachment.originalName}</p>
-                    <p className="mt-0.5 text-[8px] text-muted-foreground">{new Date(message.createdAt).toLocaleDateString()}</p>
+              {mediaItems.map(({ attachment, message }, index) =>
+                isDispatchAttachmentAvailable(attachment) ? (
+                  <a
+                    key={`${message.id}:${attachment.originalName}:${index}`}
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group overflow-hidden rounded-xl border border-border/60"
+                    style={{ background: "var(--bg-elevated)" }}
+                  >
+                    {attachment.mimeType?.startsWith("image/") ? (
+                      <img src={attachment.url} alt={attachment.originalName} className="aspect-square w-full object-cover transition-transform group-hover:scale-[1.02]" />
+                    ) : (
+                      <video src={attachment.url} preload="metadata" className="aspect-square w-full bg-black object-cover" />
+                    )}
+                    <div className="p-2">
+                      <p className="truncate text-[9px] font-bold">{attachment.originalName}</p>
+                      <p className="mt-0.5 text-[8px] text-muted-foreground">{formatDispatchChatDate(message.createdAt)}</p>
+                    </div>
+                  </a>
+                ) : (
+                  <div
+                    key={`${message.id}:${attachment.originalName}:${index}`}
+                    className="flex aspect-square flex-col items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-center"
+                  >
+                    <AlertTriangle className="mb-2 size-5 text-amber-600 dark:text-amber-400" />
+                    <p className="max-w-full truncate text-[9px] font-bold">
+                      {attachment.originalName}
+                    </p>
+                    <p className="mt-1 text-[8px] leading-relaxed text-muted-foreground">
+                      Temporarily unavailable
+                    </p>
                   </div>
-                </a>
-              ))}
+                ),
+              )}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border/70 px-3 py-5 text-center text-[10px] text-muted-foreground">
@@ -1106,27 +1382,46 @@ export function ConversationDetailsPanel({
           )
         ) : fileItems.length > 0 ? (
           <div className="space-y-2">
-            {fileItems.map(({ attachment, message }, index) => (
-              <a
-                key={`${message.id}:${attachment.originalName}:${index}`}
-                href={attachment.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex min-w-0 items-center gap-3 rounded-xl border border-border/60 p-3 transition-colors hover:border-emerald-500/25"
-                style={{ background: "var(--bg-elevated)" }}
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <FileText className="size-4" />
+            {fileItems.map(({ attachment, message }, index) =>
+              isDispatchAttachmentAvailable(attachment) ? (
+                <a
+                  key={`${message.id}:${attachment.originalName}:${index}`}
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-border/60 p-3 transition-colors hover:border-emerald-500/25"
+                  style={{ background: "var(--bg-elevated)" }}
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <FileText className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-black">{attachment.originalName}</p>
+                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                      {bytesLabel(attachment.size)} · {formatDispatchChatDate(message.createdAt)}
+                    </p>
+                  </div>
+                  <Download className="size-3.5 shrink-0 text-muted-foreground" />
+                </a>
+              ) : (
+                <div
+                  key={`${message.id}:${attachment.originalName}:${index}`}
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-black">
+                      {attachment.originalName}
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                      Attachment temporarily unavailable · {bytesLabel(attachment.size)}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[10px] font-black">{attachment.originalName}</p>
-                  <p className="mt-0.5 text-[9px] text-muted-foreground">
-                    {bytesLabel(attachment.size)} · {new Date(message.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <Download className="size-3.5 shrink-0 text-muted-foreground" />
-              </a>
-            ))}
+              ),
+            )}
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-border/70 px-3 py-5 text-center text-[10px] text-muted-foreground">
@@ -1151,6 +1446,7 @@ export function DispatchChatDialog({
   participantName,
   onUnreadChange,
   initialThread,
+  onReviewLoadRequest,
 }: DispatchChatDialogProps) {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -2020,8 +2316,29 @@ export function DispatchChatDialog({
 
         setMessages((previous) => mergeMessage(previous, message));
 
-        const isMine = message.sender?.id === currentUserId;
-        if (isMine) return;
+        const alreadyReadByMe = (message.readBy ?? []).some(
+          (readerId) =>
+            String(readerId) === String(currentUserId ?? ""),
+        );
+        const explicitUnreadIds =
+          message.messageType === "system" &&
+          Array.isArray(
+            message.systemEvent?.metadata?.unreadForParticipantIds,
+          )
+            ? message.systemEvent!.metadata!
+                .unreadForParticipantIds
+            : [];
+        const explicitlyUnreadForMe = explicitUnreadIds.some(
+          (participantId: unknown) =>
+            String(participantId) === String(currentUserId ?? ""),
+        );
+        const isMine =
+          String(message.sender?.id ?? "") ===
+          String(currentUserId ?? "");
+
+        if (alreadyReadByMe || (isMine && !explicitlyUnreadForMe)) {
+          return;
+        }
 
         if (openRef.current) {
           void markRead();
@@ -2914,6 +3231,7 @@ export function DispatchChatDialog({
                     >
                       <SystemEventCard
                         event={item.event}
+                        onReviewLoadRequest={onReviewLoadRequest}
                       />
                     </div>
                   );
@@ -2939,6 +3257,7 @@ export function DispatchChatDialog({
                       }`}
                     >
                     <SystemEventCard
+                      onReviewLoadRequest={onReviewLoadRequest}
                       event={{
                         id: `chat-system:${message.id}`,
                         kind:
@@ -3026,10 +3345,7 @@ export function DispatchChatDialog({
                       </div>
 
                       <div className="mt-1 flex items-center gap-1 px-1 text-[9px] text-muted-foreground/70">
-                        {new Date(message.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatDispatchChatTime(message.createdAt)}
                         {mine && message.readBy.length > 1 && (
                           <>
                             <span>·</span>

@@ -47,6 +47,7 @@ interface DriverTrackerRequestsCardProps {
   onReject: (loadId: string, driverId: string) => void;
   approvingId: string | null;
   rejectingId: string | null;
+  focusedRequestKey?: string | null;
 }
 
 const trailerLabel = (val?: string) =>
@@ -69,7 +70,25 @@ export function DriverTrackerRequestsCard({
   onReject,
   approvingId,
   rejectingId,
+  focusedRequestKey = null,
 }: DriverTrackerRequestsCardProps) {
+  const requestRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+
+  React.useEffect(() => {
+    if (!focusedRequestKey) return;
+    const target = requestRefs.current.get(focusedRequestKey);
+    if (!target) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      target.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedRequestKey, requests]);
   if (isLoading) {
     return (
       <div className="p-4 space-y-3">
@@ -111,7 +130,19 @@ export function DriverTrackerRequestsCard({
           availabilityMatch === "off_schedule" || capacityMatch !== "match";
 
         return (
-          <div key={key} className="p-3 sm:p-4 hover:bg-accent/30 transition-colors">
+          <div
+            key={key}
+            ref={(node) => {
+              if (node) requestRefs.current.set(key, node);
+              else requestRefs.current.delete(key);
+            }}
+            tabIndex={-1}
+            className={`p-3 sm:p-4 transition-all outline-none hover:bg-accent/30 ${
+              focusedRequestKey === key
+                ? "bg-amber-500/[0.07] ring-2 ring-inset ring-amber-500/55"
+                : ""
+            }`}
+          >
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">

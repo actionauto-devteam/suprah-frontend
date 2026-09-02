@@ -38,10 +38,13 @@ export type ComplianceDocumentType =
 export type ReviewStatus = "pending" | "approved" | "rejected";
 
 export type VerificationStatus =
-  | "not_started"
+  | "unverified"
+  | "pending"
   | "in_progress"
   | "under_review"
   | "verified"
+  // Legacy aliases retained during rolling deployment.
+  | "not_started"
   | "rejected";
 
 export interface ComplianceDocument {
@@ -49,7 +52,7 @@ export interface ComplianceDocument {
   type: ComplianceDocumentType;
   label: string;
   fileUrl: string;
-  fileKey: string;
+  fileKey?: string;
   fileName: string;
   fileSize: number;
   mimeType: string;
@@ -124,7 +127,17 @@ export interface PopulatedUser {
 export interface DriverProfile {
   _id: string;
   userId: string | PopulatedUser;
-  organizationId: string;
+  organizationId?: string;
+
+  // Driver Verification identity/contact snapshot.
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+
   trailerType: TrailerType;
   maxVehicleCapacity: number;
   truckMake: string;
@@ -145,6 +158,7 @@ export interface DriverProfile {
   trailerYear?: number;
   hitchType?: string;
   specialFeatures: string[];
+
   driversLicenseNumber: string;
   licenseState: string;
   licenseExpirationDate?: string;
@@ -153,6 +167,7 @@ export interface DriverProfile {
   insuranceProvider: string;
   insurancePolicyNumber: string;
   documents: ComplianceDocument[];
+
   operationalStatus: OperationalStatus;
   homeBase: {
     type: string;
@@ -165,6 +180,7 @@ export interface DriverProfile {
   serviceRadius: number;
   preferredRoutes: string[];
   availableDays: string[];
+
   ssnLast4?: string;
   backgroundCheckConsent?: boolean;
   backgroundCheckConsentDate?: string;
@@ -176,6 +192,13 @@ export interface DriverProfile {
   isComplianceExpired: boolean;
   createdAt: string;
   updatedAt: string;
+
+  complianceSummary?: {
+    uploadedCount: number;
+    totalRequired: number;
+    percentage: number;
+    missingTypes: string[];
+  };
 }
 
 export interface AvailableLoad {

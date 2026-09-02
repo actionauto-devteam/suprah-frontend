@@ -78,6 +78,17 @@ export interface DriverStatusRequestSummary {
   submittedAt?: string | Date | null;
 }
 
+
+export interface LoadReleaseRequestSummary {
+  id: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  priority: "standard" | "emergency";
+  reason: string;
+  message?: string | null;
+  requestedAt?: string | Date | null;
+  dispatcherId?: string | null;
+}
+
 export interface DriverTrackingItem {
   id: string;
   status: DriverStatus;
@@ -146,5 +157,6 @@ export interface DriverTrackingItem {
       state?: string | null;
       zip?: string | null;
     };
+    releaseRequest?: LoadReleaseRequestSummary | null;
   }[];
 }

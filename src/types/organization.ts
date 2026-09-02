@@ -31,6 +31,7 @@ export interface OrganizationMember {
     organizationId: string;
     role: string; // Global system role
     organizationRole: 'admin' | 'member'; // Context-specific role
+    isDispatcher?: boolean; // Transportation / Driver Review capability for this organization only
     email: string;
     fullName: string;
     imageUrl?: string;

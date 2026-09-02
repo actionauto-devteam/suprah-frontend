@@ -10,7 +10,7 @@ export const DAY_MS = 86_400_000;
  * toZoned / fromZoned below.
  */
 export const CALENDAR_TZ = "America/Denver";
-export const CALENDAR_TZ_LABEL = "MDT";
+export const CALENDAR_TZ_LABEL = "Mountain Time";
 
 const tzFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: CALENDAR_TZ,
@@ -22,6 +22,78 @@ const tzFormatter = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
   hourCycle: "h23",
 });
+
+const mountainDateKeyFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: CALENDAR_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const mountainZoneNameFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: CALENDAR_TZ,
+  timeZoneName: "short",
+});
+
+const scheduleDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function datePartsToKey(parts: Intl.DateTimeFormatPart[]) {
+  const values: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") values[part.type] = part.value;
+  }
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+/** Current Transportation business-calendar date in America/Denver. */
+export const mountainTodayDateKey = (): string =>
+  datePartsToKey(mountainDateKeyFormatter.formatToParts(new Date()));
+
+/** Returns the daylight-aware Mountain abbreviation, e.g. MDT or MST. */
+export const getCalendarTimeZoneAbbreviation = (
+  date: Date = new Date(),
+): string => {
+  const part = mountainZoneNameFormatter
+    .formatToParts(date)
+    .find((item) => item.type === "timeZoneName");
+  return part?.value || "MT";
+};
+
+/**
+ * Load schedule fields are date-only business-calendar values, not moments.
+ * Preserve the YYYY-MM-DD key so Mongo's UTC-midnight Date storage cannot
+ * display as the previous day when rendered in America/Denver.
+ */
+export const scheduleDateKey = (
+  value?: string | Date | null,
+): string => {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    const direct = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (direct) return `${direct[1]}-${direct[2]}-${direct[3]}`;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+};
+
+export const formatScheduleDate = (
+  value?: string | Date | null,
+): string => {
+  const key = scheduleDateKey(value);
+  if (!key) return "—";
+  const [year, month, day] = key.split("-").map(Number);
+  return scheduleDateFormatter.format(
+    new Date(Date.UTC(year, month - 1, day, 12, 0, 0)),
+  );
+};
 
 /**
  * Instant → wall-clock Date in CALENDAR_TZ. The returned Date's *local*

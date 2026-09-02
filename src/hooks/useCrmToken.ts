@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth, useUser } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 
 function getJwtType(token: string | null): string | null {
@@ -47,20 +47,28 @@ function syncCrmTokenToIndexedDB(token: string | null) {
   }
 }
 
+
+function clearStoredCrmToken() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('crm_token');
+  }
+  syncCrmTokenToIndexedDB(null);
+}
+
 /**
  * Resolves the CRM JWT (`crm_token`) needed to authenticate against the
  * SupraSpace socket and `/api/supraspace/*` REST endpoints. Mirrors the
  * SSO flow in useOpenDm.ts / crm/supra-space/page.tsx.
  */
 export function useCrmToken() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn, orgId } = useAuth();
+  const { user } = useUser();
   const [crmToken, setCrmToken] = React.useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = React.useState(0);
 
   React.useEffect(() => {
     const refresh = () => {
-      if (typeof window !== 'undefined') localStorage.removeItem('crm_token');
-      syncCrmTokenToIndexedDB(null);
+      clearStoredCrmToken();
       setCrmToken(null);
       setRefreshNonce((n) => n + 1);
     };
@@ -70,6 +78,41 @@ export function useCrmToken() {
 
   React.useEffect(() => {
     let active = true;
+
+    // Wait until AuthProvider has resolved the account. Running the CRM SSO
+    // flow before this point can misclassify a valid session while auth is
+    // still being restored.
+    if (!isLoaded) {
+      return () => {
+        active = false;
+      };
+    }
+
+    // A signed-out browser must not retain a CRM token from a previous user.
+    if (!isSignedIn) {
+      clearStoredCrmToken();
+      setCrmToken(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    // Drivers are a shared platform pool and may legitimately have no home
+    // organization. That account can still use the Driver Portal, GPS,
+    // available loads and Suprah Dispatch Chat, but it has no CRM/SupraSpace
+    // organization identity to exchange for a crm_token.
+    //
+    // Do not call /api/supraspace/session-token or /api/auth/crm-sso for this
+    // case. Also remove any stale token left by a previous account in the same
+    // browser.
+    const isStandaloneDriver = user?.role === 'driver' && !orgId;
+    if (isStandaloneDriver) {
+      clearStoredCrmToken();
+      setCrmToken(null);
+      return () => {
+        active = false;
+      };
+    }
 
     (async () => {
       let t: string | null = null;
@@ -116,7 +159,15 @@ export function useCrmToken() {
     return () => {
       active = false;
     };
-  }, [getToken, refreshNonce]);
+  }, [
+    getToken,
+    isLoaded,
+    isSignedIn,
+    orgId,
+    refreshNonce,
+    user?.id,
+    user?.role,
+  ]);
 
   return crmToken;
 }

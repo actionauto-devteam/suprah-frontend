@@ -23,7 +23,7 @@ import {
 } from "@/hooks/useTransportationData";
 import { useLoadsData } from "@/hooks/useLoadsData";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
-import { Quote } from "@/types/transportation";
+import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadCard } from "@/components/LoadCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ShippingQuoteFormData } from "@/types/inventory";
@@ -295,24 +295,32 @@ function TransportationPageInner() {
     }
   };
 
-  const handleConvertToLoadFromQuote = async () => {
+  const handleConvertToLoadFromQuote = async (
+    routeDetails?: QuoteLoadRouteDetails,
+  ) => {
     if (!calculatedQuote) return;
+
     try {
-      await handleConvertToLoad(calculatedQuote._id);
+      await handleConvertToLoad(calculatedQuote._id, routeDetails);
       setIsQuoteResultModalOpen(false);
       setCalculatedQuote(null);
       setActiveTab("shipments");
       showAlert({
         type: "success",
         title: "Load Created",
-        message: "The quote has been converted to a load and is now ready for dispatch.",
+        message:
+          "The quote has been converted to a load and is now ready for dispatch.",
       });
     } catch (error) {
       showAlert({
         type: "error",
         title: "Error Converting Quote",
-        message: error instanceof Error ? error.message : "Failed to convert quote to load. Please try again.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to convert quote to load. Please try again.",
       });
+      throw error;
     }
   };
 

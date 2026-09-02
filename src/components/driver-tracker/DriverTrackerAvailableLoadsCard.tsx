@@ -36,6 +36,7 @@ import {
 } from "@/lib/driver-load-compatibility";
 import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview";
 import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 const trailerLabel = (val?: string) =>
   trailerTypeOptions.find((t) => t.value === val)?.label || val || "";
@@ -205,7 +206,7 @@ export function DriverTrackerAvailableLoadsCard({
                       <span className="inline-flex min-w-0 items-start gap-1">
                         <Calendar className="mt-0.5 size-2.5 shrink-0" />
                         <span className="break-words [overflow-wrap:anywhere]">
-                          Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
+                          Pickup: {formatScheduleDate(load.requestedPickupDate)}
                         </span>
                       </span>
                     )}

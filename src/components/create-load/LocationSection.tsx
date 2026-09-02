@@ -1,26 +1,40 @@
-"use client"
-
 import * as React from "react"
-import { MapPin, Building2, User, Phone, Mail } from "lucide-react"
-import { LocationBlock, LOCATION_TYPES, US_STATES, STATE_ZIP_MAP } from "./types"
+import {
+  MapPin,
+  Building2,
+  User,
+  Phone,
+  Mail,
+  Hash,
+  Globe2,
+  FileText,
+} from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import {
+  LocationBlock,
+  LOCATION_TYPES,
+  US_STATES,
+  STATE_ZIP_MAP,
+} from "./types"
+import type { ValidationIssue } from "./validation"
 
 // ─── Route step: pickup + delivery ───────────────────────────────────────────
-// This is the component LoadFormLayout actually renders for step "route".
-// (LocationFields.tsx is a separate, unused implementation — changes made
-// there never reach the form.)
+// This is the Location component rendered by LoadFormLayout.
 //
-// CHANGE IN THIS VERSION: State is a DROPDOWN, not a free-text input, and
-// picking a state auto-fills the ZIP from STATE_ZIP_MAP.
+// Required fields mirror both frontend validation.ts and backend
+// load.validation.ts:
+//   address, city, state, zip
 //
-// Requires STATE_ZIP_MAP to be Record<string, string> (capital-city ZIPs).
-// An older revision of types.ts typed it Record<string, [number, number]>
-// (ZIP ranges) — with that version the field fills "84000,84799" instead of
-// "84101". Check which one your types.ts has.
+// Recommended fields improve driver coordination but stay non-blocking:
+//   contactName, phone
 //
-// The autofill is NON-DESTRUCTIVE: it writes only when the ZIP is empty or
-// still holds a value this component put there. Once a dispatcher types a
-// real ZIP, re-picking the state won't wipe it.
+// All other location details remain optional.
+//
+// STATE_ZIP_MAP provides a default ZIP value when the user deliberately changes
+// a State. Existing Edit Load ZIP values are preserved during initial hydration;
+// they are replaced only after an intentional State selection. The populated ZIP
+// remains editable because a state can contain many valid ZIP codes.
 
 const LOCATION_TYPE_LABELS: Record<string, string> = {
   dealership: "Dealership",
@@ -39,20 +53,63 @@ const controlClass =
   "placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none " +
   "focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:border-emerald-500/60 transition-colors"
 
+type FieldImportance = "required" | "recommended" | "optional"
+
 interface FieldProps {
   label: string
+  importance?: FieldImportance
   className?: string
   children: React.ReactNode
   hint?: string
+  error?: string
 }
 
-function Field({ label, className, children, hint }: FieldProps) {
+function Field({
+  label,
+  importance = "optional",
+  className,
+  children,
+  hint,
+  error,
+}: FieldProps) {
   return (
     <label className={cn("block min-w-0", className)}>
-      <span className={labelClass}>{label}</span>
+      <span className={cn(labelClass, "flex items-center gap-1.5 flex-wrap")}>
+        <span>
+          {label}
+          {importance === "required" && (
+            <span className="text-destructive ml-0.5" aria-hidden="true">
+              *
+            </span>
+          )}
+        </span>
+
+        {importance === "recommended" && (
+          <span className="normal-case tracking-normal rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300">
+            Recommended
+          </span>
+        )}
+
+        {importance === "optional" && (
+          <span className="normal-case tracking-normal text-[9px] font-semibold text-muted-foreground/70">
+            Optional
+          </span>
+        )}
+      </span>
+
       {children}
-      {hint ? (
-        <span className="block text-[11px] font-medium text-muted-foreground mt-1">{hint}</span>
+
+      {error ? (
+        <span
+          role="alert"
+          className="block text-[11px] font-semibold text-destructive mt-1.5"
+        >
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="block text-[11px] font-medium text-muted-foreground mt-1">
+          {hint}
+        </span>
       ) : null}
     </label>
   )
@@ -62,11 +119,16 @@ function Field({ label, className, children, hint }: FieldProps) {
 function IconInput({
   icon: Icon,
   ...props
-}: { icon: React.ComponentType<{ className?: string }> } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: {
+  icon: React.ComponentType<{ className?: string }>
+} & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="relative">
       <Icon className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-      <input {...props} className={cn(controlClass, "pl-9", props.className)} />
+      <input
+        {...props}
+        className={cn(controlClass, "pl-9", props.className)}
+      />
     </div>
   )
 }
@@ -76,16 +138,20 @@ function IconInput({
 interface LocationCardProps {
   title: string
   accent: "emerald" | "cyan"
+  prefix: "pickup" | "delivery"
   value: LocationBlock
   onChange: (updated: LocationBlock) => void
+  errors?: Record<string, string>
 }
 
-function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
-  // Remembers the ZIP this card auto-filled, so a dispatcher-typed ZIP stays
-  // distinguishable from one we supplied. Per-card, so pickup and delivery
-  // track independently.
-  const autoFilledZipRef = React.useRef<string | null>(null)
-
+function LocationCard({
+  title,
+  accent,
+  prefix,
+  value,
+  onChange,
+  errors = {},
+}: LocationCardProps) {
   const set =
     (key: keyof LocationBlock) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -93,32 +159,35 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
 
   const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const nextState = e.target.value
-    const stateZip = STATE_ZIP_MAP[nextState]
-    const currentZip = value.zip ?? ""
-    const zipIsOursToSet =
-      currentZip === "" || currentZip === autoFilledZipRef.current
+    const nextZip = nextState ? STATE_ZIP_MAP[nextState] ?? "" : ""
 
-    if (stateZip && zipIsOursToSet) {
-      autoFilledZipRef.current = stateZip
-      onChange({ ...value, state: nextState, zip: stateZip })
-    } else {
-      onChange({ ...value, state: nextState })
-    }
+    // The ZIP must become a real controlled field value, not only a visual
+    // placeholder. This runs only on a deliberate State change, so Edit Load
+    // keeps its saved ZIP until the user actually chooses another State.
+    onChange({
+      ...value,
+      state: nextState,
+      zip: nextZip,
+    })
   }
 
-  // Typing in the ZIP hands ownership of the field back to the dispatcher.
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = e.target.value
-    if (next !== autoFilledZipRef.current) autoFilledZipRef.current = null
-    onChange({ ...value, zip: next })
+    onChange({ ...value, zip: e.target.value })
   }
 
-  const zipWasAutoFilled = !!value.zip && value.zip === autoFilledZipRef.current
+  const errorFor = (field: keyof LocationBlock): string | undefined =>
+    errors[`${prefix}.${String(field)}`]
+
+  const invalidControlClass = (field: keyof LocationBlock) =>
+    errorFor(field)
+      ? "border-destructive focus-visible:ring-destructive/40 focus-visible:border-destructive"
+      : ""
 
   const accentText =
     accent === "emerald"
       ? "text-emerald-500 dark:text-emerald-400"
       : "text-cyan-500 dark:text-cyan-400"
+
   const accentRing =
     accent === "emerald"
       ? "border-emerald-500/40 bg-emerald-500/10"
@@ -136,6 +205,7 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
         >
           <MapPin className={cn("size-4", accentText)} />
         </span>
+
         <span
           className={cn(
             "text-xs font-black uppercase tracking-[0.14em]",
@@ -146,19 +216,24 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
         </span>
       </div>
 
-      <Field label="Location Name">
+      <Field label="Location Name" importance="optional">
         <IconInput
           icon={Building2}
-          placeholder="Business or site name (optional)"
+          placeholder="Business or site name"
           value={value.name ?? ""}
           onChange={set("name")}
           maxLength={160}
         />
       </Field>
 
-      <Field label="Address">
+      <Field
+        label="Address"
+        importance="required"
+        error={errorFor("address")}
+      >
         <input
-          className={controlClass}
+          aria-invalid={Boolean(errorFor("address"))}
+          className={cn(controlClass, invalidControlClass("address"))}
           placeholder="Street address"
           value={value.address ?? ""}
           onChange={set("address")}
@@ -168,9 +243,15 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
 
       {/* City / State / ZIP */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Field label="City" className="col-span-2">
+        <Field
+          label="City"
+          importance="required"
+          className="col-span-2"
+          error={errorFor("city")}
+        >
           <input
-            className={controlClass}
+            aria-invalid={Boolean(errorFor("city"))}
+            className={cn(controlClass, invalidControlClass("city"))}
             placeholder="City"
             value={value.city ?? ""}
             onChange={set("city")}
@@ -178,17 +259,26 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
           />
         </Field>
 
-        {/* ── State: dropdown, drives the ZIP autofill ── */}
-        <Field label="State" className="col-span-1">
+        <Field
+          label="State"
+          importance="required"
+          className="col-span-1"
+          error={errorFor("state")}
+        >
           <select
-            className={cn(controlClass, "cursor-pointer")}
+            aria-invalid={Boolean(errorFor("state"))}
+            className={cn(
+              controlClass,
+              "cursor-pointer",
+              invalidControlClass("state"),
+            )}
             value={value.state ?? ""}
             onChange={handleStateChange}
           >
-            <option value="">UT</option>
-            {US_STATES.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            <option value="">Select…</option>
+            {US_STATES.map((state) => (
+              <option key={state} value={state}>
+                {state}
               </option>
             ))}
           </select>
@@ -196,11 +286,18 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
 
         <Field
           label="ZIP"
+          importance="required"
           className="col-span-1"
-          hint={zipWasAutoFilled ? `From ${value.state} — use the exact ZIP` : undefined}
+          error={errorFor("zip")}
+          hint={
+            value.state
+              ? `Default ZIP for ${value.state}; edit it if the exact route ZIP is different.`
+              : undefined
+          }
         >
           <input
-            className={controlClass}
+            aria-invalid={Boolean(errorFor("zip"))}
+            className={cn(controlClass, invalidControlClass("zip"))}
             placeholder={
               value.state ? STATE_ZIP_MAP[value.state] ?? "84101" : "84101"
             }
@@ -212,9 +309,13 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
         </Field>
       </div>
 
-      {/* Contact Name / Location Type */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Contact Name">
+      {/* Contact Name / Location Type / Country */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Field
+          label="Contact Name"
+          importance="recommended"
+          hint="Helps the driver know who to ask for on arrival."
+        >
           <IconInput
             icon={User}
             placeholder="On-site contact"
@@ -223,25 +324,50 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
             maxLength={120}
           />
         </Field>
-        <Field label="Location Type">
+
+        <Field label="Location Type" importance="optional">
           <select
             className={cn(controlClass, "cursor-pointer")}
             value={value.locationType ?? ""}
             onChange={set("locationType")}
           >
             <option value="">Select type…</option>
-            {LOCATION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {LOCATION_TYPE_LABELS[t] ?? t}
+            {LOCATION_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {LOCATION_TYPE_LABELS[type] ?? type}
               </option>
             ))}
           </select>
         </Field>
+
+        <Field
+          label="Country"
+          importance="optional"
+          hint="Defaults to US for new loads."
+        >
+          <IconInput
+            icon={Globe2}
+            placeholder="US"
+            value={value.country ?? ""}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                country: e.target.value.toUpperCase().slice(0, 3),
+              })
+            }
+            maxLength={3}
+            className="uppercase"
+          />
+        </Field>
       </div>
 
-      {/* Phone / Email */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Phone">
+      {/* Phone / Extension / Email */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_1fr] gap-3">
+        <Field
+          label="Phone"
+          importance="recommended"
+          hint="Useful for pickup or delivery coordination."
+        >
           <IconInput
             icon={Phone}
             placeholder="(555) 555-5555"
@@ -255,7 +381,26 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
             maxLength={14}
           />
         </Field>
-        <Field label="Email">
+
+        <Field label="Ext" importance="optional">
+          <IconInput
+            icon={Hash}
+            placeholder="102"
+            value={value.phoneExt ?? ""}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 6)
+              onChange({ ...value, phoneExt: digits })
+            }}
+            inputMode="numeric"
+            maxLength={6}
+          />
+        </Field>
+
+        <Field
+          label="Email"
+          importance="optional"
+          error={errorFor("email")}
+        >
           <IconInput
             icon={Mail}
             placeholder="contact@example.com"
@@ -263,9 +408,34 @@ function LocationCard({ title, accent, value, onChange }: LocationCardProps) {
             onChange={set("email")}
             type="email"
             maxLength={160}
+            aria-invalid={Boolean(errorFor("email"))}
+            className={invalidControlClass("email")}
           />
         </Field>
       </div>
+
+      <Field
+        label="Location Notes"
+        importance="optional"
+        hint="Gate code, dock instructions, access hours, or other site-specific details."
+      >
+        <div className="relative">
+          <FileText className="size-4 text-muted-foreground absolute left-3 top-3 pointer-events-none" />
+          <Textarea
+            placeholder="Optional location notes"
+            value={value.notes ?? ""}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                notes: e.target.value.slice(0, 1000),
+              })
+            }
+            maxLength={1000}
+            rows={3}
+            className="min-h-20 pl-9 text-sm resize-y"
+          />
+        </div>
+      </Field>
     </div>
   )
 }
@@ -277,6 +447,7 @@ interface LocationSectionProps {
   delivery: LocationBlock
   onPickupChange: (updated: LocationBlock) => void
   onDeliveryChange: (updated: LocationBlock) => void
+  validationIssues?: ValidationIssue[]
 }
 
 export function LocationSection({
@@ -284,20 +455,47 @@ export function LocationSection({
   delivery,
   onPickupChange,
   onDeliveryChange,
+  validationIssues = [],
 }: LocationSectionProps) {
+  const errors = React.useMemo<Record<string, string>>(() => {
+    const result: Record<string, string> = {}
+
+    for (const issue of validationIssues) {
+      result[issue.field] = issue.message
+    }
+
+    return result
+  }, [validationIssues])
+
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-border/60 bg-muted/15 px-3.5 py-3 text-[11px] leading-relaxed text-muted-foreground">
+        <span className="font-bold text-foreground">Field guide:</span>{" "}
+        <span className="text-destructive font-bold">*</span> Required fields
+        must be completed.{" "}
+        <span className="font-bold text-amber-700 dark:text-amber-300">
+          Recommended
+        </span>{" "}
+        details help the driver coordinate the stop but do not block load
+        creation.
+      </div>
+
       <LocationCard
         title="Origin — Pickup"
         accent="emerald"
+        prefix="pickup"
         value={pickup}
         onChange={onPickupChange}
+        errors={errors}
       />
+
       <LocationCard
         title="Destination — Delivery"
         accent="cyan"
+        prefix="delivery"
         value={delivery}
         onChange={onDeliveryChange}
+        errors={errors}
       />
     </div>
   )

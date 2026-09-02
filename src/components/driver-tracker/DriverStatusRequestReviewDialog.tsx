@@ -306,7 +306,9 @@ export function DriverStatusRequestReviewDialog({
             {emergency
               ? "Review the driver's urgent request and active loads. Emergency handling remains immediate and does not wait for normal approval."
               : currentLoads.length > 0
-                ? "Choose one clear load-handling action. Keep Assigned is the default and requires GPS by default, with optional GPS available under Advanced Options."
+                ? Number(request?.coordinatedOrganizationCount ?? 1) > 1
+                  ? "Choose how this organization will handle its own active loads. This decision cannot change another organization's loads or complete the driver's global Work Availability transition by itself."
+                  : "Choose one clear load-handling action. Keep Assigned is the default and requires GPS by default, with optional GPS available under Advanced Options."
                 : "Review the request and approve or reject it. No active-load handling decision is currently required."}
           </DialogDescription>
         </DialogHeader>
@@ -327,6 +329,20 @@ export function DriverStatusRequestReviewDialog({
                     </p>
                     <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                       New work is already blocked. Reassign or remove the driver's active loads. This emergency flow does not wait for normal approval.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {Number(request.coordinatedOrganizationCount ?? 1) > 1 && (
+                <div className="flex items-start gap-3 rounded-xl border border-blue-500/25 bg-blue-500/5 p-4">
+                  <ShieldAlert className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-bold text-blue-700 [overflow-wrap:anywhere] dark:text-blue-400">
+                      Coordinated Across {request.coordinatedOrganizationCount} Dispatch Teams
+                    </p>
+                    <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                      Your decision applies only to this organization's loads. Other Dispatch teams review their own loads independently. The driver's global Work Availability changes only after every affected organization resolves its part.
                     </p>
                   </div>
                 </div>

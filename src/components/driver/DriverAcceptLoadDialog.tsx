@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Eraser, Loader2, PenLine, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Eraser, Loader2, MapPin, Navigation2, PenLine, ShieldCheck, Truck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,39 @@ interface DriverAcceptLoadDialogProps {
     signatureDataUrl: string,
     signerName: string,
   ) => Promise<void> | void;
+}
+
+function formatCompatibilityNotices(load: any): string[] {
+  const compatibility = load?.compatibility;
+  if (!compatibility) return [];
+  const notices: string[] = [];
+
+  if (compatibility.availability?.status === "off_schedule") {
+    const day = compatibility.availability?.pickupDay;
+    notices.push(
+      `Pickup is outside your regular Work Availability${day ? ` (${String(day).replace(/^./, (c: string) => c.toUpperCase())})` : ""}.`,
+    );
+  }
+  if (compatibility.capacity?.status === "exceeded") {
+    notices.push(
+      `Equipment capacity mismatch: this load needs ${compatibility.capacity.requiredVehicles} vehicle slot(s), while your profile is set to ${compatibility.capacity.maxVehicles}.`,
+    );
+  } else if (compatibility.capacity?.status === "unknown") {
+    notices.push("Your vehicle capacity could not be verified for this load.");
+  }
+  if (compatibility.trailer?.status === "mismatch") {
+    notices.push(
+      `Trailer mismatch: this load requires ${compatibility.trailer.requiredTrailerType || "another trailer type"}, while your profile lists ${compatibility.trailer.driverTrailerType || "a different trailer"}.`,
+    );
+  }
+  if (compatibility.serviceArea?.status === "outside") {
+    notices.push("The pickup is outside your configured service radius.");
+  }
+  if (compatibility.preferredRoute?.status === "not_preferred") {
+    notices.push("This route is outside your saved route preferences.");
+  }
+
+  return notices;
 }
 
 const CANVAS_WIDTH = 900;
@@ -141,6 +174,10 @@ export function DriverAcceptLoadDialog({
 
   const loadLabel =
     load?.loadNumber || load?.trackingNumber || (load?._id ? String(load._id) : "this load");
+  const compatibilityNotices = React.useMemo(
+    () => formatCompatibilityNotices(load),
+    [load],
+  );
 
   return (
     <Dialog
@@ -176,6 +213,37 @@ export function DriverAcceptLoadDialog({
                 </p>
               </div>
             </div>
+
+            <div className="rounded-xl border border-blue-500/25 bg-blue-500/[0.06] p-3.5 text-xs leading-relaxed text-muted-foreground">
+              <div className="flex items-start gap-2.5">
+                <Navigation2 className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <div className="min-w-0 space-y-1">
+                  <p className="font-bold text-foreground">Location Sharing Requirement</p>
+                  <p className="break-words [overflow-wrap:anywhere]">
+                    Accepting this load automatically starts required location sharing. Your live location is available only to the dispatcher responsible for your accepted active load and remains required until delivery, Dispatch-approved release, cancellation, or reassignment.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {compatibilityNotices.length > 0 && (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-3.5 text-xs leading-relaxed text-muted-foreground">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="min-w-0 space-y-2">
+                    <div>
+                      <p className="font-bold text-foreground">Compatibility Notice</p>
+                      <p className="mt-0.5">Review these equipment/logistics differences before accepting:</p>
+                    </div>
+                    <ul className="space-y-1 pl-4 list-disc">
+                      {compatibilityNotices.map((notice) => (
+                        <li key={notice} className="break-words [overflow-wrap:anywhere]">{notice}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="driver-accept-signer-name" className="text-xs font-bold text-foreground">
@@ -240,7 +308,7 @@ export function DriverAcceptLoadDialog({
                 className="mt-0.5 size-4 shrink-0 accent-emerald-600"
               />
               <span className="min-w-0 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                I confirm that the signer name and signature above are mine, and I agree to accept this load assignment.
+                I confirm that the signer name and signature above are mine, I reviewed any compatibility notices shown, and I understand that accepting this load starts required location sharing until the load relationship ends.
               </span>
             </label>
           </div>

@@ -1,4 +1,4 @@
-"use client"
+
 
 import * as React from "react"
 import {
@@ -45,6 +45,7 @@ import { generateLoadPDF } from "@/utils/pdfGenerator"
 import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
+import { formatScheduleDate } from "@/utils/calendar.utils"
 
 interface LoadCardProps {
   load: Load
@@ -60,14 +61,7 @@ function formatCurrency(n?: number) {
 }
 
 function formatDate(d?: string | Date) {
-  if (!d) return "—"
-  const date = typeof d === "string" ? new Date(d) : d
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "America/Denver",
-  })
+  return formatScheduleDate(d)
 }
 
 function formatDateTime(d?: string | Date) {
@@ -929,6 +923,13 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     }
                     icon={<Route className="size-3.5" />}
                   />
+                  {load.pricing?.pricePerMile != null && (
+                    <ModalMetric
+                      label="Price / Mile"
+                      value={`$${load.pricing.pricePerMile.toFixed(2)}/mi`}
+                      icon={<Gauge className="size-3.5" />}
+                    />
+                  )}
                   <ModalMetric
                     label="Estimated Market Rate"
                     value={formatCurrency(load.pricing?.estimatedRate)}

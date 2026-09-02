@@ -8,8 +8,13 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Quote } from "@/types/transportation"
+import { getQuoteLoadRouteDraft } from "@/types/transportation"
+import type {
+  Quote,
+  QuoteLoadRouteDetails,
+} from "@/types/transportation"
 import { resolveImageUrl } from "@/lib/utils"
+import { QuoteLoadRouteCompletionDialog } from "@/components/QuoteLoadRouteCompletionDialog"
 
 const FALLBACK = "/vehicle-placeholder.jpg"
 
@@ -17,7 +22,7 @@ interface QuoteResultModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   quote: Quote | null
-  onConvertToLoad: () => void
+  onConvertToLoad: (routeDetails?: QuoteLoadRouteDetails) => Promise<void>
   onViewQuote: () => void
 }
 
@@ -28,7 +33,36 @@ export function QuoteResultModal({
   onConvertToLoad,
   onViewQuote
 }: QuoteResultModalProps) {
+  const [isConverting, setIsConverting] = React.useState(false)
+  const [isRouteCompletionOpen, setIsRouteCompletionOpen] =
+    React.useState(false)
+
   if (!quote) return null
+
+  const routeDraft = getQuoteLoadRouteDraft(quote)
+
+  const performConversion = async (routeDetails: QuoteLoadRouteDetails) => {
+    setIsConverting(true)
+    try {
+      await onConvertToLoad(routeDetails)
+      setIsRouteCompletionOpen(false)
+    } finally {
+      setIsConverting(false)
+    }
+  }
+
+  const handleConvert = async () => {
+    if (routeDraft.needsCompletion) {
+      setIsRouteCompletionOpen(true)
+      return
+    }
+
+    try {
+      await performConversion(routeDraft.routeDetails)
+    } catch {
+      // The owning Transportation page already presents the conversion error.
+    }
+  }
 
   const vehicle = quote.vehicleId
   const vehicleName = vehicle
@@ -36,7 +70,8 @@ export function QuoteResultModal({
     : quote.vehicleName || 'Vehicle'
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <div className="flex items-start sm:items-center gap-3 mb-2 sm:mb-4">
@@ -196,11 +231,12 @@ export function QuoteResultModal({
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
             <Button
-              onClick={onConvertToLoad}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white shadow-lg h-11 sm:h-12 text-sm sm:text-base font-semibold"
+              onClick={handleConvert}
+              disabled={isConverting}
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white shadow-lg h-11 sm:h-12 text-sm sm:text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Truck className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-              Convert to Load
+              {isConverting ? "Converting…" : "Convert to Load"}
             </Button>
             <Button
               onClick={onViewQuote}
@@ -213,6 +249,15 @@ export function QuoteResultModal({
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      <QuoteLoadRouteCompletionDialog
+        open={isRouteCompletionOpen}
+        onOpenChange={setIsRouteCompletionOpen}
+        quote={quote}
+        isSubmitting={isConverting}
+        onConfirm={performConversion}
+      />
+    </>
   )
 }

@@ -9,14 +9,19 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Quote } from "@/types/transportation"
+import { getQuoteLoadRouteDraft } from "@/types/transportation"
+import type {
+    Quote,
+    QuoteLoadRouteDetails,
+} from "@/types/transportation"
 import { useAlert, AlertDialog } from "@/components/AlertDialog"
 import { EditQuoteModal } from "./EditQuoteModal"
 import { resolveImageUrl, cn } from "@/lib/utils"
+import { QuoteLoadRouteCompletionDialog } from "./QuoteLoadRouteCompletionDialog"
 
 interface QuoteCardProps {
     quote: Quote
-    onConvertToLoad: (id: string) => Promise<boolean | void>
+    onConvertToLoad: (id: string, routeDetails?: QuoteLoadRouteDetails) => Promise<boolean | void>
     onDelete: (id: string) => void
     onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>
 }
@@ -74,6 +79,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     const [isDeleting, setIsDeleting] = useState(false)
     const [isConvertingToLoad, setIsConvertingToLoad] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [isRouteCompletionOpen, setIsRouteCompletionOpen] = useState(false)
     const [imageFailed, setImageFailed] = useState(false)
     const { showAlert, alert, hideAlert } = useAlert()
 
@@ -90,6 +96,25 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     const statusMeta = QUOTE_STATUS_META[normalizedStatus] ?? QUOTE_STATUS_META.pending
     const isAlreadyConverted = normalizedStatus === "booked"
     const isRejected = normalizedStatus === "rejected"
+    const routeDraft = React.useMemo(
+        () =>
+            getQuoteLoadRouteDraft({
+                fromAddress: quote.fromAddress,
+                fromZip: quote.fromZip,
+                toAddress: quote.toAddress,
+                toZip: quote.toZip,
+                fromLocation: quote.fromLocation,
+                toLocation: quote.toLocation,
+            }),
+        [
+            quote.fromAddress,
+            quote.fromZip,
+            quote.toAddress,
+            quote.toZip,
+            quote.fromLocation,
+            quote.toLocation,
+        ],
+    )
     const conversionUnavailable = isAlreadyConverted || isRejected
     const busy = isConvertingToLoad || isDeleting
 
@@ -102,6 +127,30 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
             year: "numeric",
             timeZone: "America/Denver",
         })
+    }
+
+    const performConversion = async (
+        routeDetails: QuoteLoadRouteDetails,
+    ) => {
+        setIsConvertingToLoad(true)
+
+        try {
+            await onConvertToLoad(quote._id, routeDetails)
+            setIsRouteCompletionOpen(false)
+        } catch (error) {
+            console.error("Error converting quote to load:", error)
+            showAlert({
+                type: "error",
+                title: "Conversion Failed",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Could not convert this quote into a load. Please try again.",
+            })
+            throw error
+        } finally {
+            setIsConvertingToLoad(false)
+        }
     }
 
     const handleConvertToLoad = async () => {
@@ -123,6 +172,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
             return
         }
 
+        // Flexible conversion: a quote does not have to embed "City, ST" in
+        // its free-form address. If structured Load details are missing, ask
+        // for only those details at conversion time.
+        if (routeDraft.needsCompletion) {
+            setIsRouteCompletionOpen(true)
+            return
+        }
+
         showAlert({
             type: "confirm",
             title: "Convert to Load",
@@ -130,26 +187,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
             confirmText: "Yes, Convert to Load",
             cancelText: "No, Cancel",
             onConfirm: async () => {
-                setIsConvertingToLoad(true)
-
-                try {
-                    await onConvertToLoad(quote._id)
-                } catch (error) {
-                    console.error("Error converting quote to load:", error)
-                    // Re-thrown below so the confirm dialog stays open (AlertDialog only
-                    // auto-closes on success) — but nothing was ever telling the user WHY
-                    // it failed, so clicking "Yes, Convert to Load" on a failing request
-                    // looked like the button did nothing at all. Swap the dialog to show
-                    // the actual error instead of just logging it to the console.
-                    showAlert({
-                        type: "error",
-                        title: "Conversion Failed",
-                        message: error instanceof Error ? error.message : "Could not convert this quote into a load. Please try again.",
-                    })
-                    throw error
-                } finally {
-                    setIsConvertingToLoad(false)
-                }
+                await performConversion(routeDraft.routeDetails)
             },
         })
     }
@@ -430,6 +468,14 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
                 onSave={handleSaveEdit}
+            />
+
+            <QuoteLoadRouteCompletionDialog
+                open={isRouteCompletionOpen}
+                onOpenChange={setIsRouteCompletionOpen}
+                quote={quote}
+                isSubmitting={isConvertingToLoad}
+                onConfirm={performConversion}
             />
         </>
     )
