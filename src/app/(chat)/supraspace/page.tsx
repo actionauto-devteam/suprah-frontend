@@ -8470,7 +8470,8 @@ export default function SupraSpacePage() {
     if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     const update = () => {
-      if (viewport.height > 0) setVv({ height: viewport.height, top: viewport.offsetTop });
+      // negative offsetTop observed from plain list scroll, not keyboard
+      if (viewport.height > 0) setVv({ height: viewport.height, top: Math.max(0, viewport.offsetTop) });
     };
     update();
     viewport.addEventListener('resize', update);
@@ -8479,6 +8480,22 @@ export default function SupraSpacePage() {
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
     };
+  }, [isStandaloneApp]);
+  // temp debug: isolate the 812-vs-874 gap
+  const [debugUnits, setDebugUnits] = React.useState<{ dvh: number; svh: number; lvh: number; standalone: boolean } | null>(null);
+  React.useEffect(() => {
+    if (!isStandaloneApp || typeof window === 'undefined') return;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;visibility:hidden;';
+    probe.innerHTML = '<div style="height:100dvh" id="dv"></div><div style="height:100svh" id="sv"></div><div style="height:100lvh" id="lv"></div>';
+    document.body.appendChild(probe);
+    setDebugUnits({
+      dvh: probe.querySelector('#dv')!.getBoundingClientRect().height,
+      svh: probe.querySelector('#sv')!.getBoundingClientRect().height,
+      lvh: probe.querySelector('#lv')!.getBoundingClientRect().height,
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+    });
+    document.body.removeChild(probe);
   }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
@@ -11605,7 +11622,7 @@ export default function SupraSpacePage() {
             fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
             lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
           }}>
-            {`vv.h=${vv?.height ?? 'null'} vv.t=${vv?.top ?? 'null'}\ninnerH=${typeof window !== 'undefined' ? window.innerHeight : '?'} clientH=${typeof document !== 'undefined' ? document.documentElement.clientHeight : '?'}\nscreenH=${typeof window !== 'undefined' ? window.screen.height : '?'} dvh100=${typeof window !== 'undefined' ? Math.round(window.innerHeight) : '?'}`}
+            {`vv.h=${vv?.height ?? 'null'} vv.t=${vv?.top ?? 'null'}\ninnerH=${typeof window !== 'undefined' ? window.innerHeight : '?'} clientH=${typeof document !== 'undefined' ? document.documentElement.clientHeight : '?'}\nscreenH=${typeof window !== 'undefined' ? window.screen.height : '?'} standalone=${debugUnits?.standalone ?? '?'}\ndvh=${debugUnits?.dvh ?? '?'} svh=${debugUnits?.svh ?? '?'} lvh=${debugUnits?.lvh ?? '?'}`}
           </div>
         )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
