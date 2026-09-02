@@ -10782,6 +10782,16 @@ export default function SupraSpacePage() {
 
     const best = [...rawCandidates, ...candidates].sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
     if (!best) return false;
+    // Only arm the dropdown (and the Enter/Tab "confirm mention" hijack in
+    // the composer's keydown handler) when the match sits at/near the very
+    // end of the text — i.e. still plausibly being typed or just pasted
+    // with nothing after it. A match buried mid-message (e.g. "@Romuel
+    // Lopez for helping..." from a large paste) used to arm the same way,
+    // so pressing Enter to SEND re-inserted that mention instead — the
+    // reported "@Romuel @Romuel Lopez" duplication. Real members already
+    // get their chip styling from highlightMentionsInComposer regardless.
+    const trailingAfterMatch = value.length - (best.anchor + 1 + best.query.length);
+    if (trailingAfterMatch > 1) return false;
     setMentionQuery(best.query);
     setMentionAnchor(best.anchor);
     setMentionIdx(0);
