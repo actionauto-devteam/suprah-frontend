@@ -16,15 +16,16 @@ import {
     CheckCircle2, XCircle, Clock, Eye, Ban, Hash, Gauge,
     Star, MapPin, Calendar, Fingerprint, Lock, Scale,
     BadgeCheck, ShieldAlert, AlertTriangle, UserCheck,
-    Download, Mail, Globe, Wrench, Building2
+    Mail, Globe, Wrench, Building2, History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { REQUIRED_DOCUMENTS, trailerTypeOptions, specialFeatureOptions, hitchTypeOptions } from '@/components/driver-profile/driver-profile-constants';
-import { cn, resolveImageUrl } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
+const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver', timeZoneName: 'short' }).format(new Date(d)) : '—';
 const fmtSize = (b?: number) => !b ? '' : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 const getExpStatus = (d?: string) => {
     if (!d) return { l: 'Not Set', c: 'text-muted-foreground' };
@@ -83,12 +84,6 @@ const Field = ({ label, value, mono, icon: Icon }: { label: string; value?: stri
     </div>
 );
 
-const isImageUrl = (url?: string) => {
-    if (!url) return false;
-    const lower = url.toLowerCase();
-    return lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.png') || lower.includes('.webp');
-};
-
 export function DriverDetailView({ driverId }: { driverId: string }) {
     const { getToken } = useAuth();
     const [profile, setProfile] = useState<DriverProfile | null>(null);
@@ -98,6 +93,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const [rejectDocId, setRejectDocId] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState('');
     const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null);
+    const [previewObjectUrl, setPreviewObjectUrl] = useState('');
+    const [previewMimeType, setPreviewMimeType] = useState('');
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewError, setPreviewError] = useState('');
     const [showApproveDialog, setShowApproveDialog] = useState(false);
     const [approving, setApproving] = useState(false);
 
@@ -112,8 +111,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setProfile(res.data?.data || null);
-        } catch {
-            toast.error('Failed to load driver profile');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to load driver profile');
         } finally {
             setLoading(false);
         }
@@ -144,8 +143,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             });
             toast.success('Driver application approved — they can now log in');
             await Promise.all([fetchProfile(), fetchDriverRequest()]);
-        } catch {
-            toast.error('Failed to approve the application');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to approve the application');
         } finally {
             setDecidingRequest(null);
         }
@@ -162,8 +161,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             toast.success('Driver application rejected');
             setShowRejectAppDialog(false);
             await fetchDriverRequest();
-        } catch {
-            toast.error('Failed to reject the application');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to reject the application');
         } finally {
             setDecidingRequest(null);
         }
@@ -175,13 +174,16 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             const token = await getToken();
             await apiClient.patch(
                 `/api/admin/drivers/${driverId}/documents/${docId}/verify`,
-                { verified: true },
+                {
+                    verified: true,
+                    expectedUploadedAt: documents.find((doc: ComplianceDocument) => doc._id === docId)?.uploadedAt || undefined,
+                },
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             await fetchProfile();
             toast.success('Document verified');
-        } catch {
-            toast.error('Failed to verify document');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to verify document');
         } finally {
             setActionLoading(null);
         }
@@ -197,15 +199,18 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             const token = await getToken();
             await apiClient.patch(
                 `/api/admin/drivers/${driverId}/documents/${docId}/reject`,
-                { reason: rejectReason.trim() },
+                {
+                    reason: rejectReason.trim(),
+                    expectedUploadedAt: documents.find((doc: ComplianceDocument) => doc._id === docId)?.uploadedAt || undefined,
+                },
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             await fetchProfile();
             toast.success('Document rejected');
             setRejectDocId(null);
             setRejectReason('');
-        } catch {
-            toast.error('Failed to reject document');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to reject document');
         } finally {
             setActionLoading(null);
         }
@@ -217,21 +222,113 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             const token = await getToken();
             await apiClient.patch(
                 `/api/admin/drivers/${driverId}/approve`,
-                {},
+                { expectedUpdatedAt: profile?.updatedAt || undefined },
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             await fetchProfile();
             toast.success('Driver profile approved successfully');
             setShowApproveDialog(false);
-        } catch {
-            toast.error('Failed to approve driver profile');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to approve driver profile');
         } finally {
             setApproving(false);
         }
     };
 
+    useEffect(() => {
+        if (!previewDoc?._id) {
+            if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+            setPreviewObjectUrl('');
+            setPreviewMimeType('');
+            setPreviewError('');
+            setPreviewLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        setPreviewObjectUrl('');
+        setPreviewMimeType(previewDoc.mimeType || '');
+        setPreviewError('');
+        setPreviewLoading(true);
+
+        void (async () => {
+            try {
+                const token = await getToken();
+                const response = await apiClient.get(
+                    `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/documents/${encodeURIComponent(previewDoc._id)}/file`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
+                        responseType: 'blob',
+                    },
+                );
+                if (cancelled) return;
+                const contentType =
+                    String(response.headers?.['content-type'] || '').split(';')[0] ||
+                    previewDoc.mimeType ||
+                    'application/octet-stream';
+                const blob = response.data instanceof Blob
+                    ? response.data
+                    : new Blob([response.data], { type: contentType });
+                setPreviewMimeType(contentType);
+                setPreviewObjectUrl(URL.createObjectURL(blob));
+            } catch (error: any) {
+                if (!cancelled) {
+                    setPreviewError(
+                        error?.response?.data?.message ||
+                        'This document could not be opened securely.',
+                    );
+                }
+            } finally {
+                if (!cancelled) setPreviewLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    // previewObjectUrl is intentionally excluded to avoid refetching after the
+    // created object URL is stored. It is revoked on the next preview/close.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [driverId, getToken, previewDoc]);
+
+    useEffect(() => () => {
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    }, [previewObjectUrl]);
+
+    const closePreview = () => {
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        setPreviewObjectUrl('');
+        setPreviewDoc(null);
+        setPreviewMimeType('');
+        setPreviewError('');
+        setPreviewLoading(false);
+    };
+
     const user = profile ? getUser(profile.userId) : null;
     const documents = profile?.documents || [];
+    const reviewEligibility = (profile as any)?.eligibility as {
+        eligible?: boolean;
+        blockers?: string[];
+    } | undefined;
+    const finalApprovalBlockers = [
+        ...(reviewEligibility?.blockers || []),
+        ...(driverRequest?.status === 'rejected'
+            ? ['Latest Driver Account application is rejected; a new pending application is required']
+            : []),
+    ];
+    const finalApprovalEligible = Boolean(reviewEligibility?.eligible) && driverRequest?.status !== 'rejected';
+    const reviewHistory = ((profile as any)?.reviewHistory || []) as Array<{
+        _id?: string;
+        actorName?: string;
+        actorRole?: string;
+        action?: string;
+        previousStatus?: string;
+        newStatus?: string;
+        reason?: string;
+        loadNumber?: string;
+        createdAt?: string;
+    }>;
     const requiredDocs = REQUIRED_DOCUMENTS.filter(d => d.required);
     const optionalDocs = REQUIRED_DOCUMENTS.filter(d => !d.required);
 
@@ -358,7 +455,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                         className="gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl">
                                         <XCircle className="size-4" /> Reject
                                     </Button>
-                                    <Button onClick={handleApproveApplication} disabled={!!decidingRequest}
+                                    <Button onClick={handleApproveApplication} disabled={!!decidingRequest || !finalApprovalEligible}
+                                        title={!finalApprovalEligible ? (finalApprovalBlockers[0] || 'Complete Driver Verification requirements first') : undefined}
                                         className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">
                                         {decidingRequest === 'approve' ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />} Approve Application
                                     </Button>
@@ -732,7 +830,6 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                         {ups.length > 0 && (
                                                             <div className="border-t border-border/10 divide-y divide-border/5">
                                                                 {ups.map((doc: ComplianceDocument) => {
-                                                                    const isImg = isImageUrl(doc.fileUrl);
                                                                     const ex = doc.expiresAt ? getExpStatus(doc.expiresAt) : null;
                                                                     return (
                                                                         <div key={doc._id} className="p-4 space-y-3 group">
@@ -755,7 +852,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                                     )}
                                                                                 </div>
                                                                                 <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                                                    {doc.fileUrl && (
+                                                                                    {doc._id && (
                                                                                         <Button size="icon" variant="ghost" className="size-8 rounded-lg" onClick={() => setPreviewDoc(doc)}>
                                                                                             <Eye className="size-4" />
                                                                                         </Button>
@@ -776,11 +873,6 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                                     )}
                                                                                 </div>
                                                                             </div>
-                                                                            {isImg && doc.fileUrl && (
-                                                                                <div className="rounded-xl overflow-hidden border-2 border-border/10 bg-muted/5 cursor-pointer hover:border-border/30 transition-colors" onClick={() => setPreviewDoc(doc)}>
-                                                                                    <img src={resolveImageUrl(doc.fileUrl)} alt={doc.label || doc.fileName} className="w-full max-h-48 object-contain" loading="lazy" />
-                                                                                </div>
-                                                                            )}
                                                                         </div>
                                                                     );
                                                                 })}
@@ -973,6 +1065,43 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                         </div>
                                     </div>
                                 </motion.div>
+
+                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
+                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-600 to-zinc-500" />
+                                        <div className="relative p-6">
+                                            <div className="flex items-center gap-3 mb-5">
+                                                <div className="size-11 rounded-xl bg-linear-to-br from-slate-600 to-zinc-500 flex items-center justify-center text-white shadow-lg shadow-slate-500/20"><History className="size-5" /></div>
+                                                <div><h3 className="text-sm font-black">Review History</h3><p className="text-[10px] text-muted-foreground">Persistent Driver Verification review events</p></div>
+                                            </div>
+                                            {reviewHistory.length === 0 ? (
+                                                <p className="text-sm text-muted-foreground italic">No Driver Verification review events have been recorded yet.</p>
+                                            ) : (
+                                                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                                                    {reviewHistory.map((event, index) => (
+                                                        <div key={event._id || `${event.createdAt}-${index}`} className="rounded-xl border border-border/50 bg-muted/5 p-3.5">
+                                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                                                <div>
+                                                                    <p className="text-sm font-bold capitalize">{String(event.action || 'review event').replace(/_/g, ' ')}</p>
+                                                                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                                                        {event.actorName || 'System'}{event.actorRole ? ` · ${event.actorRole}` : ''}{event.loadNumber ? ` · Load ${event.loadNumber}` : ''}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{fmtDateTime(event.createdAt)}</span>
+                                                            </div>
+                                                            {(event.previousStatus || event.newStatus) && (
+                                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                                    {event.previousStatus || '—'} → <span className="font-semibold text-foreground">{event.newStatus || '—'}</span>
+                                                                </p>
+                                                            )}
+                                                            {event.reason && <p className="mt-2 rounded-lg bg-muted/40 px-2.5 py-2 text-xs">Reason: {event.reason}</p>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
                             </div>
                         )}
 
@@ -981,7 +1110,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
             </motion.div>
 
-            <Dialog open={!!previewDoc} onOpenChange={() => setPreviewDoc(null)}>
+            <Dialog open={!!previewDoc} onOpenChange={(nextOpen) => { if (!nextOpen) closePreview(); }}>
                 <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
                     <DialogHeader className="p-5 pb-3 shrink-0">
                         <DialogTitle className="flex items-center gap-2 text-sm font-black">
@@ -998,27 +1127,35 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             </Badge>
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex-1 overflow-auto px-5 pb-5">
-                        {previewDoc?.fileUrl && isImageUrl(previewDoc.fileUrl) ? (
-                            <img src={resolveImageUrl(previewDoc.fileUrl)} alt={previewDoc.label || previewDoc.fileName} className="w-full rounded-xl border border-border/20" />
-                        ) : previewDoc?.fileUrl && previewDoc.mimeType === 'application/pdf' ? (
-                            <iframe src={resolveImageUrl(previewDoc.fileUrl)} className="w-full h-[60vh] rounded-xl border border-border/20" title={previewDoc.label} />
-                        ) : previewDoc?.fileUrl ? (
+                    <div className="flex-1 min-h-0 overflow-auto px-5 pb-5">
+                        {previewLoading ? (
+                            <div className="flex min-h-80 items-center justify-center">
+                                <Loader2 className="size-7 animate-spin text-primary" />
+                            </div>
+                        ) : previewError ? (
+                            <div className="flex min-h-80 items-center justify-center text-center text-sm text-destructive">
+                                {previewError}
+                            </div>
+                        ) : previewObjectUrl && previewMimeType.startsWith('image/') ? (
+                            <img src={previewObjectUrl} alt={previewDoc?.label || previewDoc?.fileName || 'Driver document'} className="w-full rounded-xl border border-border/20" />
+                        ) : previewObjectUrl && previewMimeType === 'application/pdf' ? (
+                            <iframe src={previewObjectUrl} className="w-full h-[60vh] rounded-xl border border-border/20" title={previewDoc?.label || 'Driver document'} />
+                        ) : previewObjectUrl ? (
                             <div className="flex flex-col items-center justify-center py-16 gap-4">
                                 <FileText className="size-16 text-muted-foreground/20" />
                                 <p className="text-sm text-muted-foreground">Preview not available for this file type</p>
-                                <Button asChild variant="outline" className="gap-2"><a href={resolveImageUrl(previewDoc.fileUrl)} target="_blank" rel="noopener noreferrer"><Download className="size-4" /> Download File</a></Button>
+                                <Button asChild variant="outline"><a href={previewObjectUrl} target="_blank" rel="noopener noreferrer">Open File</a></Button>
                             </div>
                         ) : null}
                     </div>
                     {previewDoc && !previewDoc.verified && previewDoc.reviewStatus !== 'rejected' && (
                         <div className="border-t border-border/20 p-4 flex items-center justify-end gap-2 shrink-0">
                             <Button variant="outline" className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                onClick={() => { setRejectDocId(previewDoc._id); setPreviewDoc(null); }}>
+                                onClick={() => { setRejectDocId(previewDoc._id); closePreview(); }}>
                                 <XCircle className="size-4" /> Reject
                             </Button>
                             <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                                onClick={() => { handleVerify(previewDoc._id); setPreviewDoc(null); }}
+                                onClick={() => { void handleVerify(previewDoc._id); closePreview(); }}
                                 disabled={actionLoading === previewDoc._id}>
                                 {actionLoading === previewDoc._id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Verify
                             </Button>
@@ -1055,9 +1192,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             <BadgeCheck className="size-5 text-emerald-500" /> Approve Driver Profile
                         </DialogTitle>
                         <DialogDescription>
-                            {missingDocs.length > 0
-                                ? 'This driver has missing documents. Are you sure you want to approve?'
-                                : `Approve ${user?.name || 'this driver'}'s profile and set verification status to verified.`}
+                            The backend will re-check all Driver Information, required document approvals, Agreement status and credential blockers before final approval.
                         </DialogDescription>
                     </DialogHeader>
                     {missingDocs.length > 0 && (
@@ -1091,12 +1226,25 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             </p>
                         </div>
                     )}
+                    {finalApprovalBlockers.length > 0 && (
+                        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+                            <p className="text-sm font-bold text-amber-700 dark:text-amber-300">Final approval unavailable</p>
+                            <div className="mt-2 space-y-1.5">
+                                {finalApprovalBlockers.map((blocker) => (
+                                    <div key={blocker} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                                        <span>{blocker}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <DialogFooter className="gap-2 sm:gap-0">
                         <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancel</Button>
-                        <Button onClick={handleApproveDriver} disabled={approving}
+                        <Button onClick={handleApproveDriver} disabled={approving || !finalApprovalEligible}
                             className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
                             {approving ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />}
-                            {missingDocs.length > 0 ? 'Approve Anyway' : 'Approve Driver'}
+                            Approve Driver
                         </Button>
                     </DialogFooter>
                 </DialogContent>

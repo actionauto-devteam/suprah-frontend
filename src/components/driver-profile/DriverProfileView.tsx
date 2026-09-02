@@ -102,6 +102,9 @@ export const DriverProfileView: React.FC = () => {
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(
     null,
   );
+  const [driverProfileFetchState, setDriverProfileFetchState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
 
   const toastShownRef = useRef(false);
 
@@ -122,6 +125,7 @@ export const DriverProfileView: React.FC = () => {
       setActivities(data.recentActivity || data.recentActivities || []);
       setHasFetchedActivities(false);
       setHasFetchedDriverExtras(false);
+      setDriverProfileFetchState("idle");
       setOnlineStatus(data.onlineStatus || "online");
       setCustomStatus(data.customStatus || "");
       const resolvedAvatar = data.avatarUrl || data.avatar || "";
@@ -169,6 +173,8 @@ export const DriverProfileView: React.FC = () => {
     async (force = false) => {
       if (!force && hasFetchedDriverExtras) return;
 
+      setDriverProfileFetchState("loading");
+
       try {
         const token = await getToken();
         const headers = { Authorization: `Bearer ${token}` };
@@ -183,8 +189,12 @@ export const DriverProfileView: React.FC = () => {
 
         if (dpRes.status === "fulfilled" && dpRes.value.data?.data) {
           setDriverProfile(dpRes.value.data.data);
+          setDriverProfileFetchState("ready");
+        } else {
+          setDriverProfileFetchState("error");
         }
       } catch {
+        setDriverProfileFetchState("error");
       } finally {
         setHasFetchedDriverExtras(true);
       }
@@ -203,10 +213,81 @@ export const DriverProfileView: React.FC = () => {
   }, [activeTab, fetchActivities, profile]);
 
   useEffect(() => {
-    if (activeTab === "overview" && profile) {
+    if ((activeTab === "overview" || activeTab === "personal") && profile) {
       fetchDriverExtras();
     }
   }, [activeTab, fetchDriverExtras, profile]);
+
+  useEffect(() => {
+    if (!driverProfile) return;
+
+    const verificationPhone = String(driverProfile.phone || '').replace(/\D/g, '');
+    const verificationLocation = [driverProfile.city, driverProfile.state]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(', ');
+
+    // Safe Driver Verification -> general Profile prefill.
+    //
+    // This updates local form/display state only. It does NOT silently PATCH
+    // /api/profile. The values become persistent only if the driver uses the
+    // existing Personal Profile Save flow.
+    setPersonalInfo((previous) => {
+      const next = { ...previous };
+
+      if (
+        !String(previous.phone || '').trim() &&
+        verificationPhone.length === 10
+      ) {
+        next.phone = verificationPhone;
+      }
+
+      if (
+        !String(previous.location || '').trim() &&
+        verificationLocation
+      ) {
+        next.location = verificationLocation;
+      }
+
+      return next;
+    });
+
+    // Make the read-only header/overview show the same safe fallback during
+    // this session. Real /api/profile values always take priority.
+    setProfile((previous) => {
+      if (!previous) return previous;
+
+      const currentPersonal = previous.personalInfo || {};
+      const existingPhone = String(currentPersonal.phone || '').trim();
+      const existingLocation = String(currentPersonal.location || '').trim();
+
+      const fallbackPhone =
+        !existingPhone && verificationPhone.length === 10
+          ? verificationPhone
+          : existingPhone;
+
+      const fallbackLocation =
+        !existingLocation && verificationLocation
+          ? verificationLocation
+          : existingLocation;
+
+      if (
+        fallbackPhone === existingPhone &&
+        fallbackLocation === existingLocation
+      ) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        personalInfo: {
+          ...currentPersonal,
+          ...(fallbackPhone ? { phone: fallbackPhone } : {}),
+          ...(fallbackLocation ? { location: fallbackLocation } : {}),
+        },
+      };
+    });
+  }, [driverProfile]);
 
   useEffect(() => {
     // Notification preferences moved to the Notification Page — send old
@@ -314,8 +395,8 @@ export const DriverProfileView: React.FC = () => {
     try {
       const token = await getToken();
       await apiClient.patch(
-        "/api/profile/personal-info",
-        { onlineStatus, customStatus },
+        "/api/profile/online-status",
+        { status: onlineStatus, customStatus },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -425,6 +506,8 @@ export const DriverProfileView: React.FC = () => {
             handleTabChange={handleTabChange}
             driverStats={driverStats}
             organization={organization}
+            driverProfile={driverProfile}
+            driverProfileFetchState={driverProfileFetchState}
           />
         </TabsContent>
 

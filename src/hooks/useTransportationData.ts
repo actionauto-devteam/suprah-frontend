@@ -4,7 +4,7 @@ import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { Load } from "@/types/load";
-import { Quote } from "@/types/transportation";
+import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadStats } from "@/lib/api/loads";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
@@ -892,6 +892,22 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           toZip: formData.zipCode,
           fromAddress: formData.fromAddress,
           toAddress: formData.fullAddress,
+          fromLocation: {
+            name: formData.fromLocationName,
+            streetAddress: formData.fromStreetAddress,
+            city: formData.fromCity,
+            state: formData.fromState,
+            zip: formData.fromZip,
+            country: "US",
+          },
+          toLocation: {
+            name: formData.toLocationName,
+            streetAddress: formData.toStreetAddress,
+            city: formData.toCity,
+            state: formData.toState,
+            zip: formData.zipCode,
+            country: "US",
+          },
           units: formData.units,
           enclosedTrailer: formData.enclosedTrailer,
           vehicleInoperable: formData.vehicleInoperable,
@@ -929,12 +945,15 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   );
 
   const handleConvertToLoad = React.useCallback(
-    async (quoteId: string) => {
+    async (
+      quoteId: string,
+      routeDetails?: QuoteLoadRouteDetails,
+    ) => {
       try {
         const config = await getAuthConfig();
         await apiClient.post(
           `/api/quotes/${quoteId}/convert-to-load`,
-          {},
+          routeDetails ?? {},
           config ?? undefined,
         );
 

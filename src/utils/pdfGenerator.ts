@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { Load, LoadStatus } from "@/types/load";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 export type ShipmentPDFResult = "saved" | "cancelled" | "initiated";
 export type LoadPDFResult = ShipmentPDFResult;
@@ -594,7 +595,7 @@ export const generateLoadPDF = async (
     {
       number: "1",
       label: "Pickup Deadline",
-      value: formatDate(load.dates?.pickupDeadline),
+      value: formatScheduleDate(load.dates?.pickupDeadline),
     },
     {
       number: "2",
@@ -604,7 +605,7 @@ export const generateLoadPDF = async (
     {
       number: "3",
       label: "Delivery Deadline",
-      value: formatDate(load.dates?.deliveryDeadline),
+      value: formatScheduleDate(load.dates?.deliveryDeadline),
     },
     {
       number: "4",
@@ -760,6 +761,7 @@ export const generateLoadPDF = async (
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "America/Denver",
   });
   const docIdLabel = safeText(load.loadNumber || load._id);
 

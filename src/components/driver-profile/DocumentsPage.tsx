@@ -1,90 +1,362 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import Link from 'next/link';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BadgeCheck,
+  Ban,
+  Building2,
+  Camera,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  Eye,
+  FileCheck,
+  FileText,
+  FileWarning,
+  Fingerprint,
+  Loader2,
+  Lock,
+  Paperclip,
+  RotateCcw,
+  Save,
+  Scale,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Upload,
+  UserCheck,
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
 import { useAuth } from '@/providers/AuthProvider';
-import { apiClient } from '@/lib/api-client';
-import { DriverProfile, ComplianceDocument, VerificationStatus } from '@/types/driver-profile';
 import { useOrg } from '@/hooks/useOrg';
+import { apiClient } from '@/lib/api-client';
+import {
+  ComplianceDocument,
+  DriverProfile,
+  VerificationStatus,
+} from '@/types/driver-profile';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Loader2, Shield, ArrowLeft, Upload, Trash2, FileText, AlertTriangle,
-  CheckCircle2, Clock, Eye, Lock, ShieldCheck, ShieldAlert, X,
-  Save, Fingerprint, UserCheck, FileWarning, ChevronRight,
-  BadgeCheck, ScanLine, CreditCard, Building2, Scale, FileCheck,
-  Camera, Paperclip, TriangleAlert, CircleDot, Ban, Sparkles,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
-import { REQUIRED_DOCUMENTS, documentTypeOptions, US_STATES } from './driver-profile-constants';
+  REQUIRED_DOCUMENTS,
+  documentTypeOptions,
+  US_STATES,
+} from './driver-profile-constants';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 const STEPS = [
-  { id: 'documents', label: 'Documents', icon: FileCheck, desc: 'Upload required docs', color: 'from-emerald-600 to-teal-500' },
-  { id: 'personal', label: 'Information', icon: UserCheck, desc: 'Driver & vehicle details', color: 'from-blue-600 to-indigo-500' },
-  { id: 'agreement', label: 'Agreement', icon: Scale, desc: 'Accept terms', color: 'from-amber-500 to-orange-500' },
-  { id: 'review', label: 'Approval', icon: BadgeCheck, desc: 'Waiting for admin', color: 'from-emerald-500 to-green-500' },
+  { id: 'documents', label: 'Documents', icon: FileCheck },
+  { id: 'personal', label: 'Information', icon: UserCheck },
+  { id: 'agreement', label: 'Agreement', icon: Scale },
+  { id: 'review', label: 'Approval', icon: BadgeCheck },
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
 
 const DOC_ICONS: Record<string, React.ElementType> = {
-  drivers_license: CreditCard, medical_card: FileText, insurance_certificate: Shield,
-  vehicle_registration: FileText, operating_authority: Building2, w9_form: FileText,
-  dot_inspection: FileCheck, cargo_insurance: Shield, liability_insurance: Shield, other: Paperclip,
+  drivers_license: CreditCard,
+  medical_card: FileText,
+  insurance_certificate: Shield,
+  vehicle_registration: FileText,
+  operating_authority: Building2,
+  w9_form: FileText,
+  dot_inspection: FileCheck,
+  cargo_insurance: Shield,
+  liability_insurance: Shield,
+  other: Paperclip,
 };
 
-const getExpStatus = (d?: string) => {
-  if (!d) return { s: 'none', l: 'Not Set', c: 'text-muted-foreground', bg: 'bg-muted/30' };
-  const days = Math.ceil((new Date(d).getTime() - Date.now()) / 864e5);
-  if (days < 0) return { s: 'expired', l: `Expired ${Math.abs(days)}d ago`, c: 'text-red-500', bg: 'bg-red-500/8' };
-  if (days <= 30) return { s: 'warn', l: `${days}d left`, c: 'text-amber-500', bg: 'bg-amber-500/8' };
-  if (days <= 90) return { s: 'soon', l: `${days}d`, c: 'text-yellow-500', bg: 'bg-yellow-500/8' };
-  return { s: 'ok', l: `${days}d`, c: 'text-emerald-500', bg: 'bg-emerald-500/8' };
+const formatSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'File';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' });
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/Denver',
+  });
 
-const FormSection = ({ icon, items }: { icon: string; items: Array<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; className?: string; type?: string }> }) => (
-  <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
-    <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">{icon}</h3>
-    <div className="space-y-3">
-      {items.map((item, idx) => (
-        <motion.div key={item.label} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }}>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-muted-foreground">{item.label}</Label>
-            {item.type === 'date' ? (
-              <Input type="date" value={item.value} onChange={e => item.onChange(e.target.value)} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
-            ) : (
-              <Input value={item.value} onChange={e => item.onChange(e.target.value)} placeholder={item.placeholder} className={cn('h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm', item.className)} />
-            )}
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  </div>
-);
+const expirationStatus = (value?: string) => {
+  if (!value) return null;
+  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, className: 'text-red-500' };
+  if (days <= 30) return { label: `${days}d left`, className: 'text-amber-500' };
+  return { label: `${days}d`, className: 'text-emerald-500' };
+};
+
+const STATE_NAME_TO_CODE: Record<string, string> = {
+  alabama: 'AL',
+  alaska: 'AK',
+  arizona: 'AZ',
+  arkansas: 'AR',
+  california: 'CA',
+  colorado: 'CO',
+  connecticut: 'CT',
+  delaware: 'DE',
+  florida: 'FL',
+  georgia: 'GA',
+  hawaii: 'HI',
+  idaho: 'ID',
+  illinois: 'IL',
+  indiana: 'IN',
+  iowa: 'IA',
+  kansas: 'KS',
+  kentucky: 'KY',
+  louisiana: 'LA',
+  maine: 'ME',
+  maryland: 'MD',
+  massachusetts: 'MA',
+  michigan: 'MI',
+  minnesota: 'MN',
+  mississippi: 'MS',
+  missouri: 'MO',
+  montana: 'MT',
+  nebraska: 'NE',
+  nevada: 'NV',
+  'new hampshire': 'NH',
+  'new jersey': 'NJ',
+  'new mexico': 'NM',
+  'new york': 'NY',
+  'north carolina': 'NC',
+  'north dakota': 'ND',
+  ohio: 'OH',
+  oklahoma: 'OK',
+  oregon: 'OR',
+  pennsylvania: 'PA',
+  'rhode island': 'RI',
+  'south carolina': 'SC',
+  'south dakota': 'SD',
+  tennessee: 'TN',
+  texas: 'TX',
+  utah: 'UT',
+  vermont: 'VT',
+  virginia: 'VA',
+  washington: 'WA',
+  'west virginia': 'WV',
+  wisconsin: 'WI',
+  wyoming: 'WY',
+  'district of columbia': 'DC',
+};
+
+const DEFAULT_ZIP_BY_STATE_CODE: Record<string, string> = {
+  AL: '35004',
+  AK: '99501',
+  AZ: '85001',
+  AR: '71601',
+  CA: '90001',
+  CO: '80001',
+  CT: '06001',
+  DE: '19701',
+  FL: '32003',
+  GA: '30002',
+  HI: '96701',
+  ID: '83201',
+  IL: '60001',
+  IN: '46001',
+  IA: '50001',
+  KS: '66002',
+  KY: '40003',
+  LA: '70001',
+  ME: '03901',
+  MD: '20601',
+  MA: '01001',
+  MI: '48001',
+  MN: '55001',
+  MS: '38601',
+  MO: '63001',
+  MT: '59001',
+  NE: '68001',
+  NV: '89101',
+  NH: '03031',
+  NJ: '07001',
+  NM: '87001',
+  NY: '10001',
+  NC: '27006',
+  ND: '58001',
+  OH: '43001',
+  OK: '73001',
+  OR: '97001',
+  PA: '15001',
+  RI: '02801',
+  SC: '29001',
+  SD: '57001',
+  TN: '37010',
+  TX: '75001',
+  UT: '84001',
+  VT: '05001',
+  VA: '20101',
+  WA: '98001',
+  WV: '24701',
+  WI: '53001',
+  WY: '82001',
+  DC: '20001',
+};
+
+const getStateCode = (rawValue: string) => {
+  const trimmed = rawValue.trim();
+  if (!trimmed) return '';
+
+  if (/^[A-Za-z]{2}$/.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  return STATE_NAME_TO_CODE[trimmed.toLowerCase()] || '';
+};
+
+const getDefaultZipForState = (rawValue: string) => {
+  const code = getStateCode(rawValue);
+  return code ? DEFAULT_ZIP_BY_STATE_CODE[code] || '' : '';
+};
+
+const resolveDriverStateOption = (rawValue: string) => {
+  const normalized = rawValue.trim().toLowerCase();
+  if (!normalized) return '';
+
+  // Works whether US_STATES contains abbreviations or full state names.
+  const direct = US_STATES.find(
+    (state) => String(state).trim().toLowerCase() === normalized,
+  );
+  if (direct) return String(direct);
+
+  const code = STATE_NAME_TO_CODE[normalized];
+  if (!code) return '';
+
+  return (
+    US_STATES.find(
+      (state) => String(state).trim().toUpperCase() === code,
+    ) || ''
+  ).toString();
+};
+
+const parseSafeProfileLocation = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return { city: '', state: '' };
+
+  // Driver Verification location autofill is intentionally US-only.
+  // Accept only a simple "City, State" value whose state resolves to one of
+  // the configured US_STATES options. Non-US regions are ignored rather than
+  // copied into the verification record.
+  const parts = raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length !== 2) {
+    return { city: '', state: '' };
+  }
+
+  const [city, rawState] = parts;
+  const state = resolveDriverStateOption(rawState);
+
+  if (!city || !state) {
+    return { city: '', state: '' };
+  }
+
+  return { city, state };
+};
+
+const parseSafeAccountName = (account: any) => {
+  const explicitFirst = String(account?.firstName || '').trim();
+  const explicitLast = String(account?.lastName || '').trim();
+
+  if (explicitFirst || explicitLast) {
+    return {
+      firstName: explicitFirst,
+      lastName: explicitLast,
+    };
+  }
+
+  // User.model currently stores one required full-name field. For empty
+  // verification fields only, split the first token from the remaining
+  // tokens as an editable starting value. Nothing is persisted automatically.
+  const fullName = String(account?.name || '').trim();
+  const parts = fullName.split(/\s+/).filter(Boolean);
+
+  if (parts.length < 2) {
+    return { firstName: '', lastName: '' };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' '),
+  };
+};
+
+const toDateInputValue = (value?: string | Date | null) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+};
+
+const getLatestDocumentExpiration = (
+  documents: ComplianceDocument[] | undefined,
+  type: string,
+) => {
+  const matching = (documents || [])
+    .filter((doc) => doc.type === type && doc.expiresAt)
+    .sort((a, b) => {
+      const aTime = new Date(a.uploadedAt || 0).getTime();
+      const bTime = new Date(b.uploadedAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+  return toDateInputValue(matching[0]?.expiresAt);
+};
+
+const DOCUMENT_EXPIRY_TYPES = new Set([
+  'drivers_license',
+  'medical_card',
+  'insurance_certificate',
+  'liability_insurance',
+  'cargo_insurance',
+]);
 
 export const DocumentsPage: React.FC = () => {
   const { getToken } = useAuth();
   const { organization } = useOrg();
+
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<StepId>('documents');
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const [licenseNumber, setLicenseNumber] = useState('');
   const [licenseState, setLicenseState] = useState('');
@@ -101,299 +373,871 @@ export const DocumentsPage: React.FC = () => {
   const [driverCity, setDriverCity] = useState('');
   const [driverState, setDriverState] = useState('');
   const [driverZip, setDriverZip] = useState('');
+
   const [vehicleMake, setVehicleMake] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehicleYear, setVehicleYear] = useState('');
   const [vehicleVin, setVehicleVin] = useState('');
   const [vehicleLicensePlate, setVehicleLicensePlate] = useState('');
+
   const [ssnLast4, setSsnLast4] = useState('');
   const [bgCheckConsent, setBgCheckConsent] = useState(false);
   const [verificationAgreement, setVerificationAgreement] = useState(false);
-  const [agreementScrolledToBottom, setAgreementScrolledToBottom] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_started');
-  const [savingIdentity, setSavingIdentity] = useState(false);
-  const [savingPersonal, setSavingPersonal] = useState(false);
-  const agreementContentRef = useRef<HTMLDivElement>(null);
+  const [verificationStatus, setVerificationStatus] =
+    useState<VerificationStatus>('unverified');
 
+  const [savingPersonal, setSavingPersonal] = useState(false);
+  const [savingIdentity, setSavingIdentity] = useState(false);
+
+  const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState('drivers_license');
   const [uploadLabel, setUploadLabel] = useState('');
   const [uploadExpiry, setUploadExpiry] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [viewingDoc, setViewingDoc] = useState<ComplianceDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<ComplianceDocument | null>(null);
+  const [viewingObjectUrl, setViewingObjectUrl] = useState('');
+  const [viewingMimeType, setViewingMimeType] = useState('');
+  const [viewingLoading, setViewingLoading] = useState(false);
+  const [viewingError, setViewingError] = useState('');
+  const [replaceTarget, setReplaceTarget] =
+    useState<ComplianceDocument | null>(null);
+  const [accountPrefill, setAccountPrefill] = useState<{
+    firstName: string;
+    lastName: string;
+    phone: string;
+    city: string;
+    state: string;
+  } | null>(null);
+
+  const accountAutofillAppliedRef = useRef(false);
+  const [agreementScrolledToBottom, setAgreementScrolledToBottom] = useState(false);
+  const agreementContentRef = useRef<HTMLDivElement>(null);
+  const stepStorageKey = 'driver-verification-active-step';
+
+  const documents = profile?.documents ?? [];
+
+  const uploadedLicenseExpiration = useMemo(
+    () => getLatestDocumentExpiration(documents, 'drivers_license'),
+    [documents],
+  );
+  const uploadedMedicalExpiration = useMemo(
+    () => getLatestDocumentExpiration(documents, 'medical_card'),
+    [documents],
+  );
+  const uploadedInsuranceExpiration = useMemo(
+    () => getLatestDocumentExpiration(documents, 'insurance_certificate'),
+    [documents],
+  );
+
+  const licenseExpirationConflict =
+    Boolean(uploadedLicenseExpiration && licenseExp) &&
+    uploadedLicenseExpiration !== licenseExp;
+  const medicalExpirationConflict =
+    Boolean(uploadedMedicalExpiration && medicalExp) &&
+    uploadedMedicalExpiration !== medicalExp;
+  const insuranceExpirationConflict =
+    Boolean(uploadedInsuranceExpiration && insuranceExp) &&
+    uploadedInsuranceExpiration !== insuranceExp;
+
+  const requiredDocs = useMemo(
+    () => REQUIRED_DOCUMENTS.filter((item) => item.required),
+    [],
+  );
+  const optionalDocs = useMemo(
+    () => REQUIRED_DOCUMENTS.filter((item) => !item.required),
+    [],
+  );
+
+  const getDocStatus = useCallback(
+    (type: string) => {
+      const matching = documents.filter((doc) => doc.type === type);
+      if (!matching.length) return 'missing';
+      if (matching.some((doc) => doc.verified)) return 'verified';
+      if (matching.some((doc) => doc.reviewStatus === 'rejected')) return 'rejected';
+      return 'pending';
+    },
+    [documents],
+  );
+
+  const uploadedCount = requiredDocs.filter(
+    (item) => getDocStatus(item.type) !== 'missing',
+  ).length;
+  const verifiedCount = requiredDocs.filter(
+    (item) => getDocStatus(item.type) === 'verified',
+  ).length;
+
+  const personalRequirements = useMemo(
+    () => [
+      { label: 'First Name', complete: Boolean(driverFirstName.trim()) },
+      { label: 'Last Name', complete: Boolean(driverLastName.trim()) },
+      { label: 'CDL Number', complete: Boolean(licenseNumber.trim()) },
+      { label: 'License State', complete: Boolean(licenseState) },
+      { label: 'CDL Expiration', complete: Boolean(licenseExp) },
+      { label: 'Insurance Provider', complete: Boolean(insuranceProvider.trim()) },
+      { label: 'Policy Number', complete: Boolean(insurancePolicyNumber.trim()) },
+      { label: 'VIN', complete: Boolean(vehicleVin.trim()) },
+      {
+        label: 'SSN Last 4',
+        complete: ssnLast4.replace(/\D/g, '').length === 4,
+      },
+      {
+        label: 'Background Check Authorization',
+        complete: bgCheckConsent,
+      },
+    ],
+    [
+      bgCheckConsent,
+      driverFirstName,
+      driverLastName,
+      insurancePolicyNumber,
+      insuranceProvider,
+      licenseExp,
+      licenseNumber,
+      licenseState,
+      ssnLast4,
+      vehicleVin,
+    ],
+  );
+
+  const missingPersonalRequirements = useMemo(
+    () => personalRequirements.filter((item) => !item.complete),
+    [personalRequirements],
+  );
+  const personalInfoComplete = missingPersonalRequirements.length === 0;
+  const hasAnyPersonalInfo = personalRequirements.some((item) => item.complete);
+
+  const profileAutofillConflicts = useMemo(() => {
+    if (!accountPrefill) return [] as string[];
+
+    const conflicts: string[] = [];
+    const same = (a: string, b: string) =>
+      a.trim().toLowerCase() === b.trim().toLowerCase();
+
+    if (
+      driverFirstName.trim() &&
+      accountPrefill.firstName &&
+      !same(driverFirstName, accountPrefill.firstName)
+    ) {
+      conflicts.push('First Name');
+    }
+    if (
+      driverLastName.trim() &&
+      accountPrefill.lastName &&
+      !same(driverLastName, accountPrefill.lastName)
+    ) {
+      conflicts.push('Last Name');
+    }
+
+    const driverPhoneDigits = driverPhone.replace(/\D/g, '');
+    if (
+      driverPhoneDigits &&
+      accountPrefill.phone &&
+      driverPhoneDigits !== accountPrefill.phone
+    ) {
+      conflicts.push('Phone');
+    }
+
+    if (
+      driverCity.trim() &&
+      accountPrefill.city &&
+      !same(driverCity, accountPrefill.city)
+    ) {
+      conflicts.push('City');
+    }
+    if (
+      driverState.trim() &&
+      accountPrefill.state &&
+      !same(driverState, accountPrefill.state)
+    ) {
+      conflicts.push('State');
+    }
+
+    return conflicts;
+  }, [
+    accountPrefill,
+    driverCity,
+    driverFirstName,
+    driverLastName,
+    driverPhone,
+    driverState,
+  ]);
+
+  const stepStatus = useMemo(
+    () => ({
+      documents:
+        uploadedCount === requiredDocs.length
+          ? 'done'
+          : uploadedCount > 0
+            ? 'partial'
+            : 'pending',
+      personal: personalInfoComplete
+        ? 'done'
+        : hasAnyPersonalInfo
+          ? 'partial'
+          : 'pending',
+      agreement: verificationAgreement ? 'done' : 'pending',
+      review:
+        verificationStatus === 'verified'
+          ? 'done'
+          : verificationStatus === 'under_review'
+            ? 'partial'
+            : 'pending',
+    }),
+    [
+      hasAnyPersonalInfo,
+      personalInfoComplete,
+      requiredDocs.length,
+      uploadedCount,
+      verificationAgreement,
+      verificationStatus,
+    ],
+  );
+
+  const overallPct = useMemo(() => {
+    let score = 0;
+    score += Math.round((uploadedCount / Math.max(requiredDocs.length, 1)) * 30);
+    if (personalInfoComplete) score += 25;
+    if (verificationAgreement) score += 20;
+    score += Math.round((verifiedCount / Math.max(requiredDocs.length, 1)) * 25);
+    return Math.min(score, 100);
+  }, [
+    personalInfoComplete,
+    requiredDocs.length,
+    uploadedCount,
+    verificationAgreement,
+    verifiedCount,
+  ]);
+
+  const hydrateProfile = useCallback((data: DriverProfile) => {
+    setProfile(data);
+    setLicenseNumber(data.driversLicenseNumber || '');
+    setLicenseState(data.licenseState || '');
+    setLicenseExp(
+      toDateInputValue(data.licenseExpirationDate) ||
+        getLatestDocumentExpiration(data.documents, 'drivers_license'),
+    );
+    setMedicalExp(
+      toDateInputValue(data.medicalCardExpirationDate) ||
+        getLatestDocumentExpiration(data.documents, 'medical_card'),
+    );
+    setInsuranceExp(
+      toDateInputValue(data.insuranceExpirationDate) ||
+        getLatestDocumentExpiration(data.documents, 'insurance_certificate'),
+    );
+    setInsuranceProvider(data.insuranceProvider || '');
+    setInsurancePolicyNumber(data.insurancePolicyNumber || '');
+
+    setDriverFirstName(data.firstName || '');
+    setDriverLastName(data.lastName || '');
+    setDriverPhone(data.phone || '');
+    setDriverAddress(data.address || '');
+    setDriverCity(data.city || '');
+    setDriverState(data.state || '');
+    setDriverZip(data.zipCode || '');
+
+    setVehicleMake(data.truckMake || '');
+    setVehicleModel(data.truckModel || '');
+    setVehicleYear(data.truckYear == null ? '' : String(data.truckYear));
+    setVehicleVin(data.vin || '');
+    setVehicleLicensePlate(data.plateNumber || '');
+
+    setSsnLast4(data.ssnLast4 || '');
+    setBgCheckConsent(Boolean(data.backgroundCheckConsent));
+    setVerificationAgreement(Boolean(data.verificationAgreement));
+    setVerificationStatus(
+      (data.verificationStatus || 'unverified') as VerificationStatus,
+    );
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     try {
       const token = await getToken();
-      const res = await apiClient.get('/api/driver-profile', { headers: { Authorization: `Bearer ${token}` } });
-      const d = res.data?.data;
-      if (d) {
-        setProfile(d);
-        setLicenseNumber(d.driversLicenseNumber || '');
-        setLicenseState(d.licenseState || '');
-        setLicenseExp(d.licenseExpirationDate?.substring(0, 10) || '');
-        setMedicalExp(d.medicalCardExpirationDate?.substring(0, 10) || '');
-        setInsuranceExp(d.insuranceExpirationDate?.substring(0, 10) || '');
-        setInsuranceProvider(d.insuranceProvider || '');
-        setInsurancePolicyNumber(d.insurancePolicyNumber || '');
-        setDriverFirstName(d.firstName || '');
-        setDriverLastName(d.lastName || '');
-        setDriverPhone(d.phone || '');
-        setDriverAddress(d.address || '');
-        setDriverCity(d.city || '');
-        setDriverState(d.state || '');
-        setDriverZip(d.zipCode || '');
-        setVehicleMake(d.vehicleMake || '');
-        setVehicleModel(d.vehicleModel || '');
-        setVehicleYear(d.vehicleYear || '');
-        setVehicleVin(d.vehicleVin || '');
-        setVehicleLicensePlate(d.vehicleLicensePlate || '');
-        setSsnLast4(d.ssnLast4 || '');
-        setBgCheckConsent(!!d.backgroundCheckConsent);
-        setVerificationAgreement(!!d.verificationAgreement);
-        setVerificationStatus(d.verificationStatus || 'not_started');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [driverResult, accountResult] = await Promise.allSettled([
+        apiClient.get('/api/driver-profile', { headers }),
+        apiClient.get('/api/profile', { headers }),
+      ]);
+
+      if (driverResult.status !== 'fulfilled') {
+        throw driverResult.reason;
       }
-    } catch { toast.error('Failed to load document data'); }
-    finally { setLoading(false); }
-  }, [getToken]);
 
-  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+      const data = driverResult.value.data?.data as DriverProfile | undefined;
+      if (!data) return;
 
-  const handleSaveCompliance = async () => {
-    setSaving(true);
-    try {
-      const token = await getToken();
-      const res = await apiClient.patch('/api/driver-profile/compliance', {
-        driversLicenseNumber: licenseNumber.trim(), licenseState,
-        licenseExpirationDate: licenseExp || undefined, medicalCardExpirationDate: medicalExp || undefined,
-        insuranceExpirationDate: insuranceExp || undefined, insuranceProvider: insuranceProvider.trim(),
-        insurancePolicyNumber: insurancePolicyNumber.trim(),
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data?.data) setProfile(res.data.data);
-      toast.success('Compliance information saved');
-    } catch { toast.error('Failed to save compliance info'); }
-    finally { setSaving(false); }
-  };
+      hydrateProfile(data);
+
+      if (accountResult.status === 'fulfilled') {
+        const account = accountResult.value.data?.data;
+        const accountPersonal = account?.personalInfo || {};
+        const accountName = parseSafeAccountName(account);
+        const accountPhone = String(accountPersonal.phone || '').replace(/\D/g, '');
+        const accountLocation = parseSafeProfileLocation(accountPersonal.location);
+
+        setAccountPrefill({
+          firstName: accountName.firstName,
+          lastName: accountName.lastName,
+          phone: accountPhone.length === 10 ? accountPhone : '',
+          city: accountLocation.city,
+          state: accountLocation.state,
+        });
+
+        // Safe Profile -> Driver Verification autofill.
+        //
+        // Rules:
+        // 1. Persisted DriverProfile values ALWAYS win.
+        // 2. Autofill changes local form state only. Nothing is silently saved.
+        // 3. Only fields that can be mapped without inventing data are reused.
+        // 4. The driver can review/edit every autofilled value before Save & Next.
+        if (!String(data.firstName || '').trim() && accountName.firstName) {
+          setDriverFirstName(accountName.firstName);
+        }
+
+        if (!String(data.lastName || '').trim() && accountName.lastName) {
+          setDriverLastName(accountName.lastName);
+        }
+
+        if (!String(data.phone || '').trim() && accountPhone.length === 10) {
+          setDriverPhone(accountPhone);
+        }
+
+        if (!String(data.city || '').trim() && accountLocation.city) {
+          setDriverCity(accountLocation.city);
+        }
+
+        if (!String(data.state || '').trim() && accountLocation.state) {
+          setDriverState(accountLocation.state);
+        }
+      }
+
+      // Equipment -> Driver Verification is already handled by hydrateProfile:
+      // truckMake/truckModel/truckYear/vin/plateNumber populate the matching
+      // Vehicle Information fields from the canonical DriverProfile record.
+      //
+      // Street Address and ZIP are not available in the normal Profile schema,
+      // so they are intentionally left for the driver to provide.
+      //
+      // Do not infer the active wizard step from completion state here.
+      // Navigation is the driver's choice and is persisted below.
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          'Failed to load Driver Verification data',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, hydrateProfile]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedStep = window.sessionStorage.getItem(stepStorageKey);
+      if (
+        storedStep === 'documents' ||
+        storedStep === 'personal' ||
+        storedStep === 'agreement' ||
+        storedStep === 'review'
+      ) {
+        setActiveStep(storedStep);
+      }
+    }
+
+    void fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    if (loading || typeof window === 'undefined') return;
+    window.sessionStorage.setItem(stepStorageKey, activeStep);
+  }, [activeStep, loading]);
+
+  useEffect(() => {
+    if (!accountPrefill || accountAutofillAppliedRef.current) return;
+
+    // Re-apply the Profile source once after both requests settle. This makes
+    // the behavior independent of which tab is currently visible, while still
+    // allowing every autofilled value to be edited normally afterward.
+    setDriverFirstName((current) => current.trim() || accountPrefill.firstName);
+    setDriverLastName((current) => current.trim() || accountPrefill.lastName);
+    setDriverPhone((current) => current.trim() || accountPrefill.phone);
+    setDriverCity((current) => current.trim() || accountPrefill.city);
+
+    if (!driverState.trim() && accountPrefill.state) {
+      setDriverState(accountPrefill.state);
+      setDriverZip(
+        (current) =>
+          current.trim() || getDefaultZipForState(accountPrefill.state),
+      );
+    }
+
+    accountAutofillAppliedRef.current = true;
+  }, [accountPrefill, driverState]);
+
+  // If the agreement fits without scrolling, do not trap the user behind an
+  // onScroll event that can never fire.
+  useEffect(() => {
+    if (activeStep !== 'agreement') return;
+    if (verificationAgreement) {
+      setAgreementScrolledToBottom(true);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const element = agreementContentRef.current;
+      if (!element) return;
+      if (element.scrollHeight <= element.clientHeight + 20) {
+        setAgreementScrolledToBottom(true);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeStep, verificationAgreement]);
+
+  const handleDriverStateChange = useCallback(
+    (nextState: string) => {
+      if (nextState === driverState) {
+        setDriverState(nextState);
+        return;
+      }
+
+      setDriverState(nextState);
+
+      // State alone cannot identify the exact postal ZIP. Use a representative
+      // default ZIP as an editable starting point whenever the driver
+      // explicitly changes the selected State.
+      const defaultZip = getDefaultZipForState(nextState);
+      if (defaultZip) {
+        setDriverZip(defaultZip);
+      }
+    },
+    [driverState],
+  );
 
   const handleSavePersonalInfo = async () => {
-    if (!driverFirstName.trim() || !driverLastName.trim()) { toast.error('Please enter your name'); return; }
-    if (!licenseNumber.trim() || !licenseExp) { toast.error('Please enter license information'); return; }
-    if (!insuranceProvider.trim() || !insurancePolicyNumber.trim()) { toast.error('Please enter insurance details'); return; }
-    if (!vehicleVin.trim()) { toast.error('Please enter vehicle VIN'); return; }
+    if (!personalInfoComplete) {
+      toast.error(
+        `Complete the required fields: ${missingPersonalRequirements
+          .map((item) => item.label)
+          .join(', ')}`,
+      );
+      return;
+    }
+
     setSavingPersonal(true);
     try {
       const token = await getToken();
-      const res = await apiClient.patch('/api/driver-profile/personal-info', {
-        firstName: driverFirstName.trim(),
-        lastName: driverLastName.trim(),
-        phone: driverPhone.trim() || undefined,
-        address: driverAddress.trim() || undefined,
-        city: driverCity.trim() || undefined,
-        state: driverState || undefined,
-        zipCode: driverZip.trim() || undefined,
-        vehicleMake: vehicleMake.trim() || undefined,
-        vehicleModel: vehicleModel.trim() || undefined,
-        vehicleYear: vehicleYear ? parseInt(vehicleYear) : undefined,
-        vehicleVin: vehicleVin.trim(),
-        vehicleLicensePlate: vehicleLicensePlate.trim() || undefined,
-        driversLicenseNumber: licenseNumber.trim(),
-        licenseState,
-        licenseExpirationDate: licenseExp || undefined,
-        medicalCardExpirationDate: medicalExp || undefined,
-        insuranceExpirationDate: insuranceExp || undefined,
-        insuranceProvider: insuranceProvider.trim(),
-        insurancePolicyNumber: insurancePolicyNumber.trim(),
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data?.data) setProfile(res.data.data);
-      toast.success('Personal information saved');
-    } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed to save personal info'); }
-    finally { setSavingPersonal(false); }
+      const response = await apiClient.patch(
+        '/api/driver-profile/personal-info',
+        {
+          firstName: driverFirstName.trim(),
+          lastName: driverLastName.trim(),
+          phone: driverPhone.trim() || undefined,
+          address: driverAddress.trim() || undefined,
+          city: driverCity.trim() || undefined,
+          state: driverState || undefined,
+          zipCode: driverZip.trim() || undefined,
+          vehicleMake: vehicleMake.trim() || undefined,
+          vehicleModel: vehicleModel.trim() || undefined,
+          vehicleYear: vehicleYear ? Number.parseInt(vehicleYear, 10) : undefined,
+          vehicleVin: vehicleVin.trim().toUpperCase(),
+          vehicleLicensePlate:
+            vehicleLicensePlate.trim().toUpperCase() || undefined,
+          driversLicenseNumber: licenseNumber.trim(),
+          licenseState,
+          licenseExpirationDate: licenseExp,
+          medicalCardExpirationDate: medicalExp || undefined,
+          insuranceExpirationDate: insuranceExp || undefined,
+          insuranceProvider: insuranceProvider.trim(),
+          insurancePolicyNumber: insurancePolicyNumber.trim(),
+          ssnLast4: ssnLast4.replace(/\D/g, ''),
+          backgroundCheckConsent: bgCheckConsent,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      const data = response.data?.data as DriverProfile | undefined;
+      if (data) hydrateProfile(data);
+      toast.success('Driver verification information saved');
+      setActiveStep('agreement');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          'Failed to save Driver Verification information',
+      );
+    } finally {
+      setSavingPersonal(false);
+    }
   };
 
-  const handleSaveIdentity = async () => {
-    if (ssnLast4.replace(/\D/g, '').length !== 4) { toast.error('Please enter exactly 4 digits for SSN'); return; }
+  const handleSubmitForReview = async () => {
+    if (uploadedCount < requiredDocs.length) {
+      toast.error('Upload all required documents before submitting');
+      return;
+    }
+    if (!personalInfoComplete) {
+      toast.error(
+        `Return to Information and complete: ${missingPersonalRequirements
+          .map((item) => item.label)
+          .join(', ')}`,
+      );
+      return;
+    }
+    if (!verificationAgreement) {
+      toast.error('Accept the Verification Agreement before submitting');
+      return;
+    }
+
     setSavingIdentity(true);
     try {
       const token = await getToken();
-      const res = await apiClient.patch('/api/driver-profile/identity-verification', {
-        ssnLast4: ssnLast4.replace(/\D/g, ''),
-        backgroundCheckConsent: bgCheckConsent || undefined,
-        verificationAgreement: verificationAgreement || undefined,
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data?.data) { setProfile(res.data.data); setVerificationStatus(res.data.data.verificationStatus || 'not_started'); }
-      toast.success('Identity verification updated');
-    } catch { toast.error('Failed to save identity verification'); }
-    finally { setSavingIdentity(false); }
+      const response = await apiClient.patch(
+        '/api/driver-profile/identity-verification',
+        {
+          ssnLast4: ssnLast4.replace(/\D/g, ''),
+          backgroundCheckConsent: bgCheckConsent,
+          verificationAgreement: true,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = response.data?.data as DriverProfile | undefined;
+      if (data) hydrateProfile(data);
+      toast.success(
+        data?.verificationStatus === 'verified'
+          ? 'Driver Verification completed'
+          : 'Driver Verification submitted for admin review',
+      );
+      setActiveStep('review');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || 'Failed to submit Driver Verification',
+      );
+    } finally {
+      setSavingIdentity(false);
+    }
   };
 
+  const closeDocumentViewer = useCallback(() => {
+    if (viewingObjectUrl) {
+      URL.revokeObjectURL(viewingObjectUrl);
+    }
+    setViewingObjectUrl('');
+    setViewingMimeType('');
+    setViewingError('');
+    setViewingLoading(false);
+    setViewingDoc(null);
+  }, [viewingObjectUrl]);
+
+  const openDocumentViewer = useCallback(
+    async (doc: ComplianceDocument) => {
+      if (viewingObjectUrl) {
+        URL.revokeObjectURL(viewingObjectUrl);
+      }
+
+      setViewingDoc(doc);
+      setViewingObjectUrl('');
+      setViewingMimeType(doc.mimeType || '');
+      setViewingError('');
+      setViewingLoading(true);
+
+      try {
+        const token = await getToken();
+        const response = await apiClient.get(
+          `/api/driver-profile/documents/${doc._id}/file`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            responseType: 'blob',
+          },
+        );
+
+        const contentType =
+          String(response.headers?.['content-type'] || '').split(';')[0] ||
+          doc.mimeType ||
+          'application/octet-stream';
+
+        const blob =
+          response.data instanceof Blob
+            ? response.data
+            : new Blob([response.data], { type: contentType });
+
+        setViewingMimeType(contentType);
+        setViewingObjectUrl(URL.createObjectURL(blob));
+      } catch (error: any) {
+        setViewingError(
+          error?.response?.data?.message ||
+            'This document could not be opened. You can replace or delete it.',
+        );
+      } finally {
+        setViewingLoading(false);
+      }
+    },
+    [getToken, viewingObjectUrl],
+  );
+
+  useEffect(
+    () => () => {
+      if (viewingObjectUrl) URL.revokeObjectURL(viewingObjectUrl);
+    },
+    [viewingObjectUrl],
+  );
+
+  const openReplaceFor = useCallback((doc: ComplianceDocument) => {
+    setReplaceTarget(doc);
+    setUploadType(doc.type);
+    setUploadLabel(doc.label || doc.fileName || '');
+    setUploadExpiry(toDateInputValue(doc.expiresAt));
+    setUploadFile(null);
+    setDragOver(false);
+    setShowUploadDialog(true);
+  }, []);
+
+  const getInformationExpirationForDocument = useCallback(
+    (type: string) => {
+      if (type === 'drivers_license') return licenseExp;
+      if (type === 'medical_card') return medicalExp;
+      if (type === 'insurance_certificate') return insuranceExp;
+      return '';
+    },
+    [insuranceExp, licenseExp, medicalExp],
+  );
+
   const openUploadFor = (type: string) => {
+    setReplaceTarget(null);
     setUploadType(type);
-    const r = REQUIRED_DOCUMENTS.find(d => d.type === type);
-    setUploadLabel(r?.label || '');
-    setUploadExpiry('');
+    setUploadLabel(
+      REQUIRED_DOCUMENTS.find((item) => item.type === type)?.label || '',
+    );
+
+    // Information -> Documents reuse:
+    // if the matching Information expiration is already known, reuse it in
+    // the upload dialog so the driver does not type the same date twice.
+    setUploadExpiry(getInformationExpirationForDocument(type));
     setUploadFile(null);
     setDragOver(false);
     setShowUploadDialog(true);
   };
 
   const handleUpload = async () => {
-    if (!uploadFile || !uploadLabel.trim()) { toast.error('Please select a file and provide a label'); return; }
-    if (uploadFile.size > 5 * 1024 * 1024) { toast.error('File must be under 5MB'); return; }
+    if (!uploadFile || !uploadLabel.trim()) {
+      toast.error('Please select a file and provide a label');
+      return;
+    }
+    if (uploadFile.size > 5 * 1024 * 1024) {
+      toast.error('File must be under 5MB');
+      return;
+    }
+
+    const uploadRequiresExpiry = DOCUMENT_EXPIRY_TYPES.has(uploadType);
+    if (uploadRequiresExpiry && !uploadExpiry) {
+      toast.error('Expiration date is required for this document');
+      return;
+    }
+
+    const existingInformationExpiration =
+      getInformationExpirationForDocument(uploadType);
+
     setUploading(true);
     try {
       const token = await getToken();
-      const fd = new FormData();
-      fd.append('document', uploadFile);
-      fd.append('type', uploadType);
-      fd.append('label', uploadLabel.trim());
-      if (uploadExpiry) fd.append('expiresAt', uploadExpiry);
-      const res = await apiClient.post('/api/driver-profile/documents', fd, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-      });
-      if (res.data?.data) setProfile(res.data.data);
-      toast.success('Document uploaded — pending review');
+      const body = new FormData();
+      body.append('document', uploadFile);
+      body.append('type', uploadType);
+      body.append('label', uploadLabel.trim());
+      if (uploadExpiry) body.append('expiresAt', uploadExpiry);
+
+      const uploadEndpoint = replaceTarget
+        ? `/api/driver-profile/documents/${replaceTarget._id}/replace`
+        : '/api/driver-profile/documents';
+
+      const response = await apiClient.post(
+        uploadEndpoint,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        },
+      );
+
+      const updated = response.data?.data as DriverProfile | undefined;
+
+      // IMPORTANT: do not call fetchProfile() here.
+      //
+      // fetchProfile() resolves the "best resume step", which used to force the
+      // driver from Documents into Agreement immediately after an upload. A
+      // document mutation should update document/profile data only and preserve
+      // the step the driver intentionally has open.
+      if (updated) {
+        setProfile(updated);
+        setVerificationStatus(
+          (updated.verificationStatus || verificationStatus) as VerificationStatus,
+        );
+
+        // Documents -> Information reuse. Only fill an empty local field.
+        // Existing Information values are never silently overwritten.
+        if (uploadExpiry) {
+          if (uploadType === 'drivers_license' && !licenseExp) {
+            setLicenseExp(uploadExpiry);
+          } else if (uploadType === 'medical_card' && !medicalExp) {
+            setMedicalExp(uploadExpiry);
+          } else if (
+            uploadType === 'insurance_certificate' &&
+            !insuranceExp
+          ) {
+            setInsuranceExp(uploadExpiry);
+          }
+        }
+      }
+
+      toast.success(
+        replaceTarget
+          ? 'Document replaced — pending review'
+          : 'Document uploaded — pending review',
+      );
+
+      if (
+        uploadExpiry &&
+        existingInformationExpiration &&
+        existingInformationExpiration !== uploadExpiry
+      ) {
+        toast.warning(
+          `The uploaded document expires ${uploadExpiry}, while Information currently shows ${existingInformationExpiration}. The existing Information value was kept — review it before Save & Next.`,
+        );
+      }
+
       setShowUploadDialog(false);
-    } catch { toast.error('Failed to upload document'); }
-    finally { setUploading(false); }
+      setReplaceTarget(null);
+      // Deliberately preserve activeStep so the driver can continue uploading
+      // optional/supporting documents without being forced into Agreement.
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleDelete = async (docId: string) => {
-    setDeletingId(docId);
+  const handleDelete = async (documentId: string) => {
+    setDeletingId(documentId);
     try {
       const token = await getToken();
-      const res = await apiClient.delete(`/api/driver-profile/documents/${docId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data?.data) setProfile(res.data.data);
+      const response = await apiClient.delete(
+        `/api/driver-profile/documents/${documentId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      const updated = response.data?.data as DriverProfile | undefined;
+      if (updated) {
+        setProfile(updated);
+        setVerificationStatus(
+          (updated.verificationStatus || verificationStatus) as VerificationStatus,
+        );
+      }
+
       toast.success('Document removed');
       setShowDeleteConfirm(null);
-    } catch { toast.error('Failed to delete document'); }
-    finally { setDeletingId(null); }
-  };
-
-  const documents = profile?.documents || [];
-  const getDocStatus = (type: string) => {
-    const docs = documents.filter((d: ComplianceDocument) => d.type === type);
-    if (!docs.length) return 'missing';
-    if (docs.some((d: ComplianceDocument) => d.verified)) return 'verified';
-    if (docs.some((d: ComplianceDocument) => d.reviewStatus === 'rejected')) return 'rejected';
-    return 'pending';
-  };
-
-  const requiredDocs = REQUIRED_DOCUMENTS.filter(d => d.required);
-  const optionalDocs = REQUIRED_DOCUMENTS.filter(d => !d.required);
-  const verifiedCount = requiredDocs.filter(d => getDocStatus(d.type) === 'verified').length;
-  const uploadedCount = requiredDocs.filter(d => getDocStatus(d.type) !== 'missing').length;
-
-  const stepStatus = useMemo(() => ({
-    documents: uploadedCount === requiredDocs.length ? 'done' : uploadedCount > 0 ? 'partial' : 'pending',
-    personal: driverFirstName && licenseNumber && licenseExp && insuranceProvider ? 'done' : driverFirstName || licenseNumber || licenseExp || insuranceProvider ? 'partial' : 'pending',
-    agreement: verificationAgreement ? 'done' : 'pending',
-    review: verificationStatus === 'verified' ? 'done' : verificationStatus === 'under_review' ? 'partial' : 'pending',
-  }), [uploadedCount, requiredDocs.length, driverFirstName, licenseNumber, licenseExp, insuranceProvider, verificationAgreement, verificationStatus]);
-
-  useEffect(() => {
-    if (!loading && profile) {
-      if (uploadedCount < requiredDocs.length) setActiveStep('documents');
-      else if (!driverFirstName || !licenseNumber || !licenseExp) setActiveStep('personal');
-      else if (!verificationAgreement) setActiveStep('agreement');
-      else setActiveStep('review');
+      // Preserve the current step after document deletion as well.
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to delete document');
+    } finally {
+      setDeletingId(null);
     }
-  }, [loading, profile, uploadedCount, requiredDocs.length, driverFirstName, licenseNumber, licenseExp, verificationAgreement]);
+  };
 
-  const overallPct = useMemo(() => {
-    let s = 0;
-    s += Math.round((uploadedCount / Math.max(requiredDocs.length, 1)) * 30);
-    if (driverFirstName && licenseNumber && licenseExp && insuranceProvider) s += 25;
-    if (verificationAgreement) s += 20;
-    s += Math.round((verifiedCount / Math.max(requiredDocs.length, 1)) * 25);
-    return Math.min(s, 100);
-  }, [uploadedCount, requiredDocs.length, driverFirstName, licenseNumber, licenseExp, insuranceProvider, verificationAgreement, verifiedCount]);
-
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      <div className="relative">
-        <div className="size-16 rounded-full border-4 border-emerald-500/20 animate-pulse" />
-        <Loader2 className="size-8 animate-spin text-emerald-500 absolute inset-0 m-auto" />
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Securing Connection
+        </p>
       </div>
-      <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Securing Connection</p>
-    </div>
-  );
-
-  const licStatus = getExpStatus(licenseExp);
-  const medStatus = getExpStatus(medicalExp);
-  const insStatus = getExpStatus(insuranceExp);
-  const curStep = STEPS.find(s => s.id === activeStep)!;
-  const curIdx = STEPS.findIndex(s => s.id === activeStep);
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
-
-        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
-          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-          <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-          <div className="absolute inset-0 opacity-[0.035] dark:opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M20 20.5V18H0v-2h20v-2l2 3-2 3zM0 20.5V18h20v-2l2 3-2 3H0v-1.5z\' fill=\'%23fff\' fill-opacity=\'.5\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
-
-          <div className="relative p-5 sm:p-7">
-            <div className="flex items-center justify-between gap-4 mb-5">
+    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
+      <div className="space-y-5">
+        <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl">
+          <div className="p-5 sm:p-7">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Link href="/driver/profile" className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm">
-                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
+                <Link
+                  href="/driver/profile"
+                  className="rounded-xl border border-border/70 p-2.5 hover:bg-muted"
+                >
+                  <ArrowLeft className="size-4" />
                 </Link>
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Driver Verification</h1>
-                    <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/35 shadow-sm">
-                      <Lock className="size-3 text-emerald-600 dark:text-emerald-400" /><span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Encrypted</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-black sm:text-3xl">
+                      Driver Verification
+                    </h1>
+                    <Badge className="hidden gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 sm:flex">
+                      <Lock className="size-3" /> Encrypted
+                    </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">FMCSA-compliant driver onboarding</p>
+                  <p className="text-sm text-muted-foreground">
+                    FMCSA-compliant driver onboarding
+                  </p>
                 </div>
               </div>
-              <div className="text-right hidden sm:block">
-                <span className="text-4xl font-black tabular-nums text-foreground">{overallPct}%</span>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Complete</p>
+              <div className="hidden text-right sm:block">
+                <p className="text-4xl font-black">{overallPct}%</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Complete
+                </p>
               </div>
             </div>
 
-            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-white/10 border border-slate-300/70 dark:border-white/10 overflow-hidden mb-5">
-              <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-400 to-teal-400" initial={false} animate={{ width: `${overallPct}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />
+            <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-muted">
+              <motion.div
+                className="h-full rounded-full bg-emerald-500"
+                animate={{ width: `${overallPct}%` }}
+              />
             </div>
 
-            <div className="relative flex items-center gap-0 px-2">
-              {STEPS.map((step, i) => {
+            <div className="flex items-center gap-1">
+              {STEPS.map((step, index) => {
                 const status = stepStatus[step.id];
+                const Icon = step.icon;
                 const active = activeStep === step.id;
                 return (
                   <React.Fragment key={step.id}>
-                    <button type="button" onClick={() => setActiveStep(step.id)} className="relative z-10 flex flex-col items-center gap-1.5 group">
-                      <motion.div animate={active ? { scale: 1.15 } : { scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                        className={cn('size-10 sm:size-11 rounded-xl flex items-center justify-center transition-all border-2',
-                          active ? 'bg-background dark:bg-white/15 border-primary/45 dark:border-white/30 shadow-md ring-1 ring-primary/10' :
-                            status === 'done' ? 'bg-emerald-500/12 border-emerald-500/35' :
-                              status === 'partial' ? 'bg-amber-500/12 border-amber-500/35' :
-                                'bg-background/70 dark:bg-white/5 border-border/80 dark:border-white/15')}>
-                        {status === 'done' ? <CheckCircle2 className="size-5 text-emerald-400" /> :
-                          <step.icon className={cn('size-4.5', active ? 'text-primary dark:text-white' : 'text-muted-foreground')} />}
-                      </motion.div>
-                      <span className={cn(
-                        'text-[10px] font-bold whitespace-nowrap',
-                        active
-                          ? 'text-foreground'
-                          : status === 'done'
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : status === 'partial'
-                              ? 'text-amber-700 dark:text-amber-400'
-                              : 'text-muted-foreground',
-                      )}>{step.label}</span>
-                    </button>
-                    {i < STEPS.length - 1 && (
-                      <div className="flex-1 h-0.5 mx-1 rounded-full relative -mt-5">
-                        <div className="absolute inset-0 bg-slate-300/80 dark:bg-white/10 rounded-full" />
-                        <motion.div initial={false} animate={{ width: status === 'done' ? '100%' : '0%' }}
-                          className="absolute inset-y-0 left-0 bg-emerald-400/50 rounded-full" transition={{ duration: 0.4 }} />
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep(step.id)}
+                      className="flex flex-col items-center gap-1.5"
+                    >
+                      <div
+                        className={cn(
+                          'flex size-11 items-center justify-center rounded-xl border-2',
+                          active
+                            ? 'border-primary bg-primary/10'
+                            : status === 'done'
+                              ? 'border-emerald-500/40 bg-emerald-500/10'
+                              : status === 'partial'
+                                ? 'border-amber-500/40 bg-amber-500/10'
+                                : 'border-border/70',
+                        )}
+                      >
+                        {status === 'done' ? (
+                          <CheckCircle2 className="size-5 text-emerald-500" />
+                        ) : (
+                          <Icon className="size-5" />
+                        )}
                       </div>
+                      <span className="text-[10px] font-bold">{step.label}</span>
+                    </button>
+                    {index < STEPS.length - 1 && (
+                      <div className="h-0.5 flex-1 bg-border/60" />
                     )}
                   </React.Fragment>
                 );
@@ -402,696 +1246,1153 @@ export const DocumentsPage: React.FC = () => {
           </div>
         </div>
 
-        {verificationStatus !== 'verified' && (
-          <div className="flex items-center justify-center gap-6 flex-wrap py-2">
-            {[
-              { icon: Lock, label: 'TLS 1.3 Encrypted' },
-              { icon: Shield, label: 'AES-256 at Rest' },
-              { icon: ShieldCheck, label: 'FMCSA Compliant' },
-              { icon: Fingerprint, label: 'SOC 2 Data Handling' },
-            ].map(s => (
-              <div key={s.label} className="flex items-center gap-1.5 text-muted-foreground/75">
-                <s.icon className="size-3" /><span className="text-[10px] font-semibold">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {verificationStatus === 'verified' && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-            <Card className="border-2 border-emerald-500/30 bg-emerald-500/5 overflow-hidden rounded-2xl">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className="size-14 rounded-2xl bg-emerald-500/15 flex items-center justify-center"><Sparkles className="size-7 text-emerald-500" /></div>
-                <div className="flex-1">
-                  <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400">Profile Approved & Verified</h2>
-                  <p className="text-sm text-muted-foreground">All documents verified. You are cleared to access loads and start working.</p>
-                </div>
-                <BadgeCheck className="size-10 text-emerald-500 hidden sm:block" />
-              </CardContent>
-            </Card>
-          </motion.div>
+          <Card className="border-emerald-500/30 bg-emerald-500/5">
+            <CardContent className="flex items-center gap-4 p-5">
+              <Sparkles className="size-7 text-emerald-500" />
+              <div>
+                <h2 className="font-black text-emerald-600">
+                  Profile Approved & Verified
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Your Driver Verification is complete.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <AnimatePresence mode="wait">
-          <motion.div key={activeStep} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-
+          <motion.div
+            key={activeStep}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+          >
             {activeStep === 'documents' && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
-                  <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
-                  <div className="relative p-6 sm:p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><FileCheck className="size-7" /></div>
-                      <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Required Documents</h2>
-                        <p className="text-sm text-muted-foreground mt-1">{uploadedCount} of {requiredDocs.length} uploaded • {verifiedCount} verified</p>
-                      </div>
-                      <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-lg px-4 py-2">{Math.round((uploadedCount / requiredDocs.length) * 100)}%</Badge>
-                    </div>
-
-                    <div className="mb-8 h-2 rounded-full bg-border/40 overflow-hidden">
-                      <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30" initial={false} animate={{ width: `${(uploadedCount / requiredDocs.length) * 100}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />
-                    </div>
-
-                    <div className="space-y-3">
-                      {requiredDocs.map((req, idx) => {
-                        const status = getDocStatus(req.type);
-                        const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
-                        const Icon = DOC_ICONS[req.type] || FileText;
-                        return (
-                          <motion.div key={req.type} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }}>
-                            <div className={cn('rounded-2xl border-2 transition-all overflow-hidden',
-                              status === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' :
-                                status === 'rejected' ? 'border-red-500/30 bg-red-500/5' :
-                                  status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/75 hover:border-primary/50 hover:bg-primary/5')}>
-                              <div className="p-4 flex items-start gap-4">
-                                <div className={cn('size-12 rounded-xl flex items-center justify-center shrink-0',
-                                  status === 'verified' ? 'bg-emerald-500/15' : status === 'rejected' ? 'bg-red-500/15' :
-                                    status === 'pending' ? 'bg-amber-500/15' : 'bg-muted/30')}>
-                                  {status === 'verified' ? <CheckCircle2 className="size-6 text-emerald-500" /> :
-                                    status === 'rejected' ? <Ban className="size-6 text-red-500" /> :
-                                      status === 'pending' ? <Clock className="size-6 text-amber-500" /> :
-                                        <Icon className="size-6 text-muted-foreground" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <h3 className="text-base font-bold">{req.label}</h3>
-                                    <Badge className={cn('text-xs px-2 py-1 border font-bold',
-                                      status === 'verified' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' :
-                                        status === 'pending' ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' :
-                                          status === 'rejected' ? 'bg-red-500/10 text-red-600 border-red-500/30' :
-                                            'bg-destructive/10 text-destructive border-destructive/30')}>
-                                      {status === 'verified' ? 'VERIFIED' : status === 'pending' ? 'UNDER REVIEW' : status === 'rejected' ? 'REJECTED' : 'REQUIRED'}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed">{req.description}</p>
-                                </div>
-                                <Button variant={status === 'missing' ? 'default' : 'outline'} size="sm" onClick={() => openUploadFor(req.type)}
-                                  disabled={documents.length >= 20} className="shrink-0 gap-2 rounded-xl">
-                                  {status === 'missing' ? <Camera className="size-4" /> : <Upload className="size-4" />}
-                                  <span>{status === 'missing' ? 'Upload' : 'Replace'}</span>
-                                </Button>
-                              </div>
-                              {ups.length > 0 && (
-                                <div className="border-t border-border/50 bg-muted/20 px-4 py-3">
-                                  {ups.map((doc: ComplianceDocument) => {
-                                    const ex = doc.expiresAt ? getExpStatus(doc.expiresAt) : null;
-                                    return (
-                                      <div key={doc._id} className="flex items-center gap-3 group">
-                                        <FileText className="size-4 text-muted-foreground shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-semibold truncate">{doc.label || doc.fileName}</p>
-                                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                            <span className="text-[10px] text-muted-foreground">{fmtSize(doc.fileSize)}</span>
-                                            {doc.uploadedAt && <span className="text-[10px] text-muted-foreground">Uploaded {fmtDate(doc.uploadedAt)}</span>}
-                                            {doc.verified && doc.verifiedAt && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">✓ Verified {fmtDate(doc.verifiedAt)}</span>}
-                                            {doc.reviewStatus === 'rejected' && <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold">Rejected</span>}
-                                            {ex && <span className={cn('text-[10px] font-semibold', ex.c)}>{ex.l}</span>}
-                                          </div>
-                                          {doc.reviewStatus === 'rejected' && doc.rejectionReason && (
-                                            <div className="flex items-start gap-1.5 mt-2 p-2.5 rounded-lg bg-red-500/5 border border-red-500/20">
-                                              <FileWarning className="size-3 text-red-500 shrink-0 mt-0.5" />
-                                              <p className="text-[10px] text-red-600 dark:text-red-400 leading-relaxed">{doc.rejectionReason}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                          {doc.fileUrl && <Button size="icon" variant="ghost" className="size-8 hover:bg-primary/20"
-                                            onClick={() => setViewingDoc(doc)}>
-                                            <Eye className="size-4" />
-                                          </Button>}
-                                          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/20"
-                                            onClick={() => setShowDeleteConfirm(doc._id)} disabled={deletingId === doc._id}>
-                                            {deletingId === doc._id ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-4" />}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-
-                    {optionalDocs.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-3 pt-8 pb-4"><div className="h-px flex-1 bg-border/20" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Optional Documents</span><div className="h-px flex-1 bg-border/20" /></div>
-                        <div className="space-y-2">
-                          {optionalDocs.map(req => {
-                            const status = getDocStatus(req.type);
-                            const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
-                            return (
-                              <div key={req.type} className={cn('rounded-2xl border-2 p-4 flex items-center gap-4 transition-all',
-                                status === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' : status === 'pending' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border/70')}>
-                                <div className="size-10 rounded-lg bg-muted/30 flex items-center justify-center shrink-0"><FileText className="size-5 text-muted-foreground" /></div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2"><h3 className="text-sm font-bold">{req.label}</h3><Badge variant="outline" className="text-[9px] h-5 font-bold">Optional</Badge></div>
-                                  {ups.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1">
-                                    {ups.map((doc: ComplianceDocument) => (
-                                      <Badge key={doc._id} variant="outline" className="gap-1 text-[10px] pr-1">
-                                        {doc.fileName}<button type="button" onClick={() => setShowDeleteConfirm(doc._id)} className="hover:text-destructive ml-0.5"><X className="size-2.5" /></button>
-                                      </Badge>
-                                    ))}
-                                  </div>}
-                                </div>
-                                <Button variant="outline" size="sm" onClick={() => openUploadFor(req.type)} className="gap-1.5 shrink-0 rounded-lg" disabled={documents.length >= 20}><Upload className="size-4" /></Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-
-                    <div className="flex items-center justify-between pt-8 border-t border-border/55">
-                      <Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      <Button onClick={() => setActiveStep('personal')} disabled={uploadedCount < requiredDocs.length} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
-                        Next: Information <ChevronRight className="size-4" />
-                      </Button>
-                    </div>
+              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+                <div className="mb-6 flex items-center gap-4">
+                  <FileCheck className="size-8 text-emerald-500" />
+                  <div>
+                    <h2 className="text-2xl font-black">Required Documents</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {uploadedCount} of {requiredDocs.length} uploaded •{' '}
+                      {verifiedCount} verified
+                    </p>
                   </div>
                 </div>
-              </motion.div>
+
+                <div className="space-y-3">
+                  {requiredDocs.map((item) => {
+                    const status = getDocStatus(item.type);
+                    const Icon = DOC_ICONS[item.type] || FileText;
+                    const matching = documents.filter((doc) => doc.type === item.type);
+                    return (
+                      <div
+                        key={item.type}
+                        className="overflow-hidden rounded-2xl border border-border/70"
+                      >
+                        <div className="flex items-start gap-4 p-4">
+                          <Icon className="mt-1 size-6 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-bold">{item.label}</h3>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  status === 'verified' && 'border-emerald-500/30 text-emerald-600',
+                                  status === 'pending' && 'border-amber-500/30 text-amber-600',
+                                  status === 'rejected' && 'border-red-500/30 text-red-600',
+                                )}
+                              >
+                                {status === 'missing'
+                                  ? 'REQUIRED'
+                                  : status === 'verified'
+                                    ? 'VERIFIED'
+                                    : status === 'rejected'
+                                      ? 'REJECTED'
+                                      : 'UNDER REVIEW'}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.description}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => openUploadFor(item.type)}
+                            disabled={documents.length >= 20}
+                          >
+                            <Upload className="mr-1.5 size-4" />
+                            {status === 'missing' ? 'Upload' : 'Upload New'}
+                          </Button>
+                        </div>
+
+                        {matching.length > 0 && (
+                          <div className="space-y-2 border-t border-border/60 bg-muted/20 p-4">
+                            {matching.map((doc) => {
+                              const exp = expirationStatus(doc.expiresAt);
+                              return (
+                                <div key={doc._id} className="flex items-center gap-3">
+                                  <FileText className="size-4 text-muted-foreground" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-semibold">
+                                      {doc.label || doc.fileName}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                                      <span>{formatSize(doc.fileSize)}</span>
+                                      {doc.uploadedAt && (
+                                        <span>Uploaded {formatDate(doc.uploadedAt)}</span>
+                                      )}
+                                      {exp && (
+                                        <span className={exp.className}>{exp.label}</span>
+                                      )}
+                                    </div>
+                                    {doc.reviewStatus === 'rejected' &&
+                                      doc.rejectionReason && (
+                                        <div className="mt-2 flex gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 p-2 text-[10px] text-red-600">
+                                          <FileWarning className="size-3 shrink-0" />
+                                          {doc.rejectionReason}
+                                        </div>
+                                      )}
+                                  </div>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    title="View document"
+                                    onClick={() => void openDocumentViewer(doc)}
+                                  >
+                                    <Eye className="size-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    title="Replace document"
+                                    onClick={() => openReplaceFor(doc)}
+                                  >
+                                    <RotateCcw className="size-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    title="Delete document"
+                                    className="text-destructive"
+                                    onClick={() => setShowDeleteConfirm(doc._id)}
+                                  >
+                                    <Trash2 className="size-4" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {optionalDocs.length > 0 && (
+                  <div className="mt-8 space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Optional Documents
+                    </p>
+
+                    {optionalDocs.map((item) => {
+                      const matching = documents.filter(
+                        (doc) => doc.type === item.type,
+                      );
+                      const Icon = DOC_ICONS[item.type] || FileText;
+
+                      return (
+                        <div
+                          key={item.type}
+                          className="overflow-hidden rounded-xl border border-border/70"
+                        >
+                          <div className="flex items-center justify-between gap-3 p-3">
+                            <div className="flex min-w-0 items-start gap-3">
+                              <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold">{item.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.description}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openUploadFor(item.type)}
+                              disabled={documents.length >= 20}
+                            >
+                              <Upload className="mr-1.5 size-4" />
+                              {matching.length ? 'Upload New' : 'Upload'}
+                            </Button>
+                          </div>
+
+                          {matching.length > 0 && (
+                            <div className="space-y-2 border-t border-border/60 bg-muted/20 p-3">
+                              {matching.map((doc) => {
+                                const exp = expirationStatus(doc.expiresAt);
+
+                                return (
+                                  <div
+                                    key={doc._id}
+                                    className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/60 p-2.5"
+                                  >
+                                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-xs font-semibold">
+                                        {doc.label || doc.fileName}
+                                      </p>
+                                      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                                        <span>{formatSize(doc.fileSize)}</span>
+                                        {doc.uploadedAt && (
+                                          <span>
+                                            Uploaded {formatDate(doc.uploadedAt)}
+                                          </span>
+                                        )}
+                                        {exp && (
+                                          <span className={exp.className}>
+                                            {exp.label}
+                                          </span>
+                                        )}
+                                        <span>
+                                          {doc.reviewStatus === 'rejected'
+                                            ? 'Rejected'
+                                            : doc.verified
+                                              ? 'Verified'
+                                              : 'Pending review'}
+                                        </span>
+                                      </div>
+                                      {doc.reviewStatus === 'rejected' &&
+                                        doc.rejectionReason && (
+                                          <div className="mt-2 flex gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 p-2 text-[10px] text-red-600">
+                                            <FileWarning className="size-3 shrink-0" />
+                                            {doc.rejectionReason}
+                                          </div>
+                                        )}
+                                    </div>
+
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      title="View document"
+                                      onClick={() => void openDocumentViewer(doc)}
+                                    >
+                                      <Eye className="size-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      title="Replace document"
+                                      onClick={() => openReplaceFor(doc)}
+                                    >
+                                      <RotateCcw className="size-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      title="Delete document"
+                                      className="text-destructive"
+                                      onClick={() => setShowDeleteConfirm(doc._id)}
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-8 flex justify-end border-t border-border/60 pt-5">
+                  <Button
+                    onClick={() => setActiveStep('personal')}
+                    disabled={uploadedCount < requiredDocs.length}
+                  >
+                    Next: Information <ChevronRight className="ml-1.5 size-4" />
+                  </Button>
+                </div>
+              </div>
             )}
 
             {activeStep === 'personal' && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
-                  <div className="absolute inset-0 bg-linear-to-br from-blue-500/5 via-transparent to-indigo-500/5" />
-                  <div className="relative p-6 sm:p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30"><UserCheck className="size-7" /></div>
-                      <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Your Information</h2>
-                        <p className="text-sm text-muted-foreground mt-1">Complete your driver and vehicle details</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      <FormSection icon="Driver Details" items={[
-                        { label: 'First Name *', value: driverFirstName, onChange: setDriverFirstName, placeholder: 'John' },
-                        { label: 'Last Name *', value: driverLastName, onChange: setDriverLastName, placeholder: 'Doe' },
-                      ]} />
-
-                      <FormSection icon="Contact Information" items={[
-                        { label: 'Phone Number', value: driverPhone, onChange: setDriverPhone, placeholder: '(123) 456-7890' },
-                        { label: 'City', value: driverCity, onChange: setDriverCity, placeholder: 'Salt Lake City' },
-                      ]} />
-
-                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
-                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Address</h3>
-                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold text-muted-foreground">Street Address</Label>
-                            <Input value={driverAddress} onChange={e => setDriverAddress(e.target.value)} placeholder="123 Main St" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                          </div>
-                        </motion.div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-muted-foreground">State</Label>
-                              <Select value={driverState} onValueChange={setDriverState}>
-                                <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
-                                <SelectContent className="border-2 border-border/50 shadow-xl rounded-xl"><motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>{US_STATES.map(s => <SelectItem key={s} value={s} className="cursor-pointer hover:bg-primary/10 focus:bg-primary/20 rounded-lg">{s}</SelectItem>)}</motion.div></SelectContent>
-                              </Select>
-                            </div>
-                          </motion.div>
-                          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-muted-foreground">ZIP Code</Label>
-                              <Input value={driverZip} onChange={e => setDriverZip(e.target.value)} placeholder="84111" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                            </div>
-                          </motion.div>
-                        </div>
-                      </div>
-
-                      <FormSection icon="License & Credentials" items={[
-                        { label: 'CDL Number *', value: licenseNumber, onChange: setLicenseNumber, placeholder: 'DL-XXXXXXXX', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'CDL Expiration *', type: 'date', value: licenseExp, onChange: setLicenseExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                      ]} />
-
-                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
-                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">License State *</h3>
-                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
-                          <Select value={licenseState} onValueChange={setLicenseState}>
-                            <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"><SelectValue placeholder="Select state" /></SelectTrigger>
-                            <SelectContent className="border-2 border-border/50 shadow-xl rounded-xl"><motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>{US_STATES.map(s => <SelectItem key={s} value={s} className="cursor-pointer hover:bg-primary/10 focus:bg-primary/20 rounded-lg">{s}</SelectItem>)}</motion.div></SelectContent>
-                          </Select>
-                        </motion.div>
-                      </div>
-
-                      <FormSection icon="Medical & Insurance" items={[
-                        { label: 'Medical Card Expires', type: 'date', value: medicalExp, onChange: setMedicalExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Insurance Expires', type: 'date', value: insuranceExp, onChange: setInsuranceExp, className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Insurance Provider *', value: insuranceProvider, onChange: setInsuranceProvider, placeholder: 'e.g. Progressive', className: 'bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                        { label: 'Policy Number *', value: insurancePolicyNumber, onChange: setInsurancePolicyNumber, placeholder: 'e.g. POL-123456', className: 'font-mono bg-linear-to-br from-background to-muted/30 border-2 border-border/70 hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20' },
-                      ]} />
-
-                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
-                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Vehicle Information</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-muted-foreground">Make</Label>
-                              <Input value={vehicleMake} onChange={e => setVehicleMake(e.target.value)} placeholder="Freightliner" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                            </div>
-                          </motion.div>
-                          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-muted-foreground">Model</Label>
-                              <Input value={vehicleModel} onChange={e => setVehicleModel(e.target.value)} placeholder="Cascadia" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                            </div>
-                          </motion.div>
-                          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                              <Input value={vehicleYear} onChange={e => setVehicleYear(e.target.value)} placeholder="2020" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                            </div>
-                          </motion.div>
-                        </div>
-                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold text-muted-foreground">VIN *</Label>
-                            <Input value={vehicleVin} onChange={e => setVehicleVin(e.target.value.toUpperCase())} placeholder="WBADT43451G..." className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                          </div>
-                        </motion.div>
-                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold text-muted-foreground">License Plate</Label>
-                            <Input value={vehicleLicensePlate} onChange={e => setVehicleLicensePlate(e.target.value.toUpperCase())} placeholder="ABC-1234" className="h-11 font-mono uppercase bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-border/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
-                          </div>
-                        </motion.div>
-                      </div>
-
-                      <div className="rounded-2xl border-2 border-border/75 bg-muted/15 p-5 space-y-4">
-                        <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Security</h3>
-                        <motion.label initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className={cn('flex items-start gap-3.5 p-4 rounded-xl border-2 cursor-pointer transition-all',
-                          bgCheckConsent ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/55 hover:border-border/50')}>
-                          <input type="checkbox" checked={bgCheckConsent} onChange={e => setBgCheckConsent(e.target.checked)} className="mt-0.5 size-5 rounded border-2 border-border accent-emerald-600" />
-                          <div>
-                            <span className="text-sm font-bold">Background Check Authorization *</span>
-                            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                              I authorize {organization?.name || "Your Dealership"} to conduct a background check per the Fair Credit Reporting Act (FCRA).
-                            </p>
-                          </div>
-                        </motion.label>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-4 border-t border-border/55">
-                        <Button variant="ghost" onClick={() => setActiveStep('documents')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                        <Button onClick={handleSavePersonalInfo} disabled={savingPersonal || !driverFirstName.trim() || !licenseNumber.trim() || !licenseExp || !vehicleVin.trim() || !bgCheckConsent || !insuranceProvider.trim()} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
-                          {savingPersonal ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save & Next <ChevronRight className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
+              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+                <div className="mb-6 flex items-center gap-4">
+                  <UserCheck className="size-8 text-blue-500" />
+                  <div>
+                    <h2 className="text-2xl font-black">Your Information</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Complete all required identity, license, insurance, and vehicle fields.
+                    </p>
                   </div>
                 </div>
-              </motion.div>
+
+                <div className="space-y-6">
+                  <section className="space-y-4 rounded-2xl border border-border/70 p-5">
+                    <div>
+                      <h3 className="font-bold uppercase tracking-wider text-muted-foreground">
+                        Driver Details
+                      </h3>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Empty Name and Phone fields are autofilled from your saved Profile. City and State are autofilled only when Profile Location is a valid U.S. "City, State" value. All autofilled values remain editable and are saved only when you choose Save & Next.
+                      </p>
+                      {profileAutofillConflicts.length > 0 && (
+                        <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                          Your saved Driver Verification currently differs from Profile for: {profileAutofillConflicts.join(', ')}. The existing verification values were kept. Use the field-level Profile action below whenever you want to replace a specific value.
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>First Name *</Label>
+                        <Input value={driverFirstName} onChange={(e) => setDriverFirstName(e.target.value)} />
+                        {accountPrefill?.firstName &&
+                          profileAutofillConflicts.includes('First Name') && (
+                            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              Profile First Name: {accountPrefill.firstName}.{' '}
+                              <button
+                                type="button"
+                                onClick={() => setDriverFirstName(accountPrefill.firstName)}
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Use Profile value
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Last Name *</Label>
+                        <Input value={driverLastName} onChange={(e) => setDriverLastName(e.target.value)} />
+                        {accountPrefill?.lastName &&
+                          profileAutofillConflicts.includes('Last Name') && (
+                            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              Profile Last Name: {accountPrefill.lastName}.{' '}
+                              <button
+                                type="button"
+                                onClick={() => setDriverLastName(accountPrefill.lastName)}
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Use Profile value
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Phone Number</Label>
+                        <Input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} />
+                        {accountPrefill?.phone &&
+                          profileAutofillConflicts.includes('Phone') && (
+                            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              Profile Phone: {accountPrefill.phone}.{' '}
+                              <button
+                                type="button"
+                                onClick={() => setDriverPhone(accountPrefill.phone)}
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Use Profile value
+                              </button>
+                            </div>
+                          )}
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          Empty matching fields are filled from information you already provided in Profile or Equipment. Saved Driver Verification values always take priority, and autofilled values are not persisted until you choose Save & Next.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>City</Label>
+                        <Input value={driverCity} onChange={(e) => setDriverCity(e.target.value)} />
+                        {accountPrefill?.city &&
+                          profileAutofillConflicts.includes('City') && (
+                            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              Profile City: {accountPrefill.city}.{' '}
+                              <button
+                                type="button"
+                                onClick={() => setDriverCity(accountPrefill.city)}
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Use Profile value
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Street Address</Label>
+                      <Input value={driverAddress} onChange={(e) => setDriverAddress(e.target.value)} />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>State</Label>
+                        <Select value={driverState} onValueChange={handleDriverStateChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {US_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>
+                                {state}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {accountPrefill?.state &&
+                          profileAutofillConflicts.includes('State') && (
+                            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              Profile State: {accountPrefill.state}.{' '}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDriverState(accountPrefill.state);
+                                  const defaultZip = getDefaultZipForState(
+                                    accountPrefill.state,
+                                  );
+                                  if (defaultZip) {
+                                    setDriverZip(defaultZip);
+                                  }
+                                }}
+                                className="font-bold underline underline-offset-2"
+                              >
+                                Use Profile value
+                              </button>
+                            </div>
+                          )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>ZIP Code</Label>
+                        <Input
+                          value={driverZip}
+                          inputMode="numeric"
+                          maxLength={10}
+                          onChange={(e) =>
+                            setDriverZip(
+                              e.target.value
+                                .replace(/[^0-9-]/g, '')
+                                .slice(0, 10),
+                            )
+                          }
+                        />
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          Selecting a State provides a representative default ZIP. You can edit it to the driver's exact ZIP before Save & Next.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4 rounded-2xl border border-border/70 p-5">
+                    <h3 className="font-bold uppercase tracking-wider text-muted-foreground">
+                      License & Insurance
+                    </h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>CDL Number *</Label>
+                        <Input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>License State *</Label>
+                        <Select value={licenseState} onValueChange={setLicenseState}>
+                          <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                          <SelectContent>
+                            {US_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>{state}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CDL Expiration *</Label>
+                        <Input type="date" value={licenseExp} onChange={(e) => setLicenseExp(e.target.value)} />
+                        {licenseExpirationConflict && (
+                          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                            Uploaded CDL expiration: {uploadedLicenseExpiration}. Information currently shows {licenseExp}.{' '}
+                            <button
+                              type="button"
+                              onClick={() => setLicenseExp(uploadedLicenseExpiration)}
+                              className="font-bold underline underline-offset-2"
+                            >
+                              Use uploaded date
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Medical Card Expires</Label>
+                        <Input type="date" value={medicalExp} onChange={(e) => setMedicalExp(e.target.value)} />
+                        {medicalExpirationConflict && (
+                          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                            Uploaded Medical Card expiration: {uploadedMedicalExpiration}. Information currently shows {medicalExp}.{' '}
+                            <button
+                              type="button"
+                              onClick={() => setMedicalExp(uploadedMedicalExpiration)}
+                              className="font-bold underline underline-offset-2"
+                            >
+                              Use uploaded date
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Insurance Provider *</Label>
+                        <Input value={insuranceProvider} onChange={(e) => setInsuranceProvider(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Policy Number *</Label>
+                        <Input value={insurancePolicyNumber} onChange={(e) => setInsurancePolicyNumber(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Insurance Expires</Label>
+                        <Input type="date" value={insuranceExp} onChange={(e) => setInsuranceExp(e.target.value)} />
+                        {insuranceExpirationConflict && (
+                          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
+                            Uploaded Insurance Certificate expiration: {uploadedInsuranceExpiration}. Information currently shows {insuranceExp}.{' '}
+                            <button
+                              type="button"
+                              onClick={() => setInsuranceExp(uploadedInsuranceExpiration)}
+                              className="font-bold underline underline-offset-2"
+                            >
+                              Use uploaded date
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4 rounded-2xl border border-border/70 p-5">
+                    <div>
+                      <h3 className="font-bold uppercase tracking-wider text-muted-foreground">
+                        Vehicle Information
+                      </h3>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Make, model, year, VIN, and license plate automatically reuse your saved Equipment information when available.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Make</Label>
+                        <Input value={vehicleMake} onChange={(e) => setVehicleMake(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Model</Label>
+                        <Input value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Year</Label>
+                        <Input
+                          inputMode="numeric"
+                          value={vehicleYear}
+                          onChange={(e) => setVehicleYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>VIN *</Label>
+                        <Input
+                          maxLength={17}
+                          value={vehicleVin}
+                          onChange={(e) => setVehicleVin(e.target.value.toUpperCase())}
+                          className="font-mono uppercase"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>License Plate</Label>
+                        <Input
+                          value={vehicleLicensePlate}
+                          onChange={(e) => setVehicleLicensePlate(e.target.value.toUpperCase())}
+                          className="font-mono uppercase"
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4 rounded-2xl border border-border/70 p-5">
+                    <h3 className="font-bold uppercase tracking-wider text-muted-foreground">
+                      Security & Identity
+                    </h3>
+                    <div className="space-y-2">
+                      <Label>SSN Last 4 *</Label>
+                      <Input
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={4}
+                        value={ssnLast4}
+                        onChange={(e) => setSsnLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="••••"
+                        className="max-w-xs font-mono tracking-[0.3em]"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Used only for identity and background verification.
+                      </p>
+                    </div>
+                    <label
+                      className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4',
+                        bgCheckConsent
+                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                          : 'border-border/60',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={bgCheckConsent}
+                        onChange={(e) => setBgCheckConsent(e.target.checked)}
+                        className="mt-1 size-5 accent-emerald-600"
+                      />
+                      <div>
+                        <p className="font-bold">Background Check Authorization *</p>
+                        <p className="text-xs text-muted-foreground">
+                          I authorize {organization?.name || 'Your Dealership'} to conduct permitted background checks in accordance with applicable law.
+                        </p>
+                      </div>
+                    </label>
+                  </section>
+
+                  {missingPersonalRequirements.length > 0 && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+                      <strong>Still required:</strong>{' '}
+                      {missingPersonalRequirements.map((item) => item.label).join(', ')}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t border-border/60 pt-5">
+                    <Button variant="ghost" onClick={() => setActiveStep('documents')}>
+                      <ArrowLeft className="mr-1.5 size-4" /> Back
+                    </Button>
+                    <Button onClick={handleSavePersonalInfo} disabled={savingPersonal}>
+                      {savingPersonal ? (
+                        <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-1.5 size-4" />
+                      )}
+                      Save & Next <ChevronRight className="ml-1.5 size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {activeStep === 'agreement' && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
-                  <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 via-transparent to-orange-500/5" />
-                  <div className="relative p-6 sm:p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/30"><Scale className="size-7" /></div>
-                      <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Verification Agreement</h2>
-                        <p className="text-sm text-muted-foreground mt-1">Please review and accept the terms</p>
-                      </div>
-                      {verificationAgreement && <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 gap-1"><CheckCircle2 className="size-3" /> Accepted</Badge>}
-                    </div>
-
-                    <div className="mb-6 p-4 rounded-xl border-2 border-amber-500/20 bg-amber-500/5 flex items-start gap-3">
-                      <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Read the entire agreement before accepting</p>
-                        <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-1">Scroll to the bottom to enable the acceptance checkbox</p>
-                      </div>
-                    </div>
-
-                    <div ref={agreementContentRef} onScroll={(e) => {
-                      const el = e.currentTarget;
-                      const isAtBottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 20;
-                      setAgreementScrolledToBottom(isAtBottom);
-                    }} className="rounded-2xl border-2 border-border/65 bg-muted/5 max-h-[50vh] overflow-y-auto mb-6">
-                      <div className="sticky top-0 z-10 bg-linear-to-b from-background/95 to-background/80 backdrop-blur-sm border-b border-border/55 px-6 py-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2"><Scale className="size-5 text-amber-500" /><span className="font-bold">Driver Services Agreement</span></div>
-                        <Badge className="bg-primary/10 text-primary text-xs font-bold">Rev. 2025-01</Badge>
-                      </div>
-                      <div className="px-6 py-5 space-y-5 text-sm text-muted-foreground leading-relaxed">
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">1. Scope of Services & Relationship</h3>
-                          <p>This Driver Services Agreement ("Agreement") is entered into between Action Auto Utah LLC ("Company") and the undersigned independent contractor driver ("Driver"). By accepting this Agreement, Driver acknowledges that they are engaged as an independent contractor and not as an employee of the Company. Driver retains the right to accept or decline any load assignment. The Company does not control the means or methods by which Driver performs transportation services.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">2. Document Authenticity & Verification</h3>
-                          <p>Driver represents and warrants that all documents, credentials, licenses, certificates, and information submitted through the Action Auto platform are genuine, authentic, current, and unaltered. Driver acknowledges that the Company may verify the authenticity of any submitted document directly with issuing authorities including the DMV, FMCSA, insurance carriers, and medical examiners.</p>
-                          <p className="mt-2">The submission of any fraudulent, forged, altered, expired, or misleading document shall constitute a material breach of this Agreement.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">3. Federal & State Regulatory Compliance</h3>
-                          <p>Driver shall at all times comply with all applicable federal, state, and local laws governing transportation, including 49 CFR Parts 390-399, FMCSA Hours of Service regulations, DOT drug and alcohol testing requirements, and state-specific CDL requirements.</p>
-                          <p className="mt-2">Driver shall maintain a valid CDL, current DOT medical certification, and keep MC/DOT numbers active and in good standing with the FMCSA.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">4. Insurance & Liability Requirements</h3>
-                          <p>Driver shall maintain minimum insurance coverage: Auto Liability ($750K), Cargo Insurance ($100K), General Liability ($1M), and Workers' Compensation as required. Driver shall provide certificates of insurance prior to accepting loads.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">5. Credential Maintenance & Notification</h3>
-                          <p>Driver is responsible for maintaining all required credentials. Driver shall notify the Company within 48 hours of any expiration, suspension, revocation, or disqualifying events including citations, accidents, or arrests.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">6. Background Check Authorization</h3>
-                          <p>Driver authorizes comprehensive background investigation including criminal records, driving records, MVR, employment history, FMCSA PSP, drug and alcohol testing history, credit review, and reference checks in accordance with the Fair Credit Reporting Act (FCRA).</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">7. Data Privacy, Security & Confidentiality</h3>
-                          <p>All sensitive personal information is encrypted using industry-standard AES-256 encryption both in transit (TLS 1.3) and at rest. Access is restricted to authorized personnel. Driver acknowledges consent to collection and use of personal information for verification, compliance, dispatch, payment processing, and safety monitoring.</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-bold text-foreground text-base uppercase tracking-wider mb-2">8. Electronic Signature & Acceptance</h3>
-                          <p>By checking the acceptance box below, Driver acknowledges that they have read this Agreement in its entirety, understand all terms and conditions, and their electronic acceptance constitutes a legally binding signature under E-SIGN Act and UETA. Driver enters into this Agreement voluntarily and without coercion.</p>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground/60 italic">Last updated January 15, 2025</p>
-                      </div>
-                    </div>
-
-                    <motion.label initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={cn('flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all',
-                      bgCheckConsent && uploadedCount === requiredDocs.length && driverFirstName && licenseNumber && licenseExp ? (
-                        verificationAgreement ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-primary/50 hover:border-primary/70 bg-primary/5'
-                      ) : 'border-border/55 opacity-60 cursor-not-allowed')}>
-                      <input type="checkbox" checked={verificationAgreement} onChange={e => {
-                        if (agreementScrolledToBottom && bgCheckConsent && uploadedCount === requiredDocs.length && driverFirstName && licenseNumber && licenseExp) {
-                          setVerificationAgreement(e.target.checked);
-                        }
-                      }} disabled={!agreementScrolledToBottom || !bgCheckConsent || uploadedCount < requiredDocs.length || !driverFirstName || !licenseNumber || !licenseExp} className="mt-0.5 size-5 rounded border-2 border-border accent-emerald-600" />
-                      <div>
-                        <span className="text-sm font-bold">I accept the Verification Agreement *</span>
-                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                          {!bgCheckConsent ? 'You must authorize background checks in the Information section first.' : uploadedCount < requiredDocs.length ? `You must upload all ${requiredDocs.length} documents first.` : !driverFirstName || !licenseNumber || !licenseExp ? 'You must complete your Information section first.' : !agreementScrolledToBottom ? 'Please scroll to the bottom of the agreement to enable acceptance.' : 'By checking this, you agree to all terms above.'}
-                        </p>
-                      </div>
-                    </motion.label>
-
-                    <div className="flex items-center justify-between pt-6 border-t border-border/55">
-                      <Button variant="ghost" onClick={() => setActiveStep('personal')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      <Button onClick={handleSaveIdentity}
-                        disabled={savingIdentity || !verificationAgreement || uploadedCount < requiredDocs.length || !driverFirstName || !licenseNumber || !licenseExp}
-                        className="gap-2 rounded-xl bg-linear-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-amber-500/20">
-                        {savingIdentity ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />} Submit for Admin Review
-                      </Button>
-                    </div>
+              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+                <div className="mb-6 flex items-center gap-4">
+                  <Scale className="size-8 text-amber-500" />
+                  <div>
+                    <h2 className="text-2xl font-black">Verification Agreement</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Review the agreement before submitting your Driver Verification.
+                    </p>
                   </div>
                 </div>
-              </motion.div>
+
+                <div className="mb-4 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                  <AlertTriangle className="size-5 shrink-0 text-amber-500" />
+                  <div>
+                    <p className="font-bold text-amber-700 dark:text-amber-400">
+                      Read the entire agreement before accepting
+                    </p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                      Scroll to the bottom to enable acceptance.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  ref={agreementContentRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    const atBottom =
+                      Math.abs(
+                        element.scrollHeight - element.scrollTop - element.clientHeight,
+                      ) < 20;
+                    if (atBottom) setAgreementScrolledToBottom(true);
+                  }}
+                  className="mb-5 max-h-[50vh] space-y-5 overflow-y-auto rounded-2xl border border-border/70 p-5 text-sm leading-relaxed text-muted-foreground"
+                >
+                  <h3 className="text-lg font-black text-foreground">Driver Services Agreement</h3>
+                  <p>
+                    1. The driver confirms that the information and credentials submitted through the platform are accurate, current, and authentic.
+                  </p>
+                  <p>
+                    2. The driver agrees to maintain required licenses, insurance, medical certifications, and other transportation credentials applicable to the work performed.
+                  </p>
+                  <p>
+                    3. The driver authorizes verification of submitted credentials with appropriate issuing authorities where permitted.
+                  </p>
+                  <p>
+                    4. The driver agrees to comply with applicable federal, state, and local transportation and safety requirements.
+                  </p>
+                  <p>
+                    5. The driver authorizes permitted background and driving-record checks in accordance with applicable law and the Fair Credit Reporting Act.
+                  </p>
+                  <p>
+                    6. Sensitive information submitted for verification may be used for compliance, onboarding, dispatch, payment, and safety purposes subject to applicable privacy and security controls.
+                  </p>
+                  <p>
+                    7. By accepting below, the driver confirms that they have reviewed this agreement and intend their electronic acceptance to serve as a binding acknowledgment where permitted by law.
+                  </p>
+                  <p className="text-xs italic text-muted-foreground/60">Last updated January 15, 2025</p>
+                </div>
+
+                <label
+                  className={cn(
+                    'flex items-start gap-3 rounded-xl border-2 p-4',
+                    personalInfoComplete && uploadedCount === requiredDocs.length
+                      ? 'cursor-pointer border-primary/40 bg-primary/5'
+                      : 'cursor-not-allowed border-border/60 opacity-60',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={verificationAgreement}
+                    disabled={
+                      !agreementScrolledToBottom ||
+                      !personalInfoComplete ||
+                      uploadedCount < requiredDocs.length
+                    }
+                    onChange={(e) => setVerificationAgreement(e.target.checked)}
+                    className="mt-1 size-5 accent-emerald-600"
+                  />
+                  <div>
+                    <p className="font-bold">I accept the Verification Agreement *</p>
+                    <p className="text-xs text-muted-foreground">
+                      {uploadedCount < requiredDocs.length
+                        ? `Upload all ${requiredDocs.length} required document${requiredDocs.length === 1 ? '' : 's'} first.`
+                        : !personalInfoComplete
+                          ? `Complete the Information section first: ${missingPersonalRequirements.map((item) => item.label).join(', ')}`
+                          : !agreementScrolledToBottom
+                            ? 'Please scroll to the bottom of the agreement to enable acceptance.'
+                            : 'You can now accept and submit for review.'}
+                    </p>
+                  </div>
+                </label>
+
+                <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-5">
+                  <Button variant="ghost" onClick={() => setActiveStep('personal')}>
+                    <ArrowLeft className="mr-1.5 size-4" /> Back
+                  </Button>
+                  <Button
+                    onClick={handleSubmitForReview}
+                    disabled={
+                      savingIdentity ||
+                      !verificationAgreement ||
+                      !personalInfoComplete ||
+                      uploadedCount < requiredDocs.length
+                    }
+                  >
+                    {savingIdentity ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="mr-1.5 size-4" />
+                    )}
+                    Submit for Admin Review
+                  </Button>
+                </div>
+              </div>
             )}
 
             {activeStep === 'review' && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/65 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
-                  <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-green-500/5" />
-                  <div className="relative p-6 sm:p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className={cn('size-14 rounded-2xl flex items-center justify-center text-white shadow-lg bg-linear-to-br',
-                        verificationStatus === 'verified' ? 'from-emerald-500 to-green-500' :
-                          verificationStatus === 'under_review' ? 'from-amber-500 to-orange-500' : 'from-slate-500 to-zinc-500')}>
-                        {verificationStatus === 'verified' ? <BadgeCheck className="size-7" /> :
-                          verificationStatus === 'under_review' ? <Clock className="size-7" /> : <ShieldAlert className="size-7" />}
+              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+                <div className="mb-6 flex items-center gap-4">
+                  {verificationStatus === 'verified' ? (
+                    <BadgeCheck className="size-8 text-emerald-500" />
+                  ) : verificationStatus === 'under_review' ? (
+                    <Clock className="size-8 text-amber-500" />
+                  ) : (
+                    <ShieldAlert className="size-8 text-muted-foreground" />
+                  )}
+                  <div>
+                    <h2 className="text-2xl font-black">
+                      {verificationStatus === 'verified'
+                        ? 'Driver Verified ✓'
+                        : verificationStatus === 'under_review'
+                          ? 'Verification Under Review'
+                          : 'Review Your Submission'}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {verificationStatus === 'verified'
+                        ? 'Your Driver Verification and final approval are complete.'
+                        : verificationStatus === 'under_review'
+                          ? 'Your Documents, Information and Agreement were submitted successfully. Review stages below update as the admin completes them.'
+                          : 'Complete the previous steps before submitting for admin review.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    {
+                      label: 'Submitted',
+                      description: 'Documents, Information and Agreement received',
+                      done: verificationStatus === 'under_review' || verificationStatus === 'verified',
+                      pending: false,
+                    },
+                    {
+                      label: 'Document Review',
+                      description:
+                        verifiedCount === requiredDocs.length
+                          ? 'Required documents approved'
+                          : `${Math.max(requiredDocs.length - verifiedCount, 0)} required document${Math.max(requiredDocs.length - verifiedCount, 0) === 1 ? '' : 's'} awaiting approval`,
+                      done: verifiedCount === requiredDocs.length,
+                      pending: verificationStatus === 'under_review' && verifiedCount !== requiredDocs.length,
+                    },
+                    {
+                      label: 'Verification Review',
+                      description:
+                        verificationStatus === 'verified'
+                          ? 'Verification review complete'
+                          : 'Waiting for authorized reviewer',
+                      done: verificationStatus === 'verified',
+                      pending: verificationStatus === 'under_review',
+                    },
+                    {
+                      label: 'Final Approval',
+                      description:
+                        verificationStatus === 'verified'
+                          ? 'Driver verified'
+                          : 'Pending backend eligibility and final reviewer approval',
+                      done: verificationStatus === 'verified',
+                      pending: verificationStatus === 'under_review',
+                    },
+                  ].map((stage) => (
+                    <div
+                      key={stage.label}
+                      className={cn(
+                        'flex items-start gap-4 rounded-2xl border p-4',
+                        stage.done
+                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                          : stage.pending
+                            ? 'border-amber-500/30 bg-amber-500/5'
+                            : 'border-border/70 bg-muted/[0.08]',
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border',
+                          stage.done
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+                            : stage.pending
+                              ? 'border-amber-500/30 bg-amber-500/10 text-amber-500'
+                              : 'border-border/70 bg-muted text-muted-foreground',
+                        )}
+                      >
+                        {stage.done ? (
+                          <CheckCircle2 className="size-5" />
+                        ) : stage.pending ? (
+                          <Clock className="size-5" />
+                        ) : (
+                          <span className="size-2 rounded-full border border-current" />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">
-                          {verificationStatus === 'verified' ? 'Profile Verified ✓' :
-                            verificationStatus === 'under_review' ? 'Awaiting Admin Review' : 'Review Your Profile'}
-                        </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {verificationStatus === 'verified' ? 'Your profile has been approved and verified.' :
-                            verificationStatus === 'under_review' ? 'Our team is reviewing your submission.' : 'Status overview and timeline'}
+                      <div className="min-w-0">
+                        <p className="font-black">{stage.label}</p>
+                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                          {stage.description}
                         </p>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
-                      {[
-                        { label: 'Documents', done: uploadedCount === requiredDocs.length, icon: FileCheck },
-                        { label: 'Information', done: !!(driverFirstName && licenseNumber && licenseExp), icon: UserCheck },
-                        { label: 'Verified', done: verificationAgreement, icon: Scale },
-                        { label: 'Docs Approved', done: verifiedCount > 0, icon: CheckCircle2, sub: `${verifiedCount}/${requiredDocs.length}` },
-                        { label: 'Admin Review', done: verificationStatus === 'under_review' || verificationStatus === 'verified', icon: Clock },
-                        { label: 'Approved', done: verificationStatus === 'verified', icon: ShieldCheck },
-                      ].map((it, idx) => (
-                        <motion.div key={it.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }}>
-                          <div className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all',
-                            it.done ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border/70 bg-muted/10')}>
-                            <div className={cn('size-10 rounded-lg flex items-center justify-center', it.done ? 'bg-emerald-500/15' : 'bg-muted/20')}>
-                              {it.done ? <CheckCircle2 className="size-5 text-emerald-500" /> : <it.icon className="size-5 text-muted-foreground" />}
-                            </div>
-                            <span className={cn('text-xs font-bold text-center', it.done ? 'text-foreground' : 'text-muted-foreground')}>{it.label}</span>
-                            {it.sub && <span className="text-[10px] text-muted-foreground/60">{it.sub}</span>}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {verificationStatus === 'under_review' && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-2xl border-2 border-amber-500/25 bg-amber-500/8 p-5 mb-8">
-                        <div className="flex items-start gap-4">
-                          <div className="size-10 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 mt-1"><Clock className="size-5 text-amber-600 dark:text-amber-400" /></div>
-                          <div>
-                            <h3 className="font-bold text-amber-700 dark:text-amber-400 mb-2">Verification in Progress</h3>
-                            <ol className="text-xs text-amber-600/90 dark:text-amber-400/80 space-y-1.5 list-decimal list-inside leading-relaxed">
-                              <li>Submitted at {new Date().toLocaleDateString('en-US', { timeZone: 'America/Denver' })} - Awaiting admin review</li>
-                              <li>Documents will be verified against government records</li>
-                              <li>Background check processing (1-2 business days)</li>
-                              <li>You'll receive an email notification when approved</li>
-                            </ol>
-                            <p className="text-xs text-amber-600/70 dark:text-amber-400/60 mt-3">Typical timeline: <strong>24 hours</strong></p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {verificationStatus === 'verified' && (
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="rounded-2xl border-2 border-emerald-500/25 bg-emerald-500/8 p-5 mb-8">
-                        <div className="flex items-start gap-4">
-                          <div className="size-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0 mt-1"><Sparkles className="size-5 text-emerald-600 dark:text-emerald-400" /></div>
-                          <div>
-                            <h3 className="font-bold text-emerald-700 dark:text-emerald-400 mb-1">You're All Set!</h3>
-                            <p className="text-sm text-emerald-600/90 dark:text-emerald-400/80 leading-relaxed">
-                              Your profile has been fully verified and approved by our admin team. You are now cleared to browse available loads, accept shipments, and start working on the platform immediately.
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    <div className="rounded-2xl border-2 border-border/55 bg-muted/5 p-5">
-                      <div className="flex items-start gap-3">
-                        <Lock className="size-5 text-muted-foreground shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-bold text-muted-foreground mb-2">Security & Compliance Overview</p>
-                          <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside leading-relaxed">
-                            <li>All documents encrypted with AES-256 (TLS 1.3 in transit)</li>
-                            <li>Background check processed according to FCRA</li>
-                            <li>Credentials verified with FMCSA and state authorities</li>
-                            <li>Compliance data cross-checked against federal records</li>
-                            <li>Your data is never shared with third parties</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-6 border-t border-border/55">
-                      <Button variant="ghost" onClick={() => setActiveStep('agreement')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      {verificationStatus === 'verified' && (
-                        <Button asChild className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
-                          <Link href="/driver/available-loads">Browse Available Loads <ChevronRight className="size-4" /></Link>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </motion.div>
+
+                <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-5">
+                  <Button variant="ghost" onClick={() => setActiveStep('agreement')}>
+                    <ArrowLeft className="mr-1.5 size-4" /> Back
+                  </Button>
+                  {verificationStatus === 'verified' && (
+                    <Button asChild>
+                      <Link href="/driver/available-loads">
+                        Browse Available Loads <ChevronRight className="ml-1.5 size-4" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>
-      </motion.div>
+      </div>
 
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md border-2 border-primary/30 shadow-2xl">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3 text-xl">
-                <div className="size-10 rounded-xl bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg"><Upload className="size-5" /></div>
-                <div>
-                  <p>Upload Document</p>
-                  <p className="text-xs text-muted-foreground font-normal mt-0.5">Secure & encrypted upload</p>
-                </div>
-              </DialogTitle>
-              <DialogDescription className="text-sm mt-2 flex items-center gap-2"><Lock className="size-4 text-emerald-500" /> All files are encrypted with AES-256 (TLS 1.3). Max 5MB.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2.5">
-                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Document Type</Label>
-                <Select value={uploadType} onValueChange={setUploadType}>
-                  <SelectTrigger className="h-11 bg-linear-to-br from-background to-muted/40 border-2 border-border/50 rounded-xl focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all hover:border-border/70"><SelectValue placeholder="Select document type" /></SelectTrigger>
-                  <SelectContent className="border-2 border-border/50 shadow-xl rounded-xl"><motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>{documentTypeOptions.map(t => <SelectItem key={t.value} value={t.value} className="cursor-pointer hover:bg-primary/10 focus:bg-primary/20 rounded-lg">{t.label}</SelectItem>)}</motion.div></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2.5">
-                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Label / Description</Label>
-                <Input value={uploadLabel} onChange={e => setUploadLabel(e.target.value)} placeholder="e.g. CDL Front Side" maxLength={100} className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/50 rounded-xl focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-muted-foreground/40" />
-              </div>
-              <div className="space-y-2.5">
-                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Expiration Date <span className="text-muted-foreground/60">(optional)</span></Label>
-                <Input type="date" value={uploadExpiry} onChange={e => setUploadExpiry(e.target.value)} className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/50 rounded-xl focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all" />
-              </div>
-              <div className="space-y-2.5">
-                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">File Upload</Label>
-                <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" className="hidden"
-                  onChange={e => setUploadFile(e.target.files?.[0] || null)} />
-                <motion.div onClick={() => fileInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setUploadFile(f); }}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className={cn('flex flex-col items-center justify-center gap-3 py-10 rounded-2xl border-2 border-dashed cursor-pointer transition-all',
-                    dragOver ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' : uploadFile ? 'border-emerald-500/40 bg-emerald-500/8 shadow-md shadow-emerald-500/10' : 'border-border/70 hover:border-blue-500/60 hover:bg-blue-500/5 hover:shadow-md')}>
+      <Dialog
+        open={showUploadDialog}
+        onOpenChange={(open) => {
+          setShowUploadDialog(open);
+          if (!open) {
+            setReplaceTarget(null);
+            setUploadFile(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {replaceTarget ? 'Replace Document' : 'Upload Document'}
+            </DialogTitle>
+            <DialogDescription>
+              {replaceTarget
+                ? 'The existing file remains available until the replacement is safely saved. JPG, PNG, WebP, or PDF; maximum 5MB.'
+                : 'JPG, PNG, WebP, or PDF. Maximum file size 5MB.'}
+            </DialogDescription>
+          </DialogHeader>
 
-                  {uploadFile ? (
-                    <motion.div className="flex items-center gap-3 w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                      <div className="size-12 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0"><FileText className="size-6 text-emerald-500" /></div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate">{uploadFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{fmtSize(uploadFile.size)}</p>
-                      </div>
-                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                        <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/20" onClick={e => { e.stopPropagation(); setUploadFile(null); }}><X className="size-4" /></Button>
-                      </motion.div>
-                    </motion.div>
-                  ) : (
-                    <motion.div className="flex flex-col items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-                      <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-                        <Camera className="size-10 text-muted-foreground/50" />
-                      </motion.div>
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-foreground">Drop file here or click to browse</p>
-                        <p className="text-xs text-muted-foreground/70 mt-1">JPG, PNG, WebP, or PDF up to 5MB</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </motion.div>
-              </div>
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label>Document Type</Label>
+              <Select
+                value={uploadType}
+                onValueChange={setUploadType}
+                disabled={Boolean(replaceTarget)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {documentTypeOptions.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/55">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                <Button variant="outline" onClick={() => setShowUploadDialog(false)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Cancel</Button>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadLabel.trim()} className="w-full gap-2 rounded-xl h-10 bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all">
-                  {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} {uploading ? 'Uploading...' : 'Upload Document'}
-                </Button>
-              </motion.div>
-            </DialogFooter>
-          </motion.div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
-        <DialogContent className="sm:max-w-sm border-2 border-destructive/30 shadow-2xl">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3 text-xl">
-                <div className="size-10 rounded-xl bg-linear-to-br from-red-500 to-pink-500 flex items-center justify-center text-white shadow-lg"><Trash2 className="size-5" /></div>
-                <div>
-                  <p>Delete Document</p>
-                  <p className="text-xs text-muted-foreground font-normal mt-0.5">Permanent action</p>
-                </div>
-              </DialogTitle>
-              <DialogDescription className="text-sm mt-2 flex items-start gap-2">
-                <AlertTriangle className="size-4 text-amber-500 shrink-0 mt-0.5" />
-                <span>This will permanently remove the document. You may need to re-upload it later to re-verify.</span>
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2 mt-6 pt-4 border-t border-border/55">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                <Button variant="outline" onClick={() => setShowDeleteConfirm(null)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Keep</Button>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                <Button variant="destructive" onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)}
-                  disabled={deletingId === showDeleteConfirm} className="w-full gap-2 rounded-xl h-10 bg-linear-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 shadow-lg shadow-red-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all">
-                  {deletingId === showDeleteConfirm ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />} {deletingId === showDeleteConfirm ? 'Deleting...' : 'Delete Forever'}
-                </Button>
-              </motion.div>
-            </DialogFooter>
-          </motion.div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!viewingDoc} onOpenChange={() => setViewingDoc(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] border-2 border-primary/30 shadow-2xl flex flex-col">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="flex flex-col h-full">
-            <DialogHeader className="shrink-0">
-              <DialogTitle className="flex items-center gap-3 text-xl">
-                <div className="size-10 rounded-xl bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg"><Eye className="size-5" /></div>
-                <div>
-                  <p>View Document</p>
-                  <p className="text-xs text-muted-foreground font-normal mt-0.5">{viewingDoc?.fileName}</p>
-                </div>
-              </DialogTitle>
-              <DialogDescription className="text-sm mt-2 flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] font-bold">{viewingDoc?.type.replace(/_/g, ' ').toUpperCase()}</Badge>
-                <span className="text-muted-foreground">{viewingDoc?.uploadedAt ? fmtDate(viewingDoc.uploadedAt) : 'Date unavailable'}</span>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-auto my-4 bg-muted/20 rounded-xl border border-border/65 p-4">
-              {viewingDoc?.fileUrl && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="w-full h-full flex items-center justify-center">
-                  {viewingDoc.fileUrl.toLowerCase().endsWith('.pdf') ? (
-                    <iframe
-                      src={`${viewingDoc.fileUrl}#toolbar=1`}
-                      title={viewingDoc.fileName}
-                      className="w-full h-full rounded-lg border border-border/55"
-                      style={{ minHeight: '500px' }}
-                    />
-                  ) : (
-                    <img
-                      src={viewingDoc.fileUrl}
-                      alt={viewingDoc.fileName}
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                    />
-                  )}
-                </motion.div>
+            <div className="space-y-2">
+              <Label>Label / Description</Label>
+              <Input value={uploadLabel} onChange={(e) => setUploadLabel(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Expiration Date
+                {DOCUMENT_EXPIRY_TYPES.has(uploadType) ? ' *' : ''}
+              </Label>
+              <Input
+                type="date"
+                value={uploadExpiry}
+                onChange={(e) => setUploadExpiry(e.target.value)}
+              />
+              {getInformationExpirationForDocument(uploadType) && (
+                <p className="text-[11px] text-muted-foreground">
+                  Reused from Information. You can edit it for this uploaded document before upload.
+                </p>
               )}
             </div>
-            <DialogFooter className="gap-2 shrink-0 pt-4 border-t border-border/55">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                <Button variant="outline" onClick={() => setViewingDoc(null)} className="w-full rounded-xl h-10 border-2 border-border/50 hover:border-border/70">Close</Button>
-              </motion.div>
-              {viewingDoc?.fileUrl && (
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-                  <Button asChild className="w-full gap-2 rounded-xl h-10 bg-linear-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/20 transition-all">
-                    <a href={viewingDoc.fileUrl} download={viewingDoc.fileName} target="_blank" rel="noopener noreferrer">
-                      <FileText className="size-4" /> Download
-                    </a>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.pdf"
+              className="hidden"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click();
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (e.dataTransfer.files[0]) setUploadFile(e.dataTransfer.files[0]);
+              }}
+              className={cn(
+                'cursor-pointer rounded-xl border-2 border-dashed p-8 text-center',
+                dragOver ? 'border-primary bg-primary/5' : 'border-border/70',
+              )}
+            >
+              {uploadFile ? (
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="size-5" />
+                  <span className="max-w-[240px] truncate text-sm font-bold">
+                    {uploadFile.name}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadFile(null);
+                    }}
+                  >
+                    <X className="size-4" />
                   </Button>
-                </motion.div>
+                </div>
+              ) : (
+                <>
+                  <Camera className="mx-auto mb-2 size-8 text-muted-foreground" />
+                  <p className="font-bold">Drop file here or click to browse</p>
+                </>
               )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowUploadDialog(false);
+                setReplaceTarget(null);
+                setUploadFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={
+                uploading ||
+                !uploadFile ||
+                !uploadLabel.trim() ||
+                (DOCUMENT_EXPIRY_TYPES.has(uploadType) && !uploadExpiry)
+              }
+            >
+              {uploading ? (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <Upload className="mr-1.5 size-4" />
+              )}
+              {replaceTarget ? 'Replace Document' : 'Upload Document'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(showDeleteConfirm)}
+        onOpenChange={(open) => {
+          if (!open) setShowDeleteConfirm(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              This permanently removes the selected verification document.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>
+              Keep
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => showDeleteConfirm && void handleDelete(showDeleteConfirm)}
+              disabled={deletingId === showDeleteConfirm}
+            >
+              {deletingId === showDeleteConfirm ? (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1.5 size-4" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(viewingDoc)}
+        onOpenChange={(open) => {
+          if (!open) closeDocumentViewer();
+        }}
+      >
+        <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>View Document</DialogTitle>
+            <DialogDescription>
+              {viewingDoc?.fileName || viewingDoc?.label}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-[280px] flex-1 overflow-auto rounded-xl border border-border/70 p-3">
+            {viewingLoading ? (
+              <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+                Opening secure document…
+              </div>
+            ) : viewingError ? (
+              <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-center">
+                <FileWarning className="size-8 text-amber-500" />
+                <div>
+                  <p className="font-bold">Document preview unavailable</p>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                    {viewingError}
+                  </p>
+                </div>
+                {viewingDoc && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const doc = viewingDoc;
+                      closeDocumentViewer();
+                      openReplaceFor(doc);
+                    }}
+                  >
+                    <RotateCcw className="mr-1.5 size-4" />
+                    Replace File
+                  </Button>
+                )}
+              </div>
+            ) : viewingObjectUrl ? (
+              viewingMimeType === 'application/pdf' ||
+              viewingDoc?.fileName?.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`${viewingObjectUrl}#toolbar=1`}
+                  title={viewingDoc?.fileName || viewingDoc?.label || 'Driver document'}
+                  className="min-h-[560px] w-full rounded-lg"
+                />
+              ) : viewingMimeType.startsWith('image/') ? (
+                <img
+                  src={viewingObjectUrl}
+                  alt={viewingDoc?.fileName || viewingDoc?.label || 'Driver document'}
+                  className="mx-auto max-h-[70vh] max-w-full object-contain"
+                />
+              ) : (
+                <div className="flex min-h-[280px] items-center justify-center">
+                  <a
+                    href={viewingObjectUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-bold text-primary underline underline-offset-4"
+                  >
+                    Open file
+                  </a>
+                </div>
+              )
+            ) : null}
+          </div>
+
+          {viewingDoc && (
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const doc = viewingDoc;
+                  closeDocumentViewer();
+                  openReplaceFor(doc);
+                }}
+              >
+                <RotateCcw className="mr-1.5 size-4" />
+                Replace
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const docId = viewingDoc._id;
+                  closeDocumentViewer();
+                  setShowDeleteConfirm(docId);
+                }}
+              >
+                <Trash2 className="mr-1.5 size-4" />
+                Delete
+              </Button>
             </DialogFooter>
-          </motion.div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

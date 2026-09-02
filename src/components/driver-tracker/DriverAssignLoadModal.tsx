@@ -32,6 +32,7 @@ import {
 } from "@/lib/driver-load-compatibility";
 import { useDriverLoadCompatibilityMatrixPreview } from "@/hooks/useDriverLoadCompatibilityMatrixPreview";
 import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 const trailerLabel = (val?: string) =>
   trailerTypeOptions.find((t) => t.value === val)?.label || val || "";
@@ -279,7 +280,7 @@ export function DriverAssignLoadModal({
                             <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/70">
                               <Calendar className="size-3 shrink-0" />
                               <span>
-                                Pickup: {new Date(load.requestedPickupDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
+                                Pickup: {formatScheduleDate(load.requestedPickupDate)}
                               </span>
                             </div>
                           )}

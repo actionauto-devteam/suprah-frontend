@@ -550,7 +550,7 @@ export function DriverTrackerListCard({
                           <div className="min-w-0">
                             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
                               <FileCheck2 className="size-3 text-emerald-500" />
-                              Compliance & Documents
+                              Driver Review Center
                             </p>
                             <p
                               className={`mt-1 text-sm font-bold ${
@@ -561,7 +561,7 @@ export function DriverTrackerListCard({
                             >
                               {eq?.isComplianceExpired
                                 ? "Needs attention"
-                                : "View verification records"}
+                                : "Open review center"}
                             </p>
                           </div>
                           <span className="shrink-0 text-xs font-black text-emerald-600 dark:text-emerald-400">

@@ -7,6 +7,7 @@ import {
   LoadContract,
   PostType,
 } from "./types";
+import { mountainTodayDateKey, scheduleDateKey } from "@/utils/calendar.utils";
 
 // ─── Create Load: client-side validation ─────────────────────────────────────
 // Mirrors the backend rules in validations/load.validation.ts and
@@ -118,23 +119,20 @@ export function validateVehicles(
 export function validateDates(dates: LoadDates): StepValidation {
   const issues: ValidationIssue[] = [];
 
-  if (dates.firstAvailable) {
-    const selected = new Date(dates.firstAvailable);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (!Number.isNaN(selected.getTime()) && selected < today) {
-      issues.push({
-        field: "dates.firstAvailable",
-        message: "Cannot select a date in the past",
-      });
-    }
-  }
+  // Schedule fields are Mountain business-calendar dates. Comparing
+  // YYYY-MM-DD keys prevents the viewer device timezone or UTC parsing from
+  // moving a selected day across midnight.
+  const today = mountainTodayDateKey();
+  const first = scheduleDateKey(dates.firstAvailable);
+  const pickupBy = scheduleDateKey(dates.pickupDeadline);
+  const deliverBy = scheduleDateKey(dates.deliveryDeadline);
 
-  const first = dates.firstAvailable ? new Date(dates.firstAvailable) : null;
-  const pickupBy = dates.pickupDeadline ? new Date(dates.pickupDeadline) : null;
-  const deliverBy = dates.deliveryDeadline
-    ? new Date(dates.deliveryDeadline)
-    : null;
+  if (first && first < today) {
+    issues.push({
+      field: "dates.firstAvailable",
+      message: "Cannot select a date in the past",
+    });
+  }
 
   if (first && pickupBy && pickupBy < first) {
     issues.push({

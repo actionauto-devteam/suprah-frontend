@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Loader2, Truck, Save, Hash, CheckCircle2, ArrowLeft, Plus, X,
   Gauge, Ruler, Shield, Star, Settings2, ChevronRight, Wrench, Circle,
@@ -21,6 +21,7 @@ import {
   trailerTypeOptions, specialFeatureOptions, TRAILER_CATEGORIES, hitchTypeOptions,
 } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
+import { getEquipmentReadiness } from '@/lib/driver-readiness';
 import Link from 'next/link';
 
 interface EquipmentForm {
@@ -36,8 +37,8 @@ interface EquipmentForm {
 const INIT: EquipmentForm = {
   truckMake: '', truckModel: '', truckYear: undefined, truckColor: '',
   engineType: '', gvwr: undefined, vin: '', plateNumber: '', dotNumber: '',
-  mcNumber: '', trailerType: 'open_3car_wedge', customTrailerName: '', trailerMake: '', trailerModel: '',
-  trailerYear: undefined, hitchType: '', maxVehicleCapacity: 3,
+  mcNumber: '', trailerType: '', customTrailerName: '', trailerMake: '', trailerModel: '',
+  trailerYear: undefined, hitchType: '', maxVehicleCapacity: 1,
   trailerLength: undefined, trailerAxles: 2, trailerGvwr: undefined,
   specialFeatures: [],
 };
@@ -161,7 +162,8 @@ export const EquipmentPage: React.FC = () => {
   const [customInputs, setCustomInputs] = useState<string[]>(['']);
   const [nav, setNav] = useState<Nav>('rig');
 
-  const getCapLimit = (type: string) => trailerTypeOptions.find(t => t.value === type)?.maxCapacity ?? 12;
+  const getCapLimit = (type: string) =>
+    trailerTypeOptions.find(t => t.value === type)?.maxCapacity ?? 1;
 
   const patch = useCallback((u: Partial<EquipmentForm>) => setForm(f => {
     const next = { ...f, ...u };
@@ -181,7 +183,7 @@ export const EquipmentPage: React.FC = () => {
         setForm({
           truckMake: d.truckMake || '', truckModel: d.truckModel || '', truckYear: d.truckYear, truckColor: d.truckColor || '',
           engineType: d.engineType || '', gvwr: d.gvwr, vin: d.vin || '', plateNumber: d.plateNumber || '',
-          dotNumber: d.dotNumber || '', mcNumber: d.mcNumber || '', trailerType: d.trailerType || 'open_3car_wedge',
+          dotNumber: d.dotNumber || '', mcNumber: d.mcNumber || '', trailerType: d.trailerType || '',
           customTrailerName: (d as any).customTrailerName || '',
           trailerMake: d.trailerMake || '', trailerModel: d.trailerModel || '', trailerYear: d.trailerYear,
           hitchType: d.hitchType || '', maxVehicleCapacity: d.maxVehicleCapacity || 1, trailerLength: d.trailerLength,
@@ -196,27 +198,115 @@ export const EquipmentPage: React.FC = () => {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const token = await getToken();
-      await apiClient.patch('/api/driver-profile/equipment', {
-        trailerType: form.trailerType, maxVehicleCapacity: form.maxVehicleCapacity,
-        customTrailerName: form.trailerType === 'other' ? form.customTrailerName.trim() : '',
-        truckMake: form.truckMake.trim(), truckModel: form.truckModel.trim(),
-        truckYear: form.truckYear || undefined, trailerLength: form.trailerLength || undefined,
-        dotNumber: form.dotNumber.trim(), mcNumber: form.mcNumber.trim(),
-        vin: form.vin.trim(), plateNumber: form.plateNumber.trim(),
-        truckColor: form.truckColor.trim(), gvwr: form.gvwr || undefined,
-        trailerAxles: form.trailerAxles, trailerGvwr: form.trailerGvwr || undefined,
-        engineType: form.engineType.trim(), trailerMake: form.trailerMake.trim(),
-        trailerModel: form.trailerModel.trim(), trailerYear: form.trailerYear || undefined,
-        hitchType: form.hitchType, specialFeatures: form.specialFeatures,
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Equipment saved');
-    } catch { toast.error('Failed to save equipment'); }
-    finally { setSaving(false); }
-  };
+  const buildEquipmentPayload = useCallback((section: Nav | 'all') => {
+    const payload: Record<string, unknown> = {};
+
+    if (section === 'rig' || section === 'all') {
+      Object.assign(payload, {
+        truckMake: form.truckMake.trim(),
+        truckModel: form.truckModel.trim(),
+        truckYear: form.truckYear || undefined,
+        truckColor: form.truckColor.trim(),
+        engineType: form.engineType.trim(),
+        gvwr: form.gvwr || undefined,
+        vin: form.vin.trim(),
+        plateNumber: form.plateNumber.trim(),
+        dotNumber: form.dotNumber.trim(),
+        mcNumber: form.mcNumber.trim(),
+      });
+    }
+
+    if (section === 'trailer' || section === 'all') {
+      Object.assign(payload, {
+        // Do not manufacture equipment configuration from UI defaults.
+        trailerType: form.trailerType || undefined,
+        maxVehicleCapacity: form.trailerType
+          ? form.maxVehicleCapacity
+          : undefined,
+        customTrailerName:
+          form.trailerType === 'other'
+            ? form.customTrailerName.trim()
+            : '',
+        trailerMake: form.trailerMake.trim(),
+        trailerModel: form.trailerModel.trim(),
+        trailerYear: form.trailerYear || undefined,
+        hitchType: form.hitchType,
+      });
+    }
+
+    if (section === 'specs' || section === 'all') {
+      Object.assign(payload, {
+        maxVehicleCapacity: form.trailerType
+          ? form.maxVehicleCapacity
+          : undefined,
+        trailerLength: form.trailerLength || undefined,
+        trailerAxles: form.trailerAxles,
+        trailerGvwr: form.trailerGvwr || undefined,
+      });
+    }
+
+    if (section === 'features' || section === 'all') {
+      Object.assign(payload, {
+        specialFeatures: form.specialFeatures,
+      });
+    }
+
+    return payload;
+  }, [form]);
+
+  const persistEquipment = useCallback(
+    async (
+      section: Nav | 'all',
+      options: { announce?: boolean } = {},
+    ): Promise<boolean> => {
+      if (saving) return false;
+
+      setSaving(true);
+      try {
+        const token = await getToken();
+        await apiClient.patch(
+          '/api/driver-profile/equipment',
+          buildEquipmentPayload(section),
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+
+        if (options.announce) {
+          toast.success('Equipment saved');
+        }
+
+        return true;
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message ||
+            'Failed to save equipment progress',
+        );
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [buildEquipmentPayload, getToken, saving],
+  );
+
+  const handleSave = useCallback(async () => {
+    await persistEquipment('all', { announce: true });
+  }, [persistEquipment]);
+
+  const handleNavigate = useCallback(
+    async (nextNav: Nav) => {
+      if (nextNav === nav || saving) return;
+
+      // Save only the section the driver is leaving. The backend Equipment
+      // endpoint already supports partial PATCH updates, so unfinished fields
+      // in later sections cannot overwrite previously saved data.
+      const saved = await persistEquipment(nav);
+      if (!saved) return;
+
+      setNav(nextNav);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [nav, persistEquipment, saving],
+  );
 
   const toggleFeature = (v: string) =>
     patch({ specialFeatures: form.specialFeatures.includes(v) ? form.specialFeatures.filter(f => f !== v) : [...form.specialFeatures, v] });
@@ -232,16 +322,11 @@ export const EquipmentPage: React.FC = () => {
   const cat = sel?.category || 'open';
   const th = TH[cat] || TH.open;
 
-  const pct = useMemo(() => {
-    let f = 0, t = 0;
-    const c = (v: string | number | undefined | null) => { t++; if (v && String(v).trim()) f++; };
-    c(form.truckMake); c(form.truckModel); c(form.truckYear); c(form.truckColor);
-    c(form.engineType); c(form.gvwr); c(form.vin); c(form.plateNumber);
-    c(form.dotNumber); c(form.mcNumber); c(form.trailerMake); c(form.trailerModel);
-    c(form.trailerYear); c(form.hitchType); c(form.trailerLength); c(form.trailerGvwr);
-    t++; if (form.specialFeatures.length > 0) f++;
-    return t > 0 ? Math.round((f / t) * 100) : 0;
-  }, [form]);
+  const equipmentReadiness = useMemo(
+    () => getEquipmentReadiness(form),
+    [form],
+  );
+  const pct = equipmentReadiness.percent;
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -272,7 +357,7 @@ export const EquipmentPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Equipment & Rig</h1>
-                    <Badge className={cn('text-[10px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || '—'}</Badge>
+                    <Badge className={cn('text-[10px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || 'Not configured'}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">Configure your truck, trailer, and capabilities</p>
                 </div>
@@ -280,7 +365,9 @@ export const EquipmentPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="hidden sm:block text-right">
                   <span className="text-4xl font-black tabular-nums text-foreground">{pct}%</span>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Complete</p>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+                    {equipmentReadiness.complete ? 'Ready' : 'Setup'}
+                  </p>
                 </div>
                 <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 font-extrabold shadow-lg shadow-emerald-500/20 rounded-xl">
                   {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Save
@@ -292,15 +379,27 @@ export const EquipmentPage: React.FC = () => {
               <div className="h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden border border-slate-300/70 dark:border-white/10">
                 <motion.div className="h-full rounded-full bg-linear-to-r from-emerald-400 to-teal-400" initial={false} animate={{ width: `${pct}%` }} transition={{ duration: 0.5, ease: 'easeOut' }} />
               </div>
+              {!equipmentReadiness.complete && equipmentReadiness.missing.length > 0 && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Required for Equipment Readiness: {equipmentReadiness.missing.map((item) => item.label).join(', ')}
+                </p>
+              )}
+              <p className="mt-1 text-[10px] text-muted-foreground/80">
+                Progress is saved automatically before you move to another Equipment section.
+              </p>
             </div>
 
             <div className="flex gap-1.5 mt-5">
               {NAVS.map(n => {
                 const active = nav === n.id;
                 return (
-                  <button key={n.id} type="button" onClick={() => setNav(n.id)}
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => void handleNavigate(n.id)}
+                    disabled={saving}
                     className={cn(
-                      'flex-1 flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl transition-all border relative overflow-hidden',
+                      'flex-1 flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl transition-all border relative overflow-hidden disabled:cursor-wait disabled:opacity-60',
                       active ? 'bg-background/90 dark:bg-white/10 border-primary/35 dark:border-white/25 shadow-md' : 'bg-background/55 dark:bg-white/[0.04] border-border/70 dark:border-white/10 hover:bg-muted/70 dark:hover:bg-white/[0.07]'
                     )}>
                     {active && <motion.div layoutId="nav-glow" className={cn('absolute inset-x-0 top-0 h-0.5 bg-linear-to-r', n.color)} transition={{ type: 'spring', stiffness: 400, damping: 35 }} />}
@@ -409,7 +508,7 @@ export const EquipmentPage: React.FC = () => {
 
                     <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
                       <Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      <Button onClick={() => setNav('trailer')} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
+                      <Button onClick={() => void handleNavigate('trailer')} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
                         Next: Trailer <ChevronRight className="size-4" />
                       </Button>
                     </motion.div>
@@ -437,7 +536,11 @@ export const EquipmentPage: React.FC = () => {
                       <motion.button type="button" onClick={() => setTypeDialogOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full relative overflow-hidden rounded-2xl border-2 border-border/70 bg-linear-to-br from-background to-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:shadow-md group">
                         <div className="flex items-center gap-4">
                           <div className={cn('w-20 h-14 rounded-xl flex items-center justify-center shrink-0', th.bg)}>
-                            <TSvg cat={cat} className="w-full h-full p-2" />
+                            {sel ? (
+                              <TSvg cat={cat} className="w-full h-full p-2" />
+                            ) : (
+                              <Box className="size-7 text-muted-foreground" />
+                            )}
                           </div>
                           <div className="flex-1">
                             <p className="font-bold text-base">{sel?.label || 'Select Trailer Type'}</p>
@@ -498,8 +601,8 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
-                      <Button variant="ghost" onClick={() => setNav('rig')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      <Button onClick={() => setNav('specs')} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
+                      <Button variant="ghost" onClick={() => void handleNavigate('rig')} disabled={saving} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
+                      <Button onClick={() => void handleNavigate('specs')} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         Next: Specs <ChevronRight className="size-4" />
                       </Button>
                     </motion.div>
@@ -611,8 +714,8 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
-                      <Button variant="ghost" onClick={() => setNav('trailer')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
-                      <Button onClick={() => setNav('features')} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
+                      <Button variant="ghost" onClick={() => void handleNavigate('trailer')} disabled={saving} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
+                      <Button onClick={() => void handleNavigate('features')} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         Next: Features <ChevronRight className="size-4" />
                       </Button>
                     </motion.div>
@@ -702,7 +805,7 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
-                      <Button variant="ghost" onClick={() => setNav('specs')} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
+                      <Button variant="ghost" onClick={() => void handleNavigate('specs')} disabled={saving} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={handleSave} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20">
                         {saving ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} Save Equipment
                       </Button>
@@ -724,10 +827,14 @@ export const EquipmentPage: React.FC = () => {
                   <div className={cn('size-14 rounded-xl bg-linear-to-br flex items-center justify-center text-white shadow-lg', th.grad, th.glow)}>
                     <Box className="size-7" />
                   </div>
-                  <div>
-                    <h2 className="text-xl font-black">Select Trailer Type</h2>
-                    <p className="text-xs text-muted-foreground">Choose the right configuration for your needs</p>
-                  </div>
+                  <DialogHeader className="space-y-1 text-left">
+                    <DialogTitle className="text-xl font-black">
+                      Select Trailer Type
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground">
+                      Choose the right configuration for your needs.
+                    </DialogDescription>
+                  </DialogHeader>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setTypeDialogOpen(false)} className="rounded-xl h-10 w-10">
                   <X className="size-5" />

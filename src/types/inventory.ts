@@ -85,13 +85,29 @@ export interface ShippingQuoteFormData {
   lastName: string;
   email: string;
   phone: string;
-  zipCode: string;
-  units: number;
-  fullAddress: string;
-  enclosedTrailer: boolean;
-  vehicleInoperable: boolean;
+
+  // Legacy/generated route fields retained for compatibility with existing
+  // Quote cards, APIs, reports, and historical records.
   fromZip: string;
   fromAddress: string;
+  zipCode: string;
+  fullAddress: string;
+
+  // Structured Quote route fields.
+  // Street is intentionally optional/recommended at Quote stage.
+  fromLocationName: string;
+  fromStreetAddress: string;
+  fromCity: string;
+  fromState: string;
+
+  toLocationName: string;
+  toStreetAddress: string;
+  toCity: string;
+  toState: string;
+
+  units: number;
+  enclosedTrailer: boolean;
+  vehicleInoperable: boolean;
   vehicleId?: string;
 }
 

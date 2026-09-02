@@ -20,7 +20,7 @@ interface EquipmentTabProps {
 
 export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) => {
   const [saving, setSaving] = useState(false);
-  const [trailerType, setTrailerType] = useState(profile?.trailerType || 'open_3car_wedge');
+  const [trailerType, setTrailerType] = useState(profile?.trailerType || '');
   const [maxVehicleCapacity, setMaxVehicleCapacity] = useState(profile?.maxVehicleCapacity || 1);
   const [truckMake, setTruckMake] = useState(profile?.truckMake || '');
   const [truckModel, setTruckModel] = useState(profile?.truckModel || '');
@@ -38,8 +38,8 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
     setSaving(true);
     try {
       await onSave({
-        trailerType,
-        maxVehicleCapacity,
+        trailerType: trailerType || undefined,
+        maxVehicleCapacity: trailerType ? maxVehicleCapacity : undefined,
         truckMake: truckMake.trim(),
         truckModel: truckModel.trim(),
         truckYear: truckYear || undefined,
@@ -111,9 +111,14 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
                   max={12}
                   value={maxVehicleCapacity}
                   onChange={(e) => setMaxVehicleCapacity(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
+                  disabled={!trailerType}
                   className="w-24"
                 />
-                <span className="text-xs text-muted-foreground">vehicles ({selectedTrailer?.capacity})</span>
+                <span className="text-xs text-muted-foreground">
+                  {selectedTrailer
+                    ? `vehicles (${selectedTrailer.capacity})`
+                    : 'Select a trailer type first'}
+                </span>
               </div>
             </div>
             <div className="space-y-2">

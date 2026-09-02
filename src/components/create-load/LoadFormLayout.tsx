@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils"
 import type { DriverLoadCompatibility } from "@/types/driver-tracking"
 import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility"
 import { DriverLoadCompatibilityReviewDialog } from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog"
+import { scheduleDateKey } from "@/utils/calendar.utils"
 
 
 // ─── Create / Edit Load: form orchestrator ───────────────────────────────────
@@ -80,7 +81,7 @@ type StepKey =
 // `street`/`companyName` — read both defensively so a real API response
 // (which only ever has address/name) always wins.
 function toDateInputValue(iso?: string): string {
-  return iso ? String(iso).slice(0, 10) : ""
+  return scheduleDateKey(iso)
 }
 
 function mapLocationFromLoad(loc: any): LocationBlock {
@@ -238,6 +239,12 @@ export function LoadFormLayout({
 
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
+  // Keep the wizard clean while the user is entering data. Inline field
+  // errors become visible only after a submit attempt fails, then update
+  // live as the user corrects the fields.
+  const [showValidationErrors, setShowValidationErrors] =
+    React.useState(false)
+
   const [createdAssignmentReview, setCreatedAssignmentReview] = React.useState<{
   loadId: string
   loadNumber: string
@@ -290,6 +297,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
   // ── Submit ──
   const handleSubmit = async () => {
     if (!validation.valid) {
+      setShowValidationErrors(true)
       const first = validation.issues[0]
       toast.error(first.message)
       const field = first.field
@@ -307,6 +315,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
       return
     }
 
+    setShowValidationErrors(false)
     for (const warning of validation.warnings) toast.warning(warning)
 
     setIsSubmitting(true)
@@ -511,6 +520,15 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             delivery={delivery}
             onPickupChange={setPickup}
             onDeliveryChange={setDelivery}
+            validationIssues={
+              showValidationErrors
+                ? validation.issues.filter(
+                    (issue) =>
+                      issue.field.startsWith("pickup.") ||
+                      issue.field.startsWith("delivery."),
+                  )
+                : []
+            }
           />
         )}
 

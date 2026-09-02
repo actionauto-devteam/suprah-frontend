@@ -1,5 +1,10 @@
 export interface LoadLocation {
   locationType?: string;
+  /** Canonical backend location name. */
+  name?: string;
+  /** Canonical backend street/full address. */
+  address?: string;
+  /** Legacy aliases kept for older records/components. */
   companyName?: string;
   contactName?: string;
   firstName?: string;
@@ -8,6 +13,7 @@ export interface LoadLocation {
   phone?: string;
   cellPhone?: string;
   phoneExt?: string;
+  /** Legacy alias for address. */
   street?: string;
   city: string;
   state: string;
@@ -41,6 +47,7 @@ export interface LoadVehicleItem {
 export interface LoadPricing {
   miles?: number;
   estimatedRate?: number;
+  pricePerMile?: number;
   carrierPayAmount?: number;
   copCodAmount?: number;
   balanceAmount?: number;
@@ -78,6 +85,7 @@ export interface Load {
   additionalInfo?: {
     notes?: string;
     instructions?: string;
+    referenceNumber?: string;
     visibility: "public" | "private";
     internalLoadId?: string;
     preDispatchNotes?: string;

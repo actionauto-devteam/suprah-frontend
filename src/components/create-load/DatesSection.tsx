@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldRow } from "./FormField"
 import { FieldError } from "./FieldError"
 import { LoadDates } from "./types"
+import { mountainTodayDateKey } from "@/utils/calendar.utils"
 
 interface DatesSectionProps {
   value: LoadDates
@@ -19,7 +20,7 @@ export function DatesSection({ value, onChange, errors = {} }: DatesSectionProps
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => onChange({ ...value, [key]: e.target.value })
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = mountainTodayDateKey()
 
   return (
     <div className="space-y-3">

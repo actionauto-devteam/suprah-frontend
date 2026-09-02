@@ -4,7 +4,9 @@ import { useState } from "react"
 import { X, User, Car, MapPin, DollarSign, SlidersHorizontal, Loader2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Quote } from "@/types/transportation"
+import { getQuoteLoadRouteDraft } from "@/types/transportation"
+import type { Quote } from "@/types/transportation"
+import { US_STATES } from "@/components/create-load/types"
 
 interface EditQuoteModalProps {
     quote: Quote
@@ -14,16 +16,24 @@ interface EditQuoteModalProps {
 }
 
 export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModalProps) {
+    const routeDraft = getQuoteLoadRouteDraft(quote)
     const [isSaving, setIsSaving] = useState(false)
     const [formData, setFormData] = useState({
         firstName: quote.firstName,
         lastName: quote.lastName,
         email: quote.email,
         phone: quote.phone,
-        fromAddress: quote.fromAddress,
-        fromZip: quote.fromZip,
-        toAddress: quote.toAddress,
-        toZip: quote.toZip,
+        fromLocationName: quote.fromLocation?.name || routeDraft.routeDetails.pickupLocation.name || "",
+        fromStreetAddress: quote.fromLocation?.streetAddress || routeDraft.routeDetails.pickupLocation.address || "",
+        fromCity: quote.fromLocation?.city || routeDraft.routeDetails.pickupLocation.city || "",
+        fromState: quote.fromLocation?.state || routeDraft.routeDetails.pickupLocation.state || "",
+        fromZip: quote.fromLocation?.zip || quote.fromZip,
+
+        toLocationName: quote.toLocation?.name || routeDraft.routeDetails.deliveryLocation.name || "",
+        toStreetAddress: quote.toLocation?.streetAddress || routeDraft.routeDetails.deliveryLocation.address || "",
+        toCity: quote.toLocation?.city || routeDraft.routeDetails.deliveryLocation.city || "",
+        toState: quote.toLocation?.state || routeDraft.routeDetails.deliveryLocation.state || "",
+        toZip: quote.toLocation?.zip || quote.toZip,
         rate: quote.rate,
         miles: quote.miles,
         units: quote.units,
@@ -54,10 +64,32 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                 lastName: formData.lastName,
                 email: formData.email,
                 phone: formData.phone,
-                fromAddress: formData.fromAddress,
+                fromAddress: [
+                    formData.fromStreetAddress.trim(),
+                    [formData.fromCity.trim(), formData.fromState.trim()].filter(Boolean).join(", "),
+                ].filter(Boolean).join(", "),
                 fromZip: formData.fromZip,
-                toAddress: formData.toAddress,
+                toAddress: [
+                    formData.toStreetAddress.trim(),
+                    [formData.toCity.trim(), formData.toState.trim()].filter(Boolean).join(", "),
+                ].filter(Boolean).join(", "),
                 toZip: formData.toZip,
+                fromLocation: {
+                    name: formData.fromLocationName.trim(),
+                    streetAddress: formData.fromStreetAddress.trim(),
+                    city: formData.fromCity.trim(),
+                    state: formData.fromState.trim().toUpperCase(),
+                    zip: formData.fromZip.trim(),
+                    country: "US",
+                },
+                toLocation: {
+                    name: formData.toLocationName.trim(),
+                    streetAddress: formData.toStreetAddress.trim(),
+                    city: formData.toCity.trim(),
+                    state: formData.toState.trim().toUpperCase(),
+                    zip: formData.toZip.trim(),
+                    country: "US",
+                },
                 rate: formData.rate,
                 miles: formData.miles,
                 units: formData.units,
@@ -213,22 +245,72 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                             <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-2">
                                 <MapPin className="size-4 text-primary" /> Route Information
                             </h3>
+
+                            <p className="text-[11px] text-muted-foreground">
+                                City, State, and ZIP are required for quoting. Street Address is recommended and can be completed before dispatch.
+                            </p>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-3">
                                     <p className="text-[10px] font-bold text-primary uppercase">Origin</p>
+
                                     <div>
-                                        <label className={labelClass}>From Address</label>
+                                        <label className={labelClass}>Location Name — Optional</label>
                                         <input
                                             type="text"
-                                            name="fromAddress"
-                                            value={formData.fromAddress}
+                                            name="fromLocationName"
+                                            value={formData.fromLocationName}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>Street Address — Recommended</label>
+                                        <input
+                                            type="text"
+                                            name="fromStreetAddress"
+                                            value={formData.fromStreetAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>City *</label>
+                                        <input
+                                            type="text"
+                                            name="fromCity"
+                                            value={formData.fromCity}
                                             onChange={handleChange}
                                             className={fieldClass}
                                             required
                                         />
                                     </div>
+
                                     <div>
-                                        <label className={labelClass}>From Zip Code</label>
+                                        <label className={labelClass}>State *</label>
+                                        <select
+                                            name="fromState"
+                                            value={formData.fromState}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    fromState: e.target.value,
+                                                }))
+                                            }
+                                            className={fieldClass}
+                                            required
+                                        >
+                                            <option value="">Select…</option>
+                                            {US_STATES.map((state) => (
+                                                <option key={state} value={state}>{state}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>ZIP Code *</label>
                                         <input
                                             type="text"
                                             name="fromZip"
@@ -239,21 +321,67 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                         />
                                     </div>
                                 </div>
+
                                 <div className="space-y-3">
                                     <p className="text-[10px] font-bold text-rose-500 uppercase">Destination</p>
+
                                     <div>
-                                        <label className={labelClass}>To Address</label>
+                                        <label className={labelClass}>Location Name — Optional</label>
                                         <input
                                             type="text"
-                                            name="toAddress"
-                                            value={formData.toAddress}
+                                            name="toLocationName"
+                                            value={formData.toLocationName}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>Street Address — Recommended</label>
+                                        <input
+                                            type="text"
+                                            name="toStreetAddress"
+                                            value={formData.toStreetAddress}
+                                            onChange={handleChange}
+                                            className={fieldClass}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>City *</label>
+                                        <input
+                                            type="text"
+                                            name="toCity"
+                                            value={formData.toCity}
                                             onChange={handleChange}
                                             className={fieldClass}
                                             required
                                         />
                                     </div>
+
                                     <div>
-                                        <label className={labelClass}>To Zip Code</label>
+                                        <label className={labelClass}>State *</label>
+                                        <select
+                                            name="toState"
+                                            value={formData.toState}
+                                            onChange={(e) =>
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    toState: e.target.value,
+                                                }))
+                                            }
+                                            className={fieldClass}
+                                            required
+                                        >
+                                            <option value="">Select…</option>
+                                            {US_STATES.map((state) => (
+                                                <option key={state} value={state}>{state}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>ZIP Code *</label>
                                         <input
                                             type="text"
                                             name="toZip"

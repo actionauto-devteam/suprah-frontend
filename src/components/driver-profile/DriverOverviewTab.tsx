@@ -30,9 +30,14 @@ import {
     Award,
     Truck,
     TrendingUp,
+    ShieldCheck,
+    Loader2,
+    Wrench,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { UserProfile, RecentActivity } from '@/types/user';
+import { DriverProfile } from '@/types/driver-profile';
+import { getDriverReadiness } from '@/lib/driver-readiness';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,6 +67,8 @@ interface DriverOverviewTabProps {
         totalAssigned: number;
     };
     organization?: { name: string } | null;
+    driverProfile: DriverProfile | null;
+    driverProfileFetchState: 'idle' | 'loading' | 'ready' | 'error';
 }
 
 export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
@@ -71,10 +78,33 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
     handleTabChange,
     driverStats,
     organization,
+    driverProfile,
+    driverProfileFetchState,
 }) => {
     const router = useRouter();
     const { theme, setTheme } = useTheme();
     const [pendingLink, setPendingLink] = useState<{ label: string; url: string } | null>(null);
+
+    const readiness = getDriverReadiness(profile, driverProfile);
+    const equipmentMissingPreview = readiness.equipment.missing
+        .slice(0, 2)
+        .map((item) => item.label)
+        .join(', ');
+
+    // General Profile values are authoritative for normal profile display.
+    // Driver Verification supplies a safe fallback only when those values are
+    // empty. Street address and ZIP are intentionally excluded.
+    const verificationPhoneDigits = String(driverProfile?.phone || '').replace(/\D/g, '');
+    const displayPhone =
+        String(profile?.personalInfo?.phone || '').trim() ||
+        (verificationPhoneDigits.length === 10 ? verificationPhoneDigits : '');
+
+    const displayLocation =
+        String(profile?.personalInfo?.location || '').trim() ||
+        [driverProfile?.city, driverProfile?.state]
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+            .join(', ');
 
     const quickLinks = [
         { label: 'Dashboard', icon: LayoutDashboard, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/50', action: () => router.push('/driver') },
@@ -102,6 +132,117 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
     return (
         <>
             <div className="space-y-4 sm:space-y-6 animate-tab-switch">
+                <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden">
+                    <CardHeader className="py-4 px-5 bg-linear-to-br from-slate-50 to-emerald-50/50 dark:from-gray-900 dark:to-gray-800/80 border-b border-gray-100 dark:border-gray-800">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-linear-to-br from-slate-600 to-emerald-600 flex items-center justify-center shadow-md">
+                                <ShieldCheck className="size-4 text-white" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <CardTitle className="text-base font-bold">Driver Readiness</CardTitle>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Account, verification, and required equipment setup
+                                </p>
+                            </div>
+                            {driverProfileFetchState === 'loading' || driverProfileFetchState === 'idle' ? (
+                                <Badge variant="outline" className="gap-1.5">
+                                    <Loader2 className="size-3 animate-spin" />
+                                    Checking
+                                </Badge>
+                            ) : driverProfileFetchState === 'error' ? (
+                                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                    Status unavailable
+                                </Badge>
+                            ) : (
+                                <Badge
+                                    variant="outline"
+                                    className={cn(
+                                        readiness.ready
+                                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                    )}
+                                >
+                                    {readiness.label}
+                                </Badge>
+                            )}
+                        </div>
+                    </CardHeader>
+
+                    <CardContent className="p-4">
+                        {driverProfileFetchState === 'error' ? (
+                            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+                                Driver-specific readiness could not be loaded. Your normal Profile information is still available and no readiness value is being guessed.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className={cn(
+                                    'rounded-xl border p-3.5',
+                                    readiness.emailVerified
+                                        ? 'border-emerald-500/25 bg-emerald-500/5'
+                                        : 'border-amber-500/25 bg-amber-500/5',
+                                )}>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 className={cn('size-4', readiness.emailVerified ? 'text-emerald-500' : 'text-amber-500')} />
+                                        <p className="text-xs font-black uppercase tracking-wider">Email Verification</p>
+                                    </div>
+                                    <p className="mt-2 text-sm font-bold">
+                                        {readiness.emailVerified ? 'Verified' : 'Unverified'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        This is your account email status, not Driver Verification.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/driver/documents')}
+                                    className={cn(
+                                        'rounded-xl border p-3.5 text-left transition-colors hover:bg-muted/40',
+                                        readiness.verification.ready
+                                            ? 'border-emerald-500/25 bg-emerald-500/5'
+                                            : 'border-amber-500/25 bg-amber-500/5',
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className={cn('size-4', readiness.verification.ready ? 'text-emerald-500' : 'text-amber-500')} />
+                                        <p className="text-xs font-black uppercase tracking-wider">Driver Verification</p>
+                                    </div>
+                                    <p className="mt-2 text-sm font-bold">{readiness.verification.label}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{readiness.verification.detail}</p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/driver/equipment')}
+                                    className={cn(
+                                        'rounded-xl border p-3.5 text-left transition-colors hover:bg-muted/40',
+                                        readiness.equipment.complete
+                                            ? 'border-emerald-500/25 bg-emerald-500/5'
+                                            : 'border-amber-500/25 bg-amber-500/5',
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Wrench className={cn('size-4', readiness.equipment.complete ? 'text-emerald-500' : 'text-amber-500')} />
+                                        <p className="text-xs font-black uppercase tracking-wider">Equipment Setup</p>
+                                    </div>
+                                    <p className="mt-2 text-sm font-bold">
+                                        {readiness.equipment.complete
+                                            ? 'Ready'
+                                            : `${readiness.equipment.percent}% Setup`}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {readiness.equipment.complete
+                                            ? 'Required truck and trailer details are configured.'
+                                            : equipmentMissingPreview
+                                                ? `Still needed: ${equipmentMissingPreview}${readiness.equipment.missing.length > 2 ? '…' : ''}`
+                                                : 'Required equipment details are incomplete.'}
+                                    </p>
+                                </button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
                 <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden hover-lift group">
                     <CardHeader className="py-4 px-5 bg-linear-to-br from-emerald-50 to-teal-50/50 dark:from-gray-900 dark:to-gray-800/80 border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center gap-2.5">
@@ -186,8 +327,8 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
 
                             <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3 pt-5 border-t border-gray-100 dark:border-gray-800">
                                 {[
-                                    { label: 'Phone', value: profile?.personalInfo?.phone ? `+1 ${profile.personalInfo.phone}` : null, icon: Phone, color: 'text-blue-500' },
-                                    { label: 'Location', value: profile?.personalInfo?.location || null, icon: MapPin, color: 'text-emerald-500' },
+                                    { label: 'Phone', value: displayPhone ? `+1 ${displayPhone}` : null, icon: Phone, color: 'text-blue-500' },
+                                    { label: 'Location', value: displayLocation || null, icon: MapPin, color: 'text-emerald-500' },
                                     { label: 'Birthday', value: profile?.personalInfo?.dateOfBirth ? new Date(profile.personalInfo.dateOfBirth + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : null, icon: Calendar, color: 'text-pink-500' },
                                     { label: 'Gender', value: profile?.personalInfo?.gender ? profile.personalInfo.gender.charAt(0).toUpperCase() + profile.personalInfo.gender.slice(1).replace(/-/g, ' ') : null, icon: User, color: 'text-violet-500' },
                                     { label: 'Job Title', value: profile?.personalInfo?.jobTitle || null, icon: Briefcase, color: 'text-amber-500' },

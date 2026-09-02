@@ -169,7 +169,9 @@ export function emptyLocation(): LocationBlock {
     city: "",
     state: "",
     zip: "",
-    country: "",
+    // New loads are US-based by default. The field remains editable and
+    // optional in the backend contract.
+    country: "US",
     phone: "",
     phoneExt: "",
     email: "",

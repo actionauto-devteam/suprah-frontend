@@ -84,6 +84,7 @@ export function OrganizationMembersSettings() {
                 organizationId: m.organizationId || organizationId,
                 role: m.role,
                 organizationRole: m.organizationRole || 'member',
+                isDispatcher: Boolean(m.isDispatcher),
                 email: m.email,
                 fullName: m.name || m.fullName || 'Unknown User', // Map 'name' -> 'fullName'
                 imageUrl: m.avatar || m.imageUrl, // Map 'avatar' -> 'imageUrl'
@@ -161,6 +162,27 @@ export function OrganizationMembersSettings() {
         },
         onError: (error: any) => {
             alert(error.response?.data?.message || "Failed to remove member")
+        }
+    })
+
+    // Transportation-only Dispatcher capability. This does not change the
+    // member's global role or organizationRole, so access to unrelated modules
+    // remains on the existing employee/member authorization path.
+    const dispatcherAccessMutation = useMutation({
+        mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
+            if (!organizationId) return
+            const token = await getToken()
+            return apiClient.patch(
+                `/api/organizations/${organizationId}/members/${userId}/dispatcher-access`,
+                { enabled },
+                { headers: { Authorization: `Bearer ${token}` } },
+            )
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['org-members', organizationId] })
+        },
+        onError: (error: any) => {
+            alert(error.response?.data?.message || "Failed to update Dispatcher access")
         }
     })
 
@@ -381,12 +403,36 @@ export function OrganizationMembersSettings() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex flex-col">
+                                        <div className="flex flex-col gap-1.5">
                                             <Badge variant={member.organizationRole === 'admin' ? 'default' : 'secondary'} className="capitalize w-fit">
                                                 {member.organizationRole === 'admin' ? <Shield className="w-3 h-3 mr-1" /> : <UserIcon className="w-3 h-3 mr-1" />}
                                                 {member.organizationRole}
                                             </Badge>
-                                            <span className="text-[10px] text-muted-foreground mt-1">
+
+                                            {member.organizationRole !== 'admin' && member.role === 'employee' && (
+                                                isAdmin && member.userId !== user?.id ? (
+                                                    <Select
+                                                        value={member.isDispatcher ? 'dispatcher' : 'standard'}
+                                                        onValueChange={(value) => dispatcherAccessMutation.mutate({
+                                                            userId: member.userId,
+                                                            enabled: value === 'dispatcher',
+                                                        })}
+                                                        disabled={dispatcherAccessMutation.isPending}
+                                                    >
+                                                        <SelectTrigger className="h-8 w-44">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="standard">Standard Member Access</SelectItem>
+                                                            <SelectItem value="dispatcher">Dispatcher Access</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : member.isDispatcher ? (
+                                                    <Badge variant="outline" className="w-fit">Dispatcher Access</Badge>
+                                                ) : null
+                                            )}
+
+                                            <span className="text-[10px] text-muted-foreground">
                                                 Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { timeZone: 'America/Denver' })}
                                             </span>
                                         </div>

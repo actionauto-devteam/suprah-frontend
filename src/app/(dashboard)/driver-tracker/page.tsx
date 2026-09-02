@@ -63,10 +63,15 @@ import {
   DriverLoadCompatibilityReviewDialog,
   type DriverActiveLoadSummary,
 } from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog";
+import {
+  PendingLoadRequestAssignmentDialog,
+  type PendingLoadRequestAssignmentConflict,
+} from "@/components/driver-tracker/PendingLoadRequestAssignmentDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
+import { getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import {
   initializeSocket,
   getSocket,
@@ -107,6 +112,44 @@ const mapPinColor: Record<DriverStatus, string> = {
 const LOCATION_INTERVAL_MS = 10000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 
+interface DispatcherLoadActionOptions {
+  endpoint: string;
+  payload: Record<string, unknown>;
+  driverName: string;
+  loadLabel: string;
+  actionLabel: string;
+  successMessage: string;
+  activeLoads?: DriverActiveLoadSummary[];
+}
+
+function extractPendingLoadRequestAssignmentConflict(
+  error: any,
+): PendingLoadRequestAssignmentConflict | null {
+  const rawErrors = error?.response?.data?.errors;
+  const candidates = Array.isArray(rawErrors)
+    ? rawErrors
+    : rawErrors
+      ? [rawErrors]
+      : [];
+
+  const conflict = candidates.find(
+    (candidate: any) =>
+      candidate?.type ===
+      "pending_load_request_assignment_confirmation",
+  );
+
+  if (
+    !conflict ||
+    !String(conflict.loadId ?? "").trim() ||
+    !String(conflict.fingerprint ?? "").trim() ||
+    !Array.isArray(conflict.pendingRequesters)
+  ) {
+    return null;
+  }
+
+  return conflict as PendingLoadRequestAssignmentConflict;
+}
+
 export default function DriverTrackerPage() {
   const pathname = usePathname();
   const router = useRouter();
@@ -132,6 +175,7 @@ export default function DriverTrackerPage() {
   const [approvingId, setApprovingId] = React.useState<string | null>(null);
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
   const [loadsTab, setLoadsTab] = React.useState("assigned");
+  const [focusedRequestKey, setFocusedRequestKey] = React.useState<string | null>(null);
   const [alertDriver, setAlertDriver] = React.useState<DriverTrackingItem | null>(null);
   const [alertDialogOpen, setAlertDialogOpen] = React.useState(false);
   const [chatDriver, setChatDriver] = React.useState<DriverTrackingItem | null>(null);
@@ -159,6 +203,16 @@ export default function DriverTrackerPage() {
   const compatibilityReviewResolverRef = React.useRef<
     ((success: boolean) => void) | null
   >(null);
+  const [pendingRequestAssignmentReview, setPendingRequestAssignmentReview] =
+    React.useState<{
+      options: DispatcherLoadActionOptions;
+      conflict: PendingLoadRequestAssignmentConflict;
+    } | null>(null);
+  const [pendingRequestAssignmentSubmitting, setPendingRequestAssignmentSubmitting] =
+    React.useState(false);
+  const pendingRequestAssignmentResolverRef = React.useRef<
+    ((success: boolean) => void) | null
+  >(null);
   const [unreadMessageCounts, setUnreadMessageCounts] = React.useState<
     Record<string, number>
   >({});
@@ -166,6 +220,7 @@ export default function DriverTrackerPage() {
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
 
+  const loadManagementRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<any>(null);
   const markersRef = React.useRef<Map<string, any>>(new Map());
@@ -514,15 +569,7 @@ export default function DriverTrackerPage() {
 
 
   const runDispatcherLoadAction = React.useCallback(
-    async (options: {
-      endpoint: string;
-      payload: Record<string, unknown>;
-      driverName: string;
-      loadLabel: string;
-      actionLabel: string;
-      successMessage: string;
-      activeLoads?: DriverActiveLoadSummary[];
-    }): Promise<boolean> => {
+    async (options: DispatcherLoadActionOptions): Promise<boolean> => {
       try {
         const token = await getToken();
         await apiClient.post(options.endpoint, options.payload, {
@@ -536,6 +583,18 @@ export default function DriverTrackerPage() {
         ]);
         return true;
       } catch (err: any) {
+        const pendingConflict =
+          extractPendingLoadRequestAssignmentConflict(err);
+        if (pendingConflict) {
+          return await new Promise<boolean>((resolve) => {
+            pendingRequestAssignmentResolverRef.current = resolve;
+            setPendingRequestAssignmentReview({
+              options,
+              conflict: pendingConflict,
+            });
+          });
+        }
+
         const compatibility = extractCompatibilityFromError(err);
         if (compatibility) {
           return await new Promise<boolean>((resolve) => {
@@ -561,6 +620,100 @@ export default function DriverTrackerPage() {
     ],
   );
 
+  const handlePendingRequestAssignmentOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (open || pendingRequestAssignmentSubmitting) return;
+      const resolver = pendingRequestAssignmentResolverRef.current;
+      pendingRequestAssignmentResolverRef.current = null;
+      setPendingRequestAssignmentReview(null);
+      resolver?.(false);
+    },
+    [pendingRequestAssignmentSubmitting],
+  );
+
+  const confirmPendingRequestAssignment = React.useCallback(async () => {
+    if (
+      !pendingRequestAssignmentReview ||
+      pendingRequestAssignmentSubmitting
+    ) {
+      return;
+    }
+
+    setPendingRequestAssignmentSubmitting(true);
+
+    const { options, conflict } = pendingRequestAssignmentReview;
+    const confirmedPayload = {
+      ...options.payload,
+      pendingRequestFingerprint: conflict.fingerprint,
+    };
+
+    try {
+      const token = await getToken();
+      await apiClient.post(options.endpoint, confirmedPayload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success(options.successMessage);
+      await Promise.all([
+        fetchDrivers(),
+        fetchAvailableLoads(),
+        fetchLoadRequests(),
+      ]);
+
+      const resolver = pendingRequestAssignmentResolverRef.current;
+      pendingRequestAssignmentResolverRef.current = null;
+      setPendingRequestAssignmentReview(null);
+      resolver?.(true);
+    } catch (err: any) {
+      const refreshedConflict =
+        extractPendingLoadRequestAssignmentConflict(err);
+      if (refreshedConflict) {
+        setPendingRequestAssignmentReview((current) =>
+          current
+            ? {
+                ...current,
+                conflict: refreshedConflict,
+              }
+            : null,
+        );
+        toast.warning(
+          "The pending request list changed. Review the updated requests before confirming again.",
+        );
+        return;
+      }
+
+      const compatibility = extractCompatibilityFromError(err);
+      if (compatibility) {
+        // Keep the original assignment promise alive while moving from the
+        // pending-request confirmation into the existing compatibility review.
+        const resolver = pendingRequestAssignmentResolverRef.current;
+        pendingRequestAssignmentResolverRef.current = null;
+        compatibilityReviewResolverRef.current = resolver;
+        setPendingRequestAssignmentReview(null);
+        setCompatibilityReview({
+          ...options,
+          payload: confirmedPayload,
+          compatibility,
+        });
+        return;
+      }
+
+      toast.error(
+        err.response?.data?.message ||
+          "The pending-request assignment could not be completed",
+      );
+    } finally {
+      setPendingRequestAssignmentSubmitting(false);
+    }
+  }, [
+    pendingRequestAssignmentReview,
+    pendingRequestAssignmentSubmitting,
+    getToken,
+    fetchDrivers,
+    fetchAvailableLoads,
+    fetchLoadRequests,
+  ]);
+
   const handleCompatibilityReviewOpenChange = React.useCallback(
     (open: boolean) => {
       if (open || compatibilityOverrideSubmitting) return;
@@ -576,17 +729,19 @@ export default function DriverTrackerPage() {
     if (!compatibilityReview || compatibilityOverrideSubmitting) return;
     setCompatibilityOverrideSubmitting(true);
 
+    const overridePayload = {
+      ...compatibilityReview.payload,
+      overrideAvailability:
+        compatibilityReview.compatibility.requiresAvailabilityOverride,
+      overrideCapacity:
+        compatibilityReview.compatibility.requiresCapacityOverride,
+    };
+
     try {
       const token = await getToken();
       await apiClient.post(
         compatibilityReview.endpoint,
-        {
-          ...compatibilityReview.payload,
-          overrideAvailability:
-            compatibilityReview.compatibility.requiresAvailabilityOverride,
-          overrideCapacity:
-            compatibilityReview.compatibility.requiresCapacityOverride,
-        },
+        overridePayload,
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
@@ -602,6 +757,34 @@ export default function DriverTrackerPage() {
       setCompatibilityReview(null);
       resolver?.(true);
     } catch (err: any) {
+      const pendingConflict =
+        extractPendingLoadRequestAssignmentConflict(err);
+      if (pendingConflict) {
+        // A new request can arrive while the compatibility dialog is open.
+        // Move the same unresolved action back to the request confirmation and
+        // preserve the already-approved compatibility override flags.
+        const resolver = compatibilityReviewResolverRef.current;
+        compatibilityReviewResolverRef.current = null;
+        pendingRequestAssignmentResolverRef.current = resolver;
+        setCompatibilityReview(null);
+        setPendingRequestAssignmentReview({
+          options: {
+            endpoint: compatibilityReview.endpoint,
+            payload: overridePayload,
+            driverName: compatibilityReview.driverName,
+            loadLabel: compatibilityReview.loadLabel,
+            actionLabel: compatibilityReview.actionLabel,
+            successMessage: compatibilityReview.successMessage,
+            activeLoads: compatibilityReview.activeLoads,
+          },
+          conflict: pendingConflict,
+        });
+        toast.warning(
+          "A pending request changed while you were reviewing compatibility. Review the updated requests before assigning.",
+        );
+        return;
+      }
+
       toast.error(
         err.response?.data?.message ||
           "The compatibility override could not be applied",
@@ -665,14 +848,21 @@ export default function DriverTrackerPage() {
           { loadId: shipmentId },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        toast.success("Load removed from driver");
+        const shipment = drivers
+          .flatMap((candidate) => candidate.shipments ?? [])
+          .find((item) => String(item.id) === String(shipmentId));
+        toast.success(
+          shipment?.releaseRequest?.status === "pending"
+            ? "Release approved — load returned to Available Loads"
+            : "Load removed from driver",
+        );
         fetchDrivers();
         fetchAvailableLoads();
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Failed to remove load");
       }
     },
-    [getToken, isSignedIn, fetchDrivers, fetchAvailableLoads],
+    [getToken, isSignedIn, fetchDrivers, fetchAvailableLoads, drivers],
   );
 
   const handleReassignLoad = React.useCallback(
@@ -692,11 +882,33 @@ export default function DriverTrackerPage() {
         driverName: driver?.driver?.name || "Driver",
         loadLabel: shipment?.trackingNumber || shipmentId,
         actionLabel: "Reassign Anyway",
-        successMessage: "Load reassigned successfully",
+        successMessage:
+          shipment?.releaseRequest?.status === "pending"
+            ? "Release approved — load reassigned successfully"
+            : "Load reassigned successfully",
         activeLoads: driver?.shipments ?? [],
       });
     },
     [drivers, isSignedIn, runDispatcherLoadAction],
+  );
+
+  const handleKeepAssigned = React.useCallback(
+    async (shipmentId: string) => {
+      if (!isSignedIn) return;
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(shipmentId)}/release-request/reject`,
+          { decisionReason: "Dispatch reviewed the request and kept this load assigned." },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Release request declined — load remains assigned");
+        await fetchDrivers();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to keep load assigned");
+      }
+    },
+    [getToken, isSignedIn, fetchDrivers],
   );
 
   const handleStatusRequestReassignLoad = React.useCallback(
@@ -768,6 +980,32 @@ export default function DriverTrackerPage() {
       }
     },
     [getToken, fetchLoadRequests],
+  );
+
+  const handleReviewLoadRequest = React.useCallback(
+    (loadId: string, driverId: string) => {
+      const requestKey = `${loadId}-${driverId}`;
+
+      // Keep navigation inside Driver Tracker. The event already contains the
+      // exact server-authorized load + driver pair, so no extra backend lookup
+      // or thread ownership rule is introduced here.
+      setLoadsTab("requests");
+      setFocusedRequestKey(requestKey);
+      setChatDialogOpen(false);
+      setChatDriver(null);
+      clearDispatchChatDeepLink();
+      void fetchLoadRequests();
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          loadManagementRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      });
+    },
+    [clearDispatchChatDeepLink, fetchLoadRequests],
   );
 
   const handleMessageDriver = React.useCallback(
@@ -948,10 +1186,52 @@ export default function DriverTrackerPage() {
             threadId?: string;
             dispatcherId?: string;
             driverId?: string;
+            sender?: { id?: string };
             senderRole?: "driver" | "dispatcher";
+            messageType?: "message" | "system";
+            systemEvent?: {
+              metadata?: {
+                unreadForParticipantIds?: unknown[];
+              };
+            } | null;
+            readBy?: string[];
           }) => {
             const driverId = String(message?.driverId ?? "");
-            if (!driverId || message?.senderRole !== "driver") return;
+            if (!driverId) return;
+
+            const currentDispatcherId = String(user?.id ?? "");
+            const alreadyReadByDispatcher = (message.readBy ?? []).some(
+              (readerId) =>
+                String(readerId) === currentDispatcherId,
+            );
+            if (alreadyReadByDispatcher) return;
+
+            const explicitUnreadIds =
+              message.messageType === "system" &&
+              Array.isArray(
+                message.systemEvent?.metadata?.unreadForParticipantIds,
+              )
+                ? message.systemEvent!.metadata!
+                    .unreadForParticipantIds!
+                : [];
+            const explicitlyUnreadForDispatcher =
+              explicitUnreadIds.some(
+                (participantId) =>
+                  String(participantId) === currentDispatcherId,
+              );
+            const sentByAnotherParticipant =
+              String(message.sender?.id ?? "") !==
+              currentDispatcherId;
+
+            // Ordinary own messages never become unread. A lifecycle system
+            // notification can opt in for the acting dispatcher as requested
+            // by Test 14.
+            if (
+              !sentByAnotherParticipant &&
+              !explicitlyUnreadForDispatcher
+            ) {
+              return;
+            }
 
             // The backend already emits private chat events only to the exact
             // dispatcher↔driver pair. Keep a client-side participant check too
@@ -1291,10 +1571,21 @@ export default function DriverTrackerPage() {
     return () => clearInterval(tick);
   }, []);
 
+  const mountainTimeZoneLabel =
+    getCalendarTimeZoneAbbreviation(currentTime);
+
   const totalLoads = drivers.reduce(
     (sum, d) => sum + (d.shipments?.length || 0),
     0,
   );
+
+  const focusedRequestExists = React.useMemo(() => {
+    if (!focusedRequestKey) return false;
+    return loadRequests.some((request: any) =>
+      `${String(request.loadId ?? request.shipmentId ?? "")}-${String(request.driverId ?? "")}` ===
+      focusedRequestKey,
+    );
+  }, [focusedRequestKey, loadRequests]);
 
   const kpis = [
     {
@@ -1368,15 +1659,10 @@ export default function DriverTrackerPage() {
                 second: "2-digit",
                 timeZone: "America/Denver",
               })}{" "}
-              MST
+              {mountainTimeZoneLabel}
             </span>
             <span className="hidden xs:inline text-muted-foreground/40 font-medium normal-case whitespace-nowrap">
-              (
-              {currentTime.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}{" "}
-              local)
+              (Mountain Time)
             </span>
           </span>
           {loadRequests.length > 0 && (
@@ -1508,6 +1794,7 @@ export default function DriverTrackerPage() {
         />
       </div>
 
+      <div ref={loadManagementRef} className="scroll-mt-4">
       <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden">
         <CardHeader className="py-3 px-3 sm:px-5 border-b border-border/30 space-y-3">
           <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
@@ -1545,7 +1832,10 @@ export default function DriverTrackerPage() {
             ).map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setLoadsTab(tab.key)}
+                onClick={() => {
+                  setLoadsTab(tab.key);
+                  if (tab.key !== "requests") setFocusedRequestKey(null);
+                }}
                 className={`flex items-center justify-center gap-1.5 px-1.5 sm:px-2.5 py-2 sm:py-1.5 rounded-md flex-1 min-h-9 transition-all ${loadsTab === tab.key
                     ? `${tab.activeClass} border shadow-sm`
                     : "border border-transparent hover:bg-muted/50"
@@ -1581,6 +1871,7 @@ export default function DriverTrackerPage() {
             activeDrivers={eligibleDrivers}
             onRemoveLoad={handleRemoveLoad}
             onReassignLoad={handleReassignLoad}
+            onKeepAssigned={handleKeepAssigned}
           />
         )}
 
@@ -1593,30 +1884,41 @@ export default function DriverTrackerPage() {
           />
         )}
 
-        {loadsTab === "requests" &&
-          (!loadRequestsLoading && loadRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center">
-                <Bell className="size-7 text-muted-foreground/40" />
+        {loadsTab === "requests" && (
+          <>
+            {focusedRequestKey && !loadRequestsLoading && !focusedRequestExists && (
+              <div className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                This load request is no longer pending. It may already have been approved, rejected, or assigned to another driver.
               </div>
-              <p className="text-sm text-muted-foreground font-medium">
-                No pending requests
-              </p>
-              <p className="text-xs text-muted-foreground/75">
-                Driver load requests will appear here
-              </p>
-            </div>
-          ) : (
-            <DriverTrackerRequestsCard
-              requests={loadRequests}
-              isLoading={loadRequestsLoading}
-              onApprove={handleApproveRequest}
-              onReject={handleRejectRequest}
-              approvingId={approvingId}
-              rejectingId={rejectingId}
-            />
-          ))}
+            )}
+
+            {!loadRequestsLoading && loadRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center">
+                  <Bell className="size-7 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground font-medium">
+                  No pending requests
+                </p>
+                <p className="text-xs text-muted-foreground/75">
+                  Driver load requests will appear here
+                </p>
+              </div>
+            ) : (
+              <DriverTrackerRequestsCard
+                requests={loadRequests}
+                isLoading={loadRequestsLoading}
+                onApprove={handleApproveRequest}
+                onReject={handleRejectRequest}
+                approvingId={approvingId}
+                rejectingId={rejectingId}
+                focusedRequestKey={focusedRequestKey}
+              />
+            )}
+          </>
+        )}
       </Card>
+      </div>
 
       <DriverAssignLoadModal
         open={assignModalOpen}
@@ -1658,6 +1960,14 @@ export default function DriverTrackerPage() {
         onUpdated={fetchDrivers}
       />
 
+      <PendingLoadRequestAssignmentDialog
+        open={pendingRequestAssignmentReview !== null}
+        onOpenChange={handlePendingRequestAssignmentOpenChange}
+        conflict={pendingRequestAssignmentReview?.conflict ?? null}
+        isSubmitting={pendingRequestAssignmentSubmitting}
+        onConfirm={confirmPendingRequestAssignment}
+      />
+
       <DriverLoadCompatibilityReviewDialog
         open={compatibilityReview !== null}
         onOpenChange={handleCompatibilityReviewOpenChange}
@@ -1683,6 +1993,7 @@ export default function DriverTrackerPage() {
         driverId={chatDriver?.driver?.id ?? null}
         participantName={chatDriver?.driver?.name || "Driver"}
         onUnreadChange={handleChatUnreadChange}
+        onReviewLoadRequest={handleReviewLoadRequest}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { Quote } from "@/types/transportation"
 import { Load } from "@/types/load"
 import { getLoadReportRate } from "@/lib/report-filter-engine"
+import { formatScheduleDate } from "@/utils/calendar.utils"
 
 export interface LoadSummary {
   total: number
@@ -995,15 +996,15 @@ export function generateBolHtml(load: Load, companyName: string = "Your Dealersh
     <section class="dates-grid">
       <div class="date-item">
         <div class="item-label">First Available</div>
-        <div class="date-value">${escapeHtml(fmtDate(load.dates?.firstAvailable))}</div>
+        <div class="date-value">${escapeHtml(formatScheduleDate(load.dates?.firstAvailable))}</div>
       </div>
       <div class="date-item">
         <div class="item-label">Pickup Deadline</div>
-        <div class="date-value">${escapeHtml(fmtDate(load.dates?.pickupDeadline))}</div>
+        <div class="date-value">${escapeHtml(formatScheduleDate(load.dates?.pickupDeadline))}</div>
       </div>
       <div class="date-item">
         <div class="item-label">Delivery Deadline</div>
-        <div class="date-value">${escapeHtml(fmtDate(load.dates?.deliveryDeadline))}</div>
+        <div class="date-value">${escapeHtml(formatScheduleDate(load.dates?.deliveryDeadline))}</div>
       </div>
     </section>
 
