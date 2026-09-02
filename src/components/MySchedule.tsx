@@ -247,9 +247,18 @@ function Section({
                 <li key={item.id}>
                   <button
                     onClick={() => onItemClick(item)}
+                    title={item.title}
                     className="group flex w-full flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50/80 px-3.5 py-2.5 text-left transition hover:border-zinc-300 hover:bg-zinc-100 dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-white/15 dark:hover:bg-white/[0.06]"
                   >
-                    <span className="truncate text-[13px] font-medium leading-5 text-zinc-800 dark:text-zinc-100">
+                    <span
+                      className="block w-full whitespace-normal break-words text-[13px] font-medium leading-5 text-zinc-800 dark:text-zinc-100"
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
                       {item.title}
                     </span>
                     <span className="font-mono text-[11px] leading-4 tabular-nums text-zinc-600 dark:text-zinc-400">

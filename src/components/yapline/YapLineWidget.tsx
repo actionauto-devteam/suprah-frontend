@@ -101,7 +101,7 @@ export function YapLineWidget() {
   }, []);
 
   return (
-    <div className="relative rounded-3xl border border-border/40 bg-card/40 p-4 backdrop-blur-xl sm:p-5">
+    <div className="yapline-scope relative rounded-3xl border border-border/40 bg-card/40 p-4 backdrop-blur-xl sm:p-5">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
 
       {/* Header */}

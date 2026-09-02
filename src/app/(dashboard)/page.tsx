@@ -51,7 +51,7 @@ import { useTeamMembers } from "@/hooks/useTeamPulse";
 
 import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
-import { Panel, PanelSkeleton, ini, timeAgo } from "./components/DashboardPanel";
+import { Panel, PanelSkeleton, StatTile, ini, timeAgo } from "./components/DashboardPanel";
 import { MyClockStatus } from "./components/MyClockStatus";
 import { MyTasksSummary } from "./components/MyTasksSummary";
 import { WhoIsOut } from "./components/WhoIsOut";
@@ -367,10 +367,7 @@ function CalendarSummary() {
               { label: "Today", value: today.length, tone: "text-emerald-500" },
               { label: "Upcoming", value: upcoming.length, tone: "text-cyan-500" },
             ].map((c) => (
-              <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
-                <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
-              </div>
+              <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
             ))}
           </div>
 
@@ -431,12 +428,7 @@ function LeadsSummary() {
             { label: "Follow-up", value: stats?.followUp ?? 0, tone: "text-amber-500" },
             { label: "Total", value: stats?.total ?? 0, tone: "text-foreground" },
           ].map((c) => (
-            <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-3 text-center">
-              <p className={`text-2xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
-                {c.label}
-              </p>
-            </div>
+            <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
           ))}
         </div>
       )}
@@ -472,10 +464,7 @@ function TeamPulseSnapshot() {
               { label: "Active", value: activeCount, tone: "text-primary" },
               { label: "Offline", value: offlineCount, tone: "text-muted-foreground/60" },
             ].map((c) => (
-              <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
-                <p className={`text-xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{c.label}</p>
-              </div>
+              <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
             ))}
           </div>
 
@@ -556,14 +545,8 @@ function ReviewsSummary() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
-              <p className="text-lg font-black tabular-nums">{data?.total ?? 0}</p>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Total</p>
-            </div>
-            <div className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
-              <p className="text-lg font-black tabular-nums text-rose-500">{data?.pending ?? 0}</p>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Needs reply</p>
-            </div>
+            <StatTile label="Total" value={data?.total ?? 0} />
+            <StatTile label="Needs reply" value={data?.pending ?? 0} tone="text-rose-500" />
           </div>
         </div>
       )}
@@ -608,12 +591,7 @@ function AftermarketSummary() {
             { label: "Live", value: stats?.live ?? 0, tone: "text-emerald-500" },
             { label: "Quote", value: stats?.quote ?? 0, tone: "text-violet-500" },
           ].map((c) => (
-            <div key={c.label} className="rounded-2xl border border-border/30 bg-background/40 p-3 text-center">
-              <p className={`text-2xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-              <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60 mt-0.5">
-                {c.label}
-              </p>
-            </div>
+            <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
           ))}
         </div>
       )}
@@ -688,7 +666,7 @@ export default function Dashboard() {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.06),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Header banner with embedded compact Spotify ── */}
-      <div className="relative rounded-3xl border border-white/10 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
+      <div className="relative rounded-3xl border border-border/40 bg-card/40 px-4 py-5 backdrop-blur-xl sm:px-7 sm:py-6">
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
           <div className="absolute -right-20 -top-24 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
           <div className="absolute -left-16 -bottom-20 size-56 rounded-full bg-green-500/8 blur-3xl" />

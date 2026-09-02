@@ -160,7 +160,7 @@ export function SpotifyPanel({ compact = false, bare = false }: { compact?: bool
 
   // CARD — standalone (compact or full).
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 shadow-sm backdrop-blur-xl">
+    <section className="relative overflow-hidden rounded-3xl border border-border/40 bg-card/40 shadow-sm backdrop-blur-xl">
       <div className="flex items-center justify-between gap-2 border-b border-border/20 px-5 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <SpotifyIcon className="size-4 text-green-500 shrink-0" />

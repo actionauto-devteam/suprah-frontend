@@ -193,6 +193,31 @@ body.app-fullscreen .main-content {
   --muted-foreground: oklch(0.78 0.03 269.46);
 }
 
+/* Scoped contrast fix for Suprah YapLine — the module leans heavily on
+   text-muted-foreground/40 through /70 at 9-11px for channel names, status
+   labels, and activity text, which fails WCAG contrast at that size in both
+   themes. Same fix as .timeproof-scope above: strengthen the base color the
+   opacity utilities blend against instead of touching every className. */
+.yapline-scope {
+  --muted-foreground: oklch(0.35 0.03 268.53);
+}
+.dark .yapline-scope {
+  --muted-foreground: oklch(0.78 0.03 269.46);
+}
+
+/* Scoped contrast fix for Team Pulse — Overview, Team, Locator, and Calendar
+   lean on text-muted-foreground/40 through /70 (sometimes stacked with an
+   extra opacity-40 for empty/placeholder fields) at 9-11px for job titles,
+   departments, status notes, and schedule details. Board doesn't use this
+   pattern, which is why it read fine in Light Mode while the rest didn't.
+   Same fix as .timeproof-scope / .yapline-scope above. */
+.team-pulse-scope {
+  --muted-foreground: oklch(0.35 0.03 268.53);
+}
+.dark .team-pulse-scope {
+  --muted-foreground: oklch(0.78 0.03 269.46);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -1733,4 +1758,62 @@ body.theme-switching *::after {
 .service-hub-select-content[data-state="closed"] {
   animation: none !important;
   transition: none !important;
+}
+
+/* ==========================================================
+   Global print styles
+   ----------------------------------------------------------
+   window.print() prints whatever is currently in the DOM, so without this
+   the app shell (sidebar + org header, both sized/scrolled for screen use)
+   prints along with the page content — clipping anything that relied on
+   an internal scroll container and showing the org's Workspace name where
+   SUPRAH.AI branding is expected. [data-slot="sidebar"] covers both the
+   desktop sidebar and its mobile Sheet variant (ui/sidebar.tsx).
+   ========================================================== */
+@page {
+  size: landscape;
+  margin: 12mm;
+}
+
+@media print {
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-rail"] {
+    display: none !important;
+  }
+
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* Suprah Calendar print output — the grid and month/agenda views rely on
+     internal scroll containers (overflow-y-auto, max-h-*) and a sticky day
+     header for on-screen use; none of that can scroll on a printed page, so
+     it must all be let out to its full natural size instead. */
+  .suprah-calendar-print,
+  .suprah-calendar-print * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .suprah-calendar-print .sticky {
+    position: static !important;
+  }
+
+  .suprah-calendar-print .time-grid-inner {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Tailwind arbitrary-value text sizes (text-[9px] etc.) used throughout
+     the calendar for on-screen density read as too small once printed. */
+  .suprah-calendar-print [class*="text-["] {
+    font-size: 11px !important;
+  }
+
+  .suprah-calendar-print button {
+    break-inside: avoid;
+  }
 }

@@ -68,6 +68,24 @@ export function Panel({
   );
 }
 
+/** Consistent stat number + label tile used across the dashboard's metric grids. */
+export function StatTile({
+  label,
+  value,
+  tone = "text-foreground",
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/30 bg-background/40 p-2.5 text-center">
+      <p className={`text-xl font-black tabular-nums ${tone}`}>{value}</p>
+      <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">{label}</p>
+    </div>
+  );
+}
+
 export function PanelSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="space-y-3 animate-pulse">

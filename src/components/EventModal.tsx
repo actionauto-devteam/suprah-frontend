@@ -32,12 +32,13 @@ async function fetchCrmUsers(): Promise<CrmUserLite[]> {
   try {
     const res = await apiClient.getTeamMembers();
     const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
-    return (Array.isArray(raw) ? raw : []).map((u: any) => ({
+    const mapped = (Array.isArray(raw) ? raw : []).map((u: any) => ({
       _id: String(u._id ?? u.id),
       fullName: u.fullName ?? u.name,
       username: u.username,
       email: u.email,
     }));
+    return Array.from(new Map(mapped.map((u) => [u._id, u])).values());
   } catch {
     return [];
   }

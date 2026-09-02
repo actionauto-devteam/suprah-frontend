@@ -76,7 +76,7 @@ export function YapLineInviteModal({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="yapline-scope fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
         className="flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border/50 bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}

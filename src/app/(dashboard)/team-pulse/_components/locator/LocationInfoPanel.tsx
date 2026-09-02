@@ -583,7 +583,7 @@ export function LocationInfoPanel({
           )}
 
           <Dialog open={routeMapOpen} onOpenChange={setRouteMapOpen}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="team-pulse-scope sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle className="text-sm font-black flex items-center gap-1.5">
                   <MapIcon className="size-4" /> {name}&apos;s Route

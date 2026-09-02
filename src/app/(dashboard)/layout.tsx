@@ -263,14 +263,14 @@ function DashboardLayoutContent({
   }
 
   return (
-    <SidebarProvider className="h-dvh overflow-hidden">
+    <SidebarProvider className="h-dvh overflow-hidden print:h-auto print:overflow-visible">
       <AppSidebar />
       {/* min-w-0 + w-full: lets this flex child shrink below its content's
           intrinsic width instead of forcing the whole page wider than the
           viewport (the classic flex-child overflow bug). */}
       <SidebarInset
         className={cn(
-          "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out",
+          "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out print:h-auto print:overflow-visible",
           notificationDrawerOpen && "lg:pr-85 xl:pr-95",
         )}
       >
@@ -282,7 +282,7 @@ function DashboardLayoutContent({
           />
         )}
         {!isCrmRoute && (
-          <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+          <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 print:hidden">
             <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1 min-w-0">
               <div className="flex items-center gap-2 text-sm text-muted-foreground border-r pr-4 h-8">
                 <SidebarTrigger className="-ml-1" />
@@ -384,14 +384,14 @@ function DashboardLayoutContent({
             // min-w-0 + overflow-x-hidden keep wide children (grids, charts)
             // contained to the content column instead of pushing the page
             // horizontally.
-            "relative bg-background md:pb-0 min-w-0 overflow-x-hidden",
+            "relative bg-background md:pb-0 min-w-0 overflow-x-hidden print:overflow-visible",
             (leadConvoActive || mailWorkspaceActive) ? "pb-0" : "pb-24",
             // Same fixed-viewport-shell + internally-scrolling-main treatment for every
             // route, not just /crm/* — this was previously CRM-only, which left every
             // other page (Team Pulse/Locator, Reports, etc.) with an unbounded page that
             // either overflowed or, worse, had overflow-hidden with no scroll at all,
             // making tall content unreachable.
-            "flex-1 min-h-0 overflow-y-auto " +
+            "flex-1 min-h-0 overflow-y-auto print:h-auto print:overflow-visible " +
             "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] " +
             "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 " +
             "[&::-webkit-scrollbar-track]:bg-transparent " +

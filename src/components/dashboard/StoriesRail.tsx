@@ -228,7 +228,7 @@ function NoteEditor({
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
           <h3 className="text-base font-black tracking-tight">Share a note</h3>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60"><X className="size-4" /></button>
@@ -339,7 +339,7 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
   return (
     <div className="fixed inset-0 z-80 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-card/95 backdrop-blur-2xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
           <h3 className="text-base font-black tracking-tight">Add to your day</h3>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted/60"><X className="size-4" /></button>
@@ -349,12 +349,12 @@ function StoryComposer({ onClose, onPosted }: { onClose: () => void; onPosted: (
           {!file ? (
             <button
               onClick={() => inputRef.current?.click()}
-              className="flex aspect-9/12 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/50 bg-muted/20 hover:border-emerald-500/40 transition-colors"
+              className="flex aspect-9/12 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/50 hover:border-emerald-500/60 hover:bg-muted/70 transition-colors"
             >
-              <ImagePlus className="size-8 text-muted-foreground/50" />
+              <ImagePlus className="size-8 text-muted-foreground" />
               <div className="text-center">
-                <p className="text-base font-semibold text-foreground/80">Upload photo or video</p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">Video up to 2 min · disappears in 24h</p>
+                <p className="text-base font-semibold text-foreground">Upload photo or video</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Video up to 2 min · disappears in 24h</p>
               </div>
             </button>
           ) : (
@@ -851,7 +851,7 @@ function NoteDetail({
     <Portal>
       <div className="fixed inset-0 z-95 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/95 shadow-2xl backdrop-blur-2xl">
+        <div className="relative z-10 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-border/40 bg-card/95 shadow-2xl backdrop-blur-2xl">
           {/* Header */}
           <div className="flex items-center gap-2.5 border-b border-border/40 px-5 py-3.5">
             <Avatar className="size-9">
@@ -1032,7 +1032,7 @@ export function StoriesRail({ me }: { me?: { fullName?: string; avatar?: string 
 
   return (
     <>
-      <section className="group/rail relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl shadow-sm">
+      <section className="group/rail relative overflow-hidden rounded-3xl border border-border/40 bg-card/40 backdrop-blur-xl shadow-sm">
         {/* subtle top hairline glow for a more digital feel */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/40 to-transparent" />
 

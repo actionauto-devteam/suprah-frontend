@@ -195,7 +195,7 @@ export default function TeamPulsePage() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="min-h-screen animate-in fade-in duration-400">
+      <div className="team-pulse-scope min-h-screen animate-in fade-in duration-400">
         <div className="border-b border-border/50 bg-background">
           <div className="container mx-auto px-4 sm:px-8">
             <div className="flex items-center justify-between gap-4 py-4 sm:py-5">

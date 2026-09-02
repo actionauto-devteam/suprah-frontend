@@ -264,7 +264,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       )}
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="team-pulse-scope sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm font-black">{editing ? "Edit Place" : "New Place"}</DialogTitle>
             <DialogDescription className="sr-only">

@@ -95,7 +95,7 @@ export function MobileBottomNav({ items }: MobileBottomNavProps) {
             initial={{ y: 140, opacity: 0 }}
             animate={{ y: shouldHide ? 140 : 0, opacity: shouldBeInvisible ? 0 : hidden ? 0.88 : 1 }}
             transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.85 }}
-            className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 md:hidden select-none"
+            className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-30 md:hidden select-none print:hidden"
             style={{ paddingBottom: "env(safe-area-inset-bottom)", pointerEvents: shouldBeInvisible ? 'none' : undefined }}
         >
             <div className="mx-auto w-[min(100%-1rem,33rem)] mb-2.5">

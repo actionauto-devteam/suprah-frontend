@@ -202,7 +202,7 @@ export function MemberProfileSheet({
     <>
     <MemberFullProfileDialog profile={profile} open={fullProfileOpen} onClose={() => setFullProfileOpen(false)} />
     <Sheet open={!!memberId} onOpenChange={(o) => { if (!o) { onClose(); setFullProfileOpen(false); } }}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
+      <SheetContent className="team-pulse-scope w-full sm:max-w-xl overflow-y-auto p-0">
         <div className={cn("relative overflow-hidden bg-linear-to-br from-primary/15 via-primary/8 to-transparent border-b border-border/30 px-5 sm:px-6 pt-5 pb-4", !profile && "hidden")}>
           <SheetHeader className="sr-only">
             <SheetTitle>{profile?.name ?? "Team Member"}</SheetTitle>

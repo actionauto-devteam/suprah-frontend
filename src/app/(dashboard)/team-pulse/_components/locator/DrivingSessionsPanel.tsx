@@ -187,7 +187,7 @@ function SessionRow({ session, isMe }: { session: DrivingSession; isMe: boolean 
       )}
 
       <Dialog open={routeOpen} onOpenChange={setRouteOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="team-pulse-scope sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-sm font-black flex items-center gap-1.5">
               <MapIcon className="size-4" /> {session.userName}'s Route

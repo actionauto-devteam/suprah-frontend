@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon, type LucideIcon } from "lucide-react";
+import { CheckIcon, ChevronDown, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -95,6 +95,7 @@ export function MultiSelectFilter({
               </Badge>
             </>
           )}
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[220px] p-0" align="end">

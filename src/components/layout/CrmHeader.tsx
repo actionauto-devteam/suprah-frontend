@@ -53,7 +53,7 @@ export function CrmHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300">
+    <header className="sticky top-0 z-40 w-full border-b border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-100/85 dark:bg-zinc-950/80 backdrop-blur-xl transition-colors duration-300 print:hidden">
       <div className="flex items-center justify-between gap-2 h-14 sm:h-16 px-4 sm:px-6">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <SidebarTrigger className="-ml-1 shrink-0" />

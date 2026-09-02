@@ -72,12 +72,13 @@ async function fetchTeamMembers(): Promise<CrmUserLite[]> {
   try {
     const res = await apiClient.getTeamMembers();
     const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
-    return (Array.isArray(raw) ? raw : []).map((u: any) => ({
+    const mapped = (Array.isArray(raw) ? raw : []).map((u: any) => ({
       _id: String(u._id ?? u.id),
       fullName: u.fullName ?? u.name,
       username: u.username,
       email: u.email,
     }));
+    return Array.from(new Map(mapped.map((u) => [u._id, u])).values());
   } catch {
     return [];
   }
@@ -610,7 +611,7 @@ export default function SuprahCalendar() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
+    <div className="suprah-calendar-print relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
       {/* Ambient blobs — cockpit atmosphere */}
       <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15 print:hidden" />
       <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-500/15 print:hidden" />
@@ -1272,8 +1273,8 @@ function TimeGridView({
   const headerHeight = 64;
 
   return (
-    <div className="overflow-x-auto">
-    <div className={`relative bg-background text-foreground ${days > 1 ? "min-w-190" : "min-w-0"}`}>
+    <div className="overflow-x-auto print:overflow-visible">
+    <div className={`time-grid-inner relative bg-background text-foreground ${days > 1 ? "min-w-190" : "min-w-0"}`}>
       <style jsx global>{`
         .time-grid-scrollbar {
           scrollbar-width: thin;
@@ -1293,7 +1294,7 @@ function TimeGridView({
 
       {isEmpty && (
         <div className="pointer-events-none sticky left-0 z-20 flex h-0 w-full items-start justify-center">
-          <div className="pointer-events-auto mt-24">
+          <div className="mt-24">
             <CalendarEmptyState
               icon={CalendarDays}
               title={days === 1 ? "Nothing scheduled today" : "Nothing scheduled this week"}
@@ -1865,6 +1866,7 @@ function AgendaView({
                     onClick={() =>
                       selectMode ? onToggleSelected?.(item.id) : onItemClick(item)
                     }
+                    title={`${item.title} — ${timeLabel}`}
                     className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
                   >
                     {selectMode && (
@@ -1888,7 +1890,15 @@ function AgendaView({
                     </div>
 
                     <div className="min-w-0 flex-1 px-1 sm:px-4">
-                      <span className="block truncate text-[12px] font-bold">
+                      <span
+                        className="block w-full whitespace-normal break-words text-[12px] font-bold leading-snug"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
                         {item.title}
                       </span>
                       {item.description && (

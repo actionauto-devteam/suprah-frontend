@@ -349,7 +349,7 @@ export default function YapLinePage() {
   }, []);
 
   return (
-    <div className="flex h-full w-full flex-col gap-4 overflow-hidden p-3 sm:p-6 lg:flex-row animate-in fade-in duration-500">
+    <div className="yapline-scope flex h-full w-full flex-col gap-4 overflow-hidden p-3 sm:p-6 lg:flex-row animate-in fade-in duration-500">
       {/* Ambient glow */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 

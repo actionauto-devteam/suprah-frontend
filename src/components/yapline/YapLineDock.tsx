@@ -570,7 +570,7 @@ export function YapLineDock() {
       <div
         ref={setNode}
         style={dragStyle}
-        className="pointer-events-none fixed bottom-24 right-3 z-70 flex flex-col items-end gap-2 md:bottom-5 md:right-5"
+        className="yapline-scope pointer-events-none fixed bottom-24 right-3 z-70 flex flex-col items-end gap-2 md:bottom-5 md:right-5"
       >
         {collapsed ? orb : panel}
       </div>

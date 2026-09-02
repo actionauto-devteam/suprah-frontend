@@ -167,12 +167,12 @@ export function MemberCard({
           )}
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 min-w-0">
             <Building2 className="size-3 opacity-40 shrink-0" />
-            <span className={cn("truncate max-w-28", noDept && "italic opacity-40")}>{dept}</span>
+            <span className={cn("truncate max-w-28", noDept && "italic")}>{dept}</span>
           </span>
         </div>
         {member.customStatus && (
           <div className="sm:hidden mt-0.5">
-            <span className="text-[10px] italic text-muted-foreground/40 truncate block max-w-full">"{member.customStatus}"</span>
+            <span className="text-[10px] italic text-muted-foreground/60 truncate block max-w-full">"{member.customStatus}"</span>
           </div>
         )}
       </div>
@@ -181,17 +181,17 @@ export function MemberCard({
         <div className="flex items-center gap-4 min-w-0">
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70 min-w-0 flex-1 basis-0">
             <Briefcase className="size-3 opacity-40 shrink-0" />
-            <span className={cn("truncate", !member.personalInfo?.jobTitle && "italic opacity-40")}>
+            <span className={cn("truncate", !member.personalInfo?.jobTitle && "italic")}>
               {member.personalInfo?.jobTitle || "No title"}
             </span>
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0 flex-1 basis-0">
             <Building2 className="size-3 opacity-40 shrink-0" />
-            <span className={cn("truncate", noDept && "italic opacity-40")}>{dept}</span>
+            <span className={cn("truncate", noDept && "italic")}>{dept}</span>
           </span>
         </div>
         {member.customStatus && (
-          <span className="text-[10px] italic text-muted-foreground/40 truncate">"{member.customStatus}"</span>
+          <span className="text-[10px] italic text-muted-foreground/60 truncate">"{member.customStatus}"</span>
         )}
       </div>
 
