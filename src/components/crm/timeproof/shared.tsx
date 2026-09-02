@@ -25,15 +25,8 @@ export const toDateStr = (d: Date) => {
   return `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, "0")}-${String(m.getUTCDate()).padStart(2, "0")}`
 }
 
-// A day's break badge on the calendar (grid or mobile list) turns red once
-// that day's total break time hit 1h10m+ — 10 minutes past the official 1h
-// limit, matching the grace window already used elsewhere (admin gets
-// notified at 1h05m; this is a visually louder, retrospective flag once it
-// went further still). Below this it stays the normal orange.
 export const BREAK_OVER_LIMIT_SECONDS = 70 * 60
 
-// De-minimis cutoff for leftover minutes past a full hour, mirrors backend's
-// computeExactPayout. 0 = no cutoff (pay every exact minute) until Erik gives a number.
 export const PAYROLL_DE_MINIMIS_SECONDS = 0
 export function computeExactPayout(totalSeconds: number, hourlyRate: number) {
   const wholeHourSeconds = Math.floor(totalSeconds / 3600) * 3600
@@ -162,7 +155,6 @@ export function generatePayslipHtml(p: {
 </body></html>`
 }
 
-/** Opens a new tab and writes the given HTML into it (used for print/PDF exports). */
 export function openHtmlForPrint(html: string) {
   const win = window.open("", "_blank")
   if (!win) return
@@ -485,11 +477,6 @@ export const MonthCalendar = ({ year, month, calendar, onSelectDay, isLive }: {
   )
 }
 
-// Mobile/PWA list view — day-by-day rows grouped by week with a "Week total"
-// separator, used in place of MonthCalendar's 7-column grid on narrow
-// screens (the grid's fixed columns get cramped on phone widths). Previously
-// only defined locally in the employee's own timeproof-clock page; moved here
-// so the admin per-user view can share the exact same mobile UI.
 export const MobileCalendarList = ({ year, month, calendar, onSelectDay, isLive }: {
   year: number; month: number; calendar: Record<string, DayData>
   onSelectDay: (ds: string) => void; isLive: boolean

@@ -253,9 +253,6 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
     return () => clearInterval(id)
   }, [])
 
-  // Authoritative wall-clock baseline (see wallClockBaseMs state declaration)
-  // plus a smooth client-side tick since it was last fetched — never regresses
-  // or resets, unlike the old ActivityInterval+heartbeat-derived mechanism.
   const liveMs = wallClockBaseAt ? Math.max(0, now - wallClockBaseAt) : 0
   const totalMs = wallClockBaseMs + liveMs
   const isActive = wallClockBaseAt !== null
@@ -263,11 +260,6 @@ function ActivityTimer({ wallClockBaseMs, wallClockBaseAt, isOnShift, isOnBreak,
   const totalBreakMs = breakTotalMs + breakLiveMs
   const BREAK_LIMIT_MS = 65 * 60 * 1000
   const breakExceeded = isOnBreak && totalBreakMs >= BREAK_LIMIT_MS
-
-  // Repeating alarm once break has gone past the limit — keeps playing until
-  // the user resumes their shift (breakExceeded flips false, either from
-  // isOnBreak going false or the duration no longer qualifying). Only heard
-  // while this page is open, same as any other in-app sound.
   React.useEffect(() => {
     if (breakExceeded) {
       playOverBreakAlarm()
@@ -353,18 +345,6 @@ export default function TimeprofClockPage() {
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false)
-  // Authoritative, single-source on-break flag for gating the End Shift
-  // button — deliberately separate from `isOnBreak` below, which is also
-  // written by socket events AND a log-derived useEffect (computed from
-  // todayLogs). Those extra writers made `isOnBreak` race-prone: if that
-  // effect's log snapshot showed an unpaired break-in from data that didn't
-  // yet reflect a break-out, it could set `isOnBreak=true` even while this
-  // same poll's `s.isOnBreak=false` was correctly keeping the timer ticking
-  // — silently disabling End Shift with no modal, no error, nothing (seen in
-  // production: a user reported that clicking End Shift with hours already
-  // over 8h did nothing and the timer kept running). This flag never gets
-  // written by anything except this one poll, so it can't be stale/desynced
-  // by another writer racing it.
   const [serverIsOnBreak, setServerIsOnBreak] = React.useState(false)
   const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false)
   const [locallyResumedShift, setLocallyResumedShift] = React.useState(
@@ -373,22 +353,11 @@ export default function TimeprofClockPage() {
   const [serverShiftStartedAt, setServerShiftStartedAt] = React.useState<string | null>(null)
   const [todayTotalActiveMs, setTodayTotalActiveMs] = React.useState(0)
   const [activityStartAt, setActivityStartAt] = React.useState<number | null>(null)
-  // Authoritative rendered-hours baseline — same wall-clock (TimeLog-based)
-  // figure that already powers the Today card and calendar, which is why
-  // those never show the "resets to zero" bug this live ticker was prone to.
-  // wallClockBaseAt marks when this baseline was fetched; the display adds
-  // (now - wallClockBaseAt) on top for smooth client-side ticking, then
-  // resyncs to a fresh authoritative baseline on every poll — so even if
-  // something is briefly off, it self-corrects within one poll cycle instead
-  // of getting stuck at a wrong, frozen, or reset value.
   const [wallClockBaseMs, setWallClockBaseMs] = React.useState(0)
   const [wallClockBaseAt, setWallClockBaseAt] = React.useState<number | null>(null)
   const [currentBreakStartAt, setCurrentBreakStartAt] = React.useState<number | null>(null)
   const [resumeModal, setResumeModal] = React.useState(false)
   const [resumeOriginalClockIn, setResumeOriginalClockIn] = React.useState<string | null>(null)
-  // True only when the backend confirms the last time-out was an erroneous stale-shift
-  // auto-clockout (not a deliberate one) — gates whether "Yes, Resume Shift" can actually
-  // undo it (POST /resume-shift) vs. falling back to today's plain fresh time-in.
   const [canSeamlessResume, setCanSeamlessResume] = React.useState(false)
   const [resumingShift, setResumingShift] = React.useState(false)
   const [showEarlyEndModal, setShowEarlyEndModal] = React.useState(false)
@@ -466,10 +435,6 @@ export default function TimeprofClockPage() {
     } catch { }
   }, [getCrmLocatorHeaders])
 
-  // Location sharing is now required to clock in — no more pre-shift opt-out. Requests
-  // a real GPS fix (forces the permission prompt on a fresh install) and grants consent
-  // server-side before the actual clock-in call, so the backend's own mandatory-location
-  // gate (generalTimeclock.controller.ts / crm.controller.ts) never has to reject it.
   const requestLocationForShiftStart = React.useCallback(async (): Promise<boolean> => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       toast.error("Location is required to start your shift, and this device doesn't support it.")
@@ -556,27 +521,12 @@ export default function TimeprofClockPage() {
   }, [])
 
   React.useEffect(() => {
-    // fetchActivityState() alongside the other two — neither refreshShiftState() nor
-    // refreshLocatorStatus() touches isOnBreak, so returning to a backgrounded tab (where the
-    // 10s poll is heavily throttled by the browser) used to leave break/active state stale
-    // until that poll eventually caught up, sometimes long after the tab regained focus.
     const onVisibility = () => { if (!document.hidden) { refreshShiftState(); refreshLocatorStatus(); fetchActivityState() } }
     document.addEventListener("visibilitychange", onVisibility)
     return () => document.removeEventListener("visibilitychange", onVisibility)
-    // fetchActivityState is declared below this effect (TDZ — can't reference it in the deps
-    // array itself, only inside the callback, which is safe since that only runs post-mount).
-  }, [refreshShiftState, refreshLocatorStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshShiftState, refreshLocatorStatus])
 
   const fetchActivityState = React.useCallback(async () => {
-    // Stamped BEFORE the request goes out, not after the response lands —
-    // wallClockRenderedSeconds below is only accurate as of roughly this
-    // moment (when the server read it), not whenever the round-trip happens
-    // to finish. Anchoring wallClockBaseAt to the response-received time
-    // instead double-counts nothing but silently DROPS however long the
-    // round-trip took: a slow response (network hiccup, server load) would
-    // otherwise make the displayed timer visibly jump backward every time it
-    // lands, then climb again until the next poll — reported as the timer
-    // "looping" every ~10s.
     const requestSentAt = Date.now()
     let res
     if (authModeRef.current === 'main') {
@@ -594,28 +544,11 @@ export default function TimeprofClockPage() {
         setServerIsShiftFromToday(!!s.isShiftFromToday)
         setServerShiftStartedAt(s.shiftStartedAt ?? null)
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000)
-        // Authoritative baseline for the displayed number — see the state
-        // declaration above for why this exists. Always trust this fresh
-        // value from the server; wallClockBaseAt is only non-null while
-        // actively on shift and not on break, so the client-side tick (see
-        // ActivityTimer) only runs when it should.
         setWallClockBaseMs((s.wallClockRenderedSeconds ?? 0) * 1000)
         setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? requestSentAt : null)
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0
         const shiftStartedRecently = shiftStartedMs > 0 && (Date.now() - shiftStartedMs) < SHIFT_AUTO_RESUME_MS
-        // Reconcile isOnBreak/currentBreakStartAt from this SAME snapshot that
-        // drives activityStartAt below. Previously isOnBreak was only ever set
-        // by the optimistic click handlers and socket events, never by this
-        // poll — so a poll landing between "user clicked to end break" and
-        // "break-out TimeLog actually committed" could read a stale
-        // s.isOnBreak=true, null out activityStartAt (since the updater below
-        // keys off s.isOnBreak), while local isOnBreak stayed false from the
-        // optimistic update. That combination (not on break, not tracking) is
-        // the impossible "Paused / Resume Shift" stuck state users hit after
-        // ending a break — coupling both fields to the same snapshot means
-        // they can only ever be inconsistent for one poll cycle, and always
-        // self-correct on the next one instead of getting stuck permanently.
         setIsOnBreak(!!s.isOnBreak)
         setCurrentBreakStartAt(s.isOnBreak && s.breakStartedAt ? new Date(s.breakStartedAt).getTime() : null)
         setActivityStartAt((prev) => {
@@ -680,7 +613,7 @@ export default function TimeprofClockPage() {
       sock.off("break-out", syncBreakOut)
       sock.off("crm:early-end", onEarlyEnd)
     }
-  }, [token, refreshShiftState, fetchActivityState]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, refreshShiftState, fetchActivityState])
 
   React.useEffect(() => {
     const check = async () => {
@@ -741,17 +674,6 @@ export default function TimeprofClockPage() {
     }
     check()
   }, [router])
-
-  // Powers the "Today" card, monthly calendar, and streak — separate from
-  // (and previously never re-synced with) the shift-state poll that drives
-  // the Time Clock widget above it. Fetched once on mount only used to leave
-  // this permanently stale for the rest of a long-lived tab: a user who
-  // clocked in, worked all day, and clocked out without ever reloading the
-  // page would see "Today" frozen at whatever partial total existed at page
-  // load, still labeled "Live session" long after actually clocking out,
-  // while the Time Clock widget right next to it correctly showed "Shift
-  // Complete" with the real final total — two contradictory numbers for the
-  // same day on the same screen.
   const fetchTpData = React.useCallback(() => {
     if (!token) return
     setTpLoading(true)
@@ -769,20 +691,10 @@ export default function TimeprofClockPage() {
   }, [fetchTpData])
 
   const handleClock = async (type: "time-in" | "time-out", note?: string) => {
-    // Skip the GPS-permission gate entirely for a department exempted via
-    // "Require Location for TimeProof" (Settings → Departments) — the backend
-    // no longer requires it for them either, so forcing this prompt here was
-    // blocking exempted users on a location permission they were never
-    // supposed to need in the first place.
     if (type === "time-in" && user?.locationRequiredForTimeproof !== false) {
       const locationOk = await requestLocationForShiftStart()
       if (!locationOk) return
     }
-    // Freeze the running clock the instant the user confirms — waiting for the
-    // network round-trip before flipping isActive/wallClockBaseAt let the timer
-    // visibly keep ticking for a couple more seconds after the shift had
-    // already ended from the user's perspective. The subsequent response (and
-    // the 2.5s resync below) still overwrite this with the server's own log.
     if (type === "time-out") {
       setTodayLogs((prev) => [...(prev || []), { _id: `optimistic-${Date.now()}`, type: "time-out", timestamp: new Date().toISOString() }])
       setWallClockBaseAt(null)
@@ -838,11 +750,6 @@ export default function TimeprofClockPage() {
     }
   }
 
-  // Checks whether the tray app is reachable/online via the BACKEND's own
-  // heartbeat record, not a direct browser fetch to 127.0.0.1 — modern Chrome
-  // blocks that outright (Private Network Access), regardless of whether the
-  // tray is genuinely running, so a direct loopback fetch always fails on a
-  // real HTTPS deployment and falsely reports "not detected".
   const isTrayOnline = async (): Promise<boolean> => {
     const t = localStorage.getItem("crm_token")
     if (!t) return false
@@ -854,15 +761,6 @@ export default function TimeprofClockPage() {
     }
   }
 
-  // Re-fires the custom-protocol handshake (the one path that reaches the
-  // tray even when the browser blocks the loopback auto-connect fetch — see
-  // isTrayOnline's comment) and polls for it coming online, instead of a
-  // single check after a fixed delay. A single 3s check was sometimes too
-  // early: verifying the token, starting the tray's services, and its first
-  // heartbeat reaching the backend is more than one network round trip, and
-  // a plain re-check (no protocol re-trigger) never gives a tray whose
-  // silent background auto-connect got blocked any other way to connect —
-  // clicking it repeatedly just re-read the same stale "offline" status.
   const POLL_INTERVAL_MS = 1500
   const POLL_MAX_ATTEMPTS = 8 // ~12s total
   const attemptTrayReconnect = async (): Promise<boolean> => {
@@ -874,11 +772,6 @@ export default function TimeprofClockPage() {
     return false
   }
 
-  // "Yes, Resume Shift" when canSeamlessResume — undoes the erroneous auto-close server-side
-  // (deletes that time-out, original time-in stays open) instead of the old behavior of a
-  // disconnected fresh time-in that silently discarded the gap. Falls back to a plain time-in
-  // if it's not a seamless-resumable case, or if the server-side re-check rejects it (state
-  // changed between the check and the click) — never leaves the user stuck on the modal.
   const handleResumeShiftClick = async () => {
     setResumeModal(false)
     if (!canSeamlessResume) { handleClock("time-in"); return }
@@ -900,11 +793,6 @@ export default function TimeprofClockPage() {
     }
   }
 
-  // Shared by every path that starts a shift after confirming device/tray readiness — must
-  // NEVER be skipped in favor of a raw handleClock("time-in"). Doing so previously let both
-  // the Tray-Required modal's buttons AND (via a swallowed fetch error) this function's own
-  // fallback silently discard an erroneously-auto-closed shift's resume opportunity instead of
-  // offering it, which is how a real gap of worked hours got permanently lost in production.
   const checkResumableAndStart = React.useCallback(async () => {
     const isMain = authModeRef.current === 'main'
     const resumableEndpoint = isMain ? "/api/timeclock/resumable-shift" : "/api/crm/timeproof/resumable-shift"
@@ -925,20 +813,11 @@ export default function TimeprofClockPage() {
       }
     } catch { }
     handleClock("time-in")
-  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token])
 
   const checkTrayAndStartShift = React.useCallback(async () => {
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
-    // Deliberately NOT `isMobile` (viewport width < 768px) — that hook exists
-    // for responsive layout and is true for ANY narrow/non-maximized desktop
-    // browser window, incognito or not. Using it here meant a desktop admin
-    // testing in a small window would silently skip the tray-app requirement
-    // entirely and start tracking with zero tray coverage (no idle detection,
-    // no screenshots) — confirmed in production: uninstalling the tray
-    // entirely and starting a shift from a narrow window let it through with
-    // no tray check at all. getDeviceHint() checks the actual OS/user-agent,
-    // which a resized desktop window can't fake.
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (isGenuineMobileDevice || isLotTech || isMain) {
       await checkResumableAndStart()
@@ -958,13 +837,13 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [user?.department, checkResumableAndStart]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.department, checkResumableAndStart])
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
     if (currentTotalMs < EIGHT_HOURS_MS) setShowEarlyEndModal(true)
     else setShowConfirmEndModal(true)
-  }, [wallClockBaseMs, wallClockBaseAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wallClockBaseMs, wallClockBaseAt])
 
   const handleEarlyEndSubmit = async () => {
     if (!earlyEndReason) return
@@ -981,11 +860,6 @@ export default function TimeprofClockPage() {
   }
 
   const handleBreak = async () => {
-    // Guards against the exact rapid-double-click flurry that caused a real incident: ending a
-    // break is optimistic (see setIsOnBreak(false) below, before its POST resolves), so an
-    // impatient second tap used to land on the button's already-flipped state and fire the
-    // OPPOSITE request — alternating break-out/break-in entries seconds apart. Mirrors the
-    // disabled={isClocking || ...} guard Start Shift/End Shift already use.
     setIsClocking(true)
     try {
       await handleBreakInner()
@@ -1001,10 +875,6 @@ export default function TimeprofClockPage() {
     const freshToken = isMain ? null : localStorage.getItem("crm_token")
     const breakHeaders = isMain ? {} : { headers: { Authorization: `Bearer ${freshToken}` } }
     if (!isOnBreak) {
-      // Not optimistic here (unlike break-out below) — the backend can reject
-      // this once the cumulative 1-hour break cap for the shift is already
-      // used up, and flipping the UI to "on break" first would show a break
-      // timer running for a break that was never actually granted.
       try {
         const res = await apiClient.post(breakEndpoint, { type: "break-in" }, breakHeaders)
         const d = res.data?.data || res.data
@@ -1019,23 +889,10 @@ export default function TimeprofClockPage() {
         if (message.includes("already used your 1-hour break")) {
           setShowBreakCapModal(true)
         }
-        // refreshShiftState() only updates todayLogs, not isOnBreak — if this request actually
-        // succeeded server-side despite the client-side error (slow/dropped response), isOnBreak
-        // would otherwise stay stuck false forever, with every indicator (badge, timer, the
-        // over-break alarm) silently wrong. fetchActivityState() re-pulls the server's
-        // authoritative break state and corrects it.
         refreshShiftState()
         fetchActivityState()
       }
     } else {
-      // Resuming from break re-enters active tracking the exact same way
-      // Start Shift does, so it needs the same tray-app verification — an
-      // employee described exploiting the fact that it didn't: start the
-      // shift normally (one legitimate screenshot goes through), click
-      // Break, quit the tray app entirely, then click Resume here — which
-      // previously just posted break-out with zero tray check, silently
-      // resuming "active" wall-clock tracking with no screenshots/idle
-      // detection for as long as they liked before relaunching the tray.
       const isLotTech = isMobileMonitoringDept(user?.department)
       const isMain = authModeRef.current === 'main'
       const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
@@ -1058,13 +915,6 @@ export default function TimeprofClockPage() {
         if (d?.todayLogs) setTodayLogs(d.todayLogs)
         setClockMsg(`Break ended at ${fmt(new Date())}`)
       } catch (err: any) {
-        // The optimistic flip above assumed this would succeed. Leaving it
-        // as-is on failure would silently desync from the server: the
-        // employee sees a normal ticking timer with no idea they're still
-        // "on break" server-side (a dangling break-in with no matching
-        // break-out), right up until they try to End Shift much later and
-        // get rejected with a break-related error that makes no sense to
-        // them since they never knowingly stayed on break.
         setIsOnBreak(true)
         setCurrentBreakStartAt(previousBreakStartAt)
         setActivityStartAt(null)
@@ -1075,11 +925,6 @@ export default function TimeprofClockPage() {
     }
   }
 
-  // "Shift Open — Tap Resume" state: backend shows isOnShift=true but local
-  // tracking isn't running (fresh page load, tray restart mid-shift, coming
-  // back from idle, etc.). Same tray-app verification as Start Shift and
-  // ending a break — this is another way active wall-clock tracking could
-  // resume with zero tray coverage if the tray isn't actually running.
   const handleResumePausedShift = async () => {
     const isLotTech = isMobileMonitoringDept(user?.department)
     const isMain = authModeRef.current === 'main'
@@ -1112,11 +957,6 @@ export default function TimeprofClockPage() {
   const isActive = hasClockedIn && !hasClockedOut
   const isComplete = hasClockedOut
 
-  // Consent is now granted up front by requestLocationForShiftStart before time-in ever
-  // succeeds, so this effect only needs to handle the other end: revoke it on clock-out.
-  // It deliberately does NOT re-grant consent just because a shift is active — doing so
-  // used to silently undo an explicit "Stop Sharing" click the instant locatorStatus
-  // refreshed, since isActive && !isOnBreak stayed true right through that action.
   React.useEffect(() => {
     if (!isActive) {
       if (locatorWasEligibleRef.current) {
@@ -1152,7 +992,7 @@ export default function TimeprofClockPage() {
     setBreakAccumulatedMs(accumulated)
     setIsOnBreak(currentBreakStart !== null)
     setCurrentBreakStartAt(currentBreakStart)
-  }, [sortedLogs, serverShiftStartedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortedLogs, serverShiftStartedAt])
 
   const previousSessionsMs = React.useMemo(() => {
     if (!timeIn) return 0
@@ -1639,9 +1479,6 @@ export default function TimeprofClockPage() {
               )
             })()}
 
-            {/* Suprah Pulse360 — work health for the current shift. Takes no
-                props: it reads the same module-level store as the global popup,
-                so this number can never disagree with the header bell. */}
             <PulseHealthCard />
 
             {!isMobile && (
