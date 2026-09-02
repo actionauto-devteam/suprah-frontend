@@ -67,6 +67,7 @@ interface AgentStatus {
   breakStartedAt: string | null
   platform: string | null
   lastSeenAt: string | null
+  appVersion: string | null
 }
 
 interface MergedUser {
@@ -87,6 +88,7 @@ interface MergedUser {
   breakStartedAt: string | null
   platform: string | null
   lastSeenAt: string | null
+  appVersion: string | null
   shiftStartedAt: string | null
   shiftEndedAt: string | null
   todayTotalWorkedSeconds: number
@@ -292,6 +294,14 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
             {user.platform === "win32" ? "Windows" : user.platform === "darwin" ? "macOS" : user.platform}
           </span>
         )}
+        {user.appVersion && user.isOnline && (
+          <span
+            className="text-[9px] font-mono font-medium text-muted-foreground/70 uppercase tracking-wider"
+            title="Tray app version"
+          >
+            v{user.appVersion}
+          </span>
+        )}
       </div>
 
       {/* Shift times */}
@@ -398,6 +408,7 @@ export default function AdminShiftBoardPage() {
           breakStartedAt,
           platform: agent?.platform ?? null,
           lastSeenAt: agent?.lastSeenAt ?? null,
+          appVersion: agent?.appVersion ?? null,
           shiftStartedAt: u.shiftStartedAt,
           shiftEndedAt: u.shiftEndedAt ?? null,
           todayTotalWorkedSeconds: u.todayTotalWorkedSeconds,
