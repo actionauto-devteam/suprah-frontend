@@ -110,6 +110,18 @@ const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
 const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
 
+type SS4ViewportState = {
+  height: number;
+  top: number;
+  keyboardOpen: boolean;
+};
+
+function isIOSLikeDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 function getUnreadDotColor(): string {
   if (typeof window === 'undefined') return SS4_UNREAD_DOT_COLOR;
   return localStorage.getItem(SS4_UNREAD_COLOR_STORAGE_KEY) || SS4_UNREAD_DOT_COLOR;
@@ -8455,25 +8467,74 @@ export default function SupraSpacePage() {
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
+  const [isIOSStandaloneApp, setIsIOSStandaloneApp] = React.useState(false);
   React.useEffect(() => {
-    setIsStandaloneApp(isRunningAsSupraSpaceStandalone());
+    const standalone = isRunningAsSupraSpaceStandalone();
+    setIsStandaloneApp(standalone);
+    setIsIOSStandaloneApp(standalone && isIOSLikeDevice());
   }, []);
-  const [vv, setVv] = React.useState<{ height: number; top: number } | null>(null);
+  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
   React.useEffect(() => {
-    if (!isStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
+    if (!isIOSStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
+    let raf = 0;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
     const update = () => {
-      // negative offsetTop observed from plain list scroll, not keyboard
-      if (viewport.height > 0) setVv({ height: viewport.height, top: Math.max(0, viewport.offsetTop) });
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const height = Math.max(320, Math.round(viewport.height || window.innerHeight));
+        // negative offsetTop is observed from plain list scroll on iOS, not keyboard.
+        const top = Math.max(0, Math.round(viewport.offsetTop || 0));
+        const layoutHeight = window.innerHeight || document.documentElement.clientHeight || height;
+        const keyboardOpen = layoutHeight - height - top > 120;
+        document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+        document.documentElement.style.setProperty('--ss4-safe-bottom', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom, 0px)');
+        document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
+        setVv(prev => (
+          prev?.height === height && prev.top === top && prev.keyboardOpen === keyboardOpen
+            ? prev
+            : { height, top, keyboardOpen }
+        ));
+      });
+    };
+    const scheduleUpdate = (delay = 0) => {
+      if (delay <= 0) {
+        update();
+        return;
+      }
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        update();
+      }, delay);
+      timers.add(timer);
     };
     update();
+    const settleAfterKeyboard = () => {
+      scheduleUpdate();
+      scheduleUpdate(80);
+      scheduleUpdate(250);
+      scheduleUpdate(600);
+    };
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
+    window.addEventListener('resize', settleAfterKeyboard);
+    window.addEventListener('orientationchange', settleAfterKeyboard);
+    document.addEventListener('focusin', settleAfterKeyboard);
+    document.addEventListener('focusout', settleAfterKeyboard);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
+      timers.forEach(timer => clearTimeout(timer));
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', settleAfterKeyboard);
+      window.removeEventListener('orientationchange', settleAfterKeyboard);
+      document.removeEventListener('focusin', settleAfterKeyboard);
+      document.removeEventListener('focusout', settleAfterKeyboard);
+      document.documentElement.style.removeProperty('--ss4-vvh');
+      document.documentElement.style.removeProperty('--ss4-safe-bottom');
+      document.documentElement.classList.remove('ss4-ios-keyboard-open');
     };
-  }, [isStandaloneApp]);
+  }, [isIOSStandaloneApp]);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
@@ -11564,6 +11625,21 @@ export default function SupraSpacePage() {
     </div>
   );
 
+  const standaloneShellStyle: React.CSSProperties = isStandaloneApp
+    ? (isIOSStandaloneApp
+      ? {
+        position: 'fixed',
+        top: vv?.top ?? 0,
+        right: 0,
+        bottom: 'auto',
+        left: 0,
+        height: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
+        maxHeight: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
+        minHeight: 0,
+      }
+      : { height: '100dvh' })
+    : {};
+
   return (
     <>
       {me?.role && <CrmPushPrompt role={me.role} />}
@@ -11595,11 +11671,7 @@ export default function SupraSpacePage() {
         data-theme={theme}
         style={{
           paddingTop: 'env(safe-area-inset-top)',
-          ...(isStandaloneApp
-            ? (vv && vv.height < window.screen.height - 150
-              ? { position: 'fixed', top: vv.top, left: 0, right: 0, height: vv.height }
-              : { height: '100dvh' })
-            : {}),
+          ...standaloneShellStyle,
         }}
       >
         { }
@@ -12009,7 +12081,15 @@ export default function SupraSpacePage() {
             </div>
 
             {isStandaloneApp && sidebarTab === 'chats' && (
-              <div className="absolute z-30" style={{ right: 18, bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
+              <div
+                className="absolute z-30"
+                style={{
+                  right: 18,
+                  bottom: isIOSStandaloneApp
+                    ? 'calc(70px + var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)))'
+                    : 'calc(70px + env(safe-area-inset-bottom))',
+                }}
+              >
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -12076,7 +12156,9 @@ export default function SupraSpacePage() {
                 className="shrink-0 flex items-stretch"
                 style={{
                   borderTop: '1px solid var(--sidebar-border)',
-                  paddingBottom: 'env(safe-area-inset-bottom)',
+                  paddingBottom: isIOSStandaloneApp
+                    ? 'var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px))'
+                    : 'env(safe-area-inset-bottom)',
                   background: 'var(--bg-base)',
                 }}
               >
@@ -12312,7 +12394,12 @@ export default function SupraSpacePage() {
                   </div>
 
                   { }
-                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
+                  <div
+                    className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5"
+                    style={isIOSStandaloneApp
+                      ? { paddingBottom: 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.25rem)' }
+                      : undefined}
+                  >
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
