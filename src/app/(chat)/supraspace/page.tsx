@@ -8482,11 +8482,18 @@ export default function SupraSpacePage() {
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const height = Math.max(320, Math.round(viewport.height || window.innerHeight));
+        const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
         // negative offsetTop is observed from plain list scroll on iOS, not keyboard.
         const top = Math.max(0, Math.round(viewport.offsetTop || 0));
-        const layoutHeight = window.innerHeight || document.documentElement.clientHeight || height;
-        const keyboardOpen = layoutHeight - height - top > 120;
+        const screenHeight = window.screen?.height || 0;
+        const layoutHeight = Math.max(
+          window.innerHeight || 0,
+          document.documentElement.clientHeight || 0,
+          screenHeight,
+          visualHeight,
+        );
+        const keyboardOpen = layoutHeight - visualHeight - top > 120;
+        const height = keyboardOpen ? visualHeight : layoutHeight;
         document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
         document.documentElement.style.setProperty('--ss4-safe-bottom', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom, 0px)');
         document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
@@ -8540,11 +8547,29 @@ export default function SupraSpacePage() {
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
     const prevBody = document.body.style.backgroundColor;
     const prevHtml = document.documentElement.style.backgroundColor;
+    const prevBodyHeight = document.body.style.height;
+    const prevHtmlHeight = document.documentElement.style.height;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyOverscroll = document.body.style.overscrollBehavior;
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
+    document.body.style.height = 'var(--ss4-vvh, 100dvh)';
+    document.documentElement.style.height = 'var(--ss4-vvh, 100dvh)';
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overscrollBehavior = 'none';
     return () => {
       document.body.style.backgroundColor = prevBody;
       document.documentElement.style.backgroundColor = prevHtml;
+      document.body.style.height = prevBodyHeight;
+      document.documentElement.style.height = prevHtmlHeight;
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overscrollBehavior = prevBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
   }, [isStandaloneApp, theme]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
