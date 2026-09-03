@@ -8474,6 +8474,18 @@ export default function SupraSpacePage() {
       viewport.removeEventListener('scroll', update);
     };
   }, [isStandaloneApp]);
+  React.useEffect(() => {
+    if (!isStandaloneApp || typeof document === 'undefined') return;
+    const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
+    const prevBody = document.body.style.backgroundColor;
+    const prevHtml = document.documentElement.style.backgroundColor;
+    document.body.style.backgroundColor = bg;
+    document.documentElement.style.backgroundColor = bg;
+    return () => {
+      document.body.style.backgroundColor = prevBody;
+      document.documentElement.style.backgroundColor = prevHtml;
+    };
+  }, [isStandaloneApp, theme]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
