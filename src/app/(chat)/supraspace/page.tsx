@@ -42,13 +42,6 @@ import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { CallBanner } from './CallBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-// Lazy-loaded — @jitsi/react-sdk (a full video-conferencing SDK) was being
-// pulled into every SupraSpace page load via a static import even though most
-// visits never open a call. JitsiMeet/CallExperience/IncomingCallModal are
-// only ever rendered conditionally (activeMeeting/incoming call state), so
-// deferring them to their own chunk, fetched only when a call actually
-// starts, was a pure win with no behavior change. ssr:false because these
-// use browser-only APIs (WebRTC etc.) and were never server-rendered anyway.
 const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet), { ssr: false });
 const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
 const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
@@ -8481,22 +8474,6 @@ export default function SupraSpacePage() {
       viewport.removeEventListener('scroll', update);
     };
   }, [isStandaloneApp]);
-  // temp debug: isolate the 812-vs-874 gap
-  const [debugUnits, setDebugUnits] = React.useState<{ dvh: number; svh: number; lvh: number; standalone: boolean } | null>(null);
-  React.useEffect(() => {
-    if (!isStandaloneApp || typeof window === 'undefined') return;
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;visibility:hidden;';
-    probe.innerHTML = '<div style="height:100dvh" id="dv"></div><div style="height:100svh" id="sv"></div><div style="height:100lvh" id="lv"></div>';
-    document.body.appendChild(probe);
-    setDebugUnits({
-      dvh: probe.querySelector('#dv')!.getBoundingClientRect().height,
-      svh: probe.querySelector('#sv')!.getBoundingClientRect().height,
-      lvh: probe.querySelector('#lv')!.getBoundingClientRect().height,
-      standalone: window.matchMedia('(display-mode: standalone)').matches,
-    });
-    document.body.removeChild(probe);
-  }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -11607,24 +11584,13 @@ export default function SupraSpacePage() {
         style={{
           paddingTop: 'env(safe-area-inset-top)',
           ...(isStandaloneApp
-            ? (vv
+            ? (vv && vv.height < window.screen.height - 150
               ? { position: 'fixed', top: vv.top, left: 0, right: 0, height: vv.height }
               : { height: '100dvh' })
             : {}),
         }}
       >
         { }
-        {/* TEMP DEBUG */}
-        {isStandaloneApp && (
-          <div style={{
-            position: 'fixed', top: 4, right: 4, zIndex: 999999,
-            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
-            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
-            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
-          }}>
-            {`vv.h=${vv?.height ?? 'null'} vv.t=${vv?.top ?? 'null'}\ninnerH=${typeof window !== 'undefined' ? window.innerHeight : '?'} clientH=${typeof document !== 'undefined' ? document.documentElement.clientHeight : '?'}\nscreenH=${typeof window !== 'undefined' ? window.screen.height : '?'} standalone=${debugUnits?.standalone ?? '?'}\ndvh=${debugUnits?.dvh ?? '?'} svh=${debugUnits?.svh ?? '?'} lvh=${debugUnits?.lvh ?? '?'}`}
-          </div>
-        )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
