@@ -116,6 +116,11 @@ type SS4ViewportState = {
   keyboardOpen: boolean;
 };
 
+function isTextEntryElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  return Boolean(element.closest('input, textarea, [contenteditable="true"]'));
+}
+
 function isIOSLikeDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -1159,6 +1164,18 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-emoji-panel { position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 76px); z-index:90; max-height:min(360px,calc(100dvh - 180px)); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-lg); }
       .ss4-mobile-emoji-panel .EmojiPickerReact { width:100% !important; max-width:100% !important; border-radius:14px !important; }
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
+      .ss4-chat-composer-dock { transform:translateZ(0); }
+      html.ss4-ios-keyboard-open .ss4-chat-composer-dock {
+        position:fixed;
+        left:0;
+        right:0;
+        bottom:0;
+        z-index:80;
+        background:var(--bg-base);
+      }
+      html.ss4-ios-keyboard-open .ss4-chat-messages {
+        padding-bottom:var(--ss4-composer-height, 76px) !important;
+      }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
@@ -8492,7 +8509,8 @@ export default function SupraSpacePage() {
           screenHeight,
           visualHeight,
         );
-        const keyboardOpen = layoutHeight - visualHeight - top > 120;
+        const visualKeyboardGap = layoutHeight - visualHeight - top;
+        const keyboardOpen = visualKeyboardGap > 120 || isTextEntryElement(document.activeElement);
         const height = keyboardOpen ? visualHeight : layoutHeight;
         document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
         document.documentElement.style.setProperty('--ss4-safe-bottom', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom, 0px)');
@@ -8704,6 +8722,7 @@ export default function SupraSpacePage() {
   const fileRef = React.useRef<HTMLInputElement>(null);
   const imageFileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLDivElement>(null);
+  const composerDockRef = React.useRef<HTMLDivElement>(null);
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -8722,6 +8741,23 @@ export default function SupraSpacePage() {
     setComposerHasText(prev => prev === hasText ? prev : hasText);
     if (commitToState) setInput(value);
   }, []);
+
+  React.useEffect(() => {
+    if (!isIOSStandaloneApp || typeof document === 'undefined') return;
+    const update = () => {
+      const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
+      document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+    };
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    if (composerDockRef.current) observer?.observe(composerDockRef.current);
+    window.addEventListener('resize', update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+      document.documentElement.style.removeProperty('--ss4-composer-height');
+    };
+  }, [isIOSStandaloneApp, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
 
   React.useEffect(() => {
     inputTextRef.current = input;
@@ -12336,7 +12372,7 @@ export default function SupraSpacePage() {
                       onTouchMove={markUserScrollGesture}
                       onMouseDown={markUserScrollGesture}
                       data-supraspace-message-scroll="true"
-                      className="h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
+                      className="ss4-chat-messages h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
                       style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
                       onLoadCapture={() => {
                         if (activeId && forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
@@ -12424,7 +12460,8 @@ export default function SupraSpacePage() {
 
                   { }
                   <div
-                    className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5"
+                    ref={composerDockRef}
+                    className="ss4-chat-composer-dock shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5"
                     style={isIOSStandaloneApp
                       ? { paddingBottom: 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.25rem)' }
                       : undefined}
@@ -12696,6 +12733,10 @@ export default function SupraSpacePage() {
                               onFocus={() => {
                                 saveComposerSelection();
                                 scheduleRefreshActiveFormats();
+                                if (isIOSStandaloneApp) {
+                                  setTimeout(() => composerDockRef.current?.scrollIntoView({ block: 'end' }), 80);
+                                  setTimeout(() => composerDockRef.current?.scrollIntoView({ block: 'end' }), 300);
+                                }
                               }}
                               onSelect={() => {
                                 saveComposerSelection();
