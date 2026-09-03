@@ -9,9 +9,10 @@ import {
   type CalendarItemType,
   type MySchedulePayload,
 } from "@/types/calendar.types";
-import { fmtDayLabel, fmtTime, toZoned } from "@/utils/calendar.utils";
+import { fmtDayLabel, fmtTime, itemDisplayStart } from "@/utils/calendar.utils";
 import { useCalendarNotifications } from "@/context/CalendarNotificationContext";
 import { CalendarEmptyState } from "@/components/calendar/CalendarEmptyState";
+import { TYPE_STYLES } from "@/components/SuprahCalendar";
 
 /**
  * My Schedule — personal dashboard of everything the signed-in user
@@ -147,8 +148,8 @@ export function MySchedule({
                 key={o.value}
                 type="button"
                 onClick={() => toggleType(o.value)}
-                className={`rounded-full border px-2.5 py-1 text-[10.5px] font-semibold transition ${active
-                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                className={`min-h-8 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${active
+                  ? TYPE_STYLES[o.value]
                   : "border-border text-muted-foreground hover:bg-accent"
                   }`}
               >
@@ -242,7 +243,7 @@ function Section({
         ) : (
           <ul className="flex flex-col gap-2">
             {items.map((item) => {
-              const s = toZoned(new Date(item.start));
+              const s = itemDisplayStart(item);
               return (
                 <li key={item.id}>
                   <button
@@ -251,7 +252,7 @@ function Section({
                     className="group flex w-full flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50/80 px-3.5 py-2.5 text-left transition hover:border-zinc-300 hover:bg-zinc-100 dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-white/15 dark:hover:bg-white/[0.06]"
                   >
                     <span
-                      className="block w-full whitespace-normal break-words text-[13px] font-medium leading-5 text-zinc-800 dark:text-zinc-100"
+                      className="block w-full whitespace-normal break-words text-sm font-medium leading-5 text-zinc-800 dark:text-zinc-100"
                       style={{
                         display: "-webkit-box",
                         WebkitLineClamp: 2,
@@ -261,7 +262,7 @@ function Section({
                     >
                       {item.title}
                     </span>
-                    <span className="font-mono text-[11px] leading-4 tabular-nums text-zinc-600 dark:text-zinc-400">
+                    <span className="font-mono text-xs leading-4 tabular-nums text-zinc-600 dark:text-zinc-400">
                       {fmtDayLabel(s)}
                       {!item.allDay && ` · ${fmtTime(s)}`}
                     </span>
@@ -272,7 +273,7 @@ function Section({
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="self-start rounded-md border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-medium text-cyan-700 transition hover:bg-cyan-500/15 dark:border-cyan-400/40 dark:bg-cyan-400/10 dark:text-cyan-300 dark:hover:bg-cyan-400/20"
+                          className="flex min-h-9 items-center self-start rounded-md border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-medium text-cyan-700 transition hover:bg-cyan-500/15 dark:border-cyan-400/40 dark:bg-cyan-400/10 dark:text-cyan-300 dark:hover:bg-cyan-400/20"
                         >
                           Join Supra-Space
                         </a>
@@ -315,7 +316,7 @@ function CopyLinkButton({ link }: { link: string }) {
           /* clipboard unavailable — no-op */
         }
       }}
-      className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-accent"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:bg-accent"
     >
       {copied ? (
         <Check className="h-3.5 w-3.5 text-emerald-600" />

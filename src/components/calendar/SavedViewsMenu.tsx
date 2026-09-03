@@ -113,7 +113,7 @@ export function SavedViewsMenu({
           Views
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[240px] p-0" align="end">
+      <PopoverContent className="w-[min(92vw,240px)] p-0" align="end">
         <Command>
           <CommandList>
             <CommandEmpty>No saved views yet.</CommandEmpty>

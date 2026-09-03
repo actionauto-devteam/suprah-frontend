@@ -3,8 +3,8 @@
 /**
  * CalendarNotificationsBell — Suprah Calendar's notification center.
  *
- * Cockpit-styled bell for the SuprahCalendar toolbar (dark UI), fed by
- * CalendarNotificationContext. Sections:
+ * Bell for the SuprahCalendar toolbar, fed by CalendarNotificationContext.
+ * Sections:
  *   Overdue tasks        — deadlines already passed (rose)
  *   Due soon             — tasks due within 3 days (amber)
  *   Today's schedule     — remaining events / meetings / task deadlines (emerald)
@@ -91,7 +91,7 @@ export function CalendarNotificationsBell() {
             <path d="M13.7 21a2 2 0 0 1-3.4 0" />
           </svg>
           {badgeCount > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 font-mono text-[9px] font-bold text-white shadow-[0_0_10px_rgba(16,185,129,0.8)] dark:bg-emerald-600">
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 font-mono text-[9px] font-bold text-white">
               {badgeCount > 99 ? "99+" : badgeCount}
             </span>
           )}

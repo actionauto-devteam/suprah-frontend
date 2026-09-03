@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Dialog,
   DialogContent,
@@ -10,16 +11,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { CalendarItem, CrmUserLite, EventDraft } from "@/types/calendar.types";
 import {
   calendarTzLabel,
   addDays,
   fmtDayLabel,
   fromZoned,
+  itemDisplaySpan,
   startOfDay,
   toDateKey,
   toLocalInputValue,
-  toZoned,
   zonedNow,
 } from "@/utils/calendar.utils";
 
@@ -70,15 +78,18 @@ export function EventModal({
   onSave: (draft: EventDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
+  const isMobile = useIsMobile();
+
   const initial = useMemo<EventDraft>(() => {
     if (editing) {
+      const { start: editingStart, end: editingEnd } = itemDisplaySpan(editing);
       return {
         id: editing.id,
         type: (editing.type === "appointment" ? "event" : editing.type) as EventDraft["type"],
         title: editing.title,
         description: editing.description ?? "",
-        start: toLocalInputValue(toZoned(new Date(editing.start))),
-        end: toLocalInputValue(toZoned(new Date(editing.end))),
+        start: toLocalInputValue(editingStart),
+        end: toLocalInputValue(editingEnd),
         allDay: editing.allDay,
         repeatsDailyWindow: editing.repeatsDailyWindow,
         dailyStartTime: editing.dailyStartTime ?? "09:00",
@@ -228,341 +239,372 @@ export function EventModal({
     "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-50";
   const label = "mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg overflow-hidden">
-        <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15" />
+  const modalTitle = editing ? (readOnly ? "Schedule details" : "Edit item") : "New item";
+  const modalDescription = editing
+    ? "View or edit this calendar item's details."
+    : "Create a new calendar item.";
 
-        <DialogHeader>
-          <DialogTitle className="text-base font-semibold">
-            {editing ? (readOnly ? "Schedule details" : "Edit item") : "New item"}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            {editing ? "View or edit this calendar item's details." : "Create a new calendar item."}
-          </DialogDescription>
-        </DialogHeader>
+  const bodyContent = (
+    <div className="relative">
+      {isAppointment && (
+        <p className="mb-4 rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-xs text-teal-700 dark:text-teal-200">
+          This is an appointment from the Appointment Page. Edit it there to
+          change customer details — title and time shown here are read-only.
+        </p>
+      )}
 
-        <div className="relative">
-          {isAppointment && (
-            <p className="mb-4 rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-xs text-teal-700 dark:text-teal-200">
-              This is an appointment from the Appointment Page. Edit it there to
-              change customer details — title and time shown here are read-only.
-            </p>
-          )}
+      {readOnly && !isAppointment && (
+        <p className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-700 dark:text-cyan-200">
+          View only — {creatorName} created this {draft.type} and is the
+          only one who can change it. You&apos;re tagged as a participant.
+        </p>
+      )}
 
-          {readOnly && !isAppointment && (
-            <p className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-700 dark:text-cyan-200">
-              View only — {creatorName} created this {draft.type} and is the
-              only one who can change it. You&apos;re tagged as a participant.
-            </p>
-          )}
+      {/* Type */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {TYPES.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            disabled={readOnly}
+            onClick={() => set("type", t.value)}
+            aria-pressed={draft.type === t.value}
+            className={`min-h-11 rounded-lg border px-3.5 py-2 text-xs transition sm:min-h-9 sm:py-1.5 ${
+              draft.type === t.value
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                : "border-border text-muted-foreground hover:bg-accent"
+            } disabled:opacity-40`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Type */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {TYPES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                disabled={readOnly}
-                onClick={() => set("type", t.value)}
-                aria-pressed={draft.type === t.value}
-                className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                  draft.type === t.value
-                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                    : "border-border text-muted-foreground hover:bg-accent"
-                } disabled:opacity-40`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+      {/* Status (edit only) */}
+      {editing && !isAppointment && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {STATUSES.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              disabled={readOnly}
+              onClick={() => set("status", s.value)}
+              aria-pressed={draft.status === s.value}
+              className={`min-h-11 rounded-lg border px-3.5 py-2 text-xs transition sm:min-h-9 sm:py-1.5 ${
+                draft.status === s.value
+                  ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300"
+                  : "border-border text-muted-foreground hover:bg-accent"
+              } disabled:opacity-40`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-          {/* Status (edit only) */}
-          {editing && !isAppointment && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() => set("status", s.value)}
-                  aria-pressed={draft.status === s.value}
-                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                    draft.status === s.value
-                      ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  } disabled:opacity-40`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
+      <div className="mb-4">
+        <label className={label} htmlFor="sc-title">Title</label>
+        <input
+          id="sc-title"
+          className={field}
+          disabled={readOnly}
+          value={draft.title}
+          onChange={(e) => set("title", e.target.value)}
+          placeholder={`Name this ${draft.type}`}
+        />
+      </div>
 
-          <div className="mb-4">
-            <label className={label} htmlFor="sc-title">Title</label>
+      <div className="mb-4">
+        <label className={label} htmlFor="sc-desc">Description</label>
+        <textarea
+          id="sc-desc"
+          className={`${field} min-h-20 resize-y`}
+          disabled={readOnly}
+          value={draft.description}
+          onChange={(e) => set("description", e.target.value)}
+          placeholder="Details, agenda, notes…"
+        />
+      </div>
+
+      {/* Timing */}
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className={label} htmlFor="sc-start">Starts ({calendarTzLabel()})</label>
+          <DateTimePicker
+            id="sc-start"
+            value={draft.start}
+            onChange={handleStartChange}
+            disabled={readOnly}
+            className={`${field} font-mono tabular-nums`}
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="sc-end">Ends ({calendarTzLabel()})</label>
+          <DateTimePicker
+            id="sc-end"
+            value={draft.end}
+            onChange={(v) => set("end", v)}
+            disabled={readOnly}
+            className={`${field} font-mono tabular-nums`}
+          />
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-4 text-sm text-foreground">
+        <label className="flex min-h-9 items-center gap-2">
+          <input
+            type="checkbox"
+            disabled={readOnly}
+            checked={draft.allDay}
+            onChange={(e) => set("allDay", e.target.checked)}
+            className="size-4 accent-emerald-500"
+          />
+          All day
+        </label>
+        <label className="flex min-h-9 items-center gap-2">
+          <input
+            type="checkbox"
+            disabled={readOnly}
+            checked={draft.repeatsDailyWindow}
+            onChange={(e) => set("repeatsDailyWindow", e.target.checked)}
+            className="size-4 accent-emerald-500"
+          />
+          Multi-day, same time each day
+        </label>
+      </div>
+
+      {draft.repeatsDailyWindow && (
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 dark:border-emerald-400/25 dark:bg-emerald-400/10 sm:grid-cols-2">
+          <div>
+            <label className={label} htmlFor="sc-dstart">Daily start</label>
             <input
-              id="sc-title"
-              className={field}
-              disabled={readOnly}
-              value={draft.title}
-              onChange={(e) => set("title", e.target.value)}
-              placeholder={`Name this ${draft.type}`}
+              id="sc-dstart"
+              type="time"
+              className={`${field} font-mono tabular-nums`}
+              value={draft.dailyStartTime}
+              onChange={(e) => set("dailyStartTime", e.target.value)}
             />
           </div>
-
-          <div className="mb-4">
-            <label className={label} htmlFor="sc-desc">Description</label>
-            <textarea
-              id="sc-desc"
-              className={`${field} min-h-20 resize-y`}
-              disabled={readOnly}
-              value={draft.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Details, agenda, notes…"
+          <div>
+            <label className={label} htmlFor="sc-dend">Daily end</label>
+            <input
+              id="sc-dend"
+              type="time"
+              className={`${field} font-mono tabular-nums`}
+              value={draft.dailyEndTime}
+              onChange={(e) => set("dailyEndTime", e.target.value)}
             />
           </div>
-
-          {/* Timing */}
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={label} htmlFor="sc-start">Starts ({calendarTzLabel()})</label>
-              <DateTimePicker
-                id="sc-start"
-                value={draft.start}
-                onChange={handleStartChange}
-                disabled={readOnly}
-                className={`${field} font-mono tabular-nums`}
-              />
-            </div>
-            <div>
-              <label className={label} htmlFor="sc-end">Ends ({calendarTzLabel()})</label>
-              <DateTimePicker
-                id="sc-end"
-                value={draft.end}
-                onChange={(v) => set("end", v)}
-                disabled={readOnly}
-                className={`${field} font-mono tabular-nums`}
-              />
-            </div>
-          </div>
-
-          <div className="mb-4 flex flex-wrap gap-4 text-sm text-foreground">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                disabled={readOnly}
-                checked={draft.allDay}
-                onChange={(e) => set("allDay", e.target.checked)}
-                className="accent-emerald-500"
-              />
-              All day
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                disabled={readOnly}
-                checked={draft.repeatsDailyWindow}
-                onChange={(e) => set("repeatsDailyWindow", e.target.checked)}
-                className="accent-emerald-500"
-              />
-              Multi-day, same time each day
-            </label>
-          </div>
-
-          {draft.repeatsDailyWindow && (
-            <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 dark:border-emerald-400/25 dark:bg-emerald-400/10 sm:grid-cols-2">
-              <div>
-                <label className={label} htmlFor="sc-dstart">Daily start</label>
-                <input
-                  id="sc-dstart"
-                  type="time"
-                  className={`${field} font-mono tabular-nums`}
-                  value={draft.dailyStartTime}
-                  onChange={(e) => set("dailyStartTime", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className={label} htmlFor="sc-dend">Daily end</label>
-                <input
-                  id="sc-dend"
-                  type="time"
-                  className={`${field} font-mono tabular-nums`}
-                  value={draft.dailyEndTime}
-                  onChange={(e) => set("dailyEndTime", e.target.value)}
-                />
-              </div>
-              <div className="col-span-1 sm:col-span-2">
-                <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-emerald-700/80 dark:text-emerald-200/70">
-                  Runs on these days
-                </span>
-                {rangeDays.length === 0 ? (
-                  <p className="text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
-                    Set valid start and end dates to pick days.
-                  </p>
-                ) : (
-                  <div className="flex max-h-28 flex-wrap gap-1.5 overflow-auto">
-                    {rangeDays.map((day) => {
-                      const key = toDateKey(day);
-                      const active = dayActive(key);
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => toggleDay(key)}
-                          aria-pressed={active}
-                          className={`rounded-md border px-2 py-1 font-mono text-[10px] tabular-nums transition ${
-                            active
-                              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 shadow-[0_0_8px_-3px_rgba(52,211,153,0.6)] dark:text-emerald-200"
-                              : "border-border text-muted-foreground hover:bg-accent"
-                          }`}
-                        >
-                          {fmtDayLabel(day)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <p className="mt-1.5 text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
-                  Highlighted days run during the time window above — tap to
-                  include or skip a day.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Assignees */}
-          <div className="mb-4">
-            <span className={label}>Tag participants</span>
-            <div className="rounded-lg border border-border bg-muted/30">
-              {/* Search + select all */}
-              <div className="flex items-center gap-2 border-b border-border p-2">
-                <input
-                  type="search"
-                  aria-label="Search participants"
-                  placeholder="Search participants…"
-                  disabled={readOnly}
-                  value={participantQuery}
-                  onChange={(e) => setParticipantQuery(e.target.value)}
-                  className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-cyan-500/50 disabled:opacity-40"
-                />
-                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    disabled={readOnly || users.length === 0}
-                    checked={allTagged}
-                    onChange={toggleAll}
-                    className="accent-cyan-500"
-                  />
-                  All
-                </label>
-              </div>
-
-              {/* Checkable list */}
-              <div className="max-h-40 overflow-auto p-1">
-                {users.length === 0 && (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading users…</p>
-                )}
-                {users.length > 0 && filteredUsers.length === 0 && (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                    No one matches “{participantQuery}”.
-                  </p>
-                )}
-                {filteredUsers.map((u) => {
-                  const active = draft.assignees.includes(u._id);
+          <div className="col-span-1 sm:col-span-2">
+            <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-emerald-700/80 dark:text-emerald-200/70">
+              Runs on these days
+            </span>
+            {rangeDays.length === 0 ? (
+              <p className="text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
+                Set valid start and end dates to pick days.
+              </p>
+            ) : (
+              <div className="flex max-h-32 flex-wrap gap-1.5 overflow-auto">
+                {rangeDays.map((day) => {
+                  const key = toDateKey(day);
+                  const active = dayActive(key);
                   return (
-                    <label
-                      key={u._id}
-                      className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleDay(key)}
+                      aria-pressed={active}
+                      className={`min-h-9 rounded-md border px-2.5 py-1.5 font-mono text-[10px] tabular-nums transition ${
                         active
-                          ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
-                          : "text-foreground hover:bg-accent"
-                      } ${readOnly ? "cursor-not-allowed opacity-40" : ""}`}
+                          ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200"
+                          : "border-border text-muted-foreground hover:bg-accent"
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        disabled={readOnly}
-                        checked={active}
-                        onChange={() => toggleAssignee(u._id)}
-                        className="accent-cyan-500"
-                      />
-                      <span className="truncate">{displayName(u)}</span>
-                      {u.email && u.fullName && (
-                        <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
-                          {u.email}
-                        </span>
-                      )}
-                    </label>
+                      {fmtDayLabel(day)}
+                    </button>
                   );
                 })}
               </div>
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {draft.assignees.length > 0 && (
-                <span className="mr-1 font-mono tabular-nums text-cyan-600 dark:text-cyan-300">
-                  {draft.assignees.length} tagged ·
-                </span>
-              )}
-              Tagged participants are notified and see this on their own calendar.
+            )}
+            <p className="mt-1.5 text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
+              Highlighted days run during the time window above — tap to
+              include or skip a day.
             </p>
           </div>
+        </div>
+      )}
 
-          {/* Supra-Space */}
-          {draft.type === "meeting" && (editing?.meetingLink || !readOnly) && (
-            <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-3">
-              {editing?.meetingLink ? (
-                <div className="text-xs text-cyan-700 dark:text-cyan-200">
-                  <span className="mb-1 block font-medium">Supra-Space meeting</span>
-                  <a
-                    href={editing.meetingLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="break-all font-mono text-cyan-700 underline decoration-cyan-500/40 underline-offset-2 hover:text-cyan-600 dark:text-cyan-300 dark:hover:text-cyan-200"
-                  >
-                    {editing.meetingLink}
-                  </a>
-                </div>
-              ) : (
-                <label className="flex items-center gap-2 text-sm text-cyan-700 dark:text-cyan-200">
+      {/* Assignees */}
+      <div className="mb-4">
+        <span className={label}>Tag participants</span>
+        <div className="rounded-lg border border-border bg-muted/30">
+          {/* Search + select all */}
+          <div className="flex items-center gap-2 border-b border-border p-2">
+            <input
+              type="search"
+              aria-label="Search participants"
+              placeholder="Search participants…"
+              disabled={readOnly}
+              value={participantQuery}
+              onChange={(e) => setParticipantQuery(e.target.value)}
+              className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-cyan-500/50 disabled:opacity-40"
+            />
+            <label className="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition hover:bg-accent">
+              <input
+                type="checkbox"
+                disabled={readOnly || users.length === 0}
+                checked={allTagged}
+                onChange={toggleAll}
+                className="size-4 accent-cyan-500"
+              />
+              All
+            </label>
+          </div>
+
+          {/* Checkable list */}
+          <div className="max-h-48 overflow-auto p-1">
+            {users.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading users…</p>
+            )}
+            {users.length > 0 && filteredUsers.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                No one matches “{participantQuery}”.
+              </p>
+            )}
+            {filteredUsers.map((u) => {
+              const active = draft.assignees.includes(u._id);
+              return (
+                <label
+                  key={u._id}
+                  className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs transition ${
+                    active
+                      ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
+                      : "text-foreground hover:bg-accent"
+                  } ${readOnly ? "cursor-not-allowed opacity-40" : ""}`}
+                >
                   <input
                     type="checkbox"
-                    checked={draft.generateMeetingLink}
-                    onChange={(e) => set("generateMeetingLink", e.target.checked)}
-                    className="accent-cyan-500"
+                    disabled={readOnly}
+                    checked={active}
+                    onChange={() => toggleAssignee(u._id)}
+                    className="size-4 shrink-0 accent-cyan-500"
                   />
-                  Generate a Supra-Space meeting link
+                  <span className="truncate">{displayName(u)}</span>
+                  {u.email && u.fullName && (
+                    <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
+                      {u.email}
+                    </span>
+                  )}
                 </label>
-              )}
-            </div>
-          )}
-
-          {error && <p className="mb-3 text-xs text-rose-600 dark:text-rose-300">{error}</p>}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {onDelete && !readOnly && (
-              <button
-                onClick={() => void onDelete()}
-                className="rounded-lg border border-rose-500/30 px-3 py-2 text-xs text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-300"
-              >
-                Delete
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="ml-auto rounded-lg border border-border px-4 py-2 text-xs text-foreground transition hover:bg-accent"
-            >
-              Cancel
-            </button>
-            {!readOnly && (
-              <button
-                onClick={() => void submit()}
-                disabled={saving}
-                className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-              >
-                {saving ? "Saving…" : editing ? "Save changes" : "Create"}
-              </button>
-            )}
+              );
+            })}
           </div>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {draft.assignees.length > 0 && (
+            <span className="mr-1 font-mono tabular-nums text-cyan-600 dark:text-cyan-300">
+              {draft.assignees.length} tagged ·
+            </span>
+          )}
+          Tagged participants are notified and see this on their own calendar.
+        </p>
+      </div>
+
+      {/* Supra-Space */}
+      {draft.type === "meeting" && (editing?.meetingLink || !readOnly) && (
+        <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-3">
+          {editing?.meetingLink ? (
+            <div className="text-xs text-cyan-700 dark:text-cyan-200">
+              <span className="mb-1 block font-medium">Supra-Space meeting</span>
+              <a
+                href={editing.meetingLink}
+                target="_blank"
+                rel="noreferrer"
+                className="break-all font-mono text-cyan-700 underline decoration-cyan-500/40 underline-offset-2 hover:text-cyan-600 dark:text-cyan-300 dark:hover:text-cyan-200"
+              >
+                {editing.meetingLink}
+              </a>
+            </div>
+          ) : (
+            <label className="flex min-h-9 items-center gap-2 text-sm text-cyan-700 dark:text-cyan-200">
+              <input
+                type="checkbox"
+                checked={draft.generateMeetingLink}
+                onChange={(e) => set("generateMeetingLink", e.target.checked)}
+                className="size-4 accent-cyan-500"
+              />
+              Generate a Supra-Space meeting link
+            </label>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-xs text-rose-600 dark:text-rose-300">{error}</p>}
+    </div>
+  );
+
+  const footerActions = (
+    <>
+      {onDelete && !readOnly && (
+        <button
+          onClick={() => void onDelete()}
+          className="min-h-11 rounded-lg border border-rose-500/30 px-3.5 text-xs text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-300 sm:min-h-9 sm:px-3"
+        >
+          Delete
+        </button>
+      )}
+      <button
+        onClick={onClose}
+        className="ml-auto min-h-11 rounded-lg border border-border px-4 text-xs text-foreground transition hover:bg-accent sm:min-h-9"
+      >
+        Cancel
+      </button>
+      {!readOnly && (
+        <button
+          onClick={() => void submit()}
+          disabled={saving}
+          className="min-h-11 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50 sm:min-h-9"
+        >
+          {saving ? "Saving…" : editing ? "Save changes" : "Create"}
+        </button>
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <SheetContent
+          side="bottom"
+          className="flex max-h-[92dvh] flex-col gap-0 rounded-t-2xl border-border p-0 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+        >
+          <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
+            <SheetTitle className="text-base font-semibold">{modalTitle}</SheetTitle>
+            <SheetDescription className="sr-only">{modalDescription}</SheetDescription>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{bodyContent}</div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border bg-background px-4 py-3">
+            {footerActions}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex max-h-[90dvh] max-w-lg flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 text-left">
+          <DialogTitle className="text-base font-semibold">{modalTitle}</DialogTitle>
+          <DialogDescription className="sr-only">{modalDescription}</DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{bodyContent}</div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-6 py-4">
+          {footerActions}
         </div>
       </DialogContent>
     </Dialog>

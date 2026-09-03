@@ -214,6 +214,58 @@ export interface Occurrence {
   end: Date;
 }
 
+/** Midnight (local wall-clock) on the UTC calendar date of `d` — used only
+ *  for synced all-day appointments, see the comment in expandOccurrences. */
+const utcDateOnly = (d: Date) =>
+  new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
+/**
+ * A synced Google Calendar all-day appointment stores its span as UTC-date
+ * boundaries (a "date", not an instant) — e.g. 2026-03-23T00:00:00.000Z to
+ * 2026-03-23T23:59:59.999Z means "all of March 23", regardless of viewer
+ * timezone. Running that through toZoned (which assumes every stored value
+ * is a real Mountain-time instant) shifts it onto the *previous* Mountain
+ * calendar day for roughly half the year, since UTC midnight is 5–6 PM
+ * Mountain time the day before. That misplaced the item by a day in Agenda
+ * grouping and could double-render a one-hour sliver in the Week/Day all-day
+ * lane on the wrong neighboring day. Native CalendarEvent all-day items
+ * don't have this problem (their start/end are genuinely Mountain-time
+ * instants from EventModal), so this only applies to synced appointments.
+ */
+function allDayAppointmentSpan(item: CalendarItem): { start: Date; end: Date } {
+  const start = utcDateOnly(new Date(item.start));
+  const rawEnd = new Date(item.end);
+  const endDateOnly = utcDateOnly(rawEnd);
+  const endIsExactUtcMidnight =
+    rawEnd.getUTCHours() === 0 &&
+    rawEnd.getUTCMinutes() === 0 &&
+    rawEnd.getUTCSeconds() === 0 &&
+    rawEnd.getUTCMilliseconds() === 0;
+  // An end that isn't itself exactly midnight (e.g. 23:59:59.999, "end of
+  // the day") is an inclusive last moment — bump to the following midnight
+  // for an exclusive boundary. An end that's already exact midnight is
+  // already exclusive.
+  const end = endIsExactUtcMidnight ? endDateOnly : addDays(endDateOnly, 1);
+  return { start, end };
+}
+
+const isSyncedAllDayAppointment = (item: CalendarItem) =>
+  item.allDay && item.source === "appointment";
+
+/** The item's start/end in local wall-clock display space — routes synced
+ *  all-day appointments through allDayAppointmentSpan instead of toZoned,
+ *  for any caller that needs the display date/time without full occurrence
+ *  expansion (e.g. My Schedule's list rows, EventModal's read-only view). */
+export function itemDisplaySpan(item: CalendarItem): { start: Date; end: Date } {
+  return isSyncedAllDayAppointment(item)
+    ? allDayAppointmentSpan(item)
+    : { start: toZoned(new Date(item.start)), end: toZoned(new Date(item.end)) };
+}
+
+export function itemDisplayStart(item: CalendarItem): Date {
+  return itemDisplaySpan(item).start;
+}
+
 export function expandOccurrences(
   items: CalendarItem[],
   rangeStart: Date, // wall-clock (Mountain Time)
@@ -221,8 +273,7 @@ export function expandOccurrences(
 ): Occurrence[] {
   const out: Occurrence[] = [];
   for (const item of items) {
-    const s = toZoned(new Date(item.start));
-    const e = toZoned(new Date(item.end));
+    const { start: s, end: e } = itemDisplaySpan(item);
 
     if (item.repeatsDailyWindow && item.dailyStartTime && item.dailyEndTime) {
       const [sh, sm] = item.dailyStartTime.split(":").map(Number);

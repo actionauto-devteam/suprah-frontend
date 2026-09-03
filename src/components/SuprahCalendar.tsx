@@ -24,6 +24,7 @@ import {
   type Occurrence,
 } from "@/utils/calendar.utils";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { EventModal } from "@/components/EventModal";
 import { MySchedule } from "@/components/MySchedule";
 import { CalendarNotificationsBell } from "@/components/CalendarNotificationsBell";
@@ -32,6 +33,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter";
 import { SavedViewsMenu, type CalendarSavedView } from "@/components/calendar/SavedViewsMenu";
 import { CalendarEmptyState } from "@/components/calendar/CalendarEmptyState";
+import { MonthViewMobile } from "@/components/calendar/MonthViewMobile";
 import { BulkActionBar } from "@/components/admin/BulkActionBar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,10 +48,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   CalendarDays,
   CheckSquare,
   CircleDot,
   Download,
+  Filter,
   Loader2,
   Printer,
   Search,
@@ -59,7 +69,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-function initials(name?: string) {
+export function initials(name?: string) {
   return (name || "U")
     .split(" ")
     .map((w) => w[0])
@@ -85,70 +95,52 @@ async function fetchTeamMembers(): Promise<CrmUserLite[]> {
 }
 
 /**
- * Suprah Calendar — cockpit-styled, Google Calendar-class scheduling.
- * Day / Week / Month / Agenda views + the My Schedule personal panel.
- *
- * TODO(integration): replace the accent classes below with tokens from
- * your shared cockpit `ui.tsx` if you prefer central definitions — the
- * palette here matches the emerald/mint glow system used across
- * AppSidebar / AppointmentDashboard / SuprahPay.
+ * Suprah Calendar — Day / Week / Month / Agenda views + the My Schedule
+ * personal panel. Flat, solid-color event chips (one color per type,
+ * consistent in light and dark) rather than tinted/bordered/glowing cards —
+ * the neutral chrome around them (toolbar, filters, panels) uses the app's
+ * shadcn tokens so theme support carries through unchanged.
  */
 
-const TYPE_STYLES: Record<string, string> = {
-  event:
-    "border-emerald-600/55 bg-emerald-100 text-emerald-950 shadow-sm dark:border-emerald-300/60 dark:bg-emerald-500/25 dark:text-emerald-50 dark:shadow-[0_0_14px_-5px_rgba(52,211,153,0.55)]",
-  meeting:
-    "border-cyan-600/55 bg-cyan-100 text-cyan-950 shadow-sm dark:border-cyan-300/60 dark:bg-cyan-500/25 dark:text-cyan-50 dark:shadow-[0_0_14px_-5px_rgba(34,211,238,0.55)]",
-  task:
-    "border-amber-600/55 border-l-4 border-l-amber-500 bg-amber-100 text-amber-950 shadow-sm hover:bg-amber-200 dark:border-amber-300/45 dark:border-l-amber-300/80 dark:bg-amber-400/[0.11] dark:text-orange-50 dark:shadow-[0_0_0_1px_rgba(251,191,36,0.06)] dark:hover:bg-amber-400/[0.16]",
-  reminder:
-    "border-violet-600/55 bg-violet-100 text-violet-950 shadow-sm dark:border-violet-300/60 dark:bg-violet-500/25 dark:text-violet-50 dark:shadow-[0_0_14px_-5px_rgba(167,139,250,0.55)]",
-  appointment:
-    "border-teal-600/55 bg-teal-100 text-teal-950 shadow-sm dark:border-teal-300/60 dark:bg-teal-500/25 dark:text-teal-50 dark:shadow-[0_0_14px_-5px_rgba(94,234,212,0.55)]",
+export const TYPE_STYLES: Record<string, string> = {
+  event: "border-transparent bg-emerald-600 text-white",
+  meeting: "border-transparent bg-cyan-600 text-white",
+  task: "border-transparent bg-amber-500 text-zinc-900",
+  reminder: "border-transparent bg-violet-600 text-white",
+  appointment: "border-transparent bg-teal-600 text-white",
 };
 
 const TYPE_ROW_STYLES: Record<string, string> = {
-  event:
-    "border-l-emerald-600 bg-emerald-100 text-emerald-950 hover:bg-emerald-200 dark:border-l-emerald-300 dark:bg-emerald-500/25 dark:text-emerald-50 dark:hover:bg-emerald-500/35",
-  meeting:
-    "border-l-cyan-600 bg-cyan-100 text-cyan-950 hover:bg-cyan-200 dark:border-l-cyan-300 dark:bg-cyan-500/25 dark:text-cyan-50 dark:hover:bg-cyan-500/35",
-  task:
-    "border-b-amber-600/25 border-l-amber-600 bg-amber-100 text-amber-950 hover:bg-amber-200 dark:border-b-amber-300/20 dark:border-l-amber-300/80 dark:bg-amber-400/[0.11] dark:text-orange-50 dark:hover:bg-amber-400/[0.16]",
-  reminder:
-    "border-l-violet-600 bg-violet-100 text-violet-950 hover:bg-violet-200 dark:border-l-violet-300 dark:bg-violet-500/25 dark:text-violet-50 dark:hover:bg-violet-500/35",
-  appointment:
-    "border-l-teal-600 bg-teal-100 text-teal-950 hover:bg-teal-200 dark:border-l-teal-300 dark:bg-teal-500/25 dark:text-teal-50 dark:hover:bg-teal-500/35",
+  event: "border-b-border border-l-emerald-600 bg-card text-foreground hover:bg-accent",
+  meeting: "border-b-border border-l-cyan-600 bg-card text-foreground hover:bg-accent",
+  task: "border-b-border border-l-amber-500 bg-card text-foreground hover:bg-accent",
+  reminder: "border-b-border border-l-violet-600 bg-card text-foreground hover:bg-accent",
+  appointment: "border-b-border border-l-teal-600 bg-card text-foreground hover:bg-accent",
 };
 
-const TYPE_TIME_STYLES: Record<string, string> = {
-  event: "text-emerald-900 dark:text-emerald-100/90",
-  meeting: "text-cyan-900 dark:text-cyan-100/90",
-  task: "text-amber-900 dark:text-amber-100/90",
-  reminder: "text-violet-900 dark:text-violet-100/90",
-  appointment: "text-teal-900 dark:text-teal-100/90",
+export const TYPE_TIME_STYLES: Record<string, string> = {
+  event: "text-white/85",
+  meeting: "text-white/85",
+  task: "text-zinc-900/75",
+  reminder: "text-white/85",
+  appointment: "text-white/85",
 };
 
 const TYPE_DURATION_STYLES: Record<string, string> = {
-  event: "text-emerald-800 dark:text-emerald-100/75",
-  meeting: "text-cyan-800 dark:text-cyan-100/75",
-  task: "text-amber-800 dark:text-amber-100/75",
-  reminder: "text-violet-800 dark:text-violet-100/75",
-  appointment: "text-teal-800 dark:text-teal-100/75",
+  event: "text-white/70",
+  meeting: "text-white/70",
+  task: "text-zinc-900/65",
+  reminder: "text-white/70",
+  appointment: "text-white/70",
 };
 
 const TYPE_GROUP_STYLES: Record<string, string> = {
-  event:
-    "border-2 border-emerald-600/90 ring-2 ring-emerald-500/15 shadow-[0_0_0_1px_rgba(5,150,105,0.08),0_8px_22px_-14px_rgba(5,150,105,0.65)] dark:border-emerald-300/85 dark:ring-emerald-300/20 dark:shadow-[0_0_0_1px_rgba(110,231,183,0.08),0_8px_24px_-14px_rgba(52,211,153,0.65)]",
-  meeting:
-    "border-2 border-cyan-600/90 ring-2 ring-cyan-500/15 shadow-[0_0_0_1px_rgba(8,145,178,0.08),0_8px_22px_-14px_rgba(8,145,178,0.65)] dark:border-cyan-300/85 dark:ring-cyan-300/20 dark:shadow-[0_0_0_1px_rgba(103,232,249,0.08),0_8px_24px_-14px_rgba(34,211,238,0.65)]",
-  task:
-    "border-2 border-amber-600/85 ring-1 ring-amber-500/15 shadow-[0_0_0_1px_rgba(217,119,6,0.07),0_8px_20px_-16px_rgba(217,119,6,0.45)] dark:border-amber-300/50 dark:ring-1 dark:ring-amber-300/30 dark:shadow-[0_0_0_1px_rgba(251,191,36,0.08)]",
-  reminder:
-    "border-2 border-violet-600/90 ring-2 ring-violet-500/15 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_8px_22px_-14px_rgba(124,58,237,0.65)] dark:border-violet-300/85 dark:ring-violet-300/20 dark:shadow-[0_0_0_1px_rgba(196,181,253,0.08),0_8px_24px_-14px_rgba(167,139,250,0.65)]",
-  appointment:
-    "border-2 border-teal-600/90 ring-2 ring-teal-500/15 shadow-[0_0_0_1px_rgba(13,148,136,0.08),0_8px_22px_-14px_rgba(13,148,136,0.65)] dark:border-teal-300/85 dark:ring-teal-300/20 dark:shadow-[0_0_0_1px_rgba(94,234,212,0.08),0_8px_24px_-14px_rgba(45,212,191,0.65)]",
-  mixed:
-    "border-2 border-zinc-500/80 ring-2 ring-zinc-500/10 shadow-md dark:border-zinc-400/75 dark:ring-white/10",
+  event: "border border-border border-l-4 border-l-emerald-600 bg-card",
+  meeting: "border border-border border-l-4 border-l-cyan-600 bg-card",
+  task: "border border-border border-l-4 border-l-amber-500 bg-card",
+  reminder: "border border-border border-l-4 border-l-violet-600 bg-card",
+  appointment: "border border-border border-l-4 border-l-teal-600 bg-card",
+  mixed: "border border-border border-l-4 border-l-muted-foreground/50 bg-card",
 };
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -171,7 +163,7 @@ const STATUS_FILTER_OPTIONS = [
  * This prevents a card from extending below the 24-hour grid and makes the
  * continuation appear in the next day's column.
  */
-function splitOccurrencesByDay(
+export function splitOccurrencesByDay(
   occurrences: Occurrence[],
   rangeStart: Date,
   rangeEnd: Date,
@@ -224,7 +216,7 @@ function splitOccurrencesByDay(
  * Displays the end of a segment clearly when it reaches midnight.
  * The underlying position still ends exactly at the next day's boundary.
  */
-function formatSegmentTimeRange(start: Date, end: Date): string {
+export function formatSegmentTimeRange(start: Date, end: Date): string {
   const endsAtMidnight =
     end.getHours() === 0 &&
     end.getMinutes() === 0 &&
@@ -236,7 +228,7 @@ function formatSegmentTimeRange(start: Date, end: Date): string {
     : `${fmtTime(start)} – ${fmtTime(end)}`;
 }
 
-function formatDuration(start: Date, end: Date): string {
+export function formatDuration(start: Date, end: Date): string {
   const totalMinutes = Math.max(
     0,
     Math.round((end.getTime() - start.getTime()) / 60000),
@@ -275,22 +267,45 @@ function formatDuration(start: Date, end: Date): string {
  *   that happens to end at midnight (e.g. an 8:00 PM–12:00 AM, 4h event).
  */
 function isAllDayLikeOccurrence(occurrence: Occurrence): boolean {
-  if (occurrence.item.allDay) return true;
+  const { item } = occurrence;
+  if (item.allDay) return true;
 
-  // Judge the FULL item's real span, not this occurrence's day-clipped
-  // segment. splitOccurrencesByDay clips every segment's boundaries to
-  // midnight, so a genuine single "8:00 PM–2:00 AM" overnight meeting would
-  // otherwise get its day-1 segment mechanically clipped to "8:00 PM–
-  // midnight" and misread as an all-day block purely because of where the
-  // day boundary happened to fall — not because of anything about the real
-  // event. For single-day items (the common case, including the day-off
-  // patterns this exists for) the item's real start/end already equal the
-  // occurrence's own, so this changes nothing for them.
-  const realStart = toZoned(new Date(occurrence.item.start));
-  const realEnd = toZoned(new Date(occurrence.item.end));
-  const startsAtMidnight = realStart.getHours() === 0 && realStart.getMinutes() === 0;
-  const endsAtMidnight = realEnd.getHours() === 0 && realEnd.getMinutes() === 0;
-  const durationMinutes = Math.round((realEnd.getTime() - realStart.getTime()) / 60000);
+  let startsAtMidnight: boolean;
+  let endsAtMidnight: boolean;
+  let durationMinutes: number;
+
+  if (item.repeatsDailyWindow && item.dailyStartTime && item.dailyEndTime) {
+    // A recurring daily-window item's start/end only bound the overall
+    // multi-day recurrence range (e.g. a "day off" schedule spanning a
+    // whole quarter) — they carry no meaningful time-of-day. The real daily
+    // window lives in dailyStartTime/dailyEndTime instead, the same fields
+    // expandOccurrences() uses to place each day's occurrence. Reading
+    // item.start/item.end here (as this used to) misjudges a genuine
+    // "00:00–17:59 every included day" window as a normal timed event,
+    // since the recurrence's overall start/end rarely lands on a midnight
+    // boundary themselves — which then piles every same-day occurrence of
+    // it into one giant overlapping stack in the timed grid instead of the
+    // compact All Day lane.
+    const [sh, sm] = item.dailyStartTime.split(":").map(Number);
+    const [eh, em] = item.dailyEndTime.split(":").map(Number);
+    startsAtMidnight = sh === 0 && sm === 0;
+    endsAtMidnight = eh === 0 && em === 0;
+    durationMinutes = eh * 60 + em - (sh * 60 + sm);
+  } else {
+    // Judge the FULL item's real span, not this occurrence's day-clipped
+    // segment. splitOccurrencesByDay clips every segment's boundaries to
+    // midnight, so a genuine single "8:00 PM–2:00 AM" overnight meeting would
+    // otherwise get its day-1 segment mechanically clipped to "8:00 PM–
+    // midnight" and misread as an all-day block purely because of where the
+    // day boundary happened to fall — not because of anything about the real
+    // event. For single-day items the item's real start/end already equal
+    // the occurrence's own, so this changes nothing for them.
+    const realStart = toZoned(new Date(item.start));
+    const realEnd = toZoned(new Date(item.end));
+    startsAtMidnight = realStart.getHours() === 0 && realStart.getMinutes() === 0;
+    endsAtMidnight = realEnd.getHours() === 0 && realEnd.getMinutes() === 0;
+    durationMinutes = Math.round((realEnd.getTime() - realStart.getTime()) / 60000);
+  }
 
   if (startsAtMidnight && durationMinutes >= 16 * 60) return true;
   if (endsAtMidnight && durationMinutes >= 5 * 60) return true;
@@ -353,14 +368,29 @@ function quickSlot(hour: number): Date {
 }
 
 export default function SuprahCalendar() {
+  const isMobile = useIsMobile();
   const [view, setView] = useState<CalendarView>("week");
   const [cursor, setCursor] = useState<Date>(startOfDay(zonedNow()));
   const [showMySchedule, setShowMySchedule] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [modal, setModal] = useState<{
     open: boolean;
     editing?: CalendarItem;
     presetStart?: Date;
   }>({ open: false });
+
+  // Google Calendar mobile defaults to a single-day view rather than the
+  // horizontally-scrolling week grid. Applied once on first real mobile
+  // detection so it doesn't fight a user's manual view choice on later
+  // resizes/rotations (useIsMobile briefly reports `false` on first mount
+  // before its matchMedia effect settles, so the guard triggers on the
+  // first `true`, not the first render).
+  const defaultViewAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultViewAppliedRef.current || !isMobile) return;
+    defaultViewAppliedRef.current = true;
+    setView("day");
+  }, [isMobile]);
 
   /** Visible window drives fetching — pad a week each side for smoothness. */
   const [rangeStart, rangeEnd] = useMemo(() => {
@@ -610,12 +640,13 @@ export default function SuprahCalendar() {
     toast.success(draft.id ? "Updated." : "Created.");
   };
 
-  return (
-    <div className="suprah-calendar-print relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-sm backdrop-blur-xl print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
-      {/* Ambient blobs — cockpit atmosphere */}
-      <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15 print:hidden" />
-      <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-500/15 print:hidden" />
+  /** Drives the mobile Filters sheet's trigger badge. Search stays visible
+   *  inline on mobile (not counted here) since it's never hidden behind it. */
+  const activeFilterCount =
+    teamFilter.length + typeFilter.length + statusFilter.length;
 
+  return (
+    <div className="suprah-calendar-print relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
       {/* Toolbar */}
       <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 px-3 py-3 sm:gap-3 sm:px-5 print:hidden">
         <div className="flex h-9 shrink-0 items-center gap-2">
@@ -651,19 +682,27 @@ export default function SuprahCalendar() {
         </div>
 
         <div className="ml-auto flex h-9 shrink-0 flex-wrap items-center gap-2">
-          {/* View switcher: buttons on wider screens, a select below sm */}
-          <select
+          {/* View switcher: segmented tabs everywhere — compact below sm, full-width labels from sm up */}
+          <div
+            role="tablist"
             aria-label="Calendar view"
-            value={view}
-            onChange={(e) => setView(e.target.value as CalendarView)}
-            className="h-9 rounded-lg border border-border bg-background px-2 text-xs capitalize text-foreground outline-none transition hover:bg-accent sm:hidden"
+            className="flex h-9 items-center overflow-hidden rounded-lg border border-border bg-background sm:hidden"
           >
             {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
-              <option key={v} value={v}>
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`flex h-full items-center px-2.5 text-xs capitalize leading-none transition ${view === v
+                  ? "bg-emerald-500/15 font-semibold text-emerald-700 dark:text-emerald-200"
+                  : "text-muted-foreground hover:bg-accent"
+                  }`}
+              >
                 {v}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
           <div className="hidden h-9 items-center overflow-hidden rounded-lg border border-border bg-background sm:flex">
             {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
               <button
@@ -723,72 +762,163 @@ export default function SuprahCalendar() {
 
           <button
             onClick={() => openCreate()}
-            className="flex h-9 items-center rounded-lg bg-emerald-500 px-4 text-xs font-semibold leading-none text-white shadow-[0_0_20px_-6px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            className="flex h-9 items-center rounded-lg bg-emerald-600 px-4 text-xs font-semibold leading-none text-white transition hover:bg-emerald-500"
           >
             + Create
           </button>
         </div>
       </header>
 
-      {/* Filters — one row shared by every view (Month/Week/Day/Agenda all
-          read from the same filtered `items`), so filtering isn't agenda-only. */}
-      <div className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/70 px-3 py-2 sm:px-5 print:hidden">
-        <div className="relative min-w-0 flex-1 sm:max-w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search titles…"
-            className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+      {/* Filters — shared by every view (Month/Week/Day/Agenda all read from
+          the same filtered `items`), so filtering isn't agenda-only. Search
+          stays inline at every width; the team/type/status/saved-view
+          dropdowns move into a bottom sheet on mobile instead of wrapping
+          into a cramped multi-row toolbar. */}
+      {isMobile ? (
+        <div className="relative z-10 flex items-center gap-2 border-b border-border bg-card/70 px-3 py-2 print:hidden">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search titles…"
+              className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition hover:bg-accent"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold leading-none text-white">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetContent
+              side="bottom"
+              className="flex max-h-[80dvh] flex-col gap-0 rounded-t-2xl border-border p-0 pb-[max(env(safe-area-inset-bottom),1rem)]"
             >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+              <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
+                <SheetTitle className="text-base font-semibold">Filters</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Filter the calendar by team, type, status, or apply a saved view.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="flex min-h-0 flex-1 flex-col items-start gap-2 overflow-y-auto p-4">
+                <MultiSelectFilter
+                  filterLabel="Team"
+                  icon={Users}
+                  allLabel="Everyone"
+                  options={teamMemberOptions}
+                  value={teamFilter}
+                  onChange={setTeamFilter}
+                  searchPlaceholder="Search teammates…"
+                  emptyLabel="No teammates found."
+                />
+                <MultiSelectFilter
+                  filterLabel="Type"
+                  icon={Tag}
+                  allLabel="All types"
+                  options={CALENDAR_TYPE_OPTIONS}
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  searchable={false}
+                  emptyLabel="No types."
+                />
+                <MultiSelectFilter
+                  filterLabel="Status"
+                  icon={CircleDot}
+                  allLabel="All statuses"
+                  options={STATUS_FILTER_OPTIONS}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  searchable={false}
+                  emptyLabel="No statuses."
+                />
+                <SavedViewsMenu
+                  current={{ teamFilter, typeFilter, statusFilter, query }}
+                  onApply={applySavedView}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
+      ) : (
+        <div className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/70 px-3 py-2 sm:px-5 print:hidden">
+          <div className="relative min-w-0 flex-1 sm:max-w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search titles…"
+              className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
 
-        <MultiSelectFilter
-          filterLabel="Team"
-          icon={Users}
-          allLabel="Everyone"
-          options={teamMemberOptions}
-          value={teamFilter}
-          onChange={setTeamFilter}
-          searchPlaceholder="Search teammates…"
-          emptyLabel="No teammates found."
-        />
-        <MultiSelectFilter
-          filterLabel="Type"
-          icon={Tag}
-          allLabel="All types"
-          options={CALENDAR_TYPE_OPTIONS}
-          value={typeFilter}
-          onChange={setTypeFilter}
-          searchable={false}
-          emptyLabel="No types."
-        />
-        <MultiSelectFilter
-          filterLabel="Status"
-          icon={CircleDot}
-          allLabel="All statuses"
-          options={STATUS_FILTER_OPTIONS}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          searchable={false}
-          emptyLabel="No statuses."
-        />
+          <MultiSelectFilter
+            filterLabel="Team"
+            icon={Users}
+            allLabel="Everyone"
+            options={teamMemberOptions}
+            value={teamFilter}
+            onChange={setTeamFilter}
+            searchPlaceholder="Search teammates…"
+            emptyLabel="No teammates found."
+          />
+          <MultiSelectFilter
+            filterLabel="Type"
+            icon={Tag}
+            allLabel="All types"
+            options={CALENDAR_TYPE_OPTIONS}
+            value={typeFilter}
+            onChange={setTypeFilter}
+            searchable={false}
+            emptyLabel="No types."
+          />
+          <MultiSelectFilter
+            filterLabel="Status"
+            icon={CircleDot}
+            allLabel="All statuses"
+            options={STATUS_FILTER_OPTIONS}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            searchable={false}
+            emptyLabel="No statuses."
+          />
 
-        <SavedViewsMenu
-          current={{ teamFilter, typeFilter, statusFilter, query }}
-          onApply={applySavedView}
-        />
-      </div>
+          <SavedViewsMenu
+            current={{ teamFilter, typeFilter, statusFilter, query }}
+            onApply={applySavedView}
+          />
+        </div>
+      )}
 
       {/* Body */}
       <div className="relative z-10 flex min-h-0 flex-1 print:h-auto print:flex-none">
@@ -800,12 +930,21 @@ export default function SuprahCalendar() {
             </p>
           )}
           {view === "month" && (
-            <MonthView
-              cursor={cursor}
-              items={items}
-              onDayClick={(d) => openCreate(d)}
-              onItemClick={openEdit}
-            />
+            isMobile ? (
+              <MonthViewMobile
+                cursor={cursor}
+                items={items}
+                onDayClick={(d) => openCreate(d)}
+                onItemClick={openEdit}
+              />
+            ) : (
+              <MonthView
+                cursor={cursor}
+                items={items}
+                onDayClick={(d) => openCreate(d)}
+                onItemClick={openEdit}
+              />
+            )
           )}
           {(view === "week" || view === "day") && (
             <TimeGridView
@@ -1138,7 +1277,7 @@ function MonthView({
                           ? `${item.title} — All Day`
                           : `${item.title} — ${timeLabel} (${durationLabel})`
                       }
-                      className={`flex min-h-12 w-full shrink-0 flex-col items-center justify-center rounded-lg border px-2.5 py-1.5 text-center transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
+                      className={`flex min-h-12 w-full shrink-0 flex-col items-center justify-center rounded-lg border px-2.5 py-1.5 text-center transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 ${TYPE_STYLES[item.type]}`}
                     >
                       <span className="block w-full whitespace-normal break-words text-[12px] font-bold leading-snug">
                         {item.title}
@@ -1271,6 +1410,12 @@ function TimeGridView({
   const allDayOcc = useMemo(() => occ.filter(isAllDayLikeOccurrence), [occ]);
   const isEmpty = occ.length === 0;
   const headerHeight = 64;
+  // Only the hour-label column narrows on mobile — HOUR_PX (row height) stays
+  // fixed everywhere since drag/resize math, NowLine position, and every
+  // occurrence's top/bottom are all computed from that one constant.
+  const isMobile = useIsMobile();
+  const hourColPx = isMobile ? 56 : 80;
+  const gridTemplateColumns = `${hourColPx}px repeat(${days}, minmax(0, 1fr))`;
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
@@ -1324,7 +1469,7 @@ function TimeGridView({
       <div
         className="sticky top-0 z-30 grid border-b border-border bg-card/95 shadow-sm backdrop-blur-xl"
         style={{
-          gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
+          gridTemplateColumns,
           minHeight: headerHeight,
         }}
       >
@@ -1357,9 +1502,9 @@ function TimeGridView({
                 </span>
 
                 <span
-                  className={`mt-1 inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 font-mono text-sm font-bold tabular-nums ${
+                  className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 font-mono text-xs font-bold tabular-nums sm:h-8 sm:min-w-8 sm:text-sm ${
                     today
-                      ? "bg-emerald-500 text-white shadow-[0_0_18px_-5px_rgba(16,185,129,0.65)] dark:bg-emerald-600"
+                      ? "bg-emerald-600 text-white"
                       : "text-foreground"
                   }`}
                 >
@@ -1376,7 +1521,7 @@ function TimeGridView({
         <div
           className="grid border-b border-border bg-muted/40"
           style={{
-            gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
+            gridTemplateColumns,
           }}
         >
           <div className="flex items-start justify-center border-r border-border px-2 py-3">
@@ -1406,7 +1551,7 @@ function TimeGridView({
                         onClick={() => onItemClick(o.item)}
                         title={`${o.item.title} — ${timeLabel}`}
                         aria-label={`${o.item.title}, ${timeLabel}`}
-                        className={`w-full rounded-lg border px-2.5 py-2 text-left transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 ${TYPE_STYLES[o.item.type]}`}
+                        className={`w-full rounded-lg border px-2.5 py-2 text-left transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 ${TYPE_STYLES[o.item.type]}`}
                       >
                         <span
                           className="block overflow-hidden text-[12px] font-bold leading-[1.3]"
@@ -1437,7 +1582,7 @@ function TimeGridView({
       <div
         className="grid"
         style={{
-          gridTemplateColumns: `80px repeat(${days}, minmax(0, 1fr))`,
+          gridTemplateColumns,
         }}
       >
         <div className="relative border-r border-border bg-muted/40">
@@ -1451,13 +1596,13 @@ function TimeGridView({
               className="absolute inset-x-0"
             >
               <span
-                className={`absolute right-3 rounded bg-muted/40 px-1.5 font-mono text-[10.5px] font-semibold tabular-nums text-muted-foreground ${
+                className={`absolute right-1.5 rounded bg-muted/40 px-1 font-mono text-[9px] font-semibold tabular-nums text-muted-foreground sm:right-3 sm:px-1.5 sm:text-[10.5px] ${
                   h === 0 ? "top-1.5" : "-top-2.5"
                 }`}
               >
                 {new Date(2000, 0, 1, h).toLocaleTimeString([], {
                   hour: "numeric",
-                  minute: "2-digit",
+                  minute: isMobile ? undefined : "2-digit",
                 })}
               </span>
             </div>
@@ -1596,7 +1741,7 @@ function TimeGridView({
                         }}
                         title={`${o.item.title} — ${timeLabel} (${durationLabel})`}
                         aria-label={`${o.item.title}, ${timeLabel}, ${durationLabel}`}
-                        className={`group absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-2 text-left transition duration-150 hover:z-10 hover:-translate-y-px hover:brightness-105 hover:shadow-lg focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 ${TYPE_STYLES[o.item.type]} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${isDraggingThis ? "opacity-90 shadow-xl" : ""}`}
+                        className={`group absolute inset-x-1.5 z-5 flex overflow-hidden rounded-lg border px-2.5 py-2 text-left transition duration-150 hover:z-10 hover:brightness-110 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70 ${TYPE_STYLES[o.item.type]} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${isDraggingThis ? "opacity-90" : ""}`}
                       >
                         {renderedHeight >= 46 && o.item.assignees && o.item.assignees.length > 0 && (
                           <Avatar
@@ -1681,7 +1826,7 @@ function TimeGridView({
                         minHeight: renderedHeight < 30 ? 28 : 0,
                         boxSizing: "border-box",
                       }}
-                      className={`absolute inset-x-1.5 z-6 overflow-hidden rounded-lg bg-transparent ${TYPE_GROUP_STYLES[groupType ?? "mixed"] ?? TYPE_GROUP_STYLES.mixed}`}
+                      className={`absolute inset-x-1.5 z-6 overflow-hidden rounded-lg ${TYPE_GROUP_STYLES[groupType ?? "mixed"] ?? TYPE_GROUP_STYLES.mixed}`}
                     >
                       {/* No overscroll-contain: this box sits inside the page's own
                           scroll area, so once its internal scroll bottoms out, wheel
@@ -1715,9 +1860,8 @@ function TimeGridView({
                                 {o.item.title}
                               </span>
 
-                              <span
-                                className={`mt-1 block truncate font-mono text-[10.5px] font-semibold leading-tight tabular-nums ${TYPE_TIME_STYLES[o.item.type]}`}
-                              >
+                              <span className="mt-1 block truncate font-mono text-[10.5px] font-semibold leading-tight tabular-nums text-muted-foreground">
+
                                 {timeLabel}
                               </span>
                             </button>
@@ -1748,12 +1892,12 @@ function NowLine({ showLabel = false }: { showLabel?: boolean }) {
   return (
     <div
       style={{ top }}
-      className="pointer-events-none absolute inset-x-0 z-8 h-px bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_10px_rgba(52,211,153,0.75)]"
+      className="pointer-events-none absolute inset-x-0 z-8 h-px bg-red-500 dark:bg-red-400"
     >
-      <span className="absolute -left-1.5 -top-1.25 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+      <span className="absolute -left-1.5 -top-1.25 h-2.5 w-2.5 rounded-full border-2 border-background bg-red-500 dark:bg-red-400" />
 
       {showLabel && (
-        <span className="absolute left-2 top-1 rounded-md border border-emerald-600/30 bg-background/95 px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums text-emerald-700 shadow-sm dark:border-emerald-400/25 dark:text-emerald-200">
+        <span className="absolute left-2 top-1 rounded-md border border-red-500/30 bg-background/95 px-1.5 py-0.5 font-mono text-[9px] font-bold tabular-nums text-red-600 dark:border-red-400/30 dark:text-red-300">
           {timeLabel}
         </span>
       )}
@@ -1867,7 +2011,7 @@ function AgendaView({
                       selectMode ? onToggleSelected?.(item.id) : onItemClick(item)
                     }
                     title={`${item.title} — ${timeLabel}`}
-                    className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-px hover:brightness-105 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
+                    className={`group flex min-h-13 w-full min-w-0 flex-nowrap items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 sm:px-4 ${TYPE_STYLES[item.type]} ${selected ? "ring-2 ring-emerald-500/70" : ""}`}
                   >
                     {selectMode && (
                       <Checkbox
