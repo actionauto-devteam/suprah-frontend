@@ -107,26 +107,24 @@ export default function AdminPayoutsPage() {
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 container mx-auto">
             <PageHeader
-                eyebrow="Finance"
-                title="Referral"
-                accent="Payouts"
+                title="Referral payouts"
+                description="Withdrawal requests awaiting manual approval."
             />
 
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 <StatCard
                     icon={History}
-                    label="Total Pending"
+                    label="Pending requests"
                     value={withdrawals?.length || 0}
-                    helper="Withdrawal requests"
-                    color="blue"
+                    helper="Awaiting a decision"
+                    tone={withdrawals?.length ? "attention" : "default"}
                 />
                 <StatCard
                     icon={CreditCard}
-                    label="Pending Amount"
+                    label="Pending amount"
                     value={`$${withdrawals?.reduce((sum, w) => sum + w.amount, 0).toFixed(2) || "0.00"}`}
-                    helper="Awaiting approval"
-                    color="emerald"
+                    helper="Total across requests"
                 />
             </div>
 

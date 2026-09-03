@@ -32,12 +32,10 @@ import { Input } from "@/components/ui/input"
 import { Loader2, Users as UsersIcon, UserPlus, ShieldBan, ShieldCheck, Trash2, X } from 'lucide-react';
 import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
 import { AdminErrorState } from "@/components/admin/AdminErrorState"
-import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { runBulkSettled } from "@/lib/bulk-action-result"
-import { cn } from "@/lib/utils"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -168,7 +166,7 @@ export default function UsersPage() {
     if (isError) {
         return (
             <div className="space-y-6 container mx-auto">
-                <PageHeader eyebrow="Platform" title="All" accent="Users" />
+                <PageHeader title="Users" />
                 <AdminErrorState
                     message={error instanceof Error ? error.message : "The user management request failed. Please try again."}
                     onRetry={() => refetch()}
@@ -180,19 +178,18 @@ export default function UsersPage() {
     return (
         <div className="space-y-6 container mx-auto">
             <PageHeader
-                eyebrow="Platform"
-                title="All"
-                accent="Users"
+                title="Users"
+                description="Every account on the platform, across all roles and dealerships."
                 meta={<PageHeaderPill><UsersIcon className="h-3 w-3" /> {data?.length ?? 0} accounts</PageHeaderPill>}
                 actions={
                     <Button variant="outline" size="sm" className="gap-1.5">
-                        <UserPlus className="h-3.5 w-3.5" /> Invite User
+                        <UserPlus className="h-3.5 w-3.5" /> Invite user
                     </Button>
                 }
             />
 
-            <Card className={cn(ADMIN_PANEL_CLASS, "py-6")}>
-                <CardContent className="space-y-3">
+            <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
+                <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center gap-2 py-1">
                         <Input
                             placeholder="Search by name or email..."

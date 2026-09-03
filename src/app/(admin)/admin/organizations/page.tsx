@@ -212,16 +212,15 @@ export default function DealershipsPage() {
     return (
         <div className="space-y-6 container mx-auto">
             <PageHeader
-                eyebrow="Platform"
-                title="All"
-                accent="Dealerships"
+                title="Dealerships"
+                description="Registered dealerships and the prospects still being worked."
                 meta={<PageHeaderPill><Building2 className="h-3 w-3" /> {rows.length} tracked</PageHeaderPill>}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                <StatCard icon={Mail} label="Prospects" value={prospectCount} helper="Awaiting outreach" color="amber" />
-                <StatCard icon={Building2} label="Active Dealerships" value={dealershipCount} helper="Registered orgs" color="emerald" />
-                <StatCard icon={X} label="Dismissed" value={dismissedCount} helper="Closed-out prospects" color="rose" />
+                <StatCard icon={Mail} label="Prospects" value={prospectCount} helper="Awaiting outreach" tone={prospectCount ? "attention" : "default"} />
+                <StatCard icon={Building2} label="Active dealerships" value={dealershipCount} helper="Registered orgs" />
+                <StatCard icon={X} label="Dismissed" value={dismissedCount} helper="Closed-out prospects" />
             </div>
 
             <div className="flex flex-wrap gap-2">
