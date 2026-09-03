@@ -14,22 +14,21 @@ export function ImpersonationBanner() {
 
     const handleExit = () => {
         stopImpersonation();
-        // Hard redirect to admin dashboard to ensure state is cleared and we leave the org context
-        window.location.href = '/admin/dashboard';
+        router.push('/admin/dashboard');
     };
 
     return (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-4 bg-amber-600 text-white px-6 py-3 rounded-full shadow-lg animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-9999 flex items-center gap-4 rounded-full border border-amber-500/25 bg-amber-500/15 px-6 py-3 text-amber-700 shadow-lg backdrop-blur-sm animate-in slide-in-from-bottom-5 dark:text-amber-400">
             <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
-                <span className="font-medium text-sm">
+                <span className="text-sm font-medium">
                     Impersonating Organization ({impersonatedOrgId})
                 </span>
             </div>
             <Button
                 variant="secondary"
                 size="sm"
-                className="h-7 text-xs bg-white text-amber-900 hover:bg-amber-100 border-none"
+                className="h-7 border-none bg-amber-500/20 text-xs text-amber-700 hover:bg-amber-500/30 dark:text-amber-400"
                 onClick={handleExit}
             >
                 <XCircle className="mr-1 h-3 w-3" />

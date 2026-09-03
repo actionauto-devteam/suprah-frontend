@@ -36,6 +36,8 @@ import { AdminErrorState } from "@/components/admin/AdminErrorState"
 import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
+import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { runBulkSettled } from "@/lib/bulk-action-result"
 import { cn } from "@/lib/utils"
 import {
     AlertDialog,
@@ -47,7 +49,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
 
 interface ApiResponse<T> {
     statusCode: number;
@@ -140,18 +141,14 @@ export default function AdminDriversPage() {
         try {
             const token = await getToken();
             const headers = { Authorization: `Bearer ${token}` };
-            await Promise.all(
-                selectedIds.map((id) =>
-                    apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers })
-                )
+            await runBulkSettled(
+                selectedIds,
+                (id) => apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers }),
+                { verb: bulkAction === "suspend" ? "suspended" : "activated", noun: "driver" },
             );
-            toast.success(`${selectedIds.length} driver(s) ${bulkAction === "suspend" ? "suspended" : "activated"}`);
             setRowSelection({});
             setBulkAction(null);
             refetch();
-        } catch (err) {
-            const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(message || `Failed to ${bulkAction} selected drivers`);
         } finally {
             setBulkBusy(false);
         }
@@ -159,8 +156,8 @@ export default function AdminDriversPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-6 container mx-auto">
+                <TableLoadingSkeleton />
             </div>
         );
     }

@@ -52,6 +52,8 @@ import { Badge } from "@/components/ui/badge"
 import { PageHeader } from "@/components/admin/PageHeader"
 import { StatCard } from "@/components/admin/StatCard"
 import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
+import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { useAlert } from "@/components/AlertDialog"
 import { cn } from "@/lib/utils"
 
 export default function AdminPayoutsPage() {
@@ -63,8 +65,7 @@ export default function AdminPayoutsPage() {
     const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<string | null>(null);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
-
-
+    const { confirm, AlertComponent } = useAlert();
 
     const filteredWithdrawals = withdrawals?.filter(w =>
         w.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -73,9 +74,15 @@ export default function AdminPayoutsPage() {
     ) || [];
 
     const handleApprove = (id: string) => {
-        if (window.confirm("Are you sure you want to approve this payout? Ensure you have manually transferred the funds first.")) {
-            approve(id);
-        }
+        confirm(
+            "Approve Payout",
+            "Are you sure you want to approve this payout? Ensure you have manually transferred the funds first.",
+            async () => {
+                approve(id);
+            },
+            "Approve",
+            "Cancel",
+        );
     }
 
     const handleRejectSubmit = () => {
@@ -91,13 +98,11 @@ export default function AdminPayoutsPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="p-4 sm:p-6 lg:p-8 container mx-auto">
+                <TableLoadingSkeleton />
             </div>
         )
     }
-
-
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 container mx-auto">
@@ -258,6 +263,8 @@ export default function AdminPayoutsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertComponent />
         </div>
     )
 }

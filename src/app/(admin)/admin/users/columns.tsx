@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
+import { useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   MoreHorizontal,
@@ -46,6 +47,7 @@ import { UserProfile } from "@/types/user";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 
 interface OrgOption {
   _id: string;
@@ -61,6 +63,8 @@ export interface AdminUser extends UserProfile {
 // ─── Actions cell extracted as a proper component so we can use useState ───
 function ActionsCell({ user }: { user: AdminUser }) {
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const refreshUsers = () => queryClient.invalidateQueries({ queryKey: ["admin-users"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -105,7 +109,7 @@ function ActionsCell({ user }: { user: AdminUser }) {
       );
       toast.success(`${user.name} assigned to ${selectedOrg.name}`);
       setOrgDialogOpen(false);
-      setTimeout(() => window.location.reload(), 500);
+      refreshUsers();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to assign organization");
     } finally {
@@ -124,7 +128,7 @@ function ActionsCell({ user }: { user: AdminUser }) {
         },
       );
       toast.success("User suspended");
-      setTimeout(() => window.location.reload(), 500);
+      refreshUsers();
     } catch {
       toast.error("Failed to suspend user");
     }
@@ -141,7 +145,7 @@ function ActionsCell({ user }: { user: AdminUser }) {
         },
       );
       toast.success("User activated");
-      setTimeout(() => window.location.reload(), 500);
+      refreshUsers();
     } catch {
       toast.error("Failed to activate user");
     }
@@ -155,7 +159,7 @@ function ActionsCell({ user }: { user: AdminUser }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success(`${user.name} has been deleted`);
-      setTimeout(() => window.location.reload(), 500);
+      refreshUsers();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to delete user");
     } finally {
@@ -373,14 +377,12 @@ export const columns: ColumnDef<AdminUser>[] = [
     accessorKey: "isActive",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
-    cell: ({ row }) => {
-      const isActive = row.original.isActive;
-      return (
-        <Badge variant={isActive ? "outline" : "destructive"}>
-          {isActive ? "Active" : "Suspended"}
-        </Badge>
-      );
-    },
+    cell: ({ row }) => (
+      <StatusBadge
+        status={row.original.isActive ? "active" : "suspended"}
+        domain="activeStatus"
+      />
+    ),
   },
   {
     id: "actions",

@@ -35,6 +35,8 @@ import { AdminErrorState } from "@/components/admin/AdminErrorState"
 import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
+import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { runBulkSettled } from "@/lib/bulk-action-result"
 import { cn } from "@/lib/utils"
 import {
     AlertDialog,
@@ -46,7 +48,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
 
 interface PaginatedUsers {
     users: AdminUser[];
@@ -136,24 +137,21 @@ export default function UsersPage() {
             const token = await getToken();
             const headers = { Authorization: `Bearer ${token}` };
             if (bulkAction === "delete") {
-                await Promise.all(
-                    selectedIds.map((id) => apiClient.delete(`/api/admin/users/${id}`, { headers }))
+                await runBulkSettled(
+                    selectedIds,
+                    (id) => apiClient.delete(`/api/admin/users/${id}`, { headers }),
+                    { verb: "deleted", noun: "user" },
                 );
-                toast.success(`${selectedIds.length} user(s) deleted`);
             } else {
-                await Promise.all(
-                    selectedIds.map((id) =>
-                        apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers })
-                    )
+                await runBulkSettled(
+                    selectedIds,
+                    (id) => apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers }),
+                    { verb: bulkAction === "suspend" ? "suspended" : "activated", noun: "user" },
                 );
-                toast.success(`${selectedIds.length} user(s) ${bulkAction === "suspend" ? "suspended" : "activated"}`);
             }
             setRowSelection({});
             setBulkAction(null);
             refetch();
-        } catch (err) {
-            const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(message || `Failed to ${bulkAction} selected users`);
         } finally {
             setBulkBusy(false);
         }
@@ -161,8 +159,8 @@ export default function UsersPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-6 container mx-auto">
+                <TableLoadingSkeleton />
             </div>
         );
     }

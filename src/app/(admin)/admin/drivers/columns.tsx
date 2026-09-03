@@ -2,12 +2,11 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 
 export interface AdminDriver {
   id: string;
@@ -82,18 +81,10 @@ export const columns: ColumnDef<AdminDriver>[] = [
     filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => {
       const status = row.original.applicationStatus;
-      return (
-        <Badge
-          variant="outline"
-          className={cn(
-            "capitalize",
-            status === "pending" && "bg-amber-500/10 text-amber-600 border-amber-200",
-            status === "approved" && "bg-green-500/10 text-green-600 border-green-200",
-            status === "rejected" && "bg-red-500/10 text-red-600 border-red-200",
-          )}
-        >
-          {status || "—"}
-        </Badge>
+      return status ? (
+        <StatusBadge status={status} domain="driverApplication" />
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
       );
     },
   },
@@ -102,9 +93,7 @@ export const columns: ColumnDef<AdminDriver>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Verification" />,
     filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => (
-      <Badge variant="secondary" className="capitalize">
-        {row.original.verificationStatus.replace(/_/g, " ")}
-      </Badge>
+      <StatusBadge status={row.original.verificationStatus} domain="driverVerification" />
     ),
   },
   {
@@ -121,9 +110,10 @@ export const columns: ColumnDef<AdminDriver>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
     filterFn: (row, id, value: string[]) => value.includes(String(row.getValue(id))),
     cell: ({ row }) => (
-      <Badge variant={row.original.isActive ? "outline" : "destructive"}>
-        {row.original.isActive ? "Active" : "Suspended"}
-      </Badge>
+      <StatusBadge
+        status={row.original.isActive ? "active" : "suspended"}
+        domain="activeStatus"
+      />
     ),
   },
   {

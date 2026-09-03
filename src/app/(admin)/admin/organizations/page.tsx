@@ -18,11 +18,13 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Building2, Loader2, Mail, Send, X } from 'lucide-react';
+import { Building2, Mail, Send, X } from 'lucide-react';
 import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
 import { AdminErrorState } from "@/components/admin/AdminErrorState"
 import { StatCard } from "@/components/admin/StatCard"
 import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
+import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { SUBSCRIPTION_TIERS } from "@/data/subscriptionTiers"
@@ -53,15 +55,6 @@ const TABS = [
     { value: "dealerships", label: "Dealerships" },
     { value: "dismissed", label: "Dismissed" },
 ] as const;
-
-const STATUS_BADGE: Record<string, string> = {
-    active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    suspended: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
-    archived: "bg-zinc-500/10 text-zinc-500 border-zinc-500/20",
-    pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-    invited: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-    dismissed: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-};
 
 type SortOption = "newest" | "oldest" | "name";
 
@@ -189,8 +182,8 @@ export default function DealershipsPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-6 container mx-auto">
+                <TableLoadingSkeleton />
             </div>
         );
     }
@@ -338,9 +331,10 @@ export default function DealershipsPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant="outline" className={STATUS_BADGE[row.status]}>
-                                                    {row.kind === "inquiry" ? row.status : row.status || "active"}
-                                                </Badge>
+                                                <StatusBadge
+                                                    status={row.kind === "inquiry" ? row.status : row.status || "active"}
+                                                    domain="dealershipStatus"
+                                                />
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-sm">
                                                 {new Date(row.createdAt).toLocaleDateString()}

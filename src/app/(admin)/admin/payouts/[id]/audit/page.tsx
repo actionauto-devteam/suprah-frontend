@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { PageLoadingState } from "@/components/shared/EmptyLoadingState"
+import { useAlert } from "@/components/AlertDialog"
 
 export default function PayoutAuditPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -51,13 +53,20 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
 
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
+    const { confirm, AlertComponent } = useAlert();
 
     const handleApprove = () => {
-        if (window.confirm("Are you sure you want to approve this payout? Ensure you have manually transferred the funds first.")) {
-            approve(id, {
-                onSuccess: () => router.push('/admin/payouts')
-            });
-        }
+        confirm(
+            "Approve Payout",
+            "Are you sure you want to approve this payout? Ensure you have manually transferred the funds first.",
+            async () => {
+                approve(id, {
+                    onSuccess: () => router.push('/admin/payouts')
+                });
+            },
+            "Approve",
+            "Cancel",
+        );
     }
 
     const handleRejectSubmit = () => {
@@ -70,11 +79,7 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
     }
 
     if (isLoading) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        )
+        return <PageLoadingState />;
     }
 
     if (error || !auditData) {
@@ -352,6 +357,8 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertComponent />
         </div>
     )
 }

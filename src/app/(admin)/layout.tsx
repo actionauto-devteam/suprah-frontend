@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -10,9 +11,12 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { adminNav } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { useAuth } from "@/providers/AuthProvider";
+import { useOrg } from "@/hooks/useOrg";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { PageLoadingState } from "@/components/shared/EmptyLoadingState";
 
 function AdminLayoutContent({
     children,
@@ -20,7 +24,21 @@ function AdminLayoutContent({
     children: React.ReactNode;
 }>) {
     const { isLoaded, isSignedIn } = useAuth();
+    const { isLoaded: isOrgLoaded, isSuperAdmin } = useOrg();
+    const router = useRouter();
+
+    // Backend routes are already requireSuperAdmin-gated — this closes the
+    // client-side gap where any authenticated user could reach /admin/* and
+    // see the shell before their API calls started 403ing. Hooks must run
+    // unconditionally on every render, so this stays above the early returns.
+    React.useEffect(() => {
+        if (isOrgLoaded && !isSuperAdmin) {
+            router.replace('/');
+        }
+    }, [isOrgLoaded, isSuperAdmin, router]);
+
     if (isLoaded && !isSignedIn) return null;
+    if (!isOrgLoaded || !isSuperAdmin) return <PageLoadingState />;
 
     return (
         <SidebarProvider>
@@ -43,6 +61,7 @@ function AdminLayoutContent({
                 </div>
                 <MobileBottomNav items={adminNav} />
             </SidebarInset>
+            <ImpersonationBanner />
             <ChatPopupManager />
         </SidebarProvider>
     );

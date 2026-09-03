@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
+import { useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table"
 import { MoreHorizontal, ArrowRight, ShieldBan, ShieldCheck, CreditCard, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,8 +34,9 @@ import { Organization } from "@/types/organization" // We might need to extend t
 import { apiClient } from "@/lib/api-client"
 import { adminStore } from "@/store/admin-store"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner" // Assuming sonner or useToast is available. If not, console.log for now or check package.json
+import { toast } from "sonner"
 import { SUBSCRIPTION_TIERS, getTierDefinition } from "@/data/subscriptionTiers"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 
 // Extend Organization type to include status if not present
 export interface AdminOrganization extends Organization {
@@ -75,12 +77,8 @@ export const columns: ColumnDef<AdminOrganization>[] = [
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => {
-            const status = row.getValue("status") as string;
-            return (
-                <Badge variant={status === 'active' ? 'default' : 'destructive'}>
-                    {status || 'active'}0
-                </Badge>
-            )
+            const status = (row.getValue("status") as string) || "active";
+            return <StatusBadge status={status} domain="orgStatus" />;
         },
     },
     {
@@ -100,6 +98,8 @@ export function OrgActionsCell({ org }: { org: AdminOrganization }) {
     const router = useRouter();
     const { startImpersonation } = adminStore.useStore();
     const { getToken } = useAuth();
+    const queryClient = useQueryClient();
+    const refreshOrgs = () => queryClient.invalidateQueries({ queryKey: ["admin-orgs"] });
 
     const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
     const [selectedTier, setSelectedTier] = useState(org.subscription?.tier || "suprah_go");
@@ -118,7 +118,7 @@ export function OrgActionsCell({ org }: { org: AdminOrganization }) {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success('Organization suspended');
-            window.location.reload();
+            refreshOrgs();
         } catch {
             toast.error('Failed to suspend');
         }
@@ -131,7 +131,7 @@ export function OrgActionsCell({ org }: { org: AdminOrganization }) {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success('Organization activated');
-            window.location.reload();
+            refreshOrgs();
         } catch {
             toast.error('Failed to activate');
         }
@@ -146,7 +146,7 @@ export function OrgActionsCell({ org }: { org: AdminOrganization }) {
             });
             toast.success('Subscription updated');
             setSubscriptionDialogOpen(false);
-            window.location.reload();
+            refreshOrgs();
         } catch {
             toast.error('Failed to update subscription');
         } finally {
