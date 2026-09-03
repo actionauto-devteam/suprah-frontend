@@ -27,6 +27,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
 import { DocumentReviewWorkspace } from './DocumentReviewWorkspace';
 import { ADMIN_HEADER_PANEL_CLASS } from '@/components/admin/theme';
+import { StatCard } from '@/components/admin/StatCard';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
 const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver', timeZoneName: 'short' }).format(new Date(d)) : '—';
@@ -63,19 +64,6 @@ const DOC_ICONS: Record<string, React.ElementType> = {
     dot_inspection: FileCheck, cargo_insurance: Shield, liability_insurance: Shield, other: FileText,
 };
 
-const Stat = ({ label, value, color, icon: Icon, gradient }: { label: string; value: string | number; color?: string; icon?: React.ElementType; gradient?: string }) => (
-    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 p-4">
-        {gradient && <div className={cn('absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r', gradient)} />}
-        <div className="flex items-center gap-3">
-            {Icon && <div className={cn('size-10 rounded-xl flex items-center justify-center bg-muted/20', color)}><Icon className="size-5" /></div>}
-            <div>
-                <p className={cn('text-2xl font-black tabular-nums', color || 'text-foreground')}>{value}</p>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{label}</p>
-            </div>
-        </div>
-    </div>
-);
-
 const Field = ({ label, value, mono, icon: Icon }: { label: string; value?: string | number | null; mono?: boolean; icon?: React.ElementType }) => (
     <div className="space-y-1.5">
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -106,6 +94,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
     const [claim, setClaim] = useState<{ id: string; name: string } | null>(null);
     const [claimBusy, setClaimBusy] = useState(false);
+    const [noteDraft, setNoteDraft] = useState('');
+    const [savingNote, setSavingNote] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -267,6 +257,27 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
     const handleReject = (docId: string) => handleRejectDocument(docId, rejectReason);
 
+    const submitNote = async () => {
+        const note = noteDraft.trim();
+        if (note.length < 2 || savingNote) return;
+        setSavingNote(true);
+        try {
+            const token = await getToken();
+            await apiClient.post(
+                `/api/admin/drivers/${driverId}/notes`,
+                { note },
+                { headers: { Authorization: `Bearer ${token}` } },
+            );
+            setNoteDraft('');
+            await fetchProfile();
+            toast.success('Note added');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to add note');
+        } finally {
+            setSavingNote(false);
+        }
+    };
+
     const handleApproveDriver = async () => {
         setApproving(true);
         try {
@@ -376,10 +387,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             </Link>
                             <Avatar className="size-14 border-2 border-border/40 shadow-xl shrink-0">
                                 <AvatarImage src={user?.avatar} />
-                                <AvatarFallback className="bg-muted text-foreground font-black text-lg">{getInitials(user?.name)}</AvatarFallback>
+                                <AvatarFallback className="bg-muted text-base font-medium text-foreground">{getInitials(user?.name)}</AvatarFallback>
                             </Avatar>
                             <div>
-                                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{user?.name || 'Unknown Driver'}</h1>
+                                <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">{user?.name || 'Unknown Driver'}</h1>
                                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                     {user?.email && <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</span>}
                                     <StatusBadge status={profile.verificationStatus || 'not_started'} domain="driverVerification" />
@@ -395,7 +406,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         </div>
                         <div className="hidden sm:flex items-center gap-4 shrink-0">
                             <div className="text-right">
-                                <span className="text-4xl font-black tabular-nums text-foreground">{profile.profileCompletionScore || 0}%</span>
+                                <span className="text-3xl font-semibold tabular-nums text-foreground">{profile.profileCompletionScore || 0}%</span>
                                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Profile Score</p>
                             </div>
                             {profile.verificationStatus !== 'verified' && (
@@ -471,7 +482,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     <t.icon className="size-4" />
                                     <span className="text-[11px] sm:text-xs font-bold">{t.label}</span>
                                     {t.id === 'documents' && stats && stats.pending > 0 && (
-                                        <span className="absolute top-1 right-1 sm:static size-4 rounded-full bg-amber-500 text-[9px] font-black text-white flex items-center justify-center">{stats.pending}</span>
+                                        <span className="absolute top-1 right-1 sm:static size-4 rounded-full bg-amber-500 text-[9px] font-semibold text-white flex items-center justify-center">{stats.pending}</span>
                                     )}
                                 </TabsTrigger>
                             ))}
@@ -485,21 +496,19 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         {tab === 'overview' && (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    <Stat label="Documents" value={stats?.total || 0} icon={FileText} gradient="from-blue-500 to-indigo-500" />
-                                    <Stat label="Verified" value={stats?.verified || 0} color="text-emerald-500" icon={CheckCircle2} gradient="from-emerald-500 to-teal-500" />
-                                    <Stat label="Pending" value={stats?.pending || 0} color="text-amber-500" icon={Clock} gradient="from-amber-500 to-orange-500" />
-                                    <Stat label="Capacity" value={`${profile.maxVehicleCapacity || 0} veh`} color="text-blue-500" icon={Truck} gradient="from-violet-500 to-purple-500" />
+                                    <StatCard label="Documents" value={stats?.total || 0} icon={FileText} />
+                                    <StatCard label="Verified" value={stats?.verified || 0} icon={CheckCircle2} tone={stats?.verified ? 'positive' : 'default'} />
+                                    <StatCard label="Awaiting review" value={stats?.pending || 0} icon={Clock} tone={stats?.pending ? 'attention' : 'default'} />
+                                    <StatCard label="Capacity" value={`${profile.maxVehicleCapacity || 0} veh`} icon={Truck} />
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                            <div className="absolute inset-0 bg-linear-to-br from-blue-500/3 via-transparent to-indigo-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-blue-600 to-indigo-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25"><Truck className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Equipment Summary</h3><p className="text-[10px] text-muted-foreground">Truck & Trailer Configuration</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Truck className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Equipment Summary</h3><p className="text-xs text-muted-foreground">Truck & Trailer Configuration</p></div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <Field label="Truck" value={profile.truckMake && profile.truckModel ? `${profile.truckMake} ${profile.truckModel}` : undefined} icon={Truck} />
@@ -514,13 +523,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     </div>
 
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                            <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-violet-600 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-violet-500/25"><Fingerprint className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Identity & Verification</h3><p className="text-[10px] text-muted-foreground">Security Status</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Fingerprint className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Identity & Verification</h3><p className="text-xs text-muted-foreground">Security Status</p></div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <Field label="SSN" value={profile.ssnLast4 ? `••••${profile.ssnLast4}` : undefined} mono icon={Lock} />
@@ -550,13 +557,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     </div>
 
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                            <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25"><CreditCard className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Credentials</h3><p className="text-[10px] text-muted-foreground">License & Insurance</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><CreditCard className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Credentials</h3><p className="text-xs text-muted-foreground">License & Insurance</p></div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <Field label="CDL Number" value={profile.driversLicenseNumber} mono />
@@ -581,13 +586,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     </div>
 
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                            <div className="absolute inset-0 bg-linear-to-br from-amber-500/3 via-transparent to-orange-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-amber-500 to-orange-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/25"><MapPin className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Logistics</h3><p className="text-[10px] text-muted-foreground">Location & Availability</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><MapPin className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Logistics</h3><p className="text-xs text-muted-foreground">Location & Availability</p></div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <Field label="Home Base" value={profile.homeBase?.address || (profile.homeBase?.city && profile.homeBase?.state ? `${profile.homeBase.city}, ${profile.homeBase.state}` : undefined)} icon={MapPin} />
@@ -622,13 +625,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             <div className="space-y-6">
                                 {/* Truck Details */}
                                 <div>
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute inset-0 bg-linear-to-br from-blue-500/3 via-transparent to-indigo-500/3" />
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-blue-600 to-indigo-500" />
-                                        <div className="relative p-6">
+                                    <div className="rounded-lg border border-border bg-card">
+                                        <div className="p-5">
                                             <div className="flex items-center gap-3 mb-5">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25"><Truck className="size-5" /></div>
-                                                <div><h3 className="text-sm font-black">Truck Details</h3><p className="text-[10px] text-muted-foreground">Primary Vehicle Information</p></div>
+                                                <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Truck className="size-4" /></div>
+                                                <div><h3 className="text-sm font-medium">Truck Details</h3><p className="text-xs text-muted-foreground">Primary Vehicle Information</p></div>
                                                 {profile.truckColor && (
                                                     <div className="ml-auto flex items-center gap-2">
                                                         <div className="size-5 rounded-full border-2 border-white/20 shadow-sm" style={{ backgroundColor: profile.truckColor?.toLowerCase() || '#888' }} />
@@ -653,22 +654,20 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     {/* Operating Authority */}
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl h-full">
-                                            <div className="absolute inset-0 bg-linear-to-br from-slate-500/3 via-transparent to-zinc-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-600 to-zinc-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card h-full">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-slate-600 to-zinc-500 flex items-center justify-center text-white shadow-lg shadow-slate-500/25"><Building2 className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Operating Authority</h3><p className="text-[10px] text-muted-foreground">Federal Numbers</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Building2 className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Operating Authority</h3><p className="text-xs text-muted-foreground">Federal Numbers</p></div>
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-border/15 bg-muted/5">
                                                         <div className="size-10 rounded-lg bg-blue-500/10 flex items-center justify-center"><Hash className="size-5 text-blue-500" /></div>
-                                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DOT Number</p><p className="text-lg font-mono font-black">{profile.dotNumber || '—'}</p></div>
+                                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DOT Number</p><p className="font-mono text-base font-semibold">{profile.dotNumber || '—'}</p></div>
                                                     </div>
                                                     <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-border/15 bg-muted/5">
                                                         <div className="size-10 rounded-lg bg-violet-500/10 flex items-center justify-center"><Hash className="size-5 text-violet-500" /></div>
-                                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">MC Number</p><p className="text-lg font-mono font-black">{profile.mcNumber || '—'}</p></div>
+                                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">MC Number</p><p className="font-mono text-base font-semibold">{profile.mcNumber || '—'}</p></div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -677,13 +676,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
                                     {/* Special Features */}
                                     <div>
-                                        <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl h-full">
-                                            <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
-                                            <div className="relative p-6">
+                                        <div className="rounded-lg border border-border bg-card h-full">
+                                            <div className="p-5">
                                                 <div className="flex items-center gap-3 mb-5">
-                                                    <div className="size-11 rounded-xl bg-linear-to-br from-violet-600 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-violet-500/25"><Star className="size-5" /></div>
-                                                    <div><h3 className="text-sm font-black">Special Features</h3><p className="text-[10px] text-muted-foreground">Equipment Capabilities</p></div>
+                                                    <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Star className="size-4" /></div>
+                                                    <div><h3 className="text-sm font-medium">Special Features</h3><p className="text-xs text-muted-foreground">Equipment Capabilities</p></div>
                                                     <Badge className="ml-auto text-xs font-bold bg-linear-to-r from-violet-600 to-purple-500 text-white border-0 shadow-lg shadow-violet-500/25">{profile.specialFeatures?.length || 0}</Badge>
                                                 </div>
                                                 {profile.specialFeatures?.length > 0 ? (
@@ -707,13 +704,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
                                 {/* Trailer Details */}
                                 <div>
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
-                                        <div className="relative p-6">
+                                    <div className="rounded-lg border border-border bg-card">
+                                        <div className="p-5">
                                             <div className="flex items-center gap-3 mb-5">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25"><Wrench className="size-5" /></div>
-                                                <div><h3 className="text-sm font-black">Trailer Details</h3><p className="text-[10px] text-muted-foreground">Trailer Configuration & Specs</p></div>
+                                                <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Wrench className="size-4" /></div>
+                                                <div><h3 className="text-sm font-medium">Trailer Details</h3><p className="text-xs text-muted-foreground">Trailer Configuration & Specs</p></div>
                                                 {trailerInfo && (
                                                     <Badge className="ml-auto text-[10px] font-bold capitalize bg-emerald-500/10 text-emerald-600 border-emerald-500/20">{trailerInfo.category}</Badge>
                                                 )}
@@ -898,13 +893,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                             <div className="space-y-6">
                                 {/* License & Insurance */}
                                 <div>
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
-                                        <div className="relative p-6">
+                                    <div className="rounded-lg border border-border bg-card">
+                                        <div className="p-5">
                                             <div className="flex items-center gap-3 mb-6">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25"><CreditCard className="size-5" /></div>
-                                                <div className="flex-1"><h3 className="text-sm font-black">License & Insurance Details</h3><p className="text-[10px] text-muted-foreground">Compliance expiration tracking</p></div>
+                                                <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><CreditCard className="size-4" /></div>
+                                                <div className="flex-1"><h3 className="text-sm font-medium">License & Insurance Details</h3><p className="text-xs text-muted-foreground">Compliance expiration tracking</p></div>
                                                 {profile.isComplianceExpired && <Badge variant="destructive" className="gap-1 text-xs font-bold"><AlertTriangle className="size-3" /> Expired Items</Badge>}
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -912,7 +905,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 <div className={cn('p-4 rounded-xl border-2 space-y-3 transition-all',
                                                     getExpStatus(profile.licenseExpirationDate).c.includes('red') ? 'border-red-500/20 bg-red-500/3' :
                                                         getExpStatus(profile.licenseExpirationDate).c.includes('amber') ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
-                                                    <div className="flex items-center gap-2"><CreditCard className="size-4 text-blue-500" /><p className="text-xs font-black">Commercial Driver License</p></div>
+                                                    <div className="flex items-center gap-2"><CreditCard className="size-4 text-blue-500" /><p className="text-xs font-semibold">Commercial Driver License</p></div>
                                                     <Field label="License Number" value={profile.driversLicenseNumber} mono />
                                                     <Field label="Issuing State" value={profile.licenseState} />
                                                     <div className="space-y-1.5">
@@ -935,7 +928,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 <div className={cn('p-4 rounded-xl border-2 space-y-3 transition-all',
                                                     getExpStatus(profile.medicalCardExpirationDate).c.includes('red') ? 'border-red-500/20 bg-red-500/3' :
                                                         getExpStatus(profile.medicalCardExpirationDate).c.includes('amber') ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
-                                                    <div className="flex items-center gap-2"><FileText className="size-4 text-violet-500" /><p className="text-xs font-black">DOT Medical Card</p></div>
+                                                    <div className="flex items-center gap-2"><FileText className="size-4 text-violet-500" /><p className="text-xs font-semibold">DOT Medical Card</p></div>
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Expiration</p>
                                                         <p className={cn('text-sm font-bold', getExpStatus(profile.medicalCardExpirationDate).c)}>
@@ -956,7 +949,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 <div className={cn('p-4 rounded-xl border-2 space-y-3 transition-all',
                                                     getExpStatus(profile.insuranceExpirationDate).c.includes('red') ? 'border-red-500/20 bg-red-500/3' :
                                                         getExpStatus(profile.insuranceExpirationDate).c.includes('amber') ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
-                                                    <div className="flex items-center gap-2"><Shield className="size-4 text-emerald-500" /><p className="text-xs font-black">Insurance</p></div>
+                                                    <div className="flex items-center gap-2"><Shield className="size-4 text-emerald-500" /><p className="text-xs font-semibold">Insurance</p></div>
                                                     <Field label="Provider" value={profile.insuranceProvider} />
                                                     <Field label="Policy Number" value={profile.insurancePolicyNumber} mono />
                                                     <div className="space-y-1.5">
@@ -981,13 +974,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
                                 {/* Identity Verification */}
                                 <div>
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
-                                        <div className="relative p-6">
+                                    <div className="rounded-lg border border-border bg-card">
+                                        <div className="p-5">
                                             <div className="flex items-center gap-3 mb-6">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-violet-600 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-violet-500/25"><Fingerprint className="size-5" /></div>
-                                                <div><h3 className="text-sm font-black">Identity Verification</h3><p className="text-[10px] text-muted-foreground">Security & compliance checks</p></div>
+                                                <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"><Fingerprint className="size-4" /></div>
+                                                <div><h3 className="text-sm font-medium">Identity Verification</h3><p className="text-xs text-muted-foreground">Security & compliance checks</p></div>
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                 {[
@@ -1016,7 +1007,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                         isPending ? 'text-amber-600 dark:text-amber-400' : '')}>
                                                                     {item.value}
                                                                 </p>
-                                                                {'sub' in item && item.sub && <p className="text-[10px] text-muted-foreground">{item.sub}</p>}
+                                                                {'sub' in item && item.sub && <p className="text-xs text-muted-foreground">{item.sub}</p>}
                                                             </div>
                                                         </div>
                                                     );
@@ -1032,41 +1023,98 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-600 to-zinc-500" />
-                                        <div className="relative p-6">
-                                            <div className="flex items-center gap-3 mb-5">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-slate-600 to-zinc-500 flex items-center justify-center text-white shadow-lg shadow-slate-500/20"><History className="size-5" /></div>
-                                                <div><h3 className="text-sm font-black">Review History</h3><p className="text-[10px] text-muted-foreground">Persistent Driver Verification review events</p></div>
-                                            </div>
-                                            {reviewHistory.length === 0 ? (
-                                                <p className="text-sm text-muted-foreground italic">No Driver Verification review events have been recorded yet.</p>
-                                            ) : (
-                                                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                                                    {reviewHistory.map((event, index) => (
-                                                        <div key={event._id || `${event.createdAt}-${index}`} className="rounded-xl border border-border/50 bg-muted/5 p-3.5">
-                                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                                                                <div>
-                                                                    <p className="text-sm font-bold capitalize">{String(event.action || 'review event').replace(/_/g, ' ')}</p>
-                                                                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                                                        {event.actorName || 'System'}{event.actorRole ? ` · ${event.actorRole}` : ''}{event.loadNumber ? ` · Load ${event.loadNumber}` : ''}
-                                                                    </p>
-                                                                </div>
-                                                                <span className="text-[10px] font-semibold text-muted-foreground shrink-0">{fmtDateTime(event.createdAt)}</span>
-                                                            </div>
-                                                            {(event.previousStatus || event.newStatus) && (
-                                                                <p className="mt-2 text-xs text-muted-foreground">
-                                                                    {event.previousStatus || '—'} → <span className="font-semibold text-foreground">{event.newStatus || '—'}</span>
-                                                                </p>
-                                                            )}
-                                                            {event.reason && <p className="mt-2 rounded-lg bg-muted/40 px-2.5 py-2 text-xs">Reason: {event.reason}</p>}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                <div className="rounded-lg border border-border bg-card">
+                                    <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <History className="size-3.5 text-muted-foreground" />
+                                            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                Review timeline
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">{reviewHistory.length} events</span>
+                                    </div>
+
+                                    <div className="border-b border-border p-3">
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={noteDraft}
+                                                onChange={(e) => setNoteDraft(e.target.value)}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitNote(); } }}
+                                                placeholder="Leave a note for the review team..."
+                                                maxLength={1000}
+                                                className="h-9"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                className="h-9 shrink-0"
+                                                onClick={() => void submitNote()}
+                                                disabled={savingNote || noteDraft.trim().length < 2}
+                                            >
+                                                {savingNote ? <Loader2 className="size-4 animate-spin" /> : 'Add note'}
+                                            </Button>
                                         </div>
                                     </div>
+
+                                    {reviewHistory.length === 0 ? (
+                                        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                            No review activity yet.
+                                        </p>
+                                    ) : (
+                                        <div className="max-h-96 overflow-y-auto">
+                                            {reviewHistory.map((event, index) => {
+                                                const isNote = event.action === 'note_added';
+                                                const action = String(event.action || 'review event');
+                                                return (
+                                                    <div
+                                                        key={event._id || `${event.createdAt}-${index}`}
+                                                        className="relative flex gap-3 px-4 py-3 last:pb-4"
+                                                    >
+                                                        <div className="flex flex-col items-center">
+                                                            <span className={cn(
+                                                                'mt-1 size-2 shrink-0 rounded-full',
+                                                                isNote ? 'bg-blue-500'
+                                                                    : action.includes('approved') ? 'bg-emerald-500'
+                                                                        : action.includes('rejected') ? 'bg-red-500'
+                                                                            : 'bg-muted-foreground/40',
+                                                            )} />
+                                                            {index < reviewHistory.length - 1 && (
+                                                                <span className="mt-1 w-px flex-1 bg-border" />
+                                                            )}
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1 pb-1">
+                                                            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                                                                <p className="text-sm text-foreground">
+                                                                    <span className="font-medium">{event.actorName || 'System'}</span>
+                                                                    <span className="text-muted-foreground">
+                                                                        {' '}{isNote ? 'left a note' : action.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                </p>
+                                                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                                                    {fmtDateTime(event.createdAt)}
+                                                                </span>
+                                                            </div>
+
+                                                            {!isNote && (event.previousStatus || event.newStatus) && (
+                                                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                                                    {event.previousStatus || '\u2014'} &rarr; <span className="font-medium text-foreground">{event.newStatus || '\u2014'}</span>
+                                                                </p>
+                                                            )}
+
+                                                            {event.reason && (
+                                                                <p className={cn(
+                                                                    'mt-1.5 rounded-md px-2.5 py-1.5 text-xs',
+                                                                    isNote ? 'bg-muted text-foreground' : 'bg-muted/60 text-muted-foreground',
+                                                                )}>
+                                                                    {event.reason}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
