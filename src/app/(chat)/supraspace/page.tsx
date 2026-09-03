@@ -8486,17 +8486,18 @@ export default function SupraSpacePage() {
       document.documentElement.style.backgroundColor = prevHtml;
     };
   }, [isStandaloneApp, theme]);
-  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string } | null>(null);
+  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string; header: string; main: string; composer: string } | null>(null);
   React.useEffect(() => {
     if (!isStandaloneApp) return;
+    const fmt = (r: DOMRect | undefined) => r ? `${Math.round(r.top)}-${Math.round(r.bottom)} (${Math.round(r.height)})` : 'null';
     const id = window.setInterval(() => {
-      const ss4 = document.querySelector('.ss4')?.getBoundingClientRect();
-      const sidebar = document.querySelector('.ss4-sidebar')?.getBoundingClientRect();
-      const row = document.querySelector('.ss4 > div.flex.flex-1')?.getBoundingClientRect();
       setDebugRects({
-        ss4: ss4 ? `${Math.round(ss4.top)}-${Math.round(ss4.bottom)} (${Math.round(ss4.height)})` : 'null',
-        sidebar: sidebar ? `${Math.round(sidebar.top)}-${Math.round(sidebar.bottom)} (${Math.round(sidebar.height)})` : 'null',
-        row: row ? `${Math.round(row.top)}-${Math.round(row.bottom)} (${Math.round(row.height)})` : 'null',
+        ss4: fmt(document.querySelector('.ss4')?.getBoundingClientRect()),
+        sidebar: fmt(document.querySelector('.ss4-sidebar')?.getBoundingClientRect()),
+        row: fmt(document.querySelector('.ss4 > div.flex.flex-1')?.getBoundingClientRect()),
+        header: fmt(document.querySelector('.ss4-topbar, .ss4-chat-header')?.getBoundingClientRect()),
+        main: fmt(document.querySelector('.ss4 main')?.getBoundingClientRect()),
+        composer: fmt(document.querySelector('.ss4-composer-pill')?.getBoundingClientRect()),
       });
     }, 500);
     return () => window.clearInterval(id);
@@ -11625,7 +11626,7 @@ export default function SupraSpacePage() {
             fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
             lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
           }}>
-            {`screen=${window.screen.height}\nss4=${debugRects.ss4}\nrow=${debugRects.row}\naside=${debugRects.sidebar}`}
+            {`screen=${window.screen.height}\nss4=${debugRects.ss4}\nhdr=${debugRects.header}\nrow=${debugRects.row}\naside=${debugRects.sidebar}\nmain=${debugRects.main}\ncomposer=${debugRects.composer}`}
           </div>
         )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
