@@ -8486,26 +8486,6 @@ export default function SupraSpacePage() {
       document.documentElement.style.backgroundColor = prevHtml;
     };
   }, [isStandaloneApp, theme]);
-  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string; header: string; main: string; composer: string; sab: number } | null>(null);
-  React.useEffect(() => {
-    if (!isStandaloneApp) return;
-    const fmt = (r: DOMRect | undefined) => r ? `${Math.round(r.top)}-${Math.round(r.bottom)} (${Math.round(r.height)})` : 'null';
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;top:-9999px;left:0;width:1px;padding-bottom:env(safe-area-inset-bottom);';
-    document.body.appendChild(probe);
-    const id = window.setInterval(() => {
-      setDebugRects({
-        ss4: fmt(document.querySelector('.ss4')?.getBoundingClientRect()),
-        sidebar: fmt(document.querySelector('.ss4-sidebar')?.getBoundingClientRect()),
-        row: fmt(document.querySelector('.ss4 > div.flex.flex-1')?.getBoundingClientRect()),
-        header: fmt(document.querySelector('.ss4-topbar, .ss4-chat-header')?.getBoundingClientRect()),
-        main: fmt(document.querySelector('.ss4 main')?.getBoundingClientRect()),
-        composer: fmt(document.querySelector('.ss4-composer-pill')?.getBoundingClientRect()),
-        sab: probe.getBoundingClientRect().height,
-      });
-    }, 500);
-    return () => { window.clearInterval(id); document.body.removeChild(probe); };
-  }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -11623,16 +11603,6 @@ export default function SupraSpacePage() {
         }}
       >
         { }
-        {isStandaloneApp && debugRects && (
-          <div style={{
-            position: 'fixed', top: 4, right: 4, zIndex: 999999,
-            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
-            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
-            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
-          }}>
-            {`screen=${window.screen.height} sab=${debugRects.sab}\nss4=${debugRects.ss4}\nhdr=${debugRects.header}\nrow=${debugRects.row}\naside=${debugRects.sidebar}\nmain=${debugRects.main}\ncomposer=${debugRects.composer}`}
-          </div>
-        )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -12342,7 +12312,7 @@ export default function SupraSpacePage() {
                   </div>
 
                   { }
-                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
+                  <div className="shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5">
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
