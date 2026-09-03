@@ -1,23 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import Link from 'next/link';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { ClipboardList, UserRoundCheck, X, ChevronRight, AlertTriangle } from 'lucide-react';
+  ClipboardList, UserRoundCheck, X, ChevronRight, AlertTriangle, Inbox, Search, RefreshCw,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { PageHeader, PageHeaderPill } from '@/components/admin/PageHeader';
+import { PageHeader } from '@/components/admin/PageHeader';
 import { AdminErrorState } from '@/components/admin/AdminErrorState';
-import { ADMIN_PANEL_CLASS } from '@/components/admin/theme';
-import { TableLoadingSkeleton } from '@/components/shared/EmptyLoadingState';
-import { StatusBadge } from '@/components/shared/StatusBadge';
+import { EmptyState } from '@/components/admin/primitives';
 import { cn } from '@/lib/utils';
 
 interface ReviewQueueItem {
@@ -32,18 +30,41 @@ interface ReviewQueueItem {
   summary: string;
 }
 
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'driver-request', label: 'Applications' },
+  { id: 'driver-profile', label: 'Verification' },
+  { id: 'driver-status-request', label: 'Availability' },
+] as const;
+
 const ENTITY_LABEL: Record<ReviewQueueItem['entityType'], string> = {
   'driver-request': 'Application',
   'driver-profile': 'Verification',
-  'driver-status-request': 'Availability Change',
+  'driver-status-request': 'Availability',
+};
+
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+};
+
+const ageOf = (iso: string) => {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days >= 1) return { label: `${days}d waiting`, stale: days >= 3 };
+  const hours = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
+  return { label: hours >= 1 ? `${hours}h waiting` : 'just now', stale: false };
 };
 
 export default function AdminReviewQueuePage() {
   const { getToken, userId } = useAuth();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all');
+  const [search, setSearch] = useState('');
 
-  const { data, error, isError, isLoading, refetch } = useQuery({
+  const { data, error, isError, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['admin-review-queue'],
     queryFn: async () => {
       const token = await getToken();
@@ -52,154 +73,216 @@ export default function AdminReviewQueuePage() {
       });
       return (res.data?.data?.items || []) as ReviewQueueItem[];
     },
-    // Push satisfies "visible on refresh" without new socket infra for v1 —
-    // see admin/review-queue backend notes on the claim-changed socket event
-    // as a fast-follow.
     refetchOnWindowFocus: true,
     refetchInterval: 30000,
   });
 
-  const claim = async (item: ReviewQueueItem) => {
+  const items = useMemo(() => data || [], [data]);
+
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return items.filter(item => {
+      if (filter !== 'all' && item.entityType !== filter) return false;
+      if (!term) return true;
+      return item.driverName.toLowerCase().includes(term) || item.summary.toLowerCase().includes(term);
+    });
+  }, [items, filter, search]);
+
+  const counts = useMemo(() => ({
+    all: items.length,
+    'driver-request': items.filter(i => i.entityType === 'driver-request').length,
+    'driver-profile': items.filter(i => i.entityType === 'driver-profile').length,
+    'driver-status-request': items.filter(i => i.entityType === 'driver-status-request').length,
+  }), [items]);
+
+  const act = async (item: ReviewQueueItem, action: 'claim' | 'release') => {
     setBusyId(item.id);
     try {
       const token = await getToken();
       await apiClient.post(
-        `/api/admin/review-queue/${item.entityType}/${item.id}/claim`,
+        `/api/admin/review-queue/${item.entityType}/${item.id}/${action}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
       queryClient.invalidateQueries({ queryKey: ['admin-review-queue'] });
-    } catch (error: unknown) {
-      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(message || 'Failed to claim this item');
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message || `Failed to ${action} this item`);
     } finally {
       setBusyId(null);
     }
   };
-
-  const release = async (item: ReviewQueueItem) => {
-    setBusyId(item.id);
-    try {
-      const token = await getToken();
-      await apiClient.post(
-        `/api/admin/review-queue/${item.entityType}/${item.id}/release`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      queryClient.invalidateQueries({ queryKey: ['admin-review-queue'] });
-    } catch (error: unknown) {
-      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      toast.error(message || 'Failed to release this item');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6 container mx-auto">
-        <TableLoadingSkeleton />
-      </div>
-    );
-  }
 
   if (isError) {
     return (
-      <div className="space-y-6 container mx-auto">
-        <PageHeader eyebrow="Platform" title="Review" accent="Queue" />
+      <div className="container mx-auto space-y-6">
+        <PageHeader title="Review queue" description="Everything waiting on a decision." />
         <AdminErrorState
-          message={error instanceof Error ? error.message : 'The review queue request failed. Please try again.'}
+          message={error instanceof Error ? error.message : 'The review queue request failed.'}
           onRetry={() => refetch()}
         />
       </div>
     );
   }
 
-  const items = data || [];
-
   return (
-    <div className="space-y-6 container mx-auto">
+    <div className="container mx-auto space-y-5">
       <PageHeader
-        eyebrow="Platform"
-        title="Review"
-        accent="Queue"
-        meta={<PageHeaderPill><ClipboardList className="h-3 w-3" /> {items.length} awaiting review</PageHeaderPill>}
+        title="Review queue"
+        description="Driver applications, document verification and availability changes in one place."
+        actions={
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={cn('size-3.5', isFetching && 'animate-spin')} />
+            Refresh
+          </Button>
+        }
       />
 
-      <Card className={cn(ADMIN_PANEL_CLASS, 'overflow-hidden py-0')}>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Driver</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Summary</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Claim</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    Nothing awaiting review right now.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((item) => {
-                  const isMine = item.claimedBy?.id === userId;
-                  const isClaimedByOther = Boolean(item.claimedBy) && !isMine;
-                  return (
-                    <TableRow key={`${item.entityType}-${item.id}`} className="group hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium">{item.driverName}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px] font-semibold">{ENTITY_LABEL[item.entityType]}</Badge>
-                        {item.priority === 'emergency' && (
-                          <Badge variant="outline" className="ml-1.5 gap-1 text-[10px] border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400">
-                            <AlertTriangle className="size-2.5" /> Emergency
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{item.summary}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                        {new Date(item.submittedAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        {item.claimedBy ? (
-                          <Badge variant="outline" className="gap-1 text-[10px] font-semibold">
-                            <UserRoundCheck className="size-2.5" /> {isMine ? 'You' : item.claimedBy.name}
-                          </Badge>
-                        ) : (
-                          <StatusBadge status="pending" domain="documentReview" className="text-[10px]" />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {isMine ? (
-                            <Button size="sm" variant="outline" className="gap-1.5" disabled={busyId === item.id} onClick={() => release(item)}>
-                              <X className="size-3.5" /> Release
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="outline" className="gap-1.5" disabled={busyId === item.id || isClaimedByOther} onClick={() => claim(item)}>
-                              <UserRoundCheck className="size-3.5" /> Claim
-                            </Button>
-                          )}
-                          <Button size="sm" variant="ghost" asChild className="gap-1">
-                            <Link href={`/admin/drivers/${item.driverId}`}>
-                              Open <ChevronRight className="size-3.5" />
-                            </Link>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-1">
+          {FILTERS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilter(tab.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors',
+                filter === tab.id
+                  ? 'bg-accent font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50',
               )}
-            </TableBody>
-          </Table>
+            >
+              {tab.label}
+              <span className="text-xs tabular-nums text-muted-foreground">{counts[tab.id]}</span>
+            </button>
+          ))}
         </div>
-      </Card>
+
+        <div className="relative sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filter by driver…"
+            className="h-9 pl-8"
+          />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        {isLoading ? (
+          <div className="divide-y divide-border">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-4">
+                <Skeleton className="size-9 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-40" />
+                  <Skeleton className="h-3 w-64" />
+                </div>
+                <Skeleton className="h-8 w-20" />
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
+          <EmptyState
+            icon={items.length === 0 ? Inbox : Search}
+            title={items.length === 0 ? 'Queue is clear' : 'No matches'}
+            description={
+              items.length === 0
+                ? 'Nothing is waiting on a decision right now.'
+                : 'Try a different filter or search term.'
+            }
+          />
+        ) : (
+          <div className="divide-y divide-border">
+            {visible.map(item => {
+              const mine = item.claimedBy?.id === userId;
+              const takenByOther = Boolean(item.claimedBy) && !mine;
+              const age = ageOf(item.submittedAt);
+
+              return (
+                <div
+                  key={`${item.entityType}-${item.id}`}
+                  className="group flex flex-wrap items-center gap-3 p-3 transition-colors hover:bg-accent/40 sm:flex-nowrap sm:px-4"
+                >
+                  <Avatar className="size-9 shrink-0">
+                    <AvatarFallback className="text-[11px] font-medium">
+                      {initials(item.driverName)}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {item.driverName}
+                      </span>
+                      <span className="rounded border border-border px-1.5 py-px text-[10px] text-muted-foreground">
+                        {ENTITY_LABEL[item.entityType]}
+                      </span>
+                      {item.priority === 'emergency' && (
+                        <span className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-px text-[10px] font-medium text-red-600 dark:text-red-400">
+                          <AlertTriangle className="size-2.5" /> Emergency
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{item.summary}</p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        'hidden w-24 shrink-0 text-right text-xs tabular-nums sm:block',
+                        age.stale ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+                      )}
+                    >
+                      {age.label}
+                    </span>
+
+                    <div className="w-32 shrink-0 text-right">
+                      {item.claimedBy ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <UserRoundCheck className="size-3" />
+                          {mine ? 'You' : item.claimedBy.name}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Unclaimed</span>
+                      )}
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {mine ? (
+                        <Button size="sm" variant="ghost" className="h-8" disabled={busyId === item.id} onClick={() => act(item, 'release')}>
+                          <X className="size-3.5" /> Release
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm" variant="outline" className="h-8"
+                          disabled={busyId === item.id || takenByOther}
+                          onClick={() => act(item, 'claim')}
+                        >
+                          Claim
+                        </Button>
+                      )}
+                      <Button size="sm" className="h-8 gap-1" asChild>
+                        <Link href={`/admin/drivers/${item.driverId}`}>
+                          Review <ChevronRight className="size-3.5" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && items.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <ClipboardList className="size-3.5" />
+          Showing {visible.length} of {items.length} open items · refreshes automatically
+        </p>
+      )}
     </div>
   );
 }

@@ -13,18 +13,15 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
-  Ban,
   Building2,
   Camera,
   CheckCircle2,
   ChevronRight,
   Clock,
   CreditCard,
-  Eye,
   FileCheck,
   FileText,
   FileWarning,
-  Fingerprint,
   Loader2,
   Lock,
   Paperclip,
@@ -54,7 +51,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -76,6 +72,8 @@ import {
   US_STATES,
 } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
+import { DocumentRequirementCard, type DocStatus } from './DocumentRequirementCard';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const STEPS = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -1006,6 +1004,22 @@ export const DocumentsPage: React.FC = () => {
     [insuranceExp, licenseExp, medicalExp],
   );
 
+  const startUploadWithFile = (type: string, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File must be under 5MB');
+      return;
+    }
+    setReplaceTarget(null);
+    setUploadType(type);
+    setUploadLabel(
+      REQUIRED_DOCUMENTS.find((item) => item.type === type)?.label || '',
+    );
+    setUploadExpiry(getInformationExpirationForDocument(type));
+    setUploadFile(file);
+    setDragOver(false);
+    setShowUploadDialog(true);
+  };
+
   const openUploadFor = (type: string) => {
     setReplaceTarget(null);
     setUploadType(type);
@@ -1153,11 +1167,12 @@ export const DocumentsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-        <Loader2 className="size-8 animate-spin text-emerald-500" />
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Securing Connection
-        </p>
+      <div className="mx-auto max-w-5xl space-y-4 px-3 py-6 sm:px-4 md:px-6">
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-14 rounded-lg" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-lg" />
+        ))}
       </div>
     );
   }
@@ -1165,84 +1180,78 @@ export const DocumentsPage: React.FC = () => {
   return (
     <div className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
       <div className="space-y-5">
-        <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-xl">
-          <div className="p-5 sm:p-7">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/driver/profile"
-                  className="rounded-xl border border-border/70 p-2.5 hover:bg-muted"
-                >
-                  <ArrowLeft className="size-4" />
-                </Link>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-black sm:text-3xl">
-                      Driver Verification
-                    </h1>
-                    <Badge className="hidden gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 sm:flex">
-                      <Lock className="size-3" /> Encrypted
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    FMCSA-compliant driver onboarding
-                  </p>
-                </div>
-              </div>
-              <div className="hidden text-right sm:block">
-                <p className="text-4xl font-black">{overallPct}%</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Complete
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <Link
+                href="/driver/profile"
+                className="rounded-md border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Back to profile"
+              >
+                <ArrowLeft className="size-4" />
+              </Link>
+              <div className="min-w-0">
+                <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
+                  Driver Verification
+                </h1>
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Lock className="size-3" />
+                  Your documents are encrypted and only seen by the review team
                 </p>
               </div>
             </div>
-
-            <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-muted">
-              <motion.div
-                className="h-full rounded-full bg-emerald-500"
-                animate={{ width: `${overallPct}%` }}
-              />
+            <div className="shrink-0 text-right">
+              <p className="text-xl font-semibold tabular-nums">{overallPct}%</p>
+              <p className="text-xs text-muted-foreground">complete</p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-1">
-              {STEPS.map((step, index) => {
-                const status = stepStatus[step.id];
-                const Icon = step.icon;
-                const active = activeStep === step.id;
-                return (
-                  <React.Fragment key={step.id}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(step.id)}
-                      className="flex flex-col items-center gap-1.5"
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+              style={{ width: `${overallPct}%` }}
+            />
+          </div>
+
+          <div className="mt-4 flex items-center gap-1.5">
+            {STEPS.map((step, index) => {
+              const status = stepStatus[step.id];
+              const Icon = step.icon;
+              const active = activeStep === step.id;
+              return (
+                <React.Fragment key={step.id}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(step.id)}
+                    className="flex flex-col items-center gap-1.5"
+                  >
+                    <span
+                      className={cn(
+                        'flex size-9 items-center justify-center rounded-full border transition-colors',
+                        active
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : status === 'done'
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : status === 'partial'
+                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                              : 'border-border text-muted-foreground',
+                      )}
                     >
-                      <div
-                        className={cn(
-                          'flex size-11 items-center justify-center rounded-xl border-2',
-                          active
-                            ? 'border-primary bg-primary/10'
-                            : status === 'done'
-                              ? 'border-emerald-500/40 bg-emerald-500/10'
-                              : status === 'partial'
-                                ? 'border-amber-500/40 bg-amber-500/10'
-                                : 'border-border/70',
-                        )}
-                      >
-                        {status === 'done' ? (
-                          <CheckCircle2 className="size-5 text-emerald-500" />
-                        ) : (
-                          <Icon className="size-5" />
-                        )}
-                      </div>
-                      <span className="text-[10px] font-bold">{step.label}</span>
-                    </button>
-                    {index < STEPS.length - 1 && (
-                      <div className="h-0.5 flex-1 bg-border/60" />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
+                      {status === 'done' ? <CheckCircle2 className="size-4" /> : <Icon className="size-4" />}
+                    </span>
+                    <span
+                      className={cn(
+                        'hidden text-[11px] font-medium sm:block',
+                        active ? 'text-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </button>
+                  {index < STEPS.length - 1 && <span className="h-px flex-1 bg-border" />}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
 
@@ -1270,249 +1279,93 @@ export const DocumentsPage: React.FC = () => {
             exit={{ opacity: 0, x: -16 }}
           >
             {activeStep === 'documents' && (
-              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
-                <div className="mb-6 flex items-center gap-4">
-                  <FileCheck className="size-8 text-emerald-500" />
-                  <div>
-                    <h2 className="text-2xl font-black">Required Documents</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {uploadedCount} of {requiredDocs.length} uploaded •{' '}
-                      {verifiedCount} verified
-                    </p>
+              <div className="space-y-5">
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-foreground">Your documents</h2>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {uploadedCount === requiredDocs.length
+                          ? 'All required documents are in. We review them within one business day.'
+                          : `${requiredDocs.length - uploadedCount} required document${requiredDocs.length - uploadedCount === 1 ? '' : 's'} still needed.`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold tabular-nums">
+                        {uploadedCount}
+                        <span className="text-sm font-normal text-muted-foreground">/{requiredDocs.length}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">uploaded</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${requiredDocs.length ? (uploadedCount / requiredDocs.length) * 100 : 0}%` }}
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  {requiredDocs.map((item) => {
-                    const status = getDocStatus(item.type);
-                    const Icon = DOC_ICONS[item.type] || FileText;
-                    const matching = documents.filter((doc) => doc.type === item.type);
-                    return (
-                      <div
-                        key={item.type}
-                        className="overflow-hidden rounded-2xl border border-border/70"
-                      >
-                        <div className="flex items-start gap-4 p-4">
-                          <Icon className="mt-1 size-6 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-bold">{item.label}</h3>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  status === 'verified' && 'border-emerald-500/30 text-emerald-600',
-                                  status === 'pending' && 'border-amber-500/30 text-amber-600',
-                                  status === 'rejected' && 'border-red-500/30 text-red-600',
-                                )}
-                              >
-                                {status === 'missing'
-                                  ? 'REQUIRED'
-                                  : status === 'verified'
-                                    ? 'VERIFIED'
-                                    : status === 'rejected'
-                                      ? 'REJECTED'
-                                      : 'UNDER REVIEW'}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {item.description}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => openUploadFor(item.type)}
-                            disabled={documents.length >= 20}
-                          >
-                            <Upload className="mr-1.5 size-4" />
-                            {status === 'missing' ? 'Upload' : 'Upload New'}
-                          </Button>
-                        </div>
-
-                        {matching.length > 0 && (
-                          <div className="space-y-2 border-t border-border/60 bg-muted/20 p-4">
-                            {matching.map((doc) => {
-                              const exp = expirationStatus(doc.expiresAt);
-                              return (
-                                <div key={doc._id} className="flex items-center gap-3">
-                                  <FileText className="size-4 text-muted-foreground" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-xs font-semibold">
-                                      {doc.label || doc.fileName}
-                                    </p>
-                                    <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                                      <span>{formatSize(doc.fileSize)}</span>
-                                      {doc.uploadedAt && (
-                                        <span>Uploaded {formatDate(doc.uploadedAt)}</span>
-                                      )}
-                                      {exp && (
-                                        <span className={exp.className}>{exp.label}</span>
-                                      )}
-                                    </div>
-                                    {doc.reviewStatus === 'rejected' &&
-                                      doc.rejectionReason && (
-                                        <div className="mt-2 flex gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 p-2 text-[10px] text-red-600">
-                                          <FileWarning className="size-3 shrink-0" />
-                                          {doc.rejectionReason}
-                                        </div>
-                                      )}
-                                  </div>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    title="View document"
-                                    onClick={() => void openDocumentViewer(doc)}
-                                  >
-                                    <Eye className="size-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    title="Replace document"
-                                    onClick={() => openReplaceFor(doc)}
-                                  >
-                                    <RotateCcw className="size-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    title="Delete document"
-                                    className="text-destructive"
-                                    onClick={() => setShowDeleteConfirm(doc._id)}
-                                  >
-                                    <Trash2 className="size-4" />
-                                  </Button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {requiredDocs.map((item) => (
+                    <DocumentRequirementCard
+                      key={item.type}
+                      item={item}
+                      icon={DOC_ICONS[item.type] || FileText}
+                      status={getDocStatus(item.type) as DocStatus}
+                      documents={documents.filter((doc) => doc.type === item.type)}
+                      expirationOf={expirationStatus}
+                      formatSize={formatSize}
+                      formatDate={formatDate}
+                      onPickFile={startUploadWithFile}
+                      onBrowse={openUploadFor}
+                      onView={(doc) => void openDocumentViewer(doc)}
+                      onReplace={openReplaceFor}
+                      onDelete={setShowDeleteConfirm}
+                      disabled={documents.length >= 20}
+                    />
+                  ))}
                 </div>
 
                 {optionalDocs.length > 0 && (
-                  <div className="mt-8 space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Optional Documents
-                    </p>
-
-                    {optionalDocs.map((item) => {
-                      const matching = documents.filter(
-                        (doc) => doc.type === item.type,
-                      );
-                      const Icon = DOC_ICONS[item.type] || FileText;
-
-                      return (
-                        <div
-                          key={item.type}
-                          className="overflow-hidden rounded-xl border border-border/70"
-                        >
-                          <div className="flex items-center justify-between gap-3 p-3">
-                            <div className="flex min-w-0 items-start gap-3">
-                              <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold">{item.label}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.description}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openUploadFor(item.type)}
-                              disabled={documents.length >= 20}
-                            >
-                              <Upload className="mr-1.5 size-4" />
-                              {matching.length ? 'Upload New' : 'Upload'}
-                            </Button>
-                          </div>
-
-                          {matching.length > 0 && (
-                            <div className="space-y-2 border-t border-border/60 bg-muted/20 p-3">
-                              {matching.map((doc) => {
-                                const exp = expirationStatus(doc.expiresAt);
-
-                                return (
-                                  <div
-                                    key={doc._id}
-                                    className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/60 p-2.5"
-                                  >
-                                    <FileText className="size-4 shrink-0 text-muted-foreground" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate text-xs font-semibold">
-                                        {doc.label || doc.fileName}
-                                      </p>
-                                      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                                        <span>{formatSize(doc.fileSize)}</span>
-                                        {doc.uploadedAt && (
-                                          <span>
-                                            Uploaded {formatDate(doc.uploadedAt)}
-                                          </span>
-                                        )}
-                                        {exp && (
-                                          <span className={exp.className}>
-                                            {exp.label}
-                                          </span>
-                                        )}
-                                        <span>
-                                          {doc.reviewStatus === 'rejected'
-                                            ? 'Rejected'
-                                            : doc.verified
-                                              ? 'Verified'
-                                              : 'Pending review'}
-                                        </span>
-                                      </div>
-                                      {doc.reviewStatus === 'rejected' &&
-                                        doc.rejectionReason && (
-                                          <div className="mt-2 flex gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 p-2 text-[10px] text-red-600">
-                                            <FileWarning className="size-3 shrink-0" />
-                                            {doc.rejectionReason}
-                                          </div>
-                                        )}
-                                    </div>
-
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      title="View document"
-                                      onClick={() => void openDocumentViewer(doc)}
-                                    >
-                                      <Eye className="size-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      title="Replace document"
-                                      onClick={() => openReplaceFor(doc)}
-                                    >
-                                      <RotateCcw className="size-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      title="Delete document"
-                                      className="text-destructive"
-                                      onClick={() => setShowDeleteConfirm(doc._id)}
-                                    >
-                                      <Trash2 className="size-4" />
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Optional
+                      </span>
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                    {optionalDocs.map((item) => (
+                      <DocumentRequirementCard
+                        key={item.type}
+                        item={item}
+                        icon={DOC_ICONS[item.type] || FileText}
+                        status={getDocStatus(item.type) as DocStatus}
+                        documents={documents.filter((doc) => doc.type === item.type)}
+                        expirationOf={expirationStatus}
+                        formatSize={formatSize}
+                        formatDate={formatDate}
+                        onPickFile={startUploadWithFile}
+                        onBrowse={openUploadFor}
+                        onView={(doc) => void openDocumentViewer(doc)}
+                        onReplace={openReplaceFor}
+                        onDelete={setShowDeleteConfirm}
+                        disabled={documents.length >= 20}
+                      />
+                    ))}
                   </div>
                 )}
 
-                <div className="mt-8 flex justify-end border-t border-border/60 pt-5">
+                <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {uploadedCount < requiredDocs.length
+                      ? 'Upload every required document to continue.'
+                      : 'Next you will confirm your details.'}
+                  </p>
                   <Button
                     onClick={() => setActiveStep('personal')}
                     disabled={uploadedCount < requiredDocs.length}
+                    className="w-full sm:w-auto"
                   >
                     Next: Information <ChevronRight className="ml-1.5 size-4" />
                   </Button>

@@ -4,9 +4,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { cn } from "@/lib/utils";
 
 export interface AdminDriver {
   id: string;
@@ -61,15 +62,20 @@ export const columns: ColumnDef<AdminDriver>[] = [
       const driver = row.original;
       return (
         <div className="flex items-center gap-2.5">
-          <Avatar className="size-8 shrink-0">
+          <Avatar className="size-7 shrink-0">
             <AvatarImage src={driver.avatar || undefined} />
-            <AvatarFallback className="text-[10px] font-bold">
+            <AvatarFallback className="text-[10px] font-medium">
               {getInitials(driver.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="flex flex-col min-w-0">
-            <span className="font-medium truncate">{driver.name || "Unknown"}</span>
-            <span className="text-xs text-muted-foreground truncate">{driver.email}</span>
+          <div className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-1.5 truncate font-medium">
+              {driver.name || "Unknown"}
+              {driver.isComplianceExpired && (
+                <AlertTriangle className="size-3 shrink-0 text-red-500" aria-label="Compliance expired" />
+              )}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">{driver.email}</span>
           </div>
         </div>
       );
@@ -99,11 +105,23 @@ export const columns: ColumnDef<AdminDriver>[] = [
   {
     accessorKey: "profileCompletionScore",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Profile" />,
-    cell: ({ row }) => (
-      <span className="text-sm font-semibold tabular-nums">
-        {row.original.profileCompletionScore}%
-      </span>
-    ),
+    cell: ({ row }) => {
+      const score = row.original.profileCompletionScore;
+      return (
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-14 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full",
+                score >= 80 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-red-500",
+              )}
+              style={{ width: `${Math.min(Math.max(score, 0), 100)}%` }}
+            />
+          </div>
+          <span className="text-xs tabular-nums text-muted-foreground">{score}%</span>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "isActive",

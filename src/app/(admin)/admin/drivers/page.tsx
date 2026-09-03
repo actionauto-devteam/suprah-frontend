@@ -33,12 +33,10 @@ import { Link2, Loader2, Truck, ShieldBan, ShieldCheck, X } from 'lucide-react';
 import { DriverInviteLinkModal } from "./DriverInviteLinkModal"
 import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
 import { AdminErrorState } from "@/components/admin/AdminErrorState"
-import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { runBulkSettled } from "@/lib/bulk-action-result"
-import { cn } from "@/lib/utils"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -165,7 +163,7 @@ export default function AdminDriversPage() {
     if (isError) {
         return (
             <div className="space-y-6 container mx-auto">
-                <PageHeader eyebrow="Platform" title="All" accent="Drivers" />
+                <PageHeader title="Drivers" />
                 <AdminErrorState
                     message={error instanceof Error ? error.message : "The driver directory request failed. Please try again."}
                     onRetry={() => refetch()}
@@ -177,21 +175,30 @@ export default function AdminDriversPage() {
     return (
         <div className="space-y-6 container mx-auto">
             <PageHeader
-                eyebrow="Platform"
-                title="All"
-                accent="Drivers"
-                meta={<PageHeaderPill><Truck className="h-3 w-3" /> {data?.length ?? 0} drivers</PageHeaderPill>}
+                title="Drivers"
+                description="Every driver on the platform, with application and verification state."
+                meta={
+                    <>
+                        <PageHeaderPill><Truck className="h-3 w-3" /> {data?.length ?? 0} total</PageHeaderPill>
+                        <PageHeaderPill>
+                            {data?.filter(d => d.applicationStatus === 'pending').length ?? 0} pending application
+                        </PageHeaderPill>
+                        <PageHeaderPill>
+                            {data?.filter(d => d.isComplianceExpired).length ?? 0} expired compliance
+                        </PageHeaderPill>
+                    </>
+                }
                 actions={
                     <Button onClick={() => setInviteOpen(true)} size="sm" className="gap-1.5">
-                        <Link2 className="h-3.5 w-3.5" /> Invite Link
+                        <Link2 className="h-3.5 w-3.5" /> Invite driver
                     </Button>
                 }
             />
 
             <DriverInviteLinkModal open={inviteOpen} onOpenChange={setInviteOpen} />
 
-            <Card className={cn(ADMIN_PANEL_CLASS, "py-6")}>
-                <CardContent className="space-y-3">
+            <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
+                <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center gap-2 py-1">
                         <Input
                             placeholder="Search by name or email..."
@@ -255,7 +262,7 @@ export default function AdminDriversPage() {
                                     <TableRow key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
                                             return (
-                                                <TableHead key={header.id} className="whitespace-nowrap">
+                                                <TableHead key={header.id} className="h-9 whitespace-nowrap text-xs">
                                                     {header.isPlaceholder
                                                         ? null
                                                         : flexRender(
@@ -274,6 +281,7 @@ export default function AdminDriversPage() {
                                         <TableRow
                                             key={row.id}
                                             data-state={row.getIsSelected() && "selected"}
+                                            className="h-12"
                                         >
                                             {row.getVisibleCells().map((cell) => (
                                                 <TableCell key={cell.id}>
