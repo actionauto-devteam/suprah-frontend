@@ -8486,10 +8486,13 @@ export default function SupraSpacePage() {
       document.documentElement.style.backgroundColor = prevHtml;
     };
   }, [isStandaloneApp, theme]);
-  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string; header: string; main: string; composer: string } | null>(null);
+  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string; header: string; main: string; composer: string; sab: number } | null>(null);
   React.useEffect(() => {
     if (!isStandaloneApp) return;
     const fmt = (r: DOMRect | undefined) => r ? `${Math.round(r.top)}-${Math.round(r.bottom)} (${Math.round(r.height)})` : 'null';
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:-9999px;left:0;width:1px;padding-bottom:env(safe-area-inset-bottom);';
+    document.body.appendChild(probe);
     const id = window.setInterval(() => {
       setDebugRects({
         ss4: fmt(document.querySelector('.ss4')?.getBoundingClientRect()),
@@ -8498,9 +8501,10 @@ export default function SupraSpacePage() {
         header: fmt(document.querySelector('.ss4-topbar, .ss4-chat-header')?.getBoundingClientRect()),
         main: fmt(document.querySelector('.ss4 main')?.getBoundingClientRect()),
         composer: fmt(document.querySelector('.ss4-composer-pill')?.getBoundingClientRect()),
+        sab: probe.getBoundingClientRect().height,
       });
     }, 500);
-    return () => window.clearInterval(id);
+    return () => { window.clearInterval(id); document.body.removeChild(probe); };
   }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
@@ -11626,7 +11630,7 @@ export default function SupraSpacePage() {
             fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
             lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
           }}>
-            {`screen=${window.screen.height}\nss4=${debugRects.ss4}\nhdr=${debugRects.header}\nrow=${debugRects.row}\naside=${debugRects.sidebar}\nmain=${debugRects.main}\ncomposer=${debugRects.composer}`}
+            {`screen=${window.screen.height} sab=${debugRects.sab}\nss4=${debugRects.ss4}\nhdr=${debugRects.header}\nrow=${debugRects.row}\naside=${debugRects.sidebar}\nmain=${debugRects.main}\ncomposer=${debugRects.composer}`}
           </div>
         )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
