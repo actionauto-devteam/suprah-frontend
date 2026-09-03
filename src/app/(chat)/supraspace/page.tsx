@@ -8486,6 +8486,21 @@ export default function SupraSpacePage() {
       document.documentElement.style.backgroundColor = prevHtml;
     };
   }, [isStandaloneApp, theme]);
+  const [debugRects, setDebugRects] = React.useState<{ ss4: string; sidebar: string; row: string } | null>(null);
+  React.useEffect(() => {
+    if (!isStandaloneApp) return;
+    const id = window.setInterval(() => {
+      const ss4 = document.querySelector('.ss4')?.getBoundingClientRect();
+      const sidebar = document.querySelector('.ss4-sidebar')?.getBoundingClientRect();
+      const row = document.querySelector('.ss4 > div.flex.flex-1')?.getBoundingClientRect();
+      setDebugRects({
+        ss4: ss4 ? `${Math.round(ss4.top)}-${Math.round(ss4.bottom)} (${Math.round(ss4.height)})` : 'null',
+        sidebar: sidebar ? `${Math.round(sidebar.top)}-${Math.round(sidebar.bottom)} (${Math.round(sidebar.height)})` : 'null',
+        row: row ? `${Math.round(row.top)}-${Math.round(row.bottom)} (${Math.round(row.height)})` : 'null',
+      });
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -11603,6 +11618,16 @@ export default function SupraSpacePage() {
         }}
       >
         { }
+        {isStandaloneApp && debugRects && (
+          <div style={{
+            position: 'fixed', top: 4, right: 4, zIndex: 999999,
+            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
+            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
+            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
+          }}>
+            {`screen=${window.screen.height}\nss4=${debugRects.ss4}\nrow=${debugRects.row}\naside=${debugRects.sidebar}`}
+          </div>
+        )}
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
