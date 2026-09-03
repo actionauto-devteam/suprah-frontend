@@ -12,7 +12,7 @@ import {
     Crown,
     Gift,
     Wallet,
-    Bell,
+    ClipboardList,
     User,
     MessageSquare,
 } from "lucide-react";
@@ -32,7 +32,7 @@ export const adminNav: BottomNavItem[] = [
     { label: "Users", href: "/admin/users", icon: Users, isCenter: true },
     { label: "Drivers", href: "/admin/drivers", icon: Truck },
     { label: "Payouts", href: "/admin/payouts", icon: CreditCard },
-    { label: "Alerts", href: "/admin/notifications", icon: Bell },
+    { label: "Queue", href: "/admin/review-queue", icon: ClipboardList },
 ];
 
 export const driverNav: BottomNavItem[] = [

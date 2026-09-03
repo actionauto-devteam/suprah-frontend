@@ -11,6 +11,7 @@ import {
     User2,
     Truck,
     CreditCard,
+    ClipboardList,
 } from "lucide-react"
 
 import {
@@ -48,6 +49,7 @@ const data = {
         { title: "Dealerships", url: "/admin/organizations", icon: Building2 },
         { title: "Users", url: "/admin/users", icon: Users },
         { title: "Drivers", url: "/admin/drivers", icon: Truck },
+        { title: "Review Queue", url: "/admin/review-queue", icon: ClipboardList },
         { title: "Payouts", url: "/admin/payouts", icon: CreditCard },
     ],
 }

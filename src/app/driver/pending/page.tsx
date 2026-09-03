@@ -108,13 +108,13 @@ export default function DriverPendingPage() {
 
   if (status === "needs-application") {
     return (
-      <div className="min-h-screen bg-[#050505] p-4 py-10">
+      <div className="min-h-screen bg-background p-4 py-10">
         <div className="max-w-3xl mx-auto mb-6 flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="text-xl font-semibold text-foreground">
               Finish Your Application
             </h2>
-            <p className="text-sm text-zinc-400 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Complete these steps so {orgName || "your organization's admin"}{" "}
               can review and approve your account.
             </p>
@@ -123,7 +123,7 @@ export default function DriverPendingPage() {
             variant="ghost"
             size="sm"
             onClick={() => signOut({ redirectUrl: "/sign-in" })}
-            className="gap-1.5 text-zinc-400 hover:text-white shrink-0"
+            className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
           >
             <LogOut className="size-3.5" />
             Sign Out
