@@ -65,16 +65,16 @@ export const documentTypeOptions: { value: ComplianceDocumentType; label: string
     { value: 'other', label: 'Other' },
 ];
 
-export const REQUIRED_DOCUMENTS: { type: ComplianceDocumentType; label: string; required: boolean; description: string; icon: string }[] = [
-    { type: 'drivers_license', label: "Commercial Driver's License (CDL)", required: true, description: 'Valid CDL — front and back required', icon: '🪪' },
-    { type: 'medical_card', label: 'DOT Medical Card', required: false, description: 'Current DOT physical examination certificate', icon: '🏥' },
-    { type: 'insurance_certificate', label: 'Auto Liability Insurance', required: false, description: 'Proof of auto liability coverage', icon: '🛡️' },
-    { type: 'vehicle_registration', label: 'Vehicle Registration', required: false, description: 'Current registration for truck and trailer', icon: '📋' },
-    { type: 'operating_authority', label: 'Operating Authority (MC/DOT)', required: false, description: 'FMCSA operating authority documentation', icon: '📜' },
-    { type: 'w9_form', label: 'W-9 Tax Form', required: false, description: 'IRS Form W-9 for tax reporting', icon: '📄' },
-    { type: 'cargo_insurance', label: 'Cargo Insurance', required: false, description: 'Coverage for transported cargo', icon: '📦' },
-    { type: 'liability_insurance', label: 'General Liability Insurance', required: false, description: 'General liability coverage', icon: '🔒' },
-    { type: 'dot_inspection', label: 'DOT Inspection Report', required: false, description: 'Most recent DOT vehicle inspection', icon: '🔍' },
+export const REQUIRED_DOCUMENTS: { type: ComplianceDocumentType; label: string; required: boolean; description: string }[] = [
+    { type: 'drivers_license', label: "Commercial Driver's License (CDL)", required: true, description: 'Valid CDL — front and back required' },
+    { type: 'medical_card', label: 'DOT Medical Card', required: false, description: 'Current DOT physical examination certificate' },
+    { type: 'insurance_certificate', label: 'Auto Liability Insurance', required: false, description: 'Proof of auto liability coverage' },
+    { type: 'vehicle_registration', label: 'Vehicle Registration', required: false, description: 'Current registration for truck and trailer' },
+    { type: 'operating_authority', label: 'Operating Authority (MC/DOT)', required: false, description: 'FMCSA operating authority documentation' },
+    { type: 'w9_form', label: 'W-9 Tax Form', required: false, description: 'IRS Form W-9 for tax reporting' },
+    { type: 'cargo_insurance', label: 'Cargo Insurance', required: false, description: 'Coverage for transported cargo' },
+    { type: 'liability_insurance', label: 'General Liability Insurance', required: false, description: 'General liability coverage' },
+    { type: 'dot_inspection', label: 'DOT Inspection Report', required: false, description: 'Most recent DOT vehicle inspection' },
 ];
 
 export const specialFeatureOptions = [

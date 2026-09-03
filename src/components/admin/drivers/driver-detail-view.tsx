@@ -11,18 +11,21 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Loader2, ArrowLeft, Truck, Shield, FileText, FileCheck, CreditCard,
     CheckCircle2, XCircle, Clock, Eye, Ban, Hash, Gauge,
     Star, MapPin, Calendar, Fingerprint, Lock, Scale,
     BadgeCheck, ShieldAlert, AlertTriangle, UserCheck,
-    Mail, Globe, Wrench, Building2, History
+    Mail, Globe, Wrench, Building2, History, UserRoundCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 import { REQUIRED_DOCUMENTS, trailerTypeOptions, specialFeatureOptions, hitchTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
+import { ADMIN_HEADER_PANEL_CLASS } from '@/components/admin/theme';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
 const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver', timeZoneName: 'short' }).format(new Date(d)) : '—';
@@ -60,8 +63,7 @@ const DOC_ICONS: Record<string, React.ElementType> = {
 };
 
 const Stat = ({ label, value, color, icon: Icon, gradient }: { label: string; value: string | number; color?: string; icon?: React.ElementType; gradient?: string }) => (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.25 }}
-        className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 p-4">
+    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 p-4">
         {gradient && <div className={cn('absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r', gradient)} />}
         <div className="flex items-center gap-3">
             {Icon && <div className={cn('size-10 rounded-xl flex items-center justify-center bg-muted/20', color)}><Icon className="size-5" /></div>}
@@ -70,7 +72,7 @@ const Stat = ({ label, value, color, icon: Icon, gradient }: { label: string; va
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{label}</p>
             </div>
         </div>
-    </motion.div>
+    </div>
 );
 
 const Field = ({ label, value, mono, icon: Icon }: { label: string; value?: string | number | null; mono?: boolean; icon?: React.ElementType }) => (
@@ -85,7 +87,7 @@ const Field = ({ label, value, mono, icon: Icon }: { label: string; value?: stri
 );
 
 export function DriverDetailView({ driverId }: { driverId: string }) {
-    const { getToken } = useAuth();
+    const { getToken, userId } = useAuth();
     const [profile, setProfile] = useState<DriverProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<Tab>('overview');
@@ -103,6 +105,9 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const [driverRequest, setDriverRequest] = useState<{ _id: string; status: string } | null>(null);
     const [decidingRequest, setDecidingRequest] = useState<'approve' | 'reject' | null>(null);
     const [showRejectAppDialog, setShowRejectAppDialog] = useState(false);
+
+    const [claim, setClaim] = useState<{ id: string; name: string } | null>(null);
+    const [claimBusy, setClaimBusy] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -132,6 +137,51 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     }, [getToken, driverId]);
 
     useEffect(() => { fetchProfile(); fetchDriverRequest(); }, [fetchProfile, fetchDriverRequest]);
+
+    // Claim this driver's review on mount so a second admin working the
+    // review queue sees it's already being worked, and release it again on
+    // navigate-away. A stale claim (tab closed without unmounting cleanly)
+    // still expires server-side after its TTL — see reviewClaim.service.ts.
+    useEffect(() => {
+        if (!driverId) return;
+        let cancelled = false;
+        setClaimBusy(true);
+        (async () => {
+            try {
+                const token = await getToken();
+                await apiClient.post(
+                    `/api/admin/review-queue/driver-profile/${driverId}/claim`,
+                    {},
+                    { headers: { Authorization: `Bearer ${token}` } },
+                );
+                if (!cancelled) setClaim({ id: userId || '', name: 'you' });
+            } catch (error: any) {
+                if (!cancelled) {
+                    const claimedByName = error?.response?.data?.errors?.[0]?.claimedByName;
+                    setClaim(claimedByName ? { id: '', name: claimedByName } : null);
+                }
+            } finally {
+                if (!cancelled) setClaimBusy(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            void (async () => {
+                try {
+                    const token = await getToken();
+                    await apiClient.post(
+                        `/api/admin/review-queue/driver-profile/${driverId}/release`,
+                        {},
+                        { headers: { Authorization: `Bearer ${token}` } },
+                    );
+                } catch {
+                    // Best-effort — a missed release still expires via the claim TTL.
+                }
+            })();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [driverId]);
 
     const handleApproveApplication = async () => {
         if (!driverRequest) return;
@@ -350,12 +400,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const trailerInfo = trailerTypeOptions.find(t => t.value === profile?.trailerType);
     const hitchInfo = hitchTypeOptions.find(h => h.value === profile?.hitchType);
 
-    if (loading) return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <div className="relative"><div className="size-16 rounded-full border-4 border-primary/20 animate-pulse" /><Loader2 className="size-8 animate-spin text-primary absolute inset-0 m-auto" /></div>
-            <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Loading Driver Profile</p>
-        </div>
-    );
+    if (loading) return <PageLoadingState className="min-h-[60vh]" />;
 
     if (!profile) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -366,140 +411,124 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     );
 
     return (
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-5">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 space-y-5 animate-in fade-in duration-300">
 
-                <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-                    <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-primary/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-                    <div className="absolute bottom-0 left-0 w-60 h-60 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-                    <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23fff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
-                    <div className="relative p-5 sm:p-7">
-                        <div className="flex items-start justify-between gap-4 mb-5">
-                            <div className="flex items-center gap-4">
-                                <Link href="/admin/drivers" className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10 backdrop-blur-sm shrink-0">
-                                    <ArrowLeft className="size-4.5 text-white/80" />
-                                </Link>
-                                <Avatar className="size-14 border-2 border-white/15 shadow-xl shrink-0">
-                                    <AvatarImage src={user?.avatar} />
-                                    <AvatarFallback className="bg-white/10 text-white font-black text-lg">{getInitials(user?.name)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{user?.name || 'Unknown Driver'}</h1>
-                                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                        {user?.email && <span className="flex items-center gap-1.5 text-xs text-white/40"><Mail className="size-3" />{user.email}</span>}
-                                        <Badge className={cn('text-[10px] font-bold px-2 h-5 border-0',
-                                            profile.verificationStatus === 'verified' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                profile.verificationStatus === 'under_review' ? 'bg-amber-500/20 text-amber-400' :
-                                                    profile.verificationStatus === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                                                        'bg-white/10 text-white/50')}>
-                                            {(profile.verificationStatus || 'not_started').replace(/_/g, ' ')}
+            <div className={cn(ADMIN_HEADER_PANEL_CLASS, 'p-5 sm:p-7')}>
+                <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-primary/0" />
+                <div className="pointer-events-none absolute -top-10 -right-10 h-52 w-52 rounded-full bg-primary/6 blur-3xl" />
+                <div className="relative">
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                        <div className="flex items-center gap-4">
+                            <Link href="/admin/drivers" className="p-2.5 rounded-xl bg-muted hover:bg-muted/70 transition-colors border border-border/40 shrink-0">
+                                <ArrowLeft className="size-4.5 text-foreground/80" />
+                            </Link>
+                            <Avatar className="size-14 border-2 border-border/40 shadow-xl shrink-0">
+                                <AvatarImage src={user?.avatar} />
+                                <AvatarFallback className="bg-muted text-foreground font-black text-lg">{getInitials(user?.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{user?.name || 'Unknown Driver'}</h1>
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                    {user?.email && <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Mail className="size-3" />{user.email}</span>}
+                                    <StatusBadge status={profile.verificationStatus || 'not_started'} domain="driverVerification" />
+                                    <StatusBadge status={profile.operationalStatus || 'active'} domain="driverOperational" />
+                                    {profile.isComplianceExpired && <Badge variant="outline" className="text-[10px] gap-0.5 border-red-200 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400"><AlertTriangle className="size-2.5" /> Expired</Badge>}
+                                    {!claimBusy && claim && (
+                                        <Badge variant="outline" className="gap-1 text-[10px] font-semibold">
+                                            <UserRoundCheck className="size-2.5" /> {claim.id ? 'You are reviewing this driver' : `Being reviewed by ${claim.name}`}
                                         </Badge>
-                                        <Badge className={cn('text-[10px] font-bold px-2 h-5 border-0 capitalize',
-                                            profile.operationalStatus === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                profile.operationalStatus === 'maintenance' ? 'bg-amber-500/20 text-amber-400' :
-                                                    'bg-white/10 text-white/50')}>
-                                            {(profile.operationalStatus || 'unknown').replace(/_/g, ' ')}
-                                        </Badge>
-                                        {profile.isComplianceExpired && <Badge className="text-[10px] bg-red-500/20 text-red-400 border-0 gap-0.5"><AlertTriangle className="size-2.5" /> Expired</Badge>}
-                                    </div>
+                                    )}
                                 </div>
-                            </div>
-                            <div className="hidden sm:flex items-center gap-4 shrink-0">
-                                <div className="text-right">
-                                    <span className="text-5xl font-black tabular-nums text-white">{profile.profileCompletionScore || 0}%</span>
-                                    <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Profile Score</p>
-                                </div>
-                                {profile.verificationStatus !== 'verified' && (
-                                    <Button onClick={() => setShowApproveDialog(true)}
-                                        className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white border-0 shadow-lg shadow-emerald-500/20 h-11 px-5 rounded-xl font-bold">
-                                        <BadgeCheck className="size-4.5" /> Approve Driver
-                                    </Button>
-                                )}
-                                {profile.verificationStatus === 'verified' && (
-                                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/25">
-                                        <BadgeCheck className="size-5 text-emerald-400" />
-                                        <span className="text-sm font-bold text-emerald-400">Approved</span>
-                                    </div>
-                                )}
                             </div>
                         </div>
-
-                        {profile.verificationStatus !== 'verified' && (
-                            <div className="sm:hidden mb-5">
-                                <Button onClick={() => setShowApproveDialog(true)}
-                                    className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500 text-white border-0 shadow-lg shadow-emerald-500/20 h-11 rounded-xl font-bold">
+                        <div className="hidden sm:flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                                <span className="text-4xl font-black tabular-nums text-foreground">{profile.profileCompletionScore || 0}%</span>
+                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Profile Score</p>
+                            </div>
+                            {profile.verificationStatus !== 'verified' && (
+                                <Button onClick={() => setShowApproveDialog(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white h-11 px-5 rounded-xl font-bold">
                                     <BadgeCheck className="size-4.5" /> Approve Driver
                                 </Button>
-                            </div>
-                        )}
-
-                        <div className="h-1.5 rounded-full bg-white/8 overflow-hidden mb-5">
-                            <motion.div className={cn('h-full rounded-full bg-linear-to-r',
-                                (profile.profileCompletionScore || 0) >= 80 ? 'from-emerald-400 to-teal-400' :
-                                    (profile.profileCompletionScore || 0) >= 50 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400')}
-                                initial={false} animate={{ width: `${profile.profileCompletionScore || 0}%` }} transition={{ duration: 0.5, ease: 'easeOut' }} />
-                        </div>
-
-                        {driverRequest?.status === 'pending' && (
-                            <div className="mb-5 rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                                <div className="flex items-center gap-3 flex-1">
-                                    <div className="size-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0"><Clock className="size-5 text-amber-400" /></div>
-                                    <div>
-                                        <p className="text-sm font-bold text-amber-300">Driver Account Application — Pending Review</p>
-                                        <p className="text-xs text-amber-400/70 mt-0.5">Review the details below, then approve or reject this application. The driver will be notified by email either way.</p>
-                                    </div>
+                            )}
+                            {profile.verificationStatus === 'verified' && (
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                                    <BadgeCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
+                                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Approved</span>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <Button variant="outline" onClick={() => setShowRejectAppDialog(true)} disabled={!!decidingRequest}
-                                        className="gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl">
-                                        <XCircle className="size-4" /> Reject
-                                    </Button>
-                                    <Button onClick={handleApproveApplication} disabled={!!decidingRequest || !finalApprovalEligible}
-                                        title={!finalApprovalEligible ? (finalApprovalBlockers[0] || 'Complete Driver Verification requirements first') : undefined}
-                                        className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">
-                                        {decidingRequest === 'approve' ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />} Approve Application
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                        {driverRequest?.status === 'approved' && (
-                            <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex items-center gap-2">
-                                <BadgeCheck className="size-4 text-emerald-400" />
-                                <span className="text-xs font-semibold text-emerald-400">Account application approved — driver can log in</span>
-                            </div>
-                        )}
-                        {driverRequest?.status === 'rejected' && (
-                            <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 flex items-center gap-2">
-                                <XCircle className="size-4 text-red-400" />
-                                <span className="text-xs font-semibold text-red-400">Account application rejected</span>
-                            </div>
-                        )}
-
-                        <div className="flex gap-1.5">
-                            {TABS.map(t => {
-                                const active = tab === t.id;
-                                return (
-                                    <button key={t.id} type="button" onClick={() => setTab(t.id)}
-                                        className={cn('flex-1 flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl transition-all border relative overflow-hidden',
-                                            active ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-white/3 border-white/5 hover:bg-white/6')}>
-                                        {active && <motion.div layoutId="drv-tab" className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary to-blue-400" transition={{ type: 'spring', stiffness: 400, damping: 35 }} />}
-                                        <div className={cn('size-8 rounded-lg flex items-center justify-center shrink-0', active ? 'bg-white/10' : 'bg-white/5')}>
-                                            <t.icon className={cn('size-4', active ? 'text-white' : 'text-white/30')} />
-                                        </div>
-                                        <span className={cn('text-[11px] sm:text-xs font-bold', active ? 'text-white' : 'text-white/30')}>{t.label}</span>
-                                        {t.id === 'documents' && stats && stats.pending > 0 && (
-                                            <span className="absolute top-2 right-2 size-4 rounded-full bg-amber-500 text-[9px] font-black text-white flex items-center justify-center">{stats.pending}</span>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                            )}
                         </div>
                     </div>
-                </div>
 
-                <AnimatePresence mode="wait">
-                    <motion.div key={tab} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
+                    {profile.verificationStatus !== 'verified' && (
+                        <div className="sm:hidden mb-5">
+                            <Button onClick={() => setShowApproveDialog(true)} className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500 text-white h-11 rounded-xl font-bold">
+                                <BadgeCheck className="size-4.5" /> Approve Driver
+                            </Button>
+                        </div>
+                    )}
+
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-5">
+                        <div
+                            className={cn('h-full rounded-full bg-linear-to-r transition-all duration-500 ease-out',
+                                (profile.profileCompletionScore || 0) >= 80 ? 'from-emerald-400 to-teal-400' :
+                                    (profile.profileCompletionScore || 0) >= 50 ? 'from-amber-400 to-orange-400' : 'from-red-400 to-rose-400')}
+                            style={{ width: `${profile.profileCompletionScore || 0}%` }}
+                        />
+                    </div>
+
+                    {driverRequest?.status === 'pending' && (
+                        <div className="mb-5 rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex items-center gap-3 flex-1">
+                                <div className="size-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0"><Clock className="size-5 text-amber-600 dark:text-amber-400" /></div>
+                                <div>
+                                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300">Driver Account Application — Pending Review</p>
+                                    <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">Review the details below, then approve or reject this application. The driver will be notified by email either way.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <Button variant="outline" onClick={() => setShowRejectAppDialog(true)} disabled={!!decidingRequest}
+                                    className="gap-2 border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 rounded-xl">
+                                    <XCircle className="size-4" /> Reject
+                                </Button>
+                                <Button onClick={handleApproveApplication} disabled={!!decidingRequest || !finalApprovalEligible}
+                                    title={!finalApprovalEligible ? (finalApprovalBlockers[0] || 'Complete Driver Verification requirements first') : undefined}
+                                    className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">
+                                    {decidingRequest === 'approve' ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />} Approve Application
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                    {driverRequest?.status === 'approved' && (
+                        <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex items-center gap-2">
+                            <BadgeCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Account application approved — driver can log in</span>
+                        </div>
+                    )}
+                    {driverRequest?.status === 'rejected' && (
+                        <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-2.5 flex items-center gap-2">
+                            <XCircle className="size-4 text-red-600 dark:text-red-400" />
+                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">Account application rejected</span>
+                        </div>
+                    )}
+
+                    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+                        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+                            {TABS.map(t => (
+                                <TabsTrigger key={t.id} value={t.id} className="relative flex-col sm:flex-row gap-1.5 sm:gap-2 py-2.5">
+                                    <t.icon className="size-4" />
+                                    <span className="text-[11px] sm:text-xs font-bold">{t.label}</span>
+                                    {t.id === 'documents' && stats && stats.pending > 0 && (
+                                        <span className="absolute top-1 right-1 sm:static size-4 rounded-full bg-amber-500 text-[9px] font-black text-white flex items-center justify-center">{stats.pending}</span>
+                                    )}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </Tabs>
+                </div>
+            </div>
+
+            <div key={tab} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
 
                         {tab === 'overview' && (
                             <div className="space-y-6">
@@ -511,7 +540,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                             <div className="absolute inset-0 bg-linear-to-br from-blue-500/3 via-transparent to-indigo-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-blue-600 to-indigo-500" />
@@ -530,9 +559,9 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 </div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                             <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
@@ -561,19 +590,14 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                     </div>
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><BadgeCheck className="size-3 text-muted-foreground/60" />Verification</p>
-                                                        <Badge className={cn('text-[10px] capitalize font-bold',
-                                                            profile.verificationStatus === 'verified' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                                                profile.verificationStatus === 'under_review' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
-                                                                    'bg-muted/20 text-muted-foreground border-border/20')}>
-                                                            {(profile.verificationStatus || 'not_started').replace(/_/g, ' ')}
-                                                        </Badge>
+                                                        <StatusBadge status={profile.verificationStatus || 'not_started'} domain="driverVerification" />
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                             <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
@@ -602,9 +626,9 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 </div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                             <div className="absolute inset-0 bg-linear-to-br from-amber-500/3 via-transparent to-orange-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-amber-500 to-orange-500" />
@@ -631,7 +655,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 </div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-3 text-[10px] text-muted-foreground/50 px-1">
@@ -645,7 +669,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         {tab === 'equipment' && (
                             <div className="space-y-6">
                                 {/* Truck Details */}
-                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                                <div>
                                     <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                         <div className="absolute inset-0 bg-linear-to-br from-blue-500/3 via-transparent to-indigo-500/3" />
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-blue-600 to-indigo-500" />
@@ -672,11 +696,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             </div>
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     {/* Operating Authority */}
-                                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl h-full">
                                             <div className="absolute inset-0 bg-linear-to-br from-slate-500/3 via-transparent to-zinc-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-600 to-zinc-500" />
@@ -697,10 +721,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 </div>
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
                                     {/* Special Features */}
-                                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
+                                    <div>
                                         <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl h-full">
                                             <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
@@ -712,25 +736,25 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 </div>
                                                 {profile.specialFeatures?.length > 0 ? (
                                                     <div className="flex flex-wrap gap-2">
-                                                        {profile.specialFeatures.map((f, idx) => {
+                                                        {profile.specialFeatures.map((f) => {
                                                             const opt = specialFeatureOptions.find(o => o.value === f);
                                                             return (
-                                                                <motion.div key={f} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.03 }}>
+                                                                <div key={f}>
                                                                     <Badge variant="outline" className="text-xs capitalize font-semibold px-3 py-1.5 rounded-lg bg-violet-500/5 border-violet-500/20 text-violet-700 dark:text-violet-300">
                                                                         <CheckCircle2 className="size-3 mr-1.5 text-violet-500" />{opt?.label || f.replace(/_/g, ' ')}
                                                                     </Badge>
-                                                                </motion.div>
+                                                                </div>
                                                             );
                                                         })}
                                                     </div>
                                                 ) : <p className="text-sm text-muted-foreground italic">No features configured</p>}
                                             </div>
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 </div>
 
                                 {/* Trailer Details */}
-                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                                <div>
                                     <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                         <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
@@ -756,7 +780,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             </div>
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
                             </div>
                         )}
 
@@ -777,9 +801,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                         <span className="font-black text-foreground">{stats?.verified || 0}/{requiredDocs.length} required</span>
                                     </div>
                                     <div className="h-2 w-full rounded-full bg-muted/20 border border-border/10 overflow-hidden">
-                                        <motion.div initial={{ width: 0 }} animate={{ width: `${requiredDocs.length > 0 ? ((stats?.verified || 0) / requiredDocs.length) * 100 : 0}%` }}
-                                            transition={{ duration: 0.8, ease: 'easeOut' }}
-                                            className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-500" />
+                                        <div
+                                            className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
+                                            style={{ width: `${requiredDocs.length > 0 ? ((stats?.verified || 0) / requiredDocs.length) * 100 : 0}%` }}
+                                        />
                                     </div>
                                 </div>
 
@@ -793,12 +818,12 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             <div className="flex-1"><h3 className="text-sm font-black">Required Documents</h3><p className="text-[10px] text-muted-foreground">All required compliance documents</p></div>
                                         </div>
                                         <div className="space-y-3">
-                                            {requiredDocs.map((req, idx) => {
+                                            {requiredDocs.map((req) => {
                                                 const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
                                                 const status = ups.length === 0 ? 'missing' : ups.some((d: ComplianceDocument) => d.verified) ? 'verified' : ups.some((d: ComplianceDocument) => d.reviewStatus === 'rejected') ? 'rejected' : 'pending';
                                                 const DocIcon = DOC_ICONS[req.type] || FileText;
                                                 return (
-                                                    <motion.div key={req.type} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.04 }}
+                                                    <div key={req.type}
                                                         className={cn('rounded-xl border-2 overflow-hidden transition-all',
                                                             status === 'verified' ? 'border-emerald-500/20 bg-emerald-500/3' :
                                                                 status === 'rejected' ? 'border-red-500/20 bg-red-500/3' :
@@ -878,7 +903,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                 })}
                                                             </div>
                                                         )}
-                                                    </motion.div>
+                                                    </div>
                                                 );
                                             })}
                                         </div>
@@ -896,12 +921,12 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                 <div className="flex-1"><h3 className="text-sm font-black">Optional Documents</h3><p className="text-[10px] text-muted-foreground">Additional compliance documents</p></div>
                                             </div>
                                             <div className="space-y-2.5">
-                                                {optionalDocs.map((req, idx) => {
+                                                {optionalDocs.map((req) => {
                                                     const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
                                                     const status = ups.length === 0 ? 'missing' : ups.some((d: ComplianceDocument) => d.verified) ? 'verified' : 'pending';
                                                     const DocIcon = DOC_ICONS[req.type] || FileText;
                                                     return (
-                                                        <motion.div key={req.type} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.04 }}
+                                                        <div key={req.type}
                                                             className={cn('rounded-xl border-2 p-4 flex items-center gap-3 transition-all',
                                                                 status === 'verified' ? 'border-emerald-500/20 bg-emerald-500/3' : status === 'pending' ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
                                                             <div className={cn('size-9 rounded-lg flex items-center justify-center shrink-0',
@@ -918,7 +943,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                     ))}
                                                                 </div>}
                                                             </div>
-                                                        </motion.div>
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -931,7 +956,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         {tab === 'compliance' && (
                             <div className="space-y-6">
                                 {/* License & Insurance */}
-                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                                <div>
                                     <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                         <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
@@ -1011,10 +1036,10 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             </div>
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
 
                                 {/* Identity Verification */}
-                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                                <div>
                                     <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                         <div className="absolute inset-0 bg-linear-to-br from-violet-500/3 via-transparent to-purple-500/3" />
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-600 to-purple-500" />
@@ -1029,11 +1054,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                     { ok: !!profile.backgroundCheckConsent, label: 'Background Check', value: profile.backgroundCheckConsent ? 'Authorized' : 'Not authorized', sub: profile.backgroundCheckConsentDate ? fmtDate(profile.backgroundCheckConsentDate) : undefined, iconOk: CheckCircle2, iconNo: XCircle },
                                                     { ok: !!profile.verificationAgreement, label: 'Agreement', value: profile.verificationAgreement ? 'Accepted' : 'Not accepted', sub: profile.verificationAgreementDate ? fmtDate(profile.verificationAgreementDate) : undefined, iconOk: CheckCircle2, iconNo: Scale },
                                                     { ok: profile.verificationStatus === 'verified', pending: profile.verificationStatus === 'under_review', label: 'Status', value: (profile.verificationStatus || 'not_started').replace(/_/g, ' '), iconOk: BadgeCheck, iconNo: ShieldAlert, iconPending: Clock },
-                                                ].map((item, idx) => {
+                                                ].map((item) => {
                                                     const isPending = 'pending' in item && item.pending;
                                                     const StatusIcon = isPending ? (item as { iconPending: React.ElementType }).iconPending : item.ok ? item.iconOk : item.iconNo;
                                                     return (
-                                                        <motion.div key={item.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + idx * 0.05 }}
+                                                        <div key={item.label}
                                                             className={cn('flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
                                                                 item.ok ? 'border-emerald-500/20 bg-emerald-500/3' :
                                                                     isPending ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
@@ -1052,7 +1077,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                                                 </p>
                                                                 {'sub' in item && item.sub && <p className="text-[10px] text-muted-foreground">{item.sub}</p>}
                                                             </div>
-                                                        </motion.div>
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -1064,9 +1089,9 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             )}
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
 
-                                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                                <div>
                                     <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-600 to-zinc-500" />
                                         <div className="relative p-6">
@@ -1101,14 +1126,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                             )}
                                         </div>
                                     </div>
-                                </motion.div>
+                                </div>
                             </div>
                         )}
 
-                    </motion.div>
-                </AnimatePresence>
-
-            </motion.div>
+            </div>
 
             <Dialog open={!!previewDoc} onOpenChange={(nextOpen) => { if (!nextOpen) closePreview(); }}>
                 <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
@@ -1119,12 +1141,11 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         <DialogDescription className="flex items-center gap-3 text-[11px]">
                             <span>{fmtSize(previewDoc?.fileSize)}</span>
                             {previewDoc?.uploadedAt && <span>Uploaded {fmtDate(previewDoc.uploadedAt)}</span>}
-                            <Badge className={cn('text-[9px] h-4 px-1.5',
-                                previewDoc?.verified ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                    previewDoc?.reviewStatus === 'rejected' ? 'bg-red-500/10 text-red-600 border-red-500/20' :
-                                        'bg-amber-500/10 text-amber-600 border-amber-500/20')}>
-                                {previewDoc?.verified ? 'Verified' : previewDoc?.reviewStatus === 'rejected' ? 'Rejected' : 'Pending'}
-                            </Badge>
+                            <StatusBadge
+                                status={previewDoc?.verified ? 'approved' : previewDoc?.reviewStatus === 'rejected' ? 'rejected' : 'pending'}
+                                domain="documentReview"
+                                className="text-[9px] h-4 px-1.5"
+                            />
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex-1 min-h-0 overflow-auto px-5 pb-5">
