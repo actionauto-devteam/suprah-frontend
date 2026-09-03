@@ -16,6 +16,7 @@ import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 import { PageLoadingState } from "@/components/shared/EmptyLoadingState";
 
 function AdminLayoutContent({
@@ -48,9 +49,10 @@ function AdminLayoutContent({
                     <div className="flex min-w-0 items-center gap-2">
                         <SidebarTrigger className="-ml-1" />
                         <Separator orientation="vertical" className="mr-1 h-4 sm:mr-2" />
-                        <span className="truncate text-sm text-muted-foreground sm:text-base">Super Admin</span>
+                        <span className="truncate text-sm text-muted-foreground">Super Admin</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                        <AdminCommandPalette />
                         <MountainTimeClock compact className="hidden xs:inline-flex" />
                         <ThemeModeToggle compact />
                         <NotificationBell />

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Tabs as ShadcnTabs, TabsContent as ShadcnContent, TabsList as ShadcnList, TabsTrigger as ShadcnTrigger } from "@/components/ui/tabs";
+import React from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, ShieldAlert, HeartPulse, Terminal, LayoutDashboard } from "lucide-react";
 import { OverviewTab } from './renderers/OverviewTab';
 import { ActivityFeed } from './renderers/ActivityFeed';
@@ -12,71 +12,62 @@ import { PageHeader } from '@/components/admin/PageHeader';
 
 interface MonitoringShellProps {
     initialData: {
-        systemStats?: any;
-        financials?: any;
+        systemStats?: { organizations: number; users: number };
+        financials?: { mrr: number; totalRevenue: number; activeSubscriptions: number };
     }
 }
 
-export function MonitoringShell({ initialData }: MonitoringShellProps) {
-    const [activeTab, setActiveTab] = useState('overview');
+const TABS = [
+    { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { value: 'activity', label: 'Activity', icon: Activity },
+    { value: 'health', label: 'Health', icon: HeartPulse },
+    { value: 'audits', label: 'Audit', icon: ShieldAlert },
+    { value: 'logs', label: 'Logs', icon: Terminal },
+];
 
+export function MonitoringShell({ initialData }: MonitoringShellProps) {
     return (
-        <div className="space-y-6 container mx-auto pb-10">
+        <div className="container mx-auto space-y-6 pb-10">
             <PageHeader
-                eyebrow="Suprah.AI"
-                title="Control"
-                accent="Center"
+                title="Operations"
+                description="Everything waiting on the team, plus platform health."
             />
 
-            <ShadcnTabs defaultValue="overview" className="space-y-6" onValueChange={setActiveTab}>
-                <div className="overflow-x-auto pb-2">
-                    <ShadcnList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-full md:w-auto">
-                        <ShadcnTrigger value="overview" className="flex items-center gap-2 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400">
-                            <LayoutDashboard className="h-4 w-4" />
-                            <span>Overview</span>
-                        </ShadcnTrigger>
-                        <ShadcnTrigger value="activity" className="flex items-center gap-2 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400">
-                            <Activity className="h-4 w-4" />
-                            <span>Activity Feed</span>
-                        </ShadcnTrigger>
-                        <ShadcnTrigger value="health" className="flex items-center gap-2 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400">
-                            <HeartPulse className="h-4 w-4" />
-                            <span>System Health</span>
-                        </ShadcnTrigger>
-                        <ShadcnTrigger value="audits" className="flex items-center gap-2 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400">
-                            <ShieldAlert className="h-4 w-4" />
-                            <span>Audit Explorer</span>
-                        </ShadcnTrigger>
-                        <ShadcnTrigger value="logs" className="flex items-center gap-2 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400">
-                            <Terminal className="h-4 w-4" />
-                            <span>Cloud Logs</span>
-                        </ShadcnTrigger>
-                    </ShadcnList>
+            <Tabs defaultValue="overview" className="space-y-6">
+                <div className="-mx-1 overflow-x-auto px-1">
+                    <TabsList className="h-9">
+                        {TABS.map(tab => (
+                            <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5 px-3">
+                                <tab.icon className="size-3.5" />
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
                 </div>
 
-                <ShadcnContent value="overview" className="space-y-4 outline-none">
-                    <OverviewTab 
-                        systemStats={initialData.systemStats} 
-                        financials={initialData.financials} 
+                <TabsContent value="overview" className="outline-none">
+                    <OverviewTab
+                        systemStats={initialData.systemStats}
+                        financials={initialData.financials}
                     />
-                </ShadcnContent>
+                </TabsContent>
 
-                <ShadcnContent value="activity" className="outline-none">
+                <TabsContent value="activity" className="outline-none">
                     <ActivityFeed />
-                </ShadcnContent>
+                </TabsContent>
 
-                <ShadcnContent value="health" className="outline-none">
+                <TabsContent value="health" className="outline-none">
                     <HealthBoard />
-                </ShadcnContent>
+                </TabsContent>
 
-                <ShadcnContent value="audits" className="outline-none">
+                <TabsContent value="audits" className="outline-none">
                     <AuditExplorer />
-                </ShadcnContent>
+                </TabsContent>
 
-                <ShadcnContent value="logs" className="outline-none">
+                <TabsContent value="logs" className="outline-none">
                     <LogTerminal />
-                </ShadcnContent>
-            </ShadcnTabs>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

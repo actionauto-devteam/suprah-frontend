@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
+import { DocumentReviewWorkspace } from './DocumentReviewWorkspace';
 import { ADMIN_HEADER_PANEL_CLASS } from '@/components/admin/theme';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
@@ -94,11 +95,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [rejectDocId, setRejectDocId] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState('');
-    const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null);
-    const [previewObjectUrl, setPreviewObjectUrl] = useState('');
-    const [previewMimeType, setPreviewMimeType] = useState('');
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const [previewError, setPreviewError] = useState('');
+    const [reviewOpen, setReviewOpen] = useState(false);
+    const [reviewIndex, setReviewIndex] = useState(0);
     const [showApproveDialog, setShowApproveDialog] = useState(false);
     const [approving, setApproving] = useState(false);
 
@@ -239,8 +237,9 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         }
     };
 
-    const handleReject = async (docId: string) => {
-        if (!rejectReason.trim() || rejectReason.trim().length < 3) {
+    const handleRejectDocument = async (docId: string, why: string) => {
+        const reason = why.trim();
+        if (reason.length < 3) {
             toast.error('Please provide a rejection reason (min 3 characters)');
             return;
         }
@@ -250,7 +249,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             await apiClient.patch(
                 `/api/admin/drivers/${driverId}/documents/${docId}/reject`,
                 {
-                    reason: rejectReason.trim(),
+                    reason,
                     expectedUploadedAt: documents.find((doc: ComplianceDocument) => doc._id === docId)?.uploadedAt || undefined,
                 },
                 { headers: { Authorization: `Bearer ${token}` } },
@@ -265,6 +264,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
             setActionLoading(null);
         }
     };
+
+    const handleReject = (docId: string) => handleRejectDocument(docId, rejectReason);
 
     const handleApproveDriver = async () => {
         setApproving(true);
@@ -285,78 +286,30 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         }
     };
 
-    useEffect(() => {
-        if (!previewDoc?._id) {
-            if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-            setPreviewObjectUrl('');
-            setPreviewMimeType('');
-            setPreviewError('');
-            setPreviewLoading(false);
-            return;
-        }
+    const loadDocumentFile = useCallback(async (doc: ComplianceDocument) => {
+        const token = await getToken();
+        const response = await apiClient.get(
+            `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/documents/${encodeURIComponent(doc._id)}/file`,
+            { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' },
+        );
+        const contentType =
+            String(response.headers?.['content-type'] || '').split(';')[0] ||
+            doc.mimeType ||
+            'application/octet-stream';
+        const blob = response.data instanceof Blob
+            ? response.data
+            : new Blob([response.data], { type: contentType });
+        return { url: URL.createObjectURL(blob), mimeType: contentType };
+    }, [driverId, getToken]);
 
-        let cancelled = false;
-        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-        setPreviewObjectUrl('');
-        setPreviewMimeType(previewDoc.mimeType || '');
-        setPreviewError('');
-        setPreviewLoading(true);
-
-        void (async () => {
-            try {
-                const token = await getToken();
-                const response = await apiClient.get(
-                    `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/documents/${encodeURIComponent(previewDoc._id)}/file`,
-                    {
-                        headers: { Authorization: `Bearer ${token}` },
-                        responseType: 'blob',
-                    },
-                );
-                if (cancelled) return;
-                const contentType =
-                    String(response.headers?.['content-type'] || '').split(';')[0] ||
-                    previewDoc.mimeType ||
-                    'application/octet-stream';
-                const blob = response.data instanceof Blob
-                    ? response.data
-                    : new Blob([response.data], { type: contentType });
-                setPreviewMimeType(contentType);
-                setPreviewObjectUrl(URL.createObjectURL(blob));
-            } catch (error: any) {
-                if (!cancelled) {
-                    setPreviewError(
-                        error?.response?.data?.message ||
-                        'This document could not be opened securely.',
-                    );
-                }
-            } finally {
-                if (!cancelled) setPreviewLoading(false);
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-        };
-    // previewObjectUrl is intentionally excluded to avoid refetching after the
-    // created object URL is stored. It is revoked on the next preview/close.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [driverId, getToken, previewDoc]);
-
-    useEffect(() => () => {
-        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    }, [previewObjectUrl]);
-
-    const closePreview = () => {
-        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-        setPreviewObjectUrl('');
-        setPreviewDoc(null);
-        setPreviewMimeType('');
-        setPreviewError('');
-        setPreviewLoading(false);
+    const openReviewAt = (doc: ComplianceDocument) => {
+        const idx = documents.findIndex((d: ComplianceDocument) => d._id === doc._id);
+        setReviewIndex(idx < 0 ? 0 : idx);
+        setReviewOpen(true);
     };
 
     const user = profile ? getUser(profile.userId) : null;
-    const documents = profile?.documents || [];
+    const documents = useMemo(() => profile?.documents || [], [profile]);
     const reviewEligibility = (profile as any)?.eligibility as {
         eligible?: boolean;
         blockers?: string[];
@@ -379,8 +332,7 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
         loadNumber?: string;
         createdAt?: string;
     }>;
-    const requiredDocs = REQUIRED_DOCUMENTS.filter(d => d.required);
-    const optionalDocs = REQUIRED_DOCUMENTS.filter(d => !d.required);
+    const requiredDocs = useMemo(() => REQUIRED_DOCUMENTS.filter(d => d.required), []);
 
     const missingDocs = useMemo(() => {
         if (!profile) return [];
@@ -785,171 +737,160 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         )}
 
                         {tab === 'documents' && (
-                            <div className="space-y-6">
-                                {/* Stats row */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    <Stat label="Total" value={stats?.total || 0} icon={FileText} gradient="from-blue-500 to-indigo-500" />
-                                    <Stat label="Verified" value={stats?.verified || 0} color="text-emerald-500" icon={CheckCircle2} gradient="from-emerald-500 to-teal-500" />
-                                    <Stat label="Pending" value={stats?.pending || 0} color="text-amber-500" icon={Clock} gradient="from-amber-500 to-orange-500" />
-                                    <Stat label="Rejected" value={stats?.rejected || 0} color="text-red-500" icon={XCircle} gradient="from-red-500 to-rose-500" />
-                                </div>
-
-                                {/* Progress bar */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="font-bold text-muted-foreground">Document Completion</span>
-                                        <span className="font-black text-foreground">{stats?.verified || 0}/{requiredDocs.length} required</span>
-                                    </div>
-                                    <div className="h-2 w-full rounded-full bg-muted/20 border border-border/10 overflow-hidden">
-                                        <div
-                                            className="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
-                                            style={{ width: `${requiredDocs.length > 0 ? ((stats?.verified || 0) / requiredDocs.length) * 100 : 0}%` }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Required documents */}
-                                <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                    <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 via-transparent to-teal-500/3" />
-                                    <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-emerald-600 to-teal-500" />
-                                    <div className="relative p-6">
-                                        <div className="flex items-center gap-3 mb-5">
-                                            <div className="size-11 rounded-xl bg-linear-to-br from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/25"><FileCheck className="size-5" /></div>
-                                            <div className="flex-1"><h3 className="text-sm font-black">Required Documents</h3><p className="text-[10px] text-muted-foreground">All required compliance documents</p></div>
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+                                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Required complete</p>
+                                            <p className="text-lg font-semibold tabular-nums">
+                                                {stats?.verified || 0}
+                                                <span className="text-sm font-normal text-muted-foreground">/{requiredDocs.length}</span>
+                                            </p>
                                         </div>
-                                        <div className="space-y-3">
-                                            {requiredDocs.map((req) => {
-                                                const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
-                                                const status = ups.length === 0 ? 'missing' : ups.some((d: ComplianceDocument) => d.verified) ? 'verified' : ups.some((d: ComplianceDocument) => d.reviewStatus === 'rejected') ? 'rejected' : 'pending';
-                                                const DocIcon = DOC_ICONS[req.type] || FileText;
-                                                return (
-                                                    <div key={req.type}
-                                                        className={cn('rounded-xl border-2 overflow-hidden transition-all',
-                                                            status === 'verified' ? 'border-emerald-500/20 bg-emerald-500/3' :
-                                                                status === 'rejected' ? 'border-red-500/20 bg-red-500/3' :
-                                                                    status === 'pending' ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15 bg-muted/3')}>
-                                                        <div className="flex items-center gap-3 p-4">
-                                                            <div className={cn('size-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm',
-                                                                status === 'verified' ? 'bg-emerald-500/10 ring-1 ring-emerald-500/20' :
-                                                                    status === 'rejected' ? 'bg-red-500/10 ring-1 ring-red-500/20' :
-                                                                        status === 'pending' ? 'bg-amber-500/10 ring-1 ring-amber-500/20' : 'bg-muted/20')}>
-                                                                <DocIcon className={cn('size-5',
-                                                                    status === 'verified' ? 'text-emerald-500' :
-                                                                        status === 'rejected' ? 'text-red-500' :
-                                                                            status === 'pending' ? 'text-amber-500' : 'text-muted-foreground')} />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <h3 className="text-sm font-bold">{req.label}</h3>
-                                                                    <Badge className={cn('text-[9px] h-4 px-1.5 border font-bold',
-                                                                        status === 'verified' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                                                                            status === 'pending' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
-                                                                                status === 'rejected' ? 'bg-red-500/10 text-red-600 border-red-500/20' :
-                                                                                    'bg-destructive/10 text-destructive border-destructive/20')}>
-                                                                        {status === 'verified' ? 'VERIFIED' : status === 'pending' ? 'REVIEWING' : status === 'rejected' ? 'REJECTED' : 'MISSING'}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-[11px] text-muted-foreground mt-0.5">{req.description}</p>
-                                                            </div>
+                                        <div className="h-8 w-px bg-border" />
+                                        <div className="flex items-center gap-4">
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">Awaiting review</p>
+                                                <p className={cn('text-lg font-semibold tabular-nums', (stats?.pending || 0) > 0 && 'text-amber-600 dark:text-amber-400')}>
+                                                    {stats?.pending || 0}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">Rejected</p>
+                                                <p className={cn('text-lg font-semibold tabular-nums', (stats?.rejected || 0) > 0 && 'text-red-600 dark:text-red-400')}>
+                                                    {stats?.rejected || 0}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        onClick={() => { setReviewIndex(0); setReviewOpen(true); }}
+                                        disabled={documents.length === 0}
+                                        className="gap-2"
+                                    >
+                                        <Eye className="size-4" />
+                                        {(stats?.pending || 0) > 0 ? `Review ${stats?.pending} pending` : 'Open review'}
+                                    </Button>
+                                </div>
+
+                                <div className="overflow-hidden rounded-lg border border-border bg-card">
+                                    <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Compliance documents
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {documents.length} uploaded
+                                        </span>
+                                    </div>
+
+                                    <div className="divide-y divide-border">
+                                        {REQUIRED_DOCUMENTS.map((req) => {
+                                            const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
+                                            const status = ups.length === 0
+                                                ? 'missing'
+                                                : ups.some((d: ComplianceDocument) => d.verified)
+                                                    ? 'approved'
+                                                    : ups.some((d: ComplianceDocument) => d.reviewStatus === 'rejected')
+                                                        ? 'rejected'
+                                                        : 'pending';
+                                            const DocIcon = DOC_ICONS[req.type] || FileText;
+                                            const latest = ups[ups.length - 1];
+                                            const ex = latest?.expiresAt ? getExpStatus(latest.expiresAt) : null;
+
+                                            return (
+                                                <div key={req.type} className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40">
+                                                    <div className={cn(
+                                                        'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border',
+                                                        status === 'approved' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                            : status === 'rejected' ? 'border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400'
+                                                                : status === 'pending' ? 'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                                                    : 'border-border bg-muted text-muted-foreground',
+                                                    )}>
+                                                        <DocIcon className="size-4" />
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="text-sm font-medium text-foreground">{req.label}</span>
+                                                            {!req.required && (
+                                                                <span className="rounded border border-border px-1.5 py-px text-[10px] text-muted-foreground">
+                                                                    Optional
+                                                                </span>
+                                                            )}
+                                                            <StatusBadge status={status} domain="documentReview" />
                                                         </div>
-                                                        {ups.length > 0 && (
-                                                            <div className="border-t border-border/10 divide-y divide-border/5">
-                                                                {ups.map((doc: ComplianceDocument) => {
-                                                                    const ex = doc.expiresAt ? getExpStatus(doc.expiresAt) : null;
-                                                                    return (
-                                                                        <div key={doc._id} className="p-4 space-y-3 group">
-                                                                            <div className="flex items-start gap-3">
-                                                                                <div className="size-8 rounded-lg bg-muted/20 flex items-center justify-center shrink-0 mt-0.5">
-                                                                                    <DocIcon className="size-4 text-muted-foreground" />
-                                                                                </div>
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    <p className="text-xs font-bold truncate">{doc.label || doc.fileName}</p>
-                                                                                    <div className="flex items-center gap-2 mt-1 flex-wrap text-[10px] text-muted-foreground">
-                                                                                        <span className="font-semibold">{fmtSize(doc.fileSize)}</span>
-                                                                                        {doc.uploadedAt && <><span className="text-muted-foreground/30">·</span><span>Uploaded {fmtDate(doc.uploadedAt)}</span></>}
-                                                                                        {doc.verifiedAt && <><span className="text-muted-foreground/30">·</span><span className="text-emerald-500 font-bold">Verified {fmtDate(doc.verifiedAt)}</span></>}
-                                                                                        {ex && <><span className="text-muted-foreground/30">·</span><span className={cn('font-bold', ex.c)}>{ex.l}</span></>}
-                                                                                    </div>
-                                                                                    {doc.reviewStatus === 'rejected' && doc.rejectionReason && (
-                                                                                        <div className="mt-2 p-2 rounded-lg bg-red-500/5 border border-red-500/15">
-                                                                                            <p className="text-[10px] text-red-500 italic flex items-center gap-1"><Ban className="size-3" /> {doc.rejectionReason}</p>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                                <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                                                    {doc._id && (
-                                                                                        <Button size="icon" variant="ghost" className="size-8 rounded-lg" onClick={() => setPreviewDoc(doc)}>
-                                                                                            <Eye className="size-4" />
-                                                                                        </Button>
-                                                                                    )}
-                                                                                    {!doc.verified && doc.reviewStatus !== 'rejected' && (
-                                                                                        <>
-                                                                                            <Button size="icon" variant="ghost"
-                                                                                                className="size-8 rounded-lg text-emerald-500 hover:bg-emerald-500/10"
-                                                                                                onClick={() => handleVerify(doc._id)} disabled={actionLoading === doc._id}>
-                                                                                                {actionLoading === doc._id ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                                                                                            </Button>
-                                                                                            <Button size="icon" variant="ghost"
-                                                                                                className="size-8 rounded-lg text-red-500 hover:bg-red-500/10"
-                                                                                                onClick={() => { setRejectDocId(doc._id); setRejectReason(''); }} disabled={actionLoading === doc._id}>
-                                                                                                <XCircle className="size-4" />
-                                                                                            </Button>
-                                                                                        </>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
+
+                                                        {latest ? (
+                                                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                                                <span className="truncate">{latest.fileName}</span>
+                                                                <span aria-hidden>·</span>
+                                                                <span className="tabular-nums">{fmtSize(latest.fileSize)}</span>
+                                                                <span aria-hidden>·</span>
+                                                                <span>Uploaded {fmtDate(latest.uploadedAt)}</span>
+                                                                {ex && (
+                                                                    <>
+                                                                        <span aria-hidden>·</span>
+                                                                        <span className={ex.c}>{ex.l}</span>
+                                                                    </>
+                                                                )}
+                                                                {ups.length > 1 && (
+                                                                    <>
+                                                                        <span aria-hidden>·</span>
+                                                                        <span>{ups.length} versions</span>
+                                                                    </>
+                                                                )}
                                                             </div>
+                                                        ) : (
+                                                            <p className="mt-1 text-xs text-muted-foreground">{req.description}</p>
+                                                        )}
+
+                                                        {latest?.reviewStatus === 'rejected' && latest.rejectionReason && (
+                                                            <p className="mt-1.5 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                                                                <Ban className="mt-0.5 size-3 shrink-0" />
+                                                                {latest.rejectionReason}
+                                                            </p>
                                                         )}
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
+
+                                                    {latest && (
+                                                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                                                            {!latest.verified && latest.reviewStatus !== 'rejected' && (
+                                                                <>
+                                                                    <Button
+                                                                        size="icon" variant="ghost"
+                                                                        className="size-8 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                                                                        onClick={() => handleVerify(latest._id)}
+                                                                        disabled={actionLoading === latest._id}
+                                                                        aria-label={`Approve ${req.label}`}
+                                                                    >
+                                                                        {actionLoading === latest._id ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="icon" variant="ghost"
+                                                                        className="size-8 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                                                                        onClick={() => { setRejectDocId(latest._id); setRejectReason(''); }}
+                                                                        disabled={actionLoading === latest._id}
+                                                                        aria-label={`Reject ${req.label}`}
+                                                                    >
+                                                                        <XCircle className="size-4" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                            <Button
+                                                                size="sm" variant="outline"
+                                                                className="h-8 gap-1.5"
+                                                                onClick={() => openReviewAt(latest)}
+                                                            >
+                                                                <Eye className="size-3.5" /> Review
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-
-                                {/* Optional documents */}
-                                {optionalDocs.length > 0 && (
-                                    <div className="relative overflow-hidden rounded-2xl border-2 border-border/15 bg-linear-to-br from-background via-background to-background/50 shadow-xl">
-                                        <div className="absolute inset-0 bg-linear-to-br from-slate-500/3 via-transparent to-zinc-500/3" />
-                                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-slate-500 to-zinc-400" />
-                                        <div className="relative p-6">
-                                            <div className="flex items-center gap-3 mb-5">
-                                                <div className="size-11 rounded-xl bg-linear-to-br from-slate-500 to-zinc-500 flex items-center justify-center text-white shadow-lg shadow-slate-500/25"><FileText className="size-5" /></div>
-                                                <div className="flex-1"><h3 className="text-sm font-black">Optional Documents</h3><p className="text-[10px] text-muted-foreground">Additional compliance documents</p></div>
-                                            </div>
-                                            <div className="space-y-2.5">
-                                                {optionalDocs.map((req) => {
-                                                    const ups = documents.filter((d: ComplianceDocument) => d.type === req.type);
-                                                    const status = ups.length === 0 ? 'missing' : ups.some((d: ComplianceDocument) => d.verified) ? 'verified' : 'pending';
-                                                    const DocIcon = DOC_ICONS[req.type] || FileText;
-                                                    return (
-                                                        <div key={req.type}
-                                                            className={cn('rounded-xl border-2 p-4 flex items-center gap-3 transition-all',
-                                                                status === 'verified' ? 'border-emerald-500/20 bg-emerald-500/3' : status === 'pending' ? 'border-amber-500/20 bg-amber-500/3' : 'border-border/15')}>
-                                                            <div className={cn('size-9 rounded-lg flex items-center justify-center shrink-0',
-                                                                status === 'verified' ? 'bg-emerald-500/10' : status === 'pending' ? 'bg-amber-500/10' : 'bg-muted/20')}>
-                                                                <DocIcon className={cn('size-4', status === 'verified' ? 'text-emerald-500' : status === 'pending' ? 'text-amber-500' : 'text-muted-foreground')} />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2"><h3 className="text-sm font-bold">{req.label}</h3><Badge variant="outline" className="text-[9px] h-4 font-semibold">Optional</Badge></div>
-                                                                {ups.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                                    {ups.map((doc: ComplianceDocument) => (
-                                                                        <Badge key={doc._id} variant="outline" className="gap-1 text-[10px] font-semibold cursor-pointer hover:bg-muted/30 rounded-lg transition-colors" onClick={() => setPreviewDoc(doc)}>
-                                                                            <Eye className="size-2.5" /> {doc.fileName} {doc.verified && <CheckCircle2 className="size-2.5 text-emerald-500" />}
-                                                                        </Badge>
-                                                                    ))}
-                                                                </div>}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -1132,58 +1073,17 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
 
             </div>
 
-            <Dialog open={!!previewDoc} onOpenChange={(nextOpen) => { if (!nextOpen) closePreview(); }}>
-                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
-                    <DialogHeader className="p-5 pb-3 shrink-0">
-                        <DialogTitle className="flex items-center gap-2 text-sm font-black">
-                            <FileText className="size-4" /> {previewDoc?.label || previewDoc?.fileName}
-                        </DialogTitle>
-                        <DialogDescription className="flex items-center gap-3 text-[11px]">
-                            <span>{fmtSize(previewDoc?.fileSize)}</span>
-                            {previewDoc?.uploadedAt && <span>Uploaded {fmtDate(previewDoc.uploadedAt)}</span>}
-                            <StatusBadge
-                                status={previewDoc?.verified ? 'approved' : previewDoc?.reviewStatus === 'rejected' ? 'rejected' : 'pending'}
-                                domain="documentReview"
-                                className="text-[9px] h-4 px-1.5"
-                            />
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex-1 min-h-0 overflow-auto px-5 pb-5">
-                        {previewLoading ? (
-                            <div className="flex min-h-80 items-center justify-center">
-                                <Loader2 className="size-7 animate-spin text-primary" />
-                            </div>
-                        ) : previewError ? (
-                            <div className="flex min-h-80 items-center justify-center text-center text-sm text-destructive">
-                                {previewError}
-                            </div>
-                        ) : previewObjectUrl && previewMimeType.startsWith('image/') ? (
-                            <img src={previewObjectUrl} alt={previewDoc?.label || previewDoc?.fileName || 'Driver document'} className="w-full rounded-xl border border-border/20" />
-                        ) : previewObjectUrl && previewMimeType === 'application/pdf' ? (
-                            <iframe src={previewObjectUrl} className="w-full h-[60vh] rounded-xl border border-border/20" title={previewDoc?.label || 'Driver document'} />
-                        ) : previewObjectUrl ? (
-                            <div className="flex flex-col items-center justify-center py-16 gap-4">
-                                <FileText className="size-16 text-muted-foreground/20" />
-                                <p className="text-sm text-muted-foreground">Preview not available for this file type</p>
-                                <Button asChild variant="outline"><a href={previewObjectUrl} target="_blank" rel="noopener noreferrer">Open File</a></Button>
-                            </div>
-                        ) : null}
-                    </div>
-                    {previewDoc && !previewDoc.verified && previewDoc.reviewStatus !== 'rejected' && (
-                        <div className="border-t border-border/20 p-4 flex items-center justify-end gap-2 shrink-0">
-                            <Button variant="outline" className="gap-2 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                onClick={() => { setRejectDocId(previewDoc._id); closePreview(); }}>
-                                <XCircle className="size-4" /> Reject
-                            </Button>
-                            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                                onClick={() => { void handleVerify(previewDoc._id); closePreview(); }}
-                                disabled={actionLoading === previewDoc._id}>
-                                {actionLoading === previewDoc._id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Verify
-                            </Button>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+            <DocumentReviewWorkspace
+                open={reviewOpen}
+                onOpenChange={setReviewOpen}
+                documents={documents}
+                startIndex={reviewIndex}
+                profile={profile}
+                driverName={user?.name || 'Unknown Driver'}
+                loadFile={loadDocumentFile}
+                onApprove={(doc) => handleVerify(doc._id)}
+                onReject={(doc, why) => handleRejectDocument(doc._id, why)}
+            />
 
             <Dialog open={!!rejectDocId} onOpenChange={() => setRejectDocId(null)}>
                 <DialogContent className="sm:max-w-sm">

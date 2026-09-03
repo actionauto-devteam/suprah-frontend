@@ -1,33 +1,34 @@
 import React from "react";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type Tone = "default" | "attention" | "critical" | "positive";
+
 interface StatCardProps {
-  icon: React.ElementType;
+  icon?: React.ElementType;
   label: string;
   value: React.ReactNode;
   helper?: string;
   trend?: { value: string; positive?: boolean };
+  tone?: Tone;
+  href?: string;
   color?: "emerald" | "blue" | "amber" | "violet" | "rose" | "indigo";
   className?: string;
 }
 
-const ICON_COLOR: Record<NonNullable<StatCardProps["color"]>, string> = {
-  emerald: "bg-emerald-500/10 text-emerald-500",
-  blue: "bg-blue-500/10 text-blue-500",
-  amber: "bg-amber-500/10 text-amber-500",
-  violet: "bg-violet-500/10 text-violet-500",
-  rose: "bg-rose-500/10 text-rose-500",
-  indigo: "bg-indigo-500/10 text-indigo-500",
+const TONE_ACCENT: Record<Tone, string> = {
+  default: "bg-border",
+  attention: "bg-amber-500",
+  critical: "bg-red-500",
+  positive: "bg-emerald-500",
 };
 
-const GLOW_COLOR: Record<NonNullable<StatCardProps["color"]>, string> = {
-  emerald: "bg-emerald-500/5",
-  blue: "bg-blue-500/5",
-  amber: "bg-amber-500/5",
-  violet: "bg-violet-500/5",
-  rose: "bg-rose-500/5",
-  indigo: "bg-indigo-500/5",
+const TONE_VALUE: Record<Tone, string> = {
+  default: "text-foreground",
+  attention: "text-amber-600 dark:text-amber-400",
+  critical: "text-red-600 dark:text-red-400",
+  positive: "text-emerald-600 dark:text-emerald-400",
 };
 
 export function StatCard({
@@ -36,60 +37,71 @@ export function StatCard({
   value,
   helper,
   trend,
-  color = "emerald",
+  tone = "default",
+  href,
   className,
 }: StatCardProps) {
-  return (
+  const body = (
     <div
       className={cn(
-        "relative overflow-hidden rounded-xl border border-border/40 bg-card p-0 transition-all duration-200 hover:border-border/80",
-        className
+        "group relative flex h-full items-start gap-3 overflow-hidden rounded-lg border border-border bg-card p-4 transition-colors",
+        href && "hover:border-foreground/20 hover:bg-accent/40",
+        className,
       )}
     >
-      <div className="p-3 sm:p-4 lg:p-5">
-        <div className="flex items-start justify-between">
-          <div className={cn("rounded-lg p-1.5 sm:rounded-xl sm:p-2", ICON_COLOR[color])}>
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
+      <span
+        aria-hidden
+        className={cn("absolute inset-y-0 left-0 w-0.5", TONE_ACCENT[tone])}
+      />
+
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" />}
+          <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
+        </div>
+
+        <div className="flex items-baseline gap-2">
+          <span
+            className={cn(
+              "text-2xl font-semibold leading-none tracking-tight tabular-nums",
+              TONE_VALUE[tone],
+            )}
+          >
+            {value}
+          </span>
           {trend && (
-            <div
+            <span
               className={cn(
-                "flex items-center gap-0.5 text-[10px] font-bold",
-                trend.positive === false ? "text-rose-500" : "text-emerald-500"
+                "flex items-center gap-0.5 text-xs font-medium tabular-nums",
+                trend.positive === false
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-emerald-600 dark:text-emerald-400",
               )}
             >
               {trend.positive === false ? (
-                <TrendingDown className="h-3 w-3" />
+                <TrendingDown className="size-3" />
               ) : (
-                <TrendingUp className="h-3 w-3" />
+                <TrendingUp className="size-3" />
               )}
               {trend.value}
-            </div>
+            </span>
           )}
         </div>
 
-        <div className="mt-2 sm:mt-3">
-          <h3 className="truncate text-xl font-black leading-none tracking-tight tabular-nums sm:text-2xl">
-            {value}
-          </h3>
-          <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-            {label}
-          </p>
-        </div>
-
-        {helper && (
-          <p className="mt-1.5 truncate text-[9px] font-medium text-muted-foreground/40">
-            {helper}
-          </p>
-        )}
-
-        <div
-          className={cn(
-            "pointer-events-none absolute -bottom-4 -right-4 h-20 w-20 rounded-full blur-2xl",
-            GLOW_COLOR[color]
-          )}
-        />
+        {helper && <p className="truncate text-xs text-muted-foreground">{helper}</p>}
       </div>
+
+      {href && (
+        <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      )}
     </div>
+  );
+
+  return href ? (
+    <Link href={href} className="block h-full">
+      {body}
+    </Link>
+  ) : (
+    body
   );
 }
