@@ -11636,8 +11636,9 @@ export default function SupraSpacePage() {
         height: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
         maxHeight: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
         minHeight: 0,
+        boxSizing: 'border-box',
       }
-      : { height: '100dvh' })
+      : { height: '100dvh', boxSizing: 'border-box' })
     : {};
 
   return (
@@ -11738,7 +11739,7 @@ export default function SupraSpacePage() {
           </div>
         </header>
 
-        <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex flex-1 min-h-0 overflow-hidden relative">
           { }
           <aside className={cn(
             'ss4-sidebar flex-col overflow-hidden',
@@ -11746,7 +11747,10 @@ export default function SupraSpacePage() {
             'lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-72 lg:shrink-0 lg:translate-x-0',
             activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
           )}>
-            <div style={{ display: sidebarTab === 'chats' ? 'contents' : 'none' }}>
+            <div
+              className="flex-1 min-h-0 flex-col overflow-hidden"
+              style={{ display: sidebarTab === 'chats' ? 'flex' : 'none' }}
+            >
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">Messages</span>
