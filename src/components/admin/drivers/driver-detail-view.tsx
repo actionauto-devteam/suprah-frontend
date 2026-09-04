@@ -96,6 +96,8 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     const [claimBusy, setClaimBusy] = useState(false);
     const [noteDraft, setNoteDraft] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const [bulkApproveOpen, setBulkApproveOpen] = useState(false);
+    const [bulkApproving, setBulkApproving] = useState(false);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -256,6 +258,36 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     };
 
     const handleReject = (docId: string) => handleRejectDocument(docId, rejectReason);
+
+    const approveAllPending = async () => {
+        const pending = documents.filter(
+            (doc: ComplianceDocument) => !doc.verified && doc.reviewStatus !== 'rejected',
+        );
+        if (pending.length === 0) return;
+        setBulkApproving(true);
+        try {
+            const token = await getToken();
+            const results = await Promise.allSettled(
+                pending.map((doc: ComplianceDocument) =>
+                    apiClient.patch(
+                        `/api/admin/drivers/${driverId}/documents/${doc._id}/verify`,
+                        { verified: true, expectedUploadedAt: doc.uploadedAt || undefined },
+                        { headers: { Authorization: `Bearer ${token}` } },
+                    ),
+                ),
+            );
+            const failed = results.filter((r) => r.status === 'rejected').length;
+            await fetchProfile();
+            if (failed === 0) {
+                toast.success(`${pending.length} document${pending.length === 1 ? '' : 's'} approved`);
+            } else {
+                toast.warning(`${pending.length - failed} approved, ${failed} failed`);
+            }
+            setBulkApproveOpen(false);
+        } finally {
+            setBulkApproving(false);
+        }
+    };
 
     const submitNote = async () => {
         const note = noteDraft.trim();
@@ -759,14 +791,27 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                                         </div>
                                     </div>
 
-                                    <Button
-                                        onClick={() => { setReviewIndex(0); setReviewOpen(true); }}
-                                        disabled={documents.length === 0}
-                                        className="gap-2"
-                                    >
-                                        <Eye className="size-4" />
-                                        {(stats?.pending || 0) > 0 ? `Review ${stats?.pending} pending` : 'Open review'}
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        {(stats?.pending || 0) > 1 && (
+                                            <Button
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => setBulkApproveOpen(true)}
+                                                disabled={!!actionLoading}
+                                            >
+                                                <CheckCircle2 className="size-4" />
+                                                Approve all {stats?.pending}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onClick={() => { setReviewIndex(0); setReviewOpen(true); }}
+                                            disabled={documents.length === 0}
+                                            className="gap-2"
+                                        >
+                                            <Eye className="size-4" />
+                                            {(stats?.pending || 0) > 0 ? `Review ${stats?.pending} pending` : 'Open review'}
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -1120,6 +1165,31 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
                         )}
 
             </div>
+
+            <Dialog open={bulkApproveOpen} onOpenChange={setBulkApproveOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Approve {stats?.pending} pending document{stats?.pending === 1 ? '' : 's'}?</DialogTitle>
+                        <DialogDescription>
+                            This marks every document currently awaiting review as verified for {user?.name || 'this driver'}.
+                            Open the review workspace instead if you want to check them one at a time.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setBulkApproveOpen(false)} disabled={bulkApproving}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={approveAllPending}
+                            disabled={bulkApproving}
+                            className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
+                        >
+                            {bulkApproving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                            Approve all
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <DocumentReviewWorkspace
                 open={reviewOpen}
