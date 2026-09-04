@@ -6,7 +6,6 @@ import { apiClient } from '@/lib/api-client';
 import { AdminOrganization, OrgActionsCell, TIER_BADGE_CLASSES } from "./columns"
 import { getTierDefinition } from "@/data/subscriptionTiers"
 import type { SubscriptionTierId } from "@/types/organization"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
     Table,
@@ -18,12 +17,12 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Building2, Mail, Send, X } from 'lucide-react';
+import { Building2, Mail, Send, X, Search } from 'lucide-react';
 import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
 import { AdminErrorState } from "@/components/admin/AdminErrorState"
 import { StatCard } from "@/components/admin/StatCard"
-import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { EmptyState } from "@/components/admin/primitives"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { OrgDetailSheet } from "@/components/admin/organizations/OrgDetailSheet"
 import { exportRowsToCsv } from "@/lib/csv-export"
@@ -262,76 +261,132 @@ export default function DealershipsPage() {
                 ))}
             </div>
 
-            <Card className={cn(ADMIN_PANEL_CLASS, "py-6")}>
-                <CardContent>
-                    <div className="flex flex-wrap items-center gap-2 py-4">
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
+                <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+                    <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                            placeholder="Filter by name or slug..."
+                            placeholder="Search name or slug…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="max-w-sm w-full"
+                            className="h-8 pl-8 text-sm"
                         />
-                        <Select value={tierFilter} onValueChange={setTierFilter}>
-                            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm">
-                                <SelectValue placeholder="Plan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All plans</SelectItem>
-                                {SUBSCRIPTION_TIERS.map((t) => (
-                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm">
-                                <SelectValue placeholder="Sort" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="newest">Newest first</SelectItem>
-                                <SelectItem value="oldest">Oldest first</SelectItem>
-                                <SelectItem value="name">Name A-Z</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {(search.trim() || tierFilter !== "all") && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 gap-1.5 px-2"
-                                onClick={() => {
-                                    setSearch("");
-                                    setTierFilter("all");
-                                }}
-                            >
-                                Reset <X className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
                     </div>
-                    <div className="rounded-md border overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Dealership</TableHead>
-                                    <TableHead>Plan</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Created</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {visibleRows.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                            No results.
-                                        </TableCell>
+
+                    <Select value={tierFilter} onValueChange={setTierFilter}>
+                        <SelectTrigger className="h-8 w-auto gap-1.5 text-xs">
+                            <SelectValue placeholder="Plan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All plans</SelectItem>
+                            {SUBSCRIPTION_TIERS.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                        <SelectTrigger className="h-8 w-auto gap-1.5 text-xs">
+                            <SelectValue placeholder="Sort" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="newest">Newest first</SelectItem>
+                            <SelectItem value="oldest">Oldest first</SelectItem>
+                            <SelectItem value="name">Name A-Z</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    {(search.trim() || tierFilter !== "all") && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1 px-2 text-xs text-muted-foreground"
+                            onClick={() => { setSearch(""); setTierFilter("all"); }}
+                        >
+                            Clear <X className="size-3" />
+                        </Button>
+                    )}
+
+                    <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">
+                        {visibleRows.length} shown
+                    </span>
+                </div>
+
+                {visibleRows.length === 0 ? (
+                    <EmptyState
+                        icon={Building2}
+                        title={search.trim() || tierFilter !== "all" ? "No matches" : "Nothing here yet"}
+                        description={
+                            search.trim() || tierFilter !== "all"
+                                ? "Try a different search or plan filter."
+                                : "Dealership prospects and registered dealerships will appear here."
+                        }
+                    />
+                ) : (
+                    <>
+                        <div className="divide-y divide-border md:hidden">
+                            {visibleRows.map((row) => (
+                                <div
+                                    key={`m-${row.kind}-${row.id}`}
+                                    onClick={row.kind === "organization" ? () => setDetailOrgId(row.id) : undefined}
+                                    className={cn("px-3 py-3", row.kind === "organization" && "cursor-pointer active:bg-accent/50")}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
+                                            {row.kind === "organization" ? <Building2 className="size-4" /> : <Mail className="size-4" />}
+                                        </div>
+                                        <div className="min-w-0 flex-1 space-y-1">
+                                            <p className="truncate text-sm font-medium">{row.name}</p>
+                                            {row.kind === "organization" && row.secondary && (
+                                                <p className="truncate text-xs text-muted-foreground">{row.secondary}</p>
+                                            )}
+                                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                <StatusBadge
+                                                    status={row.kind === "inquiry" ? row.status : row.status || "active"}
+                                                    domain="dealershipStatus"
+                                                />
+                                                {row.kind === "organization" && (
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {getTierDefinition(row.tier).name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {row.kind === "inquiry" && row.status !== "dismissed" && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 shrink-0 gap-1 text-xs"
+                                                disabled={actioningId === row.id}
+                                                onClick={(e) => { e.stopPropagation(); sendLink(row.id); }}
+                                            >
+                                                <Send className="size-3" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="hidden overflow-x-auto md:block">
+                            <Table>
+                                <TableHeader className="bg-muted/60">
+                                    <TableRow className="hover:bg-transparent">
+                                        <TableHead className="h-9 text-xs font-medium text-muted-foreground">Dealership</TableHead>
+                                        <TableHead className="h-9 text-xs font-medium text-muted-foreground">Plan</TableHead>
+                                        <TableHead className="h-9 text-xs font-medium text-muted-foreground">Status</TableHead>
+                                        <TableHead className="h-9 text-xs font-medium text-muted-foreground">Created</TableHead>
+                                        <TableHead className="h-9 text-right text-xs font-medium text-muted-foreground">Actions</TableHead>
                                     </TableRow>
-                                ) : (
-                                    visibleRows.map((row) => (
+                                </TableHeader>
+                                <TableBody>
+                                    {visibleRows.map((row) => (
                                         <TableRow
                                             key={`${row.kind}-${row.id}`}
-                                            className={row.kind === "organization" ? "cursor-pointer" : undefined}
+                                            className={cn("h-12", row.kind === "organization" && "cursor-pointer")}
                                             onClick={row.kind === "organization" ? () => setDetailOrgId(row.id) : undefined}
                                         >
-                                            <TableCell className="font-medium">
+                                            <TableCell className="py-1.5 font-medium">
                                                 {row.kind === "organization" ? (
                                                     <div className="flex flex-col">
                                                         <span>{row.name}</span>
@@ -340,75 +395,75 @@ export default function DealershipsPage() {
                                                 ) : (
                                                     <a
                                                         href={`mailto:${row.name}`}
-                                                        className="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="hover:text-emerald-600 hover:underline dark:hover:text-emerald-400"
                                                     >
                                                         {row.name}
                                                     </a>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="py-1.5">
                                                 {row.kind === "organization" ? (
                                                     <Badge className={TIER_BADGE_CLASSES[getTierDefinition(row.tier).accent] ?? TIER_BADGE_CLASSES.zinc}>
                                                         {getTierDefinition(row.tier).name}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-muted-foreground text-sm">—</span>
+                                                    <span className="text-sm text-muted-foreground">&mdash;</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="py-1.5">
                                                 <StatusBadge
                                                     status={row.kind === "inquiry" ? row.status : row.status || "active"}
                                                     domain="dealershipStatus"
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-muted-foreground text-sm">
+                                            <TableCell className="py-1.5 text-sm text-muted-foreground">
                                                 {new Date(row.createdAt).toLocaleDateString()}
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="py-1.5 text-right">
                                                 {row.kind === "organization" ? (
                                                     <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                                                         <OrgActionsCell org={row.org} />
                                                     </div>
                                                 ) : row.status === "dismissed" ? (
-                                                    <span className="text-muted-foreground text-sm">—</span>
+                                                    <span className="text-sm text-muted-foreground">&mdash;</span>
                                                 ) : (
-                                                    <div className="flex flex-wrap items-center justify-end gap-2">
-                                                        <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                                                    <div className="flex flex-wrap items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" asChild>
                                                             <a href={`mailto:${row.inquiry.email}`}>
-                                                                <Mail className="h-3.5 w-3.5" /> Contact
+                                                                <Mail className="size-3" /> Contact
                                                             </a>
                                                         </Button>
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="gap-1.5 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
+                                                            className="h-7 gap-1.5 border-emerald-500/30 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
                                                             disabled={actioningId === row.id}
                                                             onClick={() => sendLink(row.id)}
                                                         >
-                                                            <Send className="h-3.5 w-3.5" />
-                                                            {row.status === "invited" ? "Resend" : "Send Link"}
+                                                            <Send className="size-3" />
+                                                            {row.status === "invited" ? "Resend" : "Send link"}
                                                         </Button>
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="gap-1.5 text-muted-foreground"
+                                                            className="h-7 gap-1.5 text-xs text-muted-foreground"
                                                             disabled={actioningId === row.id}
                                                             onClick={() => dismissInquiry(row.id)}
                                                         >
-                                                            <X className="h-3.5 w-3.5" />
-                                                            Dismiss
+                                                            <X className="size-3" /> Dismiss
                                                         </Button>
                                                     </div>
                                                 )}
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     )
 }

@@ -2,58 +2,31 @@
 
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from "@/providers/AuthProvider";
+import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
-import { columns, AdminUser } from "./columns"
-import { Card, CardContent } from "@/components/ui/card"
+import { columns, AdminUser } from './columns';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-    flexRender,
-    getCoreRowModel,
-    useReactTable,
-    getPaginationRowModel,
-    getFilteredRowModel,
-    getSortedRowModel,
-    getFacetedRowModel,
-    getFacetedUniqueValues,
-    ColumnFiltersState,
-    SortingState,
-    RowSelectionState,
-} from "@tanstack/react-table"
+    Users as UsersIcon, UserPlus, ShieldBan, ShieldCheck, Trash2, Download, Loader2, ChevronRight,
+} from 'lucide-react';
+import { PageHeader, PageHeaderPill } from '@/components/admin/PageHeader';
+import { AdminErrorState } from '@/components/admin/AdminErrorState';
+import { DataTable } from '@/components/admin/data-table/DataTable';
+import { DataTableFacetedFilter } from '@/components/admin/DataTableFacetedFilter';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { InviteUserDialog } from '@/components/admin/users/InviteUserDialog';
+import { UserDetailSheet } from '@/components/admin/users/UserDetailSheet';
+import { runBulkSettled } from '@/lib/bulk-action-result';
+import { exportRowsToCsv } from '@/lib/csv-export';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Loader2, Users as UsersIcon, UserPlus, ShieldBan, ShieldCheck, Trash2, X } from 'lucide-react';
-import { PageHeader, PageHeaderPill } from "@/components/admin/PageHeader"
-import { AdminErrorState } from "@/components/admin/AdminErrorState"
-import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
-import { BulkActionBar } from "@/components/admin/BulkActionBar"
-import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
-import { runBulkSettled } from "@/lib/bulk-action-result"
-import { exportRowsToCsv } from "@/lib/csv-export"
-import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog"
-import { UserDetailSheet } from "@/components/admin/users/UserDetailSheet"
-import { Download } from "lucide-react"
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface PaginatedUsers {
     users: AdminUser[];
-    pagination: any;
+    pagination: unknown;
 }
 
 interface ApiResponse<T> {
@@ -64,96 +37,68 @@ interface ApiResponse<T> {
 }
 
 const STATUS_OPTIONS = [
-    { label: "Active", value: "true" },
-    { label: "Suspended", value: "false" },
+    { label: 'Active', value: 'true' },
+    { label: 'Suspended', value: 'false' },
 ];
 
+const initials = (name?: string) => {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    return parts.length >= 2
+        ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+        : name.slice(0, 2).toUpperCase();
+};
+
 export default function UsersPage() {
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-    const [globalFilter, setGlobalFilter] = useState("");
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-    const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | "delete" | null>(null);
-    const [bulkBusy, setBulkBusy] = useState(false);
+    const { getToken } = useAuth();
     const [inviteOpen, setInviteOpen] = useState(false);
     const [detailUserId, setDetailUserId] = useState<string | null>(null);
-    const { getToken } = useAuth();
+    const [bulkAction, setBulkAction] = useState<'suspend' | 'activate' | 'delete' | null>(null);
+    const [pendingIds, setPendingIds] = useState<string[]>([]);
+    const [clearSelection, setClearSelection] = useState<(() => void) | null>(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
 
     const { data, error, isError, isLoading, refetch } = useQuery({
         queryKey: ['admin-users'],
         queryFn: async () => {
             const token = await getToken();
-            if (!token) {
-                throw new Error("Unable to authenticate the user request.");
-            }
+            if (!token) throw new Error('Unable to authenticate the user request.');
             const res = await apiClient.get<ApiResponse<PaginatedUsers>>('/api/admin/users?limit=100', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
             });
-            const payload = res.data?.data || (res.data as any);
+            const payload = res.data?.data;
             return Array.isArray(payload?.users) ? payload.users : [];
-        }
+        },
     });
 
     const roleOptions = useMemo(() => {
-        const roles = new Set((data ?? []).map((u: AdminUser) => u.role).filter(Boolean));
-        return Array.from(roles).map((role) => ({ label: role, value: role }));
+        const roles = new Set((data ?? []).map((user: AdminUser) => user.role).filter(Boolean));
+        return Array.from(roles).map((role) => ({
+            label: String(role).replace(/_/g, ' '),
+            value: String(role),
+        }));
     }, [data]);
 
-    const table = useReactTable({
-        data: data || [],
-        columns,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFacetedRowModel: getFacetedRowModel(),
-        getFacetedUniqueValues: getFacetedUniqueValues(),
-        onColumnFiltersChange: setColumnFilters,
-        getFilteredRowModel: getFilteredRowModel(),
-        onSortingChange: setSorting,
-        onRowSelectionChange: setRowSelection,
-        onGlobalFilterChange: setGlobalFilter,
-        getRowId: (row) => row._id,
-        globalFilterFn: (row, _columnId, filterValue: string) => {
-            const q = filterValue.trim().toLowerCase();
-            if (!q) return true;
-            const user = row.original as AdminUser;
-            return (
-                user.name?.toLowerCase().includes(q) ||
-                user.email?.toLowerCase().includes(q)
-            );
-        },
-        state: {
-            columnFilters,
-            sorting,
-            rowSelection,
-            globalFilter,
-        },
-    })
-
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    const selectedIds = selectedRows.map((r) => (r.original as AdminUser)._id);
-    const isFiltered = columnFilters.length > 0 || globalFilter.length > 0;
-
-    const runBulkAction = async () => {
-        if (!bulkAction || selectedIds.length === 0) return;
+    const runBulk = async () => {
+        if (!bulkAction || pendingIds.length === 0) return;
         setBulkBusy(true);
         try {
             const token = await getToken();
             const headers = { Authorization: `Bearer ${token}` };
-            if (bulkAction === "delete") {
+            if (bulkAction === 'delete') {
                 await runBulkSettled(
-                    selectedIds,
+                    pendingIds,
                     (id) => apiClient.delete(`/api/admin/users/${id}`, { headers }),
-                    { verb: "deleted", noun: "user" },
+                    { verb: 'deleted', noun: 'user' },
                 );
             } else {
                 await runBulkSettled(
-                    selectedIds,
+                    pendingIds,
                     (id) => apiClient.post(`/api/admin/users/${id}/${bulkAction}`, {}, { headers }),
-                    { verb: bulkAction === "suspend" ? "suspended" : "activated", noun: "user" },
+                    { verb: bulkAction === 'suspend' ? 'suspended' : 'activated', noun: 'user' },
                 );
             }
-            setRowSelection({});
+            clearSelection?.();
             setBulkAction(null);
             refetch();
         } finally {
@@ -161,32 +106,19 @@ export default function UsersPage() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="space-y-6 container mx-auto">
-                <TableLoadingSkeleton />
-            </div>
-        );
-    }
-
-    if (isError) {
-        return (
-            <div className="space-y-6 container mx-auto">
-                <PageHeader title="Users" />
-                <AdminErrorState
-                    message={error instanceof Error ? error.message : "The user management request failed. Please try again."}
-                    onRetry={() => refetch()}
-                />
-            </div>
-        );
-    }
+    const suspended = data?.filter((user: AdminUser) => !user.isActive).length ?? 0;
 
     return (
-        <div className="space-y-6 container mx-auto">
+        <div className="container mx-auto space-y-5">
             <PageHeader
                 title="Users"
                 description="Every account on the platform, across all roles and dealerships."
-                meta={<PageHeaderPill><UsersIcon className="h-3 w-3" /> {data?.length ?? 0} accounts</PageHeaderPill>}
+                meta={
+                    <>
+                        <PageHeaderPill><UsersIcon className="h-3 w-3" /> {data?.length ?? 0} accounts</PageHeaderPill>
+                        <PageHeaderPill>{suspended} suspended</PageHeaderPill>
+                    </>
+                }
                 actions={
                     <>
                         <Button
@@ -194,12 +126,14 @@ export default function UsersPage() {
                             size="sm"
                             className="gap-1.5"
                             disabled={!data?.length}
-                            onClick={() => exportRowsToCsv('users', data || [], [
-                                { key: 'name', label: 'Name' },
-                                { key: 'email', label: 'Email' },
-                                { key: 'role', label: 'Role' },
-                                { key: 'isActive', label: 'Active' },
-                            ])}
+                            onClick={() =>
+                                exportRowsToCsv('users', data || [], [
+                                    { key: 'name', label: 'Name' },
+                                    { key: 'email', label: 'Email' },
+                                    { key: 'role', label: 'Role' },
+                                    { key: 'isActive', label: 'Active' },
+                                ])
+                            }
                         >
                             <Download className="h-3.5 w-3.5" /> Export
                         </Button>
@@ -211,178 +145,128 @@ export default function UsersPage() {
             />
 
             <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
-            <UserDetailSheet userId={detailUserId} onOpenChange={(open) => { if (!open) setDetailUserId(null); }} />
+            <UserDetailSheet
+                userId={detailUserId}
+                onOpenChange={(open) => { if (!open) setDetailUserId(null); }}
+            />
 
-            <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
-                <CardContent className="space-y-3 p-4">
-                    <div className="flex flex-wrap items-center gap-2 py-1">
-                        <Input
-                            placeholder="Search by name or email..."
-                            value={globalFilter}
-                            onChange={(event) => setGlobalFilter(event.target.value)}
-                            className="max-w-sm w-full"
-                        />
-                        <DataTableFacetedFilter
-                            column={table.getColumn("role")}
-                            title="Role"
-                            options={roleOptions}
-                        />
-                        <DataTableFacetedFilter
-                            column={table.getColumn("isActive")}
-                            title="Status"
-                            options={STATUS_OPTIONS}
-                        />
-                        {isFiltered && (
+            {isError ? (
+                <AdminErrorState
+                    message={error instanceof Error ? error.message : 'The user request failed. Please try again.'}
+                    onRetry={() => refetch()}
+                />
+            ) : (
+                <DataTable<AdminUser>
+                    columns={columns as never}
+                    data={data || []}
+                    isLoading={isLoading}
+                    getRowId={(row) => row._id}
+                    storageKey="users"
+                    searchPlaceholder="Search name or email…"
+                    searchFn={(row, term) =>
+                        Boolean(row.name?.toLowerCase().includes(term)) ||
+                        Boolean(row.email?.toLowerCase().includes(term))
+                    }
+                    emptyTitle="No users yet"
+                    onRowClick={(row) => setDetailUserId(row._id)}
+                    filters={(table) => (
+                        <>
+                            <DataTableFacetedFilter
+                                column={table.getColumn('role')}
+                                title="Role"
+                                options={roleOptions}
+                            />
+                            <DataTableFacetedFilter
+                                column={table.getColumn('isActive')}
+                                title="Status"
+                                options={STATUS_OPTIONS}
+                            />
+                        </>
+                    )}
+                    bulkBar={(ids, clear) => (
+                        <>
                             <Button
-                                variant="ghost"
                                 size="sm"
-                                className="h-8 gap-1.5 px-2"
-                                onClick={() => {
-                                    setColumnFilters([]);
-                                    setGlobalFilter("");
-                                }}
-                            >
-                                Reset <X className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                    </div>
-
-                    <BulkActionBar count={selectedIds.length} onClear={() => setRowSelection({})}>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
-                            onClick={() => setBulkAction("activate")}
-                        >
-                            <ShieldCheck className="h-3.5 w-3.5" /> Activate
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
-                            onClick={() => setBulkAction("suspend")}
-                        >
-                            <ShieldBan className="h-3.5 w-3.5" /> Suspend
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 border-red-500/30 text-red-600 hover:bg-red-500/10"
-                            onClick={() => setBulkAction("delete")}
-                        >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                        </Button>
-                    </BulkActionBar>
-
-                    <div className="rounded-md border overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        {headerGroup.headers.map((header) => {
-                                            return (
-                                                <TableHead key={header.id} className="h-9 whitespace-nowrap text-xs">
-                                                    {header.isPlaceholder
-                                                        ? null
-                                                        : flexRender(
-                                                            header.column.columnDef.header,
-                                                            header.getContext()
-                                                        )}
-                                                </TableHead>
-                                            )
-                                        })}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected() && "selected"}
-                                            className="h-12 cursor-pointer"
-                                            onClick={() => setDetailUserId(row.original._id)}
-                                        >
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell
-                                                    key={cell.id}
-                                                    onClick={
-                                                        cell.column.id === "select" || cell.column.id === "actions"
-                                                            ? (e) => e.stopPropagation()
-                                                            : undefined
-                                                    }
-                                                >
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length} className="h-24 text-center">
-                                            No results.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
-                        <span className="text-sm text-muted-foreground">
-                            {selectedIds.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
-                        </span>
-                        <div className="flex items-center space-x-2">
-                            <Button
                                 variant="outline"
-                                size="sm"
-                                onClick={() => table.previousPage()}
-                                disabled={!table.getCanPreviousPage()}
+                                className="h-7 gap-1.5 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400"
+                                onClick={() => { setPendingIds(ids); setClearSelection(() => clear); setBulkAction('activate'); }}
                             >
-                                Previous
+                                <ShieldCheck className="size-3.5" /> Activate
                             </Button>
                             <Button
-                                variant="outline"
                                 size="sm"
-                                onClick={() => table.nextPage()}
-                                disabled={!table.getCanNextPage()}
+                                variant="outline"
+                                className="h-7 gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+                                onClick={() => { setPendingIds(ids); setClearSelection(() => clear); setBulkAction('suspend'); }}
                             >
-                                Next
+                                <ShieldBan className="size-3.5" /> Suspend
                             </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 gap-1.5 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                                onClick={() => { setPendingIds(ids); setClearSelection(() => clear); setBulkAction('delete'); }}
+                            >
+                                <Trash2 className="size-3.5" /> Delete
+                            </Button>
+                        </>
+                    )}
+                    renderMobileRow={(user) => (
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-9 shrink-0">
+                                <AvatarImage src={user.avatar || undefined} />
+                                <AvatarFallback className="text-[11px]">{initials(user.name)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <p className="truncate text-sm font-medium">{user.name}</p>
+                                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <span className="rounded border border-border px-1.5 py-px text-[10px] capitalize text-muted-foreground">
+                                        {String(user.role).replace(/_/g, ' ')}
+                                    </span>
+                                    <StatusBadge
+                                        status={user.isActive ? 'active' : 'suspended'}
+                                        domain="activeStatus"
+                                    />
+                                </div>
+                            </div>
+                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    )}
+                />
+            )}
 
             <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            {bulkAction === "delete" ? "Delete" : bulkAction === "suspend" ? "Suspend" : "Activate"} {selectedIds.length} user(s)
+                            {bulkAction === 'delete' ? 'Delete' : bulkAction === 'suspend' ? 'Suspend' : 'Activate'}
+                            {' '}
+                            {pendingIds.length} user{pendingIds.length === 1 ? '' : 's'}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            {bulkAction === "delete"
-                                ? "This will permanently remove these accounts from the database and cannot be undone."
-                                : `This will ${bulkAction} the selected accounts immediately.`}
+                            {bulkAction === 'delete'
+                                ? 'This permanently removes these accounts and cannot be undone.'
+                                : 'This takes effect immediately on the selected accounts.'}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={runBulkAction}
+                            onClick={runBulk}
                             disabled={bulkBusy}
-                            className={bulkAction === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+                            className={
+                                bulkAction === 'delete'
+                                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                    : undefined
+                            }
                         >
-                            {bulkBusy ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...
-                                </>
-                            ) : (
-                                "Confirm"
-                            )}
+                            {bulkBusy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                            Confirm
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
-    )
+    );
 }
