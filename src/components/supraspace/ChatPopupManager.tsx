@@ -1408,7 +1408,8 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
   if (!plainText.trim() || !editorHtml.trim()) return false;
   const plainBreaks = (plainText.replace(/\r\n/g, '\n').match(/\n/g) || []).length;
   if (plainBreaks < 2) return false;
-  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length;
+  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length
+    + (editorHtml.match(/<\/(?:div|p|li|blockquote|h[1-6])>/gi) || []).length;
   return plainBreaks > htmlBreaks + 1;
 }
 
@@ -5576,6 +5577,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const inputEvent = e.nativeEvent as InputEvent;
     const cursorAfterInput = getCaretOffset(el);
     const insertedText = inputEvent.data || '';
+    const mentionCandidate = (() => {
+      const safeCursor = Math.max(0, Math.min(cursorAfterInput || val.length, val.length));
+      const beforeCursor = val.slice(0, safeCursor);
+      const directAtAnchor = insertedText === '@'
+        ? (beforeCursor.endsWith('@') ? beforeCursor.length - 1 : val.lastIndexOf('@'))
+        : -1;
+      if (directAtAnchor >= 0) {
+        return { anchor: directAtAnchor, query: '' };
+      }
+      const match = beforeCursor.match(/(^|[^\w@])@\s*([^\n@]{0,80})$/);
+      if (!match) return null;
+      const rawQuery = match[2] || '';
+      if (/[.,!?;:()[\]{}]/.test(rawQuery)) return null;
+      return {
+        anchor: beforeCursor.length - match[0].length + match[1].length,
+        query: rawQuery.replace(/\s+/g, ' ').trimStart(),
+      };
+    })();
     const shouldRefreshMentionChips =
       inputEvent.inputType === 'insertFromPaste' ||
       inputEvent.inputType.startsWith('deleteContent') ||
@@ -5599,23 +5618,25 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     }
     const shouldInspectMention =
       mentionAnchor >= 0 ||
-      inputEvent.data === '@' ||
+      !!mentionCandidate ||
       inputEvent.inputType === 'insertFromPaste';
 
     if (!shouldInspectMention) return;
 
-    const cursor = getCaretOffset(el);
+    const cursor = cursorAfterInput;
     if (mentionAnchor >= 0) {
       if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
         setMentionQuery(null); setMentionAnchor(-1);
       } else {
         const q = val.slice(mentionAnchor + 1, cursor);
-        if (q.includes('  ')) { setMentionQuery(null); setMentionAnchor(-1); }
-        else { setMentionQuery(q); setMentionIdx(0); }
+        const normalizedQuery = q.replace(/\s+/g, ' ').trimStart();
+        if (/[.,!?;:()[\]{}]/.test(normalizedQuery) || normalizedQuery.length > 80) { setMentionQuery(null); setMentionAnchor(-1); }
+        else { setMentionQuery(normalizedQuery); setMentionIdx(0); }
       }
-    } else {
-      const match = val.slice(0, cursor).match(/@(\w*)$/);
-      if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
+    } else if (mentionCandidate) {
+      setMentionQuery(mentionCandidate.query);
+      setMentionAnchor(mentionCandidate.anchor);
+      setMentionIdx(0);
     }
   };
 
@@ -6247,11 +6268,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 if (!plainText && !html) return;
 
                                 e.preventDefault();
-                                const usePlainText = editPasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                                const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                                const usePlainText = editPasteMode === 'plain'
+                                  || shortcutPlainText
+                                  || richPasteDropsVinLikeToken(text, html)
+                                  || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                                 document.execCommand(
                                   usePlainText ? 'insertText' : 'insertHTML',
                                   false,
-                                  usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                                  usePlainText ? plainText : richEditorHtml,
                                 );
                                 requestAnimationFrame(() => {
                                   normalizeRichEditorListExitArtifacts(editAreaRef.current);
@@ -6556,7 +6581,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             {/* Input bar */}
             <div className="shrink-0 border-t border-border/50 bg-card">
               {mentionQuery !== null && mentionOptions.length > 0 && (
-                <div className="px-1 pt-1 pb-0.5 border-b border-border/40 max-h-32 overflow-y-auto">
+                <div className="px-1 pt-1 pb-0.5 border-b border-border/40 overflow-y-auto overscroll-contain" style={{ maxHeight: 'min(180px, 30vh)' }}>
                   {mentionOptions.map((opt, idx) => (
                     <button key={opt.id}
                       onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
@@ -6945,11 +6970,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       if (!plainText && !html) return;
 
                       e.preventDefault();
-                      const usePlainText = pasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                      const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                      const usePlainText = pasteMode === 'plain'
+                        || shortcutPlainText
+                        || richPasteDropsVinLikeToken(text, html)
+                        || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                       document.execCommand(
                         usePlainText ? 'insertText' : 'insertHTML',
                         false,
-                        usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                        usePlainText ? plainText : richEditorHtml,
                       );
                       requestAnimationFrame(() => {
                         const el = inputRef.current;

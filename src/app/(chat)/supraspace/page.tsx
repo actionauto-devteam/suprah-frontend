@@ -2017,7 +2017,8 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
   if (normalizedPlainText && normalizedPlainText !== originalPlainText) return true;
   const plainBreaks = (plainText.replace(/\r\n/g, '\n').match(/\n/g) || []).length;
   if (plainBreaks < 2) return false;
-  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length;
+  const htmlBreaks = (editorHtml.match(/<br\s*\/?>/gi) || []).length
+    + (editorHtml.match(/<\/(?:div|p|li|blockquote|h[1-6])>/gi) || []).length;
   return plainBreaks > htmlBreaks + 1;
 }
 
@@ -2731,11 +2732,6 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
       }
     }
 
-    // A browser often supplies text/html even when that HTML is only a plain
-    // wrapper around markdown-looking text. In that case preferring the HTML
-    // path makes ** controls literal. Only trust HTML as the formatting source
-    // when it actually carries rich formatting; otherwise let the established
-    // markdown parser interpret the text/plain representation.
     const clipboardText = text || clipboardHtmlToPlainText(html);
     if (!hasRichFormatting(html) && hasMarkdownSyntax(clipboardText)) {
       return sanitizePastedEditorHtmlForTheme(
@@ -5295,11 +5291,15 @@ const Bubble = React.memo(function Bubble({
                   if (!plainText && !html) return;
 
                   e.preventDefault();
-                  const usePlainText = editPasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                  const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                  const usePlainText = editPasteMode === 'plain'
+                    || shortcutPlainText
+                    || richPasteDropsVinLikeToken(text, html)
+                    || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                   document.execCommand(
                     usePlainText ? 'insertText' : 'insertHTML',
                     false,
-                    usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                    usePlainText ? plainText : richEditorHtml,
                   );
                   requestAnimationFrame(() => {
                     normalizeContentEditableListArtifacts(editAreaRef.current);
@@ -10459,25 +10459,43 @@ export default function SupraSpacePage() {
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
     const cursorAfterInput = getCaretOffset(el);
-    const shouldInspectMention =
-      mentionAnchor >= 0 ||
-      inputEvent.data === '@' ||
-      inputEvent.inputType === 'insertFromPaste';
+    const insertedText = inputEvent.data || '';
+    const mentionCandidate = (() => {
+      const safeCursor = Math.max(0, Math.min(cursorAfterInput || val.length, val.length));
+      const beforeCursor = val.slice(0, safeCursor);
+      const directAtAnchor = insertedText === '@'
+        ? (beforeCursor.endsWith('@') ? beforeCursor.length - 1 : val.lastIndexOf('@'))
+        : -1;
+      if (directAtAnchor >= 0) {
+        return { anchor: directAtAnchor, query: '' };
+      }
+      const match = beforeCursor.match(/(^|[^\w@])@\s*([^\n@]{0,80})$/);
+      if (!match) return null;
+      const rawQuery = match[2] || '';
+      if (/[.,!?;:()[\]{}]/.test(rawQuery)) return null;
+      return {
+        anchor: beforeCursor.length - match[0].length + match[1].length,
+        query: rawQuery.replace(/\s+/g, ' ').trimStart(),
+      };
+    })();
+    const shouldInspectMention = mentionAnchor >= 0 || !!mentionCandidate || inputEvent.inputType === 'insertFromPaste';
 
     if (shouldInspectMention) {
-      const cursor = getCaretOffset(el);
+      const cursor = cursorAfterInput;
       composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
       if (mentionAnchor >= 0) {
         if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
           setMentionQuery(null); setMentionAnchor(-1);
         } else {
           const q = val.slice(mentionAnchor + 1, cursor);
-          if (q.includes('  ')) { setMentionQuery(null); setMentionAnchor(-1); }
-          else { setMentionQuery(q); setMentionIdx(0); }
+          const normalizedQuery = q.replace(/\s+/g, ' ').trimStart();
+          if (/[.,!?;:()[\]{}]/.test(normalizedQuery) || normalizedQuery.length > 80) { setMentionQuery(null); setMentionAnchor(-1); }
+          else { setMentionQuery(normalizedQuery); setMentionIdx(0); }
         }
-      } else {
-        const match = val.slice(0, cursor).match(/@(\w*)$/);
-        if (match) { setMentionQuery(match[1]); setMentionAnchor(cursor - match[0].length); setMentionIdx(0); }
+      } else if (mentionCandidate) {
+        setMentionQuery(mentionCandidate.query);
+        setMentionAnchor(mentionCandidate.anchor);
+        setMentionIdx(0);
       }
     }
 
@@ -10502,7 +10520,6 @@ export default function SupraSpacePage() {
         if (match) { setChannelMentionQuery(match[1]); setChannelMentionAnchor(cursor - match[0].length); setChannelMentionIdx(0); }
       }
     }
-    const insertedText = inputEvent.data || '';
     const shouldRefreshMentionChips =
       inputEvent.inputType === 'insertFromPaste' ||
       inputEvent.inputType.startsWith('deleteContent') ||
@@ -12695,7 +12712,7 @@ export default function SupraSpacePage() {
                     ) : (
                       <div className="ss4-input-wrap flex flex-col">
                         {mentionQuery !== null && mentionOptions.length > 0 && (
-                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                          <div className="px-2 pt-1.5 pb-1 overflow-y-auto overscroll-contain" style={{ borderBottom: '1px solid var(--border-1)', maxHeight: 'min(280px, 34vh)' }}>
                             {mentionOptions.map((opt, idx) => (
                               <button key={opt.id}
                                 onMouseDown={e => { e.preventDefault(); insertMention(opt.name); }}
@@ -13186,11 +13203,15 @@ export default function SupraSpacePage() {
                                 const plainText = clipboardPayloadToPlainText(text, html);
                                 if (plainText || html) {
                                   e.preventDefault();
-                                  const usePlainText = pasteMode === 'plain' || shortcutPlainText || richPasteDropsVinLikeToken(text, html);
+                                  const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                                  const usePlainText = pasteMode === 'plain'
+                                    || shortcutPlainText
+                                    || richPasteDropsVinLikeToken(text, html)
+                                    || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                                   document.execCommand(
                                     usePlainText ? 'insertText' : 'insertHTML',
                                     false,
-                                    usePlainText ? plainText : clipboardPayloadToRichEditorHtml(text, html),
+                                    usePlainText ? plainText : richEditorHtml,
                                   );
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
