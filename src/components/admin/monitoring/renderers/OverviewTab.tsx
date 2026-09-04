@@ -7,11 +7,14 @@ import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import {
     DollarSign, Users, Building2, CreditCard, ClipboardList, CalendarClock,
-    Mail, Truck, ArrowRight, ShieldCheck,
+    Mail, Truck, ArrowRight, ShieldCheck, Link2, UserPlus, Radio, TrendingUp,
 } from 'lucide-react';
 import { StatCard } from '@/components/admin/StatCard';
 import { RecentActivity } from '@/components/admin/dashboard/RecentActivity';
 import { SectionHeader, EmptyState } from '@/components/admin/primitives';
+import { GrowthChart } from '@/components/admin/dashboard/GrowthChart';
+import { DriverFunnel } from '@/components/admin/dashboard/DriverFunnel';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -29,8 +32,11 @@ interface ExpiringItem {
     expired: boolean;
 }
 
+const RANGES = [7, 30, 90] as const;
+
 export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabProps) => {
     const { getToken } = useAuth();
+    const [range, setRange] = React.useState<number>(30);
 
     const authed = React.useCallback(async () => {
         const token = await getToken();
@@ -74,6 +80,23 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
         },
     });
 
+    const { data: analytics, isLoading: analyticsLoading } = useQuery({
+        queryKey: ['admin-analytics-overview', range],
+        queryFn: async () => {
+            const res = await apiClient.get(`/api/admin/analytics/overview?days=${range}`, await authed());
+            return res.data?.data as {
+                signups: { date: string; count: number }[];
+                driverApplications: { date: string; count: number }[];
+                totals: { users: number; organizations: number; driverApplications: number };
+                deltas: { users: number; organizations: number };
+                driverFunnel: { stage: string; count: number }[];
+                drivers: { total: number; active: number; verified: number };
+                tiers: { tier: string; count: number }[];
+                topDealerships: { id: string; name: string; memberCount: number; tier: string }[];
+            };
+        },
+    });
+
     const attentionLoading = queueLoading || expiringLoading || payoutsLoading || inquiriesLoading;
 
     const attention = [
@@ -82,14 +105,14 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
             value: queue?.length ?? 0,
             helper: 'Applications & documents',
             icon: ClipboardList,
-            href: '/admin/review-queue',
+            href: '/admin/drivers?tab=queue',
         },
         {
             label: 'Expiring compliance',
             value: expiring?.total ?? 0,
             helper: expiring?.expired ? `${expiring.expired} already expired` : 'Within 30 days',
             icon: CalendarClock,
-            href: '/admin/drivers',
+            href: '/admin/drivers?tab=compliance',
             critical: (expiring?.expired ?? 0) > 0,
         },
         {
@@ -141,8 +164,157 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
             </section>
 
             <section className="space-y-3">
+                <SectionHeader title="Quick actions" description="Common jobs, one click away." />
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <Button variant="outline" className="h-auto justify-start gap-2.5 px-3 py-2.5" asChild>
+                        <Link href="/admin/drivers">
+                            <Link2 className="size-4 text-muted-foreground" />
+                            <span className="text-left text-sm font-normal">Invite a driver</span>
+                        </Link>
+                    </Button>
+                    <Button variant="outline" className="h-auto justify-start gap-2.5 px-3 py-2.5" asChild>
+                        <Link href="/admin/users">
+                            <UserPlus className="size-4 text-muted-foreground" />
+                            <span className="text-left text-sm font-normal">Invite a user</span>
+                        </Link>
+                    </Button>
+                    <Button variant="outline" className="h-auto justify-start gap-2.5 px-3 py-2.5" asChild>
+                        <Link href="/admin/drivers?tab=queue">
+                            <ClipboardList className="size-4 text-muted-foreground" />
+                            <span className="text-left text-sm font-normal">Work the review queue</span>
+                        </Link>
+                    </Button>
+                    <Button variant="outline" className="h-auto justify-start gap-2.5 px-3 py-2.5" asChild>
+                        <Link href="/admin/notifications">
+                            <Radio className="size-4 text-muted-foreground" />
+                            <span className="text-left text-sm font-normal">Send a broadcast</span>
+                        </Link>
+                    </Button>
+                </div>
+            </section>
+
+            <section className="space-y-3">
+                <SectionHeader
+                    title="Growth"
+                    description="Real signups and driver applications recorded in this period."
+                    actions={
+                        <div className="flex items-center gap-1">
+                            {RANGES.map(days => (
+                                <button
+                                    key={days}
+                                    type="button"
+                                    onClick={() => setRange(days)}
+                                    className={cn(
+                                        'rounded-md px-2 py-1 text-xs transition-colors',
+                                        range === days
+                                            ? 'bg-accent font-medium text-foreground'
+                                            : 'text-muted-foreground hover:bg-accent/50',
+                                    )}
+                                >
+                                    {days}d
+                                </button>
+                            ))}
+                        </div>
+                    }
+                />
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-card">
+                        <div className="flex items-baseline justify-between border-b border-border px-4 py-2.5">
+                            <span className="text-xs font-medium text-muted-foreground">New users</span>
+                            {analytics && (
+                                <span className="flex items-baseline gap-2">
+                                    <span className="text-sm font-semibold tabular-nums">{analytics.totals.users}</span>
+                                    <span className={cn(
+                                        'text-[11px] tabular-nums',
+                                        analytics.deltas.users >= 0
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-red-600 dark:text-red-400',
+                                    )}>
+                                        {analytics.deltas.users >= 0 ? '+' : ''}{analytics.deltas.users}%
+                                    </span>
+                                </span>
+                            )}
+                        </div>
+                        <div className="p-2">
+                            {analyticsLoading ? (
+                                <Skeleton className="h-48" />
+                            ) : (
+                                <GrowthChart data={analytics?.signups || []} />
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border bg-card">
+                        <div className="flex items-baseline justify-between border-b border-border px-4 py-2.5">
+                            <span className="text-xs font-medium text-muted-foreground">Driver applications</span>
+                            {analytics && (
+                                <span className="text-sm font-semibold tabular-nums">
+                                    {analytics.totals.driverApplications}
+                                </span>
+                            )}
+                        </div>
+                        <div className="p-2">
+                            {analyticsLoading ? (
+                                <Skeleton className="h-48" />
+                            ) : (
+                                <GrowthChart data={analytics?.driverApplications || []} color="var(--chart-2)" />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <section className="space-y-3">
+                    <SectionHeader
+                        title="Driver onboarding funnel"
+                        description="Where applicants are dropping off."
+                    />
+                    <div className="rounded-lg border border-border bg-card p-4">
+                        {analyticsLoading ? (
+                            <div className="space-y-3">
+                                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
+                            </div>
+                        ) : (
+                            <DriverFunnel stages={analytics?.driverFunnel || []} />
+                        )}
+                    </div>
+                </section>
+
+                <section className="space-y-3">
+                    <SectionHeader title="Largest dealerships" description="By member count." />
+                    <div className="rounded-lg border border-border bg-card">
+                        {analyticsLoading ? (
+                            <div className="space-y-2 p-4">
+                                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8" />)}
+                            </div>
+                        ) : !analytics?.topDealerships?.length ? (
+                            <EmptyState icon={Building2} title="No dealerships yet" className="py-8" />
+                        ) : (
+                            <div className="divide-y divide-border">
+                                {analytics.topDealerships.map((org, index) => (
+                                    <div key={org.id} className="flex items-center gap-3 px-4 py-2.5">
+                                        <span className="w-4 shrink-0 text-xs tabular-nums text-muted-foreground">
+                                            {index + 1}
+                                        </span>
+                                        <span className="min-w-0 flex-1 truncate text-sm">{org.name}</span>
+                                        <span className="shrink-0 text-xs capitalize text-muted-foreground">
+                                            {String(org.tier).replace(/_/g, ' ')}
+                                        </span>
+                                        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                                            {org.memberCount} {org.memberCount === 1 ? 'member' : 'members'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+            </div>
+
+            <section className="space-y-3">
                 <SectionHeader title="Platform" description="Current totals across all dealerships." />
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                     <StatCard
                         icon={DollarSign}
                         label="Monthly recurring revenue"
@@ -168,6 +340,19 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
                         value={systemStats?.users ?? 0}
                         helper="All roles"
                         href="/admin/users"
+                    />
+                    <StatCard
+                        icon={Truck}
+                        label="Drivers"
+                        value={analytics?.drivers.total ?? 0}
+                        helper={`${analytics?.drivers.verified ?? 0} verified`}
+                        href="/admin/drivers"
+                    />
+                    <StatCard
+                        icon={TrendingUp}
+                        label="Active drivers"
+                        value={analytics?.drivers.active ?? 0}
+                        helper="Accounts in good standing"
                     />
                 </div>
             </section>
@@ -231,7 +416,7 @@ export const OverviewTab = React.memo(({ systemStats, financials }: OverviewTabP
                         description="Latest recorded admin and system events."
                         actions={
                             <Link
-                                href="/admin/review-queue"
+                                href="/admin/drivers?tab=queue"
                                 className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                             >
                                 Review queue <ArrowRight className="size-3" />

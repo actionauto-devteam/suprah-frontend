@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from '@/lib/api-client';
@@ -36,6 +37,11 @@ import { AdminErrorState } from "@/components/admin/AdminErrorState"
 import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilter"
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ReviewQueuePanel } from "@/components/admin/drivers/ReviewQueuePanel"
+import { CompliancePanel } from "@/components/admin/drivers/CompliancePanel"
+import { exportRowsToCsv } from "@/lib/csv-export"
+import { Download } from "lucide-react"
 import { runBulkSettled } from "@/lib/bulk-action-result"
 import {
     AlertDialog,
@@ -74,7 +80,7 @@ const STATUS_OPTIONS = [
     { label: "Suspended", value: "false" },
 ];
 
-export default function AdminDriversPage() {
+function AdminDriversPageInner() {
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [globalFilter, setGlobalFilter] = useState("");
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -83,6 +89,12 @@ export default function AdminDriversPage() {
     const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
     const { getToken } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const tab = searchParams.get('tab') === 'queue' ? 'queue'
+        : searchParams.get('tab') === 'compliance' ? 'compliance'
+        : 'directory';
+    const setTab = (next: string) => router.replace(next === 'directory' ? '/admin/drivers' : `/admin/drivers?tab=${next}`);
 
     const { data, error, isError, isLoading, refetch } = useQuery({
         queryKey: ['admin-drivers'],
@@ -189,13 +201,42 @@ export default function AdminDriversPage() {
                     </>
                 }
                 actions={
-                    <Button onClick={() => setInviteOpen(true)} size="sm" className="gap-1.5">
-                        <Link2 className="h-3.5 w-3.5" /> Invite driver
-                    </Button>
+                    <>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => exportRowsToCsv('drivers', data || [], [
+                                { key: 'name', label: 'Name' },
+                                { key: 'email', label: 'Email' },
+                                { key: 'applicationStatus', label: 'Application' },
+                                { key: 'verificationStatus', label: 'Verification' },
+                                { key: 'profileCompletionScore', label: 'Profile %' },
+                                { key: 'isActive', label: 'Active' },
+                                { key: 'isComplianceExpired', label: 'Compliance expired' },
+                                { key: 'memberSince', label: 'Member since' },
+                            ])}
+                            disabled={!data?.length}
+                        >
+                            <Download className="h-3.5 w-3.5" /> Export
+                        </Button>
+                        <Button onClick={() => setInviteOpen(true)} size="sm" className="gap-1.5">
+                            <Link2 className="h-3.5 w-3.5" /> Invite driver
+                        </Button>
+                    </>
                 }
             />
 
             <DriverInviteLinkModal open={inviteOpen} onOpenChange={setInviteOpen} />
+
+            <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+                <TabsList className="h-9">
+                    <TabsTrigger value="directory" className="px-3">Directory</TabsTrigger>
+                    <TabsTrigger value="queue" className="px-3">Review queue</TabsTrigger>
+                    <TabsTrigger value="compliance" className="px-3">Compliance</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="directory" className="space-y-4 outline-none">
 
             <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
                 <CardContent className="space-y-3 p-4">
@@ -325,6 +366,16 @@ export default function AdminDriversPage() {
                     </div>
                 </CardContent>
             </Card>
+                </TabsContent>
+
+                <TabsContent value="queue" className="outline-none">
+                    <ReviewQueuePanel />
+                </TabsContent>
+
+                <TabsContent value="compliance" className="outline-none">
+                    <CompliancePanel />
+                </TabsContent>
+            </Tabs>
 
             <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
                 <AlertDialogContent>
@@ -352,4 +403,12 @@ export default function AdminDriversPage() {
             </AlertDialog>
         </div>
     )
+}
+
+export default function AdminDriversPage() {
+    return (
+        <Suspense fallback={<div className="container mx-auto space-y-6"><TableLoadingSkeleton /></div>}>
+            <AdminDriversPageInner />
+        </Suspense>
+    );
 }

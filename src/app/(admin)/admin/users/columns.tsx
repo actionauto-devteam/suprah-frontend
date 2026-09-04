@@ -49,6 +49,14 @@ import { toast } from "sonner";
 import { DataTableColumnHeader } from "@/components/admin/DataTableColumnHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
+const ROLE_OPTIONS = [
+  { value: "customer", hint: "Customer portal only" },
+  { value: "employee", hint: "Dealership staff access" },
+  { value: "driver", hint: "Driver app and load access" },
+  { value: "admin", hint: "Manages their dealership" },
+  { value: "super_admin", hint: "Full platform access, including this console" },
+];
+
 interface OrgOption {
   _id: string;
   name: string;
@@ -68,6 +76,9 @@ function ActionsCell({ user }: { user: AdminUser }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [nextRole, setNextRole] = useState<string>(user.role);
+  const [savingRole, setSavingRole] = useState(false);
   const [orgDialogOpen, setOrgDialogOpen] = useState(false);
   const [orgSearch, setOrgSearch] = useState("");
   const [orgOptions, setOrgOptions] = useState<OrgOption[]>([]);
@@ -114,6 +125,26 @@ function ActionsCell({ user }: { user: AdminUser }) {
       toast.error(error?.response?.data?.message || "Failed to assign organization");
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleChangeRole = async () => {
+    if (nextRole === user.role) { setRoleDialogOpen(false); return; }
+    setSavingRole(true);
+    try {
+      const token = await getToken();
+      await apiClient.put(
+        `/api/admin/users/${user._id}/role`,
+        { role: nextRole },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success(`${user.name} is now ${String(nextRole).replace(/_/g, ' ')}`);
+      setRoleDialogOpen(false);
+      refreshUsers();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to change the role");
+    } finally {
+      setSavingRole(false);
     }
   };
 
@@ -185,9 +216,9 @@ function ActionsCell({ user }: { user: AdminUser }) {
             Copy User ID
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => { setNextRole(user.role); setRoleDialogOpen(true); }}>
             <UserCog className="mr-2 h-4 w-4" />
-            Manage Roles
+            Change role
           </DropdownMenuItem>
           <DropdownMenuItem onClick={openOrgDialog}>
             <Building2 className="mr-2 h-4 w-4" />
@@ -245,6 +276,47 @@ function ActionsCell({ user }: { user: AdminUser }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change role</DialogTitle>
+            <DialogDescription>
+              Controls what <strong>{user.name}</strong> can reach across the platform.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5 py-1">
+            {ROLE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setNextRole(option.value)}
+                className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
+                  nextRole === option.value
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-accent/50"
+                }`}
+              >
+                <span className="block text-sm font-medium capitalize">
+                  {option.value.replace(/_/g, " ")}
+                </span>
+                <span className="block text-xs text-muted-foreground">{option.hint}</span>
+              </button>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleDialogOpen(false)} disabled={savingRole}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangeRole} disabled={savingRole || nextRole === user.role}>
+              {savingRole ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save role
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={orgDialogOpen} onOpenChange={setOrgDialogOpen}>
         <DialogContent>

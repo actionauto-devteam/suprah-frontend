@@ -36,6 +36,9 @@ import { DataTableFacetedFilter } from "@/components/admin/DataTableFacetedFilte
 import { BulkActionBar } from "@/components/admin/BulkActionBar"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { runBulkSettled } from "@/lib/bulk-action-result"
+import { exportRowsToCsv } from "@/lib/csv-export"
+import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog"
+import { Download } from "lucide-react"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -71,6 +74,7 @@ export default function UsersPage() {
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | "delete" | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
+    const [inviteOpen, setInviteOpen] = useState(false);
     const { getToken } = useAuth();
 
     const { data, error, isError, isLoading, refetch } = useQuery({
@@ -182,11 +186,29 @@ export default function UsersPage() {
                 description="Every account on the platform, across all roles and dealerships."
                 meta={<PageHeaderPill><UsersIcon className="h-3 w-3" /> {data?.length ?? 0} accounts</PageHeaderPill>}
                 actions={
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                        <UserPlus className="h-3.5 w-3.5" /> Invite user
-                    </Button>
+                    <>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={!data?.length}
+                            onClick={() => exportRowsToCsv('users', data || [], [
+                                { key: 'name', label: 'Name' },
+                                { key: 'email', label: 'Email' },
+                                { key: 'role', label: 'Role' },
+                                { key: 'isActive', label: 'Active' },
+                            ])}
+                        >
+                            <Download className="h-3.5 w-3.5" /> Export
+                        </Button>
+                        <Button size="sm" className="gap-1.5" onClick={() => setInviteOpen(true)}>
+                            <UserPlus className="h-3.5 w-3.5" /> Invite user
+                        </Button>
+                    </>
                 }
             />
+
+            <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
             <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
                 <CardContent className="space-y-3 p-4">

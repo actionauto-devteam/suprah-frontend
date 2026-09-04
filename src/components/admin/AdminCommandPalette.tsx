@@ -9,13 +9,14 @@ import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from '@/components/ui/command';
 import {
-  LayoutDashboard, Building2, Users, Truck, CreditCard, ClipboardList, Bell, Search, Moon, Sun,
+  LayoutDashboard, Building2, Users, Truck, CreditCard, ClipboardList, Bell, Search, Moon, Sun, CalendarClock,
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
 const PAGES = [
   { label: 'Operations', href: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Review queue', href: '/admin/review-queue', icon: ClipboardList },
+  { label: 'Review queue', href: '/admin/drivers?tab=queue', icon: ClipboardList },
+  { label: 'Expiring compliance', href: '/admin/drivers?tab=compliance', icon: CalendarClock },
   { label: 'Drivers', href: '/admin/drivers', icon: Truck },
   { label: 'Dealerships', href: '/admin/organizations', icon: Building2 },
   { label: 'Users', href: '/admin/users', icon: Users },
