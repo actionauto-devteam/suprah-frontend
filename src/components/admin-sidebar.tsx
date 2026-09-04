@@ -15,6 +15,7 @@ import {
     Truck,
     CreditCard,
     Bell,
+    ClipboardList,
 } from "lucide-react"
 
 import {
@@ -54,7 +55,8 @@ const SECTIONS = [
     {
         label: "Operations",
         items: [
-            { title: "Drivers", url: "/admin/drivers", icon: Truck, badge: "queue" as const },
+            { title: "Drivers", url: "/admin/drivers", icon: Truck },
+            { title: "Review queue", url: "/admin/drivers?tab=queue", icon: ClipboardList, badge: "queue" as const },
             { title: "Payouts", url: "/admin/payouts", icon: CreditCard },
             { title: "Notifications", url: "/admin/notifications", icon: Bell },
         ],
