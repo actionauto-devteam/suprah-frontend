@@ -13,7 +13,7 @@ import {
   Pencil, Check as CheckIcon,
   Mic, BarChart3, CalendarPlus, Archive, ArchiveRestore,
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
-  MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2, RefreshCw,
+  MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
   ExternalLink,
@@ -3579,12 +3579,23 @@ function mentionAliasesForUser(fullName?: string | null, username?: string | nul
   return [...aliases].filter(Boolean);
 }
 
+function normalizeMentionSearchText(value: string): string {
+  return (value || '')
+    .normalize('NFKC')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .replace(/[*_~`]+/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 function contentMentionsUser(content: string | null | undefined, fullName?: string | null, username?: string | null): boolean {
   if (!content) return false;
-  if (/(^|[^\w])@all(?=$|[^\w])/i.test(content)) return true;
+  const mentionText = normalizeMentionSearchText(content);
+  if (/(^|[^\w@])@\s*all(?=$|[^\w])/i.test(mentionText)) return true;
   return mentionAliasesForUser(fullName, username).some((alias) => {
     const normalizedAlias = escapeRegExp(alias).replace(/\s+/g, '\\s+');
-    return new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'i').test(content);
+    return new RegExp(`(^|[^\\w@])@\\s*${normalizedAlias}(?=$|[^\\w])`, 'i').test(mentionText);
   });
 }
 
@@ -3866,25 +3877,59 @@ function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingD
   );
 }
 
-async function copyImageToClipboard(url: string): Promise<void> {
+async function imageUrlToPngBlob(url: string): Promise<Blob> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
-  const res = await fetch(proxyUrl);
+  const res = await fetch(proxyUrl, { cache: 'no-store', credentials: 'include' });
   if (!res.ok) throw new Error('proxy failed');
   const blob = await res.blob();
-  let copyBlob: Blob = blob;
-  if (blob.type !== 'image/png') {
-    const img = new Image();
-    const blobUrl = URL.createObjectURL(blob);
-    img.src = blobUrl;
-    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || 400;
-    canvas.height = img.naturalHeight || 400;
-    canvas.getContext('2d')!.drawImage(img, 0, 0);
-    URL.revokeObjectURL(blobUrl);
-    copyBlob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/png'));
+  if (blob.type === 'image/png') return blob;
+
+  const img = new Image();
+  const blobUrl = URL.createObjectURL(blob);
+  img.src = blobUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('image decode failed'));
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || 400;
+  canvas.height = img.naturalHeight || 400;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.drawImage(img, 0, 0);
+  URL.revokeObjectURL(blobUrl);
+  const copyBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(result => result ? resolve(result) : reject(new Error('png encode failed')), 'image/png');
+  });
+  return copyBlob;
+}
+
+async function copyImageToClipboard(url: string): Promise<void> {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+    throw new Error('image clipboard unavailable');
   }
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': copyBlob })]);
+  const resolvedUrl = resolveImageUrl(url) || url;
+  await navigator.clipboard.write([
+    new ClipboardItem({ 'image/png': imageUrlToPngBlob(resolvedUrl) }),
+  ]);
+}
+
+function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
+  if (!data) return [];
+  const byName = new Set<string>();
+  const files: File[] = [];
+  const add = (file: File | null) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (byName.has(key)) return;
+    byName.add(key);
+    files.push(file);
+  };
+  Array.from(data.files || []).forEach(add);
+  Array.from(data.items || []).forEach(item => {
+    if (item.kind === 'file' && item.type.startsWith('image/')) add(item.getAsFile());
+  });
+  return files;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -3935,7 +3980,7 @@ const Bubble = React.memo(function Bubble({
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
   hideTime?: boolean;
-  onEditSave?: (id: string, content: string, replacementFiles?: File[]) => Promise<void>;
+  onEditSave?: (id: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => Promise<void>;
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
 }) {
@@ -3967,7 +4012,9 @@ const Bubble = React.memo(function Bubble({
   const editAreaRef = React.useRef<HTMLDivElement>(null);
   const editSelectionRangeRef = React.useRef<Range | null>(null);
   const editFileInputRef = React.useRef<HTMLInputElement>(null);
+  const editSingleFileInputRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<File[]>([]);
+  const [editReplaceIndex, setEditReplaceIndex] = React.useState<number | null>(null);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
   const [editTextColorChosen, setEditTextColorChosen] = React.useState(false);
   const [editFontFamily, setEditFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
@@ -4104,7 +4151,9 @@ const Bubble = React.memo(function Bubble({
     setEditFontSizeChosen(false);
     setEditTypingFormats(createSS4InlineTypingPreferences());
     setEditReplacementFiles([]);
+    setEditReplaceIndex(null);
     if (editFileInputRef.current) editFileInputRef.current.value = '';
+    if (editSingleFileInputRef.current) editSingleFileInputRef.current.value = '';
     setEditMode(true);
     setHov(false);
     requestAnimationFrame(() => {
@@ -4586,7 +4635,9 @@ const Bubble = React.memo(function Bubble({
     setEditWidth(null);
     setEditColorPickerOpen(false);
     setEditReplacementFiles([]);
+    setEditReplaceIndex(null);
     if (editFileInputRef.current) editFileInputRef.current.value = '';
+    if (editSingleFileInputRef.current) editSingleFileInputRef.current.value = '';
   };
   const saveEdit = async () => {
     const trimmed = syncEditDraft();
@@ -4598,7 +4649,7 @@ const Bubble = React.memo(function Bubble({
     }
     setEditSaving(true);
     try {
-      await onEditSave(message._id, trimmed, editReplacementFiles.length > 0 ? editReplacementFiles : undefined);
+      await onEditSave(message._id, trimmed, editReplacementFiles.length > 0 ? editReplacementFiles : undefined, editReplaceIndex);
       cancelEdit();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Could not update message. Please try again.'));
@@ -4824,6 +4875,7 @@ const Bubble = React.memo(function Bubble({
     ? `@${_nameParts[0]} ${_nameParts[_nameParts.length - 1]}`
     : `@${_nameParts[0]}`).toLowerCase();
   const currentUserFirstName = _nameParts[0].toLowerCase();
+  const imageAttachmentForCopy = message.attachments.find(a => a.mimeType.startsWith('image/'));
   const isMentioned = !isOwn && !!message.content && !message.readBy?.includes(uid) && (
     message.content.includes('@all') ||
     message.content.toLowerCase().includes(currentUserMention) ||
@@ -5268,19 +5320,37 @@ const Bubble = React.memo(function Bubble({
                         <div key={`${att.url}-${index}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
                           {att.mimeType?.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
                           <span className="min-w-0 flex-1 truncate" style={{ fontSize: 11 }}>{att.originalName || `Attachment ${index + 1}`}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditReplaceIndex(index);
+                              editSingleFileInputRef.current?.click();
+                            }}
+                            className="shrink-0 rounded-md px-2 py-1 font-semibold"
+                            style={{ background: 'rgba(255,255,255,0.12)', fontSize: 10 }}
+                          >
+                            Replace
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
                   {editReplacementFiles.length > 0 && (
                     <div className="space-y-1">
-                      <p className="font-semibold" style={{ fontSize: 10, opacity: 0.65 }}>Replacement attachment{editReplacementFiles.length === 1 ? '' : 's'}</p>
+                      <p className="font-semibold" style={{ fontSize: 10, opacity: 0.65 }}>
+                        {editReplaceIndex !== null
+                          ? `Replacement for attachment ${editReplaceIndex + 1}`
+                          : `Replacement attachment${editReplacementFiles.length === 1 ? '' : 's'}`}
+                      </p>
                       <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
                         {editReplacementFiles.map((file, index) => (
                           <FilePreviewItem
                             key={`${file.name}-${file.lastModified}-${index}`}
                             file={file}
-                            onRemove={() => setEditReplacementFiles(prev => prev.filter((_, i) => i !== index))}
+                            onRemove={() => {
+                              setEditReplacementFiles(prev => prev.filter((_, i) => i !== index));
+                              if (editReplacementFiles.length === 1) setEditReplaceIndex(null);
+                            }}
                           />
                         ))}
                       </div>
@@ -5309,6 +5379,19 @@ const Bubble = React.memo(function Bubble({
                 hidden
                 onChange={e => {
                   setEditReplacementFiles(Array.from(e.target.files || []));
+                  setEditReplaceIndex(null);
+                  syncEditDraft();
+                }}
+              />
+
+              <input
+                ref={editSingleFileInputRef}
+                type="file"
+                hidden
+                onChange={e => {
+                  const selected = Array.from(e.target.files || []);
+                  if (selected[0]) setEditReplacementFiles([selected[0]]);
+                  e.target.value = '';
                   syncEditDraft();
                 }}
               />
@@ -5322,7 +5405,7 @@ const Bubble = React.memo(function Bubble({
                   title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
                 >
                   <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace all' : 'Attach'}</span>
                 </button>
 
                 <button
@@ -5561,12 +5644,10 @@ const Bubble = React.memo(function Bubble({
                         <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>Copy message link</span>
                       </button>
                       { }
-                      {message.attachments.some(a => a.mimeType.startsWith('image/')) && (
+                      {imageAttachmentForCopy && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={async () => {
-                            const att = message.attachments.find(a => a.mimeType.startsWith('image/'));
-                            if (!att) return;
-                            try { await copyImageToClipboard(att.url); toast.success('Image copied'); }
+                            try { await copyImageToClipboard(imageAttachmentForCopy.url); toast.success('Image copied'); }
                             catch { toast.error('Could not copy image'); }
                             setMoreActionsOpen(false); setDropdownFixedPos(null);
                           }}>
@@ -5829,7 +5910,16 @@ const Bubble = React.memo(function Bubble({
                 <span className="text-center text-sm">Reply</span>
               </button>
               <button
-                onClick={() => { setMobileMenu(false); setMobileReactionPos(null); message.content ? copyMessageText() : toast.info('No text to copy'); }}
+                onClick={async () => {
+                  setMobileMenu(false);
+                  setMobileReactionPos(null);
+                  if (imageAttachmentForCopy) {
+                    try { await copyImageToClipboard(imageAttachmentForCopy.url); toast.success('Image copied'); }
+                    catch { toast.error('Could not copy image'); }
+                    return;
+                  }
+                  message.content ? copyMessageText() : toast.info('No content to copy');
+                }}
                 className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <Copy className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">Copy</span>
@@ -7418,8 +7508,9 @@ const SS4_NOTIF_FILTERS: { key: 'all' | 'foryou' | 'muted' | 'none'; label: stri
   { key: 'none', label: 'None' },
 ];
 
-function NotificationsPanel({ token, notifPrefs, onOpenNotification }: {
+function NotificationsPanel({ token, socket, notifPrefs, onOpenNotification }: {
   token: string;
+  socket: any;
   notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>;
   onOpenNotification: (conversationId: string, messageId?: string) => void;
 }) {
@@ -7439,6 +7530,25 @@ function NotificationsPanel({ token, notifPrefs, onOpenNotification }: {
   }, [token]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  React.useEffect(() => {
+    if (!socket) return;
+    const upsert = (notification: any) => {
+      if (notification?.type !== 'crm_message') return;
+      if (notification.isRead) {
+        setItems(prev => prev.filter(n => n._id !== notification._id));
+        return;
+      }
+      if (ss4NotifDayBucket(notification.createdAt) === 'older') return;
+      setItems(prev => [notification, ...prev.filter(n => n._id !== notification._id)]);
+    };
+    socket.on('notification:new', upsert);
+    socket.on('notification:updated', upsert);
+    return () => {
+      socket.off('notification:new', upsert);
+      socket.off('notification:updated', upsert);
+    };
+  }, [socket]);
 
   const grouped = React.useMemo(() => {
     const byConv = new Map<string, any[]>();
@@ -7790,11 +7900,10 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
   React.useEffect(() => {
     setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
   }, []);
-  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe, refreshSubscription } = useCrmWebPush();
+  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = useCrmWebPush();
   const { theme, setTheme } = useTheme();
   const [soundOn, setSoundOnState] = React.useState(true);
   const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported'>('default');
-  const [rechecking, setRechecking] = React.useState(false);
   const [unreadColor, setUnreadColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
 
   React.useEffect(() => {
@@ -7811,16 +7920,6 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
   React.useEffect(() => {
     setPermission(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   }, [isSubscribed]);
-
-  const recheckPermission = async () => {
-    setRechecking(true);
-    try {
-      setPermission(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
-      await refreshSubscription();
-    } finally {
-      setRechecking(false);
-    }
-  };
 
   const permissionLabel = permission === 'granted' ? 'Allowed' : permission === 'denied' ? 'Blocked' : permission === 'unsupported' ? 'Unsupported' : 'Not requested yet';
   const permissionColor = permission === 'granted' ? 'var(--positive)' : permission === 'denied' ? 'var(--negative, #ef4444)' : 'var(--text-tertiary)';
@@ -7878,16 +7977,6 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
               </p>
             </div>
           </div>
-          <button
-            disabled={rechecking}
-            onClick={recheckPermission}
-            className="ss4-icon-btn h-8 w-8 shrink-0 flex items-center justify-center"
-            style={{ opacity: rechecking ? 0.6 : 1 }}
-            title="Recheck permission"
-            aria-label="Recheck notification permission"
-          >
-            <RefreshCw className={cn('h-4 w-4', rechecking && 'animate-spin')} />
-          </button>
         </div>
         <div className="ss4-settings-row flex items-center justify-between gap-3 py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className="flex items-center gap-3 min-w-0">
@@ -8664,6 +8753,16 @@ export default function SupraSpacePage() {
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
   const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
   const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
+  const syncPinnedMessageIds = React.useCallback((messages: SSMessage[]) => {
+    setPinnedMsgIds(prev => {
+      const next = new Set(prev);
+      messages.forEach(message => {
+        if ((message.pinnedBy || []).length > 0) next.add(message._id);
+        else next.delete(message._id);
+      });
+      return next;
+    });
+  }, []);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [gcEmojiInput, setGcEmojiInput] = React.useState('');
@@ -9070,6 +9169,8 @@ export default function SupraSpacePage() {
   React.useEffect(() => { msgFetchStateRef.current = msgFetchState; }, [msgFetchState]);
 
   const initDoneRef = React.useRef(false);
+  const resumeRefreshTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const joinedConversationIdsRef = React.useRef<Set<string>>(new Set());
 
   const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
   React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
@@ -9098,6 +9199,7 @@ export default function SupraSpacePage() {
       });
       if (fetchSeqRef.current[conversationId] !== mySeq) return false;
       const d: SSMessage[] = r.data?.data || [];
+      syncPinnedMessageIds(d);
       const conv = convosRef.current.find(c => c._id === conversationId);
       const hasHistorySignal = Boolean(conv?.lastMessage || conv?.lastMessageAt);
       const rejectSuspiciousEmpty = d.length === 0 && hasHistorySignal;
@@ -9134,7 +9236,7 @@ export default function SupraSpacePage() {
     } finally {
       if (!options.silent) setLoadingMsgs(false);
     }
-  }, []);
+  }, [syncPinnedMessageIds]);
 
   const openConversation = React.useCallback((conversationId: string | null) => {
     if (!conversationId) return;
@@ -9175,6 +9277,17 @@ export default function SupraSpacePage() {
       .catch(() => { });
   }, []);
 
+  const refreshAfterResume = React.useCallback((delay = 350) => {
+    if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
+    resumeRefreshTimerRef.current = setTimeout(() => {
+      resumeRefreshTimerRef.current = null;
+      refreshConvos();
+      if (activeIdRef.current) {
+        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
+      }
+    }, delay);
+  }, [refreshConvos, fetchConversationMessages]);
+
   React.useEffect(() => {
     if (!ctxConversations.length) return;
     setConvos(prev => {
@@ -9204,19 +9317,20 @@ export default function SupraSpacePage() {
         try {
           const mainToken = await getMainTokenRef.current();
           if (mainToken) {
-            const sso = await apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 });
-            t = sso.data?.data?.token ?? null;
-            if (t) localStorage.setItem('crm_token', t);
-          }
-        } catch { }
-      }
-
-      if (!t) {
-        try {
-          const mainToken = await getMainTokenRef.current();
-          if (mainToken) {
-            const sso = await apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 });
-            t = sso.data?.data?.token ?? null;
+            t = await Promise.any([
+              apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 })
+                .then(sso => {
+                  const nextToken = sso.data?.data?.token;
+                  if (!nextToken) throw new Error('No CRM token');
+                  return nextToken;
+                }),
+              apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 })
+                .then(sso => {
+                  const nextToken = sso.data?.data?.token;
+                  if (!nextToken) throw new Error('No CRM token');
+                  return nextToken;
+                }),
+            ]);
             if (t) localStorage.setItem('crm_token', t);
           }
         } catch { }
@@ -9312,42 +9426,32 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     if (loading) return;
-    const onFocus = () => {
-      refreshConvos();
-      if (activeIdRef.current) {
-        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
-      }
-    };
+    const onFocus = () => refreshAfterResume();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [loading, refreshConvos, fetchConversationMessages]);
+  }, [loading, refreshAfterResume]);
 
   React.useEffect(() => {
     if (loading) return;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      refreshConvos();
-      if (activeIdRef.current) {
-        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
-      }
+      refreshAfterResume();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [loading, refreshConvos, fetchConversationMessages]);
+  }, [loading, refreshAfterResume]);
 
   React.useEffect(() => {
     if (!socket) return;
-    const onReconnect = () => {
-      refreshConvos();
-      if (activeIdRef.current) {
-        fetchConversationMessages(activeIdRef.current, { force: true, silent: true });
-      }
-    };
+    const onReconnect = () => refreshAfterResume(120);
     socket.on('connect', onReconnect);
     return () => { socket.off('connect', onReconnect); };
-  }, [socket, refreshConvos, fetchConversationMessages]);
+  }, [socket, refreshAfterResume]);
 
-  React.useEffect(() => () => { if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current); }, []);
+  React.useEffect(() => () => {
+    if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
+    if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
+  }, []);
 
   const targetConvId = searchParams.get('convId');
   React.useEffect(() => {
@@ -9477,6 +9581,14 @@ export default function SupraSpacePage() {
       if (type) patch.type = type;
       patchMsg(conversationId, messageId, patch);
     };
+    const onPinned = ({ conversationId, messageId, pinned, pinnedBy, pinnedAt }: { conversationId: string; messageId: string; pinned: boolean; pinnedBy?: string[]; pinnedAt?: string | null }) => {
+      setPinnedMsgIds(prev => {
+        const next = new Set(prev);
+        pinned ? next.add(messageId) : next.delete(messageId);
+        return next;
+      });
+      patchMsg(conversationId, messageId, { pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null });
+    };
     const onCallEnded = ({ conversationId, meetingId }: { conversationId?: string; meetingId?: string }) => {
       const m = activeMeetingRef.current;
       if (!m) return;
@@ -9494,6 +9606,7 @@ export default function SupraSpacePage() {
     socket.on('conversation:moved', onConvMoved);
     socket.on('space:deleted', onSpaceDeleted);
     socket.on('message:reaction', onReaction);
+    socket.on('message:pinned', onPinned);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
     socket.on('meeting:join-requested', onMeetingJoinRequested);
@@ -9545,7 +9658,7 @@ export default function SupraSpacePage() {
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
-      socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction);
+      socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction); socket.off('message:pinned', onPinned);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('meeting:join-requested', onMeetingJoinRequested);
       socket.off('meeting:admission-updated', onMeetingAdmissionUpdated);
@@ -9764,10 +9877,31 @@ export default function SupraSpacePage() {
   }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
 
   React.useEffect(() => {
-    if (!activeId || !isConnected) return;
+    if (!isConnected) return;
+    const joined = joinedConversationIdsRef.current;
+    const currentIds = new Set(convos.map(c => c._id).filter(Boolean));
+    currentIds.forEach(id => {
+      if (joined.has(id)) return;
+      joinConversation(id);
+      joined.add(id);
+    });
+    Array.from(joined).forEach(id => {
+      if (currentIds.has(id)) return;
+      leaveConversation(id);
+      joined.delete(id);
+    });
+  }, [convos, isConnected, joinConversation, leaveConversation]);
+
+  React.useEffect(() => {
+    if (isConnected) return;
+    joinedConversationIdsRef.current.clear();
+  }, [isConnected]);
+
+  React.useEffect(() => {
+    if (!activeId || !isConnected || joinedConversationIdsRef.current.has(activeId)) return;
     joinConversation(activeId);
-    return () => leaveConversation(activeId);
-  }, [activeId, isConnected, joinConversation, leaveConversation]);
+    joinedConversationIdsRef.current.add(activeId);
+  }, [activeId, isConnected, joinConversation]);
 
   React.useEffect(() => {
     const previousId = previousComposerConversationRef.current;
@@ -10048,9 +10182,9 @@ export default function SupraSpacePage() {
     handleSend(date.toISOString());
   }, [handleSend]);
 
-  const handleUpload = async (files: FileList | null) => {
-    if (!files || !activeId) return;
-    const selected = Array.from(files); if (!selected.length) return;
+  const handleUploadFiles = React.useCallback(async (selected: File[]) => {
+    if (!activeId) return;
+    if (!selected.length) return;
     if (pendingFiles.length + selected.length > SS4_MAX_UPLOAD_FILES) { showUploadNotice('error', `You can attach up to ${SS4_MAX_UPLOAD_FILES} files.`); return; }
     for (const f of selected) {
       if (f.size === 0) { showUploadNotice('error', `${f.name} is empty.`); return; }
@@ -10059,6 +10193,11 @@ export default function SupraSpacePage() {
     }
     setPendingFiles(prev => [...prev, ...selected]);
     showUploadNotice('info', selected.length === 1 ? `${selected[0].name} attached. Press Send.` : `${selected.length} files attached.`);
+  }, [activeId, pendingFiles.length, showUploadNotice]);
+
+  const handleUpload = async (files: FileList | null) => {
+    if (!files) return;
+    await handleUploadFiles(Array.from(files));
   };
   const removePendingFile = (i: number) => setPendingFiles(prev => prev.filter((_, idx) => idx !== i));
 
@@ -10319,6 +10458,7 @@ export default function SupraSpacePage() {
     const val = el.innerText.replace(/\n$/, '');
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
+    const cursorAfterInput = getCaretOffset(el);
     const shouldInspectMention =
       mentionAnchor >= 0 ||
       inputEvent.data === '@' ||
@@ -10362,6 +10502,28 @@ export default function SupraSpacePage() {
         if (match) { setChannelMentionQuery(match[1]); setChannelMentionAnchor(cursor - match[0].length); setChannelMentionIdx(0); }
       }
     }
+    const insertedText = inputEvent.data || '';
+    const shouldRefreshMentionChips =
+      inputEvent.inputType === 'insertFromPaste' ||
+      inputEvent.inputType.startsWith('deleteContent') ||
+      insertedText === '@' ||
+      /\s|[.,!?;:)\]}]/.test(insertedText);
+    if (shouldRefreshMentionChips && /(^|[^\w@])@\s*[A-Za-z0-9_]/.test(val)) {
+      requestAnimationFrame(() => {
+        const current = textareaRef.current;
+        if (!current) return;
+        highlightMentionsInComposer(current);
+        const nextText = current.innerText.replace(/\n$/, '');
+        syncComposerText(nextText, true);
+        const selection = window.getSelection();
+        if (selection) {
+          const range = rangeFromTextOffset(current, Math.min(cursorAfterInput, nextText.length));
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        saveComposerSelection();
+      });
+    }
     if (!activeId) return;
     sendTypingStart(activeId);
     if (typingRef.current) clearTimeout(typingRef.current);
@@ -10370,10 +10532,11 @@ export default function SupraSpacePage() {
 
   const inspectMentionAnywhere = React.useCallback((value: string) => {
     if (!activeConv) return false;
-    const mentionTokenRe = /(^|[^\w@])@([A-Za-z0-9_]+(?:\s+[A-Za-z0-9_]+){0,2})/g;
+    const mentionText = normalizeMentionSearchText(value);
+    const mentionTokenRe = /(^|[^\w@])@\s*([A-Za-z0-9_]+(?:\s+[A-Za-z0-9_]+){0,2})/g;
     const rawCandidates: Array<{ anchor: number; query: string; length: number }> = [];
     let tokenMatch: RegExpExecArray | null;
-    while ((tokenMatch = mentionTokenRe.exec(value)) !== null) {
+    while ((tokenMatch = mentionTokenRe.exec(mentionText)) !== null) {
       const anchor = tokenMatch.index + tokenMatch[1].length;
       const rawQuery = tokenMatch[2].trim();
       if (!rawQuery) continue;
@@ -10414,19 +10577,17 @@ export default function SupraSpacePage() {
     const candidates: Array<{ anchor: number; query: string; length: number }> = [];
     aliases.forEach(alias => {
       const normalizedAlias = escapeRegExp(alias.trim()).replace(/\s+/g, '\\s+');
-      const re = new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'gi');
+      const re = new RegExp(`(^|[^\\w@])@\\s*${normalizedAlias}(?=$|[^\\w])`, 'gi');
       let match: RegExpExecArray | null;
-      while ((match = re.exec(value)) !== null) {
+      while ((match = re.exec(mentionText)) !== null) {
         const anchor = match.index + match[1].length;
-        const matched = value.slice(anchor + 1, re.lastIndex).trim();
+        const matched = mentionText.slice(anchor + 1, re.lastIndex).trim();
         candidates.push({ anchor, query: matched, length: matched.length });
       }
     });
 
     const best = [...rawCandidates, ...candidates].sort((a, b) => b.anchor - a.anchor || b.length - a.length)[0];
     if (!best) return false;
-    const trailingAfterMatch = value.length - (best.anchor + 1 + best.query.length);
-    if (trailingAfterMatch > 1) return false;
     setMentionQuery(best.query);
     setMentionAnchor(best.anchor);
     setMentionIdx(0);
@@ -10449,7 +10610,7 @@ export default function SupraSpacePage() {
       .sort((a, b) => b.length - a.length); // longest first: "John Smith" wins over "John"
     if (!uniqueAliases.length) return;
     const pattern = new RegExp(
-      `@(${uniqueAliases.map(a => escapeRegExp(a).replace(/\s+/g, '\\s+')).join('|')})(?=$|[^\\w])`,
+      `@\\s*(${uniqueAliases.map(a => escapeRegExp(a).replace(/\s+/g, '\\s+')).join('|')})(?=$|[^\\w])`,
       'gi',
     );
 
@@ -10478,7 +10639,7 @@ export default function SupraSpacePage() {
         const span = document.createElement('span');
         span.className = 'ss4-mention-chip';
         span.style.color = 'var(--accent-text)';
-        span.textContent = `@${match[1]}`;
+        span.textContent = `@${match[1].replace(/\s+/g, ' ').trim()}`;
         frag.appendChild(span);
         lastIndex = match.index + match[0].length;
       }
@@ -10679,11 +10840,12 @@ export default function SupraSpacePage() {
     }
   };
 
-  const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[]) => {
+  const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
     if (!activeId) return;
     if (replacementFiles?.length) {
       const fd = new FormData();
       fd.append('content', content);
+      if (replaceIndex !== undefined && replaceIndex !== null) fd.append('replaceIndex', String(replaceIndex));
       replacementFiles.forEach(file => fd.append('files', file));
       const r = await apiClient.patch(`/api/supraspace/messages/${msgId}/attachments`, fd, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
@@ -10710,9 +10872,16 @@ export default function SupraSpacePage() {
     try { await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } }); }
     catch { patchMsg(activeId, msgId, { isDeleted: false } as any); }
   }, [activeId, token, patchMsg]);
-  const handlePinToggle = React.useCallback((msgId: string) => {
+  const handlePinToggle = React.useCallback(async (msgId: string) => {
+    if (!activeId) return;
     const alreadyPinned = pinnedMsgIds.has(msgId);
+    const pinned = !alreadyPinned;
+    const previousMessage = (msgsRef.current[activeId] || []).find(m => m._id === msgId);
+    const nextPinnedBy = pinned
+      ? Array.from(new Set([...(previousMessage?.pinnedBy || []), uid]))
+      : (previousMessage?.pinnedBy || []).filter(id => String(id) !== uid);
     setPinnedMsgIds(prev => { const n = new Set(prev); alreadyPinned ? n.delete(msgId) : n.add(msgId); return n; });
+    patchMsg(activeId, msgId, { pinnedBy: nextPinnedBy, pinnedAt: pinned ? previousMessage?.pinnedAt || new Date().toISOString() : null });
     if (alreadyPinned) {
       toast('Message unpinned');
       setPinEvents(pe => pe.filter(e => e.msgId !== msgId));
@@ -10721,7 +10890,18 @@ export default function SupraSpacePage() {
       const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
       setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
     }
-  }, [pinnedMsgIds, activeConv, uid]);
+    try {
+      await apiClient.post(`/api/supraspace/messages/${msgId}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      setPinnedMsgIds(prev => {
+        const n = new Set(prev);
+        alreadyPinned ? n.add(msgId) : n.delete(msgId);
+        return n;
+      });
+      if (previousMessage) patchMsg(activeId, msgId, { pinnedBy: previousMessage.pinnedBy || [], pinnedAt: previousMessage.pinnedAt || null });
+      toast.error('Could not update pinned message');
+    }
+  }, [activeId, pinnedMsgIds, activeConv, uid, token, patchMsg]);
 
   const jumpToMessage = React.useCallback((msgId: string) => {
     setPinnedModalOpen(false);
@@ -11672,13 +11852,6 @@ export default function SupraSpacePage() {
           {initSlow && (
             <div className="flex flex-col items-center gap-2 mt-2">
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>This is taking longer than usual.</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-full font-semibold"
-                style={{ padding: '6px 16px', fontSize: 12, background: 'var(--accent)', color: '#fff' }}
-              >
-                Reload
-              </button>
             </div>
           )}
         </div>
@@ -12203,6 +12376,7 @@ export default function SupraSpacePage() {
             {isStandaloneApp && sidebarTab === 'notifications' && (
               <NotificationsPanel
                 token={token || ''}
+                socket={socket}
                 notifPrefs={notifPrefs}
                 onOpenNotification={(conversationId, messageId) => {
                   setSidebarTab('chats');
@@ -12996,12 +13170,10 @@ export default function SupraSpacePage() {
                                 }
                               }}
                               onPaste={e => {
-                                const items = e.clipboardData?.items;
-                                const imgItems = items ? Array.from(items).filter(it => it.type.startsWith('image/')) : [];
-                                if (imgItems.length > 0) {
+                                const pastedImages = clipboardImageFiles(e.clipboardData);
+                                if (pastedImages.length > 0) {
                                   e.preventDefault();
-                                  const files = imgItems.map(it => it.getAsFile()).filter((f): f is File => f !== null);
-                                  if (files.length > 0) { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); handleUpload(dt.files); }
+                                  handleUploadFiles(pastedImages);
                                   return;
                                 }
 

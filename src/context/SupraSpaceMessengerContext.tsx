@@ -228,6 +228,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // People this viewer wants to always be notified by, bypassing per-conversation
   // mute — see PrioritySendersModal (supraspace/page.tsx) for where it's set.
   const [prioritySenders, setPrioritySenders] = React.useState<string[]>([]);
+  const resumeRefreshTimerRef             = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs so socket handlers always see current values (stale-closure safety)
   const notifPrefsRef  = React.useRef<Record<string, NotifPref>>({});
@@ -357,20 +358,30 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       .catch(() => {});
   }, [crmToken]);
 
+  const refreshAfterResume = React.useCallback(() => {
+    if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
+    resumeRefreshTimerRef.current = setTimeout(() => {
+      resumeRefreshTimerRef.current = null;
+      fetchConversations();
+      fetchSpaces();
+    }, 450);
+  }, [fetchConversations, fetchSpaces]);
+
   React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
   React.useEffect(() => { fetchSpaces(); }, [fetchSpaces]);
 
   // Re-fetch on window focus AND on page visibility (covers PWA foreground transitions).
   React.useEffect(() => {
-    const onFocus = () => { fetchConversations(); fetchSpaces(); };
-    const onVisible = () => { if (document.visibilityState === 'visible') { fetchConversations(); fetchSpaces(); } };
+    const onFocus = () => refreshAfterResume();
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshAfterResume(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
+      if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
     };
-  }, [fetchConversations, fetchSpaces]);
+  }, [refreshAfterResume]);
 
   // ── Socket connection ─────────────────────────────────────────────────────────
   React.useEffect(() => {

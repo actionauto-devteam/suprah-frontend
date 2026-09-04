@@ -36,6 +36,8 @@ export interface SSMessage {
   replyTo?: SSMessage | null;
   reactions: SSReaction[];
   readBy: string[];
+  pinnedBy?: string[];
+  pinnedAt?: string | null;
   metadata?: {
     meeting?: {
       meetingId: string;

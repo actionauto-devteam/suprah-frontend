@@ -311,8 +311,6 @@ function insertPreselectedTypographyText(
     && (activeTypingSpan.dataset.ss4Underline || '') === desiredUnderline
     && (activeTypingSpan.dataset.ss4Strike || '') === desiredStrike
   ) {
-    // The caret is already inside the correct persistent formatting run.
-    // Let the browser append the next character to that same span.
     return false;
   }
 
@@ -386,9 +384,6 @@ function ss4TypingPreferencesFromCaretSnapshot(
   if (!caret) return createSS4InlineTypingPreferences();
 
   return {
-    // Preserve active inherited formatting, and preserve explicit OFF states.
-    // Plain inherited "off" remains null so ordinary typing does not create
-    // unnecessary wrappers.
     bold: caret.bold ? true : caret.boldExplicit ? false : null,
     italic: caret.italic ? true : caret.italicExplicit ? false : null,
     underline: caret.underline
@@ -612,8 +607,6 @@ function insertTypingStyleCaretMarker(
   let marker: Text;
 
   if (existingTypingSpan && existingSpanIsMarkerOnly) {
-    // Update the existing empty caret-format run instead of nesting another
-    // span. This is important when a user changes formatting on a new line.
     span = existingTypingSpan;
     span.removeAttribute('style');
     marker = Array.from(span.childNodes)
@@ -629,9 +622,6 @@ function insertTypingStyleCaretMarker(
 
     const insertionRange = liveRange.cloneRange();
 
-    // When the caret is at the end of an existing typing run, create a sibling
-    // run rather than nesting it. A sibling can truly turn underline/bold/etc.
-    // off without inheriting the previous run's inline style.
     if (
       existingTypingSpan
       && existingTypingSpan.parentNode
@@ -821,25 +811,59 @@ const MUTE_DURATION_OPTIONS: { label: string; ms: number | null }[] = [
   { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
   { label: 'Until I turn it back on', ms: null },
 ];
-async function copyImageToClipboard(url: string): Promise<void> {
+async function imageUrlToPngBlob(url: string): Promise<Blob> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
-  const res = await fetch(proxyUrl);
+  const res = await fetch(proxyUrl, { cache: 'no-store', credentials: 'include' });
   if (!res.ok) throw new Error('proxy failed');
   const blob = await res.blob();
-  let copyBlob: Blob = blob;
-  if (blob.type !== 'image/png') {
-    const img = new Image();
-    const blobUrl = URL.createObjectURL(blob);
-    img.src = blobUrl;
-    await new Promise<void>(r => { img.onload = () => r(); img.onerror = () => r(); });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || 400;
-    canvas.height = img.naturalHeight || 400;
-    canvas.getContext('2d')!.drawImage(img, 0, 0);
-    URL.revokeObjectURL(blobUrl);
-    copyBlob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), 'image/png'));
+  if (blob.type === 'image/png') return blob;
+
+  const img = new Image();
+  const blobUrl = URL.createObjectURL(blob);
+  img.src = blobUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('image decode failed'));
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || 400;
+  canvas.height = img.naturalHeight || 400;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.drawImage(img, 0, 0);
+  URL.revokeObjectURL(blobUrl);
+  const copyBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(result => result ? resolve(result) : reject(new Error('png encode failed')), 'image/png');
+  });
+  return copyBlob;
+}
+
+async function copyImageToClipboard(url: string): Promise<void> {
+  if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+    throw new Error('image clipboard unavailable');
   }
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': copyBlob })]);
+  const resolvedUrl = resolveImageUrl(url) || url;
+  await navigator.clipboard.write([
+    new ClipboardItem({ 'image/png': imageUrlToPngBlob(resolvedUrl) }),
+  ]);
+}
+
+function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
+  if (!data) return [];
+  const byName = new Set<string>();
+  const files: File[] = [];
+  const add = (file: File | null) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (byName.has(key)) return;
+    byName.add(key);
+    files.push(file);
+  };
+  Array.from(data.files || []).forEach(add);
+  Array.from(data.items || []).forEach(item => {
+    if (item.kind === 'file' && item.type.startsWith('image/')) add(item.getAsFile());
+  });
+  return files;
 }
 
 function stringToColor(str: string): string {
@@ -1005,6 +1029,16 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function normalizeMentionSearchText(value: string): string {
+  return (value || '')
+    .normalize('NFKC')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .replace(/[*_~`]+/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 function normalizeMessageMarkdownForDisplay(text: string): string {
   const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
@@ -1165,8 +1199,6 @@ function getCopiedElementVisibleText(element: HTMLElement): string {
     const select = element as HTMLSelectElement;
     return select.selectedOptions?.[0]?.textContent || select.value || '';
   }
-  // Empty metadata-only elements are not visible copied text. Returning
-  // data-label/data-text here can insert UI labels that the user never selected.
   return '';
 }
 
@@ -1352,8 +1384,6 @@ function canonicalizeColorMarkup(value: string): string {
     '',
   );
 
-  // Merge adjacent same-color fragments only across horizontal whitespace.
-  // Never consume \n or \r because those line boundaries are user content.
   let previous = '';
   while (previous !== result) {
     previous = result;
@@ -1555,9 +1585,6 @@ function executeRichEditorCommandPreservingSelection(
 
     let firstElement = root.firstElementChild;
 
-    // Repeated browser list toggles can leave an empty DIV/P before the
-    // original text. A saved message is already trimmed, so this leading
-    // empty block is always an editor artifact rather than message content.
     while (
       firstElement
       && root.children.length > 1
@@ -1568,8 +1595,6 @@ function executeRichEditorCommandPreservingSelection(
       firstElement = root.firstElementChild;
     }
 
-    // Chrome can also create an empty first LI when a list is toggled
-    // repeatedly over the same selected lines.
     if (
       firstElement
       && ['UL', 'OL'].includes(firstElement.tagName)
@@ -1700,8 +1725,6 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
     colorSpan.appendChild(selectedNode);
   });
 
-  // Remove empty wrappers created by repeated color changes, while preserving
-  // each block element and every line break.
   root.querySelectorAll<HTMLElement>('span[style*="color"]').forEach(span => {
     if (!span.textContent && !span.querySelector('br')) span.remove();
   });
@@ -1739,11 +1762,6 @@ function htmlToMarkdown(el: HTMLElement): string {
         .map(child => walk(child, listDepth))
         .join('');
 
-      // A top-level list is a block boundary. The previous serializer returned
-      // the first bullet directly after the preceding heading/paragraph, which
-      // could create payloads such as **Current Progress**• **Continued...**.
-      // Nested lists already live inside an <li> and must not gain an extra
-      // leading line break.
       const isNestedList = element.parentElement?.tagName.toLowerCase() === 'li';
       return isNestedList || !serializedList ? serializedList : `\n${serializedList}`;
     }
@@ -1914,10 +1932,6 @@ function normalizeListExitLineSpacing(value: string): string {
       && !isListLine(nextLine)
       && !/^\s*>/.test(nextLine)
     ) {
-      // Chrome can leave one invisible/NBSP/normal-space character when a
-      // list item is converted back to a normal paragraph. Remove only that
-      // browser-created first character; preserve the rest of the user's
-      // alignment and spacing.
       nextLine = nextLine.replace(/^\u00A0/, '');
       if (nextLine.startsWith(' ')) nextLine = nextLine.slice(1);
     }
@@ -1968,8 +1982,6 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
       '',
     );
 
-    // Toggling a browser list off can leave exactly one ordinary leading
-    // space after its non-breaking placeholder. Remove one only.
     if (normalized.startsWith(' ')) normalized = normalized.slice(1);
 
     if (normalized !== original) {
@@ -1994,9 +2006,6 @@ function isUnsafeNeutralPastedColor(color: string | null): boolean {
   const neutral = maximum - minimum <= 20;
   const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
 
-  // Very light neutral text disappears on the light composer. Very dark
-  // neutral text disappears in dark mode. Let those colors inherit the
-  // application theme instead.
   return neutral && (luminance >= 222 || luminance <= 42);
 }
 
@@ -2018,8 +2027,6 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
       element.removeAttribute('color');
     }
 
-    // Source backgrounds frequently carry the source application's theme and
-    // can make otherwise visible text unreadable in Suprah Space.
     element.style.removeProperty('background');
     element.style.removeProperty('background-color');
     element.style.removeProperty('background-image');
@@ -2422,12 +2429,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
     return nodes;
   };
 
-  // Some rich clipboard payloads contain BOTH semantic HTML formatting and
-  // literal markdown controls. Example: <strong>Progress Report</strong>**.
-  // The HTML is the visual source of truth for a formatted paste, so consume
-  // any complete **...** runs that remain inside text nodes as <strong>, then
-  // remove only boundary/orphan ** controls that cannot represent visible text.
-  // Never touch code/pre, where literal asterisks are legitimate content.
   collectTextNodes().forEach(textNode => {
     const value = textNode.data;
     if (!value.includes('**')) return;
@@ -2467,9 +2468,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
       return;
     }
 
-    // Consume only unmatched controls at a text-node boundary. Internal
-    // literal "A**B" text is preserved, while "**Heading" / "Heading**"
-    // from copied rich text no longer leaks into the composer or message.
     textNode.data = value
       .replace(/^(\s*)\*\*(?=\s*\S)/, '$1')
       .replace(/\*\*(\s*)$/, '$1');
@@ -2479,8 +2477,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
 }
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
-  // Formatted paste uses the source HTML exactly once. Combining the HTML and
-  // text/plain list representations creates duplicate bullets and extra text.
   if (html.trim()) {
     const hasSemanticList = /<(?:ul|ol|li)\b/i.test(html);
     const hasOfficePseudoList = /mso-list\s*:|MsoListParagraph/i.test(html);
@@ -2493,11 +2489,6 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
       }
     }
 
-    // A browser often supplies text/html even when that HTML is only a plain
-    // wrapper around markdown-looking text. In that case preferring the HTML
-    // path makes ** controls literal. Only trust HTML as the formatting source
-    // when it actually carries rich formatting; otherwise let the established
-    // markdown parser interpret the text/plain representation.
     const clipboardText = text || clipboardHtmlToPlainText(html);
     if (!hasRichFormatting(html) && hasMarkdownSyntax(clipboardText)) {
       return sanitizePastedEditorHtmlForTheme(
@@ -3065,9 +3056,6 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
   React.useEffect(() => () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); }, []);
 
   const handleError = React.useCallback(() => {
-    // Right after sending a fresh recording, an error here is often a transient
-    // race (signing/storage propagation) rather than a real failure — retry a
-    // couple times before giving up instead of disabling playback forever.
     if (retriesRef.current < 2) {
       retriesRef.current += 1;
       retryTimerRef.current = setTimeout(() => audioRef.current?.load(), 600);
@@ -3810,9 +3798,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     return () => document.removeEventListener('mousedown', h);
   }, [moreMenuMsgId]);
 
-  // Pinned messages (local UI state, same as SupraSpace)
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
   const [pinnedOpen, setPinnedOpen] = React.useState(false);
+  const syncPinnedMessageIds = React.useCallback((nextMessages: SSMessage[]) => {
+    setPinnedMsgIds(prev => {
+      const next = new Set(prev);
+      nextMessages.forEach(message => {
+        if ((message.pinnedBy || []).length > 0) next.add(message._id);
+        else next.delete(message._id);
+      });
+      return next;
+    });
+  }, []);
 
   // Forward modal
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
@@ -3895,16 +3892,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       barTop = Math.max(minTop, Math.min(rect.top + rect.height / 2 - BAR_H / 2, maxTop));
       barLeft = preferredLeft;
     } else {
-      // Wide bubble (long text, poll/event/voice card, image) with no room to
-      // the side — float the bar just above the bubble instead of falling
-      // back to a spot that sits on top of the bubble's own content.
       barTop = Math.max(minTop, rect.top - BAR_H - 6);
       barLeft = Math.max(minLeft, Math.min(rect.left + rect.width / 2 - BAR_W / 2, maxLeft));
     }
     const pos = { top: barTop, left: barLeft, isOwn };
     if (hovMsg && hovMsg !== msgId) {
-      // Bar is already visible for another message — delay switch so user can
-      // reach the current bar without it jumping away from them.
       pendingMsgRef.current = { id: msgId, ...pos };
       hoverTimer.current = setTimeout(() => {
         if (!isOverBar.current && pendingMsgRef.current?.id === msgId) {
@@ -4244,8 +4236,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const prevPoll = target?.poll;
     if (!prevPoll) return;
 
-    // Optimistic toggle — mirrors the backend's toggle semantics exactly, so
-    // the click registers instantly instead of waiting on a socket round-trip.
     const optimisticPoll: SSPoll = {
       ...prevPoll,
       options: prevPoll.options.map(o => {
@@ -4318,7 +4308,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const editAreaRef = React.useRef<HTMLDivElement>(null);
   const editSelectionRangeRef = React.useRef<Range | null>(null);
   const editFileRef = React.useRef<HTMLInputElement>(null);
+  const editSingleFileRef = React.useRef<HTMLInputElement>(null);
   const [editReplacementFiles, setEditReplacementFiles] = React.useState<PendingPopupAttachment[]>([]);
+  const [editReplaceIndex, setEditReplaceIndex] = React.useState<number | null>(null);
   const [editColorOpen, setEditColorOpen] = React.useState(false);
   const [editTextColor, setEditTextColor] = React.useState('#ffffff');
   const [editTextColorChosen, setEditTextColorChosen] = React.useState(false);
@@ -4364,7 +4356,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
       return [];
     });
+    setEditReplaceIndex(null);
     if (editFileRef.current) editFileRef.current.value = '';
+    if (editSingleFileRef.current) editSingleFileRef.current.value = '';
     setEditingMsgId(msgId);
     clearBar();
     requestAnimationFrame(() => {
@@ -4462,11 +4456,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setEditFontSize(caret.fontSize);
       setEditTextColor(caret.color);
 
-      // Only trust an EXPLICIT marker (inline style / dataset) here — a
-      // "differs from computed root style" fallback used to also flip this
-      // true, but the two are read through different detection paths that
-      // don't always agree even with zero user formatting, which silently
-      // re-baked a smaller font size no one ever selected.
       setEditFontFamilyChosen(caret.fontFamilyExplicit);
       setEditFontSizeChosen(caret.fontSizeExplicit);
       setEditTextColorChosen(caret.colorExplicit);
@@ -4844,7 +4833,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
       return [];
     });
+    setEditReplaceIndex(null);
     if (editFileRef.current) editFileRef.current.value = '';
+    if (editSingleFileRef.current) editSingleFileRef.current.value = '';
   }, []);
 
   const saveEdit = async () => {
@@ -4860,6 +4851,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       if (editReplacementFiles.length > 0) {
         const fd = new FormData();
         fd.append('content', nextDraft);
+        if (editReplaceIndex !== null) fd.append('replaceIndex', String(editReplaceIndex));
         editReplacementFiles.forEach(item => fd.append('files', item.file));
         const r = await apiClient.patch(`/api/supraspace/messages/${editingMsgId}/attachments`, fd,
           { headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
@@ -4942,8 +4934,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const notificationPref = notifPrefs[conv._id] || conv.notificationPreference || { type: 'all' as const, muted: false };
   const avatarSrc = getAvatarSrc(conv, crmUserId);
   const rightPx = baseOffsetPx + stackIndex * (POPUP_W + POPUP_GAP);
-  // Matches the accent SupraSpace itself falls back to when a conversation has no
-  // custom theme color (see crm/supra-space/page.tsx's --accent default).
   const accentColor = conv.theme?.accent || '#5b7cf6';
 
   const mentionOptions = React.useMemo(() => {
@@ -5033,22 +5023,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         headers: { Authorization: `Bearer ${effectiveToken}` },
         params: { limit: 40 },
       });
-      setMessages(r.data?.data ?? []);
+      const nextMessages: SSMessage[] = r.data?.data ?? [];
+      syncPinnedMessageIds(nextMessages);
+      setMessages(nextMessages);
       markAsRead(conv._id);
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: unknown }; message?: string };
       console.error('[ChatPopup] messages fetch failed:', e?.response?.status, e?.response?.data ?? e?.message);
       setFetchError(true);
     } finally { setLoading(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conv._id, crmToken]);
+  }, [conv._id, crmToken, syncPinnedMessageIds]);
 
   React.useEffect(() => { fetchMessages(); }, [fetchMessages]);
   React.useEffect(() => {
     if (!isMinimized && messages.length > 0) markAsRead(conv._id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMinimized]);
-  // Join/leave conversation room so we receive messages:read events from other members
   React.useEffect(() => {
     if (!socket) return;
     socket.emit('join:conversation', { conversationId: conv._id });
@@ -5095,6 +5084,26 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     };
     socket.on('message:edited', handler);
     return () => { socket.off('message:edited', handler); };
+  }, [socket, conv._id]);
+  React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, messageId, pinned, pinnedBy, pinnedAt }: {
+      conversationId: string;
+      messageId: string;
+      pinned: boolean;
+      pinnedBy?: string[];
+      pinnedAt?: string | null;
+    }) => {
+      if (conversationId !== conv._id) return;
+      setPinnedMsgIds(prev => {
+        const next = new Set(prev);
+        pinned ? next.add(messageId) : next.delete(messageId);
+        return next;
+      });
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null } : m));
+    };
+    socket.on('message:pinned', handler);
+    return () => { socket.off('message:pinned', handler); };
   }, [socket, conv._id]);
   React.useEffect(() => {
     if (!socket) return;
@@ -5319,8 +5328,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setComposerFontSize(caret.fontSize);
       setComposerTextColor(caret.color);
 
-      // Only trust an EXPLICIT marker (inline style / dataset) here — see
-      // the matching comment in the edit-message caret refresh above.
       setComposerFontFamilyChosen(caret.fontFamilyExplicit);
       setComposerFontSizeChosen(caret.fontSizeExplicit);
       setComposerTextColorChosen(caret.colorExplicit);
@@ -5328,7 +5335,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ss4TypingPreferencesFromCaretSnapshot(caret),
       );
     } catch {
-      // Caret formatting detection is best effort.
     }
   }, []);
 
@@ -5568,6 +5574,29 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const val = (el.innerText || '').replace(/\n$/, '');
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
+    const cursorAfterInput = getCaretOffset(el);
+    const insertedText = inputEvent.data || '';
+    const shouldRefreshMentionChips =
+      inputEvent.inputType === 'insertFromPaste' ||
+      inputEvent.inputType.startsWith('deleteContent') ||
+      insertedText === '@' ||
+      /\s|[.,!?;:)\]}]/.test(insertedText);
+    if (shouldRefreshMentionChips && /(^|[^\w@])@\s*[A-Za-z0-9_]/.test(val)) {
+      requestAnimationFrame(() => {
+        const current = inputRef.current;
+        if (!current) return;
+        highlightMentionsInComposer(current);
+        const nextText = current.innerText.replace(/\n$/, '');
+        syncComposerText(nextText, true);
+        const selection = window.getSelection();
+        if (selection) {
+          const range = rangeFromTextOffset(current, Math.min(cursorAfterInput, nextText.length));
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        rememberComposerSelection();
+      });
+    }
     const shouldInspectMention =
       mentionAnchor >= 0 ||
       inputEvent.data === '@' ||
@@ -5591,6 +5620,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const inspectMentionAnywhere = React.useCallback((value: string) => {
+    const mentionText = normalizeMentionSearchText(value);
     const aliases = [
       ...(conv.type === 'group' ? ['all'] : []),
       ...conv.members
@@ -5605,11 +5635,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const candidates: Array<{ anchor: number; query: string; length: number }> = [];
     aliases.forEach(alias => {
       const normalizedAlias = escapeRegExp(alias.trim()).replace(/\s+/g, '\\s+');
-      const re = new RegExp(`(^|[^\\w@])@${normalizedAlias}(?=$|[^\\w])`, 'gi');
+      const re = new RegExp(`(^|[^\\w@])@\\s*${normalizedAlias}(?=$|[^\\w])`, 'gi');
       let match: RegExpExecArray | null;
-      while ((match = re.exec(value)) !== null) {
+      while ((match = re.exec(mentionText)) !== null) {
         const anchor = match.index + match[1].length;
-        const matched = value.slice(anchor + 1, re.lastIndex).trim();
+        const matched = mentionText.slice(anchor + 1, re.lastIndex).trim();
         candidates.push({ anchor, query: matched, length: matched.length });
       }
     });
@@ -5621,6 +5651,58 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setMentionIdx(0);
     return true;
   }, [conv.members, conv.type, crmUserId]);
+
+  const highlightMentionsInComposer = React.useCallback((el: HTMLElement) => {
+    const aliases = [
+      ...(conv.type === 'group' ? ['all'] : []),
+      ...conv.members
+        .filter(m => m._id !== crmUserId)
+        .flatMap(m => {
+          const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+        }),
+    ];
+    const uniqueAliases = Array.from(new Set(aliases.map(a => a.trim()).filter(Boolean)))
+      .sort((a, b) => b.length - a.length);
+    if (!uniqueAliases.length) return;
+    const pattern = new RegExp(
+      `@\\s*(${uniqueAliases.map(a => escapeRegExp(a).replace(/\s+/g, '\\s+')).join('|')})(?=$|[^\\w])`,
+      'gi',
+    );
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+      acceptNode(node: Node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('.ss4-mention-chip, code, pre')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let node: Node | null;
+    while ((node = walker.nextNode())) textNodes.push(node as Text);
+    textNodes.forEach(textNode => {
+      const text = textNode.nodeValue || '';
+      pattern.lastIndex = 0;
+      if (!pattern.test(text)) return;
+      pattern.lastIndex = 0;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        const span = document.createElement('span');
+        span.className = 'ss4-mention-chip';
+        span.style.color = accentColor;
+        span.style.fontWeight = '700';
+        span.textContent = `@${match[1].replace(/\s+/g, ' ').trim()}`;
+        fragment.appendChild(span);
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      textNode.parentNode?.replaceChild(fragment, textNode);
+    });
+  }, [accentColor, conv.members, conv.type, crmUserId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
@@ -6189,11 +6271,28 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       <div key={`${att.url}-${index}`} className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2 py-1">
                                         {att.mimeType?.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
                                         <span className="min-w-0 flex-1 truncate text-[10.5px]">{att.originalName || `Attachment ${index + 1}`}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditReplaceIndex(index);
+                                            editSingleFileRef.current?.click();
+                                          }}
+                                          className="shrink-0 rounded px-1.5 py-1 text-[9px] font-semibold"
+                                          style={{ background: 'rgba(255,255,255,0.14)' }}
+                                        >
+                                          Replace
+                                        </button>
                                       </div>
                                     ))}
                                   </div>
                                 )}
                                 {editReplacementFiles.length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-[9px] font-semibold text-white/55">
+                                      {editReplaceIndex !== null
+                                        ? `Replacement for attachment ${editReplaceIndex + 1}`
+                                        : `Replacement attachment${editReplacementFiles.length === 1 ? '' : 's'}`}
+                                    </div>
                                   <div className="flex gap-2 overflow-x-auto pb-1">
                                     {editReplacementFiles.map((item, index) => {
                                       const isImage = item.file.type.startsWith('image/');
@@ -6209,6 +6308,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                             onClick={() => setEditReplacementFiles(prev => {
                                               const removed = prev[index];
                                               if (removed) URL.revokeObjectURL(removed.previewUrl);
+                                              if (prev.length === 1) setEditReplaceIndex(null);
                                               return prev.filter((_, i) => i !== index);
                                             })}
                                             className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white"
@@ -6218,6 +6318,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                         </div>
                                       );
                                     })}
+                                  </div>
                                   </div>
                                 )}
                               </div>
@@ -6235,6 +6336,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                     prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
                                     return selected.map(file => ({ file, previewUrl: URL.createObjectURL(file) }));
                                   });
+                                  setEditReplaceIndex(null);
+                                  syncEditDraft();
+                                }}
+                              />
+                              <input
+                                ref={editSingleFileRef}
+                                type="file"
+                                hidden
+                                onChange={e => {
+                                  const selected = Array.from(e.target.files || []);
+                                  setEditReplacementFiles(prev => {
+                                    prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+                                    return selected[0] ? [{ file: selected[0], previewUrl: URL.createObjectURL(selected[0]) }] : [];
+                                  });
+                                  e.target.value = '';
                                   syncEditDraft();
                                 }}
                               />
@@ -6247,7 +6363,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   title={editableAttachmentCount > 0 ? 'Replace attachments' : 'Add attachments'}
                                 >
                                   <Paperclip className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace' : 'Attach'}</span>
+                                  <span className="truncate">{editableAttachmentCount > 0 ? 'Replace all' : 'Attach'}</span>
                                 </button>
                                 <button onClick={cancelEdit} className="min-w-0 rounded-md px-1.5 py-1.5 text-[10.5px]" style={{ background: 'rgba(255,255,255,0.15)' }}>Cancel</button>
                                 <button onClick={saveEdit} disabled={!canSaveThisEdit} className="min-w-0 rounded-md px-1.5 py-1.5 text-[10.5px] font-semibold disabled:opacity-40" style={{ background: '#34c97d', color: '#fff' }}>
@@ -6814,10 +6930,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     }}
                     onKeyDown={handleKeyDown}
                     onPaste={e => {
-                      const pastedFiles = Array.from(e.clipboardData?.items || [])
-                        .filter(item => item.kind === 'file')
-                        .map(item => item.getAsFile())
-                        .filter((f): f is File => !!f);
+                      const pastedFiles = clipboardImageFiles(e.clipboardData);
                       if (pastedFiles.length > 0) {
                         e.preventDefault();
                         stageFiles(pastedFiles);
@@ -6842,6 +6955,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         const el = inputRef.current;
                         if (el) {
                           normalizeRichEditorListExitArtifacts(el);
+                          highlightMentionsInComposer(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
                           inspectMentionAnywhere(nextText);
@@ -7070,9 +7184,23 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   <Share2 className="h-4 w-4 shrink-0" style={ic} />
                   <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>Forward message</span>
                 </button>
-                <button className={row} onClick={() => {
+                <button className={row} onClick={async () => {
+                  if (!msg || !moreMenuMsgId || !crmToken) return;
+                  const pinned = !isPinned;
+                  const previousPinnedBy = msg.pinnedBy || [];
+                  const nextPinnedBy = pinned
+                    ? Array.from(new Set(crmUserId ? [...previousPinnedBy, crmUserId] : previousPinnedBy))
+                    : previousPinnedBy.filter(id => String(id) !== crmUserId);
                   setPinnedMsgIds(prev => { const n = new Set(prev); isPinned ? n.delete(moreMenuMsgId) : n.add(moreMenuMsgId); return n; });
-                  isPinned ? toast('Message unpinned') : toast.success('Message pinned');
+                  setMessages(prev => prev.map(m => m._id === moreMenuMsgId ? { ...m, pinnedBy: nextPinnedBy, pinnedAt: pinned ? m.pinnedAt || new Date().toISOString() : null } : m));
+                  try {
+                    await apiClient.post(`/api/supraspace/messages/${moreMenuMsgId}/pin`, { pinned }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+                    isPinned ? toast('Message unpinned') : toast.success('Message pinned');
+                  } catch {
+                    setPinnedMsgIds(prev => { const n = new Set(prev); isPinned ? n.add(moreMenuMsgId) : n.delete(moreMenuMsgId); return n; });
+                    setMessages(prev => prev.map(m => m._id === moreMenuMsgId ? { ...m, pinnedBy: previousPinnedBy, pinnedAt: msg.pinnedAt || null } : m));
+                    toast.error('Could not update pinned message');
+                  }
                   close();
                 }}>
                   <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? '#5b7cf6' : 'rgba(255,255,255,0.5)' }} />
@@ -7155,9 +7283,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         <PinnedMessagesModal
           messages={messages}
           pinnedMsgIds={pinnedMsgIds}
-          onUnpin={(id) => {
+          onUnpin={async (id) => {
+            const previousMessage = messages.find(m => m._id === id);
             setPinnedMsgIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-            toast('Message unpinned');
+            setMessages(prev => prev.map(m => m._id === id ? { ...m, pinnedBy: (m.pinnedBy || []).filter(userId => String(userId) !== crmUserId), pinnedAt: null } : m));
+            try {
+              await apiClient.post(`/api/supraspace/messages/${id}/pin`, { pinned: false }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+              toast('Message unpinned');
+            } catch {
+              setPinnedMsgIds(prev => { const n = new Set(prev); n.add(id); return n; });
+              if (previousMessage) setMessages(prev => prev.map(m => m._id === id ? previousMessage : m));
+              toast.error('Could not update pinned message');
+            }
           }}
           onClose={() => setPinnedOpen(false)}
         />
@@ -7426,11 +7563,6 @@ function ChatOverflowDock({
   const dockRef = React.useRef<HTMLDivElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const hiddenCount = hiddenConvs.length;
-  // ChatOverflowDock only ever renders while MAX_VISIBLE_POPUPS full-height
-  // popups are on screen (hidden = overflow *beyond* those), so it must clear
-  // the full POPUP_H to avoid sitting on top of the rightmost popup — right:
-  // POPUP_RIGHT alone isn't enough, since that's the same edge the popups
-  // themselves dock to.
   const dockBottom = POPUP_H + 12;
 
   React.useEffect(() => {
@@ -7598,9 +7730,6 @@ export function ChatPopupManager() {
   if (pathname === '/crm/supra-space') return null;
   if (isMobile) return null;
 
-  // Minimized chats collapse into a compact bubble row (Facebook-style) instead of
-  // each keeping a full-width header bar — they stay mounted (socket/messages alive)
-  // but render nothing visible; only expanded chats occupy popup "slots".
   const minimizedIds = openChats.filter((id) => minimizedChats.has(id));
   const expandedIds = openChats.filter((id) => !minimizedChats.has(id));
   const visibleExpandedIds = expandedIds.slice(0, MAX_VISIBLE_POPUPS);
