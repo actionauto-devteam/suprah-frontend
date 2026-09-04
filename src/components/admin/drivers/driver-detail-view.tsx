@@ -75,7 +75,7 @@ const Field = ({ label, value, mono, icon: Icon }: { label: string; value?: stri
     </div>
 );
 
-export function DriverDetailView({ driverId }: { driverId: string }) {
+export function DriverDetailView({ driverId, autoOpenReview }: { driverId: string; autoOpenReview?: boolean }) {
     const { getToken, userId } = useAuth();
     const [profile, setProfile] = useState<DriverProfile | null>(null);
     const [loading, setLoading] = useState(true);
@@ -127,6 +127,20 @@ export function DriverDetailView({ driverId }: { driverId: string }) {
     }, [getToken, driverId]);
 
     useEffect(() => { fetchProfile(); fetchDriverRequest(); }, [fetchProfile, fetchDriverRequest]);
+
+    const autoOpenedRef = React.useRef(false);
+    useEffect(() => {
+        if (!autoOpenReview || autoOpenedRef.current || !profile) return;
+        const docs = profile.documents || [];
+        if (docs.length === 0) return;
+        autoOpenedRef.current = true;
+        const firstPending = docs.findIndex(
+            (doc: ComplianceDocument) => !doc.verified && doc.reviewStatus !== 'rejected',
+        );
+        setTab('documents');
+        setReviewIndex(firstPending < 0 ? 0 : firstPending);
+        setReviewOpen(true);
+    }, [autoOpenReview, profile]);
 
     // Claim this driver's review on mount so a second admin working the
     // review queue sees it's already being worked, and release it again on

@@ -255,7 +255,7 @@ export function ReviewQueuePanel() {
                         </Button>
                       )}
                       <Button size="sm" className="h-8 gap-1" asChild>
-                        <Link href={`/admin/drivers/${item.driverId}`}>
+                        <Link href={`/admin/drivers/${item.driverId}${item.entityType === 'driver-profile' ? '?review=1' : ''}`}>
                           Review <ChevronRight className="size-3.5" />
                         </Link>
                       </Button>

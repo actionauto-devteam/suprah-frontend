@@ -17,6 +17,7 @@ import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContex
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
+import { KeyboardShortcuts } from "@/components/admin/KeyboardShortcuts";
 import { PageLoadingState } from "@/components/shared/EmptyLoadingState";
 
 function AdminLayoutContent({
@@ -64,6 +65,7 @@ function AdminLayoutContent({
                 <MobileBottomNav items={adminNav} />
             </SidebarInset>
             <ImpersonationBanner />
+            <KeyboardShortcuts />
             <ChatPopupManager />
         </SidebarProvider>
     );
