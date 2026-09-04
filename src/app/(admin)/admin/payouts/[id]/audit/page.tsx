@@ -28,6 +28,7 @@ import {
 } from "@/hooks/api/useAdminReferral"
 import { fmtDateMDT, fmtLongDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/shared/StatusBadge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -96,6 +97,7 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
     }
 
     const { request, lineage } = auditData;
+    const partner = (auditData as { partner?: { name: string; email: string; joinedAt?: string | null } }).partner;
     const totalEvidence = lineage.reduce((sum, e) => sum + e.amount, 0);
 
     return (
@@ -135,31 +137,30 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Request Summary & Partner Info */}
                 <div className="space-y-6">
-                    <Card className="p-6 overflow-hidden relative border-none shadow-xl bg-gradient-to-br from-zinc-900 to-zinc-950 text-white">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <CreditCard className="w-24 h-24" />
-                        </div>
-                        <div className="relative z-10 space-y-4">
+                    <Card className="relative overflow-hidden border-border p-5 shadow-none">
+                        <div className="space-y-4">
                             <div>
-                                <p className="text-xs uppercase tracking-widest text-zinc-400 font-bold mb-1">Requested Payout</p>
-                                <h2 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-zinc-400">
+                                <p className="text-xs font-medium text-muted-foreground">Requested payout</p>
+                                <h2 className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
                                     ${request.amount.toFixed(2)}
                                 </h2>
                             </div>
-                            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                                <div className="text-xs">
-                                    <p className="text-zinc-500 font-bold uppercase tracking-tight">Method</p>
-                                    <p className="font-semibold capitalize text-zinc-200">{request.withdrawalMethod?.type.replace('_', ' ')}</p>
+                            <div className="flex items-center justify-between border-t border-border pt-3">
+                                <div>
+                                    <p className="text-xs text-muted-foreground">Method</p>
+                                    <p className="text-sm font-medium capitalize">
+                                        {request.withdrawalMethod?.type.replace('_', ' ')}
+                                    </p>
                                 </div>
-                                <div className="text-xs text-right">
-                                    <p className="text-zinc-500 font-bold uppercase tracking-tight">Status</p>
-                                    <Badge variant="secondary" className="bg-orange-500/20 text-orange-400 border-none capitalize">{request.status}</Badge>
+                                <div className="text-right">
+                                    <p className="text-xs text-muted-foreground">Status</p>
+                                    <StatusBadge status={request.status} domain="payout" />
                                 </div>
                             </div>
                             {request.withdrawalMethod?.details && (
-                                <div className="p-3 bg-white/5 rounded-lg border border-white/5">
-                                    <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mb-1">Payout Details</p>
-                                    <p className="text-sm font-mono break-all">{request.withdrawalMethod.details}</p>
+                                <div className="rounded-md border border-border bg-muted/40 p-3">
+                                    <p className="text-[11px] font-medium text-muted-foreground">Payout details</p>
+                                    <p className="mt-0.5 break-all font-mono text-sm">{request.withdrawalMethod.details}</p>
                                 </div>
                             )}
                         </div>
@@ -172,9 +173,13 @@ export default function PayoutAuditPage({ params }: { params: Promise<{ id: stri
                                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                                     <User className="w-6 h-6 text-primary" />
                                 </div>
-                                <div>
-                                    <p className="font-bold text-lg leading-none">John</p>
-                                    <p className="text-sm text-muted-foreground mt-1">jolo.signo01@gmail.com</p>
+                                <div className="min-w-0">
+                                    <p className="truncate text-base font-medium leading-none">
+                                        {partner?.name || 'Unknown partner'}
+                                    </p>
+                                    <p className="mt-1 truncate text-sm text-muted-foreground">
+                                        {partner?.email || 'No email on file'}
+                                    </p>
                                 </div>
                             </div>
                             <div className="pt-4 border-t space-y-2">
