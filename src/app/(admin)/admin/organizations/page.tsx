@@ -25,6 +25,9 @@ import { StatCard } from "@/components/admin/StatCard"
 import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { OrgDetailSheet } from "@/components/admin/organizations/OrgDetailSheet"
+import { exportRowsToCsv } from "@/lib/csv-export"
+import { Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { SUBSCRIPTION_TIERS } from "@/data/subscriptionTiers"
@@ -64,6 +67,7 @@ export default function DealershipsPage() {
     const [tierFilter, setTierFilter] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortOption>("newest");
     const [actioningId, setActioningId] = useState<string | null>(null);
+    const [detailOrgId, setDetailOrgId] = useState<string | null>(null);
     const queryClient = useQueryClient();
 
     const {
@@ -215,7 +219,25 @@ export default function DealershipsPage() {
                 title="Dealerships"
                 description="Registered dealerships and the prospects still being worked."
                 meta={<PageHeaderPill><Building2 className="h-3 w-3" /> {rows.length} tracked</PageHeaderPill>}
+                actions={
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={!visibleRows.length}
+                        onClick={() => exportRowsToCsv('dealerships', visibleRows, [
+                            { key: 'name', label: 'Name' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'kind', label: 'Type' },
+                            { key: 'createdAt', label: 'Created' },
+                        ])}
+                    >
+                        <Download className="h-3.5 w-3.5" /> Export
+                    </Button>
+                }
             />
+
+            <OrgDetailSheet orgId={detailOrgId} onOpenChange={(open) => { if (!open) setDetailOrgId(null); }} />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 <StatCard icon={Mail} label="Prospects" value={prospectCount} helper="Awaiting outreach" tone={prospectCount ? "attention" : "default"} />
@@ -304,7 +326,11 @@ export default function DealershipsPage() {
                                     </TableRow>
                                 ) : (
                                     visibleRows.map((row) => (
-                                        <TableRow key={`${row.kind}-${row.id}`}>
+                                        <TableRow
+                                            key={`${row.kind}-${row.id}`}
+                                            className={row.kind === "organization" ? "cursor-pointer" : undefined}
+                                            onClick={row.kind === "organization" ? () => setDetailOrgId(row.id) : undefined}
+                                        >
                                             <TableCell className="font-medium">
                                                 {row.kind === "organization" ? (
                                                     <div className="flex flex-col">
@@ -340,7 +366,7 @@ export default function DealershipsPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {row.kind === "organization" ? (
-                                                    <div className="flex justify-end">
+                                                    <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                                                         <OrgActionsCell org={row.org} />
                                                     </div>
                                                 ) : row.status === "dismissed" ? (
