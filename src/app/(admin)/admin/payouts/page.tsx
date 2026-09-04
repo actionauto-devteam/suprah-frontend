@@ -51,10 +51,8 @@ import { fmtDateMDT } from "@/lib/timezone"
 import { Badge } from "@/components/ui/badge"
 import { PageHeader } from "@/components/admin/PageHeader"
 import { StatCard } from "@/components/admin/StatCard"
-import { ADMIN_PANEL_CLASS } from "@/components/admin/theme"
 import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { useAlert } from "@/components/AlertDialog"
-import { cn } from "@/lib/utils"
 
 export default function AdminPayoutsPage() {
     const { data: withdrawals, isLoading } = useAdminPendingWithdrawals();
@@ -129,13 +127,13 @@ export default function AdminPayoutsPage() {
             </div>
 
             {/* Main Content */}
-            <Card className={cn(ADMIN_PANEL_CLASS, "overflow-hidden py-0")}>
-                <div className="p-4 border-b bg-muted/30 flex items-center gap-4">
+            <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
+                <div className="flex items-center gap-3 border-b border-border px-3 py-2.5">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                         <Input
-                            placeholder="Filter by name, email or details..."
-                            className="pl-10"
+                            placeholder="Filter by name, email or details…"
+                            className="h-8 pl-8 text-sm"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -144,13 +142,13 @@ export default function AdminPayoutsPage() {
 
                 <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Partner</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Method</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                        <TableHeader className="bg-muted/60">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Partner</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Amount</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Method</TableHead>
+                                <TableHead className="h-9 text-xs font-medium text-muted-foreground">Date</TableHead>
+                                <TableHead className="h-9 text-right text-xs font-medium text-muted-foreground">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -162,15 +160,15 @@ export default function AdminPayoutsPage() {
                                 </TableRow>
                             ) : (
                                 filteredWithdrawals.map((w) => (
-                                    <TableRow key={w._id} className="group hover:bg-muted/50 transition-colors">
+                                    <TableRow key={w._id} className="group h-12 transition-colors">
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-foreground">{w.user.name}</span>
+                                                <span className="font-medium text-foreground">{w.user.name}</span>
                                                 <span className="text-xs text-muted-foreground">{w.user.email}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="font-mono font-bold text-green-600 dark:text-green-400">
+                                            <span className="font-mono font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
                                                 ${w.amount.toFixed(2)}
                                             </span>
                                         </TableCell>
@@ -199,7 +197,7 @@ export default function AdminPayoutsPage() {
                                                     variant="default"
                                                     size="sm"
                                                     onClick={() => handleApprove(w._id)}
-                                                    className="h-8 bg-green-600 hover:bg-green-500 text-white gap-1.5"
+                                                    className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
                                                 >
                                                     <CheckCircle2 className="w-3.5 h-3.5" /> Approve
                                                 </Button>
@@ -210,7 +208,7 @@ export default function AdminPayoutsPage() {
                                                         setSelectedWithdrawalId(w._id);
                                                         setIsRejectModalOpen(true);
                                                     }}
-                                                    className="h-8 text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                    className="h-8 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
                                                 >
                                                     <XCircle className="w-3.5 h-3.5" />
                                                 </Button>
