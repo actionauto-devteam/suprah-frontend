@@ -854,7 +854,7 @@ function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
   const files: File[] = [];
   const add = (file: File | null) => {
     if (!file || !file.type.startsWith('image/')) return;
-    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    const key = `${file.name}:${file.type}:${file.size}`;
     if (byName.has(key)) return;
     byName.add(key);
     files.push(file);
@@ -864,6 +864,10 @@ function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
     if (item.kind === 'file' && item.type.startsWith('image/')) add(item.getAsFile());
   });
   return files;
+}
+
+function attachmentFileKey(file: File): string {
+  return `${file.name}:${file.type}:${file.size}`;
 }
 
 function stringToColor(str: string): string {
@@ -1037,6 +1041,21 @@ function normalizeMentionSearchText(value: string): string {
     .replace(/[\u00A0\u202F]/g, ' ')
     .replace(/[*_~`]+/g, '')
     .replace(/\s+/g, ' ');
+}
+
+function renderMentionSuggestionLabel(label: string, query: string | null): React.ReactNode {
+  const display = `@${label}`;
+  const needle = normalizeMentionSearchText(query || '').trim();
+  if (!needle) return display;
+  const index = normalizeMentionSearchText(display).toLowerCase().indexOf(needle.toLowerCase());
+  if (index < 0) return display;
+  return (
+    <>
+      {display.slice(0, index)}
+      <span className="rounded px-0.5 bg-white/15">{display.slice(index, index + needle.length)}</span>
+      {display.slice(index + needle.length)}
+    </>
+  );
 }
 
 function normalizeMessageMarkdownForDisplay(text: string): string {
@@ -4012,12 +4031,23 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const stageFiles = React.useCallback((files: FileList | File[] | null) => {
-    const selected = Array.from(files || []);
+    const seenIncoming = new Set<string>();
+    const selected = Array.from(files || []).filter(file => {
+      const key = attachmentFileKey(file);
+      if (seenIncoming.has(key)) return false;
+      seenIncoming.add(key);
+      return true;
+    });
     if (!selected.length) return;
-    setPendingAttachments(prev => [
-      ...prev,
-      ...selected.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
-    ]);
+    setPendingAttachments(prev => {
+      const existingKeys = new Set(prev.map(item => attachmentFileKey(item.file)));
+      const nextFiles = selected.filter(file => !existingKeys.has(attachmentFileKey(file)));
+      if (!nextFiles.length) return prev;
+      return [
+        ...prev,
+        ...nextFiles.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
+      ];
+    });
     setDraggingAttachment(false);
     dragDepthRef.current = 0;
     setTimeout(() => inputRef.current?.focus(), 40);
@@ -4939,7 +4969,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   const mentionOptions = React.useMemo(() => {
     if (mentionQuery === null) return [];
-    const q = mentionQuery.toLowerCase();
+    const q = normalizeMentionSearchText(mentionQuery).trim().toLowerCase();
     const allOpt = conv.type === 'group' ? [{ id: 'all', name: 'all', fullName: 'Notify all members' }] : [];
     const memberOpts = conv.members.filter(m => m._id !== crmUserId)
       .map(m => {
@@ -4949,7 +4979,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       });
     const opts = [...allOpt, ...memberOpts];
     if (!q) return opts;
-    return opts.filter(o => o.name.toLowerCase().startsWith(q) || o.fullName.toLowerCase().includes(q));
+    const ranked: Array<{ option: typeof opts[number]; score: number; index: number }> = [];
+    opts.forEach((option, index) => {
+      const name = normalizeMentionSearchText(option.name).trim().toLowerCase();
+      const fullName = normalizeMentionSearchText(option.fullName).trim().toLowerCase();
+      const firstName = fullName.split(/\s+/)[0] || '';
+      let score: number | null = null;
+      if (name === q || fullName === q) score = 0;
+      else if (name.startsWith(q) || fullName.startsWith(q)) score = 1;
+      else if (firstName.startsWith(q)) score = 2;
+      else if (name.includes(q) || fullName.includes(q)) score = 3;
+      if (score !== null) ranked.push({ option, score, index });
+    });
+    return ranked
+      .sort((a, b) => a.score - b.score || a.option.name.length - b.option.name.length || a.index - b.index)
+      .map(entry => entry.option);
   }, [mentionQuery, conv, crmUserId]);
 
   const getCaretOffset = (el: HTMLElement): number => {
@@ -4981,6 +5025,35 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     return range;
   }, []);
 
+  const getComposerTextBeforeCaret = React.useCallback((el: HTMLElement): string => {
+    const selection = window.getSelection();
+    const liveRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const savedRange = inputSelectionRangeRef.current;
+    const sourceRange = liveRange && el.contains(liveRange.endContainer)
+      ? liveRange
+      : savedRange && el.contains(savedRange.endContainer)
+        ? savedRange
+        : null;
+    if (!sourceRange) return '';
+    const beforeRange = sourceRange.cloneRange();
+    beforeRange.selectNodeContents(el);
+    beforeRange.setEnd(sourceRange.endContainer, sourceRange.endOffset);
+    return beforeRange.toString().replace(/\n$/, '');
+  }, []);
+
+  const mentionCandidateFromTextBeforeCaret = React.useCallback((textBeforeCaret: string) => {
+    const match = textBeforeCaret.match(/(^|[^\w@])@\s*([^\n@]{0,80})$/);
+    if (!match) return null;
+    const rawQuery = match[2] || '';
+    if (rawQuery && /\s$/.test(rawQuery)) return null;
+    if (/[.,!?;:()[\]{}]/.test(rawQuery)) return null;
+    return {
+      anchor: textBeforeCaret.length - match[0].length + match[1].length,
+      query: rawQuery.replace(/\s+/g, ' ').trimStart(),
+      end: textBeforeCaret.length,
+    };
+  }, []);
+
   const setEditableAndCaret = React.useCallback((text: string, caretOffset: number) => {
     const el = inputRef.current;
     if (!el) return;
@@ -5005,15 +5078,39 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const el = inputRef.current;
     if (!el || mentionAnchor < 0) return;
     const selection = window.getSelection();
-    const range = rangeFromTextOffset(el, mentionAnchor);
-    const endRange = rangeFromTextOffset(el, mentionAnchor + 1 + (mentionQuery?.length ?? 0));
+    const textBeforeCaret = getComposerTextBeforeCaret(el);
+    const candidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
+    if (!candidate) return;
+    const anchor = candidate.anchor;
+    const endOffset = candidate.end;
+    const range = rangeFromTextOffset(el, anchor);
+    const endRange = rangeFromTextOffset(el, endOffset);
     range.setEnd(endRange.startContainer, endRange.startOffset);
     selection?.removeAllRanges();
     selection?.addRange(range);
-    document.execCommand('insertText', false, `@${name} `);
+    const mentionNode = document.createElement('span');
+    mentionNode.className = 'ss4-mention-chip';
+    mentionNode.style.color = accentColor;
+    mentionNode.style.fontWeight = '700';
+    mentionNode.textContent = `@${name}`;
+    const spaceNode = document.createTextNode(' ');
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(mentionNode);
+    fragment.appendChild(spaceNode);
+    range.deleteContents();
+    range.insertNode(fragment);
     const next = el.innerText.replace(/\n$/, '');
-    syncComposerText(next, true); setMentionQuery(null); setMentionAnchor(-1);
-  }, [mentionAnchor, mentionQuery, rangeFromTextOffset, syncComposerText]);
+    const caretOffset = anchor + name.length + 2;
+    syncComposerText(next, true);
+    setMentionQuery(null);
+    setMentionAnchor(-1);
+    const nextRange = document.createRange();
+    nextRange.setStartAfter(spaceNode);
+    nextRange.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(nextRange);
+    inputSelectionRangeRef.current = nextRange.cloneRange();
+  }, [accentColor, getComposerTextBeforeCaret, mentionAnchor, mentionCandidateFromTextBeforeCaret, rangeFromTextOffset, syncComposerText]);
 
   const fetchMessages = React.useCallback(async () => {
     const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
@@ -5575,31 +5672,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const val = (el.innerText || '').replace(/\n$/, '');
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
-    const cursorAfterInput = getCaretOffset(el);
-    const insertedText = inputEvent.data || '';
-    const mentionCandidate = (() => {
-      const safeCursor = Math.max(0, Math.min(cursorAfterInput || val.length, val.length));
-      const beforeCursor = val.slice(0, safeCursor);
-      const directAtAnchor = insertedText === '@'
-        ? (beforeCursor.endsWith('@') ? beforeCursor.length - 1 : val.lastIndexOf('@'))
-        : -1;
-      if (directAtAnchor >= 0) {
-        return { anchor: directAtAnchor, query: '' };
-      }
-      const match = beforeCursor.match(/(^|[^\w@])@\s*([^\n@]{0,80})$/);
-      if (!match) return null;
-      const rawQuery = match[2] || '';
-      if (/[.,!?;:()[\]{}]/.test(rawQuery)) return null;
-      return {
-        anchor: beforeCursor.length - match[0].length + match[1].length,
-        query: rawQuery.replace(/\s+/g, ' ').trimStart(),
-      };
-    })();
+    const textBeforeCaret = getComposerTextBeforeCaret(el);
+    const cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
+    const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
     const shouldRefreshMentionChips =
       inputEvent.inputType === 'insertFromPaste' ||
-      inputEvent.inputType.startsWith('deleteContent') ||
-      insertedText === '@' ||
-      /\s|[.,!?;:)\]}]/.test(insertedText);
+      inputEvent.inputType.startsWith('deleteContent');
     if (shouldRefreshMentionChips && /(^|[^\w@])@\s*[A-Za-z0-9_]/.test(val)) {
       requestAnimationFrame(() => {
         const current = inputRef.current;
@@ -5617,26 +5695,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       });
     }
     const shouldInspectMention =
-      mentionAnchor >= 0 ||
-      !!mentionCandidate ||
-      inputEvent.inputType === 'insertFromPaste';
+      inputEvent.inputType !== 'insertFromPaste' &&
+      (mentionAnchor >= 0 || !!mentionCandidate);
 
     if (!shouldInspectMention) return;
 
-    const cursor = cursorAfterInput;
-    if (mentionAnchor >= 0) {
-      if (cursor <= mentionAnchor || val[mentionAnchor] !== '@') {
-        setMentionQuery(null); setMentionAnchor(-1);
-      } else {
-        const q = val.slice(mentionAnchor + 1, cursor);
-        const normalizedQuery = q.replace(/\s+/g, ' ').trimStart();
-        if (/[.,!?;:()[\]{}]/.test(normalizedQuery) || normalizedQuery.length > 80) { setMentionQuery(null); setMentionAnchor(-1); }
-        else { setMentionQuery(normalizedQuery); setMentionIdx(0); }
-      }
-    } else if (mentionCandidate) {
+    if (mentionCandidate) {
       setMentionQuery(mentionCandidate.query);
       setMentionAnchor(mentionCandidate.anchor);
       setMentionIdx(0);
+    } else {
+      setMentionQuery(null);
+      setMentionAnchor(-1);
     }
   };
 
@@ -5649,7 +5719,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         .flatMap(m => {
           const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
           const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
-          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+          return [display, m.fullName, m.username].filter(Boolean) as string[];
         }),
     ];
 
@@ -5681,7 +5751,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         .flatMap(m => {
           const parts = m.fullName.trim().split(/\s+/).filter(Boolean);
           const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
-          return [display, m.fullName, parts[0], m.username].filter(Boolean) as string[];
+          return [display, m.fullName, m.username].filter(Boolean) as string[];
         }),
     ];
     const uniqueAliases = Array.from(new Set(aliases.map(a => a.trim()).filter(Boolean)))
@@ -6588,7 +6658,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       className="w-full flex items-center gap-2 px-2 py-1 rounded-md text-left text-[13px] transition-colors hover:bg-muted/60 text-foreground"
                       style={idx === mentionIdx ? { background: `${accentColor}1a`, color: accentColor } : undefined}
                     >
-                      <span className="font-semibold" style={{ color: accentColor }}>@{opt.id === 'all' ? opt.name : opt.fullName}</span>
+                      <span className="font-semibold" style={{ color: accentColor }}>
+                        {renderMentionSuggestionLabel(opt.id === 'all' ? opt.name : opt.fullName, mentionQuery)}
+                      </span>
                       {opt.id === 'all' && <span className="text-muted-foreground truncate">{opt.fullName}</span>}
                     </button>
                   ))}
@@ -6970,10 +7042,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       if (!plainText && !html) return;
 
                       e.preventDefault();
+                      setMentionQuery(null);
+                      setMentionAnchor(-1);
                       const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                      const pasteHasMentionText = /(^|[^\w@])@\s*\S/.test(normalizeMentionSearchText(plainText));
                       const usePlainText = pasteMode === 'plain'
                         || shortcutPlainText
                         || richPasteDropsVinLikeToken(text, html)
+                        || pasteHasMentionText
                         || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                       document.execCommand(
                         usePlainText ? 'insertText' : 'insertHTML',
@@ -6987,7 +7063,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           highlightMentionsInComposer(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
-                          inspectMentionAnywhere(nextText);
                         }
                       });
                     }}
