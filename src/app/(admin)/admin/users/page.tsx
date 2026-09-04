@@ -38,6 +38,7 @@ import { TableLoadingSkeleton } from "@/components/shared/EmptyLoadingState"
 import { runBulkSettled } from "@/lib/bulk-action-result"
 import { exportRowsToCsv } from "@/lib/csv-export"
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog"
+import { UserDetailSheet } from "@/components/admin/users/UserDetailSheet"
 import { Download } from "lucide-react"
 import {
     AlertDialog,
@@ -75,6 +76,7 @@ export default function UsersPage() {
     const [bulkAction, setBulkAction] = useState<"suspend" | "activate" | "delete" | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
     const [inviteOpen, setInviteOpen] = useState(false);
+    const [detailUserId, setDetailUserId] = useState<string | null>(null);
     const { getToken } = useAuth();
 
     const { data, error, isError, isLoading, refetch } = useQuery({
@@ -209,6 +211,7 @@ export default function UsersPage() {
             />
 
             <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+            <UserDetailSheet userId={detailUserId} onOpenChange={(open) => { if (!open) setDetailUserId(null); }} />
 
             <Card className="gap-0 overflow-hidden rounded-lg border-border py-0 shadow-none">
                 <CardContent className="space-y-3 p-4">
@@ -278,7 +281,7 @@ export default function UsersPage() {
                                     <TableRow key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => {
                                             return (
-                                                <TableHead key={header.id} className="whitespace-nowrap">
+                                                <TableHead key={header.id} className="h-9 whitespace-nowrap text-xs">
                                                     {header.isPlaceholder
                                                         ? null
                                                         : flexRender(
@@ -297,9 +300,18 @@ export default function UsersPage() {
                                         <TableRow
                                             key={row.id}
                                             data-state={row.getIsSelected() && "selected"}
+                                            className="h-12 cursor-pointer"
+                                            onClick={() => setDetailUserId(row.original._id)}
                                         >
                                             {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id}>
+                                                <TableCell
+                                                    key={cell.id}
+                                                    onClick={
+                                                        cell.column.id === "select" || cell.column.id === "actions"
+                                                            ? (e) => e.stopPropagation()
+                                                            : undefined
+                                                    }
+                                                >
                                                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                 </TableCell>
                                             ))}
