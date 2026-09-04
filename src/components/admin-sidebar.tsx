@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import {
     LayoutDashboard,
     Users,
@@ -11,6 +14,7 @@ import {
     User2,
     Truck,
     CreditCard,
+    Bell,
 } from "lucide-react"
 
 import {
@@ -22,9 +26,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { usePathname } from "next/navigation"
-import Link from "next/link"
-import { useAuthActions, useUser } from "@/providers/AuthProvider"
+import { useAuth, useAuthActions, useUser } from "@/providers/AuthProvider"
+import { apiClient } from "@/lib/api-client"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -41,45 +44,68 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { cn } from "@/lib/utils"
 
-const data = {
-    navMain: [
-        { title: "Overview", url: "/admin/dashboard", icon: LayoutDashboard },
-        { title: "Dealerships", url: "/admin/organizations", icon: Building2 },
-        { title: "Users", url: "/admin/users", icon: Users },
-        { title: "Drivers", url: "/admin/drivers", icon: Truck },
-        { title: "Payouts", url: "/admin/payouts", icon: CreditCard },
-    ],
-}
+const SECTIONS = [
+    {
+        label: "Overview",
+        items: [{ title: "Operations", url: "/admin/dashboard", icon: LayoutDashboard }],
+    },
+    {
+        label: "Operations",
+        items: [
+            { title: "Drivers", url: "/admin/drivers", icon: Truck, badge: "queue" as const },
+            { title: "Payouts", url: "/admin/payouts", icon: CreditCard },
+            { title: "Notifications", url: "/admin/notifications", icon: Bell },
+        ],
+    },
+    {
+        label: "Platform",
+        items: [
+            { title: "Dealerships", url: "/admin/organizations", icon: Building2 },
+            { title: "Users", url: "/admin/users", icon: Users },
+        ],
+    },
+]
 
-// Same signature nav treatment as the dealership-facing AppSidebar: a subtle
-// primary tint on the active row plus a glowing rail indicator, instead of a
-// flat highlight.
 const navItemClass =
-    "group/item relative transition-all duration-200 hover:translate-x-0.5 " +
+    "group/item relative transition-all duration-200 " +
     "data-[active=true]:bg-primary/10 data-[active=true]:text-primary " +
-    "data-[active=true]:font-medium data-[active=true]:shadow-sm data-[active=true]:shadow-primary/10";
+    "data-[active=true]:font-medium"
 
 function ActiveStrip() {
     return (
-        <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-0.75 -translate-y-1/2 rounded-full bg-linear-to-b from-primary to-primary/40 shadow-md shadow-primary/50" />
-    );
+        <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-0.75 -translate-y-1/2 rounded-full bg-primary" />
+    )
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
-        <div className="mt-4 flex items-center gap-2 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-            <span className="h-px w-3 bg-linear-to-r from-primary/60 to-transparent" />
+        <div className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60 group-data-[collapsible=icon]/sidebar-wrapper:hidden">
             {children}
         </div>
-    );
+    )
 }
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const pathname = usePathname()
     const { signOut } = useAuthActions()
     const { user } = useUser()
+    const { getToken } = useAuth()
     const [logoutOpen, setLogoutOpen] = React.useState(false)
+
+    const { data: queueCount } = useQuery({
+        queryKey: ["admin-review-queue"],
+        queryFn: async () => {
+            const token = await getToken()
+            const res = await apiClient.get("/api/admin/review-queue", {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            return (res.data?.data?.items || []).length as number
+        },
+        refetchInterval: 60000,
+        refetchOnWindowFocus: true,
+    })
 
     return (
         <Sidebar variant="inset" className="border-r bg-sidebar" {...props}>
@@ -94,35 +120,56 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                         alt="Suprah AI"
                         width={300}
                         height={300}
-                        className="object-contain dark:invert-0 invert"
+                        className="object-contain invert dark:invert-0"
                         priority
                     />
                 </Link>
             </SidebarHeader>
+
             <SidebarContent className="p-2">
-                <SectionLabel>Super Admin</SectionLabel>
-                <SidebarMenu>
-                    {data.navMain.map((item) => {
-                        const isActive = pathname === item.url || pathname.startsWith(item.url + "/");
-                        return (
-                            <SidebarMenuItem key={item.title}>
-                                <SidebarMenuButton
-                                    asChild
-                                    isActive={isActive}
-                                    tooltip={item.title}
-                                    className={navItemClass}
-                                >
-                                    <Link href={item.url}>
-                                        {isActive && <ActiveStrip />}
-                                        <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
-                                        <span>{item.title}</span>
-                                    </Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        );
-                    })}
-                </SidebarMenu>
+                {SECTIONS.map((section) => (
+                    <div key={section.label}>
+                        <SectionLabel>{section.label}</SectionLabel>
+                        <SidebarMenu>
+                            {section.items.map((item) => {
+                                const isActive =
+                                    pathname === item.url || pathname.startsWith(item.url + "/")
+                                const badge =
+                                    "badge" in item && item.badge === "queue" ? queueCount ?? 0 : 0
+
+                                return (
+                                    <SidebarMenuItem key={item.title}>
+                                        <SidebarMenuButton
+                                            asChild
+                                            isActive={isActive}
+                                            tooltip={item.title}
+                                            className={navItemClass}
+                                        >
+                                            <Link href={item.url}>
+                                                {isActive && <ActiveStrip />}
+                                                <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
+                                                <span className="flex-1">{item.title}</span>
+                                                {badge > 0 && (
+                                                    <span
+                                                        className={cn(
+                                                            "ml-auto rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
+                                                            "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                                                            "group-data-[collapsible=icon]/sidebar-wrapper:hidden",
+                                                        )}
+                                                    >
+                                                        {badge}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )
+                            })}
+                        </SidebarMenu>
+                    </div>
+                ))}
             </SidebarContent>
+
             <SidebarFooter className="border-t bg-sidebar px-2 py-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -136,17 +183,21 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                                         <User2 className="size-4" />
                                     </div>
                                     <div className="grid flex-1 text-left text-sm leading-tight">
-                                        <span className="truncate font-semibold">{user?.fullName || 'Admin User'}</span>
-                                        <span className="truncate text-xs text-muted-foreground">{user?.primaryEmailAddress?.emailAddress || 'admin@example.com'}</span>
+                                        <span className="truncate font-medium">{user?.fullName || "Admin"}</span>
+                                        <span className="truncate text-xs text-muted-foreground">
+                                            {user?.primaryEmailAddress?.emailAddress || ""}
+                                        </span>
                                     </div>
                                     <ChevronRight className="ml-auto size-4 shrink-0" />
                                 </SidebarMenuButton>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                                side="top"
-                                className="w-[--radix-popper-anchor-width]"
-                            >
-                                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setLogoutOpen(true) }}>
+                            <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
+                                <DropdownMenuItem
+                                    onSelect={(e) => {
+                                        e.preventDefault()
+                                        setLogoutOpen(true)
+                                    }}
+                                >
                                     <LogOut className="mr-2 h-4 w-4" />
                                     Sign out
                                 </DropdownMenuItem>
