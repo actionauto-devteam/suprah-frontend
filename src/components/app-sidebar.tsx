@@ -93,6 +93,17 @@ type SidebarNavItem = {
   isNew?: boolean;
 };
 
+const SUPRASPACE_EMBEDDED_HREF = "/crm/supra-space";
+const SUPRASPACE_SUBDOMAIN_URL = "https://space.suprah-app.com/";
+
+function isMobileSupraSpaceHandoffDevice(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  const mobileUa = /Android|iPhone|iPad|iPod/i.test(ua) || iPadOS;
+  return mobileUa || window.matchMedia("(max-width: 767px)").matches;
+}
+
 const data = {
   // Core workspace — the day-to-day CRM surfaces.
   navMain: [
@@ -290,14 +301,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isCustomer } = useOrg();
   const { avatarUrl } = useProfileContext();
   const { totalUnread } = useSupraSpaceMessenger();
-  // Once this device has SupraSpace's own PWA installed, "Suprah Space" in
-  // the sidebar should hand off there directly instead of opening the
-  // embedded dashboard view — there's a real dedicated app waiting for it.
-  // See lib/supraspace-install.ts: set by the subdomain itself, read here
-  // across origins via a shared-parent-domain cookie.
-  const [supraSpaceInstalledElsewhere, setSupraSpaceInstalledElsewhere] = React.useState(false);
+  const [handoffSupraSpaceToPwa, setHandoffSupraSpaceToPwa] = React.useState(false);
   React.useEffect(() => {
-    setSupraSpaceInstalledElsewhere(isSupraSpaceInstalled());
+    setHandoffSupraSpaceToPwa(isMobileSupraSpaceHandoffDevice() && isSupraSpaceInstalled());
   }, []);
   const { unreadCount: pmUnread } = useProjectNotifications();
   const { badgeCount: calendarUnread } = useCalendarNotifications();
@@ -482,9 +488,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {data.apps.map((item) => {
                 const isActive =
                   pathname === item.url || pathname.startsWith(item.url + "/");
-                const isSupraSpaceItem = item.title === "Suprah Space";
-                const handoffToInstalledApp = isSupraSpaceItem && supraSpaceInstalledElsewhere;
-                const href = handoffToInstalledApp ? "https://space.suprah-app.com/" : item.url;
+                const handoffToInstalledApp = item.url === SUPRASPACE_EMBEDDED_HREF && handoffSupraSpaceToPwa;
+                const href = handoffToInstalledApp ? SUPRASPACE_SUBDOMAIN_URL : item.url;
+                const linkTargetProps = handoffToInstalledApp ? { target: "_blank" as const, rel: "noopener" } : {};
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -493,15 +499,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={navItemClass}
                     >
-                      {/* Once SupraSpace is installed as its own app on this
-                          device, hand off there directly instead of opening
-                          the embedded dashboard view — target="_blank" is
-                          required, not cosmetic: from inside the ALREADY-
-                          installed Suprah AI standalone window, a same-tab
-                          link to another origin has no browser chrome to
-                          escape to (especially iOS), so it would just
-                          navigate in place with nothing to actually open. */}
-                      <Link href={href} {...(handoffToInstalledApp ? { target: '_blank', rel: 'noopener' } : {})}>
+                      <Link href={href} {...linkTargetProps}>
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>

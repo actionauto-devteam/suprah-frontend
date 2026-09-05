@@ -106,6 +106,7 @@ type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/?install=1`;
 const SS4_UNREAD_COLOR_STORAGE_KEY = 'ss4_unread_dot_color';
+const SS4_LAST_CONVERSATION_STORAGE_KEY = 'ss4_last_conversation_id';
 const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
 const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
@@ -136,6 +137,51 @@ function setUnreadDotColor(color: string): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(SS4_UNREAD_COLOR_STORAGE_KEY, color);
   window.dispatchEvent(new CustomEvent(SS4_UNREAD_COLOR_CHANGED_EVENT, { detail: color }));
+}
+
+function lastConversationStorageKey(userId?: string | null): string {
+  const id = (userId || '').trim();
+  return id ? `${SS4_LAST_CONVERSATION_STORAGE_KEY}:${id}` : SS4_LAST_CONVERSATION_STORAGE_KEY;
+}
+
+function getStoredSupraSpaceConversationId(userId?: string | null): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(lastConversationStorageKey(userId))
+      || localStorage.getItem(SS4_LAST_CONVERSATION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredSupraSpaceConversationId(conversationId: string, userId?: string | null): void {
+  if (typeof window === 'undefined') return;
+  const id = conversationId.trim();
+  if (!id) return;
+  try {
+    localStorage.setItem(SS4_LAST_CONVERSATION_STORAGE_KEY, id);
+    if ((userId || '').trim()) localStorage.setItem(lastConversationStorageKey(userId), id);
+  } catch { }
+}
+
+function clearStoredSupraSpaceConversationId(conversationId?: string | null, userId?: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    [SS4_LAST_CONVERSATION_STORAGE_KEY, lastConversationStorageKey(userId)].forEach(key => {
+      const current = localStorage.getItem(key);
+      if (!conversationId || current === conversationId) localStorage.removeItem(key);
+    });
+  } catch { }
+}
+
+function syncSupraSpaceConversationUrl(conversationId: string | null): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  if (conversationId) url.searchParams.set('convId', conversationId);
+  else url.searchParams.delete('convId');
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (next !== current) window.history.replaceState(window.history.state, '', next);
 }
 const SS4_DEFAULT_FONT_FAMILY: SS4FontFamilyId = 'default';
 const SS4_DEFAULT_FONT_SIZE: SS4FontSize = 16;
@@ -2106,20 +2152,8 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
   return changed;
 }
 
-function isUnsafeNeutralPastedColor(color: string | null): boolean {
-  if (!color) return false;
-  const raw = color.replace(/^#/, '');
-  if (!/^[0-9a-f]{6}$/i.test(raw)) return false;
-
-  const red = Number.parseInt(raw.slice(0, 2), 16);
-  const green = Number.parseInt(raw.slice(2, 4), 16);
-  const blue = Number.parseInt(raw.slice(4, 6), 16);
-  const maximum = Math.max(red, green, blue);
-  const minimum = Math.min(red, green, blue);
-  const neutral = maximum - minimum <= 20;
-  const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
-
-  return neutral && (luminance >= 222 || luminance <= 42);
+function shouldStripPastedTextColor(color: string | null | undefined): boolean {
+  return Boolean((color || '').trim());
 }
 
 function sanitizePastedEditorHtmlForTheme(html: string): string {
@@ -2133,9 +2167,8 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
       || element.style.getPropertyValue('text-fill-color')
       || element.getAttribute('color')
       || '';
-    const normalizedColor = cssColorToHex(rawColor);
 
-    if (isUnsafeNeutralPastedColor(normalizedColor)) {
+    if (shouldStripPastedTextColor(rawColor)) {
       element.style.removeProperty('color');
       element.style.removeProperty('-webkit-text-fill-color');
       element.style.removeProperty('text-fill-color');
@@ -2447,14 +2480,6 @@ function clipboardHtmlToEditorHtml(html: string): string {
 
   const safeTypographyStyles = (element: HTMLElement): string[] => {
     const styles: string[] = [];
-    const color = cssColorToHex(
-      element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.getAttribute('color')
-      || '',
-    );
-    if (color) styles.push(`color:${color}`);
-
     const familyId = ss4FontFamilyIdFromCss(
       `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`,
     );
@@ -3252,7 +3277,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (token.type === 'color') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
-          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
+          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={isOwn ? undefined : { color: token.color }}>
             {renderInline(inner, key, insideLink)}
           </span>
         );
@@ -8501,6 +8526,15 @@ export default function SupraSpacePage() {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  React.useEffect(() => {
+    if (loading) return;
+    if (activeId) {
+      setStoredSupraSpaceConversationId(activeId, uid);
+      syncSupraSpaceConversationUrl(activeId);
+    } else {
+      syncSupraSpaceConversationUrl(null);
+    }
+  }, [activeId, uid, loading]);
 
   const inConvHistoryRef = React.useRef(false);
   React.useEffect(() => {
@@ -9190,6 +9224,7 @@ export default function SupraSpacePage() {
   const initDoneRef = React.useRef(false);
   const resumeRefreshTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinedConversationIdsRef = React.useRef<Set<string>>(new Set());
+  const convosFetchInFlightRef = React.useRef(false);
 
   const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
   React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
@@ -9265,6 +9300,9 @@ export default function SupraSpacePage() {
     setShowJumpToLatest(false);
     setShowInfo(false);
     setQ('');
+    activeIdRef.current = conversationId;
+    setStoredSupraSpaceConversationId(conversationId, uid);
+    syncSupraSpaceConversationUrl(conversationId);
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
 
@@ -9277,11 +9315,12 @@ export default function SupraSpacePage() {
     });
 
     lockConversationOpenToBottom(conversationId);
-  }, [fetchConversationMessages, lockConversationOpenToBottom]);
+  }, [fetchConversationMessages, lockConversationOpenToBottom, uid]);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
-    if (!t || !initDoneRef.current) return;
+    if (!t || !initDoneRef.current || convosFetchInFlightRef.current) return;
+    convosFetchInFlightRef.current = true;
     ctxRefreshConvosRef.current();
     apiClient
       .get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } })
@@ -9293,7 +9332,8 @@ export default function SupraSpacePage() {
           return [...fresh, ...localOnly];
         });
       })
-      .catch(() => { });
+      .catch(() => { })
+      .finally(() => { convosFetchInFlightRef.current = false; });
   }, []);
 
   const refreshAfterResume = React.useCallback((delay = 350) => {
@@ -9361,39 +9401,49 @@ export default function SupraSpacePage() {
         router.replace(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`);
         return;
       }
+      tokenRef.current = t;
       setToken(t);
 
       try {
-        const [me, cv, us] = await Promise.all([
+        const [me, cv] = await Promise.all([
           apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
           apiClient.get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } }),
-          apiClient.get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } }),
         ]);
         const myData = (me.data?.data || me.data) as CrmUser;
         setUid(myData._id);
         setMyProfile(myData);
         const fetchedConvos: SSConversation[] = cv.data?.data || [];
+        convosRef.current = fetchedConvos;
         setConvos(fetchedConvos);
-        setAllUsers(us.data?.data || []);
+        apiClient
+          .get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } })
+          .then(us => setAllUsers(us.data?.data || []))
+          .catch(() => setAllUsers([]));
 
         const urlParams = new URLSearchParams(window.location.search);
+        let openedInitialConversation = false;
+        const openFetchedConversation = (conversationId?: string | null, messageId?: string | null) => {
+          const id = (conversationId || '').trim();
+          if (!id || !fetchedConvos.some(c => c._id === id)) return false;
+          if (messageId !== undefined) {
+            pendingNotificationTargetRef.current = { conversationId: id, messageId: messageId || undefined };
+          }
+          openConversation(id);
+          setStoredSupraSpaceConversationId(id, myData._id);
+          openedInitialConversation = true;
+          return true;
+        };
         const pendingNotificationConversationId = urlParams.get('conversationId');
         const pendingNotificationMessageId = urlParams.get('messageId');
-        if (
-          pendingNotificationConversationId &&
-          fetchedConvos.some(c => c._id === pendingNotificationConversationId)
-        ) {
-          pendingNotificationTargetRef.current = {
-            conversationId: pendingNotificationConversationId,
-            messageId: pendingNotificationMessageId || undefined,
-          };
-          openConversation(pendingNotificationConversationId);
-
+        if (openFetchedConversation(pendingNotificationConversationId, pendingNotificationMessageId)) {
           const cleanUrl = new URL(window.location.href);
           cleanUrl.searchParams.delete('conversationId');
           cleanUrl.searchParams.delete('messageId');
           window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
         }
+
+        const pendingRouteConversationId = urlParams.get('convId');
+        if (!openedInitialConversation) openFetchedConversation(pendingRouteConversationId);
 
         const pendingMeetingId = urlParams.get('meeting');
         if (pendingMeetingId) {
@@ -9404,7 +9454,7 @@ export default function SupraSpacePage() {
             } else if (joinRes.data?.data?.jitsi) {
               const session = joinRes.data.data as CallSession;
               const convId = session.call?.conversationId;
-              if (convId && fetchedConvos.some(c => c._id === String(convId))) openConversation(String(convId));
+              if (convId && fetchedConvos.some(c => c._id === String(convId))) openFetchedConversation(String(convId));
               setActiveMeeting(session);
             }
             router.replace('/crm/supra-space', { scroll: false });
@@ -9426,11 +9476,21 @@ export default function SupraSpacePage() {
             if (c) {
               setConvos((p) => (p.find((x) => x._id === c._id) ? p : [c, ...p]));
               openConversation(c._id);
+              setStoredSupraSpaceConversationId(c._id, myData._id);
+              openedInitialConversation = true;
               router.replace('/crm/supra-space', { scroll: false });
             }
           } catch (dmErr: any) {
             console.error('[SupraSpace] Auto-open DM failed during init:', dmErr);
             toast.error(dmErr?.response?.data?.message || 'Could not open conversation');
+          }
+        }
+
+        if (!openedInitialConversation) {
+          const rememberedConversationId = getStoredSupraSpaceConversationId(myData._id);
+          if (rememberedConversationId) {
+            const restored = openFetchedConversation(rememberedConversationId);
+            if (!restored) clearStoredSupraSpaceConversationId(rememberedConversationId, myData._id);
           }
         }
       } catch (err: any) {
@@ -9475,9 +9535,15 @@ export default function SupraSpacePage() {
   const targetConvId = searchParams.get('convId');
   React.useEffect(() => {
     if (loading || !targetConvId) return;
-    openConversation(targetConvId);
-    router.replace('/crm/supra-space', { scroll: false });
-  }, [loading, targetConvId, router]);
+    if (convos.some(c => c._id === targetConvId)) {
+      openConversation(targetConvId);
+      return;
+    }
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('convId');
+    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    clearStoredSupraSpaceConversationId(targetConvId, uid);
+  }, [loading, targetConvId, convos, openConversation, uid]);
 
   React.useEffect(() => {
     const target = pendingNotificationTargetRef.current;
@@ -10644,6 +10710,8 @@ export default function SupraSpacePage() {
 
   const highlightMentionsInComposer = React.useCallback((el: HTMLElement) => {
     if (!activeConv) return;
+    const sourceText = el.textContent || '';
+    if (!sourceText.includes('@') || sourceText.length > 12000) return;
     const aliases = [
       ...(activeConv.type === 'group' ? ['all'] : []),
       ...activeConv.members
@@ -13288,7 +13356,7 @@ export default function SupraSpacePage() {
                                     if (el) {
                                       normalizeContentEditableListArtifacts(el);
                                       normalizeRichEditorListExitArtifacts(el);
-                                      highlightMentionsInComposer(el);
+                                      if (pasteHasMentionText) highlightMentionsInComposer(el);
                                       const nextText = el.innerText.replace(/\n$/, '');
                                       syncComposerText(nextText, true);
                                       saveComposerSelection();

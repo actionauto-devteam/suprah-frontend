@@ -217,6 +217,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
   const [conversationError, setConversationError] = React.useState(false);
   const conversationsRef                  = React.useRef<SSConv[]>([]);
+  const conversationsFetchInFlightRef     = React.useRef(false);
   const tokenRecoveryAttemptedRef         = React.useRef(false);
   const [socket, setSocket]               = React.useState<Socket | null>(null);
   const [isConnected, setIsConnected]     = React.useState(false);
@@ -314,7 +315,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   // ── Fetch conversations when CRM token is available ──────────────────────────
   const fetchConversations = React.useCallback(() => {
-    if (!crmToken) return;
+    if (!crmToken || conversationsFetchInFlightRef.current) return;
+    conversationsFetchInFlightRef.current = true;
     setIsLoadingConversations(true);
     setConversationError(false);
     apiClient
@@ -344,7 +346,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           window.dispatchEvent(new Event('supraspace:refresh-crm-token'));
         }
       })
-      .finally(() => setIsLoadingConversations(false));
+      .finally(() => {
+        conversationsFetchInFlightRef.current = false;
+        setIsLoadingConversations(false);
+      });
   }, [crmToken]);
 
   // ── Fetch spaces ─────────────────────────────────────────────────────────────

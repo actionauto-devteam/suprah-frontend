@@ -1087,7 +1087,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
   return text.split(MD_SPLIT).map((part, i) => {
     const k = `${keyPrefix}-${i}`;
     const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
-    if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
+    if (colorMatch) return <span key={k} style={isOwn ? undefined : { color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
     const fontMatch = part.match(/^\{\s*font\s*:\s*([a-z-]+)\s*\}([\s\S]*)\{\s*\/\s*font\s*\}$/i);
     if (fontMatch) {
       const family = fontMatch[1].toLowerCase() as SS4FontFamilyId;
@@ -2013,20 +2013,8 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
   return changed;
 }
 
-function isUnsafeNeutralPastedColor(color: string | null): boolean {
-  if (!color) return false;
-  const raw = color.replace(/^#/, '');
-  if (!/^[0-9a-f]{6}$/i.test(raw)) return false;
-
-  const red = Number.parseInt(raw.slice(0, 2), 16);
-  const green = Number.parseInt(raw.slice(2, 4), 16);
-  const blue = Number.parseInt(raw.slice(4, 6), 16);
-  const maximum = Math.max(red, green, blue);
-  const minimum = Math.min(red, green, blue);
-  const neutral = maximum - minimum <= 20;
-  const luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
-
-  return neutral && (luminance >= 222 || luminance <= 42);
+function shouldStripPastedTextColor(color: string | null | undefined): boolean {
+  return Boolean((color || '').trim());
 }
 
 function sanitizePastedEditorHtmlForTheme(html: string): string {
@@ -2039,11 +2027,11 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
       || element.style.getPropertyValue('-webkit-text-fill-color')
       || element.getAttribute('color')
       || '';
-    const normalizedColor = cssColorToHex(rawColor);
 
-    if (isUnsafeNeutralPastedColor(normalizedColor)) {
+    if (shouldStripPastedTextColor(rawColor)) {
       element.style.removeProperty('color');
       element.style.removeProperty('-webkit-text-fill-color');
+      element.style.removeProperty('text-fill-color');
       element.removeAttribute('color');
     }
 
@@ -2252,14 +2240,6 @@ function clipboardHtmlToEditorHtml(html: string): string {
 
   const safeTypographyStyles = (element: HTMLElement): string[] => {
     const styles: string[] = [];
-    const color = cssColorToHex(
-      element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.getAttribute('color')
-      || '',
-    );
-    if (color) styles.push(`color:${color}`);
-
     const familyId = ss4FontFamilyIdFromCss(
       `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`,
     );
@@ -5744,6 +5724,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [conv.members, conv.type, crmUserId]);
 
   const highlightMentionsInComposer = React.useCallback((el: HTMLElement) => {
+    const sourceText = el.textContent || '';
+    if (!sourceText.includes('@') || sourceText.length > 12000) return;
     const aliases = [
       ...(conv.type === 'group' ? ['all'] : []),
       ...conv.members
@@ -7060,7 +7042,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         const el = inputRef.current;
                         if (el) {
                           normalizeRichEditorListExitArtifacts(el);
-                          highlightMentionsInComposer(el);
+                          if (pasteHasMentionText) highlightMentionsInComposer(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
                         }
