@@ -1415,11 +1415,20 @@ function TimeGridView({
   // occurrence's top/bottom are all computed from that one constant.
   const isMobile = useIsMobile();
   const hourColPx = isMobile ? 56 : 80;
-  const gridTemplateColumns = `${hourColPx}px repeat(${days}, minmax(0, 1fr))`;
+  // Each day column needs a real floor, not just a flat total-width fallback —
+  // minmax(0, 1fr) let columns get squeezed down to ~40-70px on narrow/7-day
+  // views, which isn't enough room for a mono "12:00 AM" time label (~50px)
+  // plus its padding, so both the title and time truncated mid-word. Giving
+  // every column its own minimum lets the grid overflow past the container's
+  // width on its own, and the existing overflow-x-auto wrapper picks that up
+  // and scrolls — no separate total-width class needed, and it scales
+  // correctly whether this is a 1-day, 3-day, or 7-day view.
+  const dayColMinPx = isMobile ? 116 : 140;
+  const gridTemplateColumns = `${hourColPx}px repeat(${days}, minmax(${dayColMinPx}px, 1fr))`;
 
   return (
     <div className="overflow-x-auto print:overflow-visible">
-    <div className={`time-grid-inner relative bg-background text-foreground ${days > 1 ? "min-w-190" : "min-w-0"}`}>
+    <div className="time-grid-inner relative bg-background text-foreground">
       <style jsx global>{`
         .time-grid-scrollbar {
           scrollbar-width: thin;

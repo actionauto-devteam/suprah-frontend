@@ -617,6 +617,27 @@ export function VehicleDetailView({
     setTab("overview");
   }, [vehicle.id]);
 
+  // The embed iframe below doesn't start its own (slow, multi-redirect)
+  // network request until the browser resolves these origins, so warming the
+  // connection the moment the modal mounts — instead of waiting for the
+  // iframe itself to trigger it — shaves real time off the map's first paint.
+  React.useEffect(() => {
+    const origins = [
+      "https://maps.google.com",
+      "https://www.google.com",
+      "https://maps.gstatic.com",
+    ];
+    const links = origins.map((href) => {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = href;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+      return link;
+    });
+    return () => links.forEach((link) => link.remove());
+  }, []);
+
   const handleCopyLink = async () => {
     await navigator.clipboard.writeText(
       `${window.location.origin}/vehicle/${vehicle.id}`,
@@ -1482,7 +1503,7 @@ export function VehicleDetailView({
                     title="Location"
                     width="100%"
                     height="150"
-                    loading="lazy"
+                    loading="eager"
                     allowFullScreen
                     referrerPolicy="no-referrer-when-downgrade"
                     onLoad={() => setMapLoaded(true)}

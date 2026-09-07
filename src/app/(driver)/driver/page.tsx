@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -1587,7 +1588,7 @@ export default function DriverDashboardPage() {
       <div className="animate-fade-in-up stagger-2">
         <Card className="w-full border-border/70 shadow-sm overflow-hidden bg-card p-0 gap-0">
           <CardContent className="p-0">
-            <div className="relative h-[clamp(300px,38vh,360px)] sm:h-[clamp(340px,42vh,430px)] lg:h-[clamp(360px,45vh,500px)] overflow-hidden" style={{ background: "#e5e7eb" }}>
+            <div className="relative h-[clamp(300px,38vh,360px)] sm:h-[clamp(340px,42vh,430px)] lg:h-[clamp(360px,45vh,500px)] overflow-hidden bg-muted">
               {mapboxToken ? (
                 <>
                   <div
@@ -1626,7 +1627,7 @@ export default function DriverDashboardPage() {
                           size="icon"
                           variant="ghost"
                           aria-label="Zoom in"
-                          className="size-9 sm:size-10 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-foreground focus-visible:relative focus-visible:z-10"
+                          className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-foreground focus-visible:relative focus-visible:z-10"
                           onClick={() => mapRef.current?.zoomIn({ duration: 250 })}
                         >
                           <Plus className="size-4" strokeWidth={2.25} />
@@ -1642,7 +1643,7 @@ export default function DriverDashboardPage() {
                           size="icon"
                           variant="ghost"
                           aria-label="Zoom out"
-                          className="size-9 sm:size-10 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-foreground focus-visible:relative focus-visible:z-10"
+                          className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-foreground focus-visible:relative focus-visible:z-10"
                           onClick={() => mapRef.current?.zoomOut({ duration: 250 })}
                         >
                           <Minus className="size-4" strokeWidth={2.25} />
@@ -1658,7 +1659,7 @@ export default function DriverDashboardPage() {
                           size="icon"
                           variant="ghost"
                           aria-label="Recenter on my location"
-                          className="size-9 sm:size-10 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10"
+                          className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10"
                           onClick={centerOnMe}
                         >
                           <LocateFixed className="size-4" strokeWidth={2.1} />
@@ -1714,10 +1715,10 @@ export default function DriverDashboardPage() {
       </div>
 
       {/* ── DRIVER OPERATIONS + LOGISTICS ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 xl:gap-6 items-stretch animate-fade-in-up stagger-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch animate-fade-in-up stagger-3">
         {/* Driver state and active work share one operational column. Together
             they stretch to the same height as the Logistics workspace. */}
-        <div className="xl:col-span-5 min-w-0 xl:h-full grid grid-rows-[auto_minmax(0,1fr)] gap-5">
+        <div className="lg:col-span-5 min-w-0 lg:h-full grid grid-rows-[auto_minmax(0,1fr)] gap-5">
         <Card className="shrink-0 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-4 sm:px-5 border-b border-border/50">
             <div className="flex items-center justify-between gap-3">
@@ -1771,7 +1772,7 @@ export default function DriverDashboardPage() {
                     variant="outline"
                     disabled={savingOpStatus || (Boolean(workEligibility.statusRequest) && item.key !== "active")}
                     className={cn(
-                      "h-10 px-2.5 text-sm font-semibold gap-1.5 transition-all duration-200",
+                      "h-11 px-2.5 text-sm font-semibold gap-1.5 transition-all duration-200",
                       opStatus === item.key ? item.activeColor : "border-border/50 text-muted-foreground",
                     )}
                     onClick={() => void handleOperationalStatusClick(item.key as "active" | "on_leave" | "maintenance")}
@@ -1824,7 +1825,7 @@ export default function DriverDashboardPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-10 text-sm font-semibold"
+                      className="h-11 text-sm font-semibold"
                       onClick={() => setEmergencyChatOpen(true)}
                     >
                       <MessageSquare className="size-3.5 mr-1.5" />
@@ -1833,7 +1834,7 @@ export default function DriverDashboardPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-10 text-sm font-semibold"
+                      className="h-11 text-sm font-semibold"
                       onClick={() => setStatusRequestDialog({
                         open: true,
                         requestedStatus: workEligibility.statusRequest!.requestedStatus,
@@ -1851,7 +1852,7 @@ export default function DriverDashboardPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-10 w-full text-sm font-semibold"
+                      className="h-11 w-full text-sm font-semibold"
                       onClick={() => void cancelPendingStatusRequest()}
                     >
                       Cancel Request
@@ -1865,7 +1866,7 @@ export default function DriverDashboardPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-9 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                className="w-full h-11 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-400"
                 onClick={() => setStatusRequestDialog({
                   open: true,
                   requestedStatus: "maintenance",
@@ -1897,7 +1898,7 @@ export default function DriverDashboardPage() {
                         variant="outline"
                         disabled={locked}
                         className={cn(
-                          "h-10 px-2.5 text-sm font-semibold gap-1.5 transition-all duration-200",
+                          "h-11 px-2.5 text-sm font-semibold gap-1.5 transition-all duration-200",
                           isActive ? item.activeColor : "border-border/50 text-muted-foreground",
                           locked && "opacity-40",
                         )}
@@ -1999,7 +2000,7 @@ export default function DriverDashboardPage() {
                   <Button
                     size="sm"
                     className={cn(
-                      "w-full h-10 text-sm font-bold transition-all duration-300",
+                      "w-full h-11 text-sm font-bold transition-all duration-300",
                       isSharing || isStarting
                         ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-800 hover:bg-rose-500/20 shadow-none"
                         : "bg-primary text-primary-foreground shadow-sm hover:shadow-md",
@@ -2188,7 +2189,7 @@ export default function DriverDashboardPage() {
 
                             <Button
                               size="sm"
-                              className="mt-3 w-full font-bold"
+                              className="mt-3 h-11 w-full font-bold"
                               disabled={acknowledgingAmendment === String(currentPendingAmendment.id)}
                               onClick={() => acknowledgeLoadAmendment(currentLoad, currentPendingAmendment)}
                             >
@@ -2206,7 +2207,7 @@ export default function DriverDashboardPage() {
                     {!currentLoadHasPendingRelease && currentLoad.status === "Assigned" && (
                       <Button
                         size="sm"
-                        className="w-full h-10 text-sm font-bold shadow-sm"
+                        className="w-full h-11 text-sm font-bold shadow-sm"
                         disabled={accepting === currentLoad._id || !workEligibility.canTakeNewWork}
                         onClick={() => {
                           if (!workEligibility.canTakeNewWork) {
@@ -2227,7 +2228,7 @@ export default function DriverDashboardPage() {
                     {!currentLoadHasPendingRelease && currentLoad.status === "Accepted" && (
                       <Button
                         size="sm"
-                        className="w-full h-10 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                        className="w-full h-11 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
                         disabled={pickingUp === currentLoad._id}
                         onClick={() => handleAction("mark-picked-up", currentLoad)}
                       >
@@ -2242,7 +2243,7 @@ export default function DriverDashboardPage() {
                     {!currentLoadHasPendingRelease && currentLoad.status === "Picked Up" && (
                       <Button
                         size="sm"
-                        className="w-full h-10 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+                        className="w-full h-11 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm"
                         disabled={startingRoute === currentLoad._id}
                         onClick={() => handleAction("start-route", currentLoad)}
                       >
@@ -2267,7 +2268,7 @@ export default function DriverDashboardPage() {
                         </div>
                         <Button
                           size="sm"
-                          className="w-full h-10 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                          className="w-full h-11 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                           onClick={() => setDeliveryDialogLoad(currentLoad)}
                         >
                           <Camera className="size-3.5 mr-2" />
@@ -2312,7 +2313,7 @@ export default function DriverDashboardPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full h-10 text-sm font-semibold border-amber-500/35 text-amber-800 hover:bg-amber-500/10 dark:text-amber-200"
+                            className="w-full h-11 text-sm font-semibold border-amber-500/35 text-amber-800 hover:bg-amber-500/10 dark:text-amber-200"
                             disabled={cancellingRelease === currentLoadId}
                             onClick={() => handleAction("cancel-release-request", currentLoad)}
                           >
@@ -2327,7 +2328,7 @@ export default function DriverDashboardPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full h-10 text-sm font-semibold text-destructive border-destructive/20 hover:bg-destructive/10"
+                          className="w-full h-11 text-sm font-semibold text-destructive border-destructive/20 hover:bg-destructive/10"
                           disabled={dropping === currentLoad._id}
                           onClick={() => setReleaseDialogLoad(currentLoad)}
                         >
@@ -2414,7 +2415,7 @@ export default function DriverDashboardPage() {
                         </div>
                         <Link
                           href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
-                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                          className="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
                         >
                           View Request
                           <ArrowRight className="size-3" />
@@ -2426,7 +2427,7 @@ export default function DriverDashboardPage() {
                   <div className="shrink-0 border-t border-border/50 pt-3">
                     <Link
                       href="/driver/available-loads"
-                      className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background/55 px-3 text-sm font-semibold text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
+                      className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background/55 px-3 text-sm font-semibold text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
                     >
                       Browse Loads
                       <ArrowRight className="size-3.5" />
@@ -2481,7 +2482,7 @@ export default function DriverDashboardPage() {
                         </p>
                         <Link
                           href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
-                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                          className="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
                         >
                           View Request
                           <ArrowRight className="size-3" />
@@ -2514,7 +2515,7 @@ export default function DriverDashboardPage() {
         </div>
 
         {/* Logistics is one clearly bounded workspace: schedule + service area + preferred routes. */}
-        <section className="xl:col-span-7 xl:h-full min-w-0 rounded-2xl border border-border/70 bg-card/45 shadow-sm overflow-hidden">
+        <section className="lg:col-span-7 lg:h-full min-w-0 rounded-2xl border border-border/70 bg-card/45 shadow-sm overflow-hidden">
           <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-muted/15">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0">
@@ -2560,7 +2561,7 @@ export default function DriverDashboardPage() {
                       type="button"
                       onClick={() => toggleDay(d.value)}
                       className={cn(
-                        "px-2.5 py-2.5 rounded-lg text-sm font-semibold transition-all border",
+                        "min-h-11 px-2.5 py-2.5 rounded-lg text-sm font-semibold transition-all border",
                         logDays.includes(d.value)
                           ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-400"
                           : "border-border/65 text-muted-foreground hover:border-border",
@@ -2611,10 +2612,10 @@ export default function DriverDashboardPage() {
                       value={logCity}
                       onChange={(e) => setLogCityDraft(e.target.value)}
                       placeholder="Home base city"
-                      className="h-10 text-sm"
+                      className="h-11 text-sm"
                     />
                     <Select value={logState || ""} onValueChange={setLogStateDraft}>
-                      <SelectTrigger className="h-10 text-sm">
+                      <SelectTrigger className="h-11 text-sm">
                         <SelectValue placeholder="State" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2863,8 +2864,8 @@ function DriverDeliveryProofDialog({
         if (!open && !submitting) onClose();
       }}
     >
-      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-4 text-left sm:px-6">
           <DialogTitle className="flex items-center gap-2 text-lg font-extrabold">
             <Camera className="size-5 text-emerald-500" />
             Complete Delivery
@@ -2874,7 +2875,7 @@ function DriverDeliveryProofDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 pt-1">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Tracking / Load #</p>
             <p className="mt-1 break-words font-mono text-sm font-bold [overflow-wrap:anywhere]">
@@ -2932,6 +2933,7 @@ function DriverDeliveryProofDialog({
                 <Button
                   type="button"
                   variant="outline"
+                  className="h-11"
                   onClick={() => cameraRef.current?.click()}
                   disabled={submitting}
                 >
@@ -2940,6 +2942,7 @@ function DriverDeliveryProofDialog({
                 <Button
                   type="button"
                   variant="outline"
+                  className="h-11"
                   onClick={() => galleryRef.current?.click()}
                   disabled={submitting}
                 >
@@ -2975,14 +2978,15 @@ function DriverDeliveryProofDialog({
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
             The photo is required for delivery completion. After submission, Dispatch can still review the proof in the normal proof-of-delivery workflow.
           </div>
-
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        </div>
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-muted/10 px-4 py-3 sm:px-6">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={submitting}
-              className="sm:min-w-28"
+              className="h-11 sm:min-w-28"
             >
               Cancel
             </Button>
@@ -2990,7 +2994,7 @@ function DriverDeliveryProofDialog({
               type="button"
               onClick={submitDelivery}
               disabled={!file || submitting}
-              className="sm:min-w-44 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-11 sm:min-w-44 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {submitting ? (
                 <><Loader2 className="mr-2 size-4 animate-spin" />Completing...</>
@@ -2999,7 +3003,7 @@ function DriverDeliveryProofDialog({
               )}
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

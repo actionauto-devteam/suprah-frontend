@@ -382,7 +382,7 @@ function NotificationPageView({
             {showCrossNav && (
               <Link
                 href={inboxPath}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/40 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-border/40 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
               >
                 <ArrowRightLeft className="size-3.5" />
                 {isCrm ? 'General Notifications' : 'CRM Notifications'}
@@ -390,7 +390,7 @@ function NotificationPageView({
             )}
             <Link
               href={preferencesPath}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/40 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-border/40 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             >
               <Settings className="size-3.5" />
               Preferences
@@ -400,7 +400,7 @@ function NotificationPageView({
               size="sm"
               onClick={markAllAsRead}
               disabled={scopedUnreadCount === 0}
-              className="h-8 gap-1.5 rounded-lg border-border/40 text-xs"
+              className="h-11 gap-1.5 rounded-lg border-border/40 text-xs"
             >
               <CheckCheck className="size-3.5" />
               Mark all read
@@ -410,7 +410,7 @@ function NotificationPageView({
               size="sm"
               onClick={deleteAllRead}
               disabled={notifications.length === 0}
-              className="h-8 gap-1.5 rounded-lg border-border/40 text-xs text-muted-foreground"
+              className="h-11 gap-1.5 rounded-lg border-border/40 text-xs text-muted-foreground"
             >
               <Trash2 className="size-3.5" />
               Clear read
@@ -436,7 +436,7 @@ function NotificationPageView({
                     type="button"
                     variant="ghost"
                     onClick={clearAllFilters}
-                    className="h-8 rounded-lg border border-border/40 text-xs font-semibold gap-2 self-start sm:self-auto"
+                    className="h-11 rounded-lg border border-border/40 text-xs font-semibold gap-2 self-start sm:self-auto"
                   >
                     <Filter className="h-3.5 w-3.5" />
                     Reset filters

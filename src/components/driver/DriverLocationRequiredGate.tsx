@@ -85,7 +85,7 @@ export function DriverLocationRequiredGate() {
     <div
       ref={gateRef}
       data-driver-location-gate="true"
-      className="fixed inset-0 z-[2147483647] flex select-none items-start justify-center overflow-y-auto overscroll-contain bg-black/75 p-4 py-6 backdrop-blur-md sm:items-center"
+      className="fixed inset-0 z-[2147483647] flex select-none items-start justify-center overflow-y-auto overscroll-contain bg-black/75 p-4 pt-[max(env(safe-area-inset-top),1.5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] backdrop-blur-md sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="driver-location-required-title"

@@ -210,11 +210,32 @@ body.app-fullscreen .main-content {
    extra opacity-40 for empty/placeholder fields) at 9-11px for job titles,
    departments, status notes, and schedule details. Board doesn't use this
    pattern, which is why it read fine in Light Mode while the rest didn't.
-   Same fix as .timeproof-scope / .yapline-scope above. */
+   Same fix as .timeproof-scope / .yapline-scope above.
+
+   Also strengthens --border for the same reason: the app-wide border token
+   (oklch(0.94 ...) in Light Mode, near-white on a near-white bg-card) reads
+   as a genuinely invisible hairline on Team Pulse's panel-heavy Calendar/
+   Overview layouts, not just a subtle one. Same values already validated for
+   this exact problem in transportation-contrast.module.css. */
 .team-pulse-scope {
   --muted-foreground: oklch(0.35 0.03 268.53);
+  --border: oklch(0.84 0.018 238.46);
 }
 .dark .team-pulse-scope {
+  --muted-foreground: oklch(0.78 0.03 269.46);
+  --border: oklch(0.94 0.008 238.46 / 20%);
+}
+
+/* Scoped contrast fix for the main Dashboard — every widget (Panel/StatTile
+   shells, My Tasks, My Clock, My Calendar, Who's Out, Inventory, Reviews,
+   Aftermarket, Team Pulse snapshot, Latest Posts) leans on
+   text-muted-foreground/45 through /80 at 9-11px for stat labels, meta text,
+   and secondary copy, which fails contrast at that size in both themes.
+   Same fix as .timeproof-scope / .yapline-scope / .team-pulse-scope above. */
+.dashboard-scope {
+  --muted-foreground: oklch(0.35 0.03 268.53);
+}
+.dark .dashboard-scope {
   --muted-foreground: oklch(0.78 0.03 269.46);
 }
 

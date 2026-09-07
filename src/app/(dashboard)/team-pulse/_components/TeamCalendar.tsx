@@ -1106,7 +1106,7 @@ export function TeamCalendar({
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-border/30 bg-card/50 flex flex-col items-center justify-center py-10 text-center px-6">
+              <div className="rounded-xl border border-border/50 bg-card flex flex-col items-center justify-center py-10 text-center px-6">
                 <div className="size-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center mb-3">
                   <CalendarDays className="size-4.5 text-primary/60" />
                 </div>

@@ -49,7 +49,7 @@ export default function DriverSettingsPage() {
       const res = await apiClient.post(
         "/api/driver-payouts/connect/onboard",
         {},
-        { headers: { Authorizaintion: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       const url = res.data.data?.url;
       if (url) window.location.href = url;
@@ -205,6 +205,7 @@ export default function DriverSettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-11"
                 onClick={handleConnectStripe}
                 disabled={onboardLoading}
               >
@@ -222,7 +223,7 @@ export default function DriverSettingsPage() {
               <p className="text-sm text-muted-foreground">
                 You haven&apos;t connected a Stripe account yet. Connect your bank account so your dealer can send you payouts for completed loads.
               </p>
-              <Button onClick={handleConnectStripe} disabled={onboardLoading}>
+              <Button className="h-11" onClick={handleConnectStripe} disabled={onboardLoading}>
                 {onboardLoading ? (
                   <Loader2 className="size-4 mr-2 animate-spin" />
                 ) : (

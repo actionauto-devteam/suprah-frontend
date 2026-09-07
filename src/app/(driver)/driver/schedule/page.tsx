@@ -104,7 +104,7 @@ export default function DriverSchedulePage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center bg-background">
-        <Loader2 className="size-8 animate-spin text-amber-500" />
+        <Loader2 className="size-8 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -126,7 +126,7 @@ export default function DriverSchedulePage() {
           <Card className="rounded-2xl border-border/80 bg-card shadow-sm ring-1 ring-border/20">
             <CardContent className="flex min-h-80 flex-col items-center justify-center px-5 py-14 text-center">
               <div className="mb-5 flex size-16 items-center justify-center rounded-2xl border border-border/70 bg-muted/40 shadow-sm">
-                <Package className="size-7 text-amber-500" />
+                <Package className="size-7 text-emerald-500" />
               </div>
               <h3 className="text-lg font-black">Schedule Clear</h3>
               <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -135,7 +135,7 @@ export default function DriverSchedulePage() {
               </p>
               <Button
                 asChild
-                className="mt-6 rounded-xl border border-amber-600 bg-amber-600 px-6 font-bold text-white shadow-sm hover:bg-amber-500"
+                className="mt-6 h-11 rounded-xl border border-emerald-600 bg-emerald-600 px-6 font-bold text-white shadow-sm hover:bg-emerald-500"
               >
                 <Link href="/driver/available-loads">Browse Loads</Link>
               </Button>
@@ -143,7 +143,7 @@ export default function DriverSchedulePage() {
           </Card>
         ) : (
           <div className="relative">
-            <div className="absolute bottom-0 left-[7px] top-5 w-0.5 rounded-full bg-linear-to-b from-amber-500/60 via-amber-500/25 to-transparent" />
+            <div className="absolute bottom-0 left-[7px] top-5 w-0.5 rounded-full bg-linear-to-b from-emerald-500/60 via-emerald-500/25 to-transparent" />
 
             <div className="flex flex-col gap-9">
               {sortedDates.map((date, dateIdx) => (
@@ -154,8 +154,8 @@ export default function DriverSchedulePage() {
                   transition={{ delay: dateIdx * 0.08 }}
                 >
                   <div className="relative z-10 mb-4 flex items-center gap-3">
-                    <div className="size-4 rounded-full border-[4px] border-background bg-amber-500 shadow-[0_0_0_1px_rgba(245,158,11,0.35)]" />
-                    <h2 className="text-sm font-black uppercase tracking-[0.08em] text-amber-700 dark:text-amber-400">
+                    <div className="size-4 rounded-full border-[4px] border-background bg-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.35)]" />
+                    <h2 className="text-sm font-black uppercase tracking-[0.08em] text-emerald-700 dark:text-emerald-400">
                       {date}
                     </h2>
                   </div>
@@ -172,7 +172,7 @@ export default function DriverSchedulePage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: loadIdx * 0.04 }}
                           whileHover={{ y: -2 }}
-                          className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-border/10 transition-all hover:border-amber-500/40 hover:shadow-md"
+                          className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm ring-1 ring-border/10 transition-all hover:border-emerald-500/40 hover:shadow-md"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
@@ -206,7 +206,7 @@ export default function DriverSchedulePage() {
                               </p>
                             </div>
 
-                            <ArrowRight className="size-4 text-amber-500" />
+                            <ArrowRight className="size-4 text-emerald-500" />
 
                             <div className="min-w-0 text-right">
                               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -221,7 +221,7 @@ export default function DriverSchedulePage() {
 
                           <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Clock className="size-3.5 text-amber-500" />
+                              <Clock className="size-3.5 text-emerald-500" />
                               <span className="font-mono">
                                 {load.dates?.pickupDeadline
                                   ? new Date(
@@ -234,7 +234,7 @@ export default function DriverSchedulePage() {
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-400">
+                            <div className="flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                               Details
                               <ChevronRight className="size-3.5" />
                             </div>

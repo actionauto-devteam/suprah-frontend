@@ -18,12 +18,12 @@ export default function DriverPendingPage() {
   const [orgName, setOrgName] = React.useState<string>("");
   const [checking, setChecking] = React.useState(false);
 
-  const checkStatus = React.useCallback(async () => {
+  const checkStatus = React.useCallback(async function attempt(): Promise<void> {
     try {
       const token = await getToken();
       if (!token) {
         // Token not ready yet — retry after a short delay
-        setTimeout(() => checkStatus(), 1000);
+        setTimeout(() => attempt(), 1000);
         return;
       }
       const response = await apiClient.getDriverRequestStatus({
@@ -123,7 +123,7 @@ export default function DriverPendingPage() {
             variant="ghost"
             size="sm"
             onClick={() => signOut({ redirectUrl: "/sign-in" })}
-            className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+            className="h-11 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
           >
             <LogOut className="size-3.5" />
             Sign Out
@@ -176,7 +176,7 @@ export default function DriverPendingPage() {
                 size="sm"
                 onClick={handleRefresh}
                 disabled={checking}
-                className="gap-1.5"
+                className="h-11 gap-1.5"
               >
                 <RefreshCw
                   className={`size-3.5 ${checking ? "animate-spin" : ""}`}
@@ -242,6 +242,7 @@ export default function DriverPendingPage() {
               </div>
               <Button
                 variant="outline"
+                className="h-11"
                 onClick={() => router.push("/sign-in")}
               >
                 Go to Login
@@ -254,7 +255,7 @@ export default function DriverPendingPage() {
               variant="ghost"
               size="sm"
               onClick={() => signOut({ redirectUrl: "/sign-in" })}
-              className="gap-1.5 text-muted-foreground"
+              className="h-11 gap-1.5 text-muted-foreground"
             >
               <LogOut className="size-3.5" />
               Sign Out

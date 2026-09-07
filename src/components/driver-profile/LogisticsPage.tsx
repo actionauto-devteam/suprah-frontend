@@ -91,7 +91,7 @@ export const LogisticsPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="size-10 animate-spin text-emerald-600" />
-        <p className="text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Loading Logistics</p>
+        <p className="text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest text-xs animate-pulse">Loading Logistics</p>
       </div>
     );
   }

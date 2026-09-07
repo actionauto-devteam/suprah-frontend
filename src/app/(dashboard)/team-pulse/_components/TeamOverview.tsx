@@ -136,9 +136,9 @@ export function TeamOverview({
         <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/30">
           {metrics.map((m, i) => (
             <div key={m.label} className="flex flex-col gap-1 px-4 sm:px-5 py-4">
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50 leading-none">{m.label}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">{m.label}</p>
               <p className={cn("text-3xl sm:text-4xl font-black tabular-nums leading-none mt-1", m.accent)}>{m.value}</p>
-              <p className="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">{m.sub}</p>
+              <p className="text-[10px] text-muted-foreground/65 leading-tight mt-0.5">{m.sub}</p>
             </div>
           ))}
         </div>
@@ -179,12 +179,12 @@ export function TeamOverview({
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2 border-b border-border/30">
             <span className="size-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Team Members</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">Team Members</span>
             <div className="flex items-center gap-1.5 ml-auto">
               <span className="text-[10px] font-black text-primary tabular-nums">{active}</span>
-              <span className="text-[10px] text-muted-foreground/40">active</span>
-              <span className="text-[10px] text-muted-foreground/30">·</span>
-              <span className="text-[10px] text-muted-foreground/40 tabular-nums">{total} total</span>
+              <span className="text-[10px] text-muted-foreground/65">active</span>
+              <span className="text-[10px] text-muted-foreground/45">·</span>
+              <span className="text-[10px] text-muted-foreground/65 tabular-nums">{total} total</span>
             </div>
           </div>
           <div
@@ -225,7 +225,7 @@ export function TeamOverview({
                           "text-green-600 dark:text-green-400": st === "online",
                           "text-red-500 dark:text-red-400": st === "busy" || st === "do_not_disturb",
                           "text-amber-500 dark:text-amber-400": st === "away" || st === "idle",
-                          "text-muted-foreground/35": st === "offline",
+                          "text-muted-foreground/55": st === "offline",
                         })}>
                           {S.label[st]}
                         </p>
@@ -274,8 +274,8 @@ export function TeamOverview({
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <LayoutGrid className="size-3 text-muted-foreground/40 shrink-0" />
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">By Department</span>
+          <LayoutGrid className="size-3 text-muted-foreground/60 shrink-0" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">By Department</span>
         </div>
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden divide-y divide-border/30">
           {deptGroups.map(({ key, label, members: dm }) => {
@@ -290,7 +290,7 @@ export function TeamOverview({
             const accentCls = dOnline > 0
               ? "bg-green-500"
               : hasActive ? "bg-amber-500"
-              : "bg-border/50";
+              : "bg-border/80";
 
             return (
               <div
@@ -310,7 +310,7 @@ export function TeamOverview({
                   )}>
                     {label}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/50 leading-tight tabular-nums">{dm.length} member{dm.length !== 1 ? "s" : ""}</p>
+                  <p className="text-[10px] text-muted-foreground/65 leading-tight tabular-nums">{dm.length} member{dm.length !== 1 ? "s" : ""}</p>
                 </div>
 
                 {!isEmpty ? (
@@ -345,7 +345,7 @@ export function TeamOverview({
                     </div>
 
                     <div className="flex-1 flex items-center gap-2 min-w-0">
-                      <div className="flex-1 h-1 rounded-full bg-muted/40 overflow-hidden flex">
+                      <div className="flex-1 h-1 rounded-full bg-muted/70 overflow-hidden flex">
                         {dOnline > 0 && <div className="bg-green-500 transition-all" style={{ width: `${Math.round((dOnline / dm.length) * 100)}%` }} />}
                         {dBusy > 0 && <div className="bg-red-400 transition-all" style={{ width: `${Math.round((dBusy / dm.length) * 100)}%` }} />}
                         {dAway > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${Math.round((dAway / dm.length) * 100)}%` }} />}
@@ -366,14 +366,14 @@ export function TeamOverview({
                             <span className="size-1.5 rounded-full bg-amber-400" />{dAway}
                           </span>
                         )}
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40">
-                          <span className="size-1.5 rounded-full bg-muted-foreground/25" />{dOffline}
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                          <span className="size-1.5 rounded-full bg-muted-foreground/45" />{dOffline}
                         </span>
                       </div>
                     </div>
                   </>
                 ) : (
-                  <p className="text-[10px] text-muted-foreground/30 italic">No members</p>
+                  <p className="text-[10px] text-muted-foreground/55 italic">No members</p>
                 )}
               </div>
             );

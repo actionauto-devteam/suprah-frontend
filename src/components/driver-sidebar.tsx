@@ -489,7 +489,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </div>
       </div>
 
-      <SidebarHeader className="dsb-edge relative z-10 h-16 border-b flex items-center px-5 bg-transparent">
+      <SidebarHeader className="dsb-edge relative z-10 min-h-16 border-b flex items-center px-5 pt-[env(safe-area-inset-top)] bg-transparent">
         <div className="flex items-center gap-2.5 w-full">
           <div className="dsb-logo relative flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 via-green-500 to-emerald-700 text-white">
             <span className="dsb-ping" aria-hidden="true" />
@@ -508,13 +508,14 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
 
       <SidebarContent className="relative z-10 p-2 bg-transparent">
         <div className="dsb-section-label px-4 pt-3 pb-1 group-data-[collapsible=icon]:hidden">
-          // Operations
+          {"// Operations"}
         </div>
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 asChild
+                size="lg"
                 tooltip={item.title}
                 isActive={pathname === item.url}
               >
@@ -532,13 +533,14 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         <div className="dsb-hr mx-4 mt-4 group-data-[collapsible=icon]:hidden" />
 
         <div className="dsb-section-label px-4 pt-3 pb-1 group-data-[collapsible=icon]:hidden">
-          // Account
+          {"// Account"}
         </div>
         <SidebarMenu>
           {accountItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 asChild
+                size="lg"
                 tooltip={item.title}
                 isActive={pathname === item.url}
               >

@@ -6,7 +6,6 @@ import {
     Truck,
     CreditCard,
     Building2,
-    DollarSign,
     Calendar,
     Wrench,
     Crown,
@@ -15,6 +14,7 @@ import {
     Bell,
     User,
     MessageSquare,
+    Package,
 } from "lucide-react";
 import type { BottomNavItem } from "@/components/layout/MobileBottomNav";
 
@@ -38,8 +38,8 @@ export const adminNav: BottomNavItem[] = [
 export const driverNav: BottomNavItem[] = [
     { label: "Dashboard", href: "/driver", icon: LayoutDashboard },
     { label: "Loads", href: "/driver/loads", icon: Truck },
-    { label: "Schedule", href: "/driver/schedule", icon: Calendar, isCenter: true },
-    { label: "Earnings", href: "/driver/earnings", icon: DollarSign },
+    { label: "Available", href: "/driver/available-loads", icon: Package, isCenter: true },
+    { label: "Schedule", href: "/driver/schedule", icon: Calendar },
     { label: "Profile", href: "/driver/profile", icon: User },
 ];
 

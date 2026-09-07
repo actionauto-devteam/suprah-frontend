@@ -10,9 +10,9 @@ export default function OfflinePage() {
             <div className="mb-8 p-6 bg-zinc-900 rounded-full">
                 <WifiOff size={64} className="text-blue-500 animate-pulse" />
             </div>
-            <h1 className="text-4xl font-bold mb-4 tracking-tight">You're Offline</h1>
+            <h1 className="text-4xl font-bold mb-4 tracking-tight">You&apos;re Offline</h1>
             <p className="text-zinc-400 max-w-md mb-8">
-                It looks like you've lost your connection. Don't worry, you can still access some parts of the Suprah.AI Dashboard that were previously loaded.
+                It looks like you&apos;ve lost your connection. Don&apos;t worry, you can still access some parts of the Suprah.AI Dashboard that were previously loaded.
             </p>
             <div className="flex flex-col gap-4 w-full max-w-xs">
                 <Link
@@ -21,12 +21,6 @@ export default function OfflinePage() {
                 >
                     Retry Connection
                 </Link>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 px-6 rounded-lg transition-all"
-                >
-                    Check Cached Data
-                </button>
             </div>
             <div className="mt-12 text-zinc-500 text-sm">
                 Suprah.AI • Offline Mode

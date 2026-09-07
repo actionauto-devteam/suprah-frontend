@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/providers/AuthProvider";
+import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 
 interface DriverAcceptLoadDialogProps {
   open: boolean;
@@ -75,6 +76,8 @@ export function DriverAcceptLoadDialog({
   const [signerName, setSignerName] = React.useState("");
   const [hasSignature, setHasSignature] = React.useState(false);
   const [agreed, setAgreed] = React.useState(false);
+
+  useCloseOnBack(open, () => !isSubmitting && onOpenChange(false));
 
   const clearCanvas = React.useCallback(() => {
     const canvas = canvasRef.current;

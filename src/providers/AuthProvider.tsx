@@ -38,6 +38,7 @@ interface AuthContextType {
   accessToken: string | null;
   isLoaded: boolean;
   isSignedIn: boolean;
+  authIndeterminate: boolean;
   organizationId: string | null;
   organizationRole: string | null;
   setAccessToken: (token: string | null) => void;
@@ -460,6 +461,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       accessToken,
       isLoaded,
       isSignedIn: !!user,
+      authIndeterminate,
       organizationId: user?.organizationId || null,
       organizationRole: user?.organizationRole || null,
       setAccessToken,
@@ -474,6 +476,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       accessToken,
       isLoaded,
+      authIndeterminate,
       getToken,
       signOut,
       refreshUser,
@@ -511,6 +514,7 @@ export function useAuth() {
   return {
     isLoaded: context.isLoaded,
     isSignedIn: context.isSignedIn,
+    authIndeterminate: context.authIndeterminate,
     userId: context.user?._id || null,
     orgId: context.organizationId,
     orgRole: context.organizationRole,

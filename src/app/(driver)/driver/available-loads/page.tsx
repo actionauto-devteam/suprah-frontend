@@ -568,7 +568,7 @@ export default function AvailableLoadsPage() {
           <div className="relative p-5 sm:p-7">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <Link href="/driver" className="shrink-0 rounded-xl border border-border/80 bg-background/80 p-2.5 shadow-sm transition-colors hover:bg-muted dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">
+                <Link href="/driver" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background/80 shadow-sm transition-colors hover:bg-muted dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">
                   <ArrowLeft className="size-4.5 text-foreground/80" />
                 </Link>
                 <div className="min-w-0">
@@ -587,7 +587,7 @@ export default function AvailableLoadsPage() {
                 <div className="hidden rounded-lg border border-border/80 bg-background/70 p-1 text-[11px] font-semibold sm:block">
                   <MapIcon className="mr-1 inline size-3.5" />Map <span className="text-[9px] font-bold uppercase text-amber-500">Soon</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => { setRefreshing(true); void fetchLoads(1, false); }} disabled={refreshing} className="border border-border/80">
+                <Button variant="ghost" size="icon" onClick={() => { setRefreshing(true); void fetchLoads(1, false); }} disabled={refreshing} className="size-11 border border-border/80">
                   <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
                 </Button>
               </div>
@@ -623,12 +623,12 @@ export default function AvailableLoadsPage() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search by city, tracking #, or vehicle..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-xl pl-9" />
+            <Input placeholder="Search by city, tracking #, or vehicle..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-11 rounded-xl pl-9" />
           </div>
           <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-10 gap-1.5 rounded-xl">
+                <Button variant="outline" size="sm" className="h-11 gap-1.5 rounded-xl">
                   <ArrowUpDown className="size-3.5" />
                   <span className="hidden sm:inline">{sortOptions.find((option) => option.key === sortBy)?.label}</span>
                   <ChevronDown className="size-3" />
@@ -646,7 +646,7 @@ export default function AvailableLoadsPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={cn('h-10 gap-1.5 rounded-xl', trailerFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
+                <Button variant="outline" size="sm" className={cn('h-11 gap-1.5 rounded-xl', trailerFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
                   <Filter className="size-3.5" />
                   <span className="hidden sm:inline">{trailerFilter === 'all' ? 'All Trailers' : trailerLabel(trailerFilter)}</span>
                   <ChevronDown className="size-3" />
@@ -663,7 +663,7 @@ export default function AvailableLoadsPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={cn('h-10 gap-1.5 rounded-xl', orgFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
+                <Button variant="outline" size="sm" className={cn('h-11 gap-1.5 rounded-xl', orgFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
                   <Truck className="size-3.5" />
                   <span className="hidden sm:inline">{orgFilter === 'all' ? 'All Dealerships' : orgs.find((org) => org._id === orgFilter)?.name || 'Dealership'}</span>
                   <ChevronDown className="size-3" />
@@ -711,7 +711,7 @@ export default function AvailableLoadsPage() {
               </div>
             </AnimatePresence>
             {pagination?.hasMore && (
-              <Button variant="outline" className="h-10 w-full rounded-xl" disabled={loadingMore} onClick={async () => { setLoadingMore(true); await fetchLoads(page + 1, true); }}>
+              <Button variant="outline" className="h-11 w-full rounded-xl" disabled={loadingMore} onClick={async () => { setLoadingMore(true); await fetchLoads(page + 1, true); }}>
                 {loadingMore ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ChevronDown className="mr-2 size-4" />}
                 {loadingMore ? 'Loading...' : 'Load more loads'}
               </Button>
@@ -748,7 +748,7 @@ export default function AvailableLoadsPage() {
               <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <Badge variant="outline" className="break-all text-[10px] [overflow-wrap:anywhere]">{requestTarget.trackingNumber || requestTarget._id.slice(-8)}</Badge>
-                  {getPay(requestTarget) > 0 && <span className="text-sm font-black text-emerald-600">${getPay(requestTarget).toLocaleString()}</span>}
+                  {getPay(requestTarget) > 0 && <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">${getPay(requestTarget).toLocaleString()}</span>}
                 </div>
                 <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">{requestTarget.origin} → {requestTarget.destination}</p>
                 <CompatibilityBadges compatibility={requestTarget.compatibility} />
@@ -791,9 +791,9 @@ export default function AvailableLoadsPage() {
 
           <DialogFooter className="shrink-0 border-t border-border/60 px-4 py-3 sm:px-5">
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button variant="outline" className="h-10" onClick={() => setRequestTarget(null)} disabled={requesting}>Cancel</Button>
+              <Button variant="outline" className="h-11" onClick={() => setRequestTarget(null)} disabled={requesting}>Cancel</Button>
               <Button
-                className="h-10 gap-2 font-bold"
+                className="h-11 gap-2 font-bold"
                 onClick={() => setShowContractModal(true)}
                 disabled={requestBlocked}
               >
@@ -900,9 +900,9 @@ function LoadCard({
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className="break-all text-[10px] font-bold font-mono [overflow-wrap:anywhere]">{load.trackingNumber || load._id.slice(-8)}</Badge>
-                    {load.trailerTypeRequired && <Badge className="h-auto whitespace-normal border-blue-500/20 bg-blue-500/10 text-[10px] text-blue-600"><Truck className="mr-1 size-2.5" />{trailerLabel(load.trailerTypeRequired)}</Badge>}
-                    {load.vehicleCount != null && <Badge className="h-auto bg-purple-500/10 text-[10px] text-purple-600">{load.vehicleCount} vehicle{load.vehicleCount === 1 ? '' : 's'}</Badge>}
-                    {isRequested && <Badge className="bg-amber-500/10 text-[9px] text-amber-600"><Timer className="mr-1 size-2.5" />Pending</Badge>}
+                    {load.trailerTypeRequired && <Badge className="h-auto whitespace-normal border-blue-500/20 bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-300"><Truck className="mr-1 size-2.5" />{trailerLabel(load.trailerTypeRequired)}</Badge>}
+                    {load.vehicleCount != null && <Badge className="h-auto bg-purple-500/10 text-[10px] text-purple-600 dark:text-purple-300">{load.vehicleCount} vehicle{load.vehicleCount === 1 ? '' : 's'}</Badge>}
+                    {isRequested && <Badge className="bg-amber-500/10 text-[9px] text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-2.5" />Pending</Badge>}
                   </div>
                   {vehicleName && <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">{vehicleName}</p>}
                 </div>
@@ -930,7 +930,7 @@ function LoadCard({
                     size="sm"
                     variant="outline"
                     disabled={chatOpening}
-                    className="h-8 gap-1.5 border-emerald-500/30 bg-emerald-500/5 px-3 text-[10px] font-bold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+                    className="h-11 gap-1.5 border-emerald-500/30 bg-emerald-500/5 px-3 text-[10px] font-bold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -950,7 +950,7 @@ function LoadCard({
                 {!isRequested && !isRejected && (
                   <Button
                     size="sm"
-                    className="h-8 gap-1 px-3 text-[10px] font-bold"
+                    className="h-11 gap-1 px-3 text-[10px] font-bold"
                     variant={capacityBlocked ? 'outline' : 'default'}
                     disabled={capacityBlocked || !canTakeNewWork}
                     onClick={(event) => {
@@ -963,7 +963,7 @@ function LoadCard({
                     {capacityBlocked ? 'Capacity Mismatch' : offSchedule ? 'Request Anyway' : 'Request'}
                   </Button>
                 )}
-                {isRequested && <Badge variant="outline" className="border-amber-500/30 text-[10px] text-amber-600"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>}
+                {isRequested && <Badge variant="outline" className="border-amber-500/30 text-[10px] text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>}
                 <ChevronRight className="size-4 text-muted-foreground/30 transition-colors group-hover:text-primary" />
               </div>
             </div>

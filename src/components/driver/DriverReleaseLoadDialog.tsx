@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 
 const REASONS = [
   ["vehicle_issue", "Vehicle / equipment issue"],
@@ -46,6 +47,8 @@ export function DriverReleaseLoadDialog({
   const [reason, setReason] = React.useState("");
   const [message, setMessage] = React.useState("");
 
+  useCloseOnBack(open, () => !isSubmitting && onOpenChange(false));
+
   const isEmergencyLifecycle = ["Picked Up", "In-Transit"].includes(
     String(load?.status ?? ""),
   );
@@ -69,8 +72,8 @@ export function DriverReleaseLoadDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg p-0 overflow-hidden">
-        <DialogHeader className="border-b border-border/60 bg-muted/20 px-4 py-4 text-left sm:px-6">
+      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-4 text-left sm:px-6">
           <div className="flex items-start gap-3 pr-7">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10">
               <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400" />
@@ -86,7 +89,7 @@ export function DriverReleaseLoadDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 px-4 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
           <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] p-3.5 text-xs leading-relaxed text-muted-foreground">
             <div className="flex items-start gap-2.5">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
@@ -114,7 +117,7 @@ export function DriverReleaseLoadDialog({
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               disabled={isSubmitting}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Select a reason</option>
               {REASONS.map(([value, label]) => (
@@ -140,12 +143,12 @@ export function DriverReleaseLoadDialog({
           </div>
         </div>
 
-        <DialogFooter className="border-t border-border/60 bg-muted/10 px-4 py-3 sm:px-6">
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-muted/10 px-4 py-3 sm:px-6">
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            <Button variant="outline" className="h-11" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={isSubmitting || !reason} className="gap-2">
+            <Button onClick={submit} disabled={isSubmitting || !reason} className="h-11 gap-2">
               {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               {isSubmitting ? "Sending..." : "Send Request to Dispatch"}
             </Button>

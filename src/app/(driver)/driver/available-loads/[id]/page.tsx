@@ -239,7 +239,6 @@ export default function AvailableLoadDetailPage() {
 
     const init = async () => {
       const mapboxgl = (await import('mapbox-gl')).default;
-      // @ts-ignore CSS side-effect import is supported by the existing app bundler.
       await import('mapbox-gl/dist/mapbox-gl.css');
       if (cancelled || mapInstanceRef.current || !mapRef.current) return;
 
@@ -395,7 +394,7 @@ export default function AvailableLoadDetailPage() {
         <Package className="mx-auto mb-4 size-10 text-muted-foreground/30" />
         <h2 className="text-xl font-black">Load Not Found</h2>
         <p className="mt-2 text-sm text-muted-foreground">This load may have been removed or already assigned.</p>
-        <Button asChild className="mt-4 gap-2 rounded-xl">
+        <Button asChild className="mt-4 h-11 gap-2 rounded-xl">
           <Link href="/driver/available-loads"><ArrowLeft className="size-4" />Back to Load Board</Link>
         </Button>
       </div>
@@ -422,30 +421,30 @@ export default function AvailableLoadDetailPage() {
   return (
     <div className="mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-cyan-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="relative p-5 sm:p-7">
             <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <button onClick={() => router.back()} className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 transition-colors hover:bg-white/10">
-                  <ArrowLeft className="size-4.5 text-white/80" />
+                <button onClick={() => router.back()} className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 dark:border-white/10 bg-background/80 dark:bg-white/5 transition-colors hover:bg-muted dark:hover:bg-white/10">
+                  <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </button>
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                    <h1 className="break-all font-mono text-xl font-black tracking-tight text-white [overflow-wrap:anywhere] sm:text-2xl">{data.trackingNumber || data.loadNumber || loadId.slice(-8)}</h1>
-                    <Badge className="bg-blue-500/10 text-[10px] text-blue-400">Available</Badge>
-                    {isRequested && <Badge className="bg-amber-500/10 text-[10px] text-amber-400"><Timer className="mr-1 size-2.5" />Requested</Badge>}
+                    <h1 className="break-all font-mono text-xl font-black tracking-tight text-foreground [overflow-wrap:anywhere] sm:text-2xl">{data.trackingNumber || data.loadNumber || loadId.slice(-8)}</h1>
+                    <Badge className="bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-400">Available</Badge>
+                    {isRequested && <Badge className="bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400"><Timer className="mr-1 size-2.5" />Requested</Badge>}
                   </div>
-                  <p className="mt-0.5 break-words text-sm text-white/50 [overflow-wrap:anywhere]">{vehicleName || `${data.origin} → ${data.destination}`}</p>
+                  <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{vehicleName || `${data.origin} → ${data.destination}`}</p>
                 </div>
               </div>
-              {pay > 0 && <span className="text-3xl font-black tabular-nums text-white">${pay.toLocaleString()}</span>}
+              {pay > 0 && <span className="text-3xl font-black tabular-nums text-foreground">${pay.toLocaleString()}</span>}
             </div>
 
-            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white sm:flex sm:items-center">
-              <span className="size-3 rounded-full bg-emerald-400" />
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-2 rounded-xl border border-border/80 dark:border-white/10 bg-background/70 dark:bg-white/5 px-4 py-3 text-sm font-semibold text-foreground sm:flex sm:items-center">
+              <span className="size-3 rounded-full bg-emerald-500 dark:bg-emerald-400" />
               <span className="break-words [overflow-wrap:anywhere]">{data.origin}</span>
-              <Navigation className="size-3.5 text-white/30" />
+              <Navigation className="size-3.5 text-muted-foreground" />
               <span className="break-words [overflow-wrap:anywhere]">{data.destination}</span>
             </div>
           </div>
@@ -473,7 +472,7 @@ export default function AvailableLoadDetailPage() {
             </Badge>
           )}
           {isRequested && (
-            <Badge className="h-auto min-h-11 whitespace-normal border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-600">
+            <Badge className="h-auto min-h-11 whitespace-normal border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
               <Timer className="mr-2 size-4 shrink-0" />Request Pending — Awaiting Approval
             </Badge>
           )}

@@ -335,11 +335,11 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {ups[0] && (
-                        <Button size="icon" variant="ghost" className="size-8 text-red-600 hover:bg-red-500/10 dark:text-red-400" onClick={() => setShowDeleteConfirm(ups[0]._id)} disabled={deletingId === ups[0]._id}>
+                        <Button size="icon" variant="ghost" className="size-11 text-red-600 hover:bg-red-500/10 dark:text-red-400" onClick={() => setShowDeleteConfirm(ups[0]._id)} disabled={deletingId === ups[0]._id}>
                           {deletingId === ups[0]._id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
                         </Button>
                       )}
-                      <Button variant={status === 'missing' ? 'default' : 'outline'} size="sm" onClick={() => openUploadFor(req.type)} className="gap-1.5 rounded-lg">
+                      <Button variant={status === 'missing' ? 'default' : 'outline'} size="sm" onClick={() => openUploadFor(req.type)} className="h-11 gap-1.5 rounded-lg">
                         {status === 'missing' ? <Camera className="size-3.5" /> : <Upload className="size-3.5" />}
                         {status === 'missing' ? 'Upload' : 'Replace'}
                       </Button>

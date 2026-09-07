@@ -237,8 +237,20 @@ function DashboardLayoutContent({
     userRole,
   ]);
 
-  const { isLoaded, isSignedIn } = useAuth();
-  if (isLoaded && !isSignedIn) return null;
+  const { isLoaded, isSignedIn, authIndeterminate } = useAuth();
+  // authIndeterminate means the bootstrap call (session refresh / profile
+  // fetch) failed transiently — rate limit, cold start, brief network blip —
+  // not that the user is actually signed out. AuthProvider's own redirection
+  // engine already knows this and deliberately does NOT send them to
+  // /sign-in while indeterminate (it retries in the background instead). This
+  // guard used to only check isLoaded/isSignedIn, so it didn't know the
+  // difference: isSignedIn is derived from `!!user`, which is still null
+  // during an indeterminate bootstrap, so a real, still-signed-in user could
+  // render blank here for up to BACKGROUND_RETRY_MS before the retry
+  // succeeded and the real dashboard appeared — the "briefly blank on
+  // initial load" bug. Falling through to the loading spinner instead keeps
+  // this in sync with AuthProvider's own judgment call.
+  if (isLoaded && !isSignedIn && !authIndeterminate) return null;
 
   const isCustomer = userRole === "customer";
   const isEmployee = userRole === "employee";
@@ -248,7 +260,8 @@ function DashboardLayoutContent({
     isCustomer ||
     isDriver ||
     (!organization && isEmployee && !isSuperAdmin) ||
-    isRedirecting
+    isRedirecting ||
+    authIndeterminate
   ) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

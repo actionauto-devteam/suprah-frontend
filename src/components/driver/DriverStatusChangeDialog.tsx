@@ -25,6 +25,7 @@ import {
 import { AlertTriangle, FileText, FileUp, Loader2, ShieldAlert, Wrench, PauseCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import type { DriverStatusRequestSnapshot } from "@/hooks/useDriverWorkEligibility";
+import { useCloseOnBack } from "@/hooks/useCloseOnBack";
 
 type RequestedStatus = "on_leave" | "maintenance";
 type Priority = "standard" | "emergency";
@@ -112,6 +113,8 @@ export function DriverStatusChangeDialog({
   const [files, setFiles] = React.useState<File[]>([]);
   const [submitting, setSubmitting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useCloseOnBack(open, () => !submitting && onOpenChange(false));
 
   React.useEffect(() => {
     if (!open) return;
@@ -265,7 +268,7 @@ export function DriverStatusChangeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
       <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0" overlayClassName="bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0">
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 py-4 text-left sm:px-6 sm:py-5">
           <DialogTitle className="flex min-w-0 items-start gap-2 break-words pr-7 [overflow-wrap:anywhere]">
@@ -458,7 +461,7 @@ export function DriverStatusChangeDialog({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="size-8 shrink-0"
+                            className="size-11 shrink-0"
                             onClick={() => removeFile(index)}
                             disabled={submitting}
                             aria-label={`Remove ${file.name}`}

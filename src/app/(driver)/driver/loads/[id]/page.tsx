@@ -22,6 +22,7 @@ import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
+import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 
 // Real driver-tracking endpoints — accept/request/pickup/start-route/drop
 // all live under /loads/:id/*, not the flat /api/driver-tracking/{action}
@@ -44,14 +45,14 @@ const trailerLabel = (val?: string) => trailerTypeOptions.find(t => t.value === 
 const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.message || fb;
 
 const STATUS_THEME: Record<LoadStatus, { bg: string; text: string; border: string }> = {
-  Draft: { bg: 'bg-slate-500/10', text: 'text-slate-600', border: 'border-slate-500/20' },
-  Posted: { bg: 'bg-blue-500/10', text: 'text-blue-600', border: 'border-blue-500/20' },
-  Assigned: { bg: 'bg-blue-500/10', text: 'text-blue-600', border: 'border-blue-500/20' },
-  Accepted: { bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-500/20' },
-  'Picked Up': { bg: 'bg-orange-500/10', text: 'text-orange-600', border: 'border-orange-500/20' },
-  'In-Transit': { bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/20' },
-  Delivered: { bg: 'bg-green-500/10', text: 'text-green-700', border: 'border-green-500/20' },
-  Cancelled: { bg: 'bg-red-500/10', text: 'text-red-600', border: 'border-red-500/20' },
+  Draft: { bg: 'bg-slate-500/10', text: 'text-slate-600 dark:text-slate-300', border: 'border-slate-500/20' },
+  Posted: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-300', border: 'border-blue-500/20' },
+  Assigned: { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-300', border: 'border-blue-500/20' },
+  Accepted: { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-300', border: 'border-amber-500/20' },
+  'Picked Up': { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-300', border: 'border-orange-500/20' },
+  'In-Transit': { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-300', border: 'border-emerald-500/20' },
+  Delivered: { bg: 'bg-green-500/10', text: 'text-green-700 dark:text-green-300', border: 'border-green-500/20' },
+  Cancelled: { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-300', border: 'border-red-500/20' },
 };
 
 const STEPS = [
@@ -183,7 +184,7 @@ export default function LoadDetailPage() {
       <div className="size-20 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-4"><Package className="size-10 text-muted-foreground/30" /></div>
       <h2 className="text-xl font-black">Load Not Found</h2>
       <p className="text-sm text-muted-foreground mt-2">This load may have been removed or reassigned.</p>
-      <Button asChild className="mt-4 gap-2 rounded-xl"><Link href="/driver/loads"><ArrowLeft className="size-4" /> Back to Loads</Link></Button>
+      <Button asChild className="mt-4 h-11 gap-2 rounded-xl"><Link href="/driver/loads"><ArrowLeft className="size-4" /> Back to Loads</Link></Button>
     </div>
   );
 
@@ -216,34 +217,33 @@ export default function LoadDetailPage() {
     <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-5">
 
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-          <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-slate-900 to-slate-950" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-          <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+          <DriverHeroGlow />
           <div className="relative p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
-                <button onClick={() => router.back()} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/10"><ArrowLeft className="size-4.5 text-white/80" /></button>
+                <button onClick={() => router.back()} className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/10"><ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" /></button>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white font-mono">{data.loadNumber || loadId.slice(-8)}</h1>
+                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground font-mono">{data.loadNumber || loadId.slice(-8)}</h1>
                     <Badge className={cn('text-[10px]', theme.bg, theme.text, theme.border)}>{status}</Badge>
                   </div>
-                  <p className="text-sm text-white/40 mt-0.5">{vehicleName || `${data.pickupLocation.city} → ${data.deliveryLocation.city}`}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">{vehicleName || `${data.pickupLocation?.city || "Origin not provided"} → ${data.deliveryLocation?.city || "Destination not provided"}`}</p>
                 </div>
               </div>
               {data.pricing?.carrierPayAmount != null && data.pricing.carrierPayAmount > 0 && (
                 <div className="text-right hidden sm:block">
-                  <span className="text-3xl font-black tabular-nums text-white">${data.pricing.carrierPayAmount.toLocaleString()}</span>
-                  <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Carrier Pay</p>
+                  <span className="text-3xl font-black tabular-nums text-foreground">${data.pricing.carrierPayAmount.toLocaleString()}</span>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Carrier Pay</p>
                 </div>
               )}
             </div>
 
             <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5 text-emerald-400"><div className="size-2 rounded-full bg-emerald-400" /><span className="font-semibold">{data.pickupLocation.city}, {data.pickupLocation.state}</span></div>
-              <ArrowRight className="size-4 text-white/20" />
-              <div className="flex items-center gap-1.5 text-rose-400"><MapPin className="size-3.5" /><span className="font-semibold">{data.deliveryLocation.city}, {data.deliveryLocation.state}</span></div>
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400"><div className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400" /><span className="font-semibold">{data.pickupLocation?.city || "Origin not provided"}{data.pickupLocation?.state ? `, ${data.pickupLocation.state}` : ""}</span></div>
+              <ArrowRight className="size-4 text-muted-foreground" />
+              <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400"><MapPin className="size-3.5" /><span className="font-semibold">{data.deliveryLocation?.city || "Destination not provided"}{data.deliveryLocation?.state ? `, ${data.deliveryLocation.state}` : ""}</span></div>
             </div>
 
             {isAssigned && status !== 'Cancelled' && (
@@ -252,13 +252,13 @@ export default function LoadDetailPage() {
                   <React.Fragment key={step.key}>
                     <div className="flex flex-col items-center gap-0.5 min-w-17.5 shrink-0">
                       <div className={cn('size-6 rounded-full flex items-center justify-center border-2 transition-colors',
-                        i <= stepIdx ? (i === stepIdx ? 'bg-emerald-400 border-emerald-400 text-slate-950' : 'bg-emerald-400/20 border-emerald-400 text-emerald-300')
-                          : 'bg-white/5 border-white/15 text-white/20')}>
+                        i <= stepIdx ? (i === stepIdx ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-300')
+                          : 'bg-muted/50 border-border text-muted-foreground/40')}>
                         {i < stepIdx ? <CheckCircle2 className="size-3.5" /> : i === stepIdx ? <CircleDot className="size-3.5" /> : <div className="size-1.5 rounded-full bg-current" />}
                       </div>
-                      <span className={cn('text-[10px] font-semibold whitespace-nowrap', i <= stepIdx ? 'text-emerald-400' : 'text-white/20')}>{step.label}</span>
+                      <span className={cn('text-[10px] font-semibold whitespace-nowrap', i <= stepIdx ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40')}>{step.label}</span>
                     </div>
-                    {i < STEPS.length - 1 && <div className={cn('flex-1 h-0.5 -mt-2.5 mx-1 rounded-full min-w-5', i < stepIdx ? 'bg-emerald-400' : 'bg-white/10')} />}
+                    {i < STEPS.length - 1 && <div className={cn('flex-1 h-0.5 -mt-2.5 mx-1 rounded-full min-w-5', i < stepIdx ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-border')} />}
                   </React.Fragment>
                 ))}
               </div>
@@ -275,28 +275,28 @@ export default function LoadDetailPage() {
 
         <div className="flex flex-wrap gap-2">
           {canAccept && (
-            <Button onClick={() => handleAction('accept-load')} disabled={!!actionLoading} className="gap-2 rounded-xl">
+            <Button onClick={() => handleAction('accept-load')} disabled={!!actionLoading} className="h-11 gap-2 rounded-xl">
               {actionLoading === 'accept-load' ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Accept Load
             </Button>
           )}
           {canMarkPickedUp && (
-            <Button onClick={() => handleAction('mark-picked-up')} disabled={!!actionLoading} className="gap-2 bg-orange-600 hover:bg-orange-700 rounded-xl">
+            <Button onClick={() => handleAction('mark-picked-up')} disabled={!!actionLoading} className="h-11 gap-2 bg-orange-600 hover:bg-orange-700 rounded-xl">
               {actionLoading === 'mark-picked-up' ? <Loader2 className="size-4 animate-spin" /> : <Package className="size-4" />} Mark Picked Up
             </Button>
           )}
           {canStartRoute && (
-            <Button onClick={() => handleAction('start-route')} disabled={!!actionLoading} className="gap-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl">
+            <Button onClick={() => handleAction('start-route')} disabled={!!actionLoading} className="h-11 gap-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl">
               {actionLoading === 'start-route' ? <Loader2 className="size-4 animate-spin" /> : <Navigation2 className="size-4" />} Start Route
             </Button>
           )}
           {canRequest && (
-            <Button onClick={() => handleAction('request-load')} disabled={!!actionLoading} className="gap-2 rounded-xl">
+            <Button onClick={() => handleAction('request-load')} disabled={!!actionLoading} className="h-11 gap-2 rounded-xl">
               {actionLoading === 'request-load' ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />} Request This Load
             </Button>
           )}
           {data.myRequestStatus === 'pending' && <Badge className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20 h-9 px-3 gap-1.5"><Clock className="size-3.5" />Request Pending</Badge>}
           {canDrop && (
-            <Button variant="outline" onClick={() => handleAction('drop-load')} disabled={!!actionLoading} className="gap-2 text-destructive hover:text-destructive rounded-xl ml-auto">
+            <Button variant="outline" onClick={() => handleAction('drop-load')} disabled={!!actionLoading} className="h-11 gap-2 text-destructive hover:text-destructive rounded-xl ml-auto">
               {actionLoading === 'drop-load' ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />} Drop Load
             </Button>
           )}
@@ -431,7 +431,7 @@ export default function LoadDetailPage() {
                 <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
                   {data.proofOfDelivery.submittedAt && <span>Submitted: {fmtDateTime(data.proofOfDelivery.submittedAt)}</span>}
                   {data.proofOfDelivery.confirmedAt && <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 text-[10px]"><CheckCircle2 className="size-2.5" />Confirmed {fmtDate(data.proofOfDelivery.confirmedAt)}</Badge>}
-                  {data.proofOfDelivery.note && <span className="italic">"{data.proofOfDelivery.note}"</span>}
+                  {data.proofOfDelivery.note && <span className="italic">&ldquo;{data.proofOfDelivery.note}&rdquo;</span>}
                 </div>
               </CardContent>
             </Card>

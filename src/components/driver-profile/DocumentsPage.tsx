@@ -1392,7 +1392,7 @@ export const DocumentsPage: React.FC = () => {
                         Driver Details
                       </h3>
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        Empty Name and Phone fields are autofilled from your saved Profile. City and State are autofilled only when Profile Location is a valid U.S. "City, State" value. All autofilled values remain editable and are saved only when you choose Save & Next.
+                        Empty Name and Phone fields are autofilled from your saved Profile. City and State are autofilled only when Profile Location is a valid U.S. &ldquo;City, State&rdquo; value. All autofilled values remain editable and are saved only when you choose Save & Next.
                       </p>
                       {profileAutofillConflicts.length > 0 && (
                         <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-400">
@@ -1529,7 +1529,7 @@ export const DocumentsPage: React.FC = () => {
                           }
                         />
                         <p className="text-[11px] leading-relaxed text-muted-foreground">
-                          Selecting a State provides a representative default ZIP. You can edit it to the driver's exact ZIP before Save & Next.
+                          Selecting a State provides a representative default ZIP. You can edit it to the driver&apos;s exact ZIP before Save & Next.
                         </p>
                       </div>
                     </div>
@@ -2067,6 +2067,7 @@ export const DocumentsPage: React.FC = () => {
                     type="button"
                     size="icon"
                     variant="ghost"
+                    className="size-11"
                     onClick={(e) => {
                       e.stopPropagation();
                       setUploadFile(null);

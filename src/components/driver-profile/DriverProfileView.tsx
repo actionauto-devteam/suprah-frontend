@@ -486,7 +486,7 @@ export const DriverProfileView: React.FC = () => {
                 value={tab.value}
                 aria-label={tab.label}
                 title={tab.label}
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl h-9 w-9 sm:h-auto sm:w-auto p-0 sm:px-4 sm:py-2.5 transition-all inline-flex items-center justify-center sm:justify-start gap-0 sm:gap-2 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
+                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl size-11 sm:h-auto sm:w-auto p-0 sm:px-4 sm:py-2.5 transition-all inline-flex items-center justify-center sm:justify-start gap-0 sm:gap-2 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
               >
                 <tab.icon className="size-3.5 sm:size-4" />
                 <span className="sr-only">{tab.label}</span>
@@ -602,7 +602,7 @@ export const DriverProfileView: React.FC = () => {
                       <span className="text-sm font-medium">
                         {option.label}
                       </span>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {option.description}
                       </p>
                     </div>
@@ -633,7 +633,7 @@ export const DriverProfileView: React.FC = () => {
                     Keep it short and clear
                   </p>
                 )}
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {customStatus.length}/100
                 </p>
               </div>

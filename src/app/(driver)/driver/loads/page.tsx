@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 import {
   Dialog,
   DialogContent,
@@ -66,14 +67,14 @@ const ACTION_ENDPOINTS: Record<string, string> = {
 };
 
 const STATUS_THEME: Record<LoadStatus, string> = {
-  Draft: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
-  Posted: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  Assigned: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  Accepted: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  'Picked Up': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-  'In-Transit': 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-  Delivered: 'bg-green-500/10 text-green-700 border-green-500/20',
-  Cancelled: 'bg-red-500/10 text-red-600 border-red-500/20',
+  Draft: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20',
+  Posted: 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20',
+  Assigned: 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20',
+  Accepted: 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20',
+  'Picked Up': 'bg-orange-500/10 text-orange-600 dark:text-orange-300 border-orange-500/20',
+  'In-Transit': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20',
+  Delivered: 'bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20',
+  Cancelled: 'bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20',
 };
 
 const STEPS = [
@@ -395,8 +396,7 @@ export default function DriverLoadsPage() {
       >
         <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
           <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/8 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
-          <div className="absolute bottom-0 left-0 w-56 h-56 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+          <DriverHeroGlow />
           <div className="relative p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -417,7 +417,7 @@ export default function DriverLoadsPage() {
                       <>
                         {activeCount}/{maxLoadCapacity} active
                         {completedCount > 0 && (
-                          <span className="text-emerald-400 font-semibold">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                             {" "}
                             · {completedCount} completed
                           </span>
@@ -429,8 +429,8 @@ export default function DriverLoadsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/20">
-                  <Zap className="size-3 text-emerald-400" />
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                  <Zap className="size-3 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                     Live
                   </span>
                 </div>
@@ -439,7 +439,7 @@ export default function DriverLoadsPage() {
                   size="sm"
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/10 border border-border/80 dark:border-white/15 bg-background/60 dark:bg-transparent"
+                  className="h-11 gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/10 border border-border/80 dark:border-white/15 bg-background/60 dark:bg-transparent"
                 >
                   <RefreshCw
                     className={cn("size-3.5", refreshing && "animate-spin")}
@@ -449,13 +449,13 @@ export default function DriverLoadsPage() {
               </div>
             </div>
 
-            <div className="flex gap-1 mt-5 bg-background/70 dark:bg-white/5 rounded-xl p-1 border border-border/80 dark:border-white/15 shadow-sm">
+            <div className="flex gap-1 mt-5 overflow-x-auto scrollbar-hide bg-background/70 dark:bg-white/5 rounded-xl p-1 border border-border/80 dark:border-white/15 shadow-sm">
               {tabItems.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => handleTabChange(t.key)}
                   className={cn(
-                    "relative px-3 py-2 text-xs rounded-lg transition-all flex items-center gap-1.5",
+                    "relative shrink-0 px-3 h-11 text-xs rounded-lg transition-all flex items-center gap-1.5",
                     tab === t.key
                       ? "bg-card font-bold text-foreground shadow-sm border border-border/70 dark:bg-white/10 dark:text-white dark:border-white/15"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50 dark:hover:text-white/80",
@@ -617,7 +617,7 @@ function StatusTimeline({ load }: { load: Load }) {
     load.assignedAt,
     load.driverAcceptedAt,
     load.pickedUpAt,
-    load.pickedUpAt,
+    load.inTransitAt,
     load.deliveredAt
   ];
 
@@ -717,12 +717,12 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                   </Link>
                   {isRequest ? (
                     isPending ? (
-                      <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 gap-1">
+                      <Badge className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20 gap-1">
                         <Timer className="size-2.5" />
                         Pending Approval
                       </Badge>
                     ) : isRejected ? (
-                      <Badge className="text-[10px] bg-red-500/10 text-red-600 border-red-500/20 gap-1">
+                      <Badge className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20 gap-1">
                         <XCircle className="size-2.5" />
                         Declined
                       </Badge>
@@ -736,22 +736,22 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                     </Badge>
                   )}
                   {load.pricing?.carrierPayAmount != null && load.pricing.carrierPayAmount > 0 && (
-                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-0.5"><DollarSign className="size-2.5" />{load.pricing.carrierPayAmount.toLocaleString()}</Badge>
+                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20 gap-0.5"><DollarSign className="size-2.5" />{load.pricing.carrierPayAmount.toLocaleString()}</Badge>
                   )}
                 </div>
                 <p className="text-sm font-bold text-foreground/80">
                   {vehicleName}
                 </p>
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="flex items-center gap-1 text-emerald-600">
+                  <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                     <div className="size-1.5 rounded-full bg-emerald-500" />
-                    <span className="truncate font-medium">{load.pickupLocation.city}, {load.pickupLocation.state}</span>
+                    <span className="truncate font-medium">{load.pickupLocation?.city || "Origin not provided"}{load.pickupLocation?.state ? `, ${load.pickupLocation.state}` : ""}</span>
                   </div>
                   <ArrowRight className="size-3 text-muted-foreground shrink-0" />
-                  <div className="flex items-center gap-1 text-rose-600">
+                  <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
                     <div className="size-1.5 rounded-full bg-rose-500" />
                     <span className="truncate font-medium">
-                      {load.deliveryLocation.city}, {load.deliveryLocation.state}
+                      {load.deliveryLocation?.city || "Destination not provided"}{load.deliveryLocation?.state ? `, ${load.deliveryLocation.state}` : ""}
                     </span>
                   </div>
                 </div>
@@ -765,33 +765,33 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               {!isRequest && (
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   {status === 'Assigned' && !load.driverAcceptedAt && isActive && (
-                    <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="rounded-lg gap-1.5">
+                    <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="h-11 rounded-lg gap-1.5">
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
                     </Button>
                   )}
                   {status === 'Accepted' && (
-                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 rounded-lg gap-1.5" onClick={() => onMarkPickedUp(load._id)} disabled={actionLoading === load._id}>
+                    <Button size="sm" className="h-11 bg-orange-600 hover:bg-orange-700 rounded-lg gap-1.5" onClick={() => onMarkPickedUp(load._id)} disabled={actionLoading === load._id}>
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><Package className="size-4" />Mark Picked Up</>}
                     </Button>
                   )}
                   {status === 'Picked Up' && (
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 rounded-lg gap-1.5" onClick={() => onStartRoute(load._id)} disabled={actionLoading === load._id}>
+                    <Button size="sm" className="h-11 bg-emerald-600 hover:bg-emerald-700 rounded-lg gap-1.5" onClick={() => onStartRoute(load._id)} disabled={actionLoading === load._id}>
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><Navigation2 className="size-4" />Start Route</>}
                     </Button>
                   )}
                   {(status === 'In-Transit') && (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1 animate-pulse"><Navigation2 className="size-3" />In Transit</Badge>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20 gap-1 animate-pulse"><Navigation2 className="size-3" />In Transit</Badge>
                   )}
                   {(status === 'In-Transit') && !load.proofOfDelivery?.imageUrl && (
-                    <Button size="sm" variant="outline" onClick={onSubmitProof} className="rounded-lg gap-1.5"><Camera className="size-4" />Submit Proof</Button>
+                    <Button size="sm" variant="outline" onClick={onSubmitProof} className="h-11 rounded-lg gap-1.5"><Camera className="size-4" />Submit Proof</Button>
                   )}
                   {load.proofOfDelivery?.imageUrl && (
                     <Badge
                       className={cn(
                         "gap-1 text-[10px]",
                         load.proofOfDelivery.confirmedAt
-                          ? "bg-green-500/10 text-green-600 border-green-500/20"
-                          : "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                          ? "bg-green-500/10 text-green-600 dark:text-green-300 border-green-500/20"
+                          : "bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20",
                       )}
                     >
                       <ImageIcon className="size-2.5" />
@@ -804,7 +804,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-[10px] text-muted-foreground hover:text-red-500 h-6 px-2"
+                      className="text-[10px] text-muted-foreground hover:text-red-500 h-11 px-2"
                       onClick={() => onDrop(load)}
                       disabled={actionLoading === load._id}
                     >
@@ -950,8 +950,13 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
   const [error, setError] = React.useState<string | null>(null);
   const camRef = React.useRef<HTMLInputElement>(null);
   const galRef = React.useRef<HTMLInputElement>(null);
+  // Tracks whether submit-proof already succeeded for the current file, so a
+  // retry after the follow-up /deliver call fails skips re-uploading proof
+  // instead of creating a duplicate.
+  const proofSubmittedRef = React.useRef(false);
 
   React.useEffect(() => {
+    proofSubmittedRef.current = false;
     if (!load) {
       setFile(null);
       if (preview) URL.revokeObjectURL(preview);
@@ -975,6 +980,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
       if (preview) URL.revokeObjectURL(preview);
       setFile(f);
       setPreview(URL.createObjectURL(f));
+      proofSubmittedRef.current = false;
       e.target.value = "";
     }
   };
@@ -985,17 +991,30 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
     setError(null);
     try {
       const token = await getToken();
-      const fd = new FormData();
-      fd.append('proof', file);
-      if (note.trim()) fd.append('note', note.trim());
 
-      const proofEndpoint = `/api/loads/${load._id}/submit-proof`;
-      await apiClient.post(proofEndpoint, fd, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Use the Driver Tracking proof route so shared/standalone drivers do
+      // not need a home organization just to submit POD, matching the same
+      // flow used by the dashboard's Complete Delivery dialog. Delivery is
+      // only advanced after the proof upload succeeds. If a retry lands here
+      // after submit-proof already succeeded but /deliver failed, skip
+      // re-uploading the same file and go straight to /deliver.
+      if (!proofSubmittedRef.current) {
+        const fd = new FormData();
+        fd.append('proof', file);
+        if (note.trim()) fd.append('note', note.trim());
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/submit-proof`,
+          fd,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        proofSubmittedRef.current = true;
+      }
+
+      await apiClient.post(
+        `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/deliver`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
       onSuccess();
     } catch (err: any) {
@@ -1013,8 +1032,8 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-md">
+        <DialogHeader className="shrink-0 border-b border-border/60 bg-muted/20 px-4 py-4 text-left sm:px-6">
           <DialogTitle className="flex items-center gap-2">
             <Camera className="size-4 text-primary" />
             Submit Proof of Delivery
@@ -1027,7 +1046,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
             .
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 mt-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           <input
             ref={camRef}
             type="file"
@@ -1110,13 +1129,15 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
             />
           </div>
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl border border-red-500/15 bg-red-500/5 text-sm text-red-600">
+            <div className="flex items-center gap-2 p-3 rounded-xl border border-red-500/15 bg-red-500/5 text-sm text-red-700 dark:text-red-300">
               <AlertCircle className="size-4 shrink-0" />
               {error}
             </div>
           )}
+        </div>
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-muted/10 px-4 py-3 sm:px-6">
           <Button
-            className="w-full rounded-xl"
+            className="h-11 w-full rounded-xl"
             onClick={handleSubmit}
             disabled={submitting || !file}
           >
@@ -1132,7 +1153,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
               </>
             )}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -28,15 +28,18 @@ export const InstallPrompt = () => {
 
     useEffect(() => {
         if (inSupraSpace) return;
-        // Check if user has already dismissed the prompt in this session
+        // Check if user has already dismissed the prompt in this session.
+        // Leaving isVisible/isDismissed at their initial `false` already
+        // keeps the prompt hidden, so there's no state to sync here.
         const dismissed = sessionStorage.getItem("pwa-prompt-dismissed");
-        if (dismissed) {
-            setIsDismissed(true);
-            return;
-        }
+        if (dismissed) return;
 
-        // Show prompt after a short delay if it's installable and not already standalone
-        if ((isInstallable || isIOS) && !isStandalone) {
+        // Show prompt after a short delay if it's installable and not already
+        // standalone. iOS never fires beforeinstallprompt (isInstallable is
+        // always false there), so it's excluded here and left entirely to
+        // IOSInstallHint's dedicated bottom sheet — showing both stacked two
+        // separate "install this app" UIs within seconds of each other.
+        if (isInstallable && !isIOS && !isStandalone) {
             const timer = setTimeout(() => setIsVisible(true), 3000);
             return () => clearTimeout(timer);
         }
@@ -83,7 +86,7 @@ export const InstallPrompt = () => {
                                     </p>
                                     <p className="flex items-center gap-2">
                                         <span className="flex h-5 w-5 items-center justify-center rounded bg-background/10 text-xs font-bold">2</span>
-                                        Select <span className="font-medium text-foreground">"Add to Home Screen"</span> <PlusSquare size={16} className="text-foreground" />
+                                        Select <span className="font-medium text-foreground">&ldquo;Add to Home Screen&rdquo;</span> <PlusSquare size={16} className="text-foreground" />
                                     </p>
                                 </div>
                             ) : (

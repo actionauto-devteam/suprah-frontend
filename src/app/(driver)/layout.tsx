@@ -99,7 +99,7 @@ function DriverLayoutContent({
   // Show loading while guard is checking
   if (!guardPassed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#050505]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-emerald-600/60 dark:text-emerald-500/60 font-medium uppercase tracking-widest italic animate-pulse">
@@ -113,22 +113,22 @@ function DriverLayoutContent({
   return (
     <DriverLocationSharingProvider>
       <DriverLocationRequiredGate />
-      <SidebarProvider>
+      <SidebarProvider className="h-dvh overflow-hidden">
         <DriverSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between px-2 sm:px-4 border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-[#050505]/80 backdrop-blur-xl sticky top-0 z-40">
+      <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
+        <header className="flex min-h-16 shrink-0 items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)] border-b border-gray-200 dark:border-white/5 bg-background/80 backdrop-blur-xl sticky top-0 z-40">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
+            <SidebarTrigger className="-ml-1 size-11" />
           </div>
           <div className="flex items-center gap-1 sm:gap-3">
             <MountainTimeClock compact />
-            <ThemeModeToggle compact />
+            <ThemeModeToggle compact className="h-11 w-11" />
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-10 w-10 rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                  className="relative h-11 w-11 rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
                 >
                   <Avatar className="h-10 w-10">
                     <AvatarImage
@@ -144,7 +144,7 @@ function DriverLayoutContent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-64 mt-2 bg-white dark:bg-[#0a0a0a] border-gray-200 dark:border-white/5 shadow-2xl rounded-2xl"
+                className="w-64 mt-2 bg-popover border-gray-200 dark:border-white/5 shadow-2xl rounded-2xl"
                 align="end"
                 forceMount
               >
@@ -153,7 +153,7 @@ function DriverLayoutContent({
                     <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">
                       {user?.fullName}
                     </p>
-                    <p className="text-xs leading-none text-zinc-500">
+                    <p className="text-xs leading-none text-zinc-500 dark:text-zinc-400">
                       {user?.primaryEmailAddress?.emailAddress}
                     </p>
                   </div>
@@ -174,7 +174,7 @@ function DriverLayoutContent({
                 <DropdownMenuSeparator className="bg-gray-200 dark:bg-white/5" />
                 <DropdownMenuItem
                   onSelect={(e) => { e.preventDefault(); setLogoutOpen(true); }}
-                  className="p-3 text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer font-medium"
+                  className="p-3 text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400 focus:bg-red-500/10 cursor-pointer font-medium"
                 >
                   Sign Out
                 </DropdownMenuItem>
@@ -182,7 +182,7 @@ function DriverLayoutContent({
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[#020202] p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
           {children}
         </main>
         <MobileBottomNav items={driverNav} />

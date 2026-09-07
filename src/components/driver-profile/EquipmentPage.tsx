@@ -779,7 +779,7 @@ export const EquipmentPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Add Custom Features</h3>
                         <Button type="button" variant="ghost" size="sm" onClick={() => setCustomInputs(p => [...p, ''])} disabled={form.specialFeatures.length >= 20}
-                          className="gap-1.5 text-xs h-7 text-primary hover:text-primary hover:bg-primary/10 rounded-lg">
+                          className="gap-1.5 text-xs h-11 text-primary hover:text-primary hover:bg-primary/10 rounded-lg">
                           <Plus className="size-3.5" /> Add
                         </Button>
                       </div>
@@ -836,7 +836,7 @@ export const EquipmentPage: React.FC = () => {
                     </DialogDescription>
                   </DialogHeader>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setTypeDialogOpen(false)} className="rounded-xl h-10 w-10">
+                <Button variant="ghost" size="icon" onClick={() => setTypeDialogOpen(false)} className="rounded-xl size-11">
                   <X className="size-5" />
                 </Button>
               </div>
