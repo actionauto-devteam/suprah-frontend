@@ -71,6 +71,8 @@ type SupraSpaceRequestConfig = {
   _skipAuthRefresh?: boolean;
 };
 
+const SUPRASPACE_CONTEXT_CONVERSATION_LIMIT = 80;
+
 interface MessengerCtxValue {
   conversations: SSConv[];
   spaces: SSSpace[];
@@ -125,6 +127,12 @@ function sortByLastMessage(convs: SSConv[]): SSConv[] {
       new Date(b.lastMessageAt || 0).getTime() -
       new Date(a.lastMessageAt || 0).getTime()
   );
+}
+
+function readConversationPayload(payload: unknown): SSConv[] {
+  if (Array.isArray(payload)) return payload as SSConv[];
+  const data = payload as { conversations?: unknown } | null;
+  return Array.isArray(data?.conversations) ? data.conversations as SSConv[] : [];
 }
 
 function mentionBoundaryRegex(alias: string): RegExp | null {
@@ -322,9 +330,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     apiClient
       .get('/api/supraspace/conversations', {
         ...authConfig(crmToken, true),
+        params: { limit: SUPRASPACE_CONTEXT_CONVERSATION_LIMIT, offset: 0 },
       })
       .then((r) => {
-        const next = sortByLastMessage(r.data?.data || []);
+        const next = sortByLastMessage(readConversationPayload(r.data?.data));
         setConversations(next);
         const serverPrefs = next.reduce<Record<string, NotifPref>>((acc, conv) => {
           if (conv.notificationPreference) acc[conv._id] = conv.notificationPreference;

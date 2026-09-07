@@ -50,13 +50,19 @@ import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
-import { StoriesRail } from '@/components/dashboard/StoriesRail';
+import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 const SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+const SS4_MAX_MESSAGE_CHARS = 10000;
+const SS4_MESSAGE_LIMIT_WARNING_CHARS = 9500;
+const SS4_MESSAGE_LIMIT_ERROR = 'Messages can be up to 10,000 characters. Send the rest in a new message.';
+const SS4_MESSAGE_PAGE_SIZE = 40;
+const SS4_CONVERSATION_PAGE_SIZE = 80;
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
 
@@ -289,21 +295,69 @@ function stripSupraSpaceTypographyTags(value: string): string {
     .replace(/\{\s*\/\s*size\s*\}/gi, '');
 }
 
+function clampSupraSpaceMessageText(value: string, maxLength = SS4_MAX_MESSAGE_CHARS): string {
+  const next = value.slice(0, Math.max(0, maxLength));
+  return /[\uD800-\uDBFF]$/.test(next) ? next.slice(0, -1) : next;
+}
+
+function getContentEditableSelectionLength(root: HTMLElement): number {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return 0;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return 0;
+  return range.toString().length;
+}
+
+function readSupraSpaceConversationPayload(payload: unknown) {
+  if (Array.isArray(payload)) {
+    return {
+      conversations: payload as SSConversation[],
+      hasMore: false,
+      nextOffset: payload.length,
+    };
+  }
+
+  const data = payload as { conversations?: unknown; hasMore?: unknown; nextOffset?: unknown } | null;
+  const conversations = Array.isArray(data?.conversations) ? data.conversations as SSConversation[] : [];
+  const nextOffset = typeof data?.nextOffset === 'number' ? data.nextOffset : conversations.length;
+
+  return {
+    conversations,
+    hasMore: Boolean(data?.hasMore),
+    nextOffset,
+  };
+}
+
+function mergeSupraSpaceConversations(primary: SSConversation[], secondary: SSConversation[] = []) {
+  const byId = new Map<string, SSConversation>();
+  secondary.forEach((conversation) => {
+    if (conversation?._id) byId.set(conversation._id, conversation);
+  });
+  primary.forEach((conversation) => {
+    if (conversation?._id) byId.set(conversation._id, conversation);
+  });
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
+  );
+}
+
 function insertPreselectedTypographyText(
   event: React.FormEvent<HTMLDivElement>,
   fontFamily: SS4FontFamilyId | null,
   fontSize: SS4FontSize | null,
   inlineFormats: SS4InlineTypingPreferences,
   color?: string | null,
+  textOverride?: string,
 ): boolean {
   const inputEvent = event.nativeEvent as InputEvent;
+  const inputText = textOverride ?? inputEvent.data;
   if (
     ![
       'insertText',
       'insertCompositionText',
       'insertReplacementText',
     ].includes(inputEvent.inputType)
-    || !inputEvent.data
+    || !inputText
   ) {
     return false;
   }
@@ -408,7 +462,7 @@ function insertPreselectedTypographyText(
       : 'none';
   }
 
-  const textNode = document.createTextNode(inputEvent.data);
+  const textNode = document.createTextNode(inputText);
   span.appendChild(textNode);
   range.insertNode(span);
   range.setStart(textNode, textNode.data.length);
@@ -3499,6 +3553,10 @@ function sanitizeUserFacingErrorMessage(message: unknown, fallback: string) {
 
   if (/credit balance|plans? & billing|billing|upgrade|purchase credits|anthropic api/i.test(value)) {
     return SS4_AI_CREDIT_MESSAGE;
+  }
+
+  if (/content length \d+ is longer than the maximum allowed length \(10000\)|maximum allowed length \(10000\)|maxlength.*10000/i.test(value)) {
+    return SS4_MESSAGE_LIMIT_ERROR;
   }
 
   if (/invalid_request_error|request_id|status code|no body/i.test(value)) {
@@ -7431,48 +7489,6 @@ function PrioritySendersModal({ users, selfId, onClose }: {
   );
 }
 
-function PresenceRail({ me, users, presence, uid, onSelectUser }: {
-  me?: CrmUser; users: CrmUser[]; presence: PresenceMap; uid: string; onSelectUser: (userId: string) => void;
-}) {
-  const isOnline = (id: string) => !!presence[id]?.onlineStatus && presence[id]?.onlineStatus !== 'offline';
-  const ordered = React.useMemo(() => {
-    const others = users.filter(u => u._id !== uid);
-    return [...others].sort((a, b) => Number(isOnline(b._id)) - Number(isOnline(a._id))).slice(0, 20);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users, presence, uid]);
-
-  return (
-    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar px-4 pt-3 pb-1">
-      <div className="flex flex-col items-center gap-1 shrink-0" style={{ width: 52 }}>
-        <div className="relative">
-          <div className="h-12 w-12 rounded-full p-0.5" style={{ boxShadow: '0 0 0 2px var(--accent)' }}>
-            <div className={cn('h-full w-full rounded-full flex items-center justify-center text-white font-bold overflow-hidden', getAvaColor(me?.fullName || 'Me'))} style={{ fontSize: 14 }}>
-              {me?.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
-            </div>
-          </div>
-          <span className="absolute -bottom-0.5 -right-0.5 h-4.5 w-4.5 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-base)' }}>
-            <Plus className="h-2.5 w-2.5 text-white" />
-          </span>
-        </div>
-        <span className="truncate w-full text-center" style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)' }}>Your Status</span>
-      </div>
-      {ordered.map(u => {
-        const online = isOnline(u._id);
-        return (
-          <button key={u._id} onClick={() => onSelectUser(u._id)} className="flex flex-col items-center gap-1 shrink-0" style={{ width: 52 }}>
-            <div className="h-12 w-12 rounded-full p-0.5" style={{ boxShadow: `0 0 0 2px ${online ? 'var(--positive)' : 'var(--border-2)'}` }}>
-              <div className={cn('h-full w-full rounded-full flex items-center justify-center text-white font-bold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 14 }}>
-                {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
-              </div>
-            </div>
-            <span className="truncate w-full text-center" style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)' }}>{(u.fullName || '').split(' ')[0]}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function SpacesGridPanel({ spaces, unreadCounts, onSelectSpace, onCreateSpace }: {
   spaces: SSSpace[];
   unreadCounts?: Record<string, number>;
@@ -8523,6 +8539,9 @@ export default function SupraSpacePage() {
   }, [loading]);
 
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
+  const [hasMoreConversations, setHasMoreConversations] = React.useState(false);
+  const [conversationsOffset, setConversationsOffset] = React.useState(0);
+  const [loadingMoreConversations, setLoadingMoreConversations] = React.useState(false);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   const handledRouteConversationIdRef = React.useRef<string | null>(null);
@@ -8559,6 +8578,7 @@ export default function SupraSpacePage() {
 
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = React.useState(false);
   const [hasMore, setHasMore] = React.useState<Record<string, boolean>>({});
   const [msgFetchState, setMsgFetchState] = React.useState<Record<string, 'idle' | 'loading' | 'loaded' | 'error' | 'stale'>>({});
 
@@ -8566,6 +8586,7 @@ export default function SupraSpacePage() {
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
+  const [composerCharCount, setComposerCharCount] = React.useState(0);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -8886,6 +8907,7 @@ export default function SupraSpacePage() {
 
   const syncComposerText = React.useCallback((value: string, commitToState = false) => {
     inputTextRef.current = value;
+    setComposerCharCount(prev => prev === value.length ? prev : value.length);
     const hasText = Boolean(value.trim());
     setComposerHasText(prev => prev === hasText ? prev : hasText);
     if (commitToState) setInput(value);
@@ -8911,12 +8933,27 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     inputTextRef.current = input;
     setComposerHasText(Boolean(input.trim()));
+    setComposerCharCount(input.length);
   }, [input]);
 
+  const composerAtLimit = composerCharCount >= SS4_MAX_MESSAGE_CHARS;
+  const composerNearLimit = composerCharCount >= SS4_MESSAGE_LIMIT_WARNING_CHARS;
+  const composerCounterColor = composerAtLimit
+    ? 'var(--danger)'
+    : composerNearLimit
+      ? '#f59e0b'
+      : 'var(--text-tertiary)';
+  const composerLimitLabel = composerAtLimit
+    ? 'Limit reached'
+    : composerNearLimit
+      ? 'Near limit'
+      : '';
+
   const setConversationDraft = React.useCallback((conversationId: string, value: string) => {
-    if (value.trim()) {
-      composerDraftsRef.current[conversationId] = value;
-      setComposerDraftPreviews(prev => prev[conversationId] === value ? prev : { ...prev, [conversationId]: value });
+    const nextValue = clampSupraSpaceMessageText(value);
+    if (nextValue.trim()) {
+      composerDraftsRef.current[conversationId] = nextValue;
+      setComposerDraftPreviews(prev => prev[conversationId] === nextValue ? prev : { ...prev, [conversationId]: nextValue });
     } else {
       delete composerDraftsRef.current[conversationId];
       setComposerDraftPreviews(prev => {
@@ -9108,7 +9145,45 @@ export default function SupraSpacePage() {
     setUploadNotice({ kind, text });
     uploadNoticeTimerRef.current = setTimeout(() => setUploadNotice(null), 3500);
   }, []);
+  const showMessageLimitNotice = React.useCallback(() => {
+    showUploadNotice('error', SS4_MESSAGE_LIMIT_ERROR);
+  }, [showUploadNotice]);
   const me = myProfile;
+
+  React.useEffect(() => {
+    if (!uid || convos.length === 0) return;
+    if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    cacheWriteTimerRef.current = setTimeout(() => {
+      cacheWriteTimerRef.current = null;
+      void writeSupraSpaceCache({
+        userId: uid,
+        activeConversationId: activeId,
+        conversations: convos,
+        messages: msgs,
+        hasMore,
+        myProfile: myProfile
+          ? {
+            _id: myProfile._id,
+            fullName: myProfile.fullName,
+            username: myProfile.username,
+            avatar: myProfile.avatar,
+            role: myProfile.role,
+          }
+          : undefined,
+        allUsers: allUsers.map(user => ({
+          _id: user._id,
+          fullName: user.fullName,
+          username: user.username,
+          avatar: user.avatar,
+          role: user.role,
+        })),
+        updatedAt: Date.now(),
+      });
+    }, 700);
+    return () => {
+      if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    };
+  }, [activeId, allUsers, convos, hasMore, msgs, myProfile, uid]);
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
     const alreadyLoaded = conversationId in msgsRef.current;
@@ -9215,6 +9290,10 @@ export default function SupraSpacePage() {
   React.useEffect(() => { tokenRef.current = token; }, [token]);
   const convosRef = React.useRef<SSConversation[]>([]);
   React.useEffect(() => { convosRef.current = convos; }, [convos]);
+  const conversationsOffsetRef = React.useRef(0);
+  React.useEffect(() => { conversationsOffsetRef.current = conversationsOffset; }, [conversationsOffset]);
+  const hasMoreConversationsRef = React.useRef(false);
+  React.useEffect(() => { hasMoreConversationsRef.current = hasMoreConversations; }, [hasMoreConversations]);
   const msgFetchStateRef = React.useRef(msgFetchState);
   React.useEffect(() => { msgFetchStateRef.current = msgFetchState; }, [msgFetchState]);
 
@@ -9222,18 +9301,21 @@ export default function SupraSpacePage() {
   const resumeRefreshTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinedConversationIdsRef = React.useRef<Set<string>>(new Set());
   const convosFetchInFlightRef = React.useRef(false);
+  const convosLoadMoreInFlightRef = React.useRef(false);
+  const cacheHydratedRef = React.useRef(false);
+  const cacheWriteTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ctxRefreshConvosRef = React.useRef(ctxRefreshConvos);
   React.useEffect(() => { ctxRefreshConvosRef.current = ctxRefreshConvos; }, [ctxRefreshConvos]);
 
   const fetchConversationMessages = React.useCallback(async (
     conversationId: string,
-    options: { force?: boolean; silent?: boolean; scrollToBottom?: boolean } = {},
+    options: { force?: boolean; silent?: boolean; scrollToBottom?: boolean; revalidate?: boolean } = {},
   ) => {
     const t = tokenRef.current;
     if (!conversationId || !t) return false;
 
-    if (!options.force && conversationId in msgsRef.current) return true;
+    if (!options.force && !options.revalidate && conversationId in msgsRef.current) return true;
 
     const prevStatus = msgFetchStateRef.current[conversationId];
     if (prevStatus === 'loading' && options.silent) return false;
@@ -9246,7 +9328,7 @@ export default function SupraSpacePage() {
     try {
       const r = await apiClient.get(`/api/supraspace/conversations/${conversationId}/messages`, {
         headers: { Authorization: `Bearer ${t}` },
-        params: { limit: 40 },
+        params: { limit: SS4_MESSAGE_PAGE_SIZE },
       });
       if (fetchSeqRef.current[conversationId] !== mySeq) return false;
       const d: SSMessage[] = r.data?.data || [];
@@ -9259,7 +9341,7 @@ export default function SupraSpacePage() {
         if (rejectSuspiciousEmpty) return p;
         return { ...p, [conversationId]: d };
       });
-      setHasMore(p => ({ ...p, [conversationId]: d.length === 40 }));
+      setHasMore(p => ({ ...p, [conversationId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
       setMsgFetchState(p => ({
         ...p,
         [conversationId]: rejectSuspiciousEmpty ? 'stale' : 'loaded',
@@ -9308,6 +9390,7 @@ export default function SupraSpacePage() {
       force: !hasCachedMessages || status === 'error' || status === 'stale',
       silent: hasCachedMessages && status === 'loaded',
       scrollToBottom: true,
+      revalidate: hasCachedMessages && status === 'loaded',
     });
 
     lockConversationOpenToBottom(conversationId);
@@ -9319,18 +9402,56 @@ export default function SupraSpacePage() {
     convosFetchInFlightRef.current = true;
     ctxRefreshConvosRef.current();
     apiClient
-      .get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } })
+      .get('/api/supraspace/conversations', {
+        headers: { Authorization: `Bearer ${t}` },
+        params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset: 0 },
+      })
       .then(r => {
-        const fresh: SSConversation[] = r.data?.data || [];
+        const parsed = readSupraSpaceConversationPayload(r.data?.data);
+        const fresh = parsed.conversations;
+        setHasMoreConversations(parsed.hasMore);
+        setConversationsOffset(parsed.nextOffset);
+        hasMoreConversationsRef.current = parsed.hasMore;
+        conversationsOffsetRef.current = parsed.nextOffset;
         setConvos(prev => {
           const freshIds = new Set(fresh.map(c => c._id));
           const localOnly = prev.filter(c => !freshIds.has(c._id));
-          return [...fresh, ...localOnly];
+          return mergeSupraSpaceConversations(fresh, localOnly);
         });
       })
       .catch(() => { })
       .finally(() => { convosFetchInFlightRef.current = false; });
   }, []);
+
+  const loadMoreConversations = React.useCallback(async () => {
+    const t = tokenRef.current;
+    if (!t || convosLoadMoreInFlightRef.current || !hasMoreConversationsRef.current) return;
+    const offset = conversationsOffsetRef.current;
+    convosLoadMoreInFlightRef.current = true;
+    setLoadingMoreConversations(true);
+    try {
+      const r = await apiClient.get('/api/supraspace/conversations', {
+        headers: { Authorization: `Bearer ${t}` },
+        params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset },
+      });
+      const parsed = readSupraSpaceConversationPayload(r.data?.data);
+      setHasMoreConversations(parsed.hasMore);
+      setConversationsOffset(parsed.nextOffset);
+      hasMoreConversationsRef.current = parsed.hasMore;
+      conversationsOffsetRef.current = parsed.nextOffset;
+      setConvos(prev => mergeSupraSpaceConversations(prev, parsed.conversations));
+    } catch {
+    } finally {
+      convosLoadMoreInFlightRef.current = false;
+      setLoadingMoreConversations(false);
+    }
+  }, []);
+
+  const handleConversationListScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    if (q.trim().length >= 2 || loadingMoreConversations || !hasMoreConversationsRef.current) return;
+    const el = event.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 260) loadMoreConversations();
+  }, [loadMoreConversations, loadingMoreConversations, q]);
 
   const refreshAfterResume = React.useCallback((delay = 350) => {
     if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
@@ -9359,6 +9480,47 @@ export default function SupraSpacePage() {
       ];
     });
   }, [ctxConversations]);
+
+  const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string) => {
+    if (!cachedUserId || cacheHydratedRef.current) return false;
+    const cached = await readSupraSpaceCache(cachedUserId);
+    if (!cached || !cached.conversations.length) return false;
+
+    const cachedMessages = cached.messages || {};
+    const cachedStatuses = Object.keys(cachedMessages).reduce<Record<string, 'loaded'>>((acc, id) => {
+      acc[id] = 'loaded';
+      return acc;
+    }, {});
+    const cachedProfile = cached.myProfile as CrmUser | undefined;
+    const cachedUsers = (cached.allUsers || []) as CrmUser[];
+    const cachedActiveId = cached.activeConversationId && cached.conversations.some(c => c._id === cached.activeConversationId)
+      ? cached.activeConversationId
+      : null;
+
+    cacheHydratedRef.current = true;
+    convosRef.current = cached.conversations;
+    msgsRef.current = cachedMessages;
+    msgFetchStateRef.current = cachedStatuses;
+    setUid(cachedProfile?._id || cached.userId);
+    if (cachedProfile?._id) setMyProfile(cachedProfile);
+    setConvos(cached.conversations);
+    setMsgs(cachedMessages);
+    setHasMore(cached.hasMore || {});
+    setHasMoreConversations(false);
+    setConversationsOffset(cached.conversations.length);
+    hasMoreConversationsRef.current = false;
+    conversationsOffsetRef.current = cached.conversations.length;
+    setMsgFetchState(cachedStatuses);
+    if (cachedUsers.length) setAllUsers(cachedUsers);
+    if (cachedActiveId) {
+      activeIdRef.current = cachedActiveId;
+      forceScrollToBottomRef.current = cachedActiveId;
+      setActiveId(cachedActiveId);
+    }
+    setLoading(false);
+    initDoneRef.current = true;
+    return true;
+  }, []);
 
   React.useEffect(() => {
     (async () => {
@@ -9399,18 +9561,29 @@ export default function SupraSpacePage() {
       }
       tokenRef.current = t;
       setToken(t);
+      const cachedUserId = getSupraSpaceCacheUserIdFromToken(t);
+      const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId) : false;
 
       try {
         const [me, cv] = await Promise.all([
           apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
-          apiClient.get('/api/supraspace/conversations', { headers: { Authorization: `Bearer ${t}` } }),
+          apiClient.get('/api/supraspace/conversations', {
+            headers: { Authorization: `Bearer ${t}` },
+            params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset: 0 },
+          }),
         ]);
         const myData = (me.data?.data || me.data) as CrmUser;
         setUid(myData._id);
         setMyProfile(myData);
-        const fetchedConvos: SSConversation[] = cv.data?.data || [];
-        convosRef.current = fetchedConvos;
-        setConvos(fetchedConvos);
+        const parsedConvos = readSupraSpaceConversationPayload(cv.data?.data);
+        const fetchedConvos = parsedConvos.conversations;
+        const availableConvos = mergeSupraSpaceConversations(fetchedConvos, convosRef.current);
+        convosRef.current = availableConvos;
+        setConvos(availableConvos);
+        setHasMoreConversations(parsedConvos.hasMore);
+        setConversationsOffset(parsedConvos.nextOffset);
+        hasMoreConversationsRef.current = parsedConvos.hasMore;
+        conversationsOffsetRef.current = parsedConvos.nextOffset;
         apiClient
           .get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } })
           .then(us => setAllUsers(us.data?.data || []))
@@ -9420,7 +9593,7 @@ export default function SupraSpacePage() {
         let openedInitialConversation = false;
         const openFetchedConversation = (conversationId?: string | null, messageId?: string | null) => {
           const id = (conversationId || '').trim();
-          if (!id || !fetchedConvos.some(c => c._id === id)) return false;
+          if (!id || !availableConvos.some(c => c._id === id)) return false;
           if (messageId !== undefined) {
             pendingNotificationTargetRef.current = { conversationId: id, messageId: messageId || undefined };
           }
@@ -9456,7 +9629,7 @@ export default function SupraSpacePage() {
             } else if (joinRes.data?.data?.jitsi) {
               const session = joinRes.data.data as CallSession;
               const convId = session.call?.conversationId;
-              if (convId && fetchedConvos.some(c => c._id === String(convId))) openFetchedConversation(String(convId));
+              if (convId && availableConvos.some(c => c._id === String(convId))) openFetchedConversation(String(convId));
               setActiveMeeting(session);
             }
             router.replace('/crm/supra-space', { scroll: false });
@@ -9487,6 +9660,10 @@ export default function SupraSpacePage() {
             console.error('[SupraSpace] Auto-open DM failed during init:', dmErr);
             toast.error(dmErr?.response?.data?.message || 'Could not open conversation');
           }
+        }
+
+        if (!openedInitialConversation && hydratedFromCache && activeIdRef.current) {
+          openedInitialConversation = true;
         }
 
         if (!openedInitialConversation) {
@@ -9533,6 +9710,7 @@ export default function SupraSpacePage() {
   React.useEffect(() => () => {
     if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
     if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
+    if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
   }, []);
 
   const routeConversationId = searchParams.get('convId');
@@ -10002,7 +10180,9 @@ export default function SupraSpacePage() {
       setConversationDraft(previousId, currentDraft);
     }
 
-    const nextDraft = activeId ? composerDraftsRef.current[activeId] || '' : '';
+    const nextDraftRaw = activeId ? composerDraftsRef.current[activeId] || '' : '';
+    const nextDraft = clampSupraSpaceMessageText(nextDraftRaw);
+    if (activeId && nextDraftRaw !== nextDraft) setConversationDraft(activeId, nextDraft);
     syncComposerText(nextDraft, true);
     setReplyTo(null);
     setPendingFiles([]);
@@ -10089,6 +10269,10 @@ export default function SupraSpacePage() {
     );
     const replyMessageId = replyTo?._id;
     const isScheduledSend = Boolean(scheduledAt);
+    if (content.length > SS4_MAX_MESSAGE_CHARS) {
+      showUploadNotice('error', `Message is ${content.length.toLocaleString()} characters. Limit is 10,000.`);
+      return;
+    }
     if (isScheduledSend && (hasPendingFiles || hasPendingMeeting)) {
       showUploadNotice('error', 'Schedule send currently supports text and GIF messages only.');
       return;
@@ -10524,14 +10708,25 @@ export default function SupraSpacePage() {
     if (!el) return;
 
     const currentText = el.innerText.replace(/\n$/, '');
+    const remaining = SS4_MAX_MESSAGE_CHARS - currentText.length;
+    if (remaining <= 0) {
+      showMessageLimitNotice();
+      return;
+    }
+    const insertText = clampSupraSpaceMessageText(text, remaining);
+    if (!insertText) {
+      showMessageLimitNotice();
+      return;
+    }
+    if (insertText.length < text.length) showMessageLimitNotice();
     const fallbackOffset = currentText.length;
     const savedOffset = composerCaretOffsetRef.current;
     let safeOffset = Math.max(0, Math.min(savedOffset ?? fallbackOffset, currentText.length));
     if (options?.preferEndOnZero && safeOffset === 0 && currentText.length > 0) {
       safeOffset = currentText.length;
     }
-    const nextText = `${currentText.slice(0, safeOffset)}${text}${currentText.slice(safeOffset)}`;
-    const nextOffset = safeOffset + text.length;
+    const nextText = `${currentText.slice(0, safeOffset)}${insertText}${currentText.slice(safeOffset)}`;
+    const nextOffset = safeOffset + insertText.length;
 
     el.textContent = nextText;
     el.focus();
@@ -10547,7 +10742,7 @@ export default function SupraSpacePage() {
     composerCaretOffsetRef.current = nextOffset;
     syncComposerText(nextText, true);
     refreshActiveFormats();
-  }, [rangeFromTextOffset, refreshActiveFormats, syncComposerText]);
+  }, [rangeFromTextOffset, refreshActiveFormats, showMessageLimitNotice, syncComposerText]);
 
   const prepareMobileEmojiPicker = React.useCallback(() => {
     saveComposerSelection();
@@ -10582,9 +10777,21 @@ export default function SupraSpacePage() {
     refreshActiveFormats();
   }, [refreshActiveFormats]);
 
+  const enforceComposerLengthFromDom = React.useCallback((el: HTMLElement, preferredCaret?: number) => {
+    const currentText = el.innerText.replace(/\n$/, '');
+    if (currentText.length <= SS4_MAX_MESSAGE_CHARS) return currentText;
+    const nextText = clampSupraSpaceMessageText(currentText);
+    const nextCaret = Math.min(preferredCaret ?? getCaretOffset(el), nextText.length);
+    syncComposerText(nextText, true);
+    setEditableTextAndCaret(nextText, nextCaret);
+    showMessageLimitNotice();
+    return nextText;
+  }, [getCaretOffset, showMessageLimitNotice, setEditableTextAndCaret, syncComposerText]);
+
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const val = el.innerText.replace(/\n$/, '');
+    const caretBeforeLimit = getCaretOffset(el);
+    const val = enforceComposerLengthFromDom(el, caretBeforeLimit);
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
     const textBeforeCaret = getComposerTextBeforeCaret(el);
@@ -10780,6 +10987,11 @@ export default function SupraSpacePage() {
     if (!candidate) return;
     const anchor = candidate.anchor;
     const endOffset = candidate.end;
+    const currentText = el.innerText.replace(/\n$/, '');
+    if (currentText.length - (endOffset - anchor) + name.length + 2 > SS4_MAX_MESSAGE_CHARS) {
+      showMessageLimitNotice();
+      return;
+    }
     const range = rangeFromTextOffset(el, anchor);
     const endRange = rangeFromTextOffset(el, endOffset);
     range.setEnd(endRange.startContainer, endRange.startOffset);
@@ -10809,7 +11021,7 @@ export default function SupraSpacePage() {
     composerSelectionRangeRef.current = nextRange.cloneRange();
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [getComposerTextBeforeCaret, mentionAnchor, mentionCandidateFromTextBeforeCaret, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, syncComposerText]);
+  }, [getComposerTextBeforeCaret, mentionAnchor, mentionCandidateFromTextBeforeCaret, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const insertChannelMention = React.useCallback((name: string) => {
     const el = textareaRef.current;
@@ -10817,6 +11029,12 @@ export default function SupraSpacePage() {
     const selection = window.getSelection();
     const range = rangeFromTextOffset(el, channelMentionAnchor);
     const endRange = rangeFromTextOffset(el, channelMentionAnchor + 1 + (channelMentionQuery?.length ?? 0));
+    const currentText = el.innerText.replace(/\n$/, '');
+    const replacingLength = 1 + (channelMentionQuery?.length ?? 0);
+    if (currentText.length - replacingLength + name.length + 2 > SS4_MAX_MESSAGE_CHARS) {
+      showMessageLimitNotice();
+      return;
+    }
     range.setEnd(endRange.startContainer, endRange.startOffset);
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -10829,7 +11047,7 @@ export default function SupraSpacePage() {
     composerCaretOffsetRef.current = caretOffset;
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
-  }, [channelMentionAnchor, channelMentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, syncComposerText]);
+  }, [channelMentionAnchor, channelMentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const startRecording = async () => {
     try {
@@ -11153,7 +11371,9 @@ export default function SupraSpacePage() {
       if (action === 'draft' && !currentDraft.trim() && activeId) {
         const r = await apiClient.post('/api/supraleo/draft', { conversationId: activeId }, { headers: { Authorization: `Bearer ${token}` } });
         const reply = r.data?.data?.draft || r.data?.data?.message || '';
-        if (reply.trim()) syncComposerText(reply.trim(), true);
+        const nextReply = clampSupraSpaceMessageText(reply.trim());
+        if (nextReply.length < reply.trim().length) showMessageLimitNotice();
+        if (nextReply) { syncComposerText(nextReply, true); if (textareaRef.current) textareaRef.current.innerText = nextReply; }
         return;
       }
       const recent = activeMsgs.slice(-10).map(m => `${m.sender?.fullName || 'User'}: ${m.content || '(attachment)'}`).join('\n');
@@ -11166,7 +11386,9 @@ export default function SupraSpacePage() {
       };
       const r = await apiClient.post('/api/supraleo/refine', { text: prompts[action] }, { headers: { Authorization: `Bearer ${token}` } });
       const reply = r.data?.data?.refined || '';
-      if (reply.trim()) { syncComposerText(reply.trim(), true); if (textareaRef.current) textareaRef.current.innerText = reply.trim(); }
+      const nextReply = clampSupraSpaceMessageText(reply.trim());
+      if (nextReply.length < reply.trim().length) showMessageLimitNotice();
+      if (nextReply) { syncComposerText(nextReply, true); if (textareaRef.current) textareaRef.current.innerText = nextReply; }
     } catch (err: any) {
       const msg = getErrorMessage(err, 'AI service is unavailable');
       toast.error(msg);
@@ -11197,6 +11419,10 @@ export default function SupraSpacePage() {
       const listIndent = leading;
       const insert = `\n${listIndent}${bulletMatch[2]} `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
       const caret = cursor + insert.length;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
@@ -11215,6 +11441,10 @@ export default function SupraSpacePage() {
       const nextNum = parseInt(numberedMatch[2], 10) + 1;
       const insert = `\n${numberedMatch[1]}${nextNum}. `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
       const caret = cursor + insert.length;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
@@ -11231,6 +11461,10 @@ export default function SupraSpacePage() {
     if (line.trimStart().startsWith('> ')) {
       const insert = `\n${leading}> `;
       const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
       const caret = cursor + insert.length;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
@@ -11238,11 +11472,17 @@ export default function SupraSpacePage() {
       return true;
     }
     return false;
-  }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
+  }, [refreshActiveFormats, setEditableTextAndCaret, showMessageLimitNotice, syncComposerText]);
 
   const insertComposerSoftLineBreak = React.useCallback(() => {
     const el = textareaRef.current;
     if (!el) return false;
+    const currentText = el.innerText.replace(/\n$/, '');
+    const selectedLength = getContentEditableSelectionLength(el);
+    if (currentText.length - selectedLength + 1 > SS4_MAX_MESSAGE_CHARS) {
+      showMessageLimitNotice();
+      return true;
+    }
 
     el.focus();
     const selection = window.getSelection();
@@ -11299,6 +11539,7 @@ export default function SupraSpacePage() {
     focusComposerAtSavedCaret,
     refreshActiveFormats,
     saveComposerSelection,
+    showMessageLimitNotice,
     syncComposerText,
   ]);
 
@@ -11503,12 +11744,16 @@ export default function SupraSpacePage() {
     }
 
     const next = `${value.slice(0, lineStart)}${newLine}${value.slice(lineEnd)}`;
+    if (next.length > SS4_MAX_MESSAGE_CHARS) {
+      showMessageLimitNotice();
+      return true;
+    }
     const caret = cursor + (newLine.length - line.length);
     syncComposerText(next, true);
     setEditableTextAndCaret(next, Math.max(lineStart, caret));
     requestAnimationFrame(refreshActiveFormats);
     return true;
-  }, [refreshActiveFormats, setEditableTextAndCaret, syncComposerText]);
+  }, [refreshActiveFormats, setEditableTextAndCaret, showMessageLimitNotice, syncComposerText]);
 
   const applyTextColor = React.useCallback((color: string) => {
     const root = textareaRef.current;
@@ -11690,6 +11935,51 @@ export default function SupraSpacePage() {
   ]);
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = event.nativeEvent as InputEvent;
+    const incomingText = [
+      'insertText',
+      'insertCompositionText',
+      'insertReplacementText',
+    ].includes(inputEvent.inputType)
+      ? inputEvent.data || ''
+      : '';
+    const root = event.currentTarget;
+
+    if (incomingText) {
+      const currentText = root.innerText.replace(/\n$/, '');
+      const selectedLength = getContentEditableSelectionLength(root);
+      const remaining = SS4_MAX_MESSAGE_CHARS - Math.max(0, currentText.length - selectedLength);
+      const limitedText = clampSupraSpaceMessageText(incomingText, remaining);
+
+      if (!limitedText) {
+        event.preventDefault();
+        showMessageLimitNotice();
+        return;
+      }
+
+      if (limitedText.length < incomingText.length) {
+        event.preventDefault();
+        const inserted = insertPreselectedTypographyText(
+          event,
+          activeFontFamilyChosen ? activeFontFamily : null,
+          activeFontSizeChosen ? activeFontSize : null,
+          activeTypingFormats,
+          activeTextColorChosen ? activeTextColor : null,
+          limitedText,
+        );
+        if (!inserted) document.execCommand('insertText', false, limitedText);
+        showMessageLimitNotice();
+        requestAnimationFrame(() => {
+          const activeRoot = textareaRef.current;
+          if (!activeRoot) return;
+          syncComposerText(activeRoot.innerText.replace(/\n$/, ''), true);
+          saveComposerSelection();
+          refreshActiveFormats();
+        });
+        return;
+      }
+    }
+
     const inserted = insertPreselectedTypographyText(
       event,
       activeFontFamilyChosen ? activeFontFamily : null,
@@ -11715,6 +12005,7 @@ export default function SupraSpacePage() {
     activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
+    showMessageLimitNotice,
     syncComposerText,
   ]);
 
@@ -11811,14 +12102,15 @@ export default function SupraSpacePage() {
       };
     }
     setLoadingMsgs(true);
+    setLoadingOlderMessages(true);
     try {
-      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, limit: 40 } });
+      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, limit: SS4_MESSAGE_PAGE_SIZE } });
       const d = r.data?.data || [];
       setMsgs(p => ({ ...p, [activeId]: [...d, ...(p[activeId] || [])] }));
-      setHasMore(p => ({ ...p, [activeId]: d.length === 40 }));
+      setHasMore(p => ({ ...p, [activeId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
     } catch {
       pendingScrollRestoreRef.current = null;
-    } finally { setLoadingMsgs(false); }
+    } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
   }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
 
   const handleMessageScroll = React.useCallback(() => {
@@ -11867,14 +12159,14 @@ export default function SupraSpacePage() {
     if (!t) return;
     setLoadingMsgs(true);
     try {
-      const params: Record<string, string | number> = { limit: 40 };
+      const params: Record<string, string | number> = { limit: SS4_MESSAGE_PAGE_SIZE };
       if (createdAt) params.before = new Date(new Date(createdAt).getTime() + 1000).toISOString();
       const r = await apiClient.get(`/api/supraspace/conversations/${convId}/messages`, {
         headers: { Authorization: `Bearer ${t}` }, params,
       });
       const d: SSMessage[] = r.data?.data || [];
       setMsgs(p => ({ ...p, [convId]: d }));
-      setHasMore(p => ({ ...p, [convId]: d.length === 40 }));
+      setHasMore(p => ({ ...p, [convId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
       setMsgFetchState(p => ({ ...p, [convId]: 'loaded' }));
     } catch {
     } finally {
@@ -12229,7 +12521,7 @@ export default function SupraSpacePage() {
               </div>
               </div>
               {isStandaloneApp && (
-                <PresenceRail me={me} users={allUsers} presence={presence} uid={uid} onSelectUser={handleDM} />
+                <SupraSpaceDayRail me={me} users={allUsers} presence={presence} uid={uid} onSelectUser={handleDM} />
               )}
               <div className={cn('px-4 pb-3 shrink-0', isStandaloneApp ? 'pt-1' : 'pt-5')}>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
@@ -12267,7 +12559,7 @@ export default function SupraSpacePage() {
             </div>
             <div className="mx-4 ss4-divider" />
 
-            <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2">
+            <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2" onScroll={handleConversationListScroll}>
               {q.trim().length >= 2 && (
                 <div className="pt-2">
                   <div className="px-3 pb-1.5 flex items-center justify-between">
@@ -12469,6 +12761,19 @@ export default function SupraSpacePage() {
                     <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
                   </button>
                   {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
+                </div>
+              )}
+              {loadingMoreConversations && q.trim().length < 2 && (
+                <div className="px-3 py-3 space-y-2">
+                  {[0, 1, 2].map(index => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="h-9 w-9 shrink-0 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="h-3 w-28 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                        <div className="h-2.5 w-40 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               </div>
@@ -12715,6 +13020,16 @@ export default function SupraSpacePage() {
                           <button onClick={loadMore} className="font-medium px-4 py-1.5 rounded-full inline-flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--bg-hover)' }}>
                             {loadingMsgs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Scroll up for earlier messages'}
                           </button>
+                        </div>
+                      )}
+                      {loadingOlderMessages && activeMsgs.length > 0 && (
+                        <div className="px-4 pb-3 space-y-2">
+                          {[0, 1].map(index => (
+                            <div key={index} className="flex items-end gap-2">
+                              <div className="h-7 w-7 shrink-0 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                              <div className="h-10 w-44 max-w-[58%] rounded-2xl animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                            </div>
+                          ))}
                         </div>
                       )}
                       {(loadingMsgs || activeMsgStatus === 'loading') && activeMsgs.length === 0 && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
@@ -13339,7 +13654,6 @@ export default function SupraSpacePage() {
                                 const html = e.clipboardData?.getData('text/html') || '';
                                 const shortcutPlainText = pastePlainTextShortcutRef.current;
                                 pastePlainTextShortcutRef.current = false;
-                                if (text.trim()) pastedPlainTextRef.current = [pastedPlainTextRef.current, text].filter(Boolean).join('\n');
 
                                 const plainText = clipboardPayloadToPlainText(text, html);
                                 if (plainText || html) {
@@ -13348,23 +13662,37 @@ export default function SupraSpacePage() {
                                   setMentionAnchor(-1);
                                   const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
                                   const pasteHasMentionText = /(^|[^\w@])@\s*\S/.test(normalizeMentionSearchText(plainText));
+                                  const currentText = textareaRef.current?.innerText.replace(/\n$/, '') || '';
+                                  const selectedLength = textareaRef.current ? getContentEditableSelectionLength(textareaRef.current) : 0;
+                                  const remaining = SS4_MAX_MESSAGE_CHARS - Math.max(0, currentText.length - selectedLength);
+                                  const limitedPlainText = clampSupraSpaceMessageText(plainText, remaining);
+                                  const pasteExceededLimit = limitedPlainText.length < plainText.length;
+                                  if (!limitedPlainText && pasteExceededLimit) {
+                                    showMessageLimitNotice();
+                                    return;
+                                  }
+                                  if (limitedPlainText.trim()) {
+                                    pastedPlainTextRef.current = [pastedPlainTextRef.current, limitedPlainText].filter(Boolean).join('\n');
+                                  }
                                   const usePlainText = pasteMode === 'plain'
                                     || shortcutPlainText
                                     || richPasteDropsVinLikeToken(text, html)
                                     || pasteHasMentionText
+                                    || pasteExceededLimit
                                     || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                                   document.execCommand(
                                     usePlainText ? 'insertText' : 'insertHTML',
                                     false,
-                                    usePlainText ? plainText : richEditorHtml,
+                                    usePlainText ? limitedPlainText : richEditorHtml,
                                   );
+                                  if (pasteExceededLimit) showMessageLimitNotice();
                                   requestAnimationFrame(() => {
                                     const el = textareaRef.current;
                                     if (el) {
                                       normalizeContentEditableListArtifacts(el);
                                       normalizeRichEditorListExitArtifacts(el);
                                       if (pasteHasMentionText) highlightMentionsInComposer(el);
-                                      const nextText = el.innerText.replace(/\n$/, '');
+                                      const nextText = enforceComposerLengthFromDom(el);
                                       syncComposerText(nextText, true);
                                       saveComposerSelection();
                                     }
@@ -13427,6 +13755,16 @@ export default function SupraSpacePage() {
                             )}
                           </div>
                         </div>
+                        {composerHasText && (
+                          <div className="flex items-center justify-end px-3 pb-1 sm:px-3.5">
+                            <span
+                              className="font-semibold"
+                              style={{ fontSize: 10.5, color: composerCounterColor }}
+                            >
+                              {composerLimitLabel ? `${composerLimitLabel} - ` : ''}{composerCharCount.toLocaleString()} / 10,000
+                            </span>
+                          </div>
+                        )}
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
