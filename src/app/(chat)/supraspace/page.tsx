@@ -174,11 +174,11 @@ function clearStoredSupraSpaceConversationId(conversationId?: string | null, use
   } catch { }
 }
 
-function syncSupraSpaceConversationUrl(conversationId: string | null): void {
+function clearSupraSpaceConversationParam(): void {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
-  if (conversationId) url.searchParams.set('convId', conversationId);
-  else url.searchParams.delete('convId');
+  if (!url.searchParams.has('convId')) return;
+  url.searchParams.delete('convId');
   const next = `${url.pathname}${url.search}${url.hash}`;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (next !== current) window.history.replaceState(window.history.state, '', next);
@@ -8525,15 +8525,12 @@ export default function SupraSpacePage() {
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
+  const handledRouteConversationIdRef = React.useRef<string | null>(null);
+  const handledRouteUserIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
   React.useEffect(() => {
-    if (loading) return;
-    if (activeId) {
-      setStoredSupraSpaceConversationId(activeId, uid);
-      syncSupraSpaceConversationUrl(activeId);
-    } else {
-      syncSupraSpaceConversationUrl(null);
-    }
+    if (loading || !activeId) return;
+    setStoredSupraSpaceConversationId(activeId, uid);
   }, [activeId, uid, loading]);
 
   const inConvHistoryRef = React.useRef(false);
@@ -9302,7 +9299,6 @@ export default function SupraSpacePage() {
     setQ('');
     activeIdRef.current = conversationId;
     setStoredSupraSpaceConversationId(conversationId, uid);
-    syncSupraSpaceConversationUrl(conversationId);
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
 
@@ -9439,11 +9435,17 @@ export default function SupraSpacePage() {
           const cleanUrl = new URL(window.location.href);
           cleanUrl.searchParams.delete('conversationId');
           cleanUrl.searchParams.delete('messageId');
+          cleanUrl.searchParams.delete('convId');
           window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
         }
 
         const pendingRouteConversationId = urlParams.get('convId');
-        if (!openedInitialConversation) openFetchedConversation(pendingRouteConversationId);
+        if (!openedInitialConversation && pendingRouteConversationId) {
+          const openedRouteConversation = openFetchedConversation(pendingRouteConversationId);
+          handledRouteConversationIdRef.current = pendingRouteConversationId;
+          clearSupraSpaceConversationParam();
+          if (!openedRouteConversation) clearStoredSupraSpaceConversationId(pendingRouteConversationId, myData._id);
+        }
 
         const pendingMeetingId = urlParams.get('meeting');
         if (pendingMeetingId) {
@@ -9466,6 +9468,7 @@ export default function SupraSpacePage() {
 
         const pendingUserId = urlParams.get('userId');
         if (pendingUserId) {
+          handledRouteUserIdRef.current = pendingUserId;
           try {
             const dmRes = await apiClient.post(
               '/api/supraspace/conversations/direct',
@@ -9532,18 +9535,20 @@ export default function SupraSpacePage() {
     if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
   }, []);
 
-  const targetConvId = searchParams.get('convId');
+  const routeConversationId = searchParams.get('convId');
   React.useEffect(() => {
-    if (loading || !targetConvId) return;
-    if (convos.some(c => c._id === targetConvId)) {
-      openConversation(targetConvId);
+    const id = (routeConversationId || '').trim();
+    if (loading || !id || handledRouteConversationIdRef.current === id) return;
+    if (!convos.some(c => c._id === id)) {
+      handledRouteConversationIdRef.current = id;
+      clearSupraSpaceConversationParam();
+      clearStoredSupraSpaceConversationId(id, uid);
       return;
     }
-    const cleanUrl = new URL(window.location.href);
-    cleanUrl.searchParams.delete('convId');
-    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
-    clearStoredSupraSpaceConversationId(targetConvId, uid);
-  }, [loading, targetConvId, convos, openConversation, uid]);
+    handledRouteConversationIdRef.current = id;
+    openConversation(id);
+    clearSupraSpaceConversationParam();
+  }, [loading, routeConversationId, convos, openConversation, uid]);
 
   React.useEffect(() => {
     const target = pendingNotificationTargetRef.current;
@@ -9573,9 +9578,11 @@ export default function SupraSpacePage() {
 
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
-    if (loading || !token || !targetUserId) return;
+    const id = (targetUserId || '').trim();
+    if (loading || !token || !id || handledRouteUserIdRef.current === id) return;
+    handledRouteUserIdRef.current = id;
     apiClient
-      .post('/api/supraspace/conversations/direct', { targetUserId }, { headers: { Authorization: `Bearer ${token}` } })
+      .post('/api/supraspace/conversations/direct', { targetUserId: id }, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
         const c = r.data?.data;
         if (!c) return;
