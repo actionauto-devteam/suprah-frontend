@@ -112,8 +112,9 @@ function PremiumVehicleCardComponent({
     }).format(date);
   }, [vehicle.priceUpdatedAt]);
 
-  // Mocking "Retail Price" vs "One Time Payment" for the UI showcase
-  const retailPrice = vehicle.price + 0; // Mock markup
+  const hasPrice = Number.isFinite(vehicle.price) && vehicle.price > 0;
+  // Preserve the existing retail/member presentation only after a real price exists.
+  const retailPrice = vehicle.price + 0;
   const memberPrice = vehicle.price;
 
   return (
@@ -159,14 +160,18 @@ function PremiumVehicleCardComponent({
               </div>
               <div className="shrink-0 bg-white/60 dark:bg-black/40 rounded-xl px-3 py-2 border border-zinc-400/30 dark:border-white/10 text-right">
                 <p className="text-xs text-zinc-700 dark:text-zinc-400 font-semibold uppercase tracking-wider">
-                  Est. Monthly
+                  {hasPrice ? "Est. Monthly" : "Price"}
                 </p>
-                <p className="text-lg font-extrabold text-primary">
-                  ${Math.floor(memberPrice / 60)}
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    /mo
-                  </span>
-                </p>
+                {hasPrice ? (
+                  <p className="text-lg font-extrabold text-primary">
+                    ${Math.floor(memberPrice / 60)}
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      /mo
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-extrabold text-primary">Price Pending</p>
+                )}
               </div>
             </div>
           </div>
@@ -211,12 +216,16 @@ function PremiumVehicleCardComponent({
               </div>
               <div className="shrink-0 bg-black/40 backdrop-blur-md rounded-xl p-2 border border-white/10 text-right">
                 <p className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
-                  Est. Monthly
+                  {hasPrice ? "Est. Monthly" : "Price"}
                 </p>
-                <p className="text-xl font-bold text-primary">
-                  ${Math.floor(memberPrice / 60)}
-                  <span className="text-sm font-medium text-zinc-300">/mo</span>
-                </p>
+                {hasPrice ? (
+                  <p className="text-xl font-bold text-primary">
+                    ${Math.floor(memberPrice / 60)}
+                    <span className="text-sm font-medium text-zinc-300">/mo</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-bold text-primary">Price Pending</p>
+                )}
               </div>
             </div>
           </>
@@ -270,22 +279,32 @@ function PremiumVehicleCardComponent({
 
         {/* Financials Box */}
         <div className="bg-muted/40 rounded-xl p-4 mb-6 border border-border/50">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-muted-foreground font-medium">
-              Retail Price:
-            </span>
-            <span className="text-muted-foreground/70 font-bold line-through decoration-2 text-lg">
-              ${retailPrice.toLocaleString()}
-            </span>
-          </div>
-          <div className="flex justify-between items-center bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
-            <span className="text-foreground font-bold tracking-tight">
-              One Time Payment:
-            </span>
-            <span className="text-2xl font-extrabold text-primary">
-              ${memberPrice.toLocaleString()}
-            </span>
-          </div>
+          {hasPrice ? (
+            <>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-muted-foreground font-medium">
+                  Retail Price:
+                </span>
+                <span className="text-muted-foreground/70 font-bold line-through decoration-2 text-lg">
+                  ${retailPrice.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between items-center bg-primary/8 dark:bg-primary/12 -mx-2 px-2 py-2 rounded-lg border-l-4 border-primary">
+                <span className="text-foreground font-bold tracking-tight">
+                  One Time Payment:
+                </span>
+                <span className="text-2xl font-extrabold text-primary">
+                  ${memberPrice.toLocaleString()}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border-l-4 border-primary bg-primary/8 px-3 py-3 dark:bg-primary/12">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Price</p>
+              <p className="mt-0.5 text-xl font-extrabold text-primary">Price Pending</p>
+              <p className="mt-1 text-xs text-muted-foreground">Pricing is being finalized.</p>
+            </div>
+          )}
 
           {showInventoryMeta && (
             <div
@@ -294,7 +313,7 @@ function PremiumVehicleCardComponent({
             >
               <span className="flex items-center gap-1 font-medium">
                 <CalendarClock className="h-3.5 w-3.5 text-primary/70" />
-                Price update recorded
+                {hasPrice ? "Price update recorded" : "Pricing pending"}
               </span>
               <VehiclePriceHistoryDialog
                 vehicle={vehicle}

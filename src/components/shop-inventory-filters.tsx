@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, X, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
+import { Search, X, LayoutGrid, List, SlidersHorizontal, ArrowUpDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -25,6 +25,7 @@ interface ShopInventoryFiltersProps {
   currentSortValue: string;
   onSortChange: (value: string) => void;
   sortOptions: Array<{ value: string; label: string }>;
+  resultCount?: number;
 }
 
 
@@ -90,6 +91,42 @@ function PillSelect({
   );
 }
 
+function MobileFilterSelect({
+  label,
+  value,
+  onValueChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: PillSelectOption[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </span>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger className="h-11 w-full rounded-xl border-border/60 bg-card text-sm dark:bg-zinc-900">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          sideOffset={4}
+          className="z-[100] max-h-72 border-border bg-popover text-popover-foreground shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
+        >
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value} className="text-sm">
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 const FILTER_LABELS: Record<string, string> = {
   make: "Make",
   model: "Model",
@@ -137,6 +174,7 @@ export function ShopInventoryFilters({
   currentSortValue,
   onSortChange,
   sortOptions,
+  resultCount,
 }: ShopInventoryFiltersProps) {
   const { getToken } = useAuth();
   const [filterOptions, setFilterOptions] = React.useState<FilterOptions | null>(null);
@@ -146,6 +184,7 @@ export function ShopInventoryFilters({
   const [mileMin, setMileMin] = React.useState(filters.minMileage ? String(filters.minMileage) : "");
   const [mileMax, setMileMax] = React.useState(filters.maxMileage ? String(filters.maxMileage) : "");
   const [showRanges, setShowRanges] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
 
   React.useEffect(() => { if (!filters.minPrice) setPriceMin(""); }, [filters.minPrice]);
   React.useEffect(() => { if (!filters.maxPrice) setPriceMax(""); }, [filters.maxPrice]);
@@ -286,229 +325,97 @@ export function ShopInventoryFilters({
 
   return (
     <div className="space-y-2.5">
-
-      {/* Row 1 — Search + View Toggle */}
-      <div className="flex gap-2 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+      {/* Search + remembered Grid/List preference control — shared by mobile and desktop. */}
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
           <Input
             placeholder="Search make, model, VIN, stock #..."
-            className="pl-10 h-10 rounded-xl border-border/50 bg-card text-sm placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/40 dark:bg-zinc-900 dark:border-zinc-700"
+            className="h-11 rounded-xl border-border/50 bg-card pl-10 pr-10 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/40 dark:border-zinc-700 dark:bg-zinc-900"
             value={filters.search || ""}
-            onChange={(e) => onFilterChange("search", e.target.value)}
+            onChange={(event) => onFilterChange("search", event.target.value)}
           />
           {filters.search && (
             <button
+              type="button"
               onClick={() => onFilterChange("search", "")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/30 transition-colors"
+              className="absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-muted-foreground/20 transition-colors hover:bg-muted-foreground/30"
+              aria-label="Clear inventory search"
             >
               <X className="h-3 w-3 text-muted-foreground" />
             </button>
           )}
         </div>
 
-        {/* View toggle */}
-        <div className="flex items-center rounded-xl border border-border/50 overflow-hidden shrink-0 dark:border-zinc-700">
+        <div className="flex shrink-0 items-center overflow-hidden rounded-xl border border-border/50 dark:border-zinc-700">
           <button
+            type="button"
             onClick={() => onViewModeChange("grid")}
             className={cn(
-              "flex items-center justify-center w-10 h-10 transition-colors",
+              "flex h-11 w-11 items-center justify-center transition-colors touch-manipulation",
               viewMode === "grid"
                 ? "bg-primary text-primary-foreground"
-                : "hover:bg-muted text-muted-foreground",
+                : "text-muted-foreground hover:bg-muted",
             )}
             aria-label="Grid view"
+            aria-pressed={viewMode === "grid"}
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={() => onViewModeChange("list")}
             className={cn(
-              "flex items-center justify-center w-10 h-10 transition-colors",
+              "flex h-11 w-11 items-center justify-center transition-colors touch-manipulation",
               viewMode === "list"
                 ? "bg-primary text-primary-foreground"
-                : "hover:bg-muted text-muted-foreground",
+                : "text-muted-foreground hover:bg-muted",
             )}
             aria-label="List view"
+            aria-pressed={viewMode === "list"}
           >
             <List className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* Row 2 — Filter pills (horizontal scroll) + Sort */}
-      <div className="flex items-center gap-2">
-        <div
-          className="flex items-center gap-2 overflow-x-auto flex-1 pb-0.5"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+      {/* Mobile toolbar: filters expand inline so inventory stays navigable. */}
+      <div className="flex items-center gap-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileFiltersOpen((open) => !open)}
+          aria-expanded={mobileFiltersOpen}
+          aria-controls="mobile-inventory-filters"
+          className={cn(
+            "flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors touch-manipulation",
+            activeCount > 0 || hasRangeFilter
+              ? "border-primary/40 bg-primary/10 text-primary"
+              : "border-border/60 bg-card text-foreground dark:bg-zinc-900",
+          )}
         >
-          <PillSelect
-            value={filters.make || "all"}
-            onValueChange={(value) =>
-              onFilterChange("make", value === "all" ? undefined : value)
-            }
-            active={!!filters.make}
-            ariaLabel="Filter by make"
-            options={makeOptions}
-          />
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filters
+          {activeCount > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-black text-primary-foreground">
+              {activeCount}
+            </span>
+          )}
+        </button>
 
-          <PillSelect
-            value={filters.model || "all"}
-            onValueChange={(value) =>
-              onFilterChange("model", value === "all" ? undefined : value)
-            }
-            active={!!filters.model}
-            ariaLabel="Filter by model"
-            options={modelOptions}
-          />
-
-          <PillSelect
-            value={filters.year ? String(filters.year) : "all"}
-            onValueChange={(value) =>
-              onFilterChange("year", value === "all" ? undefined : Number(value))
-            }
-            active={!!filters.year}
-            ariaLabel="Filter by year"
-            options={yearOptions}
-          />
-
-          <PillSelect
-            value={filters.bodyStyle || "all"}
-            onValueChange={(value) =>
-              onFilterChange("bodyStyle", value === "all" ? undefined : value)
-            }
-            active={!!filters.bodyStyle}
-            ariaLabel="Filter by body style"
-            options={bodyStyleOptions}
-          />
-
-          <PillSelect
-            value={
-              filters.status && filters.status !== "all"
-                ? filters.status
-                : "all"
-            }
-            onValueChange={(value) =>
-              onFilterChange("status", value === "all" ? "all" : value)
-            }
-            active={!!(filters.status && filters.status !== "all")}
-            ariaLabel="Filter by status"
-            options={statusOptions}
-          />
-
-          <PillSelect
-            value={filters.location || "all"}
-            onValueChange={(value) =>
-              onFilterChange("location", value === "all" ? undefined : value)
-            }
-            active={!!filters.location}
-            ariaLabel="Filter by location"
-            options={locationOptions}
-          />
-
-          <PillSelect
-            value={filters.priceUpdated || "all"}
-            onValueChange={(value) =>
-              onFilterChange("priceUpdated", value === "all" ? "all" : value)
-            }
-            active={!!filters.priceUpdated && filters.priceUpdated !== "all"}
-            ariaLabel="Filter by price last updated"
-            options={PRICE_UPDATED_OPTIONS}
-          />
-
-          {/* Range toggle pill */}
-          <button
-            onClick={() => setShowRanges((p) => !p)}
-            className={cn(
-              "h-8 rounded-full border px-3.5 text-xs font-medium cursor-pointer shrink-0 flex items-center gap-1.5 transition-all duration-150",
-              showRanges || hasRangeFilter
-                ? "border-primary bg-primary/10 text-primary font-semibold dark:bg-primary/15"
-                : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border dark:border-zinc-700",
-            )}
-          >
-            <SlidersHorizontal className="h-3 w-3" />
-            Range
-            {hasRangeFilter && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-black">
-                {[filters.minPrice, filters.maxPrice, filters.minMileage, filters.maxMileage].filter(Boolean).length}
-              </span>
-            )}
-          </button>
-
-          {/* Sort — mobile */}
+        <div className="min-w-0 flex-1">
           <PillSelect
             value={currentSortValue}
             onValueChange={onSortChange}
             active={!!currentSortValue}
-            ariaLabel="Sort by"
-            className="sm:hidden min-w-30"
+            ariaLabel="Sort inventory"
+            className="h-11 w-full min-w-0 justify-between rounded-xl px-3"
             options={sortOptions}
           />
         </div>
-
-        {/* Sort — desktop */}
-        <PillSelect
-          value={currentSortValue}
-          onValueChange={onSortChange}
-          active={!!currentSortValue}
-          ariaLabel="Sort by"
-          className="hidden sm:flex min-w-37"
-          options={sortOptions}
-        />
       </div>
 
-      {/* Row 3 — Price + Mileage ranges (collapsible) */}
-      {showRanges && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border/40 bg-muted/30 px-3.5 py-2.5 dark:bg-zinc-900/50 dark:border-zinc-700/50">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest whitespace-nowrap">
-              Price
-            </span>
-            <Input
-              type="number"
-              placeholder="Min $"
-              className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
-              value={priceMin}
-              onChange={(e) => handleMinPriceChange(e.target.value)}
-            />
-            <span className="text-muted-foreground/50 text-xs">—</span>
-            <Input
-              type="number"
-              placeholder="Max $"
-              className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
-              value={priceMax}
-              onChange={(e) => handleMaxPriceChange(e.target.value)}
-            />
-          </div>
-
-          <div className="h-4 w-px bg-border/50 hidden sm:block" />
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest whitespace-nowrap">
-              Miles
-            </span>
-            <Input
-              type="number"
-              placeholder="Min"
-              className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
-              value={mileMin}
-              onChange={(e) => handleMinMileageChange(e.target.value)}
-            />
-            <span className="text-muted-foreground/50 text-xs">—</span>
-            <Input
-              type="number"
-              placeholder="Max"
-              className="w-20 h-7 text-xs px-2 rounded-lg border-border/50 dark:bg-zinc-900 dark:border-zinc-700"
-              value={mileMax}
-              onChange={(e) => handleMaxMileageChange(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Active filter chips */}
-      {activeCount > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+      {activeCount > 0 && !mobileFiltersOpen && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:hidden no-scrollbar">
           {chipEntries.map(([key, value]) => {
             const label = FILTER_LABELS[key] ?? key;
             const displayVal =
@@ -517,16 +424,18 @@ export function ShopInventoryFilters({
                 : key === "priceUpdated"
                   ? PRICE_UPDATED_CHIP_LABELS[String(value)] ?? String(value)
                   : String(value);
+
             return (
               <span
                 key={key}
-                className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/12"
+                className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-3 py-1.5 text-[11px] font-semibold text-primary dark:bg-primary/12"
               >
                 <span className="opacity-70">{label}</span>
                 {displayVal && <span>: {displayVal}</span>}
                 <button
+                  type="button"
                   onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)}
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20 transition-colors"
+                  className="ml-0.5 rounded-full p-1 transition-colors hover:bg-primary/20"
                   aria-label={`Remove ${label} filter`}
                 >
                   <X className="h-2.5 w-2.5" />
@@ -535,13 +444,268 @@ export function ShopInventoryFilters({
             );
           })}
           <button
+            type="button"
             onClick={onClearFilters}
-            className="text-[11px] font-semibold text-muted-foreground hover:text-destructive transition-colors px-1.5 h-6 rounded-full"
+            className="min-h-8 shrink-0 rounded-full px-3 text-[11px] font-bold text-muted-foreground transition-colors hover:text-destructive"
           >
             Clear all
           </button>
         </div>
       )}
+
+      {mobileFiltersOpen && (
+        <section
+          id="mobile-inventory-filters"
+          className="md:hidden flex max-h-[68vh] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-sm dark:bg-zinc-900/70"
+          aria-label="Inventory filters"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-border/50 px-3.5 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-foreground">Inventory Filters</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {resultCount !== undefined
+                    ? `${resultCount.toLocaleString()} ${resultCount === 1 ? "vehicle" : "vehicles"} match`
+                    : "Refine the vehicles shown below"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(false)}
+              className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 px-3 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+              Hide
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3.5 py-3">
+            <div className="grid grid-cols-2 gap-2.5">
+              <MobileFilterSelect
+                label="Make"
+                value={filters.make || "all"}
+                onValueChange={(value) => onFilterChange("make", value === "all" ? undefined : value)}
+                options={makeOptions}
+              />
+              <MobileFilterSelect
+                label="Model"
+                value={filters.model || "all"}
+                onValueChange={(value) => onFilterChange("model", value === "all" ? undefined : value)}
+                options={modelOptions}
+              />
+              <MobileFilterSelect
+                label="Year"
+                value={filters.year ? String(filters.year) : "all"}
+                onValueChange={(value) => onFilterChange("year", value === "all" ? undefined : Number(value))}
+                options={yearOptions}
+              />
+              <MobileFilterSelect
+                label="Status"
+                value={filters.status && filters.status !== "all" ? filters.status : "all"}
+                onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
+                options={statusOptions}
+              />
+              <MobileFilterSelect
+                label="Location"
+                value={filters.location || "all"}
+                onValueChange={(value) => onFilterChange("location", value === "all" ? undefined : value)}
+                options={locationOptions}
+              />
+              <MobileFilterSelect
+                label="Body Style"
+                value={filters.bodyStyle || "all"}
+                onValueChange={(value) => onFilterChange("bodyStyle", value === "all" ? undefined : value)}
+                options={bodyStyleOptions}
+              />
+            </div>
+
+            <MobileFilterSelect
+              label="Price Last Updated"
+              value={filters.priceUpdated || "all"}
+              onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
+              options={PRICE_UPDATED_OPTIONS}
+            />
+
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-3 dark:bg-zinc-950/35">
+              <div className="mb-2.5 flex items-center gap-2">
+                <ArrowUpDown className="h-3.5 w-3.5 text-primary/70" />
+                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-muted-foreground">
+                  Price & Mileage Range
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="number" inputMode="numeric" placeholder="Min $" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={priceMin} onChange={(event) => handleMinPriceChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Max $" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={priceMax} onChange={(event) => handleMaxPriceChange(event.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Mileage</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="number" inputMode="numeric" placeholder="Min miles" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={mileMin} onChange={(event) => handleMinMileageChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Max miles" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={mileMax} onChange={(event) => handleMaxMileageChange(event.target.value)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-border/50 bg-background/90 px-3.5 py-2">
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="h-11 rounded-xl border border-border/60 bg-card text-xs font-bold text-foreground transition-colors hover:bg-muted"
+            >
+              Clear filters
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(false)}
+              className="h-11 rounded-xl bg-primary text-xs font-black text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {resultCount !== undefined ? `Show ${resultCount.toLocaleString()}` : "Show results"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Desktop/tablet: retain the existing pill-based controls. */}
+      <div className="hidden md:block">
+        <div className="flex items-center gap-2">
+          <div
+            className="flex flex-1 items-center gap-2 overflow-x-auto pb-0.5"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+          >
+            <PillSelect
+              value={filters.make || "all"}
+              onValueChange={(value) => onFilterChange("make", value === "all" ? undefined : value)}
+              active={!!filters.make}
+              ariaLabel="Filter by make"
+              options={makeOptions}
+            />
+            <PillSelect
+              value={filters.model || "all"}
+              onValueChange={(value) => onFilterChange("model", value === "all" ? undefined : value)}
+              active={!!filters.model}
+              ariaLabel="Filter by model"
+              options={modelOptions}
+            />
+            <PillSelect
+              value={filters.year ? String(filters.year) : "all"}
+              onValueChange={(value) => onFilterChange("year", value === "all" ? undefined : Number(value))}
+              active={!!filters.year}
+              ariaLabel="Filter by year"
+              options={yearOptions}
+            />
+            <PillSelect
+              value={filters.bodyStyle || "all"}
+              onValueChange={(value) => onFilterChange("bodyStyle", value === "all" ? undefined : value)}
+              active={!!filters.bodyStyle}
+              ariaLabel="Filter by body style"
+              options={bodyStyleOptions}
+            />
+            <PillSelect
+              value={filters.status && filters.status !== "all" ? filters.status : "all"}
+              onValueChange={(value) => onFilterChange("status", value === "all" ? "all" : value)}
+              active={!!(filters.status && filters.status !== "all")}
+              ariaLabel="Filter by status"
+              options={statusOptions}
+            />
+            <PillSelect
+              value={filters.location || "all"}
+              onValueChange={(value) => onFilterChange("location", value === "all" ? undefined : value)}
+              active={!!filters.location}
+              ariaLabel="Filter by location"
+              options={locationOptions}
+            />
+            <PillSelect
+              value={filters.priceUpdated || "all"}
+              onValueChange={(value) => onFilterChange("priceUpdated", value === "all" ? "all" : value)}
+              active={!!filters.priceUpdated && filters.priceUpdated !== "all"}
+              ariaLabel="Filter by price last updated"
+              options={PRICE_UPDATED_OPTIONS}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowRanges((previous) => !previous)}
+              className={cn(
+                "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-all duration-150",
+                showRanges || hasRangeFilter
+                  ? "border-primary bg-primary/10 font-semibold text-primary dark:bg-primary/15"
+                  : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground dark:border-zinc-700",
+              )}
+            >
+              <SlidersHorizontal className="h-3 w-3" />
+              Range
+              {hasRangeFilter && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-black text-primary-foreground">
+                  {[filters.minPrice, filters.maxPrice, filters.minMileage, filters.maxMileage].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <PillSelect
+            value={currentSortValue}
+            onValueChange={onSortChange}
+            active={!!currentSortValue}
+            ariaLabel="Sort by"
+            className="min-w-37"
+            options={sortOptions}
+          />
+        </div>
+
+        {showRanges && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border/40 bg-muted/30 px-3.5 py-2.5 dark:border-zinc-700/50 dark:bg-zinc-900/50">
+            <div className="flex items-center gap-2">
+              <span className="whitespace-nowrap text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Price</span>
+              <Input type="number" placeholder="Min $" className="h-7 w-20 rounded-lg border-border/50 px-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" value={priceMin} onChange={(event) => handleMinPriceChange(event.target.value)} />
+              <span className="text-xs text-muted-foreground/50">—</span>
+              <Input type="number" placeholder="Max $" className="h-7 w-20 rounded-lg border-border/50 px-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" value={priceMax} onChange={(event) => handleMaxPriceChange(event.target.value)} />
+            </div>
+            <div className="hidden h-4 w-px bg-border/50 sm:block" />
+            <div className="flex items-center gap-2">
+              <span className="whitespace-nowrap text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Miles</span>
+              <Input type="number" placeholder="Min" className="h-7 w-20 rounded-lg border-border/50 px-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" value={mileMin} onChange={(event) => handleMinMileageChange(event.target.value)} />
+              <span className="text-xs text-muted-foreground/50">—</span>
+              <Input type="number" placeholder="Max" className="h-7 w-20 rounded-lg border-border/50 px-2 text-xs dark:border-zinc-700 dark:bg-zinc-900" value={mileMax} onChange={(event) => handleMaxMileageChange(event.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {activeCount > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 pt-0.5">
+            {chipEntries.map(([key, value]) => {
+              const label = FILTER_LABELS[key] ?? key;
+              const displayVal =
+                typeof value === "boolean"
+                  ? null
+                  : key === "priceUpdated"
+                    ? PRICE_UPDATED_CHIP_LABELS[String(value)] ?? String(value)
+                    : String(value);
+              return (
+                <span key={key} className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/12">
+                  <span className="opacity-70">{label}</span>
+                  {displayVal && <span>: {displayVal}</span>}
+                  <button type="button" onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)} className="ml-0.5 rounded-full p-1 transition-colors hover:bg-primary/20" aria-label={`Remove ${label} filter`}>
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              );
+            })}
+            <button type="button" onClick={onClearFilters} className="h-6 rounded-full px-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-destructive">
+              Clear all
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

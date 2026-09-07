@@ -22,10 +22,51 @@ export type PerPageOption = (typeof PER_PAGE_OPTIONS)[number];
 
 type TransportationView = "shipments" | "drafts" | "load-board";
 
+type WarmLoadSnapshot = {
+  items: Load[];
+  complete: boolean;
+  total: number;
+};
+
+type WarmQuoteSnapshot = {
+  items: Quote[];
+  complete: boolean;
+  total: number;
+};
+
+// Client-module cache survives normal Next.js route unmount/remount cycles.
+// It is intentionally in-memory only: a hard reload still performs a fresh
+// authenticated request, while returning from Load Details can render the last
+// verified Transportation snapshot immediately and reconcile silently.
+const transportationWarmCache: {
+  ownerKey: string | null;
+  loadSnapshot: WarmLoadSnapshot | null;
+  quoteSnapshot: WarmQuoteSnapshot | null;
+  stats: LoadStats | null;
+  quoteStats: Record<string, number> | null;
+  vehicles: Vehicle[] | null;
+  lastUpdated: Date | null;
+} = {
+  ownerKey: null,
+  loadSnapshot: null,
+  quoteSnapshot: null,
+  stats: null,
+  quoteStats: null,
+  vehicles: null,
+  lastUpdated: null,
+};
+
 interface TransportationFilters {
   shipmentStatus?: string;
   quoteStatus?: string;
   activeView?: string;
+  shipmentSearch?: string;
+  quoteSearch?: string;
+  shipmentOrigin?: string;
+  shipmentDestination?: string;
+  shipmentVisibility?: string;
+  quoteOrigin?: string;
+  quoteDestination?: string;
 }
 
 const LOADS_LIMIT_STORAGE_KEY = "transportation:loads:limit";
@@ -83,58 +124,246 @@ function extractPaginatedItems<T>(
   return { items: [], pagination: null };
 }
 
+function matchesLocationText(
+  values: Array<string | undefined>,
+  query: string,
+) {
+  if (!query) return true;
+  const normalized = query.toLowerCase();
+  return values
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
+}
+
+function matchesShipmentSearch(load: Load, query: string) {
+  if (!query) return true;
+  const normalized = query.toLowerCase();
+  return (
+    load.loadNumber?.toLowerCase().includes(normalized) ||
+    matchesLocationText(
+      [
+        load.pickupLocation.name,
+        load.pickupLocation.address,
+        load.pickupLocation.street,
+        load.pickupLocation.city,
+        load.pickupLocation.state,
+        load.pickupLocation.zip,
+        load.pickupLocation.contactName,
+      ],
+      normalized,
+    ) ||
+    matchesLocationText(
+      [
+        load.deliveryLocation.name,
+        load.deliveryLocation.address,
+        load.deliveryLocation.street,
+        load.deliveryLocation.city,
+        load.deliveryLocation.state,
+        load.deliveryLocation.zip,
+        load.deliveryLocation.contactName,
+      ],
+      normalized,
+    ) ||
+    (load.vehicles || []).some((vehicle) =>
+      [vehicle.make, vehicle.model, vehicle.vin, vehicle.lotNumber, vehicle.licensePlate]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalized)),
+    )
+  );
+}
+
+function matchesQuoteSearch(quote: Quote, query: string) {
+  if (!query) return true;
+  const normalized = query.toLowerCase();
+  return [
+    quote.firstName,
+    quote.lastName,
+    quote.email,
+    quote.phone,
+    quote.vin,
+    quote.stockNumber,
+    quote.vehicleName,
+    quote.fromAddress,
+    quote.toAddress,
+    quote.fromLocation?.city,
+    quote.fromLocation?.state,
+    quote.toLocation?.city,
+    quote.toLocation?.state,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 export function useTransportationData(filters: TransportationFilters = {}) {
   const shipmentStatus = filters.shipmentStatus || "all";
   const quoteStatus = filters.quoteStatus || "all";
+  const shipmentSearch = filters.shipmentSearch?.trim() || "";
+  const quoteSearch = filters.quoteSearch?.trim() || "";
+  const shipmentOrigin = filters.shipmentOrigin?.trim() || "";
+  const shipmentDestination = filters.shipmentDestination?.trim() || "";
+  const shipmentVisibility = filters.shipmentVisibility || "all";
+  const quoteOrigin = filters.quoteOrigin?.trim() || "";
+  const quoteDestination = filters.quoteDestination?.trim() || "";
   const activeView: TransportationView =
     filters.activeView === "drafts" || filters.activeView === "load-board"
       ? filters.activeView
       : "shipments";
-  const [isLoading, setIsLoading] = React.useState(activeView !== "load-board");
+  const { getToken, isLoaded, isSignedIn, userId, orgId } = useAuth();
+  const cacheOwnerKey =
+    isSignedIn && userId ? `${orgId || "no-org"}:${userId}` : null;
+  const canUseWarmCache =
+    cacheOwnerKey !== null && transportationWarmCache.ownerKey === cacheOwnerKey;
+
+  const initialLoadsLimit = getPersistedLimit(LOADS_LIMIT_STORAGE_KEY, 5);
+  const initialQuotesLimit = getPersistedLimit(QUOTES_LIMIT_STORAGE_KEY, 5);
+
+  const warmLoadItems = canUseWarmCache && transportationWarmCache.loadSnapshot?.complete
+    ? transportationWarmCache.loadSnapshot.items.filter((load) => {
+        const visibility = load.additionalInfo?.visibility || "public";
+        return (
+          (!shipmentStatus || shipmentStatus === "all" || load.status === shipmentStatus) &&
+          matchesShipmentSearch(load, shipmentSearch) &&
+          matchesLocationText(
+            [
+              load.pickupLocation.name,
+              load.pickupLocation.address,
+              load.pickupLocation.street,
+              load.pickupLocation.city,
+              load.pickupLocation.state,
+              load.pickupLocation.zip,
+            ],
+            shipmentOrigin,
+          ) &&
+          matchesLocationText(
+            [
+              load.deliveryLocation.name,
+              load.deliveryLocation.address,
+              load.deliveryLocation.street,
+              load.deliveryLocation.city,
+              load.deliveryLocation.state,
+              load.deliveryLocation.zip,
+            ],
+            shipmentDestination,
+          ) &&
+          (shipmentVisibility === "all" || visibility === shipmentVisibility)
+        );
+      })
+    : [];
+
+  const warmQuoteItems = canUseWarmCache && transportationWarmCache.quoteSnapshot?.complete
+    ? transportationWarmCache.quoteSnapshot.items.filter((quote) =>
+        (!quoteStatus ||
+          quoteStatus === "all" ||
+          String(quote.status).toLowerCase() === quoteStatus.toLowerCase()) &&
+        matchesQuoteSearch(quote, quoteSearch) &&
+        matchesLocationText(
+          [
+            quote.fromAddress,
+            quote.fromZip,
+            quote.fromLocation?.name,
+            quote.fromLocation?.streetAddress,
+            quote.fromLocation?.city,
+            quote.fromLocation?.state,
+            quote.fromLocation?.zip,
+          ],
+          quoteOrigin,
+        ) &&
+        matchesLocationText(
+          [
+            quote.toAddress,
+            quote.toZip,
+            quote.toLocation?.name,
+            quote.toLocation?.streetAddress,
+            quote.toLocation?.city,
+            quote.toLocation?.state,
+            quote.toLocation?.zip,
+          ],
+          quoteDestination,
+        ),
+      )
+    : [];
+
+  const buildWarmPagination = (total: number, limit: number): TransportationPagination => ({
+    page: 1,
+    limit,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / Math.max(1, limit))),
+    hasMore: total > limit,
+  });
+
+  const hasWarmLoads = Boolean(
+    canUseWarmCache && transportationWarmCache.loadSnapshot?.complete,
+  );
+  const hasWarmQuotes = Boolean(
+    canUseWarmCache && transportationWarmCache.quoteSnapshot?.complete,
+  );
+
+  const [isLoading, setIsLoading] = React.useState(
+    activeView === "shipments"
+      ? !hasWarmLoads
+      : activeView === "drafts"
+        ? !hasWarmQuotes
+        : false,
+  );
   const [isSilentRefreshing, setIsSilentRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const [loads, setLoads] = React.useState<Load[]>([]);
+  const [loads, setLoads] = React.useState<Load[]>(() =>
+    hasWarmLoads ? warmLoadItems.slice(0, initialLoadsLimit) : [],
+  );
   const [loadsPagination, setLoadsPagination] =
-    React.useState<TransportationPagination | null>(null);
+    React.useState<TransportationPagination | null>(() =>
+      hasWarmLoads ? buildWarmPagination(warmLoadItems.length, initialLoadsLimit) : null,
+    );
   const [loadsPage, setLoadsPage] = React.useState(1);
-  const [loadsLimit, setLoadsLimit] = React.useState<PerPageOption>(
-    () => getPersistedLimit(LOADS_LIMIT_STORAGE_KEY, 5),
-  );
+  const [loadsLimit, setLoadsLimit] = React.useState<PerPageOption>(initialLoadsLimit);
 
-  const [quotes, setQuotes] = React.useState<Quote[]>([]);
+  const [quotes, setQuotes] = React.useState<Quote[]>(() =>
+    hasWarmQuotes ? warmQuoteItems.slice(0, initialQuotesLimit) : [],
+  );
   const [quotesPagination, setQuotesPagination] =
-    React.useState<TransportationPagination | null>(null);
+    React.useState<TransportationPagination | null>(() =>
+      hasWarmQuotes ? buildWarmPagination(warmQuoteItems.length, initialQuotesLimit) : null,
+    );
   const [quotesPage, setQuotesPage] = React.useState(1);
-  const [quotesLimit, setQuotesLimit] = React.useState<PerPageOption>(() =>
-    getPersistedLimit(QUOTES_LIMIT_STORAGE_KEY, 5),
-  );
+  const [quotesLimit, setQuotesLimit] = React.useState<PerPageOption>(initialQuotesLimit);
 
-  const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
-  const [stats, setStats] = React.useState<LoadStats>({
-    all: 0,
-    Posted: 0,
-    Assigned: 0,
-    "In-Transit": 0,
-    Delivered: 0,
-    Cancelled: 0,
-  });
-  const [quoteStats, setQuoteStats] = React.useState<Record<string, number>>({
-    all: 0,
-    pending: 0,
-    accepted: 0,
-    booked: 0,
-    rejected: 0,
-  });
-  const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
+  const [vehicles, setVehicles] = React.useState<Vehicle[]>(() =>
+    canUseWarmCache && transportationWarmCache.vehicles
+      ? [...transportationWarmCache.vehicles]
+      : [],
+  );
+  const [stats, setStats] = React.useState<LoadStats>(() =>
+    (canUseWarmCache ? transportationWarmCache.stats : null) || {
+      all: 0,
+      Draft: 0,
+      Posted: 0,
+      Assigned: 0,
+      Accepted: 0,
+      "Picked Up": 0,
+      "In-Transit": 0,
+      Delivered: 0,
+      Cancelled: 0,
+    },
+  );
+  const [quoteStats, setQuoteStats] = React.useState<Record<string, number>>(() =>
+    (canUseWarmCache ? transportationWarmCache.quoteStats : null) || {
+      all: 0,
+      pending: 0,
+      accepted: 0,
+      booked: 0,
+      rejected: 0,
+    },
+  );
+  const [lastUpdated, setLastUpdated] = React.useState<Date | null>(
+    canUseWarmCache ? transportationWarmCache.lastUpdated : null,
+  );
   const [hasNewEntries, setHasNewEntries] = React.useState(false);
   const [deletingLoadId, setDeletingLoadId] = React.useState<string | null>(
     null,
   );
-
-  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   // Keep current page/limit in refs so socket handler always sees latest values
   const loadsPageRef = React.useRef(loadsPage);
@@ -146,18 +375,14 @@ export function useTransportationData(filters: TransportationFilters = {}) {
   const quotesLimitRef = React.useRef(quotesLimit);
   const loadsRequestIdRef = React.useRef(0);
   const quotesRequestIdRef = React.useRef(0);
-  const hasLoadedLoadsRef = React.useRef(false);
-  const hasLoadedQuotesRef = React.useRef(false);
-  const loadSnapshotRef = React.useRef<{
-    items: Load[];
-    complete: boolean;
-    total: number;
-  } | null>(null);
-  const quoteSnapshotRef = React.useRef<{
-    items: Quote[];
-    complete: boolean;
-    total: number;
-  } | null>(null);
+  const hasLoadedLoadsRef = React.useRef(hasWarmLoads);
+  const hasLoadedQuotesRef = React.useRef(hasWarmQuotes);
+  const loadSnapshotRef = React.useRef<WarmLoadSnapshot | null>(
+    canUseWarmCache ? transportationWarmCache.loadSnapshot : null,
+  );
+  const quoteSnapshotRef = React.useRef<WarmQuoteSnapshot | null>(
+    canUseWarmCache ? transportationWarmCache.quoteSnapshot : null,
+  );
 
   React.useEffect(() => {
     loadsPageRef.current = loadsPage;
@@ -197,7 +422,37 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     }
   }, [quotesLimit]);
 
-  const isInitializedRef = React.useRef(false);
+  const isInitializedRef = React.useRef(hasWarmLoads || hasWarmQuotes);
+
+  // Synchronize the route-persistent warm cache after any visible or snapshot
+  // mutation. This makes Back from Load Details immediate without persisting
+  // sensitive Transportation data beyond the current browser session/module.
+  React.useEffect(() => {
+    if (!cacheOwnerKey) return;
+
+    // Never expose a previous user's or organization's in-memory snapshot. A
+    // different authenticated identity starts a new cache namespace.
+    if (transportationWarmCache.ownerKey !== cacheOwnerKey) {
+      transportationWarmCache.ownerKey = cacheOwnerKey;
+      transportationWarmCache.loadSnapshot = null;
+      transportationWarmCache.quoteSnapshot = null;
+      transportationWarmCache.stats = null;
+      transportationWarmCache.quoteStats = null;
+      transportationWarmCache.vehicles = null;
+      transportationWarmCache.lastUpdated = null;
+    }
+
+    if (loadSnapshotRef.current?.complete) {
+      transportationWarmCache.loadSnapshot = loadSnapshotRef.current;
+    }
+    if (quoteSnapshotRef.current?.complete) {
+      transportationWarmCache.quoteSnapshot = quoteSnapshotRef.current;
+    }
+    transportationWarmCache.stats = stats;
+    transportationWarmCache.quoteStats = quoteStats;
+    transportationWarmCache.vehicles = vehicles;
+    transportationWarmCache.lastUpdated = lastUpdated;
+  }, [cacheOwnerKey, loads, quotes, stats, quoteStats, vehicles, lastUpdated]);
 
   // ── Vehicle transform ──────────────────────────────────────────────────────
 
@@ -267,24 +522,93 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     (status: string) => {
       const snapshot = loadSnapshotRef.current;
       if (!snapshot?.complete) return null;
-      return status && status !== "all"
-        ? snapshot.items.filter((load) => load.status === status)
-        : snapshot.items;
+
+      return snapshot.items.filter((load) => {
+        const matchesStatus =
+          !status || status === "all" || load.status === status;
+        const matchesSearch = matchesShipmentSearch(load, shipmentSearch);
+        const matchesOrigin = matchesLocationText(
+          [
+            load.pickupLocation.name,
+            load.pickupLocation.address,
+            load.pickupLocation.street,
+            load.pickupLocation.city,
+            load.pickupLocation.state,
+            load.pickupLocation.zip,
+          ],
+          shipmentOrigin,
+        );
+        const matchesDestination = matchesLocationText(
+          [
+            load.deliveryLocation.name,
+            load.deliveryLocation.address,
+            load.deliveryLocation.street,
+            load.deliveryLocation.city,
+            load.deliveryLocation.state,
+            load.deliveryLocation.zip,
+          ],
+          shipmentDestination,
+        );
+        const visibility = load.additionalInfo?.visibility || "public";
+        const matchesVisibility =
+          shipmentVisibility === "all" || visibility === shipmentVisibility;
+
+        return (
+          matchesStatus &&
+          matchesSearch &&
+          matchesOrigin &&
+          matchesDestination &&
+          matchesVisibility
+        );
+      });
     },
-    [],
+    [
+      shipmentSearch,
+      shipmentOrigin,
+      shipmentDestination,
+      shipmentVisibility,
+    ],
   );
 
   const getQuoteSnapshotItems = React.useCallback(
     (status: string) => {
       const snapshot = quoteSnapshotRef.current;
       if (!snapshot?.complete) return null;
-      return status && status !== "all"
-        ? snapshot.items.filter(
-            (quote) => String(quote.status).toLowerCase() === status.toLowerCase(),
-          )
-        : snapshot.items;
+
+      return snapshot.items.filter((quote) => {
+        const matchesStatus =
+          !status ||
+          status === "all" ||
+          String(quote.status).toLowerCase() === status.toLowerCase();
+        const matchesSearch = matchesQuoteSearch(quote, quoteSearch);
+        const matchesOrigin = matchesLocationText(
+          [
+            quote.fromAddress,
+            quote.fromZip,
+            quote.fromLocation?.name,
+            quote.fromLocation?.streetAddress,
+            quote.fromLocation?.city,
+            quote.fromLocation?.state,
+            quote.fromLocation?.zip,
+          ],
+          quoteOrigin,
+        );
+        const matchesDestination = matchesLocationText(
+          [
+            quote.toAddress,
+            quote.toZip,
+            quote.toLocation?.name,
+            quote.toLocation?.streetAddress,
+            quote.toLocation?.city,
+            quote.toLocation?.state,
+            quote.toLocation?.zip,
+          ],
+          quoteDestination,
+        );
+        return matchesStatus && matchesSearch && matchesOrigin && matchesDestination;
+      });
     },
-    [],
+    [quoteSearch, quoteOrigin, quoteDestination],
   );
 
   const applyLoadSnapshot = React.useCallback(
@@ -329,9 +653,11 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       const config = await getAuthConfig();
       if (!config) return;
       const params: Record<string, string | number> = { page, limit };
-      if (status && status !== "all") {
-        params.status = status;
-      }
+      if (status && status !== "all") params.status = status;
+      if (shipmentSearch) params.q = shipmentSearch;
+      if (shipmentOrigin) params.origin = shipmentOrigin;
+      if (shipmentDestination) params.destination = shipmentDestination;
+      if (shipmentVisibility !== "all") params.visibility = shipmentVisibility;
       const res = await apiClient.get("/api/loads", {
         ...config,
         params,
@@ -347,7 +673,13 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       setLoadsPagination(pagination);
       hasLoadedLoadsRef.current = true;
     },
-    [getAuthConfig],
+    [
+      getAuthConfig,
+      shipmentSearch,
+      shipmentOrigin,
+      shipmentDestination,
+      shipmentVisibility,
+    ],
   );
 
   // ── Fetch quotes (specific page+limit, no loading state) ──────────────────
@@ -367,6 +699,9 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           page,
           limit,
           ...(status && status !== "all" ? { status } : {}),
+          ...(quoteSearch ? { search: quoteSearch } : {}),
+          ...(quoteOrigin ? { origin: quoteOrigin } : {}),
+          ...(quoteDestination ? { destination: quoteDestination } : {}),
         },
         timeout: 15_000,
       });
@@ -377,7 +712,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       setQuotesPagination(pagination);
       hasLoadedQuotesRef.current = true;
     },
-    [getAuthConfig],
+    [getAuthConfig, quoteSearch, quoteOrigin, quoteDestination],
   );
 
   const refreshLoadSnapshot = React.useCallback(async () => {
@@ -399,12 +734,16 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         total,
         complete: total <= items.length,
       };
+      if (loadSnapshotRef.current.complete && cacheOwnerKey) {
+        transportationWarmCache.ownerKey = cacheOwnerKey;
+        transportationWarmCache.loadSnapshot = loadSnapshotRef.current;
+      }
 
       return loadSnapshotRef.current.complete;
     } catch {
       return false;
     }
-  }, [getAuthConfig]);
+  }, [cacheOwnerKey, getAuthConfig]);
 
   const refreshQuoteSnapshot = React.useCallback(async () => {
     try {
@@ -425,6 +764,10 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         total,
         complete: total <= items.length,
       };
+      if (quoteSnapshotRef.current.complete && cacheOwnerKey) {
+        transportationWarmCache.ownerKey = cacheOwnerKey;
+        transportationWarmCache.quoteSnapshot = quoteSnapshotRef.current;
+      }
 
       const nextQuoteStats: Record<string, number> = {
         all: total,
@@ -441,12 +784,16 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         }
       }
 
+      if (cacheOwnerKey) {
+        transportationWarmCache.ownerKey = cacheOwnerKey;
+        transportationWarmCache.quoteStats = nextQuoteStats;
+      }
       setQuoteStats(nextQuoteStats);
       return quoteSnapshotRef.current.complete;
     } catch {
       return false;
     }
-  }, [getAuthConfig]);
+  }, [cacheOwnerKey, getAuthConfig]);
 
   // ── Fetch stats (silent) ───────────────────────────────────────────────────
 
@@ -473,12 +820,17 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       });
       const vehiclesResponse = res.data?.data ?? res.data;
       const vehicleData = vehiclesResponse?.vehicles || vehiclesResponse || [];
-      setVehicles(transformVehicles(vehicleData));
+      const transformedVehicles = transformVehicles(vehicleData);
+      if (cacheOwnerKey) {
+        transportationWarmCache.ownerKey = cacheOwnerKey;
+        transportationWarmCache.vehicles = transformedVehicles;
+      }
+      setVehicles(transformedVehicles);
     } catch {
       // Vehicle inventory is secondary to the active Transportation list.
       // Keep the last known vehicle data instead of blocking the page.
     }
-  }, [getAuthConfig, transformVehicles]);
+  }, [cacheOwnerKey, getAuthConfig, transformVehicles]);
 
   // ── Core fetch (initial + full refresh) ───────────────────────────────────
 
@@ -607,7 +959,15 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       setError("Please sign in to view transportation records.");
       return;
     }
-    fetchData();
+    // If route-persistent data is available, render it immediately but always
+    // reconcile against the server in the background. This avoids both the
+    // return-navigation loader and a stale snapshot after time spent on a
+    // load-details route.
+    if (canUseWarmCache) {
+      void fetchData({ silent: true, force: true });
+    } else {
+      void fetchData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn]);
 

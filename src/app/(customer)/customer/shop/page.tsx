@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
-import { RefreshCw, Star, Package, ArrowLeftRight, Heart, X, ChevronRight } from "lucide-react";
+import { RefreshCw, Star, Package, ArrowLeftRight, Heart, X, ChevronRight, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
 import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
@@ -27,6 +27,7 @@ import { TradeInEstimatorModal } from "@/components/customer/TradeInEstimatorMod
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { AnimatePresence, motion } from "framer-motion";
+import { useInventoryViewPreference } from "@/hooks/useInventoryViewPreference";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
 
@@ -168,7 +169,7 @@ function SavedVehiclesFloatingButton({ savedVehicles, liftForTray }: { savedVehi
                               <p className="text-[10px] text-muted-foreground truncate">{v.trim}</p>
                             )}
                             <p className="text-xs font-black text-primary mt-0.5">
-                              ${v.price.toLocaleString()}
+                              {Number(v.price) > 0 ? `$${v.price.toLocaleString()}` : "Price Pending"}
                             </p>
                           </div>
                         </div>
@@ -205,7 +206,7 @@ function ShopVehiclesContent() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [shippingRates, setShippingRates] = React.useState<Record<string, number>>({});
-  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useInventoryViewPreference("grid");
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
   const fetchSequenceRef = React.useRef(0);
   const queryClient = useQueryClient();
@@ -272,6 +273,7 @@ function ShopVehiclesContent() {
 
   const [page, setPage] = React.useState(Number(searchParams.get("page")) || 1);
   const [limit, setLimit] = React.useState(Number(searchParams.get("limit")) || 12);
+  const resultsTopRef = React.useRef<HTMLDivElement | null>(null);
   const [total, setTotal] = React.useState(0);
   const [totalPages, setTotalPages] = React.useState(1);
 
@@ -467,6 +469,21 @@ function ShopVehiclesContent() {
     return aliases[key] ?? "";
   }, [filters.sortBy, filters.sortOrder]);
 
+  const handlePageChange = React.useCallback((nextPage: number) => {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => {
+      resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  const handleLimitChange = React.useCallback((nextLimit: number) => {
+    setLimit(nextLimit);
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
   const vehicleCards = React.useMemo(
     () =>
       vehicles.map((vehicle) => (
@@ -486,6 +503,7 @@ function ShopVehiclesContent() {
           isComparing={comparedIds.has(vehicle.id)}
           onToggleCompare={toggleCompare}
           canCompareMore={comparedVehicles.length < 3}
+          mobileOptimized
         />
       )),
     [
@@ -517,7 +535,7 @@ function ShopVehiclesContent() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col space-y-3 sm:space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
       {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="shrink-0">
@@ -528,15 +546,15 @@ function ShopVehiclesContent() {
           <div className="absolute bottom-0 right-20 h-32 w-32 rounded-full bg-emerald-500/4 blur-2xl pointer-events-none" />
 
           <div
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[72px] sm:text-[96px] font-black text-primary/5 uppercase leading-none select-none pointer-events-none tracking-tight"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[52px] sm:text-[96px] font-black text-primary/5 uppercase leading-none select-none pointer-events-none tracking-tight"
             aria-hidden
           >
             SHOP
           </div>
 
-          <div className="relative px-5 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2.5 min-w-0">
+          <div className="relative px-3 py-3 sm:px-6 sm:py-5">
+          <div className="flex items-start justify-between gap-2 sm:gap-4">
+            <div className="min-w-0 space-y-1.5 sm:space-y-2.5">
 
               {/* Eyebrow label */}
               <div className="flex items-center gap-2">
@@ -551,11 +569,11 @@ function ShopVehiclesContent() {
 
               {/* Title */}
               <div>
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
+                <h1 className="text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-none text-foreground uppercase">
                   Shop{" "}
                   <span className="text-primary">Vehicles</span>
                 </h1>
-                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                <p className="hidden sm:block text-xs text-muted-foreground mt-1.5 font-medium">
                   Member-exclusive pricing on every listing
                 </p>
               </div>
@@ -563,9 +581,7 @@ function ShopVehiclesContent() {
               {/* Stat pills */}
               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
-                  {isLoading ? (
-                    <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
-                  ) : total}
+                  {isLoading && vehicles.length === 0 ? "Loading…" : total}
                   {" "}available
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-semibold text-primary dark:bg-primary/12">
@@ -615,7 +631,7 @@ function ShopVehiclesContent() {
       </div>
 
       {/* ─── Filters ─────────────────────────────────────────────── */}
-      <div className="shrink-0 space-y-2">
+      <div ref={resultsTopRef} className="shrink-0 space-y-2 scroll-mt-3">
         <ShopInventoryFilters
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -626,8 +642,9 @@ function ShopVehiclesContent() {
           currentSortValue={currentSortValue}
           onSortChange={handleSortChange}
           sortOptions={SHOP_SORT_OPTIONS}
+          resultCount={total}
         />
-        <p className="text-xs text-muted-foreground px-0.5">
+        <p className="hidden md:block text-xs text-muted-foreground px-0.5">
           <span className="font-bold text-foreground tabular-nums">{total}</span>{" "}
           vehicle{total !== 1 ? "s" : ""} found
         </p>
@@ -635,23 +652,19 @@ function ShopVehiclesContent() {
 
       {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
       <div className="flex-1 min-h-0">
-        {isLoading ? (
-          <div
-            className={cn(
-              viewMode === "grid"
-                ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
-                : "flex flex-col gap-2.5",
-            )}
-          >
-            {[...Array(viewMode === "grid" ? 8 : 6)].map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "rounded-2xl bg-muted animate-pulse dark:bg-zinc-900",
-                  viewMode === "grid" ? "aspect-5/4" : "h-24",
-                )}
-              />
-            ))}
+        {isLoading && vehicles.length === 0 ? (
+          <div className="flex min-h-56 items-center justify-center rounded-2xl border border-border/50 bg-card/30 px-6 py-12 text-center">
+            <div className="flex max-w-sm flex-col items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Loading vehicles</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Fetching current marketplace inventory.
+                </p>
+              </div>
+            </div>
           </div>
         ) : vehicles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -670,6 +683,12 @@ function ShopVehiclesContent() {
           </div>
         ) : (
           <div className="space-y-5">
+            {isLoading && (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Updating results…
+              </div>
+            )}
             <div
               className={cn(
                 viewMode === "grid"
@@ -683,9 +702,9 @@ function ShopVehiclesContent() {
             <InventoryPagination
               currentPage={page}
               totalPages={totalPages}
-              onPageChange={setPage}
+              onPageChange={handlePageChange}
               limit={limit}
-              onLimitChange={setLimit}
+              onLimitChange={handleLimitChange}
               totalCount={total}
             />
           </div>
@@ -711,6 +730,7 @@ function ShopVehiclesContent() {
         onBookTestDrive={() => { setDetailsOpen(false); setIsTestDriveOpen(true); }}
         isComparing={selectedVehicle ? comparedIds.has(selectedVehicle.id) : false}
         onToggleCompare={toggleCompare}
+        mobilePresentation="inspector"
       />
       <VehicleInquiryModal
         isOpen={openModals.inquiry}
@@ -732,24 +752,31 @@ function ShopVehiclesContent() {
         onOpenChange={setIsTradeInOpen}
       />
 
-      {/* ─── Floating elements ───────────────────────────────────── */}
-      <SavedVehiclesFloatingButton
-        savedVehicles={savedVehiclesData as Vehicle[]}
-        liftForTray={comparedVehicles.length > 0}
-      />
+      {/* ─── Floating elements ─────────────────────────────────────
+          The quick inspector intentionally owns the mobile bottom workspace
+          while open. Hide floating shop controls temporarily so nothing can
+          overlap it; comparison/saved state remains intact and reappears on close. */}
+      {!openModals.details && (
+        <>
+          <SavedVehiclesFloatingButton
+            savedVehicles={savedVehiclesData as Vehicle[]}
+            liftForTray={comparedVehicles.length > 0}
+          />
 
-      <ShopAssistant
-        mode="float"
-        vehicleHrefBase="/shop"
-        mobileBottomOffset={comparedVehicles.length > 0 ? 100 : 0}
-      />
+          <ShopAssistant
+            mode="float"
+            vehicleHrefBase="/shop"
+            mobileBottomOffset={comparedVehicles.length > 0 ? 100 : 0}
+          />
 
-      <ComparisonTray
-        vehicles={comparedVehicles}
-        onRemove={(id) => setComparedVehicles((prev) => prev.filter((v) => v.id !== id))}
-        onClear={() => setComparedVehicles([])}
-        onCompare={() => router.push(`/customer/compare?ids=${comparedVehicles.map((v) => v.id).join(",")}`)}
-      />
+          <ComparisonTray
+            vehicles={comparedVehicles}
+            onRemove={(id) => setComparedVehicles((prev) => prev.filter((v) => v.id !== id))}
+            onClear={() => setComparedVehicles([])}
+            onCompare={() => router.push(`/customer/compare?ids=${comparedVehicles.map((v) => v.id).join(",")}`)}
+          />
+        </>
+      )}
     </div>
   );
 }

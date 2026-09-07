@@ -47,7 +47,7 @@ import { adminStore } from "@/store/admin-store";
 import { usePresence } from "@/hooks/usePresence";
 import { usePresenceSocket } from "@/hooks/usePresenceSocket";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { dealershipNav } from "@/components/layout/mobile-nav-config";
+import { dealershipNav, dealershipMobileModules } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
@@ -419,7 +419,7 @@ function DashboardLayoutContent({
           )}
           {children}
         </main>
-        <MobileBottomNav items={dealershipNav} />
+        <MobileBottomNav items={dealershipNav} allItems={dealershipMobileModules} />
       </SidebarInset>
 
       { }

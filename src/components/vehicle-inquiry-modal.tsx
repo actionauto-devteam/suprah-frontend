@@ -161,12 +161,12 @@ export function VehicleInquiryModal({
         className={cn(
           "p-0 overflow-hidden bg-white dark:bg-zinc-950 border-none shadow-2xl",
           isMobile
-            ? "inset-x-0 top-auto left-0 bottom-16 translate-x-0 translate-y-0 max-w-none rounded-b-none rounded-t-2xl border-x-0 border-b-0 h-[calc(100dvh-4rem)]"
+            ? "left-1 right-1 top-auto bottom-[var(--mobile-bottom-nav-offset,6.25rem)] w-auto translate-x-0 translate-y-0 max-w-none rounded-2xl border border-border/40 h-[calc(100dvh-var(--mobile-bottom-nav-offset,6.25rem)-0.5rem)]"
             : "sm:max-w-175 max-h-[90dvh]",
         )}
       >
-        <DialogHeader className="bg-zinc-900 text-white p-4 md:p-6 shrink-0">
-          <DialogTitle className="text-2xl font-bold text-center tracking-tight">
+        <DialogHeader className="bg-zinc-900 text-white px-4 py-3 md:p-6 shrink-0">
+          <DialogTitle className="text-xl md:text-2xl font-bold text-center tracking-tight">
             Check Availability
           </DialogTitle>
           <button
@@ -180,8 +180,8 @@ export function VehicleInquiryModal({
         </DialogHeader>
 
         <div className="flex flex-col md:flex-row min-h-0 h-full overflow-hidden">
-          {/* Left side: Vehicle Summary */}
-          <div className="w-full md:w-5/12 bg-zinc-50 dark:bg-zinc-900/50 p-4 md:p-6 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 shrink-0">
+          {/* Desktop/tablet vehicle summary — preserved for larger screens. */}
+          <div className="hidden md:block md:w-5/12 bg-zinc-50 dark:bg-zinc-900/50 p-6 border-r border-zinc-200 dark:border-zinc-800 shrink-0">
             <div className="space-y-4">
               <div className="aspect-4/3 rounded-xl overflow-hidden shadow-md border border-white/20">
                 <img
@@ -200,9 +200,16 @@ export function VehicleInquiryModal({
                 <p className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
                   Price
                 </p>
-                <p className="text-3xl font-black text-green-600 dark:text-green-400">
-                  ${vehicle.price.toLocaleString()}
-                </p>
+                {Number(vehicle.price) > 0 ? (
+                  <p className="text-3xl font-black text-green-600 dark:text-green-400">
+                    ${vehicle.price.toLocaleString()}
+                  </p>
+                ) : (
+                  <div>
+                    <p className="text-xl font-black text-green-600 dark:text-green-400">Price Pending</p>
+                    <p className="mt-1 text-xs text-zinc-500">Pricing is being finalized.</p>
+                  </div>
+                )}
               </div>
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between text-xs font-medium">
@@ -221,8 +228,43 @@ export function VehicleInquiryModal({
             </div>
           </div>
 
+          {/* Mobile vehicle summary: use the highlighted row more efficiently with a larger image and proportional height. */}
+          <div className="md:hidden shrink-0 border-b border-zinc-200 bg-zinc-50 px-2.5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <div className="grid w-full grid-cols-[minmax(0,46%)_minmax(0,1fr)] items-stretch gap-3">
+              <div className="h-32 xs:h-36 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-950 dark:border-zinc-800">
+                <img
+                  src={vehicle.image}
+                  alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                  className="h-full w-full object-contain object-center"
+                />
+              </div>
+
+              <div className="min-w-0 flex flex-col justify-center py-1.5">
+                <p className="text-[15px] xs:text-base font-extrabold leading-tight text-zinc-900 dark:text-white line-clamp-2">
+                  {vehicle.year} {vehicle.make} {vehicle.model}
+                </p>
+                {vehicle.trim && (
+                  <p className="mt-1.5 line-clamp-2 text-[11px] xs:text-xs font-medium leading-snug text-zinc-500 dark:text-zinc-400">
+                    {vehicle.trim}
+                  </p>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
+                  <span className="text-base font-black text-green-600 dark:text-green-400">
+                    {Number(vehicle.price) > 0 ? `$${vehicle.price.toLocaleString()}` : "Price Pending"}
+                  </span>
+                  {vehicle.stockNumber && (
+                    <span className="text-[10px] xs:text-[11px] text-zinc-500">
+                      Stock #{vehicle.stockNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Right side: Inquiry Form */}
-          <div className="w-full md:w-7/12 p-4 md:p-8 min-h-0 overflow-y-auto pb-24 md:pb-8">
+          <div className="w-full flex-1 md:flex-none md:w-7/12 p-4 md:p-8 min-h-0 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] md:pb-8">
             {isSuccess ? (
               <div className="min-h-70 flex flex-col items-center justify-center text-center space-y-4 py-12 animate-in fade-in zoom-in-95 duration-500">
                 <div className="w-20 h-20 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center">

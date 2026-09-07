@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Archive, Car, Package, RefreshCw } from "lucide-react";
+import { Archive, Car, Loader2, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
@@ -19,6 +19,10 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { useOrg } from "@/hooks/useOrg";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useInventoryViewPreference } from "@/hooks/useInventoryViewPreference";
+
+type InventoryView = "active" | "archived";
 
 type SortOption =
   | "price-asc"
@@ -227,6 +231,7 @@ function InventoryContent() {
   const searchParams = useSearchParams();
   const { getToken } = useAuth();
   const { isCustomer } = useOrg();
+  const isMobile = useIsMobile();
 
   // Keep the complete filtered inventory in memory. Sorting and pagination are
   // derived locally, so choosing a sort option never performs a second request
@@ -234,17 +239,28 @@ function InventoryContent() {
   const [allVehicles, setAllVehicles] = React.useState<Vehicle[]>([]);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [pendingInventoryView, setPendingInventoryView] = React.useState<InventoryView | null>(null);
   const requestSequenceRef = React.useRef(0);
   const requestControllerRef = React.useRef<AbortController | null>(null);
   const hasLoadedOnceRef = React.useRef(false);
+  // Preserve each dataset independently. This prevents the Active ↔ Archive/Sold
+  // switch from blanking the vehicle area while a different dataset is fetched.
+  const inventoryViewCacheRef = React.useRef<Record<InventoryView, Vehicle[] | null>>({
+    active: null,
+    archived: null,
+  });
+  const inventoryViewRequestRef = React.useRef<
+    Record<InventoryView, Promise<Vehicle[]> | null>
+  >({ active: null, archived: null });
+  const skipNextInventoryViewFetchRef = React.useRef<InventoryView | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [shippingRates, setShippingRates] = React.useState<Record<string, number>>({});
-  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useInventoryViewPreference("grid");
 
   // Active inventory vs Archive/Sold. Archived vehicles are the ones no
   // longer present in the latest confirmed FTP upload — kept with full
   // history and browsable through this dedicated view.
-  const [inventoryView, setInventoryView] = React.useState<"active" | "archived">(
+  const [inventoryView, setInventoryView] = React.useState<InventoryView>(
     searchParams.get("view") === "archived" ? "archived" : "active",
   );
 
@@ -265,6 +281,7 @@ function InventoryContent() {
 
   const [page, setPage] = React.useState(Number(searchParams.get("page")) || 1);
   const [limit, setLimit] = React.useState(Number(searchParams.get("limit")) || 12);
+  const resultsTopRef = React.useRef<HTMLDivElement | null>(null);
 
   const [filters, setFilters] = React.useState<any>({
     search: searchParams.get("search") || "",
@@ -294,6 +311,58 @@ function InventoryContent() {
     return () => window.clearTimeout(timer);
   }, [filters.search]);
 
+  const fetchVehicleDataset = React.useCallback(
+    async (view: InventoryView, signal?: AbortSignal): Promise<Vehicle[]> => {
+      const token = await getToken();
+      const response = await apiClient.get("/api/vehicles", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          // Load one complete dataset without the expensive lead-count lookup.
+          // Normal filtering, sorting, and pagination remain local.
+          all: "true",
+          sortBy: "make",
+          sortOrder: "asc",
+          ...(view === "archived" ? { archived: "true" } : {}),
+        },
+        signal,
+        timeout: 15000,
+      });
+
+      const responseData = response.data?.data ?? response.data;
+      return Array.isArray(responseData)
+        ? responseData
+        : Array.isArray(responseData?.vehicles)
+          ? responseData.vehicles
+          : Array.isArray(responseData?.data?.vehicles)
+            ? responseData.data.vehicles
+            : [];
+    },
+    [getToken],
+  );
+
+  const requestVehicleDataset = React.useCallback(
+    (view: InventoryView) => {
+      const cached = inventoryViewCacheRef.current[view];
+      if (cached) return Promise.resolve(cached);
+
+      const existing = inventoryViewRequestRef.current[view];
+      if (existing) return existing;
+
+      const task = fetchVehicleDataset(view)
+        .then((vehicles) => {
+          inventoryViewCacheRef.current[view] = vehicles;
+          return vehicles;
+        })
+        .finally(() => {
+          inventoryViewRequestRef.current[view] = null;
+        });
+
+      inventoryViewRequestRef.current[view] = task;
+      return task;
+    },
+    [fetchVehicleDataset],
+  );
+
   const fetchVehicles = React.useCallback(
     async (showInitialLoader = false) => {
       const requestSequence = ++requestSequenceRef.current;
@@ -310,35 +379,14 @@ function InventoryContent() {
       setError(null);
 
       try {
-        const token = await getToken();
-        const response = await apiClient.get("/api/vehicles", {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            // Load the inventory data once, without the expensive lead-count
-            // lookup. All normal filtering, sorting, and pagination happen
-            // locally after this request.
-            all: "true",
-            sortBy: "make",
-            sortOrder: "asc",
-            // The Archive/Sold view asks the backend for archived vehicles
-            // only; the default view receives active inventory only.
-            ...(inventoryView === "archived" ? { archived: "true" } : {}),
-          },
-          signal: controller.signal,
-          timeout: 15000,
-        });
+        const vehiclesFromResponse = await fetchVehicleDataset(
+          inventoryView,
+          controller.signal,
+        );
 
         if (requestSequence !== requestSequenceRef.current) return;
 
-        const responseData = response.data?.data ?? response.data;
-        const vehiclesFromResponse = Array.isArray(responseData)
-          ? responseData
-          : Array.isArray(responseData?.vehicles)
-            ? responseData.vehicles
-            : Array.isArray(responseData?.data?.vehicles)
-              ? responseData.data.vehicles
-              : [];
-
+        inventoryViewCacheRef.current[inventoryView] = vehiclesFromResponse;
         setAllVehicles(vehiclesFromResponse);
         hasLoadedOnceRef.current = true;
       } catch (err) {
@@ -365,7 +413,7 @@ function InventoryContent() {
         }
       }
     },
-    [getToken, inventoryView],
+    [fetchVehicleDataset, inventoryView],
   );
 
   // Demand metrics are the only expensive part of the backend inventory query.
@@ -422,9 +470,49 @@ function InventoryContent() {
   }, [getToken, metricsReady]);
 
   React.useEffect(() => {
+    // A view switch that already fetched or restored its target dataset should
+    // not immediately trigger the same request a second time.
+    if (skipNextInventoryViewFetchRef.current === inventoryView) {
+      skipNextInventoryViewFetchRef.current = null;
+      return;
+    }
+
     void fetchVehicles(!hasLoadedOnceRef.current);
     return () => requestControllerRef.current?.abort();
-  }, [fetchVehicles]);
+  }, [fetchVehicles, inventoryView]);
+
+  // Keep the currently rendered dataset warm, including later lead-count merges.
+  React.useEffect(() => {
+    if (!hasLoadedOnceRef.current || isInitialLoading) return;
+    inventoryViewCacheRef.current[inventoryView] = allVehicles;
+  }, [allVehicles, inventoryView, isInitialLoading]);
+
+  // Prewarm the opposite dataset after the page becomes usable. In normal use,
+  // the first Active ↔ Archive/Sold switch is therefore an immediate atomic swap
+  // instead of a blank loading panel.
+  React.useEffect(() => {
+    if (!hasLoadedOnceRef.current || isInitialLoading) return;
+
+    const oppositeView: InventoryView =
+      inventoryView === "active" ? "archived" : "active";
+    if (inventoryViewCacheRef.current[oppositeView]) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void requestVehicleDataset(oppositeView)
+        .then((vehicles) => {
+          if (!cancelled) inventoryViewCacheRef.current[oppositeView] = vehicles;
+        })
+        .catch(() => {
+          // Background prewarming is optional; never disturb the visible view.
+        });
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [allVehicles.length, inventoryView, isInitialLoading, requestVehicleDataset]);
 
   // Do not make demand metrics part of the critical page load. Warm them after
   // the inventory is already usable so "Most Inquiries" remains ready later.
@@ -683,18 +771,50 @@ function InventoryContent() {
   }, []);
 
   const handleViewChange = React.useCallback(
-    (view: "active" | "archived") => {
-      if (view === inventoryView) return;
-      // Full reload with skeleton — the two views are different datasets.
-      hasLoadedOnceRef.current = false;
-      setAllVehicles([]);
+    (view: InventoryView) => {
+      if (view === inventoryView || pendingInventoryView) return;
+
       setPage(1);
-      // Demand metrics belong to the freshly-loaded dataset; re-warm on the
-      // next active-view load instead of merging stale counts.
+      // Demand metrics belong to the selected dataset; active metrics can be
+      // warmed again after the view swap without blocking visible vehicles.
       setMetricsReady(false);
-      setInventoryView(view);
+
+      const cached = inventoryViewCacheRef.current[view];
+      if (cached) {
+        skipNextInventoryViewFetchRef.current = view;
+        setAllVehicles(cached);
+        hasLoadedOnceRef.current = true;
+        setInventoryView(view);
+        return;
+      }
+
+      // If prewarming has not finished yet, keep the current view and cards
+      // intact until the target dataset is ready, then swap heading + records
+      // atomically. This avoids both a blank loader and stale records under the
+      // wrong Active/Archive heading.
+      setPendingInventoryView(view);
+      setError(null);
+
+      void requestVehicleDataset(view)
+        .then((vehicles) => {
+          inventoryViewCacheRef.current[view] = vehicles;
+          skipNextInventoryViewFetchRef.current = view;
+          setAllVehicles(vehicles);
+          hasLoadedOnceRef.current = true;
+          setInventoryView(view);
+        })
+        .catch((err) => {
+          const axiosError = err as AxiosError;
+          console.error(`[Inventory] Error switching to ${view}:`, err);
+          setError(
+            (axiosError.response?.data as any)?.message ||
+              axiosError.message ||
+              "Failed to switch inventory view",
+          );
+        })
+        .finally(() => setPendingInventoryView(null));
     },
-    [inventoryView],
+    [inventoryView, pendingInventoryView, requestVehicleDataset],
   );
 
   const handleSortChange = React.useCallback(
@@ -798,6 +918,21 @@ function InventoryContent() {
     router.push(`/transportation/create-load?${params.toString()}`);
   }, [router]);
 
+  const handlePageChange = React.useCallback((nextPage: number) => {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => {
+      resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  const handleLimitChange = React.useCallback((nextLimit: number) => {
+    setLimit(nextLimit);
+    setPage(1);
+    window.requestAnimationFrame(() => {
+      resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
   if (error && !hasLoadedOnceRef.current) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 sm:p-8">
@@ -820,16 +955,16 @@ function InventoryContent() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col gap-4 sm:gap-5 px-3 sm:px-4 py-4 sm:py-6">
+    <div className="mx-auto flex min-h-full w-full max-w-8xl flex-col gap-3 sm:gap-5 px-3 sm:px-4 py-3 sm:py-6">
       {/* ─── Header ──────────────────────────────────────────────── */}
       <div className="shrink-0">
         <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card dark:bg-zinc-900/60">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-primary/0" />
           <div className="absolute -top-10 -right-10 h-52 w-52 rounded-full bg-primary/6 blur-3xl pointer-events-none" />
 
-          <div className="relative px-4 sm:px-6 py-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-2 min-w-0">
+          <div className="relative px-3 py-3 sm:px-6 sm:py-5">
+            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+              <div className="min-w-0 space-y-1.5 sm:space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
@@ -841,14 +976,14 @@ function InventoryContent() {
                 </div>
 
                 <div>
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-none text-foreground uppercase">
+                  <h1 className="text-xl xs:text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-none text-foreground uppercase">
                     {inventoryView === "archived" ? (
                       <>Archive <span className="text-primary">/ Sold</span></>
                     ) : (
                       <>All <span className="text-primary">Inventory</span></>
                     )}
                   </h1>
-                  <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                  <p className="hidden sm:block text-xs text-muted-foreground mt-1.5 font-medium">
                     {inventoryView === "archived"
                       ? "Vehicles no longer in the latest FTP upload — full history preserved"
                       : "Manage and review every vehicle on the lot"}
@@ -857,9 +992,7 @@ function InventoryContent() {
 
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
-                    {isInitialLoading ? (
-                      <span className="inline-block h-2.5 w-6 rounded-full animate-pulse bg-muted-foreground/20" />
-                    ) : total}
+                    {isInitialLoading ? "Loading…" : total}
                     {" "}
                     {inventoryView === "archived" ? "archived" : "vehicles"}
                   </span>
@@ -871,33 +1004,43 @@ function InventoryContent() {
                 <div className="flex items-center rounded-xl border border-border/50 bg-muted/60 p-0.5">
                   <button
                     onClick={() => handleViewChange("active")}
+                    disabled={pendingInventoryView !== null}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all",
+                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all disabled:cursor-wait disabled:opacity-70",
                       inventoryView === "active"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    <Car className="h-3.5 w-3.5" />
+                    {pendingInventoryView === "active" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Car className="h-3.5 w-3.5" />
+                    )}
                     <span className="hidden sm:inline">Active</span>
                   </button>
                   <button
                     onClick={() => handleViewChange("archived")}
+                    disabled={pendingInventoryView !== null}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all",
+                      "flex items-center gap-1.5 rounded-[10px] px-3 py-1 text-xs font-semibold transition-all disabled:cursor-wait disabled:opacity-70",
                       inventoryView === "archived"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    <Archive className="h-3.5 w-3.5" />
+                    {pendingInventoryView === "archived" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Archive className="h-3.5 w-3.5" />
+                    )}
                     <span className="hidden sm:inline">Archive / Sold</span>
                   </button>
                 </div>
 
                 <button
                   onClick={() => fetchVehicles(false)}
-                  disabled={isInitialLoading || isRefreshing}
+                  disabled={isInitialLoading || isRefreshing || pendingInventoryView !== null}
                   className={cn(
                     "flex items-center gap-1.5 rounded-xl border border-border/50 bg-muted/60 hover:bg-muted px-3 py-1.5 text-xs font-medium transition-all shrink-0",
                     "text-foreground disabled:opacity-50 disabled:cursor-not-allowed",
@@ -913,7 +1056,7 @@ function InventoryContent() {
       </div>
 
       {/* ─── Filters ─────────────────────────────────────────────── */}
-      <div className="shrink-0">
+      <div ref={resultsTopRef} className="shrink-0 scroll-mt-3">
         <ShopInventoryFilters
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -924,29 +1067,49 @@ function InventoryContent() {
           currentSortValue={currentSortValue}
           onSortChange={handleSortChange}
           sortOptions={INVENTORY_SORT_OPTIONS}
+          resultCount={total}
         />
       </div>
 
       {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
       <div className="flex-1 min-h-0">
         {isInitialLoading ? (
-          <div
-            className={cn(
-              viewMode === "grid"
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
-                : "flex flex-col gap-2.5",
-            )}
-          >
-            {[...Array(viewMode === "grid" ? 8 : 6)].map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "rounded-2xl bg-muted animate-pulse dark:bg-zinc-900",
-                  viewMode === "grid" ? "h-100" : "h-24",
-                )}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-4 md:hidden" aria-label="Loading inventory" aria-busy="true">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="overflow-hidden rounded-2xl border border-border/50 bg-card/40">
+                  <div className="aspect-[16/9] animate-pulse bg-muted/70" />
+                  <div className="space-y-3 p-3">
+                    <div className="h-5 w-3/4 animate-pulse rounded-lg bg-muted/70" />
+                    <div className="h-4 w-1/2 animate-pulse rounded-lg bg-muted/50" />
+                    <div className="flex gap-2">
+                      <div className="h-4 w-24 animate-pulse rounded-lg bg-muted/50" />
+                      <div className="h-4 w-20 animate-pulse rounded-lg bg-muted/50" />
+                    </div>
+                    <div className="h-8 w-32 animate-pulse rounded-lg bg-muted/70" />
+                    <div className="grid grid-cols-[0.9fr_1.4fr_auto] gap-2">
+                      <div className="h-11 animate-pulse rounded-xl bg-muted/60" />
+                      <div className="h-11 animate-pulse rounded-xl bg-muted/70" />
+                      <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/60" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden min-h-56 items-center justify-center rounded-2xl border border-border/50 bg-card/30 px-6 py-12 text-center md:flex">
+              <div className="flex max-w-sm flex-col items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">Loading inventory</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Fetching the latest vehicle records. Results will appear here when ready.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
         ) : visibleVehicles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -982,22 +1145,46 @@ function InventoryContent() {
                   : "flex flex-col gap-2.5",
               )}
             >
-              {visibleVehicles.map((vehicle) =>
-                viewMode === "grid" ? (
-                  <PremiumVehicleCard
-                    key={vehicle.id}
-                    vehicle={vehicle}
-                    shippingPrice={shippingRates[vehicle.id]}
-                    onGetQuote={handleGetQuote}
-                    onVehicleClick={handleVehicleClick}
-                    onCheckAvailability={handleCheckAvailability}
-                    onApplyNow={handleApplyNow}
-                    onCallUs={handleCallUs}
-                    onVideo={handleVideo}
-                    onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
-                    showInventoryMeta
-                  />
-                ) : (
+              {visibleVehicles.map((vehicle) => {
+                if (viewMode === "grid") {
+                  if (isMobile) {
+                    return (
+                      <CarInventoryCard
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        viewMode="grid"
+                        shippingPrice={shippingRates[vehicle.id]}
+                        onGetQuote={handleGetQuote}
+                        onVehicleClick={handleVehicleClick}
+                        onCheckAvailability={handleCheckAvailability}
+                        onApplyNow={handleApplyNow}
+                        onCallUs={handleCallUs}
+                        onVideo={handleVideo}
+                        onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
+                        showInventoryMeta
+                        mobileOptimized
+                      />
+                    );
+                  }
+
+                  return (
+                    <PremiumVehicleCard
+                      key={vehicle.id}
+                      vehicle={vehicle}
+                      shippingPrice={shippingRates[vehicle.id]}
+                      onGetQuote={handleGetQuote}
+                      onVehicleClick={handleVehicleClick}
+                      onCheckAvailability={handleCheckAvailability}
+                      onApplyNow={handleApplyNow}
+                      onCallUs={handleCallUs}
+                      onVideo={handleVideo}
+                      onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
+                      showInventoryMeta
+                    />
+                  );
+                }
+
+                return (
                   <CarInventoryCard
                     key={vehicle.id}
                     vehicle={vehicle}
@@ -1010,17 +1197,18 @@ function InventoryContent() {
                     onCallUs={handleCallUs}
                     onVideo={handleVideo}
                     showInventoryMeta
+                    mobileOptimized
                   />
-                ),
-              )}
+                );
+              })}
             </div>
 
             <InventoryPagination
               currentPage={page}
               totalPages={totalPages}
-              onPageChange={setPage}
+              onPageChange={handlePageChange}
               limit={limit}
-              onLimitChange={setLimit}
+              onLimitChange={handleLimitChange}
               totalCount={total}
             />
           </div>
@@ -1042,9 +1230,11 @@ function InventoryContent() {
         onQuoteClick={() => setShippingOpen(true)}
         onInquiryClick={handleCheckAvailability}
         onApplyNow={handleApplyNow}
+        onCreateLoad={handleCreateLoad}
         shippingQuote={
           selectedVehicle ? shippingRates[selectedVehicle.id] : null
         }
+        mobilePresentation="inspector"
       />
 
       <VehicleInquiryModal
@@ -1067,7 +1257,7 @@ export default function InventoryPage() {
     <React.Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center gap-3 p-8 text-muted-foreground">
-          <Car className="h-5 w-5 animate-pulse" />
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
           Loading inventory...
         </div>
       }

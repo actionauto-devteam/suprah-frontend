@@ -354,7 +354,7 @@ export function DriverStatusRequestReviewDialog({
                   value={request.driverId?.name || driver?.driver?.name || "Driver"}
                 />
                 <Info label="Requested Availability" value={requestedStatus} />
-                <Info label="Priority" value={emergency ? "Emergency" : "Standard"} />
+                <Info label="Priority" value={emergency ? "44444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444Emergency" : "Standard"} />
                 <Info
                   label="State"
                   value={String(request.status || "").replace(/_/g, " ")}
@@ -555,7 +555,7 @@ export function DriverStatusRequestReviewDialog({
                           </span>
                           {load.status && (
                             <Badge variant="outline" className="text-[10px]">
-                              {load.status}
+                              **************************{load.status}
                             </Badge>
                           )}
                         </div>

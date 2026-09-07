@@ -20,19 +20,38 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { Load } from "@/types/load"
 
-function LoadDetailsSkeleton() {
+function LoadDetailsLoading() {
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-pulse">
-      <div className="flex items-center gap-4">
-        <div className="w-24 h-8 bg-muted rounded"></div>
-        <div className="w-48 h-8 bg-muted rounded"></div>
+    <>
+      {/* Mobile: avoid the large gray placeholder blocks seen in QA. */}
+      <div className="md:hidden mx-auto flex min-h-[42vh] max-w-6xl items-center justify-center p-4">
+        <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-4 py-3 shadow-sm">
+          <span
+            className="size-4 animate-spin rounded-full border-2 border-emerald-500/25 border-t-emerald-500"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Loading load details</p>
+            <p className="text-[11px] text-muted-foreground">
+              Retrieving the latest Transportation record.
+            </p>
+          </div>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="h-64 bg-muted rounded-xl"></div>
-        <div className="h-64 bg-muted rounded-xl"></div>
+
+      {/* md+ deliberately preserves the existing web loading presentation. */}
+      <div className="hidden md:block max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-8 animate-pulse">
+        <div className="flex items-center gap-4">
+          <div className="w-24 h-8 bg-muted rounded"></div>
+          <div className="w-48 h-8 bg-muted rounded"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="h-64 bg-muted rounded-xl"></div>
+          <div className="h-64 bg-muted rounded-xl"></div>
+        </div>
+        <div className="h-48 bg-muted rounded-xl"></div>
       </div>
-      <div className="h-48 bg-muted rounded-xl"></div>
-    </div>
+    </>
   )
 }
 
@@ -388,6 +407,9 @@ export default function LoadDetailsPage() {
       return getLoadById(id, { signal })
     },
     enabled: typeof id === "string" && id.length > 0,
+    // Preserve the existing detail-query freshness contract on md+ web. The
+    // mobile improvement is presentation-only: mobile uses a compact loader
+    // instead of the large skeleton while this exact-ID request completes.
     staleTime: 0,
     gcTime: 0,
     refetchOnMount: "always",
@@ -465,7 +487,7 @@ export default function LoadDetailsPage() {
     setMobileBolPreviewOpen(true)
   }
 
-  if (isLoading) return <LoadDetailsSkeleton />
+  if (isLoading) return <LoadDetailsLoading />
 
   if (isError || !load) {
     return (

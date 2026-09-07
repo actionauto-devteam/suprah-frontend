@@ -4,11 +4,18 @@ import * as React from "react"
 import { useState } from "react"
 import {
     Check, MapPin, Calendar, Clock, Trash2, User, Building2, Truck,
-    Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container
+    Car, Edit3, DollarSign, Gauge, Layers, ShieldCheck, Container, ChevronRight
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { getQuoteLoadRouteDraft } from "@/types/transportation"
 import type {
     Quote,
@@ -26,28 +33,105 @@ interface QuoteCardProps {
     onUpdate: (id: string, updatedQuote: Partial<Quote>) => Promise<void>
 }
 
-/** HUD-style stat tile — matches the LoadCard info row */
+/** HUD-style stat tile — matches the LoadCard info row.
+ *  Only selected high-value quote tiles receive onClick handlers.
+ */
 function StatTile({
     label,
     icon,
     children,
+    onClick,
+    hint = "View details",
 }: {
     label: string
     icon: React.ReactNode
     children: React.ReactNode
+    onClick?: () => void
+    hint?: string
 }) {
-    return (
-        <div className="rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 min-w-0">
-            <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 truncate">
-                {label}
-            </span>
+    const content = (
+        <>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="block text-[10px] sm:text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
+                    {label}
+                </span>
+                {onClick && (
+                    <ChevronRight className="size-3.5 text-muted-foreground/60 transition-transform duration-200 group-hover/stat:translate-x-0.5 group-hover/stat:text-emerald-500" />
+                )}
+            </div>
             <div className="flex items-center gap-1.5 min-w-0">
                 {icon}
                 <span className="text-sm lg:text-[15px] font-black tracking-tight truncate">{children}</span>
             </div>
+        </>
+    )
+
+    if (!onClick) {
+        return (
+            <div className="rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 min-w-0">
+                {content}
+            </div>
+        )
+    }
+
+    return (
+        <button
+            type="button"
+            aria-haspopup="dialog"
+            title={hint}
+            onClick={(event) => {
+                event.stopPropagation()
+                event.preventDefault()
+                onClick()
+            }}
+            className={cn(
+                "group/stat w-full min-w-0 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-left",
+                "transition-all duration-200 hover:border-emerald-500/35 hover:bg-emerald-500/4 hover:shadow-sm",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500/40",
+            )}
+        >
+            {content}
+        </button>
+    )
+}
+
+function ModalMetric({
+    label,
+    value,
+    icon,
+    emphasis = false,
+}: {
+    label: string
+    value: React.ReactNode
+    icon: React.ReactNode
+    emphasis?: boolean
+}) {
+    return (
+        <div
+            className={cn(
+                "rounded-xl border px-3.5 py-3",
+                emphasis
+                    ? "border-emerald-500/45 bg-emerald-500/6"
+                    : "border-slate-300/90 bg-background/45 dark:border-white/15",
+            )}
+        >
+            <div className="mb-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                {icon}
+                {label}
+            </div>
+            <div
+                className={cn(
+                    "text-sm font-black tracking-tight text-foreground",
+                    emphasis && "text-base text-emerald-600 dark:text-emerald-400",
+                )}
+            >
+                {value}
+            </div>
         </div>
     )
 }
+
+type QuoteInfoModal = "financials" | "eta" | null
 
 const QUOTE_STATUS_META: Record<
     string,
@@ -80,6 +164,7 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
     const [isConvertingToLoad, setIsConvertingToLoad] = useState(false)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [isRouteCompletionOpen, setIsRouteCompletionOpen] = useState(false)
+    const [activeInfoModal, setActiveInfoModal] = useState<QuoteInfoModal>(null)
     const [imageFailed, setImageFailed] = useState(false)
     const { showAlert, alert, hideAlert } = useAlert()
 
@@ -403,27 +488,52 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                                     </div>
                                 </div>
 
-                                {/* Rate readout + HUD tiles */}
+                                {/* Keep the exact existing quote values and order.
+                                    Only Quote Rate and ETA are interactive because they
+                                    are the two highest-value quote decisions. */}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-5 gap-2.5">
-                                    {/* Featured rate — the number this card exists for */}
-                                    <div className="col-span-2 sm:col-span-4 2xl:col-span-1 rounded-xl border border-emerald-500/30 bg-linear-to-br from-emerald-500/10 to-cyan-500/5 px-3 py-2.5 relative overflow-hidden min-w-0">
-                                        <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/60 to-transparent" />
-                                        <span className="block text-[10px] sm:text-[11px] font-black text-emerald-600/90 dark:text-emerald-400/90 uppercase tracking-widest mb-1">
-                                            Quote Rate
+                                    {/* Featured rate — unchanged value/presentation, now clickable */}
+                                    <button
+                                        type="button"
+                                        aria-haspopup="dialog"
+                                        title="View quote financial information"
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            event.preventDefault()
+                                            setActiveInfoModal("financials")
+                                        }}
+                                        className={cn(
+                                            "group/stat col-span-2 sm:col-span-4 2xl:col-span-1 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 relative overflow-hidden min-w-0 text-left",
+                                            "transition-all duration-200 hover:border-border/70 hover:bg-muted/20 hover:shadow-sm",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40",
+                                        )}
+                                    >
+                                        <span className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+                                            <span>Quote Rate</span>
+                                            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-200 group-hover/stat:translate-x-0.5" />
                                         </span>
-                                        <span className="text-xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                        <span className="text-xl font-black font-mono tracking-tight text-foreground tabular-nums">
                                             ${quote.rate.toLocaleString()}
                                         </span>
-                                    </div>
-                                    <StatTile label="ETA" icon={<Clock className="size-3.5 text-cyan-500 shrink-0" />}>
+                                    </button>
+
+                                    <StatTile
+                                        label="ETA"
+                                        icon={<Clock className="size-3.5 text-muted-foreground shrink-0" />}
+                                        onClick={() => setActiveInfoModal("eta")}
+                                        hint="View quote transit estimate"
+                                    >
                                         {quote.eta.min}–{quote.eta.max} DAYS
                                     </StatTile>
+
                                     <StatTile label="Distance" icon={<Gauge className="size-3.5 text-amber-500 shrink-0" />}>
                                         {quote.miles.toLocaleString()} MI
                                     </StatTile>
+
                                     <StatTile label="Trailer" icon={<Container className="size-3.5 text-violet-500 shrink-0" />}>
                                         {quote.enclosedTrailer ? "ENCLOSED" : "OPEN"}
                                     </StatTile>
+
                                     <StatTile label="Condition" icon={<ShieldCheck className={cn("size-3.5 shrink-0", quote.vehicleInoperable ? "text-rose-500" : "text-emerald-500")} />}>
                                         {quote.vehicleInoperable ? "INOP" : "OPERABLE"}
                                     </StatTile>
@@ -466,6 +576,136 @@ export function QuoteCard({ quote, onConvertToLoad, onDelete, onUpdate }: QuoteC
                     </div>
                 </CardContent>
             </Card>
+
+            <Dialog
+                open={activeInfoModal !== null}
+                onOpenChange={(open) => {
+                    if (!open) setActiveInfoModal(null)
+                }}
+            >
+                <DialogContent className="max-h-[90vh] overflow-hidden border border-slate-300/95 bg-card/95 p-0 shadow-2xl backdrop-blur-xl dark:border-white/20 sm:max-w-2xl">
+                    {activeInfoModal === "financials" && (
+                        <>
+                            <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-emerald-500/9 via-background to-cyan-500/5 px-5 py-4 dark:border-white/15 sm:px-6">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10">
+                                        <DollarSign className="size-5 text-emerald-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <DialogTitle className="text-lg font-black tracking-tight">
+                                            Quote Financials
+                                        </DialogTitle>
+                                        <DialogDescription className="mt-1 text-xs sm:text-sm">
+                                            Saved quote pricing and the key context behind this amount.
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                            </DialogHeader>
+
+                            <div className="max-h-[68vh] overflow-y-auto px-5 py-4 sm:px-6">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <ModalMetric
+                                        label="Quote Rate"
+                                        value={`$${quote.rate.toLocaleString()}`}
+                                        icon={<DollarSign className="size-3.5" />}
+                                        emphasis
+                                    />
+                                    <ModalMetric
+                                        label="Distance"
+                                        value={`${quote.miles.toLocaleString()} mi`}
+                                        icon={<Gauge className="size-3.5" />}
+                                    />
+                                    <ModalMetric
+                                        label="Trailer"
+                                        value={quote.enclosedTrailer ? "Enclosed" : "Open"}
+                                        icon={<Container className="size-3.5" />}
+                                    />
+                                    <ModalMetric
+                                        label="Condition"
+                                        value={quote.vehicleInoperable ? "Inoperable" : "Operable"}
+                                        icon={<ShieldCheck className="size-3.5" />}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {activeInfoModal === "eta" && (
+                        <>
+                            <DialogHeader className="border-b border-slate-300/90 bg-linear-to-r from-cyan-500/9 via-background to-blue-500/4 px-5 py-4 dark:border-white/15 sm:px-6">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10">
+                                        <Clock className="size-5 text-cyan-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <DialogTitle className="text-lg font-black tracking-tight">
+                                            Transit Estimate
+                                        </DialogTitle>
+                                        <DialogDescription className="mt-1 text-xs sm:text-sm">
+                                            Current estimated transit window and route for this quote.
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                            </DialogHeader>
+
+                            <div className="max-h-[68vh] overflow-y-auto px-5 py-4 sm:px-6">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <ModalMetric
+                                        label="ETA"
+                                        value={`${quote.eta.min}–${quote.eta.max} days`}
+                                        icon={<Clock className="size-3.5" />}
+                                        emphasis
+                                    />
+                                    <ModalMetric
+                                        label="Distance"
+                                        value={`${quote.miles.toLocaleString()} mi`}
+                                        icon={<Gauge className="size-3.5" />}
+                                    />
+                                </div>
+
+                                <div className="mt-4 rounded-2xl border border-slate-300/90 bg-background/45 p-4 dark:border-white/15">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                        Route
+                                    </p>
+                                    <div className="mt-3 space-y-3">
+                                        <div className="flex items-start gap-2.5">
+                                            <MapPin className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                                    Origin
+                                                </p>
+                                                <p className="mt-1 break-words text-sm font-bold text-foreground">
+                                                    {quote.fromAddress}
+                                                </p>
+                                                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                                                    {quote.fromZip}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="ml-1.5 h-5 w-px bg-linear-to-b from-emerald-500/60 to-cyan-500/60" />
+
+                                        <div className="flex items-start gap-2.5">
+                                            <MapPin className="mt-0.5 size-3.5 shrink-0 text-cyan-500" />
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                                                    Destination
+                                                </p>
+                                                <p className="mt-1 break-words text-sm font-bold text-foreground">
+                                                    {quote.toAddress}
+                                                </p>
+                                                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                                                    {quote.toZip}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             <EditQuoteModal
                 quote={quote}

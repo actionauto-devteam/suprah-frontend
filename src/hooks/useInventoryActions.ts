@@ -72,7 +72,7 @@ export function useInventoryActions() {
   );
 
   const handleCallUs = React.useCallback(() => {
-    window.open("tel:8017661736", "_self");
+    window.open("tel:8017666137", "_self");
   }, []);
 
   const handleVideo = React.useCallback(

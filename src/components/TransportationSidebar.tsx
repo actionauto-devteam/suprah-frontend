@@ -32,6 +32,7 @@ interface TransportationSidebarProps {
 // Deterministic display order — the pipeline reads top-to-bottom in the same
 // order a load actually moves through it.
 const PIPELINE_STATUSES = [
+  "Draft",
   "Posted",
   "Assigned",
   "Accepted",
@@ -58,6 +59,12 @@ const STATUS_THEME: Record<
   string,
   { active: string; dot: string; glow: string; bar: string }
 > = {
+  Draft: {
+    active: "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30",
+    dot: "bg-slate-500",
+    glow: "shadow-[0_0_8px_rgba(100,116,139,0.5)]",
+    bar: "bg-slate-500",
+  },
   Posted: {
     active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
     dot: "bg-emerald-500",
@@ -457,11 +464,11 @@ export function TransportationMobileSupportCenter() {
         <SectionLabel icon={LifeBuoy}>Support Center</SectionLabel>
         <div className="rounded-xl border border-border/60 bg-card/70 p-3 space-y-2 text-xs">
           <a
-            href="mailto:support@actionautoutah.com"
+            href="mailto:support@suprahai.com"
             className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:underline font-medium break-all"
           >
             <Mail className="size-3.5 shrink-0" />
-            support@actionautoutah.com
+            support@suprahai.com
           </a>
           <a
             href="tel:8554316570"
@@ -712,11 +719,11 @@ export function TransportationSidebar({
         <SectionLabel icon={LifeBuoy}>Support Center</SectionLabel>
         <div className="rounded-xl border border-border/60 bg-background/40 p-2.5 sm:p-3 space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
           <a
-            href="mailto:support@actionautoutah.com"
+            href="mailto:support@suprahai.com"
             className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:underline font-medium break-all"
           >
             <Mail className="size-3.5 shrink-0" />
-            support@actionautoutah.com
+            support@suprahai.com
           </a>
           <a
             href="tel:8554316570"

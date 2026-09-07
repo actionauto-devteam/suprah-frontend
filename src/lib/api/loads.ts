@@ -88,6 +88,9 @@ export interface LoadsQuery {
   status?: string
   postType?: string
   q?: string
+  origin?: string
+  destination?: string
+  visibility?: string
   page?: number
   limit?: number
 }
@@ -105,11 +108,12 @@ export interface LoadsResult {
   pagination: LoadsPagination
 }
 
-// "Accepted" and "Picked Up" are optional so older API deployments (which
-// don't return them yet) and existing default-state objects stay compatible.
+// Draft, Accepted, and Picked Up are optional so older API deployments (which
+// may not return them yet) and existing default-state objects stay compatible.
 // The sidebar renders missing keys as 0.
 export interface LoadStats {
   all: number
+  Draft?: number
   Posted: number
   Assigned: number
   Accepted?: number
@@ -127,6 +131,11 @@ export async function getLoads(
   if (query?.status) params.set("status", query.status)
   if (query?.postType) params.set("postType", query.postType)
   if (query?.q) params.set("q", query.q)
+  if (query?.origin) params.set("origin", query.origin)
+  if (query?.destination) params.set("destination", query.destination)
+  if (query?.visibility && query.visibility !== "all") {
+    params.set("visibility", query.visibility)
+  }
   if (query?.page) params.set("page", String(query.page))
   if (query?.limit) params.set("limit", String(query.limit))
   const qs = params.toString()

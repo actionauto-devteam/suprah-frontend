@@ -27,7 +27,7 @@ import {
 import { useOrg } from "@/hooks/useOrg";
 import { adminStore } from "@/store/admin-store";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { dealershipNav } from "@/components/layout/mobile-nav-config";
+import { dealershipNav, dealershipMobileModules } from "@/components/layout/mobile-nav-config";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import {
@@ -150,7 +150,7 @@ function DashboardShellContent({ children }: DashboardShellProps) {
         <main className="flex-1 overflow-hidden bg-background pb-24 md:pb-0">
           {children}
         </main>
-        <MobileBottomNav items={dealershipNav} />
+        <MobileBottomNav items={dealershipNav} allItems={dealershipMobileModules} />
       </SidebarInset>
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>

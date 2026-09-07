@@ -30,6 +30,8 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { isWebAuthnSupported, startAuthentication } from "@/lib/webauthn";
 
+const NAVIGATION_INTENT_EVENT = "suprah:navigation-intent";
+
 type LoginMode = "password" | "biometric" | "ssh";
 type ForgotStep = "email" | "otp";
 
@@ -67,23 +69,94 @@ export default function CrmLoginPage() {
   const [sshCopied, setSshCopied] = React.useState(false);
   const [sshChallengeReady, setSshChallengeReady] = React.useState(false);
 
+  // CRM performs an async session check before redirecting /crm -> /crm/dashboard.
+  // If the user chooses another bottom-nav destination while that request is still
+  // running, the old CRM result must not be allowed to navigate afterward.
+  const leavingCrmRef = React.useRef(false);
+  const authCheckAbortRef = React.useRef<AbortController | null>(null);
+
   React.useEffect(() => {
+    const handleNavigationIntent = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      if (!href) return;
+
+      // This component owns only the /crm landing route. Any new destination other
+      // than /crm means its pending automatic dashboard redirect is now stale.
+      const leavingCrmLanding = href !== "/crm" && href !== "/crm/";
+      leavingCrmRef.current = leavingCrmLanding;
+
+      if (leavingCrmLanding) {
+        authCheckAbortRef.current?.abort();
+      }
+    };
+
+    window.addEventListener(NAVIGATION_INTENT_EVENT, handleNavigationIntent);
+    return () => {
+      window.removeEventListener(NAVIGATION_INTENT_EVENT, handleNavigationIntent);
+    };
+  }, []);
+
+  const navigateToCrmDashboard = React.useCallback(
+    (mode: "push" | "replace" = "push") => {
+      if (leavingCrmRef.current) return;
+
+      if (mode === "replace") {
+        router.replace("/crm/dashboard");
+      } else {
+        router.push("/crm/dashboard");
+      }
+    },
+    [router],
+  );
+
+  React.useEffect(() => {
+    let disposed = false;
+    const controller = new AbortController();
+    authCheckAbortRef.current = controller;
+
+    const canUpdateCrm = () =>
+      !disposed && !controller.signal.aborted && !leavingCrmRef.current;
+
     const token = localStorage.getItem("crm_token");
+
     if (token) {
       apiClient
-        .get("/api/crm/me", { headers: { Authorization: `Bearer ${token}` } })
-        .then(() => router.replace("/crm/dashboard"))
+        .get("/api/crm/me", {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+        .then(() => {
+          if (!canUpdateCrm()) return;
+          navigateToCrmDashboard("replace");
+        })
         .catch(() => {
+          // Aborting because the user navigated away is not an authentication
+          // failure and must never clear their CRM session.
+          if (!canUpdateCrm()) return;
+
           localStorage.removeItem("crm_token");
           localStorage.removeItem("crm_user");
           setIsCheckingAuth(false);
         });
-    } else {
+    } else if (canUpdateCrm()) {
       setIsCheckingAuth(false);
     }
 
-    isWebAuthnSupported().then(setBiometricAvailable);
-  }, [router]);
+    isWebAuthnSupported().then((supported) => {
+      if (canUpdateCrm()) {
+        setBiometricAvailable(supported);
+      }
+    });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+
+      if (authCheckAbortRef.current === controller) {
+        authCheckAbortRef.current = null;
+      }
+    };
+  }, [navigateToCrmDashboard]);
 
   /* ── Password Login ──────────────────────────────────────────────────────── */
   const handleLogin = async (e: React.FormEvent) => {
@@ -105,7 +178,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
-        router.push("/crm/dashboard");
+        navigateToCrmDashboard();
       } else {
         setError("Login failed. Please try again.");
       }
@@ -142,7 +215,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
-        router.push("/crm/dashboard");
+        navigateToCrmDashboard();
       } else {
         setError("Biometric authentication failed.");
       }
@@ -221,7 +294,7 @@ export default function CrmLoginPage() {
       if (data.token && data.user) {
         localStorage.setItem("crm_token", data.token);
         localStorage.setItem("crm_user", JSON.stringify(data.user));
-        router.push("/crm/dashboard");
+        navigateToCrmDashboard();
       } else {
         setError("SSH authentication failed.");
       }

@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { QuoteResultModal } from "@/components/QuoteResultModal";
 import {
-  TransportationMobileStatusPanel,
   TransportationMobileSupportCenter,
   TransportationSidebar,
 } from "@/components/TransportationSidebar";
@@ -27,6 +26,23 @@ import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadCard } from "@/components/LoadCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ShippingQuoteFormData } from "@/types/inventory";
+import type { Load } from "@/types/load";
+import { Loader2 } from "lucide-react";
+import {
+  TransportationMobileFilters,
+  type TransportationView,
+} from "@/components/transportation/TransportationMobileFilters";
+import { TransportationMobileLoadCard } from "@/components/transportation/TransportationMobileLoadCard";
+import {
+  TransportationMobileQuoteCard,
+  type TransportationMobileQuoteTab,
+} from "@/components/transportation/TransportationMobileQuoteCard";
+import {
+  TransportationMobileDetailsDrawer,
+  type TransportationMobileLoadTab,
+} from "@/components/transportation/TransportationMobileDetailsDrawer";
+import { TransportationMobileViewSwitcher } from "@/components/transportation/TransportationMobileViewSwitcher";
+import { TransportationMobilePagination } from "@/components/transportation/TransportationMobilePagination";
 
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
@@ -158,6 +174,72 @@ function PaginationBar({
   );
 }
 
+
+type MobileFilterState = {
+  origin: string;
+  destination: string;
+  visibility: string;
+};
+
+const EMPTY_MOBILE_FILTERS: MobileFilterState = {
+  origin: "",
+  destination: "",
+  visibility: "all",
+};
+
+const MOBILE_FILTER_STORAGE_KEY = "transportation:mobile-filters:v1";
+
+function useIsTransportationMobileViewport() {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  return isMobile;
+}
+
+function useDebouncedMobileValue(value: string, delay = 250) {
+  const [debounced, setDebounced] = React.useState(value);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+function MobileInitialLoading({ label }: { label: string }) {
+  return (
+    <div className="md:hidden space-y-2.5" aria-label={`Loading ${label}`} aria-busy="true">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="overflow-hidden rounded-2xl border border-border/55 bg-card/45">
+          <div className="flex min-h-40">
+            <Skeleton className="w-[30%] min-w-24 max-w-36 shrink-0 rounded-none" />
+            <div className="min-w-0 flex-1 space-y-3 p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-36" />
+                </div>
+                <div className="flex gap-1"><Skeleton className="size-10 rounded-xl" /><Skeleton className="size-10 rounded-xl" /></div>
+              </div>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-6 w-12 rounded-full" /><Skeleton className="h-10 rounded-lg" /></div>
+              <div className="grid grid-cols-2 gap-2"><Skeleton className="h-14 rounded-xl" /><Skeleton className="h-14 rounded-xl" /><Skeleton className="h-14 rounded-xl" /><Skeleton className="h-14 rounded-xl" /></div>
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="flex items-center justify-center gap-2 py-1 text-[11px] font-semibold text-muted-foreground"><Loader2 className="size-3.5 animate-spin text-primary" />Loading {label}</div>
+    </div>
+  );
+}
+
 export default function TransportationPage() {
   return (
     <React.Suspense fallback={null}>
@@ -187,8 +269,66 @@ function TransportationPageInner() {
   const [calculatedQuote, setCalculatedQuote] = React.useState<Quote | null>(
     null,
   );
+  const isMobileViewport = useIsTransportationMobileViewport();
+  const [mobileFilters, setMobileFilters] = React.useState<
+    Record<TransportationView, MobileFilterState>
+  >({
+    shipments: { ...EMPTY_MOBILE_FILTERS },
+    drafts: { ...EMPTY_MOBILE_FILTERS },
+    "load-board": { ...EMPTY_MOBILE_FILTERS },
+  });
+  const [mobileFiltersReady, setMobileFiltersReady] = React.useState(false);
+  const [inspectedMobileLoad, setInspectedMobileLoad] = React.useState<Load | null>(null);
+  const [inspectedMobileLoadTab, setInspectedMobileLoadTab] =
+    React.useState<TransportationMobileLoadTab>("overview");
+  const [inspectedMobileQuote, setInspectedMobileQuote] = React.useState<Quote | null>(null);
+  const [inspectedMobileQuoteTab, setInspectedMobileQuoteTab] =
+    React.useState<TransportationMobileQuoteTab>("overview");
 
   const { showAlert, alert, hideAlert } = useAlert();
+  const currentMobileFilters = mobileFilters[activeTab as TransportationView];
+  const mobileSearchQuery = useDebouncedMobileValue(searchQuery);
+  const mobileOrigin = useDebouncedMobileValue(currentMobileFilters.origin);
+  const mobileDestination = useDebouncedMobileValue(currentMobileFilters.destination);
+
+  React.useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(MOBILE_FILTER_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<Record<TransportationView, Partial<MobileFilterState>>>;
+        setMobileFilters((previous) => ({
+          shipments: { ...previous.shipments, ...(parsed.shipments || {}) },
+          drafts: { ...previous.drafts, ...(parsed.drafts || {}) },
+          "load-board": { ...previous["load-board"], ...(parsed["load-board"] || {}) },
+        }));
+      }
+    } catch {
+      // A malformed preference should never block Transportation.
+    } finally {
+      setMobileFiltersReady(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!mobileFiltersReady) return;
+    window.localStorage.setItem(MOBILE_FILTER_STORAGE_KEY, JSON.stringify(mobileFilters));
+  }, [mobileFilters, mobileFiltersReady]);
+
+  React.useEffect(() => {
+    if (!isMobileViewport) {
+      setInspectedMobileLoad(null);
+      setInspectedMobileLoadTab("overview");
+      setInspectedMobileQuote(null);
+      setInspectedMobileQuoteTab("overview");
+    }
+  }, [isMobileViewport]);
+
+  React.useEffect(() => {
+    setInspectedMobileLoad(null);
+    setInspectedMobileLoadTab("overview");
+    setInspectedMobileQuote(null);
+    setInspectedMobileQuoteTab("overview");
+  }, [activeTab]);
 
   const {
     isLoading,
@@ -221,6 +361,22 @@ function TransportationPageInner() {
     shipmentStatus: activeTab === "shipments" ? selectedStatus : "all",
     quoteStatus: activeTab === "drafts" ? selectedQuoteStatus : "all",
     activeView: activeTab,
+    shipmentSearch:
+      isMobileViewport && activeTab === "shipments" ? mobileSearchQuery : undefined,
+    quoteSearch:
+      isMobileViewport && activeTab === "drafts" ? mobileSearchQuery : undefined,
+    shipmentOrigin:
+      isMobileViewport && activeTab === "shipments" ? mobileOrigin : undefined,
+    shipmentDestination:
+      isMobileViewport && activeTab === "shipments" ? mobileDestination : undefined,
+    shipmentVisibility:
+      isMobileViewport && activeTab === "shipments"
+        ? currentMobileFilters.visibility
+        : undefined,
+    quoteOrigin:
+      isMobileViewport && activeTab === "drafts" ? mobileOrigin : undefined,
+    quoteDestination:
+      isMobileViewport && activeTab === "drafts" ? mobileDestination : undefined,
   });
 
   const {
@@ -237,9 +393,20 @@ function TransportationPageInner() {
     handleDeleteLoad: handleDeleteBoardLoad,
     deletingId: boardDeletingId,
   } = useLoadsData(
-    activeTab === "load-board" ? searchQuery : undefined,
+    activeTab === "load-board"
+      ? isMobileViewport
+        ? mobileSearchQuery
+        : searchQuery
+      : undefined,
     activeTab === "load-board" ? selectedStatus : undefined,
     activeTab === "load-board",
+    isMobileViewport && activeTab === "load-board"
+      ? {
+          origin: mobileOrigin,
+          destination: mobileDestination,
+          visibility: currentMobileFilters.visibility,
+        }
+      : {},
   );
 
   // Refetch when tab becomes visible again (covers navigation back from create-load page
@@ -337,6 +504,41 @@ function TransportationPageInner() {
     }
     void fetchData({ silent: true, force: true });
   }, [activeTab, fetchBoardLoads, fetchData]);
+
+  const updateCurrentMobileFilters = React.useCallback(
+    (updates: Partial<MobileFilterState>) => {
+      setMobileFilters((previous) => ({
+        ...previous,
+        [activeTab]: { ...previous[activeTab as TransportationView], ...updates },
+      }));
+      setInspectedMobileLoad(null);
+      setInspectedMobileQuote(null);
+    },
+    [activeTab],
+  );
+
+  const clearCurrentMobileFilters = React.useCallback(() => {
+    setMobileFilters((previous) => ({
+      ...previous,
+      [activeTab]: { ...EMPTY_MOBILE_FILTERS },
+    }));
+    setInspectedMobileLoad(null);
+    setInspectedMobileQuote(null);
+  }, [activeTab]);
+
+  const clearCurrentMobileStatus = React.useCallback(() => {
+    if (activeTab === "drafts") setSelectedQuoteStatus("all");
+    else setSelectedStatus("all");
+    setInspectedMobileLoad(null);
+    setInspectedMobileQuote(null);
+  }, [activeTab]);
+
+  const currentMobileTotal =
+    activeTab === "load-board"
+      ? boardPagination?.total ?? boardLoads.length
+      : activeTab === "drafts"
+        ? quotesPagination?.total ?? quotes.length
+        : loadsPagination?.total ?? loads.length;
 
   const filteredLoads = React.useMemo(() => {
     if (!searchQuery) return loads;
@@ -457,7 +659,7 @@ function TransportationPageInner() {
               <Button
                 variant="outline"
                 size="sm"
-                className="flex gap-1 sm:gap-2 text-[11px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4 border-border"
+                className="flex gap-1.5 sm:gap-2 text-[11px] sm:text-xs h-11 md:h-9 px-3 md:px-4 border-border rounded-xl touch-manipulation"
                 onClick={() => {
                   const params = new URLSearchParams();
                   if (searchQuery) params.set("search", searchQuery);
@@ -471,11 +673,11 @@ function TransportationPageInner() {
                 }}
               >
                 <Plus className="size-3.5 sm:size-4" />
-                <span className="hidden sm:inline">CREATE LOAD</span>
+                <span>CREATE LOAD</span>
               </Button>
               <Button
                 size="sm"
-                className="gap-1 sm:gap-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-xs h-7 sm:h-9 px-2 sm:px-4"
+                className="gap-1.5 sm:gap-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-xs h-11 md:h-9 px-3 md:px-4 rounded-xl touch-manipulation"
                 onClick={() => setIsQuoteModalOpen(true)}
               >
                 <Plus className="size-3.5 sm:size-4" />
@@ -494,7 +696,7 @@ function TransportationPageInner() {
                     ? "Search by load #, city, state, make, model, or VIN..."
                     : "Search by name, VIN, stock, or tracking number..."
                 }
-                className="pl-8 sm:pl-10 w-full text-sm h-8 sm:h-10 bg-background border-border text-foreground"
+                className="pl-9 sm:pl-10 w-full text-sm h-11 md:h-10 rounded-xl bg-background border-border text-foreground"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -543,8 +745,50 @@ function TransportationPageInner() {
         </div>
       </div>
 
-      {/* ── Mobile Tab Bar (always visible on small screens) ── */}
-      <div className="xl:hidden border-b border-border bg-card px-3">
+      {/* Mobile-only Inventory-style view switcher. The existing md+ web navigation is preserved below. */}
+      <div className="md:hidden border-b border-border bg-card px-3 py-2.5">
+        <TransportationMobileViewSwitcher
+          activeView={activeTab as TransportationView}
+          onViewChange={(view) => {
+            setActiveTab(view);
+            setInspectedMobileLoad(null);
+            setInspectedMobileQuote(null);
+          }}
+        />
+      </div>
+
+      <div className="md:hidden border-b border-border bg-card/70 px-3 py-3">
+        <TransportationMobileFilters
+          activeTab={activeTab as TransportationView}
+          selectedStatus={selectedStatus}
+          onStatusChange={(status) => {
+            setSelectedStatus(status);
+            setInspectedMobileLoad(null);
+            setInspectedMobileQuote(null);
+          }}
+          selectedQuoteStatus={selectedQuoteStatus}
+          onQuoteStatusChange={(status) => {
+            setSelectedQuoteStatus(status);
+            setInspectedMobileLoad(null);
+            setInspectedMobileQuote(null);
+          }}
+          stats={stats}
+          boardStats={boardStats}
+          quoteStats={quoteStats}
+          origin={currentMobileFilters.origin}
+          destination={currentMobileFilters.destination}
+          visibility={currentMobileFilters.visibility}
+          onOriginChange={(origin) => updateCurrentMobileFilters({ origin })}
+          onDestinationChange={(destination) => updateCurrentMobileFilters({ destination })}
+          onVisibilityChange={(visibility) => updateCurrentMobileFilters({ visibility })}
+          resultCount={currentMobileTotal}
+          onClearFilters={clearCurrentMobileFilters}
+          onClearStatus={clearCurrentMobileStatus}
+        />
+      </div>
+
+      {/* Existing tablet/web tab bar preserved exactly for md through xl. */}
+      <div className="hidden md:block xl:hidden border-b border-border bg-card px-3">
         <div className="flex">
           {(
             [
@@ -566,17 +810,6 @@ function TransportationPageInner() {
           ))}
         </div>
       </div>
-
-      <TransportationMobileStatusPanel
-        activeTab={activeTab}
-        selectedStatus={selectedStatus}
-        setSelectedStatus={setSelectedStatus}
-        selectedQuoteStatus={selectedQuoteStatus}
-        setSelectedQuoteStatus={setSelectedQuoteStatus}
-        stats={stats}
-        loadStats={boardStats}
-        quoteStats={quoteStats}
-      />
 
       <div className="flex relative min-w-0">
         <TransportationSidebar
@@ -615,34 +848,37 @@ function TransportationPageInner() {
                 </CardContent>
               </Card>
             ) : isBoardLoading && boardLoads.length === 0 ? (
-              <div className="space-y-3 sm:space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <Card key={i} className="border-border overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="h-1 w-full bg-muted" />
-                      <div className="p-4 sm:p-5 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-2">
-                            <Skeleton className="h-4 w-32" />
-                            <Skeleton className="h-3 w-24" />
+              <>
+                <MobileInitialLoading label="loads" />
+                <div className="hidden md:block space-y-3 sm:space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i} className="border-border overflow-hidden">
+                      <CardContent className="p-0">
+                        <div className="h-1 w-full bg-muted" />
+                        <div className="p-4 sm:p-5 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-24" />
+                            </div>
+                            <Skeleton className="h-6 w-16 rounded-full" />
                           </div>
-                          <Skeleton className="h-6 w-16 rounded-full" />
+                          <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+                            <Skeleton className="h-16 rounded-lg" />
+                            <Skeleton className="h-4 w-8 rounded" />
+                            <Skeleton className="h-16 rounded-lg" />
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Skeleton className="h-14 rounded-md" />
+                            <Skeleton className="h-14 rounded-md" />
+                            <Skeleton className="h-14 rounded-md" />
+                          </div>
                         </div>
-                        <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
-                          <Skeleton className="h-16 rounded-lg" />
-                          <Skeleton className="h-4 w-8 rounded" />
-                          <Skeleton className="h-16 rounded-lg" />
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Skeleton className="h-14 rounded-md" />
-                          <Skeleton className="h-14 rounded-md" />
-                          <Skeleton className="h-14 rounded-md" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
             ) : boardLoads.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="p-6 sm:p-8 md:p-12 text-center">
@@ -692,55 +928,83 @@ function TransportationPageInner() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
-                <PerPageSelector
-                  limit={boardLimit}
-                  total={boardPagination?.total ?? 0}
-                  onLimitChange={changeBoardLimit}
-                />
-                {boardLoads.map((load) => (
-                  <LoadCard
-                    key={load._id}
-                    load={load}
-                    onDelete={handleDeleteBoardLoad}
-                    isDeleting={boardDeletingId === load._id}
+              <>
+                <div className="md:hidden space-y-2.5">
+                  {boardLoads.map((load) => (
+                    <TransportationMobileLoadCard
+                      key={load._id}
+                      load={load}
+                      onDelete={handleDeleteBoardLoad}
+                      isDeleting={boardDeletingId === load._id}
+                      onInspect={(selected, tab = "overview") => {
+                        setInspectedMobileQuote(null);
+                        setInspectedMobileLoadTab(tab);
+                        setInspectedMobileLoad(selected);
+                      }}
+                    />
+                  ))}
+                  <TransportationMobilePagination
+                    label="Board"
+                    currentPage={boardPage}
+                    pagination={boardPagination}
+                    limit={boardLimit}
+                    onPageChange={changeBoardPage}
+                    onLimitChange={changeBoardLimit}
                   />
-                ))}
-                <PaginationBar
-                  page={boardPage}
-                  pagination={boardPagination}
-                  onPageChange={changeBoardPage}
-                />
-              </div>
+                </div>
+                <div className="hidden md:block space-y-3 sm:space-y-4">
+                  <PerPageSelector
+                    limit={boardLimit}
+                    total={boardPagination?.total ?? 0}
+                    onLimitChange={changeBoardLimit}
+                  />
+                  {boardLoads.map((load) => (
+                    <LoadCard
+                      key={load._id}
+                      load={load}
+                      onDelete={handleDeleteBoardLoad}
+                      isDeleting={boardDeletingId === load._id}
+                    />
+                  ))}
+                  <PaginationBar
+                    page={boardPage}
+                    pagination={boardPagination}
+                    onPageChange={changeBoardPage}
+                  />
+                </div>
+              </>
             )
           ) : activeTab === "shipments" ? (
             isLoading && loads.length === 0 ? (
-              <div className="space-y-3 sm:space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <Card key={i} className="border-border overflow-hidden">
-                    <CardContent className="p-0">
-                      <Skeleton className="w-full h-40 sm:h-56 md:h-64 rounded-none" />
-                      <div className="p-4 sm:p-5 space-y-3">
-                        <div className="flex justify-between">
-                          <div className="space-y-2">
-                            <Skeleton className="h-4 w-40" />
-                            <Skeleton className="h-3 w-28" />
+              <>
+                <MobileInitialLoading label="loads" />
+                <div className="hidden md:block space-y-3 sm:space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i} className="border-border overflow-hidden">
+                      <CardContent className="p-0">
+                        <Skeleton className="w-full h-40 sm:h-56 md:h-64 rounded-none" />
+                        <div className="p-4 sm:p-5 space-y-3">
+                          <div className="flex justify-between">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-40" />
+                              <Skeleton className="h-3 w-28" />
+                            </div>
+                            <div className="flex gap-2">
+                              <Skeleton className="h-8 w-16 rounded-md" />
+                              <Skeleton className="h-8 w-16 rounded-md" />
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Skeleton className="h-8 w-16 rounded-md" />
-                            <Skeleton className="h-8 w-16 rounded-md" />
+                          <div className="grid grid-cols-2 gap-3">
+                            <Skeleton className="h-20 rounded-lg" />
+                            <Skeleton className="h-20 rounded-lg" />
                           </div>
+                          <Skeleton className="h-40 w-full rounded-lg" />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <Skeleton className="h-20 rounded-lg" />
-                          <Skeleton className="h-20 rounded-lg" />
-                        </div>
-                        <Skeleton className="h-40 w-full rounded-lg" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
             ) : filteredLoads.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="p-6 sm:p-8 md:p-12 text-center">
@@ -781,53 +1045,80 @@ function TransportationPageInner() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
-                <PerPageSelector
-                  limit={loadsLimit}
-                  total={loadsPagination?.total ?? 0}
-                  onLimitChange={changeLoadsLimit}
-                />
-                {filteredLoads.map((load) => (
-                  <LoadCard
-                    key={load._id}
-                    load={load}
-                    onDelete={handleDeleteLoad}
+              <>
+                <div className="md:hidden space-y-2.5">
+                  {filteredLoads.map((load) => (
+                    <TransportationMobileLoadCard
+                      key={load._id}
+                      load={load}
+                      onDelete={handleDeleteLoad}
+                      onInspect={(selected, tab = "overview") => {
+                        setInspectedMobileQuote(null);
+                        setInspectedMobileLoadTab(tab);
+                        setInspectedMobileLoad(selected);
+                      }}
+                    />
+                  ))}
+                  <TransportationMobilePagination
+                    label="My Loads"
+                    currentPage={loadsPage}
+                    pagination={loadsPagination}
+                    limit={loadsLimit}
+                    onPageChange={changeLoadsPage}
+                    onLimitChange={changeLoadsLimit}
                   />
-                ))}
-                <PaginationBar
-                  page={loadsPage}
-                  pagination={loadsPagination}
-                  onPageChange={changeLoadsPage}
-                />
-              </div>
+                </div>
+                <div className="hidden md:block space-y-3 sm:space-y-4">
+                  <PerPageSelector
+                    limit={loadsLimit}
+                    total={loadsPagination?.total ?? 0}
+                    onLimitChange={changeLoadsLimit}
+                  />
+                  {filteredLoads.map((load) => (
+                    <LoadCard
+                      key={load._id}
+                      load={load}
+                      onDelete={handleDeleteLoad}
+                    />
+                  ))}
+                  <PaginationBar
+                    page={loadsPage}
+                    pagination={loadsPagination}
+                    onPageChange={changeLoadsPage}
+                  />
+                </div>
+              </>
             )
           ) : isLoading && quotes.length === 0 ? (
-            <div className="space-y-3 sm:space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <Card key={i} className="border-border overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col 2xl:flex-row divide-y 2xl:divide-y-0 2xl:divide-x divide-gray-100 dark:divide-gray-700">
-                      <div className="w-full 2xl:w-1/3 p-4 sm:p-6 space-y-3">
-                        <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-40 w-full rounded-lg" />
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-4 w-1/2" />
-                      </div>
-                      <div className="w-full 2xl:w-2/3 p-4 sm:p-6 space-y-4">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-24 w-full rounded-lg" />
-                        <div className="grid grid-cols-3 gap-3">
-                          <Skeleton className="h-16 rounded-lg" />
-                          <Skeleton className="h-16 rounded-lg" />
-                          <Skeleton className="h-16 rounded-lg" />
+            <>
+              <MobileInitialLoading label="quotes" />
+              <div className="hidden md:block space-y-3 sm:space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <Card key={i} className="border-border overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col 2xl:flex-row divide-y 2xl:divide-y-0 2xl:divide-x divide-gray-100 dark:divide-gray-700">
+                        <div className="w-full 2xl:w-1/3 p-4 sm:p-6 space-y-3">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-40 w-full rounded-lg" />
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
                         </div>
-                        <Skeleton className="h-20 w-full rounded-lg" />
+                        <div className="w-full 2xl:w-2/3 p-4 sm:p-6 space-y-4">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-24 w-full rounded-lg" />
+                          <div className="grid grid-cols-3 gap-3">
+                            <Skeleton className="h-16 rounded-lg" />
+                            <Skeleton className="h-16 rounded-lg" />
+                            <Skeleton className="h-16 rounded-lg" />
+                          </div>
+                          <Skeleton className="h-20 w-full rounded-lg" />
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
           ) : filteredQuotes.length === 0 ? (
             <Card className="border-border">
               <CardContent className="p-6 sm:p-8 md:p-12 text-center">
@@ -871,30 +1162,71 @@ function TransportationPageInner() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
-              <PerPageSelector
-                limit={quotesLimit}
-                total={quotesPagination?.total ?? 0}
-                onLimitChange={changeQuotesLimit}
-              />
-              {filteredQuotes.map((quote) => (
-                <QuoteCard
-                  key={quote._id}
-                  quote={quote}
-                  onConvertToLoad={handleConvertToLoad}
-                  onDelete={handleDeleteQuote}
-                  onUpdate={handleUpdateQuote}
+            <>
+              <div className="md:hidden space-y-2.5">
+                {filteredQuotes.map((quote) => (
+                  <TransportationMobileQuoteCard
+                    key={quote._id}
+                    quote={quote}
+                    onDelete={handleDeleteQuote}
+                    onUpdate={handleUpdateQuote}
+                    onInspect={(selected, tab = "overview") => {
+                      setInspectedMobileLoad(null);
+                      setInspectedMobileQuoteTab(tab);
+                      setInspectedMobileQuote(selected);
+                    }}
+                  />
+                ))}
+                <TransportationMobilePagination
+                  label="Quotes"
+                  currentPage={quotesPage}
+                  pagination={quotesPagination}
+                  limit={quotesLimit}
+                  onPageChange={changeQuotesPage}
+                  onLimitChange={changeQuotesLimit}
                 />
-              ))}
-              <PaginationBar
-                page={quotesPage}
-                pagination={quotesPagination}
-                onPageChange={changeQuotesPage}
-              />
-            </div>
+              </div>
+              <div className="hidden md:block space-y-3 sm:space-y-4">
+                <PerPageSelector
+                  limit={quotesLimit}
+                  total={quotesPagination?.total ?? 0}
+                  onLimitChange={changeQuotesLimit}
+                />
+                {filteredQuotes.map((quote) => (
+                  <QuoteCard
+                    key={quote._id}
+                    quote={quote}
+                    onConvertToLoad={handleConvertToLoad}
+                    onDelete={handleDeleteQuote}
+                    onUpdate={handleUpdateQuote}
+                  />
+                ))}
+                <PaginationBar
+                  page={quotesPage}
+                  pagination={quotesPagination}
+                  onPageChange={changeQuotesPage}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      <TransportationMobileDetailsDrawer
+        open={isMobileViewport && Boolean(inspectedMobileLoad || inspectedMobileQuote)}
+        onClose={() => {
+          setInspectedMobileLoad(null);
+          setInspectedMobileLoadTab("overview");
+          setInspectedMobileQuote(null);
+          setInspectedMobileQuoteTab("overview");
+        }}
+        load={inspectedMobileLoad}
+        quote={inspectedMobileQuote}
+        initialLoadTab={inspectedMobileLoadTab}
+        initialQuoteTab={inspectedMobileQuoteTab}
+        onViewLoadDetails={(load) => router.push(`/transportation/load/${load._id}`)}
+        onConvertQuoteToLoad={handleConvertToLoad}
+      />
 
       <TransportationMobileSupportCenter />
 

@@ -16,8 +16,11 @@ const LOADS_LIMIT_STORAGE_KEY = "transportation:loads:limit";
 
 const DEFAULT_LOAD_STATS: LoadStats = {
   all: 0,
+  Draft: 0,
   Posted: 0,
   Assigned: 0,
+  Accepted: 0,
+  "Picked Up": 0,
   "In-Transit": 0,
   Delivered: 0,
   Cancelled: 0,
@@ -35,6 +38,7 @@ function getPersistedLimit(fallback: PerPageOption): PerPageOption {
 function buildVehicleStats(loads: Load[]): LoadStats {
   const stats: LoadStats = {
     all: 0,
+    Draft: 0,
     Posted: 0,
     Assigned: 0,
     Accepted: 0,
@@ -48,7 +52,7 @@ function buildVehicleStats(loads: Load[]): LoadStats {
     const vehicleCount = Array.isArray(load.vehicles) ? load.vehicles.length : 0;
     stats.all += vehicleCount;
 
-    if (load.status in stats && load.status !== "Draft") {
+    if (load.status in stats) {
       const key = load.status as keyof LoadStats;
       stats[key] = Number(stats[key] ?? 0) + vehicleCount;
     }
@@ -81,10 +85,37 @@ function matchesLoadSearch(load: Load, query: string) {
   );
 }
 
+
+export interface TransportationBoardFilters {
+  origin?: string;
+  destination?: string;
+  visibility?: string;
+}
+
+function matchesLocationFilter(
+  location: Load["pickupLocation"] | Load["deliveryLocation"],
+  query: string,
+) {
+  if (!query) return true;
+  const normalized = query.toLowerCase();
+  return [
+    location.name,
+    location.address,
+    location.street,
+    location.city,
+    location.state,
+    location.zip,
+    location.contactName,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
+}
+
 export function useLoadsData(
   searchQuery?: string,
   selectedStatus?: string,
   enabled = true,
+  filters: TransportationBoardFilters = {},
 ) {
   const [loads, setLoads] = React.useState<Load[]>([]);
   const [pagination, setPagination] = React.useState<LoadsPagination | null>(
@@ -98,6 +129,9 @@ export function useLoadsData(
     getPersistedLimit(5),
   );
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const originFilter = filters.origin?.trim() || "";
+  const destinationFilter = filters.destination?.trim() || "";
+  const visibilityFilter = filters.visibility || "all";
 
   const pageRef = React.useRef(page);
   const limitRef = React.useRef(limit);
@@ -135,7 +169,25 @@ export function useLoadsData(
       const filtered = snapshot.items.filter((load) => {
         const matchesStatus =
           !status || status === "all" || load.status === status;
-        return matchesStatus && matchesLoadSearch(load, query);
+        const matchesOrigin = matchesLocationFilter(
+          load.pickupLocation,
+          originFilter,
+        );
+        const matchesDestination = matchesLocationFilter(
+          load.deliveryLocation,
+          destinationFilter,
+        );
+        const visibility = load.additionalInfo?.visibility || "public";
+        const matchesVisibility =
+          visibilityFilter === "all" || visibility === visibilityFilter;
+
+        return (
+          matchesStatus &&
+          matchesLoadSearch(load, query) &&
+          matchesOrigin &&
+          matchesDestination &&
+          matchesVisibility
+        );
       });
 
       const total = filtered.length;
@@ -159,7 +211,13 @@ export function useLoadsData(
       pageRef.current = boundedPage;
       return true;
     },
-    [searchQuery, selectedStatus],
+    [
+      searchQuery,
+      selectedStatus,
+      originFilter,
+      destinationFilter,
+      visibilityFilter,
+    ],
   );
 
   const refreshStats = React.useCallback(async () => {
@@ -222,6 +280,10 @@ export function useLoadsData(
                 ? status
                 : undefined,
             q: query?.trim() || undefined,
+            origin: originFilter || undefined,
+            destination: destinationFilter || undefined,
+            visibility:
+              visibilityFilter !== "all" ? visibilityFilter : undefined,
             page: requestedPage,
             limit: requestedLimit,
           },
@@ -254,10 +316,16 @@ export function useLoadsData(
         return false;
       }
     },
-    [searchQuery, selectedStatus],
+    [
+      searchQuery,
+      selectedStatus,
+      originFilter,
+      destinationFilter,
+      visibilityFilter,
+    ],
   );
 
-  // Apply Board status/search changes from the warm snapshot before paint.
+  // Apply Board status/search/filter changes from the warm snapshot before paint.
   // There is no visible status-change loader and no false empty-state flash.
   React.useLayoutEffect(() => {
     if (!enabled || !isLoaded || !isSignedIn) {
@@ -320,6 +388,9 @@ export function useLoadsData(
     isSignedIn,
     selectedStatus,
     searchQuery,
+    originFilter,
+    destinationFilter,
+    visibilityFilter,
     applySnapshot,
     fetchServer,
     refreshSnapshot,
@@ -374,6 +445,9 @@ export function useLoadsData(
     getToken,
     selectedStatus,
     searchQuery,
+    originFilter,
+    destinationFilter,
+    visibilityFilter,
     applySnapshot,
     refreshSnapshot,
     refreshStats,

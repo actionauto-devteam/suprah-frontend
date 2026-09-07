@@ -229,22 +229,29 @@ export function FinanceApplicationModal({
                 <p className="text-sm text-zinc-500">{vehicle.model}</p>
               </div>
               <Separator />
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-zinc-400">Retail Price</span>
-                  <span className="text-zinc-900 dark:text-zinc-200 line-through">
-                    ${(vehicle.price + 995).toLocaleString()}
-                  </span>
+              {Number(vehicle.price) > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-zinc-400">Retail Price</span>
+                    <span className="text-zinc-900 dark:text-zinc-200 line-through">
+                      ${(vehicle.price + 995).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold">
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      VIP Price
+                    </span>
+                    <span className="text-green-600 dark:text-green-400">
+                      ${vehicle.price.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm font-bold">
-                  <span className="text-zinc-600 dark:text-zinc-400">
-                    VIP Price
-                  </span>
-                  <span className="text-green-600 dark:text-green-400">
-                    ${vehicle.price.toLocaleString()}
-                  </span>
+              ) : (
+                <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+                  <p className="text-sm font-black text-green-600 dark:text-green-400">Price Pending</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500">Pricing is being finalized.</p>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="mt-auto p-4 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-black/5">

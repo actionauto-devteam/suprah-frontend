@@ -135,6 +135,8 @@ function getSchedulePresentation(load: Load) {
 
 function getStatusTheme(status: LoadStatus) {
   switch (status) {
+    case "Draft":
+      return { bg: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30", indicator: "bg-slate-500", glow: "shadow-[0_0_10px_rgba(100,116,139,0.45)]" }
     case "Posted":
       return { bg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30", indicator: "bg-emerald-500", glow: "shadow-[0_0_10px_rgba(16,185,129,0.5)]" }
     case "Assigned":
@@ -151,6 +153,33 @@ function getStatusTheme(status: LoadStatus) {
       return { bg: "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30", indicator: "bg-red-500", glow: "shadow-[0_0_10px_rgba(239,68,68,0.5)]" }
     default:
       return { bg: "bg-muted text-muted-foreground border-border", indicator: "bg-muted-foreground", glow: "" }
+  }
+}
+
+// Desktop-only enhancement for the hero status badge.
+// Keep getStatusTheme() unchanged because it is reused by the schedule modal
+// and other status UI. This helper only strengthens the badge over the vehicle
+// photo on large screens, so no load workflow or interaction behavior changes.
+function getDesktopHeroStatusBadgeTheme(status: LoadStatus) {
+  switch (status) {
+    case "Draft":
+      return "lg:bg-slate-600/95 lg:text-white dark:lg:text-white lg:border-slate-300/40 lg:shadow-[0_6px_18px_rgba(15,23,42,0.38)]"
+    case "Posted":
+      return "lg:bg-emerald-500/95 lg:text-slate-950 dark:lg:text-slate-950 lg:border-emerald-200/45 lg:shadow-[0_6px_18px_rgba(16,185,129,0.30)]"
+    case "Assigned":
+      return "lg:bg-blue-500/95 lg:text-white dark:lg:text-white lg:border-blue-200/45 lg:shadow-[0_6px_18px_rgba(59,130,246,0.28)]"
+    case "Accepted":
+      return "lg:bg-violet-500/95 lg:text-white dark:lg:text-white lg:border-violet-200/45 lg:shadow-[0_6px_18px_rgba(139,92,246,0.30)]"
+    case "Picked Up":
+      return "lg:bg-amber-400/95 lg:text-slate-950 dark:lg:text-slate-950 lg:border-amber-100/50 lg:shadow-[0_6px_18px_rgba(245,158,11,0.30)]"
+    case "In-Transit":
+      return "lg:bg-cyan-400/95 lg:text-slate-950 dark:lg:text-slate-950 lg:border-cyan-100/50 lg:shadow-[0_6px_18px_rgba(6,182,212,0.30)]"
+    case "Delivered":
+      return "lg:bg-emerald-600/95 lg:text-white dark:lg:text-white lg:border-emerald-200/45 lg:shadow-[0_6px_18px_rgba(5,150,105,0.30)]"
+    case "Cancelled":
+      return "lg:bg-red-500/95 lg:text-white dark:lg:text-white lg:border-red-200/45 lg:shadow-[0_6px_18px_rgba(239,68,68,0.30)]"
+    default:
+      return "lg:bg-background/95 lg:text-foreground dark:lg:text-foreground lg:border-border/80 lg:shadow-[0_6px_18px_rgba(0,0,0,0.20)]"
   }
 }
 
@@ -457,7 +486,14 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
               )}
 
               <div className="absolute top-3 left-3">
-                <Badge className={cn("px-2.5 py-1 text-[11px] font-black uppercase tracking-wider border backdrop-blur-sm", theme.bg)}>
+                <Badge
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-black uppercase tracking-wider border backdrop-blur-sm",
+                    "lg:px-3.5 lg:py-1.5 lg:text-xs lg:tracking-[0.1em] lg:rounded-full lg:backdrop-blur-md",
+                    theme.bg,
+                    getDesktopHeroStatusBadgeTheme(load.status),
+                  )}
+                >
                   {load.status}
                 </Badge>
               </div>
@@ -471,7 +507,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
                     <div className={cn("size-2 rounded-full shrink-0 motion-safe:animate-pulse", theme.indicator, theme.glow)} />
                     <span className="text-[11px] lg:text-xs font-black text-muted-foreground uppercase tracking-widest truncate">
-                      {isLoadBoard ? "Public Load Board" : "Assigned Shipment"}
+                      {isLoadBoard ? (isPublic ? "Public" : "Private") : "Assigned Shipment"}
                     </span>
                     <span className="text-[11px] text-muted-foreground/60 hidden xs:inline">·</span>
                     <span className="text-[11px] lg:text-xs text-muted-foreground/90 font-bold hidden xs:inline">{formatDate(load.createdAt)}</span>
@@ -665,7 +701,8 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                 </div>
 
                 {/* Progress Bar (Mini Timeline) */}
-                {load.status !== "Posted" &&
+                {load.status !== "Draft" &&
+                  load.status !== "Posted" &&
                   load.status !== "Cancelled" &&
                   (() => {
                     const currentStatus =
