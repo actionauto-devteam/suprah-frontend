@@ -51,7 +51,13 @@ import { useTeamMembers } from "@/hooks/useTeamPulse";
 
 import { LogisticsMonitor } from "./components/LogisticsMonitor";
 import { RevenueIntelligence } from "./components/RevenueIntelligence";
-import { Panel, PanelSkeleton, StatTile, ini, timeAgo } from "./components/DashboardPanel";
+import {
+  Panel,
+  PanelSkeleton,
+  StatTile,
+  ini,
+  timeAgo,
+} from "./components/DashboardPanel";
 import { MyClockStatus } from "./components/MyClockStatus";
 import { MyTasksSummary } from "./components/MyTasksSummary";
 import { WhoIsOut } from "./components/WhoIsOut";
@@ -95,7 +101,11 @@ function stripMentions(content: string): string {
 
 function greeting(): string {
   const hourMST = Number(
-    new Date().toLocaleString("en-US", { hour: "2-digit", hour12: false, timeZone: "America/Denver" }),
+    new Date().toLocaleString("en-US", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: "America/Denver",
+    }),
   );
   if (hourMST < 12) return "Good morning";
   if (hourMST < 18) return "Good afternoon";
@@ -188,7 +198,10 @@ interface FeedPost {
 }
 
 function isImage(a: FeedAttachment) {
-  return a.mimeType?.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(a.originalName);
+  return (
+    a.mimeType?.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif)$/i.test(a.originalName)
+  );
 }
 
 function LatestPosts() {
@@ -225,7 +238,7 @@ function LatestPosts() {
           }
         }
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -240,11 +253,19 @@ function LatestPosts() {
   }, [load]);
 
   return (
-    <Panel title="Latest Posts" icon={Rss} accent="text-emerald-500" action="Open Feeds" onAction={() => router.push("/crm/feeds")}>
+    <Panel
+      title="Latest Posts"
+      icon={Rss}
+      accent="text-emerald-500"
+      action="Open Feeds"
+      onAction={() => router.push("/crm/feeds")}
+    >
       {loading ? (
         <PanelSkeleton rows={4} />
       ) : posts.length === 0 ? (
-        <p className="text-xs text-muted-foreground/60 text-center py-6">Nothing posted yet.</p>
+        <p className="text-xs text-muted-foreground/60 text-center py-6">
+          Nothing posted yet.
+        </p>
       ) : (
         <div className="space-y-3">
           {posts.slice(0, 5).map((post) => {
@@ -263,8 +284,12 @@ function LatestPosts() {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold truncate">{post.authorName}</span>
-                    <span className="text-[10px] text-muted-foreground/50">{timeAgo(post.createdAt)}</span>
+                    <span className="text-xs font-bold truncate">
+                      {post.authorName}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/50">
+                      {timeAgo(post.createdAt)}
+                    </span>
                   </div>
                   <p className="mt-0.5 text-xs text-foreground/70 line-clamp-2 leading-relaxed">
                     {stripMentions(post.content)}
@@ -274,7 +299,8 @@ function LatestPosts() {
                       <Heart className="size-3" /> {reactions[post._id] ?? 0}
                     </span>
                     <span className="flex items-center gap-1">
-                      <MessageCircle className="size-3" /> {post.commentCount ?? 0}
+                      <MessageCircle className="size-3" />{" "}
+                      {post.commentCount ?? 0}
                     </span>
                   </div>
                 </div>
@@ -323,7 +349,10 @@ function CalendarSummary() {
   const wallStart = React.useMemo(() => startOfDay(now), [now]);
   const wallEnd = React.useMemo(() => addDays(wallStart, 30), [wallStart]);
 
-  const { items, loading } = useCalendar(fromZoned(wallStart), fromZoned(wallEnd));
+  const { items, loading } = useCalendar(
+    fromZoned(wallStart),
+    fromZoned(wallEnd),
+  );
 
   const { today, upcoming, next } = React.useMemo(() => {
     const occ = expandOccurrences(items || [], wallStart, wallEnd).sort(
@@ -331,7 +360,9 @@ function CalendarSummary() {
     );
     const nowT = now.getTime();
     const todayList = occ.filter((o) => sameDay(o.start, now));
-    const upcomingList = occ.filter((o) => o.start.getTime() > nowT && !sameDay(o.start, now));
+    const upcomingList = occ.filter(
+      (o) => o.start.getTime() > nowT && !sameDay(o.start, now),
+    );
     const nextEvent = occ.find((o) => o.start.getTime() > nowT) || null;
     return { today: todayList, upcoming: upcomingList, next: nextEvent };
   }, [items, wallStart, wallEnd, now]);
@@ -350,36 +381,62 @@ function CalendarSummary() {
         <div className="space-y-4">
           {next ? (
             <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/6 p-3.5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">Next up</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-cyan-500/70 mb-1">
+                Next up
+              </p>
               <p className="text-sm font-bold truncate">{next.item.title}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {sameDay(next.start, now) ? "Today" : next.start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                {sameDay(next.start, now)
+                  ? "Today"
+                  : next.start.toLocaleDateString([], {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
                 {" · "}
                 {next.item.allDay ? "All day" : fmtTime(next.start)}
               </p>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/60 text-center py-2">Nothing scheduled soon.</p>
+            <p className="text-xs text-muted-foreground/60 text-center py-2">
+              Nothing scheduled soon.
+            </p>
           )}
 
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Today", value: today.length, tone: "text-emerald-500" },
-              { label: "Upcoming", value: upcoming.length, tone: "text-cyan-500" },
+              {
+                label: "Upcoming",
+                value: upcoming.length,
+                tone: "text-cyan-500",
+              },
             ].map((c) => (
-              <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
+              <StatTile
+                key={c.label}
+                label={c.label}
+                value={c.value}
+                tone={c.tone}
+              />
             ))}
           </div>
 
           {today.length > 0 && (
             <div className="space-y-1.5">
               {today.slice(0, 3).map((o, i) => (
-                <div key={`${o.item.id}-${i}`} className="flex items-center gap-2.5 text-xs">
-                  <span className={`size-2 rounded-full shrink-0 ${CAL_TYPE_DOT[o.item.type] ?? "bg-muted-foreground"}`} />
+                <div
+                  key={`${o.item.id}-${i}`}
+                  className="flex items-center gap-2.5 text-xs"
+                >
+                  <span
+                    className={`size-2 rounded-full shrink-0 ${CAL_TYPE_DOT[o.item.type] ?? "bg-muted-foreground"}`}
+                  />
                   <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70 w-14 shrink-0">
                     {o.item.allDay ? "All day" : fmtTime(o.start)}
                   </span>
-                  <span className="truncate font-medium text-foreground/80">{o.item.title}</span>
+                  <span className="truncate font-medium text-foreground/80">
+                    {o.item.title}
+                  </span>
                 </div>
               ))}
             </div>
@@ -396,7 +453,11 @@ function CalendarSummary() {
 
 function LeadsSummary() {
   const router = useRouter();
-  const [stats, setStats] = React.useState<{ new: number; followUp: number; total: number } | null>(null);
+  const [stats, setStats] = React.useState<{
+    new: number;
+    followUp: number;
+    total: number;
+  } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -405,10 +466,17 @@ function LeadsSummary() {
       .get("/api/leads", { params: { limit: 50 }, signal: controller.signal })
       .then((res) => {
         const d = res.data?.data || res.data || {};
-        const list: any[] = Array.isArray(d.leads) ? d.leads : Array.isArray(d) ? d : [];
+        const list: any[] = Array.isArray(d.leads)
+          ? d.leads
+          : Array.isArray(d)
+            ? d
+            : [];
         setStats({
-          new: list.filter((l) => (l.status || "").toLowerCase() === "new").length,
-          followUp: list.filter((l) => (l.status || "").toLowerCase().includes("follow")).length,
+          new: list.filter((l) => (l.status || "").toLowerCase() === "new")
+            .length,
+          followUp: list.filter((l) =>
+            (l.status || "").toLowerCase().includes("follow"),
+          ).length,
           total: d.total ?? list.length,
         });
       })
@@ -418,17 +486,36 @@ function LeadsSummary() {
   }, []);
 
   return (
-    <Panel title="Leads" icon={Target} accent="text-primary" action="View More" onAction={() => router.push("/crm/leads")}>
+    <Panel
+      title="Leads"
+      icon={Target}
+      accent="text-primary"
+      action="View More"
+      onAction={() => router.push("/crm/leads")}
+    >
       {loading ? (
         <PanelSkeleton rows={2} />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: "New", value: stats?.new ?? 0, tone: "text-emerald-500" },
-            { label: "Follow-up", value: stats?.followUp ?? 0, tone: "text-amber-500" },
-            { label: "Total", value: stats?.total ?? 0, tone: "text-foreground" },
+            {
+              label: "Follow-up",
+              value: stats?.followUp ?? 0,
+              tone: "text-amber-500",
+            },
+            {
+              label: "Total",
+              value: stats?.total ?? 0,
+              tone: "text-foreground",
+            },
           ].map((c) => (
-            <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
+            <StatTile
+              key={c.label}
+              label={c.label}
+              value={c.value}
+              tone={c.tone}
+            />
           ))}
         </div>
       )}
@@ -445,26 +532,49 @@ function TeamPulseSnapshot() {
   const { data: members = [], isLoading } = useTeamMembers();
 
   const online = members.filter((m) => m.onlineStatus === "online");
-  const activeCount = members.filter((m) => m.onlineStatus !== "offline").length;
+  const activeCount = members.filter(
+    (m) => m.onlineStatus !== "offline",
+  ).length;
   const offlineCount = members.length - activeCount;
   const shown = online.slice(0, 6);
   const extra = online.length - shown.length;
 
   return (
-    <Panel title="Team Pulse" icon={Activity} accent="text-primary" action="Open Team Pulse" onAction={() => router.push("/team-pulse")}>
+    <Panel
+      title="Team Pulse"
+      icon={Activity}
+      accent="text-primary"
+      action="Open Team Pulse"
+      onAction={() => router.push("/team-pulse")}
+    >
       {isLoading ? (
         <PanelSkeleton rows={2} />
       ) : members.length === 0 ? (
-        <p className="text-xs text-muted-foreground/60 text-center py-6">No teammates yet.</p>
+        <p className="text-xs text-muted-foreground/60 text-center py-6">
+          No teammates yet.
+        </p>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: "Online", value: online.length, tone: "text-emerald-500" },
+              {
+                label: "Online",
+                value: online.length,
+                tone: "text-emerald-500",
+              },
               { label: "Active", value: activeCount, tone: "text-primary" },
-              { label: "Offline", value: offlineCount, tone: "text-muted-foreground/60" },
+              {
+                label: "Offline",
+                value: offlineCount,
+                tone: "text-muted-foreground/60",
+              },
             ].map((c) => (
-              <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
+              <StatTile
+                key={c.label}
+                label={c.label}
+                value={c.value}
+                tone={c.tone}
+              />
             ))}
           </div>
 
@@ -477,7 +587,9 @@ function TeamPulseSnapshot() {
                 {shown.map((m) => (
                   <Avatar key={m._id} className="size-7 ring-2 ring-card">
                     <AvatarImage src={m.avatar} />
-                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">{ini(m.name)}</AvatarFallback>
+                    <AvatarFallback className="bg-emerald-600 text-white text-[9px] font-bold">
+                      {ini(m.name)}
+                    </AvatarFallback>
                   </Avatar>
                 ))}
                 {extra > 0 && (
@@ -487,11 +599,14 @@ function TeamPulseSnapshot() {
                 )}
               </div>
               <span className="text-[11px] font-medium text-muted-foreground/70 truncate">
-                {online.length} {online.length === 1 ? "person" : "people"} online now
+                {online.length} {online.length === 1 ? "person" : "people"}{" "}
+                online now
               </span>
             </button>
           ) : (
-            <p className="text-xs text-muted-foreground/50 text-center py-2">Nobody's online right now.</p>
+            <p className="text-xs text-muted-foreground/50 text-center py-2">
+              Nobody's online right now.
+            </p>
           )}
         </div>
       )}
@@ -505,13 +620,20 @@ function TeamPulseSnapshot() {
 
 function ReviewsSummary() {
   const router = useRouter();
-  const [data, setData] = React.useState<{ avg: number; total: number; pending: number } | null>(null);
+  const [data, setData] = React.useState<{
+    avg: number;
+    total: number;
+    pending: number;
+  } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const controller = new AbortController();
     apiClient
-      .get("/api/crm/reviews", { params: { page: 1, source: "all", sort: "newest" }, signal: controller.signal })
+      .get("/api/crm/reviews", {
+        params: { page: 1, source: "all", sort: "newest" },
+        signal: controller.signal,
+      })
       .then((res) => {
         const d = res.data?.data || res.data || {};
         const summary = d.summary || {};
@@ -528,13 +650,21 @@ function ReviewsSummary() {
   }, []);
 
   return (
-    <Panel title="Reviews" icon={Star} accent="text-amber-500" action="View More" onAction={() => router.push("/crm/reviews")}>
+    <Panel
+      title="Reviews"
+      icon={Star}
+      accent="text-amber-500"
+      action="View More"
+      onAction={() => router.push("/crm/reviews")}
+    >
       {loading ? (
         <PanelSkeleton rows={2} />
       ) : (
         <div className="space-y-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black tabular-nums text-amber-500">{(data?.avg ?? 0).toFixed(1)}</span>
+            <span className="text-3xl font-black tabular-nums text-amber-500">
+              {(data?.avg ?? 0).toFixed(1)}
+            </span>
             <div className="flex items-center gap-0.5">
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
@@ -546,7 +676,11 @@ function ReviewsSummary() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <StatTile label="Total" value={data?.total ?? 0} />
-            <StatTile label="Needs reply" value={data?.pending ?? 0} tone="text-rose-500" />
+            <StatTile
+              label="Needs reply"
+              value={data?.pending ?? 0}
+              tone="text-rose-500"
+            />
           </div>
         </div>
       )}
@@ -560,13 +694,20 @@ function ReviewsSummary() {
 
 function AftermarketSummary() {
   const router = useRouter();
-  const [stats, setStats] = React.useState<{ total: number; live: number; quote: number } | null>(null);
+  const [stats, setStats] = React.useState<{
+    total: number;
+    live: number;
+    quote: number;
+  } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const controller = new AbortController();
     apiClient
-      .get("/api/crm/aftermarket", { params: { limit: 100 }, signal: controller.signal })
+      .get("/api/crm/aftermarket", {
+        params: { limit: 100 },
+        signal: controller.signal,
+      })
       .then((res) => {
         const list: any[] = res.data?.data?.products || [];
         setStats({
@@ -581,17 +722,40 @@ function AftermarketSummary() {
   }, []);
 
   return (
-    <Panel title="Aftermarket" icon={Package} accent="text-violet-500" action="View More" onAction={() => router.push("/crm/aftermarket")}>
+    <Panel
+      title="Aftermarket"
+      icon={Package}
+      accent="text-violet-500"
+      action="View More"
+      onAction={() => router.push("/crm/aftermarket")}
+    >
       {loading ? (
         <PanelSkeleton rows={2} />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: "Products", value: stats?.total ?? 0, tone: "text-foreground" },
-            { label: "Live", value: stats?.live ?? 0, tone: "text-emerald-500" },
-            { label: "Quote", value: stats?.quote ?? 0, tone: "text-violet-500" },
+            {
+              label: "Products",
+              value: stats?.total ?? 0,
+              tone: "text-foreground",
+            },
+            {
+              label: "Live",
+              value: stats?.live ?? 0,
+              tone: "text-emerald-500",
+            },
+            {
+              label: "Quote",
+              value: stats?.quote ?? 0,
+              tone: "text-violet-500",
+            },
           ].map((c) => (
-            <StatTile key={c.label} label={c.label} value={c.value} tone={c.tone} />
+            <StatTile
+              key={c.label}
+              label={c.label}
+              value={c.value}
+              tone={c.tone}
+            />
           ))}
         </div>
       )}
@@ -617,7 +781,9 @@ export default function Dashboard() {
   const pathname = usePathname();
   const { user: rawUser } = useAuthActions();
   const firstName = ((rawUser as any)?.fullName || "").split(" ")[0] || "there";
-  const isLotTech = isMobileMonitoringDept((rawUser as any)?.personalInfo?.department);
+  const isLotTech = isMobileMonitoringDept(
+    (rawUser as any)?.personalInfo?.department,
+  );
   const isAdmin = ["admin", "super_admin"].includes((rawUser as any)?.role);
   const {
     isSupported: pushSupported,
@@ -643,7 +809,9 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center min-h-full p-4">
         <div className="text-center p-8 border border-destructive/20 bg-destructive/5 rounded-3xl backdrop-blur-sm max-w-sm w-full">
-          <p className="text-destructive font-black tracking-tight text-lg mb-2">System Down</p>
+          <p className="text-destructive font-black tracking-tight text-lg mb-2">
+            System Down
+          </p>
           <p className="text-muted-foreground text-sm mb-6">
             Metrics failed to load. Check your connection and try again.
           </p>
@@ -687,17 +855,30 @@ export default function Dashboard() {
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400/70" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-green-500" />
                 </span>
-                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Live</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">
+                  Live
+                </span>
               </span>
               <div className="size-1 shrink-0 rounded-full bg-border" />
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 <Clock className="size-3 shrink-0" />
                 <span className="whitespace-nowrap">
-                  {currentTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver" })}
+                  {currentTime.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "America/Denver",
+                  })}
                 </span>
                 <span className="whitespace-nowrap font-black tabular-nums text-primary/70">
-                  {currentTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })}
-                  <span className="ml-0.5 text-[8px] font-bold text-muted-foreground/50">MST</span>
+                  {currentTime.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Denver",
+                  })}
+                  <span className="ml-0.5 text-[8px] font-bold text-muted-foreground/50">
+                    MST
+                  </span>
                 </span>
               </span>
             </div>
@@ -734,7 +915,9 @@ export default function Dashboard() {
             <Clock className="h-5 w-5 text-emerald-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black tracking-tight text-foreground">Timeproof Clock</p>
+            <p className="text-sm font-black tracking-tight text-foreground">
+              Timeproof Clock
+            </p>
             <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
               Clock in, track your shift, share your location
             </p>
@@ -743,50 +926,60 @@ export default function Dashboard() {
         </button>
       )}
 
-      {isAdmin && pushSupported && !pushSubscribed && !pushLoading && !pushDismissed && (
-        <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
-          <div className="h-11 w-11 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Bell className="h-5 w-5 text-amber-500" />
+      {isAdmin &&
+        pushSupported &&
+        !pushSubscribed &&
+        !pushLoading &&
+        !pushDismissed && (
+          <div className="flex items-start gap-4 px-5 py-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
+            <div className="h-11 w-11 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Bell className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black tracking-tight text-foreground">
+                Enable Admin Alerts
+              </p>
+              <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
+                Get push notifications for Lot Tech clock-in, clock-out, and
+                location events — even on lock screen.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 mt-0.5">
+              <button
+                onClick={() => pushSubscribe()}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors active:scale-95"
+              >
+                Enable
+              </button>
+              <button
+                onClick={() => {
+                  setPushDismissed(true);
+                  sessionStorage.setItem("push_admin_dismissed", "1");
+                }}
+                className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/40 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black tracking-tight text-foreground">Enable Admin Alerts</p>
-            <p className="text-[11px] text-muted-foreground/60 font-medium mt-0.5">
-              Get push notifications for Lot Tech clock-in, clock-out, and location events — even on lock screen.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 mt-0.5">
-            <button
-              onClick={() => pushSubscribe()}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors active:scale-95"
-            >
-              Enable
-            </button>
-            <button
-              onClick={() => {
-                setPushDismissed(true);
-                sessionStorage.setItem("push_admin_dismissed", "1");
-              }}
-              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/40 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
       {/* ── Mobile quick nav ── */}
       <div className="flex md:hidden gap-1.5 overflow-x-auto no-scrollbar -mx-3 sm:mx-0 px-3 sm:px-0">
         {QUICK_NAV.map((item) => {
           const active =
-            item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <button
               key={item.href + item.label}
               onClick={() => router.push(item.href)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${active
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
-                }`}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border whitespace-nowrap shrink-0 text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${
+                active
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "border-border/40 bg-card/40 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+              }`}
             >
               <item.icon className="size-3 shrink-0" />
               {item.label}
@@ -797,20 +990,26 @@ export default function Dashboard() {
 
       {/* ── Zone: Feed & Voice — primary content, matching the original dashboard flow ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={Rss} tone="emerald">Feed &amp; Voice</SectionLabel>
+        <SectionLabel icon={Rss} tone="emerald">
+          Feed &amp; Voice
+        </SectionLabel>
         <LatestPosts />
         <YapLineWidget />
       </section>
 
       {/* ── Zone: Recognition — Employee of the Month ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={Star} tone="amber">Recognition</SectionLabel>
+        <SectionLabel icon={Star} tone="amber">
+          Recognition
+        </SectionLabel>
         <EmployeeOfMonthPanel />
       </section>
 
       {/* ── Zone: Today — immediate personal actions ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={CalendarDays} tone="cyan">Today</SectionLabel>
+        <SectionLabel icon={CalendarDays} tone="cyan">
+          Today
+        </SectionLabel>
         <div className={THREE_CARD_GRID}>
           <CalendarSummary />
           <MyTasksSummary />
@@ -820,7 +1019,9 @@ export default function Dashboard() {
 
       {/* ── Zone: Business overview — compact dealership health ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={LayoutDashboard} tone="emerald">Business Overview</SectionLabel>
+        <SectionLabel icon={LayoutDashboard} tone="emerald">
+          Business Overview
+        </SectionLabel>
         <div className={FOUR_CARD_GRID}>
           <LeadsSummary />
           <InventorySnapshot />
@@ -831,7 +1032,9 @@ export default function Dashboard() {
 
       {/* ── Zone: Team availability ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={Users} tone="violet">Team</SectionLabel>
+        <SectionLabel icon={Users} tone="violet">
+          Team
+        </SectionLabel>
         <div className={TWO_CARD_GRID}>
           <TeamPulseSnapshot />
           <WhoIsOut />
@@ -840,7 +1043,9 @@ export default function Dashboard() {
 
       {/* ── Zone: Operations — driver/load information is no longer duplicated ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={Truck} tone="amber">Operations</SectionLabel>
+        <SectionLabel icon={Truck} tone="amber">
+          Operations
+        </SectionLabel>
         <div className={TWO_CARD_GRID}>
           <Panel
             title="Driver Status"
@@ -876,7 +1081,9 @@ export default function Dashboard() {
 
       {/* ── Zone: Performance ── */}
       <section className="space-y-3 sm:space-y-4">
-        <SectionLabel icon={Activity} tone="emerald">Performance</SectionLabel>
+        <SectionLabel icon={Activity} tone="emerald">
+          Performance
+        </SectionLabel>
         <div className="min-w-0 max-w-full overflow-x-auto">
           <RevenueIntelligence
             trajectory={metrics?.revenueTrajectory || []}

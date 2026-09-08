@@ -125,7 +125,13 @@ type SS4ViewportState = {
 
 function isTextEntryElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
-  return Boolean(element.closest('input, textarea, [contenteditable="true"]'));
+  const target = element.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null;
+  if (!target) return false;
+  const style = window.getComputedStyle(target);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = target.getBoundingClientRect();
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < viewportHeight;
 }
 
 function isIOSLikeDevice(): boolean {
@@ -3187,6 +3193,19 @@ function messagePreviewText(content?: string | null): string {
   );
 }
 
+function shortReactionName(value?: string | null): string {
+  return (value || '').trim().split(/\s+/)[0] || 'Someone';
+}
+
+function reactionActivityPreviewText(conv: SSConversation, uid: string, message?: SSMessage | null): string | null {
+  const reaction = conv.lastReaction;
+  const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
+  const messageAt = message?.createdAt ? new Date(message.createdAt).getTime() : 0;
+  if (!reaction?.emoji || !Number.isFinite(reactionAt) || reactionAt <= 0 || reactionAt < messageAt) return null;
+  const actor = reaction.userId === uid ? 'You' : shortReactionName(reaction.userName);
+  return `${actor} reacted ${reaction.emoji}`;
+}
+
 function isNearWhiteHexColor(color?: string): boolean {
   const raw = color?.trim().replace(/^#/, '');
   if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
@@ -3331,7 +3350,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (token.type === 'color') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
-          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={isOwn ? undefined : { color: token.color }}>
+          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
             {renderInline(inner, key, insideLink)}
           </span>
         );
@@ -6385,13 +6404,13 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   return (
     <div
       className="fixed inset-0 z-200 flex flex-col"
-      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)' }}
+      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       onClick={onClose}
     >
       { }
       <div
         className="flex items-center justify-between px-4 shrink-0"
-        style={{ height: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ minHeight: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 min-w-0" style={{ maxWidth: '55%' }}>
@@ -8273,17 +8292,19 @@ const ConvRow = React.memo(function ConvRow({
   const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
     ? conv.lastMessage
     : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+  const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
   const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
-    : !effectiveLastMsg ? 'No messages yet'
-      : effectiveLastMsg.isDeleted ? 'Message deleted'
-        : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
-          : effectiveLastMsg.type === 'gif' ? 'GIF'
-            : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
-              : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
-                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+    : reactionPreview ? reactionPreview
+      : !effectiveLastMsg ? 'No messages yet'
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
   const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
   const hasDraftPreview = Boolean(draftPreview);
-  const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
+  const senderPrefix = !reactionPreview && conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
   const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
   const ddOpen = openConvMenuId === conv._id;
   const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
@@ -8660,17 +8681,15 @@ export default function SupraSpacePage() {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
-        // negative offsetTop is observed from plain list scroll on iOS, not keyboard.
         const top = Math.max(0, Math.round(viewport.offsetTop || 0));
-        const screenHeight = window.screen?.height || 0;
         const layoutHeight = Math.max(
           window.innerHeight || 0,
           document.documentElement.clientHeight || 0,
-          screenHeight,
           visualHeight,
         );
         const visualKeyboardGap = layoutHeight - visualHeight - top;
-        const keyboardOpen = visualKeyboardGap > 120 || isTextEntryElement(document.activeElement);
+        const focusedTextEntry = isTextEntryElement(document.activeElement);
+        const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
         const height = keyboardOpen ? visualHeight : layoutHeight;
         document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
         document.documentElement.style.setProperty('--ss4-safe-bottom', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom, 0px)');
@@ -8777,6 +8796,14 @@ export default function SupraSpacePage() {
   const [activeFontFamilyChosen, setActiveFontFamilyChosen] = React.useState(false);
   const [activeFontSize, setActiveFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [activeFontSizeChosen, setActiveFontSizeChosen] = React.useState(false);
+  const activeFormatsRef = React.useRef(activeFormats);
+  const activeTypingFormatsRef = React.useRef(activeTypingFormats);
+  const activeTextColorRef = React.useRef(activeTextColor);
+  const activeTextColorChosenRef = React.useRef(activeTextColorChosen);
+  const activeFontFamilyRef = React.useRef(activeFontFamily);
+  const activeFontFamilyChosenRef = React.useRef(activeFontFamilyChosen);
+  const activeFontSizeRef = React.useRef(activeFontSize);
+  const activeFontSizeChosenRef = React.useRef(activeFontSizeChosen);
   const [textPalette, setTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [textColorPickerOpen, setTextColorPickerOpen] = React.useState(false);
   const autrixRef = React.useRef<HTMLDivElement>(null);
@@ -8896,6 +8923,7 @@ export default function SupraSpacePage() {
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composerMetricsTimerRef = React.useRef<number | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
@@ -8907,10 +8935,32 @@ export default function SupraSpacePage() {
 
   const syncComposerText = React.useCallback((value: string, commitToState = false) => {
     inputTextRef.current = value;
-    setComposerCharCount(prev => prev === value.length ? prev : value.length);
     const hasText = Boolean(value.trim());
     setComposerHasText(prev => prev === hasText ? prev : hasText);
-    if (commitToState) setInput(value);
+    if (commitToState) {
+      if (composerMetricsTimerRef.current !== null) {
+        window.clearTimeout(composerMetricsTimerRef.current);
+        composerMetricsTimerRef.current = null;
+      }
+      setComposerCharCount(prev => prev === value.length ? prev : value.length);
+      setInput(value);
+      return;
+    }
+    if (composerMetricsTimerRef.current !== null) return;
+    composerMetricsTimerRef.current = window.setTimeout(() => {
+      composerMetricsTimerRef.current = null;
+      const latest = inputTextRef.current;
+      setComposerCharCount(prev => prev === latest.length ? prev : latest.length);
+      const latestHasText = Boolean(latest.trim());
+      setComposerHasText(prev => prev === latestHasText ? prev : latestHasText);
+    }, 120);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (composerMetricsTimerRef.current !== null) {
+      window.clearTimeout(composerMetricsTimerRef.current);
+      composerMetricsTimerRef.current = null;
+    }
   }, []);
 
   React.useEffect(() => {
@@ -9814,7 +9864,20 @@ export default function SupraSpacePage() {
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
       setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
-    const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
+    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, conversationLastMessageAt }: any) => {
+      patchMsg(conversationId, messageId, { reactions });
+      if (reactionActivity === undefined && conversationLastMessageAt === undefined) return;
+      setConvos(p => p.map(c => {
+        if (c._id !== conversationId) return c;
+        if (reactionActivity === null) {
+          return { ...c, lastReaction: null, lastMessageAt: conversationLastMessageAt || c.lastMessage?.createdAt || c.lastMessageAt };
+        }
+        if (reactionActivity) {
+          return { ...c, lastReaction: reactionActivity, lastMessageAt: reactionActivity.createdAt || conversationLastMessageAt || c.lastMessageAt };
+        }
+        return conversationLastMessageAt ? { ...c, lastMessageAt: conversationLastMessageAt } : c;
+      }).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+    };
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
     const onMeetingJoinRequested = (payload: MeetingJoinRequestedPayload) => {
@@ -10567,17 +10630,26 @@ export default function SupraSpacePage() {
           /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue)
           || beforeCursor.split('`').length % 2 === 0,
       };
+      activeFormatsRef.current = nextFormats;
       setActiveFormats(prev => shallowEqualFlat(prev, nextFormats) ? prev : nextFormats);
 
-      setActiveFontFamily(caret.fontFamily);
-      setActiveFontSize(caret.fontSize);
-      setActiveTextColor(caret.color);
+      activeFontFamilyRef.current = caret.fontFamily;
+      activeFontSizeRef.current = caret.fontSize;
+      activeTextColorRef.current = caret.color;
+      activeFontFamilyChosenRef.current = caret.fontFamilyExplicit;
+      activeFontSizeChosenRef.current = caret.fontSizeExplicit;
+      activeTextColorChosenRef.current = caret.colorExplicit;
 
-      setActiveFontFamilyChosen(caret.fontFamilyExplicit);
-      setActiveFontSizeChosen(caret.fontSizeExplicit);
-      setActiveTextColorChosen(caret.colorExplicit);
+      setActiveFontFamily(prev => prev === caret.fontFamily ? prev : caret.fontFamily);
+      setActiveFontSize(prev => prev === caret.fontSize ? prev : caret.fontSize);
+      setActiveTextColor(prev => prev === caret.color ? prev : caret.color);
+
+      setActiveFontFamilyChosen(prev => prev === caret.fontFamilyExplicit ? prev : caret.fontFamilyExplicit);
+      setActiveFontSizeChosen(prev => prev === caret.fontSizeExplicit ? prev : caret.fontSizeExplicit);
+      setActiveTextColorChosen(prev => prev === caret.colorExplicit ? prev : caret.colorExplicit);
 
       const nextTypingFormats = ss4TypingPreferencesFromCaretSnapshot(caret);
+      activeTypingFormatsRef.current = nextTypingFormats;
       setActiveTypingFormats(prev => shallowEqualFlat(prev, nextTypingFormats) ? prev : nextTypingFormats);
     } catch {
     }
@@ -10592,9 +10664,31 @@ export default function SupraSpacePage() {
   }, [refreshActiveFormats]);
 
   React.useEffect(() => {
-    document.addEventListener('selectionchange', refreshActiveFormats);
-    return () => document.removeEventListener('selectionchange', refreshActiveFormats);
-  }, [refreshActiveFormats]);
+    const handleSelectionChange = () => {
+      const el = textareaRef.current;
+      const selection = window.getSelection();
+      if (
+        !el
+        || !selection
+        || selection.rangeCount === 0
+        || !selection.anchorNode
+        || !el.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
+      const hasActiveTypography =
+        activeFontFamilyChosenRef.current
+        || activeFontSizeChosenRef.current
+        || activeTextColorChosenRef.current
+        || Object.values(activeTypingFormatsRef.current).some(value => value !== null);
+
+      if (!showFormatBar && !hasActiveTypography) return;
+      scheduleRefreshActiveFormats();
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [scheduleRefreshActiveFormats, showFormatBar]);
 
   const getCaretOffset = (el: HTMLElement): number => {
     const sel = window.getSelection();
@@ -10790,16 +10884,21 @@ export default function SupraSpacePage() {
 
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const caretBeforeLimit = getCaretOffset(el);
-    const val = enforceComposerLengthFromDom(el, caretBeforeLimit);
+    const currentText = el.innerText.replace(/\n$/, '');
+    const val = currentText.length > SS4_MAX_MESSAGE_CHARS
+      ? enforceComposerLengthFromDom(el, getCaretOffset(el))
+      : currentText;
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
-    const textBeforeCaret = getComposerTextBeforeCaret(el);
-    const cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
-    const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
-    const shouldInspectMention = inputEvent.inputType !== 'insertFromPaste' && (mentionAnchor >= 0 || !!mentionCandidate);
+    let cursorAfterInput: number | null = null;
+    const shouldInspectMention =
+      inputEvent.inputType !== 'insertFromPaste' &&
+      (mentionAnchor >= 0 || inputEvent.data === '@');
 
     if (shouldInspectMention) {
+      const textBeforeCaret = getComposerTextBeforeCaret(el);
+      cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
+      const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
       const cursor = Math.max(0, Math.min(cursorAfterInput || composerCaretOffsetRef.current || val.length, val.length));
       composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
       if (mentionCandidate) {
@@ -10814,11 +10913,10 @@ export default function SupraSpacePage() {
 
     const shouldInspectChannelMention =
       channelMentionAnchor >= 0 ||
-      inputEvent.data === '#' ||
-      inputEvent.inputType === 'insertFromPaste';
+      inputEvent.data === '#';
 
     if (shouldInspectChannelMention) {
-      const cursor = getCaretOffset(el);
+      const cursor = cursorAfterInput ?? getCaretOffset(el);
       composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
       if (channelMentionAnchor >= 0) {
         if (cursor <= channelMentionAnchor || val[channelMentionAnchor] !== '#') {
@@ -10840,12 +10938,13 @@ export default function SupraSpacePage() {
       requestAnimationFrame(() => {
         const current = textareaRef.current;
         if (!current) return;
+        const restoreCursor = cursorAfterInput ?? getCaretOffset(current);
         highlightMentionsInComposer(current);
         const nextText = current.innerText.replace(/\n$/, '');
-        syncComposerText(nextText, true);
+        syncComposerText(nextText);
         const selection = window.getSelection();
         if (selection) {
-          const range = rangeFromTextOffset(current, Math.min(cursorAfterInput, nextText.length));
+          const range = rangeFromTextOffset(current, Math.min(restoreCursor, nextText.length));
           selection.removeAllRanges();
           selection.addRange(range);
         }
@@ -11593,6 +11692,11 @@ export default function SupraSpacePage() {
         : range.cloneRange();
       composerSelectionRangeRef.current = liveRange;
 
+      activeTypingFormatsRef.current = nextTypingFormats;
+      activeFormatsRef.current = {
+        ...activeFormatsRef.current,
+        [inlineFormat]: nextValue,
+      };
       setActiveTypingFormats(nextTypingFormats);
       setActiveFormats(previous => ({
         ...previous,
@@ -11690,14 +11794,18 @@ export default function SupraSpacePage() {
       const nextValue = document.queryCommandState(
         ss4InlineCommandForFormat(inlineFormat),
       );
-      setActiveTypingFormats(previous => ({
-        ...previous,
+      const nextTypingFormats = {
+        ...activeTypingFormatsRef.current,
         [inlineFormat]: nextValue,
-      }));
-      setActiveFormats(previous => ({
-        ...previous,
+      };
+      const nextFormats = {
+        ...activeFormatsRef.current,
         [inlineFormat]: nextValue,
-      }));
+      };
+      activeTypingFormatsRef.current = nextTypingFormats;
+      activeFormatsRef.current = nextFormats;
+      setActiveTypingFormats(nextTypingFormats);
+      setActiveFormats(nextFormats);
     }
 
     const nextText = el.innerText.replace(/\n$/, '');
@@ -11705,7 +11813,6 @@ export default function SupraSpacePage() {
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
-    activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
     syncComposerText,
@@ -11758,6 +11865,8 @@ export default function SupraSpacePage() {
   const applyTextColor = React.useCallback((color: string) => {
     const root = textareaRef.current;
     if (!root) return;
+    activeTextColorRef.current = color;
+    activeTextColorChosenRef.current = true;
 
     const range = getRichEditorSelectionRange(
       root,
@@ -11776,8 +11885,8 @@ export default function SupraSpacePage() {
       );
       if (nextRange) composerSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-      setActiveTextColor(color);
-      setActiveTextColorChosen(true);
+      setActiveTextColor(prev => prev === color ? prev : color);
+      setActiveTextColorChosen(prev => prev === true ? prev : true);
       saveComposerSelection();
       requestAnimationFrame(refreshActiveFormats);
       return;
@@ -11799,8 +11908,8 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveTextColor(color);
-    setActiveTextColorChosen(true);
+    setActiveTextColor(prev => prev === color ? prev : color);
+    setActiveTextColorChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11810,8 +11919,10 @@ export default function SupraSpacePage() {
   ]);
 
   const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
-    setActiveFontFamilyChosen(true);
-    setActiveFontFamily(fontFamily);
+    activeFontFamilyRef.current = fontFamily;
+    activeFontFamilyChosenRef.current = true;
+    setActiveFontFamilyChosen(prev => prev === true ? prev : true);
+    setActiveFontFamily(prev => prev === fontFamily ? prev : fontFamily);
 
     const root = textareaRef.current;
     if (!root) return;
@@ -11865,8 +11976,10 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveFontFamily(fontFamily);
-    setActiveFontFamilyChosen(true);
+    activeFontFamilyRef.current = fontFamily;
+    activeFontFamilyChosenRef.current = true;
+    setActiveFontFamily(prev => prev === fontFamily ? prev : fontFamily);
+    setActiveFontFamilyChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11876,8 +11989,10 @@ export default function SupraSpacePage() {
   ]);
 
   const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
-    setActiveFontSizeChosen(true);
-    setActiveFontSize(fontSize);
+    activeFontSizeRef.current = fontSize;
+    activeFontSizeChosenRef.current = true;
+    setActiveFontSizeChosen(prev => prev === true ? prev : true);
+    setActiveFontSize(prev => prev === fontSize ? prev : fontSize);
 
     const root = textareaRef.current;
     if (!root) return;
@@ -11924,8 +12039,10 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveFontSize(fontSize);
-    setActiveFontSizeChosen(true);
+    activeFontSizeRef.current = fontSize;
+    activeFontSizeChosenRef.current = true;
+    setActiveFontSize(prev => prev === fontSize ? prev : fontSize);
+    setActiveFontSizeChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11944,6 +12061,10 @@ export default function SupraSpacePage() {
       ? inputEvent.data || ''
       : '';
     const root = event.currentTarget;
+    const selectedFontFamily = activeFontFamilyChosenRef.current ? activeFontFamilyRef.current : null;
+    const selectedFontSize = activeFontSizeChosenRef.current ? activeFontSizeRef.current : null;
+    const selectedTypingFormats = activeTypingFormatsRef.current;
+    const selectedTextColor = activeTextColorChosenRef.current ? activeTextColorRef.current : null;
 
     if (incomingText) {
       const currentText = root.innerText.replace(/\n$/, '');
@@ -11961,10 +12082,10 @@ export default function SupraSpacePage() {
         event.preventDefault();
         const inserted = insertPreselectedTypographyText(
           event,
-          activeFontFamilyChosen ? activeFontFamily : null,
-          activeFontSizeChosen ? activeFontSize : null,
-          activeTypingFormats,
-          activeTextColorChosen ? activeTextColor : null,
+          selectedFontFamily,
+          selectedFontSize,
+          selectedTypingFormats,
+          selectedTextColor,
           limitedText,
         );
         if (!inserted) document.execCommand('insertText', false, limitedText);
@@ -11972,7 +12093,7 @@ export default function SupraSpacePage() {
         requestAnimationFrame(() => {
           const activeRoot = textareaRef.current;
           if (!activeRoot) return;
-          syncComposerText(activeRoot.innerText.replace(/\n$/, ''), true);
+          syncComposerText(activeRoot.innerText.replace(/\n$/, ''));
           saveComposerSelection();
           refreshActiveFormats();
         });
@@ -11982,27 +12103,20 @@ export default function SupraSpacePage() {
 
     const inserted = insertPreselectedTypographyText(
       event,
-      activeFontFamilyChosen ? activeFontFamily : null,
-      activeFontSizeChosen ? activeFontSize : null,
-      activeTypingFormats,
-      activeTextColorChosen ? activeTextColor : null,
+      selectedFontFamily,
+      selectedFontSize,
+      selectedTypingFormats,
+      selectedTextColor,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
       const root = textareaRef.current;
       if (!root) return;
-      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      syncComposerText(root.innerText.replace(/\n$/, ''));
       saveComposerSelection();
       refreshActiveFormats();
     });
   }, [
-    activeFontFamily,
-    activeFontFamilyChosen,
-    activeFontSize,
-    activeFontSizeChosen,
-    activeTextColor,
-    activeTextColorChosen,
-    activeTypingFormats,
     refreshActiveFormats,
     saveComposerSelection,
     showMessageLimitNotice,
@@ -12311,12 +12425,12 @@ export default function SupraSpacePage() {
     ? (isIOSStandaloneApp
       ? {
         position: 'fixed',
-        top: vv?.top ?? 0,
+        top: vv?.keyboardOpen ? vv.top : 0,
         right: 0,
-        bottom: 'auto',
+        bottom: vv?.keyboardOpen ? 'auto' : 0,
         left: 0,
-        height: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
-        maxHeight: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
+        height: vv?.keyboardOpen ? `${vv.height}px` : '100dvh',
+        maxHeight: vv?.keyboardOpen ? `${vv.height}px` : '100dvh',
         minHeight: 0,
         boxSizing: 'border-box',
       }
@@ -13369,13 +13483,17 @@ export default function SupraSpacePage() {
                               suppressContentEditableWarning
                               onBeforeInput={handleComposerTypographyBeforeInput}
                               onInput={event => {
-                                normalizeRichEditorFontSizeElements(
-                                  textareaRef.current,
-                                  activeFontSize,
-                                );
+                                if (activeFontSizeChosenRef.current) {
+                                  normalizeRichEditorFontSizeElements(
+                                    textareaRef.current,
+                                    activeFontSizeRef.current,
+                                  );
+                                }
                                 handleTyping(event);
-                                saveComposerSelection();
-                                scheduleRefreshActiveFormats();
+                                if (showFormatBar) {
+                                  saveComposerSelection();
+                                  scheduleRefreshActiveFormats();
+                                }
                               }}
                               onFocus={() => {
                                 saveComposerSelection();
@@ -13395,8 +13513,10 @@ export default function SupraSpacePage() {
                                 scheduleRefreshActiveFormats();
                               }}
                               onKeyUp={() => {
-                                saveComposerSelection();
-                                scheduleRefreshActiveFormats();
+                                if (showFormatBar) {
+                                  saveComposerSelection();
+                                  scheduleRefreshActiveFormats();
+                                }
                               }}
                               onKeyDown={e => {
                                 if (
@@ -13693,7 +13813,7 @@ export default function SupraSpacePage() {
                                       normalizeRichEditorListExitArtifacts(el);
                                       if (pasteHasMentionText) highlightMentionsInComposer(el);
                                       const nextText = enforceComposerLengthFromDom(el);
-                                      syncComposerText(nextText, true);
+                                      syncComposerText(nextText);
                                       saveComposerSelection();
                                     }
                                   });

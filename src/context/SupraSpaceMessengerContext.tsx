@@ -32,6 +32,15 @@ export interface SSLastMessage {
   createdAt: string;
 }
 
+export interface SSLastReaction {
+  messageId: string;
+  userId: string;
+  userName: string;
+  emoji: string;
+  targetUserId?: string;
+  createdAt: string;
+}
+
 export interface SSConv {
   _id: string;
   type: 'direct' | 'group';
@@ -41,6 +50,7 @@ export interface SSConv {
   admins?: string[];
   lastMessage?: SSLastMessage;
   lastMessageAt?: string;
+  lastReaction?: SSLastReaction | null;
   unreadCount?: number;
   theme?: { accent?: string | null; emoji?: string | null };
   pinnedBy?: string[];
@@ -133,6 +143,34 @@ function readConversationPayload(payload: unknown): SSConv[] {
   if (Array.isArray(payload)) return payload as SSConv[];
   const data = payload as { conversations?: unknown } | null;
   return Array.isArray(data?.conversations) ? data.conversations as SSConv[] : [];
+}
+
+function applyReactionActivityToConversations(
+  convs: SSConv[],
+  payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null },
+): SSConv[] {
+  if (payload.reactionActivity === undefined && payload.conversationLastMessageAt === undefined) return convs;
+  let changed = false;
+  const updated = convs.map((conv) => {
+    if (conv._id !== payload.conversationId) return conv;
+    changed = true;
+    if (payload.reactionActivity === null) {
+      return {
+        ...conv,
+        lastReaction: null,
+        lastMessageAt: payload.conversationLastMessageAt || conv.lastMessage?.createdAt || conv.lastMessageAt,
+      };
+    }
+    if (payload.reactionActivity) {
+      return {
+        ...conv,
+        lastReaction: payload.reactionActivity,
+        lastMessageAt: payload.reactionActivity.createdAt || payload.conversationLastMessageAt || conv.lastMessageAt,
+      };
+    }
+    return payload.conversationLastMessageAt ? { ...conv, lastMessageAt: payload.conversationLastMessageAt } : conv;
+  });
+  return changed ? sortByLastMessage(updated) : convs;
 }
 
 function mentionBoundaryRegex(alias: string): RegExp | null {
@@ -484,6 +522,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           }
         }
       }
+    });
+
+    s.on('message:reaction', (payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null }) => {
+      setConversations(prev => applyReactionActivityToConversations(prev, payload));
     });
 
     // New conversation was created → prepend if not already in list
