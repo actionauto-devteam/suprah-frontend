@@ -59,6 +59,15 @@ export interface SSTheme {
   emoji?: string | null;
 }
 
+export interface SSLastReaction {
+  messageId: string;
+  userId: string;
+  userName: string;
+  emoji: string;
+  targetUserId?: string;
+  createdAt: string;
+}
+
 export interface SSConversation {
   _id: string;
   type: 'direct' | 'group';
@@ -73,6 +82,7 @@ export interface SSConversation {
   theme?: SSTheme;
   lastMessage?: SSMessage;
   lastMessageAt?: string;
+  lastReaction?: SSLastReaction | null;
   unreadCount?: number;
   mentionCount?: number;
   unreadMentionCount?: number;
