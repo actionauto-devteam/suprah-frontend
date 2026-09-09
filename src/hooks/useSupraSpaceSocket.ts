@@ -150,7 +150,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     const socket = io(resolveSupraSpaceSocketUrl(), {
       path: '/socket/supraspace',
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       upgrade: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -178,7 +178,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     });
 
     socket.on('connect_error', (err) => {
-      console.error('[SupraSpace] Connection error:', err.message);
+      if (process.env.NODE_ENV !== 'production') console.warn('[SupraSpace] Connection warning:', err.message);
     });
 
     // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend —
