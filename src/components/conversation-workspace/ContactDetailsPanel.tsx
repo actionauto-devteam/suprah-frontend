@@ -458,7 +458,7 @@ export function ContactDetailsPanel({
 
       {noteOpen ? (
         <div className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSavingNote) setNoteOpen(false); }}>
-          <div className="w-full max-w-md rounded-xl border p-5" style={{ background: "var(--bg-elevated)", borderColor: "var(--border-2)", boxShadow: "var(--shadow-lg)" }}>
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border p-5" style={{ background: "var(--bg-elevated)", borderColor: "var(--border-2)", boxShadow: "var(--shadow-lg)" }}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <div><h3 className="text-lg font-semibold">Add note</h3><p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>Add an internal note for {workspaceContactName(contact)}.</p></div>
               <button type="button" onClick={() => setNoteOpen(false)} disabled={isSavingNote} className="ss4-icon-btn h-8 w-8"><X className="h-4 w-4" /></button>

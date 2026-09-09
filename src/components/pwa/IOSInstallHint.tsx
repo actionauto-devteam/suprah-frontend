@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Share, PlusSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
 
 /**
  * Technical Note: iOS Web Push requires the app to be "Added to Home Screen".
@@ -14,6 +15,10 @@ const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
 export function IOSInstallHint() {
     const pathname = usePathname();
     const [show, setShow] = useState(false);
+    // Same priority tier as InstallPrompt (2) — the two are already mutually
+    // exclusive by platform (Android/desktop vs iOS), this just keeps a stray
+    // PushPrompt from landing underneath/on top of it.
+    const slot = usePwaNagSlot("ios-install-hint", 2);
 
     useEffect(() => {
         // SupraSpace has its own iOS install hint (different manifest/copy) —
@@ -36,17 +41,21 @@ export function IOSInstallHint() {
 
         if (isIOS && !isStandalone && !dismissed) {
             // Delay presentation so it doesn't steal focus from initial splash
-            const timer = setTimeout(() => setShow(true), 6000);
+            const timer = setTimeout(() => {
+                setShow(true);
+                slot.request();
+            }, 6000);
             return () => clearTimeout(timer);
         }
-    }, [pathname]);
+    }, [pathname, slot.request]);
 
     const handleDismiss = () => {
         setShow(false);
+        slot.release();
         localStorage.setItem("ios_install_hint_dismissed", "true");
     };
 
-    if (!show) return null;
+    if (!show || !slot.isActive) return null;
 
     return (
         <AnimatePresence>
@@ -55,7 +64,7 @@ export function IOSInstallHint() {
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed bottom-0 left-0 right-0 z-60 p-4 lg:hidden"
+                className="fixed bottom-0 left-0 right-0 z-45 p-4 lg:hidden"
             >
                 <div className="relative overflow-hidden rounded-t-4xl bg-background border-t border-x border-border/50 p-7 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.5)]">
                     {/* Handlebar Decoration */}

@@ -542,7 +542,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
                       <p className="text-sm font-bold truncate">{uploadFile.name}</p>
                       <p className="text-xs text-muted-foreground">{fmtSize(uploadFile.size)}</p>
                     </div>
-                    <Button size="icon" variant="ghost" className="size-8" onClick={e => { e.stopPropagation(); setUploadFile(null); }}><X className="size-4" /></Button>
+                    <Button size="icon" variant="ghost" className="size-10" onClick={e => { e.stopPropagation(); setUploadFile(null); }}><X className="size-4" /></Button>
                   </div>
                 ) : (
                   <>

@@ -183,15 +183,15 @@ export function DocumentRequirementCard({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center">
-                  <Button size="icon" variant="ghost" className="size-8" onClick={() => onView(doc)} aria-label="View document">
+                  <Button size="icon" variant="ghost" className="size-10" onClick={() => onView(doc)} aria-label="View document">
                     <Eye className="size-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="size-8" onClick={() => onReplace(doc)} aria-label="Replace document">
+                  <Button size="icon" variant="ghost" className="size-10" onClick={() => onReplace(doc)} aria-label="Replace document">
                     <RotateCcw className="size-4" />
                   </Button>
                   <Button
                     size="icon" variant="ghost"
-                    className="size-8 text-destructive"
+                    className="size-10 text-destructive"
                     onClick={() => onDelete(doc._id)}
                     aria-label="Delete document"
                   >

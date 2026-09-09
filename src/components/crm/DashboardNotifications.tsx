@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { SupraLeoAvatar } from '@/components/supra-leo-ai/SupraLeoAvatar'
+import { usePwaNagSlot } from '@/hooks/usePwaNagSlot'
 
 
 export interface DashboardNotificationsProps {
@@ -261,7 +262,7 @@ const CSS = `
   padding: 13px 16px;
   display: flex; flex-direction: column; gap: 9px;
   overflow-y: auto; flex: 1;
-  max-height: min(420px, calc(100vh - 200px));
+  max-height: min(420px, calc(100dvh - 200px));
 }
 .dbn-body::-webkit-scrollbar { width: 2px; }
 .dbn-body::-webkit-scrollbar-thumb { background: var(--d-border); border-radius: 1px; }
@@ -458,12 +459,13 @@ const CSS = `
 
 /* ── Toast strip ── */
 .dbn-toast-strip {
-  position: fixed; bottom: 84px; right: 22px;
+  position: fixed; bottom: 84px; right: 22px; left: 22px;
   z-index: 9990;
   display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
 }
 .dbn-toast {
-  width: 300px;
+  width: 100%;
+  max-width: 300px;
   background: var(--d-glass);
   border: 1px solid var(--d-border);
   border-radius: 12px;
@@ -727,6 +729,33 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
   const SEEN_KEY = 'dbn2_seen_' + new Date().toDateString()
   const alreadySeen = typeof localStorage !== 'undefined' && localStorage.getItem(SEEN_KEY)
 
+  // Shares the PWA-nag mutex with AutrixWelcomeGate/CrmPushPrompt/InstallPrompt/
+  // PushPrompt/IOSInstallHint so this welcome modal can't render stacked
+  // underneath (or on top of) any of them on the first dashboard load of the day.
+  const slot = usePwaNagSlot("dbn-welcome", 3)
+
+  React.useEffect(() => {
+    if (alreadySeen) return
+    slot.request()
+  }, [alreadySeen, slot.request])
+
+  // A higher-priority nag (e.g. Autrix's voice welcome) can preempt this
+  // mid-show — without this, usePwaNagSlot's own retry-on-free logic would
+  // silently reclaim the slot once that nag closes, popping this modal back
+  // up seconds-to-tens-of-seconds later with no warning while the user has
+  // already moved on. Once preempted, just bail out of the whole welcome
+  // sequence instead of trying to come back.
+  const hadSlotRef = React.useRef(false)
+  React.useEffect(() => {
+    if (slot.isActive) { hadSlotRef.current = true; return }
+    if (hadSlotRef.current && phase === 'modal') {
+      hadSlotRef.current = false
+      slot.release()
+      if (typeof localStorage !== 'undefined') localStorage.setItem(SEEN_KEY, '1')
+      setPhase('done')
+    }
+  }, [slot.isActive, phase, slot.release])
+
   React.useEffect(() => { injectCSS() }, [])
 
   // Fetch reminders
@@ -824,6 +853,7 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
         }
         setOverlayExiting(false)
         setModalExiting(false)
+        slot.release()
         cb?.()
       }, 200)
     }, 240)
@@ -870,7 +900,7 @@ export function DashboardNotifications({ user, token, hasClockedIn }: DashboardN
   return (
     <>
       {/* ── Welcome Modal ── */}
-      {phase === 'modal' && (
+      {phase === 'modal' && slot.isActive && (
         <div className={`dbn-overlay ${overlayExiting ? 'exiting' : ''}`} data-dbn>
           <div className={`dbn-modal ${modalExiting ? 'exiting' : ''}`}>
 

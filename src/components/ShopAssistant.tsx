@@ -525,7 +525,7 @@ export default function ShopAssistant({
               ...handleProps.style,
               ...dragStyle,
             } as React.CSSProperties}
-            className="fixed bottom-(--tw-mobile-bottom) md:bottom-6 right-4 sm:right-6 z-45 flex h-12 sm:h-14 items-center gap-2 sm:gap-2.5 rounded-full bg-emerald-600 px-4 sm:px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
+            className="fixed bottom-(--tw-mobile-bottom) md:bottom-6 right-4 sm:right-6 z-40 flex h-12 sm:h-14 items-center gap-2 sm:gap-2.5 rounded-full bg-emerald-600 px-4 sm:px-5 text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl"
           >
             <span className="text-xs sm:text-sm font-semibold">Find my car</span>
           </button>
@@ -533,7 +533,7 @@ export default function ShopAssistant({
         {open && (
           <div
             style={{ "--tw-mobile-bottom": mobileBottom } as React.CSSProperties}
-            className="fixed inset-x-3 bottom-(--tw-mobile-bottom) sm:inset-x-auto sm:right-6 md:bottom-6 z-45 flex h-[min(600px,75dvh)] sm:h-150 sm:max-h-[85dvh] w-auto sm:w-100 sm:max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl">
+            className="fixed inset-x-3 bottom-(--tw-mobile-bottom) sm:inset-x-auto sm:right-6 md:bottom-6 z-40 flex h-[min(600px,75dvh)] sm:h-150 sm:max-h-[85dvh] w-auto sm:w-100 sm:max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl">
             <Conversation
               mode="float"
               hrefBase={vehicleHrefBase}

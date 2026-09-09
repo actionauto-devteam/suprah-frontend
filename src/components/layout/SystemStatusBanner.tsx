@@ -14,6 +14,28 @@ export function SystemStatusBanner() {
   const [message, setMessage] = React.useState(DEFAULT_MESSAGE);
   const dismissedAtRef = React.useRef(0);
   const hideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerRef = React.useRef<HTMLDivElement>(null);
+
+  // Toasts (sonner) pin to the top of the viewport too — publish this
+  // banner's real rendered height so Toaster (sonner.tsx) can offset below
+  // it instead of rendering underneath/over its dismiss button.
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (!visible || !bannerRef.current) {
+      root.style.setProperty("--suprah-status-banner-h", "0px");
+      return;
+    }
+    const el = bannerRef.current;
+    const observer = new ResizeObserver(() => {
+      root.style.setProperty("--suprah-status-banner-h", `${el.offsetHeight}px`);
+    });
+    observer.observe(el);
+    root.style.setProperty("--suprah-status-banner-h", `${el.offsetHeight}px`);
+    return () => {
+      observer.disconnect();
+      root.style.setProperty("--suprah-status-banner-h", "0px");
+    };
+  }, [visible]);
 
   React.useEffect(() => {
     const onDegraded = (e: Event) => {
@@ -36,6 +58,7 @@ export function SystemStatusBanner() {
 
   return (
     <div
+      ref={bannerRef}
       role="status"
       className="fixed inset-x-0 top-0 z-100 border-b border-amber-500/30 bg-amber-50 dark:bg-amber-950/90 backdrop-blur-md animate-in slide-in-from-top duration-300"
     >

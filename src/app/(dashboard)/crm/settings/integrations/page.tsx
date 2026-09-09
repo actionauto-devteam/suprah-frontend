@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
+import { useAlert } from "@/components/AlertDialog";
 
 interface CrmUserData {
   _id: string;
@@ -46,6 +47,7 @@ export default function IntegrationsSettingsPage() {
   const [sourceEmailInput, setSourceEmailInput] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
   const [copiedField, setCopiedField] = React.useState<"webhook" | "secret" | null>(null);
+  const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
     const init = async () => {
@@ -147,24 +149,29 @@ export default function IntegrationsSettingsPage() {
 
     const handleDisconnectGmail = async () => {
         if (!isAdmin) return
-        if (!confirm("Are you sure you want to disconnect Google? This will stop all automated lead and calendar synchronization for the workspace.")) return
-
-        setIsSaving(true)
-        try {
-            const t = await getToken()
-            await apiClient.post("/api/org-lead/disconnect", {}, { headers: { Authorization: `Bearer ${t}` } })
-            toast.success("Disconnected successfully", {
-                description: "Google Gmail and Calendar have been disconnected from this workspace."
-            })
-            fetchConfig()
-        } catch (error: any) {
-            console.error("Disconnect failed:", error)
-            toast.error("Failed to disconnect", {
-                description: error.response?.data?.message || "An error occurred while trying to disconnect. Please try again."
-            })
-        } finally {
-            setIsSaving(false)
-        }
+        await confirm(
+            "Disconnect Google?",
+            "Are you sure you want to disconnect Google? This will stop all automated lead and calendar synchronization for the workspace.",
+            async () => {
+                setIsSaving(true)
+                try {
+                    const t = await getToken()
+                    await apiClient.post("/api/org-lead/disconnect", {}, { headers: { Authorization: `Bearer ${t}` } })
+                    toast.success("Disconnected successfully", {
+                        description: "Google Gmail and Calendar have been disconnected from this workspace."
+                    })
+                    fetchConfig()
+                } catch (error: any) {
+                    console.error("Disconnect failed:", error)
+                    toast.error("Failed to disconnect", {
+                        description: error.response?.data?.message || "An error occurred while trying to disconnect. Please try again."
+                    })
+                } finally {
+                    setIsSaving(false)
+                }
+            },
+            "Disconnect",
+        )
     }
 
     const handleSaveSourceEmail = async () => {
@@ -526,6 +533,7 @@ export default function IntegrationsSettingsPage() {
                     </div>
                 </div>
             </main>
+            <AlertComponent />
         </div>
     )
 }

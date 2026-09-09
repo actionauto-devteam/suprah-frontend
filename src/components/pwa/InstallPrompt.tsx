@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
 import { X, Share, PlusSquare, Download } from "lucide-react";
 
 const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
@@ -12,6 +13,7 @@ export const InstallPrompt = () => {
     const { isInstallable, isIOS, isStandalone, handleInstallClick } = usePWAInstall();
     const [isVisible, setIsVisible] = useState(false);
     const [isDismissed, setIsDismissed] = useState(false);
+    const slot = usePwaNagSlot("install", 2);
 
     // SupraSpace has its own install affordance (its manifest/scope is
     // different from this one) — showing this banner there too would offer
@@ -40,21 +42,32 @@ export const InstallPrompt = () => {
         // IOSInstallHint's dedicated bottom sheet — showing both stacked two
         // separate "install this app" UIs within seconds of each other.
         if (isInstallable && !isIOS && !isStandalone) {
-            const timer = setTimeout(() => setIsVisible(true), 3000);
+            const timer = setTimeout(() => {
+                setIsVisible(true);
+                slot.request();
+            }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [isInstallable, isIOS, isStandalone]);
+    }, [isInstallable, isIOS, isStandalone, inSupraSpace, slot.request]);
+
+    // Installing (or the browser going standalone some other way, e.g. an
+    // existing home-screen shortcut) should free the slot immediately rather
+    // than holding it hostage for the rest of the session.
+    useEffect(() => {
+        if (isStandalone) slot.release();
+    }, [isStandalone, slot.release]);
 
     const dismiss = () => {
         setIsVisible(false);
         setIsDismissed(true);
+        slot.release();
         sessionStorage.setItem("pwa-prompt-dismissed", "true");
     };
 
-    if (!isVisible || isDismissed || isStandalone || inSupraSpace) return null;
+    if (!isVisible || isDismissed || isStandalone || inSupraSpace || !slot.isActive) return null;
 
     return (
-        <div className="fixed bottom-6 left-1/2 z-9999 w-[90%] max-w-md -translate-x-1/2 animate-in fade-in slide-in-from-bottom-10 duration-500">
+        <div className="fixed bottom-6 left-1/2 z-45 w-[90%] max-w-md -translate-x-1/2 animate-in fade-in slide-in-from-bottom-10 duration-500">
             <div className="relative overflow-hidden rounded-2xl border border-border/10 bg-background/80 p-6 backdrop-blur-xl shadow-2xl">
                 {/* Close Button */}
                 <button
@@ -91,7 +104,10 @@ export const InstallPrompt = () => {
                                 </div>
                             ) : (
                                 <button
-                                    onClick={handleInstallClick}
+                                    onClick={async () => {
+                                        await handleInstallClick();
+                                        dismiss();
+                                    }}
                                     className="w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all shadow-lg shadow-primary/20"
                                 >
                                     Install Now

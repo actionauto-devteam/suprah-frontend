@@ -15,6 +15,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
 import { AppointmentChat } from "@/components/AppointmentChat";
 import { VehicleHistory } from "@/components/VehicleHistory";
+import { useAlert } from "@/components/AlertDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -524,6 +525,7 @@ function AppointmentDashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getToken } = useAuth();
+  const { confirm, AlertComponent } = useAlert();
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: MDT_TZ });
   const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ });
@@ -670,8 +672,12 @@ function AppointmentDashboard() {
   };
 
   const handleDeletePost = (id: string) => {
-    if (typeof window !== "undefined" && !window.confirm("Delete this post? This cannot be undone.")) return;
-    deletePostMutation.mutate(id);
+    void confirm(
+      "Delete post?",
+      "Delete this post? This cannot be undone.",
+      () => { deletePostMutation.mutate(id); },
+      "Delete",
+    );
   };
 
   const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1110,6 +1116,7 @@ function AppointmentDashboard() {
         onOpenChange={setDetailsModalOpen}
         appointment={selectedAppointment}
       />
+      <AlertComponent />
     </div>
   );
 }

@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { apiClient } from "@/lib/api-client"
+import { toast } from "sonner"
+import { useAlert } from "@/components/AlertDialog"
 import {
   isWebAuthnSupported,
   startRegistration,
@@ -56,6 +58,7 @@ export default function BiometricSettingsPage() {
   const [token, setToken] = React.useState("")
   const [loading, setLoading] = React.useState(true)
   const [supported, setSupported] = React.useState(false)
+  const { confirm, AlertComponent } = useAlert()
 
   const [credentials, setCredentials] = React.useState<BiometricCredential[]>([])
   const [enrolling, setEnrolling] = React.useState(false)
@@ -162,15 +165,21 @@ export default function BiometricSettingsPage() {
   }
 
   async function handleRevoke(credentialId: string) {
-    if (!confirm("Revoke this biometric credential? This cannot be undone.")) return
-    try {
-      await apiClient.delete(`/api/crm/biometric/credentials/${credentialId}`, {
-        headers,
-      })
-      loadAll()
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to revoke credential.")
-    }
+    await confirm(
+      "Revoke credential?",
+      "Revoke this biometric credential? This cannot be undone.",
+      async () => {
+        try {
+          await apiClient.delete(`/api/crm/biometric/credentials/${credentialId}`, {
+            headers,
+          })
+          loadAll()
+        } catch (err: any) {
+          toast.error(err?.response?.data?.message || "Failed to revoke credential.")
+        }
+      },
+      "Revoke",
+    )
   }
 
   async function handleRename(credentialId: string) {
@@ -185,7 +194,7 @@ export default function BiometricSettingsPage() {
       setRenameValue("")
       loadAll()
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to rename credential.")
+      toast.error(err?.response?.data?.message || "Failed to rename credential.")
     }
   }
 
@@ -221,13 +230,19 @@ export default function BiometricSettingsPage() {
   }
 
   async function handleRevokeSshKey(keyId: string) {
-    if (!confirm("Revoke this SSH key? This cannot be undone.")) return
-    try {
-      await apiClient.delete(`/api/crm/biometric/ssh-keys/${keyId}`, { headers })
-      loadAll()
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to revoke key.")
-    }
+    await confirm(
+      "Revoke SSH key?",
+      "Revoke this SSH key? This cannot be undone.",
+      async () => {
+        try {
+          await apiClient.delete(`/api/crm/biometric/ssh-keys/${keyId}`, { headers })
+          loadAll()
+        } catch (err: any) {
+          toast.error(err?.response?.data?.message || "Failed to revoke key.")
+        }
+      },
+      "Revoke",
+    )
   }
 
   function copyFingerprint(fp: string) {
@@ -634,6 +649,7 @@ export default function BiometricSettingsPage() {
           </ul>
         </div>
       </div>
+      <AlertComponent />
     </div>
   )
 }

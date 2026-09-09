@@ -21,6 +21,7 @@ import { useSearchParams } from "next/navigation";
 import { resolveImageUrl } from "@/lib/utils";
 import { useUser } from "@/providers/AuthProvider";
 import { useProfileContext } from "@/context/ProfileContext";
+import { useAlert } from "@/components/AlertDialog";
 
 function getVehicleId(vehicle: OwnedVehicle | null | undefined) {
   return vehicle?.id || vehicle?._id || "";
@@ -47,6 +48,7 @@ function CustomerDashboardContent() {
   const [isAddVehicleOpen, setIsAddVehicleOpen] = React.useState(false);
   const [isEditVehicleOpen, setIsEditVehicleOpen] = React.useState(false);
   const [isMembershipCardOpen, setIsMembershipCardOpen] = React.useState(false);
+  const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
     if (!vehicles || vehicles.length === 0) return;
@@ -67,12 +69,16 @@ function CustomerDashboardContent() {
   const handleUpdateMileage = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsUpdateMileageOpen(true); };
   const handleEditVehicle = (v: OwnedVehicle) => { setSelectedVehicle(v); setIsEditVehicleOpen(true); };
   const handleDeleteVehicle = async (v: OwnedVehicle) => {
-    if (!window.confirm(`Remove your ${v.year} ${v.make} from your garage? This cannot be undone.`)) return;
-    try {
-      await deleteVehicle(v.id);
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-      if (selectedVehicle?.id === v.id) setSelectedVehicle(null);
-    } catch { }
+    await confirm(
+      "Remove vehicle?",
+      `Remove your ${v.year} ${v.make} from your garage? This cannot be undone.`,
+      async () => {
+        await deleteVehicle(v.id);
+        queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        if (selectedVehicle?.id === v.id) setSelectedVehicle(null);
+      },
+      "Remove",
+    );
   };
 
   const [hour, setHour] = React.useState<number | null>(null);
@@ -235,6 +241,7 @@ function CustomerDashboardContent() {
       <AddVehicleModal isOpen={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen} />
       <EditVehicleModal vehicle={selectedVehicle} isOpen={isEditVehicleOpen} onOpenChange={setIsEditVehicleOpen} />
       <MembershipCardModal isOpen={isMembershipCardOpen} onOpenChange={setIsMembershipCardOpen} />
+      <AlertComponent />
     </div>
   );
 }

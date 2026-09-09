@@ -24,6 +24,7 @@ import { GuestEmailInput } from "@/components/GuestEmailInput"
 import { useAppointmentPolling } from "@/hooks/useAppointmentPolling"
 import { useNotifications } from "@/context/NotificationContext"
 import { cn } from "@/lib/utils"
+import { useAlert } from "@/components/AlertDialog"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ export function AppointmentDetailsModal({
 }: AppointmentDetailsModalProps) {
   const { user: currentUser } = useUser()
   const { fetchNotifications } = useNotifications()
+  const { confirm, AlertComponent } = useAlert()
   const [appointment, setAppointment] = React.useState<Appointment | null>(initialAppointment)
   const [isEditing,    setIsEditing]    = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -304,33 +306,47 @@ export function AppointmentDetailsModal({
 
   const handleCancel = async () => {
     if (!onCancel) return
-    if (!confirm("Are you sure you want to cancel this appointment?")) return
-    setIsSubmitting(true)
-    try {
-      await onCancel(appointment._id)
-      onOpenChange(false)
-    } catch (err: any) {
-      setError(err.message || "Failed to cancel")
-    } finally {
-      setIsSubmitting(false)
-    }
+    await confirm(
+      "Cancel appointment?",
+      "Are you sure you want to cancel this appointment?",
+      async () => {
+        setIsSubmitting(true)
+        try {
+          await onCancel(appointment._id)
+          onOpenChange(false)
+        } catch (err: any) {
+          setError(err.message || "Failed to cancel")
+        } finally {
+          setIsSubmitting(false)
+        }
+      },
+      "Cancel Appointment",
+      "Keep Appointment",
+    )
   }
 
   const handleDelete = async () => {
     if (!onDelete) return
-    if (!confirm("Are you sure you want to delete this appointment? This action cannot be undone.")) return
-    setIsSubmitting(true)
-    try {
-      await onDelete(appointment._id)
-      onOpenChange(false)
-    } catch (err: any) {
-      setError(err.message || "Failed to delete")
-    } finally {
-      setIsSubmitting(false)
-    }
+    await confirm(
+      "Delete appointment?",
+      "Are you sure you want to delete this appointment? This action cannot be undone.",
+      async () => {
+        setIsSubmitting(true)
+        try {
+          await onDelete(appointment._id)
+          onOpenChange(false)
+        } catch (err: any) {
+          setError(err.message || "Failed to delete")
+        } finally {
+          setIsSubmitting(false)
+        }
+      },
+      "Delete",
+    )
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl p-0 overflow-hidden gap-0">
 
@@ -773,5 +789,7 @@ export function AppointmentDetailsModal({
         </div>
       </DialogContent>
     </Dialog>
+    <AlertComponent />
+    </>
   )
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
+import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
 import { Bell, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +14,10 @@ interface CrmPushPromptProps {
 export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   const { isSupported, isSubscribed, subscribe, isLoading } = useCrmWebPush();
   const [showPrompt, setShowPrompt] = useState(false);
+  // Same shared mutex as DashboardNotifications/AutrixWelcomeGate/InstallPrompt/
+  // PushPrompt/IOSInstallHint — this was previously the one nag that could
+  // still double up with those on /crm/* routes since it never coordinated.
+  const slot = usePwaNagSlot("crm-push", 1);
 
   useEffect(() => {
     if (!role || !isSupported || isSubscribed || isLoading) return;
@@ -20,21 +25,30 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
     const dismissed = sessionStorage.getItem("crm_push_prompt_dismissed");
     if (dismissed) return;
 
-    const timer = setTimeout(() => setShowPrompt(true), 5000);
+    const timer = setTimeout(() => {
+      setShowPrompt(true);
+      slot.request();
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [role, isSupported, isSubscribed, isLoading]);
+  }, [role, isSupported, isSubscribed, isLoading, slot.request]);
+
+  useEffect(() => {
+    if (isSubscribed) slot.release();
+  }, [isSubscribed, slot.release]);
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    slot.release();
     sessionStorage.setItem("crm_push_prompt_dismissed", "true");
   };
 
   const handleSubscribe = async () => {
     await subscribe();
     setShowPrompt(false);
+    slot.release();
   };
 
-  if (!showPrompt) return null;
+  if (!showPrompt || !slot.isActive) return null;
 
   return (
     <AnimatePresence>
@@ -42,7 +56,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
         initial={{ y: -20, opacity: 0, scale: 0.95 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: -10, opacity: 0, scale: 0.95 }}
-        className="fixed top-20 right-6 z-50 w-90"
+        className="fixed top-20 inset-x-6 z-45 mx-auto max-w-sm sm:left-auto sm:right-6 sm:w-90"
       >
         <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-xl ring-1 ring-white/5">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/10 blur-3xl" />

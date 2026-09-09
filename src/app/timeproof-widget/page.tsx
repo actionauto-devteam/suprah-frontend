@@ -5,6 +5,7 @@ import { Coffee, LogOut, Play, Loader2 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { isMobileMonitoringDept } from "@/lib/departments"
 import { cn } from "@/lib/utils"
+import { useAlert } from "@/components/AlertDialog"
 
 const SHIFT_TARGET_MS = 8 * 60 * 60 * 1000
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000 // company timezone, matches backend COMPANY_TZ_OFFSET_MINUTES
@@ -52,6 +53,7 @@ export default function TimeproofWidgetPage() {
 
   const [busy, setBusy] = React.useState(false)
   const [errorMsg, setErrorMsg] = React.useState("")
+  const { confirm, AlertComponent } = useAlert()
   const [now, setNow] = React.useState(() => Date.now())
 
   const isLotTech = isMobileMonitoringDept(user?.department)
@@ -159,13 +161,19 @@ export default function TimeproofWidgetPage() {
     await Promise.all([fetchShiftState(), fetchMe()])
   })
 
-  const handleEndShift = () => runAction(async () => {
-    if (!window.confirm("End your shift now?")) return
-    const cfg = authHeaders()
-    if (!cfg) return
-    await apiClient.post("/api/crm/time-clock", { type: "time-out" }, cfg)
-    await Promise.all([fetchShiftState(), fetchMe()])
-  })
+  const handleEndShift = () => {
+    void confirm(
+      "End shift?",
+      "End your shift now?",
+      () => runAction(async () => {
+        const cfg = authHeaders()
+        if (!cfg) return
+        await apiClient.post("/api/crm/time-clock", { type: "time-out" }, cfg)
+        await Promise.all([fetchShiftState(), fetchMe()])
+      }),
+      "End Shift",
+    )
+  }
 
   const handleToggleBreak = () => runAction(async () => {
     const cfg = authHeaders()
@@ -268,6 +276,7 @@ export default function TimeproofWidgetPage() {
       {errorMsg && (
         <p className="text-center text-xs font-medium text-red-400">{errorMsg}</p>
       )}
+      <AlertComponent />
     </div>
   )
 }

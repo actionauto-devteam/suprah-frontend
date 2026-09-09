@@ -803,7 +803,7 @@ export default function ReportFilters({
       </div>
 
       {advancedOpen && (
-        <div className="fixed inset-0 z-100 flex justify-end bg-black/45 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/45 backdrop-blur-[1px]">
           <button
             type="button"
             aria-label="Close advanced filters"

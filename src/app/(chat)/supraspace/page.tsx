@@ -9042,14 +9042,27 @@ export default function SupraSpacePage() {
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
   const [isIOSStandaloneApp, setIsIOSStandaloneApp] = React.useState(false);
+  // Broader than isIOSStandaloneApp on purpose: iOS Safari's `dvh` unit does
+  // NOT shrink when the on-screen keyboard opens whether the page is an
+  // installed standalone app or a plain browser tab — the same WebKit quirk
+  // either way. The viewport-tracking effect below (--ss4-vvh /
+  // ss4-ios-keyboard-open) uses this so the message composer still gets
+  // pinned above the keyboard in a regular Safari tab, not just when
+  // installed. Kept separate from isStandaloneApp/isIOSStandaloneApp, which
+  // still correctly gate the standalone-only body-scroll-lock/app-shell
+  // sizing below — that native-app-feel lock should NOT apply to a normal
+  // browser tab.
+  const [isIOSDevice, setIsIOSDevice] = React.useState(false);
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
     setIsStandaloneApp(standalone);
-    setIsIOSStandaloneApp(standalone && isIOSLikeDevice());
+    const iosLike = isIOSLikeDevice();
+    setIsIOSStandaloneApp(standalone && iosLike);
+    setIsIOSDevice(iosLike);
   }, []);
   const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
   React.useEffect(() => {
-    if (!isIOSStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
+    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
     const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -9058,14 +9071,28 @@ export default function SupraSpacePage() {
       raf = requestAnimationFrame(() => {
         const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
         const top = Math.max(0, Math.round(viewport.offsetTop || 0));
-        const layoutHeight = Math.max(
+        // window.screen.height is the raw physical display resolution, not the
+        // usable web-content viewport — it can read larger than the real
+        // layout height (notably right after a cold standalone launch or on
+        // rotation), which used to always win the Math.max below and get
+        // baked into the app shell's fixed pixel height, pushing the bottom
+        // nav/compose FAB below the real visible screen (looked like a blank
+        // void under the conversation list). Only fall back to it if the real
+        // measurements are unavailable (all read 0), never to override them.
+        const screenHeight = window.screen?.height || 0;
+        const measuredHeight = Math.max(
           window.innerHeight || 0,
           document.documentElement.clientHeight || 0,
           visualHeight,
         );
+        const layoutHeight = measuredHeight > 0 ? measuredHeight : screenHeight;
+        // A changing offset can also be caused by ordinary iOS list scrolling;
+        // only treat it as a keyboard when a text control is actually focused.
         const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
         const focusedTextEntry = isTextEntryElement(document.activeElement);
         const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
+        // visualViewport is the usable display area in both states. This avoids
+        // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
         if (keyboardOpen) {
@@ -9127,7 +9154,7 @@ export default function SupraSpacePage() {
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
       document.documentElement.classList.remove('ss4-ios-keyboard-open');
     };
-  }, [isIOSStandaloneApp]);
+  }, [isIOSDevice]);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
@@ -9377,7 +9404,12 @@ export default function SupraSpacePage() {
   }, []);
 
   React.useEffect(() => {
-    if (!isIOSStandaloneApp || typeof document === 'undefined') return;
+    // Companion to the --ss4-vvh/ss4-ios-keyboard-open effect above — same
+    // isIOSDevice gating (not just standalone) so a plain iOS Safari tab's
+    // message list gets the composer's REAL height instead of always
+    // falling back to the CSS default (76px), which under-pads whenever the
+    // composer is taller (reply preview, format bar, attached files).
+    if (!isIOSDevice || typeof document === 'undefined') return;
     const update = () => {
       const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
       document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
@@ -9391,7 +9423,7 @@ export default function SupraSpacePage() {
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
     };
-  }, [isIOSStandaloneApp, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
+  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
 
   React.useEffect(() => {
     inputTextRef.current = input;

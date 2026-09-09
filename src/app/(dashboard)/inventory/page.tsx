@@ -8,6 +8,7 @@ import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { apiClient } from "@/lib/api-client";
@@ -898,11 +899,11 @@ function InventoryContent() {
         }));
       }
 
-      alert(`Quote created successfully! Rate: $${data.rate}`);
+      toast.success(`Quote created successfully! Rate: $${data.rate}`);
       setShippingOpen(false);
     } catch (error) {
       console.error("[Quote] Error creating quote:", error);
-      alert("Failed to create quote");
+      toast.error("Failed to create quote");
     }
   };
 
