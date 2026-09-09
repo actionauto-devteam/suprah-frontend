@@ -9068,7 +9068,11 @@ export default function SupraSpacePage() {
         const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+        if (keyboardOpen) {
+          document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+        } else {
+          document.documentElement.style.removeProperty('--ss4-vvh');
+        }
         document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
         document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
         setVv(prev => (
@@ -9154,6 +9158,22 @@ export default function SupraSpacePage() {
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
   }, [isStandaloneApp, theme]);
+  const [debugLine, setDebugLine] = React.useState('');
+  React.useEffect(() => {
+    if (!isStandaloneApp) return;
+    const id = window.setInterval(() => {
+      const root = document.documentElement;
+      const cs = getComputedStyle(root);
+      const vvh = cs.getPropertyValue('--ss4-vvh').trim() || 'unset';
+      const sab = cs.getPropertyValue('--ss4-safe-bottom').trim() || 'unset';
+      const ch = cs.getPropertyValue('--ss4-composer-height').trim() || 'unset';
+      const kbOpen = root.classList.contains('ss4-ios-keyboard-open');
+      const aside = document.querySelector('.ss4-sidebar')?.getBoundingClientRect();
+      const dock = document.querySelector('.ss4-chat-composer-dock')?.getBoundingClientRect();
+      setDebugLine(`screen=${window.screen.height} vvh=${vvh} sab=${sab} ch=${ch} kb=${kbOpen}\naside_b=${aside ? Math.round(aside.bottom) : 'null'} dock_b=${dock ? Math.round(dock.bottom) : 'null'}`);
+    }, 400);
+    return () => window.clearInterval(id);
+  }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -12920,18 +12940,20 @@ export default function SupraSpacePage() {
 
   const standaloneShellStyle: React.CSSProperties = isStandaloneApp
     ? (isIOSStandaloneApp
-      ? {
-        position: 'fixed',
-        top: vv?.top ?? 0,
-        right: 0,
-        bottom: 'auto',
-        left: 0,
-        height: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100svh)',
-        maxHeight: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100svh)',
-        minHeight: 0,
-        overflow: 'hidden',
-        boxSizing: 'border-box',
-      }
+      ? (vv?.keyboardOpen
+        ? {
+          position: 'fixed',
+          top: vv.top,
+          right: 0,
+          bottom: 'auto',
+          left: 0,
+          height: `${vv.height}px`,
+          maxHeight: `${vv.height}px`,
+          minHeight: 0,
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }
+        : { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' })
       : { height: '100dvh', boxSizing: 'border-box' })
     : {};
 
@@ -12969,6 +12991,16 @@ export default function SupraSpacePage() {
           ...standaloneShellStyle,
         }}
       >
+        {isStandaloneApp && debugLine && (
+          <div style={{
+            position: 'fixed', top: 4, right: 4, zIndex: 999999,
+            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
+            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
+            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
+          }}>
+            {debugLine}
+          </div>
+        )}
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
