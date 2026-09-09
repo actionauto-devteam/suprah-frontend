@@ -9061,11 +9061,19 @@ export default function SupraSpacePage() {
     setIsIOSDevice(iosLike);
   }, []);
   const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
+  const wasKeyboardOpenRef = React.useRef(false);
   React.useEffect(() => {
     if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
     const timers = new Set<ReturnType<typeof setTimeout>>();
+    const nudgeViewportUnits = () => {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const content = meta.getAttribute('content') || '';
+      meta.setAttribute('content', `${content},`);
+      requestAnimationFrame(() => meta.setAttribute('content', content));
+    };
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
@@ -9102,6 +9110,10 @@ export default function SupraSpacePage() {
         }
         document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
         document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
+        if (wasKeyboardOpenRef.current && !keyboardOpen) {
+          setTimeout(nudgeViewportUnits, 350);
+        }
+        wasKeyboardOpenRef.current = keyboardOpen;
         setVv(prev => (
           prev?.height === height && prev.top === top && prev.keyboardOpen === keyboardOpen
             ? prev
@@ -14545,7 +14557,7 @@ export default function SupraSpacePage() {
                           </div>
                         )}
                         <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
-                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*,video/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
+                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
                         <input id={cameraInputId} ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
