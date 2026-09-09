@@ -12682,6 +12682,26 @@ export default function SupraSpacePage() {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [applyTextColor]);
 
+  const prepareMobileMediaPicker = React.useCallback(() => {
+    saveComposerSelection();
+    setEmojiOpen(false);
+    setTextColorPickerOpen(false);
+    setGifOpen(false);
+    setMobileAttachSheetOpen(false);
+    setMobileFilePickerOpen(false);
+    setShowFormatBar(false);
+    if (isIOSDevice && typeof document !== 'undefined') {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+      textareaRef.current?.blur();
+    }
+  }, [isIOSDevice, saveComposerSelection]);
+
+  const openMobileImagePicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    imageFileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
     'h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)',
     activeFormats[format] && 'ss4-video-btn'
@@ -14471,7 +14491,7 @@ export default function SupraSpacePage() {
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button onClick={() => imageFileRef.current?.click()} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
+                            <button type="button" onPointerDown={() => prepareMobileMediaPicker()} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
