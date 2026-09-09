@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip, Home, User, Menu, ChevronRight,
@@ -9180,8 +9181,9 @@ export default function SupraSpacePage() {
     const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
-    document.body.style.height = 'var(--ss4-vvh, 100dvh)';
-    document.documentElement.style.height = 'var(--ss4-vvh, 100dvh)';
+    const restHeight = isIOSDevice ? `${window.screen.height}px` : '100dvh';
+    document.body.style.height = `var(--ss4-vvh, ${restHeight})`;
+    document.documentElement.style.height = `var(--ss4-vvh, ${restHeight})`;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overscrollBehavior = 'none';
@@ -9197,22 +9199,6 @@ export default function SupraSpacePage() {
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
   }, [isStandaloneApp, theme]);
-  const [debugLine, setDebugLine] = React.useState('');
-  React.useEffect(() => {
-    if (!isStandaloneApp) return;
-    const id = window.setInterval(() => {
-      const root = document.documentElement;
-      const cs = getComputedStyle(root);
-      const vvh = cs.getPropertyValue('--ss4-vvh').trim() || 'unset';
-      const sab = cs.getPropertyValue('--ss4-safe-bottom').trim() || 'unset';
-      const ch = cs.getPropertyValue('--ss4-composer-height').trim() || 'unset';
-      const kbOpen = root.classList.contains('ss4-ios-keyboard-open');
-      const aside = document.querySelector('.ss4-sidebar')?.getBoundingClientRect();
-      const dock = document.querySelector('.ss4-chat-composer-dock')?.getBoundingClientRect();
-      setDebugLine(`screen=${window.screen.height} vvh=${vvh} sab=${sab} ch=${ch} kb=${kbOpen}\naside_b=${aside ? Math.round(aside.bottom) : 'null'} dock_b=${dock ? Math.round(dock.bottom) : 'null'}`);
-    }, 400);
-    return () => window.clearInterval(id);
-  }, [isStandaloneApp]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -12997,7 +12983,7 @@ export default function SupraSpacePage() {
           overflow: 'hidden',
           boxSizing: 'border-box',
         }
-        : { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' })
+        : { height: typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh', boxSizing: 'border-box' })
       : { height: '100dvh', boxSizing: 'border-box' })
     : {};
 
@@ -13035,16 +13021,6 @@ export default function SupraSpacePage() {
           ...standaloneShellStyle,
         }}
       >
-        {isStandaloneApp && debugLine && (
-          <div style={{
-            position: 'fixed', top: 4, right: 4, zIndex: 999999,
-            background: 'rgba(255,0,0,0.85)', color: '#fff', fontSize: 9,
-            fontFamily: 'monospace', padding: '4px 6px', borderRadius: 4,
-            lineHeight: 1.4, pointerEvents: 'none', whiteSpace: 'pre',
-          }}>
-            {debugLine}
-          </div>
-        )}
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -13247,7 +13223,7 @@ export default function SupraSpacePage() {
             </div>
             <div className="mx-4 ss4-divider" />
 
-            <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2" onScroll={handleConversationListScroll}>
+            <div className={cn('flex-1 min-h-0 overflow-y-auto ss4-scroll', isStandaloneApp ? 'pb-28' : 'pb-2')} onScroll={handleConversationListScroll}>
               {q.trim().length >= 2 && (
                 <div className="pt-2">
                   <div className="px-3 pb-1.5 flex items-center justify-between">
@@ -13541,48 +13517,78 @@ export default function SupraSpacePage() {
 
             {isStandaloneApp && (
               <div
-                className="shrink-0 flex items-stretch"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 md:hidden"
                 style={{
-                  borderTop: '1px solid var(--sidebar-border)',
                   paddingBottom: isIOSStandaloneApp
-                    ? 'var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px))'
-                    : 'env(safe-area-inset-bottom)',
-                  background: 'var(--bg-base)',
+                    ? 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 8px)'
+                    : 'calc(env(safe-area-inset-bottom) + 8px)',
                 }}
               >
-                {([
-                  { key: 'chats', label: 'Home', Icon: Home },
-                  { key: 'spaces', label: 'People', Icon: Users },
-                  { key: 'notifications', label: 'Notifications', Icon: Bell },
-                  { key: 'profile', label: 'Menu', Icon: Menu },
-                ] as const).map(({ key, label, Icon }) => {
-                  const active = sidebarTab === key;
-                  const badgeCount = key === 'notifications'
-                    ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
-                    : 0;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSidebarTab(key)}
-                      className="relative flex-1 flex flex-col items-center justify-center gap-1 py-2"
-                      style={{ color: active ? 'var(--accent)' : 'var(--text-tertiary)' }}
-                    >
-                      {active && <span className="absolute top-0 rounded-full" style={{ width: 28, height: 3, background: 'var(--accent)' }} />}
-                      <span className="relative">
-                        <Icon className="h-6.5 w-6.5" strokeWidth={active ? 2.3 : 1.8} />
-                        {badgeCount > 0 && (
-                          <span
-                            className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
-                            style={{ minWidth: 16, height: 16, padding: '0 3px', fontSize: 9.5, background: '#ef4444', color: '#fff' }}
+                <div
+                  className="pointer-events-auto relative mx-auto overflow-visible rounded-3xl border px-1.5 pb-1.5 pt-4 backdrop-blur-2xl"
+                  style={{
+                    width: 'min(calc(100vw - 24px), 420px)',
+                    background: 'color-mix(in srgb, var(--bg-base) 88%, transparent)',
+                    borderColor: 'var(--border-2)',
+                    boxShadow: '0 12px 38px rgba(0,0,0,0.38)',
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-x-8 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--accent), transparent)', opacity: 0.55 }} />
+                  <div className="grid items-end" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
+                    {([
+                      { key: 'chats', label: 'Home', Icon: Home },
+                      { key: 'spaces', label: 'People', Icon: Users },
+                      { key: 'notifications', label: 'Notifications', Icon: Bell },
+                      { key: 'profile', label: 'Menu', Icon: Menu },
+                    ] as const).map(({ key, label, Icon }) => {
+                      const active = sidebarTab === key;
+                      const badgeCount = key === 'notifications'
+                        ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
+                        : 0;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSidebarTab(key)}
+                          className={cn('relative flex flex-col items-center gap-0.5', active ? '-mt-7' : 'py-1')}
+                        >
+                          <motion.div
+                            whileTap={{ scale: active ? 0.9 : 0.84 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+                            className="relative flex items-center justify-center"
+                            style={active
+                              ? { height: 52, width: 52, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 8px 24px rgba(0,0,0,0.28)' }
+                              : { height: 32, width: 40, borderRadius: 12, background: 'transparent' }}
                           >
-                            {badgeCount > 9 ? '9+' : badgeCount}
-                          </span>
-                        )}
-                      </span>
-                      <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500 }}>{label}</span>
-                    </button>
-                  );
-                })}
+                            {active && (
+                              <motion.div
+                                layoutId="ss4ActiveNavCircle"
+                                className="absolute inset-0 rounded-full"
+                                style={{ background: 'var(--accent)' }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                              />
+                            )}
+                            <span className="relative z-10">
+                              <Icon
+                                className={active ? 'h-5.5 w-5.5' : 'h-5 w-5'}
+                                strokeWidth={active ? 2.5 : 1.8}
+                                style={{ color: active ? '#fff' : 'var(--text-tertiary)' }}
+                              />
+                              {badgeCount > 0 && (
+                                <span
+                                  className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
+                                  style={{ minWidth: 16, height: 16, padding: '0 3px', fontSize: 9.5, background: '#ef4444', color: '#fff' }}
+                                >
+                                  {badgeCount > 9 ? '9+' : badgeCount}
+                                </span>
+                              )}
+                            </span>
+                          </motion.div>
+                          <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, textTransform: 'uppercase', letterSpacing: '0.04em', color: active ? 'var(--accent)' : 'var(--text-tertiary)' }}>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </aside>
@@ -14419,8 +14425,8 @@ export default function SupraSpacePage() {
                                     style={{
                                       background: 'var(--bg-elevated)',
                                       boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
-                                      height: 'calc(var(--ss4-vvh, 100dvh) - 72px)',
-                                      maxHeight: 'calc(var(--ss4-vvh, 100dvh) - 72px)',
+                                      height: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
+                                      maxHeight: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
                                       minHeight: 0,
                                       overflow: 'hidden',
                                       paddingBottom: isIOSStandaloneApp
@@ -15002,8 +15008,8 @@ export default function SupraSpacePage() {
               style={{
                 background: 'var(--bg-elevated)',
                 boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
-                height: (gifOpen || mobileFilePickerOpen) ? 'calc(var(--ss4-vvh, 100dvh) - 72px)' : undefined,
-                maxHeight: (gifOpen || mobileFilePickerOpen) ? 'calc(var(--ss4-vvh, 100dvh) - 72px)' : undefined,
+                height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
+                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
                 minHeight: 0,
                 overflow: 'hidden',
                 overscrollBehavior: 'contain',
@@ -15022,22 +15028,28 @@ export default function SupraSpacePage() {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Photos</span>
-                  </label>
-                  <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
-                  </label>
+                  {!isIOSStandaloneApp && (
+                    <>
+                      <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Photos</span>
+                      </label>
+                      <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
+                      </label>
+                    </>
+                  )}
                   <button type="button" onClick={() => { setMobileFilePickerOpen(false); setGifOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <Film className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>GIF</span>
                   </button>
-                  <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
-                  </button>
+                  {!isIOSStandaloneApp && (
+                    <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                      <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                      <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
+                    </button>
+                  )}
                   <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <CalendarPlus className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>Calendar</span>
