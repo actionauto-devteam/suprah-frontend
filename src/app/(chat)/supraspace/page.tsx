@@ -13465,12 +13465,12 @@ export default function SupraSpacePage() {
 
             {isStandaloneApp && sidebarTab === 'chats' && (
               <div
-                className="absolute z-30"
+                className="fixed z-50"
                 style={{
                   right: 18,
                   bottom: isIOSStandaloneApp
-                    ? 'calc(70px + var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)))'
-                    : 'calc(70px + env(safe-area-inset-bottom))',
+                    ? 'calc(106px + var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)))'
+                    : 'calc(106px + env(safe-area-inset-bottom))',
                 }}
               >
                 <DropdownMenu modal={false}>
