@@ -1117,6 +1117,14 @@ if (typeof document !== 'undefined') {
     .ss4-search-input::placeholder { color:var(--text-tertiary); }
     .ss4-search-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-search-icon { color:var(--text-tertiary); }
+    .ss4-search-field .ss4-search-input { height:44px; border-radius:16px; padding-left:46px; padding-right:42px; font-size:15px; background:color-mix(in srgb,var(--input-bg) 86%,var(--bg-hover)); border-color:var(--border-2); box-shadow:inset 0 1px 0 rgba(255,255,255,0.03); transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease; }
+    .ss4-search-field .ss4-search-input::placeholder { color:var(--text-tertiary); opacity:.95; }
+    .ss4-search-field .ss4-search-icon { left:16px; width:18px; height:18px; color:var(--text-tertiary); transition:color .15s ease; pointer-events:none; }
+    .ss4-search-field:hover .ss4-search-input { background:var(--bg-hover); border-color:var(--border-3); }
+    .ss4-search-field:focus-within .ss4-search-input { background:var(--bg-base); border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus),inset 0 1px 0 rgba(255,255,255,0.04); }
+    .ss4-search-field:focus-within .ss4-search-icon { color:var(--accent); }
+    .ss4-search-clear { background:transparent; color:var(--text-tertiary); transition:background-color .15s ease,color .15s ease; }
+    .ss4-search-clear:hover { background:var(--bg-hover); color:var(--text-primary); }
     .ss4-chat-header { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
     .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
@@ -1371,6 +1379,7 @@ if (typeof document !== 'undefined') {
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
+      .ss4-sidebar .ss4-search-field .ss4-search-input { height:44px; font-size:16px !important; }
     }
     @media (max-width:767px) and (hover:none) and (pointer:coarse) {
       .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
@@ -13060,18 +13069,52 @@ export default function SupraSpacePage() {
   const mobileSearchConversationMatches = React.useMemo(() => {
     const term = q.trim().toLowerCase();
     if (term.length < 2) return [];
-    return convos.filter(c => {
+    const memberRank = (c: SSConversation) => {
+      const candidates = safeMembers(c).map(member => `${member.fullName} ${member.username}`.trim().toLowerCase());
+      if (candidates.some(candidate => candidate === term)) return 0;
+      if (candidates.some(candidate => candidate.startsWith(term))) return 1;
+      if (candidates.some(candidate => candidate.includes(term))) return 2;
+      return null;
+    };
+    const nameRank = (name: string) => {
+      if (name === term) return 0;
+      if (name.startsWith(term)) return 1;
+      if (name.includes(term)) return 2;
+      return null;
+    };
+    return convos.map(c => {
       if (mobileSearchFilter === 'spaces' && c.type !== 'group') return false;
       const name = getConvName(c, uid).toLowerCase();
-      const members = safeMembers(c).map(member => `${member.fullName} ${member.username}`).join(' ').toLowerCase();
       const last = c.lastMessage && !c.lastMessage.isDeleted ? c.lastMessage : null;
       const preview = last ? messagePreviewText(last.content).toLowerCase() : '';
       const attachmentText = last?.attachments?.map(att => `${att.originalName} ${att.mimeType}`).join(' ').toLowerCase() || '';
-      if (mobileSearchFilter === 'attachments') return Boolean(last?.attachments?.length) && (name.includes(term) || members.includes(term) || attachmentText.includes(term));
-      if (mobileSearchFilter === 'from') return members.includes(term);
-      if (mobileSearchFilter === 'saidIn') return name.includes(term);
-      return name.includes(term) || members.includes(term) || preview.includes(term) || attachmentText.includes(term);
-    }).slice(0, 20);
+      const byName = nameRank(name);
+      const byMember = memberRank(c);
+      let score: number | null = null;
+
+      if (mobileSearchFilter === 'attachments') {
+        if (byName !== null) score = byName;
+        else if (byMember !== null) score = 4 + byMember;
+        else if (last?.attachments?.length && attachmentText.includes(term)) score = 8;
+      } else if (mobileSearchFilter === 'from') {
+        if (byMember !== null) score = byMember;
+        else if (byName !== null) score = 5 + byName;
+      } else if (mobileSearchFilter === 'saidIn' || mobileSearchFilter === 'spaces') {
+        if (byName !== null) score = byName;
+      } else {
+        if (byName !== null) score = byName;
+        else if (byMember !== null) score = 5 + byMember;
+        else if (preview.includes(term)) score = 9;
+        else if (attachmentText.includes(term)) score = 10;
+      }
+
+      if (score === null) return null;
+      const activity = new Date(c.lastMessageAt || c.lastMessage?.createdAt || 0).getTime();
+      return { conversation: c, score, activity };
+    }).filter((entry): entry is { conversation: SSConversation; score: number; activity: number } => Boolean(entry))
+      .sort((a, b) => a.score - b.score || (a.conversation.type === 'direct' ? -1 : 0) - (b.conversation.type === 'direct' ? -1 : 0) || b.activity - a.activity)
+      .slice(0, 20)
+      .map(entry => entry.conversation);
   }, [convos, mobileSearchFilter, q, uid]);
   const mobileSearchShowsMessages = mobileSearchFilter === 'messages' || mobileSearchFilter === 'from' || mobileSearchFilter === 'saidIn';
   const renderMobileSearchConversation = (conv: SSConversation) => {
@@ -13355,17 +13398,16 @@ export default function SupraSpacePage() {
                   )}
                 </div>
               </div>
-              <div className="relative">
-                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onFocus={() => openMobileSearch()} onClick={() => openMobileSearch()} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
+              <div className="relative ss4-search-field">
+                <Search className="ss4-search-icon absolute top-1/2 -translate-y-1/2" />
+                <input value={q} onFocus={() => openMobileSearch()} onClick={() => openMobileSearch()} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
                 {q.length > 0 && (
                   <button
                     onClick={() => setQ('')}
                     aria-label="Clear search"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 rounded-full flex items-center justify-center"
-                    style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}
+                    className="ss4-search-clear absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center"
                   >
-                    <X className="h-2.5 w-2.5" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -13410,27 +13452,6 @@ export default function SupraSpacePage() {
             <div className="mx-4 ss4-divider" />
 
             <div className={cn('flex-1 min-h-0 overflow-y-auto ss4-scroll', isStandaloneApp ? 'pb-28' : 'pb-2')} onScroll={handleConversationListScroll}>
-              {q.trim().length >= 2 && (
-                <div className="pt-2">
-                  <div className="px-3 pb-1.5 flex items-center justify-between">
-                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
-                  </div>
-                  {msgResults.map((m) => {
-                    const rawConv = m.conversationId;
-                    const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
-                    const cName = typeof rawConv === 'object' && rawConv?.type === 'group' ? (rawConv.name || 'Channel') : 'Direct message';
-                    return (
-                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
-                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
-                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
-                      </button>
-                    );
-                  })}
-                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
-                  <div className="mx-3 my-2 ss4-divider" />
-                </div>
-              )}
-
               {isStandaloneApp && q.trim().length >= 2 && archivedList.length > 0 && (
                 <div className="pt-1">
                   <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
@@ -13615,6 +13636,26 @@ export default function SupraSpacePage() {
                   {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
+              {q.trim().length >= 2 && (
+                <div className="pt-3">
+                  <div className="mx-3 mb-2 ss4-divider" />
+                  <div className="px-3 pb-1.5 flex items-center justify-between">
+                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
+                  </div>
+                  {msgResults.map((m) => {
+                    const rawConv = m.conversationId;
+                    const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
+                    const cName = typeof rawConv === 'object' && rawConv?.type === 'group' ? (rawConv.name || 'Channel') : 'Direct message';
+                    return (
+                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
+                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
+                      </button>
+                    );
+                  })}
+                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
+                </div>
+              )}
               {loadingMoreConversations && q.trim().length < 2 && (
                 <div className="px-3 py-3 space-y-2">
                   {[0, 1, 2].map(index => (
@@ -13638,20 +13679,20 @@ export default function SupraSpacePage() {
                   background: 'var(--bg-base)',
                   color: 'var(--text-primary)',
                   height: isIOSStandaloneApp ? 'var(--ss4-vvh, 100dvh)' : '100dvh',
-                  paddingTop: 'env(safe-area-inset-top)',
                 }}
               >
                 <div className="flex shrink-0 items-center gap-2 px-3" style={{ height: 58, borderBottom: '1px solid var(--border-2)' }}>
                   <button type="button" onClick={closeMobileSearch} className="ss4-icon-btn h-10 w-10 shrink-0" aria-label="Back">
                     <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <div className="relative min-w-0 flex-1">
+                  <div className="relative min-w-0 flex-1 ss4-search-field">
+                    <Search className="ss4-search-icon absolute top-1/2 -translate-y-1/2" />
                     <input
                       ref={mobileSearchInputRef}
                       value={q}
                       onChange={e => setQ(e.target.value)}
                       placeholder="Search in chat"
-                      className="h-11 w-full bg-transparent pl-1 pr-9 text-sm outline-none"
+                      className="w-full ss4-search-input"
                       style={{ color: 'var(--text-primary)', caretColor: 'var(--accent)', fontFamily: 'var(--font-geist-sans), sans-serif' }}
                     />
                     {q.length > 0 && (
@@ -13662,10 +13703,9 @@ export default function SupraSpacePage() {
                           mobileSearchInputRef.current?.focus();
                         }}
                         aria-label="Clear search"
-                        className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full"
-                        style={{ color: 'var(--text-tertiary)' }}
+                        className="ss4-search-clear absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
