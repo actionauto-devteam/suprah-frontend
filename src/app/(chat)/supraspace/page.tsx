@@ -872,8 +872,16 @@ function insertSoftLineBreakWithCaretFormatting(
   return true;
 }
 
+function stripCopiedTextArtifacts(value: string): string {
+  if (!value) return '';
+  return value
+    .replace(/[\uFFFC\uFFFD]/g, '')
+    .replace(/[\u200B\u2060\uFEFF\u00AD]/g, '')
+    .replace(/\\(["'“”‘’])/g, '$1');
+}
+
 function stripSupraSpaceTypingMarkers(value: string): string {
-  return value.replace(/[\u200B\u2060\uFEFF]/g, '');
+  return stripCopiedTextArtifacts(value);
 }
 
 function clipboardElementIsHidden(element: HTMLElement): boolean {
@@ -920,6 +928,23 @@ function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
     || rawStyle.includes('mso-list:ignore')
     || (element.getAttribute('aria-hidden') === 'true' && markerOnly)
   );
+}
+
+const CLIPBOARD_METADATA_TEXT_RE = /^(?:now|today|yesterday|\d{1,2}:\d{2}(?:\s?[ap]\.?m\.?)?|(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/i;
+
+function clipboardElementIsMetadata(element: HTMLElement): boolean {
+  const tag = element.tagName.toLowerCase();
+  const className = String(element.className || '').toLowerCase();
+  const role = (element.getAttribute('role') || '').toLowerCase();
+  const aria = (element.getAttribute('aria-label') || '').toLowerCase();
+  const data = Array.from(element.attributes).map(attribute => `${attribute.name}=${attribute.value}`).join(' ').toLowerCase();
+  const hasMetadataHint = tag === 'time'
+    || element.hasAttribute('datetime')
+    || /\b(?:timestamp|time|date|message-time|sent-at|created-at|metadata|meta)\b/.test(`${className} ${role} ${aria} ${data}`)
+    || (className.includes('ss4-mono') && className.includes('tabular-nums'));
+  if (!hasMetadataHint) return false;
+  const text = stripCopiedTextArtifacts(element.textContent || '').replace(/\s+/g, ' ').trim();
+  return !text || CLIPBOARD_METADATA_TEXT_RE.test(text);
 }
 
 function stripLeadingSemanticListMarker(root: HTMLElement): void {
@@ -1799,7 +1824,7 @@ function htmlToMarkdown(el: HTMLElement): string {
 
   const walk = (node: Node, listDepth = 0, inherited: InheritedFormats = NO_FORMATS): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
+      return stripCopiedTextArtifacts(node.textContent || '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1808,18 +1833,21 @@ function htmlToMarkdown(el: HTMLElement): string {
       element.hasAttribute('data-rich-editor-selection-marker')
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') {
-      return element.getAttribute('alt')
+      return stripCopiedTextArtifacts(
+        element.getAttribute('alt')
         || element.getAttribute('aria-label')
         || element.getAttribute('title')
-        || '';
+        || '',
+      );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const fontWeight = element.style.fontWeight;
@@ -1896,7 +1924,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .map(child => walk(child, listDepth, childInherited))
       .join('');
     if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
-      inner = clipboardControlValue(element);
+      inner = stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const href = tag === 'a' ? element.getAttribute('href') : null;
@@ -1962,7 +1990,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .map(child => walk(child, 0))
       .join('')
       .replace(/\u00A0/g, ' ')
-      .replace(/[\u200B\u2060\uFEFF]/g, '')
+      .replace(/[\u200B\u2060\uFEFF\uFFFC\uFFFD]/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
@@ -1973,7 +2001,7 @@ function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
+      return stripCopiedTextArtifacts(node.textContent || '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1981,18 +2009,21 @@ function clipboardHtmlToPlainText(html: string): string {
     if (
       clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') {
-      return element.getAttribute('alt')
+      return stripCopiedTextArtifacts(
+        element.getAttribute('alt')
         || element.getAttribute('aria-label')
         || element.getAttribute('title')
-        || '';
+        || '',
+      );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     let inner = Array.from(element.childNodes).map(walk).join('');
@@ -2189,7 +2220,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 }
 
 function stripListMarkerNoise(value: string): string {
-  return value
+  return stripCopiedTextArtifacts(value)
     .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ');
 }
@@ -2397,7 +2428,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const pushLine = (value: string) => {
-    const clean = value
+    const clean = stripCopiedTextArtifacts(value)
       .replace(/[\u200b\ufeff]/g, '')
       .replace(/\u00a0/g, ' ')
       .replace(/[ \t]*\n[ \t]*/g, ' ')
@@ -2445,7 +2476,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const renderInline = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) return stripCopiedTextArtifacts(node.textContent || '');
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const element = node as HTMLElement;
@@ -2457,11 +2488,12 @@ function clipboardHtmlToListAwareText(html: string): string {
       || tag === 'ol'
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
     if (tag === 'br') return '\n';
-    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    if (tag === 'img') return stripCopiedTextArtifacts(element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '');
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const inner = Array.from(element.childNodes).map(renderInline).join('');
@@ -2469,6 +2501,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const normalizeListItemText = (value: string): string => value
+    .replace(/[\uFFFC\uFFFD]/g, '')
     .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ')
     .replace(/[ \t]*\n[ \t]*/g, ' ')
@@ -2634,6 +2667,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       if (
         clipboardElementIsHidden(child)
         || clipboardElementIsDecorativeMarker(child)
+        || clipboardElementIsMetadata(child)
       ) child.remove();
     });
     stripLeadingSemanticListMarker(clone);
@@ -2643,7 +2677,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       return escapeHtmlText(
-        (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, ''),
+        stripCopiedTextArtifacts(node.textContent || ''),
       );
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
@@ -2654,19 +2688,22 @@ function clipboardHtmlToEditorHtml(html: string): string {
       ['script', 'style', 'meta', 'link', 'iframe', 'object'].includes(tag)
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     if (tag === 'br') return '<br>';
     if (tag === 'img') {
       return escapeHtmlText(
-        element.getAttribute('alt')
-        || element.getAttribute('aria-label')
-        || element.getAttribute('title')
-        || '',
+        stripCopiedTextArtifacts(
+          element.getAttribute('alt')
+          || element.getAttribute('aria-label')
+          || element.getAttribute('title')
+          || '',
+        ),
       );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return escapeHtmlText(clipboardControlValue(element));
+      return escapeHtmlText(stripCopiedTextArtifacts(clipboardControlValue(element)));
     }
 
     if (tag === 'ul' || tag === 'ol') {
@@ -2774,7 +2811,7 @@ function clipboardPayloadToPlainText(text: string, html: string): string {
   const markerPreservedListText = structuredListText
     ? applySourceBulletMarkers(structuredListText, text)
     : '';
-  const raw = markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : '');
+  const raw = stripCopiedTextArtifacts(markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : ''));
   return normalizePastedListArtifacts(
     stripRichTextMarkupForPlainPaste(raw)
       .replace(/\r\n?/g, '\n')
@@ -3031,9 +3068,22 @@ function markdownTextToEditorHtml(text: string): string {
 }
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
-    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  const perLine = (inner: string, marker: string) =>
+    inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
+  let normalized = text
+    .replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
+    .replace(/__([\s\S]*?)__/g, (_match, inner: string) => perLine(inner, '__'))
+    .replace(/~~([\s\S]*?)~~/g, (_match, inner: string) => perLine(inner, '~~'));
+  normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
+    inner.includes('\n') ? `${prefix}${perLine(inner, '_')}` : match
   );
+  return normalized;
+}
+
+function stripResidualSingleMarkdownMarkers(value: string): string {
+  return value
+    .replace(/(^|[^\w_])_(?=\S)/g, '$1')
+    .replace(/(?<=\S)_(?=$|[^\w_])/g, '');
 }
 
 const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
@@ -3189,15 +3239,16 @@ function stripOrphanedBoldMarker(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  return stripOrphanedBoldMarker(
+  const normalized = stripOrphanedBoldMarker(
     normalizeListExitLineSpacing(
       normalizePastedListArtifacts(
-        text
+        stripCopiedTextArtifacts(text)
           .replace(/\r\n?/g, '\n')
           .replace(/\u00a0/g, ' '),
       ),
     ),
-  ).trim();
+  );
+  return stripCopiedTextArtifacts(normalized).trim();
 }
 
 function hasSplitListMarkerLines(text: string): boolean {
@@ -3248,8 +3299,10 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 
 function messagePreviewText(content?: string | null): string {
   if (!content) return '';
-  return stripSupraSpaceFormattingForPreview(
-    normalizeMessageMarkdownForDisplay(content),
+  return stripResidualSingleMarkdownMarkers(
+    stripSupraSpaceFormattingForPreview(
+      normalizeMessageMarkdownForDisplay(content),
+    ),
   );
 }
 
@@ -3293,6 +3346,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
           plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
         ),
       );
+      plain = stripResidualSingleMarkdownMarkers(plain);
       const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -3701,6 +3755,10 @@ function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; 
 }
 
 interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string; department?: string | null }
+type SSMessageSearchResult = Omit<SSMessage, 'conversationId' | 'sender'> & {
+  conversationId?: string | (Partial<SSConversation> & { _id?: string });
+  sender?: Partial<SSMessage['sender']>;
+};
 type ConversationFilter = 'all' | 'unread' | 'read' | 'mentions';
 const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = [
   { key: 'all', label: 'All' },
@@ -3811,7 +3869,7 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
 
 const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   return (
-    <div className="flex items-center gap-2.5 sm:gap-3 my-2 sm:my-3 px-4 sm:px-5">
+    <div className="flex items-center gap-2.5 sm:gap-3 my-2 sm:my-3 px-4 sm:px-5" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
       <div className="flex-1 ss4-date-line" />
       <span className="ss4-date-chip">{fmtDate(date)}</span>
       <div className="flex-1 ss4-date-line" />
@@ -4390,7 +4448,7 @@ const Bubble = React.memo(function Bubble({
     });
   };
   const copyMessageText = async () => {
-    const text = message.content?.trim();
+    const text = normalizeMessageMarkdownText(stripCopiedTextArtifacts(message.content || '')).trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -6070,7 +6128,7 @@ const Bubble = React.memo(function Bubble({
           if (hideTime && !hasSeen) return null;
           return (
             <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
-              {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>}
+              {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)', userSelect: 'none', WebkitUserSelect: 'none' }}>{fmtTime(message.createdAt)}</span>}
               {isOwn && (hasSeen ? (
                 <div className="flex items-center" style={{ gap: 2 }}>
                   {seenByOthers.slice(0, 5).map(m => (
@@ -9039,6 +9097,9 @@ export default function SupraSpacePage() {
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
+  const [mobileSearchFilter, setMobileSearchFilter] = React.useState<'messages' | 'spaces' | 'from' | 'saidIn' | 'attachments'>('messages');
+  const mobileSearchInputRef = React.useRef<HTMLInputElement>(null);
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
@@ -9061,6 +9122,25 @@ export default function SupraSpacePage() {
     setIsIOSStandaloneApp(standalone && iosLike);
     setIsIOSDevice(iosLike);
   }, []);
+  const openMobileSearch = React.useCallback(() => {
+    if (!isStandaloneApp && !isMobileViewport) return;
+    setSidebarTab('chats');
+    setMobileSearchOpen(true);
+  }, [isMobileViewport, isStandaloneApp]);
+  const closeMobileSearch = React.useCallback(() => {
+    setMobileSearchOpen(false);
+    setQ('');
+  }, []);
+  React.useEffect(() => {
+    if (!mobileSearchOpen) return;
+    const timer = window.setTimeout(() => {
+      mobileSearchInputRef.current?.focus();
+    }, 35);
+    return () => window.clearTimeout(timer);
+  }, [mobileSearchOpen]);
+  React.useEffect(() => {
+    if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
+  }, [isMobileViewport, isStandaloneApp]);
   const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
   const wasKeyboardOpenRef = React.useRef(false);
   React.useEffect(() => {
@@ -9338,7 +9418,7 @@ export default function SupraSpacePage() {
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recStreamRef = React.useRef<MediaStream | null>(null);
 
-  const [msgResults, setMsgResults] = React.useState<any[]>([]);
+  const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
@@ -9872,6 +9952,7 @@ export default function SupraSpacePage() {
     setShowJumpToLatest(false);
     setShowInfo(false);
     setQ('');
+    setMobileSearchOpen(false);
     activeIdRef.current = conversationId;
     setStoredSupraSpaceConversationId(conversationId, uid);
     setActiveId(conversationId);
@@ -9974,7 +10055,7 @@ export default function SupraSpacePage() {
     });
   }, [ctxConversations]);
 
-  const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string) => {
+  const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string, restoreActiveConversation = true) => {
     if (!cachedUserId || cacheHydratedRef.current) return false;
     const cached = await readSupraSpaceCache(cachedUserId);
     if (!cached || !cached.conversations.length) return false;
@@ -10005,7 +10086,7 @@ export default function SupraSpacePage() {
     conversationsOffsetRef.current = cached.conversations.length;
     setMsgFetchState(cachedStatuses);
     if (cachedUsers.length) setAllUsers(cachedUsers);
-    if (cachedActiveId) {
+    if (restoreActiveConversation && cachedActiveId) {
       activeIdRef.current = cachedActiveId;
       forceScrollToBottomRef.current = cachedActiveId;
       setActiveId(cachedActiveId);
@@ -10055,7 +10136,15 @@ export default function SupraSpacePage() {
       tokenRef.current = t;
       setToken(t);
       const cachedUserId = getSupraSpaceCacheUserIdFromToken(t);
-      const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId) : false;
+      const initialUrlParams = new URLSearchParams(window.location.search);
+      const hasInitialConversationTarget = Boolean(
+        initialUrlParams.get('conversationId')
+        || initialUrlParams.get('convId')
+        || initialUrlParams.get('userId')
+        || initialUrlParams.get('meeting'),
+      );
+      const allowSavedConversationRestore = !isRunningAsSupraSpaceStandalone() || hasInitialConversationTarget;
+      const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
 
       try {
         const [me, cv] = await Promise.all([
@@ -10155,11 +10244,11 @@ export default function SupraSpacePage() {
           }
         }
 
-        if (!openedInitialConversation && hydratedFromCache && activeIdRef.current) {
+        if (!openedInitialConversation && allowSavedConversationRestore && hydratedFromCache && activeIdRef.current) {
           openedInitialConversation = true;
         }
 
-        if (!openedInitialConversation) {
+        if (!openedInitialConversation && allowSavedConversationRestore) {
           const rememberedConversationId = getStoredSupraSpaceConversationId(myData._id);
           if (rememberedConversationId) {
             const restored = openFetchedConversation(rememberedConversationId);
@@ -10737,7 +10826,7 @@ export default function SupraSpacePage() {
   }, [memberCard]);
 
   React.useEffect(() => {
-    if (!token || q.trim().length < 2) { setMsgResults([]); return; }
+    if (!token || q.trim().length < 2) { setMsgResults([]); setSearching(false); return; }
     setSearching(true);
     const t = setTimeout(() => {
       apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: q.trim() } })
@@ -10748,7 +10837,7 @@ export default function SupraSpacePage() {
 
   const handleSend = async (scheduledAt?: string) => {
     if (!activeId || sending) return;
-    const currentComposerText = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input;
+    const currentComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
     const hasText = Boolean(currentComposerText.trim());
     const hasPendingFiles = pendingFiles.length > 0;
     const hasPendingMeeting = !!pendingMeeting;
@@ -10756,8 +10845,8 @@ export default function SupraSpacePage() {
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     if (sendInFlightRef.current) return;
     const conversationId = activeId;
-    const visibleComposerText = textareaRef.current?.innerText || inputTextRef.current || input;
-    const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim();
+    const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
+    const serializedComposerText = stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
     const content = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         restoreMissingSerialsFromSources(
@@ -10767,9 +10856,9 @@ export default function SupraSpacePage() {
           ),
           [
             visibleComposerText,
-            inputTextRef.current,
-            pastedPlainTextRef.current,
-            textareaRef.current?.textContent || '',
+            stripCopiedTextArtifacts(inputTextRef.current),
+            stripCopiedTextArtifacts(pastedPlainTextRef.current),
+            stripCopiedTextArtifacts(textareaRef.current?.textContent || ''),
             serializedComposerText,
           ],
         ),
@@ -11746,9 +11835,10 @@ export default function SupraSpacePage() {
 
   const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
     if (!activeId) return;
+    const cleanContent = normalizeMessageMarkdownText(content);
     if (replacementFiles?.length) {
       const fd = new FormData();
-      fd.append('content', content);
+      fd.append('content', cleanContent);
       if (replaceIndex !== undefined && replaceIndex !== null) fd.append('replaceIndex', String(replaceIndex));
       replacementFiles.forEach(file => fd.append('files', file));
       const r = await apiClient.patch(`/api/supraspace/messages/${msgId}/attachments`, fd, {
@@ -11766,7 +11856,7 @@ export default function SupraSpacePage() {
       return;
     }
 
-    const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content }, { headers: { Authorization: `Bearer ${token}` } });
+    const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content: cleanContent }, { headers: { Authorization: `Bearer ${token}` } });
     if (r.data?.data) patchMsg(activeId, msgId, { content: r.data.data.content, isEdited: true });
   }, [activeId, token, patchMsg]);
 
@@ -12689,18 +12779,19 @@ export default function SupraSpacePage() {
     setGifOpen(false);
     setMobileAttachSheetOpen(false);
     setMobileFilePickerOpen(false);
-    setShowFormatBar(false);
-    if (isIOSDevice && typeof document !== 'undefined') {
-      const active = document.activeElement;
-      if (active instanceof HTMLElement) active.blur();
-      textareaRef.current?.blur();
-    }
-  }, [isIOSDevice, saveComposerSelection]);
+  }, [saveComposerSelection]);
 
   const openMobileImagePicker = React.useCallback(() => {
     prepareMobileMediaPicker();
     imageFileRef.current?.click();
   }, [prepareMobileMediaPicker]);
+
+  const restoreComposerAfterMobilePicker = React.useCallback(() => {
+    if (!isStandaloneApp && !isMobileViewport) return;
+    window.setTimeout(() => {
+      focusComposerAtSavedCaret();
+    }, 120);
+  }, [focusComposerAtSavedCaret, isMobileViewport, isStandaloneApp]);
 
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
     'h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)',
@@ -12825,6 +12916,7 @@ export default function SupraSpacePage() {
 
   const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
     setQ('');
+    setMobileSearchOpen(false);
     pendingScrollRestoreRef.current = null;
     if (forceScrollToBottomRef.current === convId) forceScrollToBottomRef.current = null;
     suppressAutoScrollOnceRef.current = true;
@@ -12961,6 +13053,80 @@ export default function SupraSpacePage() {
     }
     return out;
   }, [convos, uid, manualUnread]);
+
+  const mobileFrequentConversations = React.useMemo(() => (
+    convos.filter(c => !isArchivedConv(c)).slice(0, 8)
+  ), [convos, isArchivedConv]);
+  const mobileSearchConversationMatches = React.useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (term.length < 2) return [];
+    return convos.filter(c => {
+      if (mobileSearchFilter === 'spaces' && c.type !== 'group') return false;
+      const name = getConvName(c, uid).toLowerCase();
+      const members = safeMembers(c).map(member => `${member.fullName} ${member.username}`).join(' ').toLowerCase();
+      const last = c.lastMessage && !c.lastMessage.isDeleted ? c.lastMessage : null;
+      const preview = last ? messagePreviewText(last.content).toLowerCase() : '';
+      const attachmentText = last?.attachments?.map(att => `${att.originalName} ${att.mimeType}`).join(' ').toLowerCase() || '';
+      if (mobileSearchFilter === 'attachments') return Boolean(last?.attachments?.length) && (name.includes(term) || members.includes(term) || attachmentText.includes(term));
+      if (mobileSearchFilter === 'from') return members.includes(term);
+      if (mobileSearchFilter === 'saidIn') return name.includes(term);
+      return name.includes(term) || members.includes(term) || preview.includes(term) || attachmentText.includes(term);
+    }).slice(0, 20);
+  }, [convos, mobileSearchFilter, q, uid]);
+  const mobileSearchShowsMessages = mobileSearchFilter === 'messages' || mobileSearchFilter === 'from' || mobileSearchFilter === 'saidIn';
+  const renderMobileSearchConversation = (conv: SSConversation) => {
+    const cName = getConvName(conv, uid);
+    const cAvatar = getConvAvatar(conv, uid);
+    const other = safeMembers(conv).find(member => member._id !== uid);
+    const otherPresence = other ? presence[other._id] : undefined;
+    const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
+    const cachedConvMsgs = msgs[conv._id];
+    const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
+      ? conv.lastMessage
+      : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+    const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
+    const preview = reactionPreview
+      ? reactionPreview
+      : !effectiveLastMsg ? 'No messages yet'
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+    const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+    const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
+    return (
+      <button
+        key={conv._id}
+        type="button"
+        onClick={() => openConversation(conv._id)}
+        className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors active:bg-white/5"
+      >
+        <span className="relative shrink-0">
+          <span className={cn('h-10 w-10 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+            {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={14} /> : <GroupAvatarFace src={cAvatar} name={cName} size={12} />}
+          </span>
+          {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
+            : isUnread ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full" style={{ background: SS4_UNREAD_DOT_COLOR, boxShadow: '0 0 0 2px var(--bg-base)' }} /> : null}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</span>
+            <span className="ml-auto shrink-0" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+          </span>
+          <span className="mt-0.5 flex items-center gap-2">
+            <span className="truncate" style={{ fontSize: 12, color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400 }}>{preview}</span>
+            {unreadCount > 0 && (
+              <span className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-bold" style={{ fontSize: 9, background: 'var(--accent)', color: '#fff' }}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </span>
+        </span>
+      </button>
+    );
+  };
 
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
@@ -13191,7 +13357,7 @@ export default function SupraSpacePage() {
               </div>
               <div className="relative">
                 <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
+                <input value={q} onFocus={() => openMobileSearch()} onClick={() => openMobileSearch()} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
                 {q.length > 0 && (
                   <button
                     onClick={() => setQ('')}
@@ -13249,10 +13415,12 @@ export default function SupraSpacePage() {
                   <div className="px-3 pb-1.5 flex items-center justify-between">
                     <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
                   </div>
-                  {msgResults.map((m: any) => {
-                    const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
+                  {msgResults.map((m) => {
+                    const rawConv = m.conversationId;
+                    const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
+                    const cName = typeof rawConv === 'object' && rawConv?.type === 'group' ? (rawConv.name || 'Channel') : 'Direct message';
                     return (
-                      <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
                         <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
                         <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
                       </button>
@@ -13463,7 +13631,153 @@ export default function SupraSpacePage() {
               </div>
             </div>
 
-            {isStandaloneApp && sidebarTab === 'chats' && (
+            {mobileSearchOpen && (isStandaloneApp || isMobileViewport) && (
+              <div
+                className="fixed inset-0 z-[90] flex flex-col md:hidden"
+                style={{
+                  background: 'var(--bg-base)',
+                  color: 'var(--text-primary)',
+                  height: isIOSStandaloneApp ? 'var(--ss4-vvh, 100dvh)' : '100dvh',
+                  paddingTop: 'env(safe-area-inset-top)',
+                }}
+              >
+                <div className="flex shrink-0 items-center gap-2 px-3" style={{ height: 58, borderBottom: '1px solid var(--border-2)' }}>
+                  <button type="button" onClick={closeMobileSearch} className="ss4-icon-btn h-10 w-10 shrink-0" aria-label="Back">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <div className="relative min-w-0 flex-1">
+                    <input
+                      ref={mobileSearchInputRef}
+                      value={q}
+                      onChange={e => setQ(e.target.value)}
+                      placeholder="Search in chat"
+                      className="h-11 w-full bg-transparent pl-1 pr-9 text-sm outline-none"
+                      style={{ color: 'var(--text-primary)', caretColor: 'var(--accent)', fontFamily: 'var(--font-geist-sans), sans-serif' }}
+                    />
+                    {q.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQ('');
+                          mobileSearchInputRef.current?.focus();
+                        }}
+                        aria-label="Clear search"
+                        className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full"
+                        style={{ color: 'var(--text-tertiary)' }}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0 overflow-x-auto no-scrollbar px-4 py-3" style={{ borderBottom: '1px solid var(--border-2)' }}>
+                  <div className="flex gap-2">
+                    {([
+                      { key: 'messages', label: 'Messages' },
+                      { key: 'spaces', label: 'Spaces' },
+                      { key: 'from', label: 'From' },
+                      { key: 'saidIn', label: 'Said in' },
+                      { key: 'attachments', label: 'Attachments' },
+                    ] as const).map(filter => {
+                      const active = mobileSearchFilter === filter.key;
+                      return (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          onClick={() => setMobileSearchFilter(filter.key)}
+                          className="shrink-0 rounded-full border px-3 font-semibold"
+                          style={{
+                            height: 31,
+                            background: active ? 'var(--accent)' : 'transparent',
+                            borderColor: active ? 'var(--accent)' : 'var(--border-2)',
+                            color: active ? '#fff' : 'var(--text-secondary)',
+                            fontSize: 11,
+                          }}
+                        >
+                          {filter.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto ss4-scroll px-4 pb-10" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  {q.trim().length < 2 ? (
+                    <div className="pt-4">
+                      <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>Frequent</p>
+                      <div className="space-y-0.5">
+                        {mobileFrequentConversations.map(renderMobileSearchConversation)}
+                      </div>
+                      {mobileFrequentConversations.length === 0 && (
+                        <p className="px-1 py-4" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No recent conversations</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="pt-4">
+                      {mobileSearchConversationMatches.length > 0 && (
+                        <div className="pb-3">
+                          <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>
+                            {mobileSearchFilter === 'spaces' ? 'Spaces' : mobileSearchFilter === 'attachments' ? 'Attachments' : 'Conversations'}
+                          </p>
+                          <div className="space-y-0.5">
+                            {mobileSearchConversationMatches.map(renderMobileSearchConversation)}
+                          </div>
+                        </div>
+                      )}
+                      {mobileSearchShowsMessages && (
+                        <div className="pb-4">
+                          <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>
+                            Messages{searching ? '…' : ` · ${msgResults.length}`}
+                          </p>
+                          <div className="space-y-0.5">
+                            {msgResults.map((m) => {
+                              const rawConv = m.conversationId;
+                              const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
+                              const localConv = convos.find(c => c._id === resultConversationId);
+                              const populatedConv = typeof rawConv === 'object' && rawConv ? rawConv : undefined;
+                              const resultConv = localConv || populatedConv;
+                              const cName = resultConv?.type === 'group'
+                                ? resultConv.name || 'Channel'
+                                : localConv ? getConvName(localConv, uid) : 'Direct message';
+                              return (
+                                <button
+                                  key={m._id}
+                                  type="button"
+                                  disabled={!resultConversationId}
+                                  onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)}
+                                  className="flex w-full flex-col items-start rounded-2xl px-2.5 py-2.5 text-left transition-colors active:bg-white/5 disabled:opacity-50"
+                                >
+                                  <span className="max-w-full truncate font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{cName}</span>
+                                  <span className="max-w-full truncate" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{m.sender?.fullName || 'Unknown sender'}</span>
+                                  <span className="mt-1 max-w-full truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{messagePreviewText(m.content)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {searching && (
+                        <div className="space-y-3 px-1 py-3">
+                          {[0, 1, 2].map(index => (
+                            <div key={index} className="flex items-center gap-3">
+                              <div className="h-10 w-10 shrink-0 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                              <div className="min-w-0 flex-1 space-y-2">
+                                <div className="h-3 w-32 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                                <div className="h-2.5 w-44 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!searching && mobileSearchConversationMatches.length === 0 && (!mobileSearchShowsMessages || msgResults.length === 0) && (
+                        <p className="px-1 py-6 text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isStandaloneApp && sidebarTab === 'chats' && !mobileSearchOpen && (
               <div
                 className="fixed z-50"
                 style={{
@@ -13535,7 +13849,7 @@ export default function SupraSpacePage() {
               <MenuTab me={me} allUsers={allUsers} presence={presence} uid={uid} token={token || ''} archivedList={archivedList} sharedConvRowProps={sharedConvRowProps} />
             )}
 
-            {isStandaloneApp && (
+            {isStandaloneApp && !mobileSearchOpen && (
               <div
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 md:hidden"
                 style={{
@@ -14491,7 +14805,7 @@ export default function SupraSpacePage() {
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button type="button" onPointerDown={() => prepareMobileMediaPicker()} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
+                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
@@ -14582,9 +14896,9 @@ export default function SupraSpacePage() {
                             </span>
                           </div>
                         )}
-                        <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
-                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
-                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); e.target.value = ''; }} />
+                        <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
