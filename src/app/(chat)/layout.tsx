@@ -113,13 +113,13 @@ export default function ChatLayout({
         <div className="flex flex-col items-center gap-4">
           <SupraSpaceLogo size={56} />
           <div className="flex flex-col items-center gap-2">
-            <p className="font-bold" style={{ fontSize: 16, color: 'rgba(255,255,255,0.92)' }}>Suprah <span style={{ color: '#34c97d' }}>Space</span></p>
+            <p className="font-bold" style={{ fontSize: 16, color: 'rgba(255,255,255,0.92)' }}>Suprah <span style={{ color: '#5fe0a0' }}>Space</span></p>
             <div className="flex gap-1.5">
               {[0, 1, 2].map(i => (
                 <span
                   key={i}
                   className="h-1.5 w-1.5 rounded-full animate-bounce"
-                  style={{ background: '#5b7cf6', animationDelay: `${i * 0.15}s` }}
+                  style={{ background: '#16a34a', animationDelay: `${i * 0.15}s` }}
                 />
               ))}
             </div>

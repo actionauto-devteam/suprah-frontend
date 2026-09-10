@@ -584,7 +584,7 @@ export const SS4_CSS = `
   /* ── Status dot colors (for leads) ─────────────────── */
   .ss4-dot-new     { background: #34c97d; }
   .ss4-dot-pending { background: #f0a855; }
-  .ss4-dot-contact { background: #5b7cf6; }
+  .ss4-dot-contact { background: #16a34a; }
   .ss4-dot-appt    { background: #9b6fd6; }
   .ss4-dot-closed  { background: rgba(255,255,255,0.2); }
   .ss4-dot-calls   { background: #22c9c9; }
