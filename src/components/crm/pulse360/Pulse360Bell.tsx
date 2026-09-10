@@ -29,7 +29,7 @@ export function Pulse360Bell({ className }: { className?: string }) {
   const [open, setOpen] = React.useState(false);
   const [clearing, setClearing] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
-  const [coords, setCoords] = React.useState<{ top: number; right: number } | null>(null);
+  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
 
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
@@ -41,7 +41,10 @@ export function Pulse360Bell({ className }: { className?: string }) {
   const reposition = React.useCallback(() => {
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setCoords({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    const viewportWidth = window.visualViewport?.width || window.innerWidth;
+    const panelWidth = Math.min(viewportWidth * 0.92, 384);
+    const left = Math.max(12, Math.min(rect.right - panelWidth, viewportWidth - panelWidth - 12));
+    setCoords({ top: rect.bottom + 8, left });
   }, []);
 
   React.useEffect(() => {
@@ -96,7 +99,7 @@ export function Pulse360Bell({ className }: { className?: string }) {
       style={{
         position: "fixed",
         top: coords?.top ?? 0,
-        right: coords?.right ?? 0,
+        left: coords?.left ?? 0,
         // Hidden until measured, so it never flashes at 0,0 on first paint.
         visibility: coords ? "visible" : "hidden",
       }}
