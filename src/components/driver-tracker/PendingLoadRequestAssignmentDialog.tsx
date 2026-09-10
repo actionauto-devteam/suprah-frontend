@@ -86,7 +86,7 @@ export function PendingLoadRequestAssignmentDialog({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="z-[110] max-h-[90dvh] overflow-y-auto sm:max-w-xl" overlayClassName="z-[100] bg-black/70 backdrop-blur-[3px]">
         <DialogHeader>
           <div className="mb-1 flex items-center gap-2 text-amber-600 dark:text-amber-400">
             <AlertTriangle className="size-5" />

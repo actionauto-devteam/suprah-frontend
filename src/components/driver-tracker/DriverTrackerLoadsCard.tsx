@@ -294,7 +294,7 @@ export function DriverTrackerLoadsCard({
                     onClick={() => setViewDriver(item)}
                   >
                     <Eye className="size-3.5" />
-                    View Loads
+                    View Assigned Loads
                   </Button>
                 </div>
               </div>
@@ -348,7 +348,7 @@ export function DriverTrackerLoadsCard({
             {(currentViewDriver?.shipments?.length || 0) === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                 <Package className="size-8 text-muted-foreground/30" />
-                <p className="text-xs text-muted-foreground">No loads assigned</p>
+                <p className="text-xs text-muted-foreground">No assigned loads</p>
               </div>
             )}
 

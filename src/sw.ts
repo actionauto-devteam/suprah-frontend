@@ -369,12 +369,31 @@ self.addEventListener("push", (event: any) => {
       // conversationId is the one thing every SupraSpace push always carries
       // that nothing else does.
       const isSupraSpaceMessage = !!data.data?.conversationId;
-      if (!data.data?.playSound && !isSupraSpaceMessage && !(await isAppActive())) {
+      const appActive = await isAppActive();
+      const legacySoundProfile = data.data?.playSound ? "urgent" : "none";
+      const soundProfile = String(data.data?.soundProfile || legacySoundProfile);
+      const priority = String(data.data?.priority || "");
+      const needsImmediateAttention =
+        soundProfile === "attention" || soundProfile === "urgent";
+
+      // Quick Attention and urgent alerts must never disappear inside the
+      // background burst summary. Normal operational alerts retain the existing
+      // summary behavior so reconnecting users are not flooded by stale pushes.
+      if (!needsImmediateAttention && !isSupraSpaceMessage && !appActive) {
         await showBurstSummary(data);
         return;
       }
 
       // 3. STANDARD NOTIFICATION DISPLAY
+      const vibrationPattern =
+        soundProfile === "urgent"
+          ? [250, 100, 250, 100, 350]
+          : soundProfile === "attention"
+            ? [180, 80, 180]
+            : priority === "normal"
+              ? undefined
+              : [100, 50, 100];
+
       const options = {
         body: data.body,
         icon: data.icon || DEFAULT_NOTIFICATION_ICON,
@@ -388,9 +407,13 @@ self.addEventListener("push", (event: any) => {
           notificationId: data.data?.notificationId,
           driverRequestId: data.data?.driverRequestId,
           alertId: data.data?.alertId,
+          alertType: data.data?.alertType,
+          priority: data.data?.priority,
+          soundProfile: data.data?.soundProfile,
         },
         actions: data.actions || [],
-        vibrate: [100, 50, 100],
+        ...(vibrationPattern ? { vibrate: vibrationPattern } : {}),
+        ...(priority === "normal" ? { silent: true } : {}),
         // Without this, a second push sharing the same tag (e.g. another
         // message in the same conversation — see pushToConversationMembers'
         // tag: conv._id) silently replaces the prior notification on
@@ -401,18 +424,23 @@ self.addEventListener("push", (event: any) => {
         renotify: !!data.tag,
       };
 
-      // Shift Alerts carry a dedicated warning sound — the OS/browser only
-      // plays its own default sound while the app is closed/locked (no
-      // "sound" field exists in the Push/Notification spec), but if a client
-      // is already open, tell it to play the real file via postMessage.
-      const notifyClients = data.data?.playSound
+      // Custom audio files can only be played by an open client. When the app
+      // is already foregrounded, NotificationContext handles the socket event
+      // and plays the sound there; avoid posting a second play request. When a
+      // client is open but backgrounded, ask it to play the appropriate custom
+      // file while the OS notification still provides its own fallback sound.
+      const notifyClients = !appActive && needsImmediateAttention
         ? (self as any).clients
             .matchAll({ type: "window", includeUncontrolled: true })
             .then((clientList: any[]) => {
+              const messageType =
+                soundProfile === "attention"
+                  ? "PLAY_ATTENTION_ALERT_SOUND"
+                  : "PLAY_SHIFT_ALERT_SOUND";
               clientList.forEach((client) =>
                 client.postMessage({
-                  type: "PLAY_SHIFT_ALERT_SOUND",
-                  soundFile: data.data.soundFile,
+                  type: messageType,
+                  soundFile: data.data?.soundFile,
                 }),
               );
             })
@@ -577,8 +605,16 @@ async function handleBackgroundAction(action: string, data: any, replyText?: str
     if (!token) throw new Error("No auth token found in SW");
 
     // Driver Dispatch Alert response actions
-    if ((action === "acknowledge" || action === "on-my-way") && data?.alertId) {
-      const response = action === "on-my-way" ? "on_my_way" : "acknowledged";
+    if (
+      (action === "acknowledge" || action === "on-my-way" || action === "unable") &&
+      data?.alertId
+    ) {
+      const response =
+        action === "on-my-way"
+          ? "on_my_way"
+          : action === "unable"
+            ? "unable"
+            : "acknowledged";
       const result = await fetch(
         `${API_BASE_URL}/api/driver-tracking/alerts/${data.alertId}/respond`,
         {
@@ -594,7 +630,12 @@ async function handleBackgroundAction(action: string, data: any, replyText?: str
       if (!result.ok) throw new Error(`HTTP ${result.status}`);
 
       await (self as any).registration.showNotification("Dispatch Response Sent", {
-        body: response === "on_my_way" ? "Your status was sent as On My Way." : "The dispatch alert was acknowledged.",
+        body:
+          response === "on_my_way"
+            ? "Your status was sent as On My Way."
+            : response === "unable"
+              ? "Dispatch was told that you are unable to respond right now."
+              : "The dispatch alert was acknowledged.",
         icon: DEFAULT_NOTIFICATION_ICON,
         tag: `driver-alert-response:${data.alertId}`,
       });

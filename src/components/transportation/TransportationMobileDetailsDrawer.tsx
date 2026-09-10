@@ -15,6 +15,7 @@ import {
   Lock,
   Mail,
   MapPin,
+  Maximize2,
   Phone,
   Truck,
   User,
@@ -24,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import { QuoteLoadRouteCompletionDialog } from "@/components/QuoteLoadRouteCompletionDialog";
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 import type { Load } from "@/types/load";
 import {
   getQuoteLoadRouteDraft,
@@ -38,6 +39,10 @@ import {
   type TransportationMobileLoadTab,
 } from "@/components/transportation/TransportationMobileLoadDetailSections";
 import type { TransportationMobileQuoteTab } from "@/components/transportation/TransportationMobileQuoteCard";
+import {
+  VehicleImageLightbox,
+  type VehicleImageLightboxItem,
+} from "@/components/transportation/VehicleImageLightbox";
 
 interface TransportationMobileDetailsDrawerProps {
   open: boolean;
@@ -167,6 +172,7 @@ export function TransportationMobileDetailsDrawer({
   const [loadTab, setLoadTab] = React.useState<TransportationMobileLoadTab>(initialLoadTab);
   const [quoteTab, setQuoteTab] = React.useState<TransportationMobileQuoteTab>(initialQuoteTab);
   const [quoteRouteOpen, setQuoteRouteOpen] = React.useState(false);
+  const [quoteImageViewerOpen, setQuoteImageViewerOpen] = React.useState(false);
   const [isConvertingQuote, setIsConvertingQuote] = React.useState(false);
   const [quoteConvertedThisSession, setQuoteConvertedThisSession] = React.useState(false);
   const { showAlert, alert, hideAlert } = useAlert();
@@ -300,6 +306,31 @@ export function TransportationMobileDetailsDrawer({
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
   };
+
+  const quoteVehicleName = quote
+    ? quote.vehicleName ||
+      (quote.vehicleId
+        ? `${quote.vehicleId.year} ${quote.vehicleId.make} ${quote.vehicleId.modelName}`
+        : "Vehicle not linked")
+    : "Vehicle";
+
+  const quoteVehicleImage = quote
+    ? resolveImageUrl(quote.vehicleImage)
+    : undefined;
+
+  const quoteImageViewerItems: VehicleImageLightboxItem[] = quote
+    ? [
+        {
+          id: String(quote.vehicleId?._id ?? quote.vin ?? quote._id),
+          src: quoteVehicleImage,
+          label: quoteVehicleName,
+          subtitle:
+            quote.vin || quote.vehicleId?.vin
+              ? `VIN ${quote.vin || quote.vehicleId?.vin}`
+              : undefined,
+        },
+      ]
+    : [];
 
   const quoteRouteDraft = React.useMemo(() => {
     if (!quote) return null;
@@ -634,8 +665,34 @@ export function TransportationMobileDetailsDrawer({
 
         {quote && quoteTab === "vehicle" ? (
           <div className="min-w-0 space-y-3.5">
-            <section className="overflow-hidden rounded-2xl border border-emerald-500/35 bg-linear-to-br from-emerald-500/8 via-background to-background p-4">
-              <div className="flex items-center gap-3">
+            <section className="overflow-hidden rounded-2xl border border-emerald-500/35 bg-linear-to-br from-emerald-500/8 via-background to-background">
+              <button
+                type="button"
+                onClick={() => setQuoteImageViewerOpen(true)}
+                aria-label="View full quote vehicle image"
+                className="group/image relative block w-full overflow-hidden border-b border-border/50 bg-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
+              >
+                {quoteVehicleImage ? (
+                  <img
+                    src={quoteVehicleImage}
+                    alt={quoteVehicleName}
+                    loading="lazy"
+                    className="h-44 w-full object-contain object-center transition-transform duration-300 group-hover/image:scale-[1.02]"
+                  />
+                ) : (
+                  <div className="flex h-40 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
+                    <Car className="size-8 text-muted-foreground/45" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                      No photo on file
+                    </span>
+                  </div>
+                )}
+                <span className="absolute bottom-3 right-3 flex size-10 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white shadow-lg backdrop-blur-sm">
+                  <Maximize2 className="size-4" />
+                </span>
+              </button>
+
+              <div className="flex items-center gap-3 p-4">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10">
                   <Car className="size-5 text-emerald-500" />
                 </div>
@@ -644,10 +701,7 @@ export function TransportationMobileDetailsDrawer({
                     Quote Vehicle
                   </p>
                   <p className="mt-1 break-words text-base font-black leading-snug text-foreground">
-                    {quote.vehicleName ||
-                      (quote.vehicleId
-                        ? `${quote.vehicleId.year} ${quote.vehicleId.make} ${quote.vehicleId.modelName}`
-                        : "Vehicle not linked")}
+                    {quoteVehicleName}
                   </p>
                 </div>
               </div>
@@ -786,6 +840,13 @@ export function TransportationMobileDetailsDrawer({
         </div>
       ) : null}
       </aside>
+
+      <VehicleImageLightbox
+        open={quoteImageViewerOpen}
+        onOpenChange={setQuoteImageViewerOpen}
+        items={quoteImageViewerItems}
+        initialIndex={0}
+      />
 
       {quote ? (
         <QuoteLoadRouteCompletionDialog

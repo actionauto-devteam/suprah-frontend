@@ -115,6 +115,83 @@ export type NotificationCategory =
   | 'adminStaffActivity'
   | 'adminSecurityAudit';
 
+export type DriverDispatchAlertResponse =
+  | 'acknowledged'
+  | 'on_my_way'
+  | 'unable';
+
+export type DriverDispatchAlertPriority = 'normal' | 'important' | 'urgent';
+export type DriverDispatchAlertMode = 'quick_attention' | 'operational' | 'critical';
+export type DriverDispatchAlertSoundProfile = 'none' | 'attention' | 'urgent';
+export type DriverDispatchQuickPreset =
+  | 'check_dispatch_chat'
+  | 'please_respond'
+  | 'contact_dispatch'
+  | 'custom';
+
+export type DriverDispatchAlertType =
+  | 'quick_attention'
+  | 'proceed_to_pickup'
+  | 'proceed_to_delivery'
+  | 'route_changed'
+  | 'pickup_instructions_updated'
+  | 'delivery_instructions_updated'
+  | 'schedule_changed'
+  | 'hold_position'
+  | 'resume_route'
+  | 'return_to_dealership'
+  | 'contact_dispatch'
+  | 'check_in'
+  | 'load_updated'
+  | 'load_cancelled'
+  | 'safety_warning'
+  | 'stop_do_not_proceed'
+  | 'custom';
+
+export interface DriverDispatchAlertLocationContext {
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  contactName?: string;
+  phone?: string;
+  phoneExt?: string;
+  email?: string;
+  locationType?: string | null;
+  notes?: string;
+}
+
+export interface DriverDispatchAlertVehicleContext {
+  year?: number | null;
+  make?: string;
+  model?: string;
+  color?: string;
+  vin?: string;
+  condition?: string | null;
+}
+
+export interface DriverDispatchAlertLoadContext {
+  id: string;
+  loadNumber: string;
+  status: string;
+  trailerType?: string;
+  pickup?: DriverDispatchAlertLocationContext | null;
+  delivery?: DriverDispatchAlertLocationContext | null;
+  vehicles: DriverDispatchAlertVehicleContext[];
+  dates?: {
+    firstAvailable?: string | Date | null;
+    pickupDeadline?: string | Date | null;
+    deliveryDeadline?: string | Date | null;
+    notes?: string;
+  } | null;
+  additionalInfo?: {
+    instructions?: string;
+    referenceNumber?: string;
+  } | null;
+}
+
 export interface Notification {
   _id: string;
   userId?: string;
@@ -141,6 +218,21 @@ export interface Notification {
     customerName?: string;
     driverName?: string;
     alertId?: string;
+    alertSchemaVersion?: 1 | 2;
+    alertType?: DriverDispatchAlertType | 'legacy_destination';
+    alertLabel?: string;
+    alertMode?: DriverDispatchAlertMode;
+    priority?: DriverDispatchAlertPriority;
+    soundProfile?: DriverDispatchAlertSoundProfile;
+    allowedResponses?: DriverDispatchAlertResponse[];
+    quickPreset?: DriverDispatchQuickPreset | null;
+    loadId?: string;
+    loadNumber?: string;
+    loadStatus?: string;
+    loadContext?: DriverDispatchAlertLoadContext | null;
+    sentByName?: string;
+    soundFile?: string;
+    playSound?: boolean;
     destinationType?: 'site' | 'carshop' | 'specific-shop';
     destinationName?: string;
     address?: string;

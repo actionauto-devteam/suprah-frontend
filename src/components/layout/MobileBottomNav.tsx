@@ -48,6 +48,29 @@ const MAX_QUICK_ACCESS_ITEMS = 5;
 const CENTER_QUICK_ACCESS_INDEX = 2;
 const MOBILE_NAV_STORAGE_PREFIX = "suprah:mobile-nav:v1";
 const MOBILE_NAV_VISIBILITY_KEY = `${MOBILE_NAV_STORAGE_PREFIX}:hidden`;
+export const MOBILE_NAV_VISIBILITY_EVENT = "suprah:mobile-nav-visibility";
+const MOBILE_NAV_VISIBLE_OFFSET = "6.25rem";
+// When the user explicitly hides the full navigation, keep only enough
+// layout clearance for the floating Show / Menu recovery controls.
+const MOBILE_NAV_RECOVERY_OFFSET =
+    "calc(env(safe-area-inset-bottom) + 4rem)";
+
+function applyPersistentMobileNavLayout(hiddenByUser: boolean) {
+    if (typeof document === "undefined") return;
+
+    document.documentElement.style.setProperty(
+        "--mobile-bottom-nav-offset",
+        hiddenByUser ? MOBILE_NAV_RECOVERY_OFFSET : MOBILE_NAV_VISIBLE_OFFSET,
+    );
+
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(
+            new CustomEvent<{ hidden: boolean }>(MOBILE_NAV_VISIBILITY_EVENT, {
+                detail: { hidden: hiddenByUser },
+            }),
+        );
+    }
+}
 
 type DealershipNavScope = "dealership" | "inventory";
 
@@ -535,12 +558,29 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
     }, []);
 
     React.useEffect(() => {
-        if (!isDealershipShell || typeof window === "undefined") return;
-        try {
-            setUserHidden(window.localStorage.getItem(MOBILE_NAV_VISIBILITY_KEY) === "1");
-        } catch {
-            setUserHidden(false);
+        if (typeof window === "undefined") return;
+
+        if (!isDealershipShell) {
+            applyPersistentMobileNavLayout(false);
+            return;
         }
+
+        let hiddenByUser = false;
+        try {
+            hiddenByUser =
+                window.localStorage.getItem(MOBILE_NAV_VISIBILITY_KEY) === "1";
+        } catch {
+            hiddenByUser = false;
+        }
+
+        setUserHidden(hiddenByUser);
+        applyPersistentMobileNavLayout(hiddenByUser);
+
+        // Do not leak a dealership-only hidden offset into another shell if this
+        // component is replaced during a role/shell transition.
+        return () => {
+            applyPersistentMobileNavLayout(false);
+        };
     }, [isDealershipShell]);
 
     // Load both dealership preference scopes once the shell module list is known.
@@ -856,7 +896,10 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
 
     const setMobileNavVisibility = React.useCallback((hiddenByUser: boolean) => {
         if (!isDealershipShell) return;
+
         setUserHidden(hiddenByUser);
+        applyPersistentMobileNavLayout(hiddenByUser);
+
         try {
             if (hiddenByUser) {
                 window.localStorage.setItem(MOBILE_NAV_VISIBILITY_KEY, "1");
@@ -864,7 +907,8 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
                 window.localStorage.removeItem(MOBILE_NAV_VISIBILITY_KEY);
             }
         } catch {
-            // In-memory visibility still applies when storage is unavailable.
+            // In-memory visibility and viewport space still update even when
+            // browser storage is unavailable.
         }
     }, [isDealershipShell]);
 

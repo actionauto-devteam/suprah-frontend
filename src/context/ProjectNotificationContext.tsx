@@ -11,6 +11,16 @@ type ProjectNotificationContextValue = {
   markAllRead: () => Promise<void>;
 };
 
+type ProjectSocketLike = {
+  connected?: boolean;
+  on: (event: string, callback: (...args: any[]) => void) => void;
+  off: (event: string, callback: (...args: any[]) => void) => void;
+};
+
+type ProjectNotificationSocketPayload = {
+  _id?: string;
+};
+
 const ProjectNotificationContext =
   React.createContext<ProjectNotificationContextValue>({
     unreadCount: 0,
@@ -30,13 +40,16 @@ export function ProjectNotificationProvider({
 }: {
   children: React.ReactNode;
   /**
-   * Optional connected socket.io client (the same one used for time-clock /
-   * feeds). When provided, `pm:notification` events bump the badge instantly.
+   * Shared authenticated Socket.IO client. The backend joins the same socket
+   * to a dedicated crm-user:{CrmUser._id} room, so Project Management can use
+   * its CrmUser identity without replacing/re-authenticating the singleton
+   * main-app socket.
    */
-  socket?: { on: (e: string, cb: (...args: any[]) => void) => void; off: (e: string, cb: (...args: any[]) => void) => void } | null;
+  socket?: ProjectSocketLike | null;
 }) {
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const mountedRef = React.useRef(true);
+  const mountedRef = React.useRef(false);
+  const seenRealtimeIdsRef = React.useRef<Set<string>>(new Set());
 
   const refresh = React.useCallback(async () => {
     try {
@@ -46,32 +59,64 @@ export function ProjectNotificationProvider({
         setUnreadCount(count);
       }
     } catch {
-      // Unauthenticated or offline — leave the badge as-is.
+      // REST is the reconciliation fallback. If the user is temporarily
+      // offline or unauthenticated, preserve the last known badge count.
     }
   }, []);
 
   const markAllRead = React.useCallback(async () => {
     try {
       await apiClient.post("/api/crm/projects/notifications/read", {});
-      if (mountedRef.current) setUnreadCount(0);
+      if (mountedRef.current) {
+        setUnreadCount(0);
+        seenRealtimeIdsRef.current.clear();
+      }
     } catch {
-      /* best-effort */
+      // Best-effort. The next socket reconnect / poll will reconcile state.
     }
   }, []);
 
   React.useEffect(() => {
     mountedRef.current = true;
-    refresh();
+    void refresh();
 
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, POLL_INTERVAL_MS);
 
-    const onNotification = () => setUnreadCount((c) => c + 1);
+    const onNotification = (payload?: ProjectNotificationSocketPayload) => {
+      const notificationId = String(payload?._id ?? "").trim();
+
+      // Socket.IO's multi-room union already de-duplicates sockets, but keep a
+      // client-side id guard too so retries or duplicated server emissions can
+      // never inflate the badge.
+      if (notificationId) {
+        if (seenRealtimeIdsRef.current.has(notificationId)) return;
+        seenRealtimeIdsRef.current.add(notificationId);
+      }
+
+      setUnreadCount((count) => count + 1);
+
+      // Reconcile against MongoDB after the instant local bump. This protects
+      // against missed events and keeps multiple tabs/devices authoritative.
+      void refresh();
+    };
+
+    const onConnect = () => {
+      // Socket.IO reconnects automatically. Any notifications created while
+      // disconnected are recovered immediately rather than waiting 60 seconds.
+      seenRealtimeIdsRef.current.clear();
+      void refresh();
+    };
+
     socket?.on("pm:notification", onNotification);
+    socket?.on("connect", onConnect);
 
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
+      window.clearInterval(interval);
       socket?.off("pm:notification", onNotification);
+      socket?.off("connect", onConnect);
     };
   }, [refresh, socket]);
 

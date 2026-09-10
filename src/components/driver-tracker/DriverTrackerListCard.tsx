@@ -12,6 +12,7 @@ import {
   WifiOff,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Bell,
   MessageSquare,
   FileCheck2,
@@ -47,6 +48,7 @@ interface DriverTrackerListCardProps {
   statusText: Record<DriverStatus, string>;
   onAssignLoad?: (driver: DriverTrackingItem) => void;
   onDriverClick?: (driver: DriverTrackingItem) => void;
+  onOpenDriver?: (driver: DriverTrackingItem, tab?: "overview" | "chat" | "loads") => void;
   onAlertDriver?: (driver: DriverTrackingItem) => void;
   onMessageDriver?: (driver: DriverTrackingItem) => void;
   onViewCompliance?: (driver: DriverTrackingItem) => void;
@@ -84,6 +86,7 @@ export function DriverTrackerListCard({
   statusText,
   onAssignLoad,
   onDriverClick,
+  onOpenDriver,
   onAlertDriver,
   onMessageDriver,
   onViewCompliance,
@@ -183,25 +186,25 @@ export function DriverTrackerListCard({
   }, [drivers]);
 
   return (
-    <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden flex flex-col min-h-0 h-[60vh] min-h-80 max-h-105 sm:h-120 lg:h-150 lg:max-h-none">
-      <CardHeader className="py-4 px-5 border-b border-border/30 shrink-0 space-y-3">
+    <Card className="flex h-[calc(56dvh+6.25rem-var(--mobile-bottom-nav-offset))] min-h-[22rem] max-h-[calc(34rem+6.25rem-var(--mobile-bottom-nav-offset))] w-full min-w-0 flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm sm:h-[calc(58dvh+6.25rem-var(--mobile-bottom-nav-offset))] sm:min-h-[24rem] sm:max-h-[calc(36rem+6.25rem-var(--mobile-bottom-nav-offset))] md:h-120 md:min-h-80 md:max-h-120 md:rounded-xl md:border-x lg:h-150 lg:max-h-none">
+      <CardHeader className="border-b border-border/30 px-3 py-3 shrink-0 space-y-2.5 sm:px-5 sm:py-4 sm:space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg font-black flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base font-black sm:text-lg">
               <Users className="size-5 text-primary" />
-              All Drivers
+              <span>Driver Directory</span>
             </CardTitle>
-            <p className="text-sm text-muted-foreground/80 font-medium mt-1">
+            <p className="mt-0.5 text-xs font-medium text-muted-foreground/80 sm:mt-1 sm:text-sm">
               {filtered.length} of {drivers.length} driver
               {drivers.length !== 1 ? "s" : ""}
             </p>
           </div>
           <Badge
             variant="secondary"
-            className="h-7 text-xs font-bold bg-blue-500/10 text-blue-600 gap-1.5 px-2.5"
+            className="h-6 gap-1 px-2 text-[10px] font-bold bg-blue-500/10 text-blue-600 sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-xs"
           >
             <Wifi className="size-3.5" />
-            {counts.sharing} GPS sharing
+            {counts.sharing} GPS Sharing
           </Badge>
         </div>
 
@@ -211,20 +214,20 @@ export function DriverTrackerListCard({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name, email, or load..."
-            className="h-10 pl-9 text-sm rounded-lg border-border/50 bg-muted/30"
+            className="h-10 rounded-lg border-border/50 bg-muted/30 pl-9 text-base sm:text-sm"
           />
         </div>
 
         <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
           <button
             onClick={() => { setOperationalFilter("all"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >All ({counts.all})</button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`rounded-md px-2 py-2 text-xs font-bold border transition-all flex items-center justify-center gap-1 ${operationalFilter === "active" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+                className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all flex items-center justify-center gap-1 sm:px-2 sm:text-xs ${operationalFilter === "active" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
               >
                 Active ({counts.active}) <ChevronDown className="size-3" />
               </button>
@@ -243,11 +246,11 @@ export function DriverTrackerListCard({
 
           <button
             onClick={() => { setOperationalFilter("on_leave"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >On Leave ({counts.on_leave})</button>
           <button
             onClick={() => { setOperationalFilter("maintenance"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-2 py-2 text-xs font-bold border transition-all ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >In Shop ({counts.maintenance})</button>
         </div>
 
@@ -260,7 +263,7 @@ export function DriverTrackerListCard({
             <button
               key={key}
               onClick={() => setGpsFilter(key)}
-              className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
+              className={`flex-1 rounded-md border px-1.5 py-1.5 text-[10px] font-semibold transition-colors sm:px-2 sm:text-xs ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
             >{label}</button>
           ))}
         </div>
@@ -316,13 +319,19 @@ export function DriverTrackerListCard({
           return (
             <div
               key={driver.id}
-              className="rounded-xl border border-border/40 transition-all duration-200 hover:border-primary/20 hover:shadow-sm"
+              className="group/driver relative overflow-hidden rounded-xl border border-border/40 bg-card/45 transition-all duration-200 hover:border-primary/25 hover:bg-card/70 hover:shadow-sm"
             >
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-primary/70 via-emerald-400/35 to-transparent opacity-70" />
               <div
                 className={`p-3 ${onDriverClick && driver.coords ? "cursor-pointer" : ""}`}
-                onClick={() =>
-                  onDriverClick && driver.coords && onDriverClick(driver)
-                }
+                onClick={() => {
+                  // The server only exposes authorized driver coordinates to this
+                  // directory. A card tap therefore focuses the live map when a
+                  // dispatcher has a usable/authorized location projection.
+                  if (onDriverClick && driver.coords) {
+                    onDriverClick(driver);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative">
@@ -347,15 +356,72 @@ export function DriverTrackerListCard({
                         {shipments.length > 0 && (
                           <Badge
                             variant="outline"
-                            className="h-7 border-border/50 px-2.5 text-[11px] font-semibold"
+                            className="h-6 border-border/50 px-2 text-[10px] font-semibold sm:h-7 sm:px-2.5 sm:text-[11px]"
                           >
-                            {shipments.length} active load{shipments.length !== 1 ? "s" : ""}
+                            {shipments.length} load{shipments.length !== 1 ? "s" : ""}
                           </Badge>
+                        )}
+
+                        {onOpenDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className={`relative size-8 p-0 md:hidden ${
+                              unreadMessageCount > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-muted-foreground"
+                            }`}
+                            aria-label={`Message ${driver.driver?.name || "driver"}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenDriver(driver, "chat");
+                            }}
+                          >
+                            <MessageSquare className="size-4" />
+                            {unreadMessageCount > 0 && (
+                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[8px] font-black leading-4 text-white">
+                                {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                              </span>
+                            )}
+                          </Button>
+                        )}
+
+                        {onAlertDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="size-8 p-0 text-amber-600 md:hidden dark:text-amber-400"
+                            aria-label={`Alert ${driver.driver?.name || "driver"}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onAlertDriver(driver);
+                            }}
+                          >
+                            <Bell className="size-4" />
+                          </Button>
+                        )}
+
+                        {onOpenDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="size-8 p-0 md:hidden"
+                            aria-label={`Open ${driver.driver?.name || "driver"} workspace`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenDriver(driver, "overview");
+                            }}
+                          >
+                            <ChevronRight className="size-4 text-muted-foreground" />
+                          </Button>
                         )}
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="size-8 p-0"
+                          className="hidden size-8 p-0 md:inline-flex"
                           onClick={(e) => {
                             e.stopPropagation();
                             setExpandedId(isExpanded ? null : driver.id);
@@ -372,7 +438,7 @@ export function DriverTrackerListCard({
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Badge
                         variant="outline"
-                        className={`h-7 px-2.5 text-[11px] ${
+                        className={`h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${
                           operationalStatus === "active"
                             ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
                             : operationalStatus === "on_leave"
@@ -382,10 +448,10 @@ export function DriverTrackerListCard({
                       >
                         Availability: {availabilityLabel}
                       </Badge>
-                      <Badge variant="outline" className={`text-[11px] h-7 px-2.5 ${statusText[driver.status]}`}>
+                      <Badge variant="outline" className={`h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${statusText[driver.status]}`}>
                         Activity: {statusLabel[driver.status]}
                       </Badge>
-                      <Badge variant="outline" className={`text-[11px] h-7 gap-1.5 px-2.5 ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
+                      <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[10px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
                         {driver.isSharing ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
                         {driver.isSharing ? "Sharing" : "Not Sharing"}
                       </Badge>
@@ -408,7 +474,7 @@ export function DriverTrackerListCard({
                         <p className="text-xs text-muted-foreground/80 mt-1">Requested availability: {statusRequest.requestedStatus === "maintenance" ? "In Shop" : "On Leave"} · View request →</p>
                       </button>
                     )}
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    <div className="mt-2 hidden grid-cols-2 gap-1.5 md:grid">
                       {onAlertDriver && (
                         <Button
                           type="button"
@@ -447,8 +513,44 @@ export function DriverTrackerListCard({
                       )}
                     </div>
 
+                    {shipments[0] && (
+                      <div className="mt-2 rounded-xl border border-border/45 bg-muted/[0.10] p-2.5 md:hidden">
+                        <p className="mb-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                          Current Assignment
+                        </p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <Package className="size-3.5 shrink-0 text-primary" />
+                          <span className="min-w-0 break-all text-xs font-black [overflow-wrap:anywhere]">
+                            {shipments[0].trackingNumber || shipments[0].id}
+                          </span>
+                          {shipments[0].status && (
+                            <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[9px]">
+                              {shipments[0].status}
+                            </Badge>
+                          )}
+                        </div>
+                        {(shipments[0].origin || shipments[0].destination) && (
+                          <div className="mt-2 grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px] leading-relaxed">
+                            <span className="font-bold text-muted-foreground">Pickup</span>
+                            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                              {shipments[0].origin || "Not provided"}
+                            </span>
+                            <span className="font-bold text-muted-foreground">Delivery</span>
+                            <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                              {shipments[0].destination || "Not provided"}
+                            </span>
+                          </div>
+                        )}
+                        {shipments.length > 1 && (
+                          <p className="mt-2 text-[10px] font-bold text-muted-foreground">
+                            +{shipments.length - 1} more active load{shipments.length - 1 === 1 ? "" : "s"} in the driver workspace
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {eq?.trailerType && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
+                      <div className="mt-1.5 hidden flex-wrap gap-1 md:flex">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/10 px-2.5 py-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400">
                           <Truck className="size-3" />
                           {trailerLabel(eq.trailerType)}
@@ -460,12 +562,20 @@ export function DriverTrackerListCard({
                         )}
                       </div>
                     )}
+                    {eq?.isComplianceExpired && (
+                      <div className="mt-1.5 md:hidden">
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-700 dark:text-red-300">
+                          <FileCheck2 className="size-3 shrink-0" />
+                          Compliance needs attention
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {isExpanded && (
-                <div className="px-3 pb-3 pt-0 space-y-2 border-t border-border/20 mt-0">
+                <div className="hidden px-3 pb-3 pt-0 space-y-2 border-t border-border/20 mt-0 md:block">
                   <div className="pt-2 grid grid-cols-2 gap-2">
                     {eq?.truckMake && (
                       <div className="rounded-lg bg-muted/30 px-2.5 py-1.5">
@@ -585,7 +695,7 @@ export function DriverTrackerListCard({
                   {shipments.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                        Active Loads
+                        Assigned Loads
                       </p>
                       {shipments.map((s) => (
                         <div

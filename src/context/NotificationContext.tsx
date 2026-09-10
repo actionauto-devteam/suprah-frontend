@@ -268,7 +268,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     return [notification, ...prev];
                 });
                 if (notification.type === 'driver_dispatch_alert') {
-                    playShiftAlertSound(notification.metadata?.soundFile);
+                    // Schema-v2 Dispatch Alerts distinguish a short attention
+                    // ping from an urgent warning. Legacy alerts do not carry
+                    // soundProfile, so keep their historical warning sound.
+                    const soundProfile = notification.metadata?.soundProfile;
+                    const isVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+                    if (isVisible && soundProfile === 'attention') {
+                        playPingSound(notification.metadata?.soundFile);
+                    } else if (isVisible && (soundProfile === 'urgent' || !soundProfile)) {
+                        playShiftAlertSound(notification.metadata?.soundFile);
+                    }
                 } else if (notification.type === 'ping') {
                     playPingSound();
                 }

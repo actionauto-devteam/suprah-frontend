@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Notification } from '@/types/notification';
 import { useCrmToken } from '@/hooks/useCrmToken';
+import { useAuth } from '@/providers/AuthProvider';
+import { initializeSocket } from '@/lib/socket.client';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -31,18 +33,15 @@ const MAX_BACKOFF = 300000;
 const DEFAULT_FETCH_OPTIONS: FetchNotificationsOptions = { limit: 50, skip: 0 };
 
 /**
- * A genuinely separate provider for CRM-identity (CrmUser) notifications —
- * NOT a filter over the main NotificationContext. `/api/notifications` is
- * authenticated with the main-site User JWT only, so it structurally cannot
- * return anything targeted at a CrmUser._id; this context talks to the
- * crmAuth()-gated /api/crm/notifications endpoints instead, using the
- * separate crm_token.
+ * CRM-identity (CrmUser) notifications remain a distinct feed from the main
+ * User notification context. REST continues to authenticate with crm_token.
  *
- * Poll-only by design (no socket wiring) — the shared socket singleton is
- * reused across identities and only holds one room membership at a time, so
- * layering a second reconnect attempt here would make that pre-existing
- * fragility worse. A reliable 20s poll is the deliberate fallback for this
- * phase; see the notification unification plan's Phase D notes.
+ * Real-time delivery reuses the existing main-app socket singleton instead of
+ * opening/re-authenticating a second Socket.IO connection. The backend joins
+ * that socket to a dedicated crm-user:{CrmUser._id} room and emits namespaced
+ * crm:notification:* events, so main User notifications and CRM notifications
+ * can never be mistaken for one another even though they share one socket.
+ * Polling remains as a reconciliation/offline fallback.
  */
 export function CrmNotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -55,6 +54,7 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
     const fetchRef = useRef<((options?: FetchNotificationsOptions) => Promise<void>) | undefined>(undefined);
     const activeFetchOptionsRef = useRef<FetchNotificationsOptions>(DEFAULT_FETCH_OPTIONS);
     const crmToken = useCrmToken();
+    const { getToken, isLoaded, isSignedIn } = useAuth();
 
     const fetchNotifications = useCallback(async (options?: FetchNotificationsOptions) => {
         const nextOptions: FetchNotificationsOptions = { ...activeFetchOptionsRef.current };
@@ -227,7 +227,7 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
             return;
         }
 
-        fetchNotifications(DEFAULT_FETCH_OPTIONS);
+        void fetchNotifications(DEFAULT_FETCH_OPTIONS);
 
         const startPolling = () => {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -253,11 +253,99 @@ export function CrmNotificationProvider({ children }: { children: React.ReactNod
         startPolling();
         document.addEventListener('visibilitychange', onVisibilityChange);
 
+        const cleanups: Array<() => void> = [];
+        let cancelled = false;
+
+        const attachSocketListeners = async () => {
+            if (!isLoaded || !isSignedIn) return;
+            const token = await getToken();
+            if (!token || cancelled) return;
+
+            const socket = initializeSocket(token);
+
+            const reconcile = () => {
+                fetchRef.current?.();
+            };
+
+            const onNew = (notification: Notification) => {
+                setNotifications(prev => {
+                    if (prev.some(n => n._id === notification._id)) return prev;
+                    return [notification, ...prev];
+                });
+                if (!notification.isRead) {
+                    setUnreadCount(prev => prev + 1);
+                }
+                setTotalCount(prev => prev + 1);
+                // The local update is instant; REST then confirms filtered counts
+                // and recovers any event that may have been missed previously.
+                reconcile();
+            };
+
+            const onUpdated = (notification: Notification) => {
+                setNotifications(prev => {
+                    const exists = prev.some(n => n._id === notification._id);
+                    return exists
+                        ? prev.map(n => n._id === notification._id ? notification : n)
+                        : [notification, ...prev];
+                });
+                reconcile();
+            };
+
+            const onRead = ({ notificationId }: { notificationId?: string }) => {
+                if (!notificationId) return;
+                setNotifications(prev => prev.map(n =>
+                    n._id === notificationId ? { ...n, isRead: true } : n,
+                ));
+                reconcile();
+            };
+
+            const onReadAll = () => {
+                setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                setUnreadCount(0);
+                reconcile();
+            };
+
+            const onDeleted = ({ notificationId }: { notificationId?: string }) => {
+                if (!notificationId) return;
+                setNotifications(prev => prev.filter(n => n._id !== notificationId));
+                reconcile();
+            };
+
+            const onDeleteAllRead = () => {
+                setNotifications(prev => prev.filter(n => !n.isRead));
+                reconcile();
+            };
+
+            const onConnect = () => reconcile();
+
+            socket.on('crm:notification:new', onNew);
+            socket.on('crm:notification:updated', onUpdated);
+            socket.on('crm:notification:read', onRead);
+            socket.on('crm:notification:readAll', onReadAll);
+            socket.on('crm:notification:deleted', onDeleted);
+            socket.on('crm:notification:deleteAllRead', onDeleteAllRead);
+            socket.on('connect', onConnect);
+
+            cleanups.push(
+                () => socket.off('crm:notification:new', onNew),
+                () => socket.off('crm:notification:updated', onUpdated),
+                () => socket.off('crm:notification:read', onRead),
+                () => socket.off('crm:notification:readAll', onReadAll),
+                () => socket.off('crm:notification:deleted', onDeleted),
+                () => socket.off('crm:notification:deleteAllRead', onDeleteAllRead),
+                () => socket.off('connect', onConnect),
+            );
+        };
+
+        attachSocketListeners().catch(() => {});
+
         return () => {
+            cancelled = true;
             stopPolling();
             document.removeEventListener('visibilitychange', onVisibilityChange);
+            cleanups.forEach(fn => fn());
         };
-    }, [fetchNotifications, crmToken]);
+    }, [crmToken, fetchNotifications, getToken, isLoaded, isSignedIn]);
 
     return (
         <CrmNotificationContext.Provider

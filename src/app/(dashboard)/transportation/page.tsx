@@ -934,6 +934,7 @@ function TransportationPageInner() {
                     <TransportationMobileLoadCard
                       key={load._id}
                       load={load}
+                      presentation="load-board"
                       onDelete={handleDeleteBoardLoad}
                       isDeleting={boardDeletingId === load._id}
                       onInspect={(selected, tab = "overview") => {
@@ -1051,6 +1052,7 @@ function TransportationPageInner() {
                     <TransportationMobileLoadCard
                       key={load._id}
                       load={load}
+                      presentation="shipments"
                       onDelete={handleDeleteLoad}
                       onInspect={(selected, tab = "overview") => {
                         setInspectedMobileQuote(null);

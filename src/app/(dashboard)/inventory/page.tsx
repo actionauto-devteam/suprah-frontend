@@ -1057,59 +1057,41 @@ function InventoryContent() {
 
       {/* ─── Filters ─────────────────────────────────────────────── */}
       <div ref={resultsTopRef} className="shrink-0 scroll-mt-3">
-        <ShopInventoryFilters
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-          apiPath="/api/vehicles/filters"
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          currentSortValue={currentSortValue}
-          onSortChange={handleSortChange}
-          sortOptions={INVENTORY_SORT_OPTIONS}
-          resultCount={total}
-        />
+        {/* Match Transportation mobile section boundaries:
+            the line is page-level, full-width, and backed by a contrasting
+            card surface instead of relying only on child-control borders. */}
+        <div className="-mx-3 border-y border-border bg-card/70 px-3 py-3 md:mx-0 md:border-0 md:bg-transparent md:p-0">
+          <ShopInventoryFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+            apiPath="/api/vehicles/filters"
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            currentSortValue={currentSortValue}
+            onSortChange={handleSortChange}
+            sortOptions={INVENTORY_SORT_OPTIONS}
+            resultCount={total}
+          />
+        </div>
       </div>
 
       {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
       <div className="flex-1 min-h-0">
         {isInitialLoading ? (
-          <>
-            <div className="grid grid-cols-1 gap-4 md:hidden" aria-label="Loading inventory" aria-busy="true">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="overflow-hidden rounded-2xl border border-border/50 bg-card/40">
-                  <div className="aspect-[16/9] animate-pulse bg-muted/70" />
-                  <div className="space-y-3 p-3">
-                    <div className="h-5 w-3/4 animate-pulse rounded-lg bg-muted/70" />
-                    <div className="h-4 w-1/2 animate-pulse rounded-lg bg-muted/50" />
-                    <div className="flex gap-2">
-                      <div className="h-4 w-24 animate-pulse rounded-lg bg-muted/50" />
-                      <div className="h-4 w-20 animate-pulse rounded-lg bg-muted/50" />
-                    </div>
-                    <div className="h-8 w-32 animate-pulse rounded-lg bg-muted/70" />
-                    <div className="grid grid-cols-[0.9fr_1.4fr_auto] gap-2">
-                      <div className="h-11 animate-pulse rounded-xl bg-muted/60" />
-                      <div className="h-11 animate-pulse rounded-xl bg-muted/70" />
-                      <div className="h-11 w-11 animate-pulse rounded-xl bg-muted/60" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="hidden min-h-56 items-center justify-center rounded-2xl border border-border/50 bg-card/30 px-6 py-12 text-center md:flex">
-              <div className="flex max-w-sm flex-col items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">Loading inventory</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Fetching the latest vehicle records. Results will appear here when ready.
-                  </p>
-                </div>
+          <div className="flex min-h-56 items-center justify-center rounded-2xl border border-border/50 bg-card/30 px-6 py-12 text-center">
+            <div className="flex max-w-sm flex-col items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Loading inventory</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Fetching the latest vehicle records. Results will appear here when ready.
+                </p>
               </div>
             </div>
-          </>
+          </div>
         ) : visibleVehicles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">

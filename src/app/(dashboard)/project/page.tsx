@@ -80,10 +80,7 @@ import {
 import { MyTasksPanel } from "@/components/project/my-tasks-panel";
 import { MentionsPanel } from "@/components/project/mentions-panel";
 import { NotificationsBell } from "@/components/project/notifications-bell";
-import {
-  ProjectNotificationProvider,
-  useProjectNotifications,
-} from "@/context/ProjectNotificationContext";
+import { useProjectNotifications } from "@/context/ProjectNotificationContext";
 import { useProjectSocket } from "@/hooks/useProjectSocket";
 import type { Socket } from "socket.io-client";
 
@@ -134,11 +131,7 @@ const TABS: Array<{ id: PageTab; label: string; icon: React.ElementType }> = [
 
 export default function ProjectManagementPage() {
   const socket = useProjectSocket();
-  return (
-    <ProjectNotificationProvider socket={socket}>
-      <ProjectManagementPageInner socket={socket} />
-    </ProjectNotificationProvider>
-  );
+  return <ProjectManagementPageInner socket={socket} />;
 }
 
 function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
@@ -900,21 +893,66 @@ function GroupWorkspace({
     return () => window.removeEventListener("focus", onFocus);
   }, [loadTree]);
 
-  // Live: any task/section/folder change inside THIS group refreshes the tree.
+  // Live project updates. Status changes carry everything this workspace needs
+  // to update the affected row, so patch them locally instead of waiting for a
+  // second GET /tree round-trip. Other structural events still use loadTree()
+  // because they may add/remove/reorder multiple entities.
   React.useEffect(() => {
     if (!socket) return;
-    const onChange = (payload: { groupId?: string }) => {
-      if (payload?.groupId === groupId) loadTree();
+
+    const onTaskStatus = (payload: {
+      groupId?: string;
+      taskId?: string;
+      status?: ProjectTaskStatus;
+      changedBy?: string;
+    }) => {
+      if (payload?.groupId !== groupId || !payload.taskId || !payload.status) return;
+
+      setTasks((current) =>
+        current.map((task) =>
+          task._id === payload.taskId
+            ? {
+                ...task,
+                status: payload.status!,
+                // A change made by somebody else is fresh activity for this viewer.
+                // The backend remains the source of truth and focus/load fallbacks
+                // will reconcile this flag if a socket event was missed.
+                unseenForMe:
+                  payload.changedBy && payload.changedBy !== meId
+                    ? true
+                    : task.unseenForMe,
+              }
+            : task,
+        ),
+      );
     };
-    const events = [
-      "pm:task:new", "pm:task:updated", "pm:task:status", "pm:task:deleted",
-      "pm:comment:new", "pm:comment:deleted",
-      "pm:section:new", "pm:section:updated", "pm:section:deleted",
-      "pm:folder:new", "pm:folder:updated", "pm:folder:deleted",
+
+    const onStructuralChange = (payload: { groupId?: string }) => {
+      if (payload?.groupId === groupId) void loadTree();
+    };
+
+    const structuralEvents = [
+      "pm:task:new",
+      "pm:task:updated",
+      "pm:task:deleted",
+      "pm:comment:new",
+      "pm:comment:deleted",
+      "pm:section:new",
+      "pm:section:updated",
+      "pm:section:deleted",
+      "pm:folder:new",
+      "pm:folder:updated",
+      "pm:folder:deleted",
     ];
-    events.forEach((e) => socket.on(e, onChange));
-    return () => events.forEach((e) => socket.off(e, onChange));
-  }, [socket, groupId, loadTree]);
+
+    socket.on("pm:task:status", onTaskStatus);
+    structuralEvents.forEach((event) => socket.on(event, onStructuralChange));
+
+    return () => {
+      socket.off("pm:task:status", onTaskStatus);
+      structuralEvents.forEach((event) => socket.off(event, onStructuralChange));
+    };
+  }, [socket, groupId, loadTree, meId]);
 
   const membersById = React.useMemo(
     () => new Map(members.map((m) => [m._id, m])),

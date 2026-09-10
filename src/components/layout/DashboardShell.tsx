@@ -147,7 +147,7 @@ function DashboardShellContent({ children }: DashboardShellProps) {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-hidden bg-background pb-24 md:pb-0">
+        <main className="flex-1 overflow-hidden bg-background pb-[var(--mobile-bottom-nav-offset)] md:pb-0">
           {children}
         </main>
         <MobileBottomNav items={dealershipNav} allItems={dealershipMobileModules} />

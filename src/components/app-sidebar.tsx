@@ -43,6 +43,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useUser, useAuthActions } from "@/providers/AuthProvider";
 import { useOrg } from "@/hooks/useOrg";
@@ -294,6 +295,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
+  const { setOpenMobile } = useSidebar();
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
@@ -334,6 +336,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const activeNavMain: SidebarNavItem[] = isCustomer
     ? customerData.navMain
     : data.navMain;
+
+  const closeMobileSidebar = React.useCallback(() => {
+    // Mobile Sidebar is rendered as a controlled Radix Sheet. Closing its
+    // openMobile state also removes the backdrop/focus trap/scroll lock.
+    // This state is separate from the desktop collapsed/expanded state, so
+    // desktop sidebar behavior is not changed.
+    setOpenMobile(false);
+  }, [setOpenMobile]);
+
+  // Route-change fallback: if navigation is started programmatically or a
+  // child Link completes before its click handler is observed, make sure the
+  // mobile Sheet cannot survive into the destination module.
+  React.useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   React.useEffect(() => {
     router.prefetch("/profile");
@@ -454,7 +471,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   isActive={isActive}
                   className={navItemClass}
                 >
-                  <Link href={item.url}>
+                  <Link href={item.url} onClick={closeMobileSidebar}>
                     {isActive && <ActiveStrip />}
                     <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                     <span className="font-medium tracking-widest">{item.title}</span>
@@ -499,7 +516,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={navItemClass}
                     >
-                      <Link href={href} {...linkTargetProps}>
+                      <Link href={href} onClick={closeMobileSidebar} {...linkTargetProps}>
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
@@ -604,7 +621,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={navItemClass}
                     >
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={closeMobileSidebar}>
                         {isActive && <ActiveStrip />}
                         <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                         <span className="tracking-widest">{item.title}</span>
@@ -659,7 +676,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       isActive={isActive}
                       className={navItemClass}
                     >
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={closeMobileSidebar}>
                         {isActive && <ActiveStrip />}
                         <item.icon
                           className={cn(
@@ -709,7 +726,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
                       )}
                     >
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={closeMobileSidebar}>
                         {isActive && <ActiveStrip />}
                         <item.icon
                           className={cn(
@@ -749,7 +766,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   isActive={isActive}
                   className={navItemClass}
                 >
-                  <Link href={item.url}>
+                  <Link href={item.url} onClick={closeMobileSidebar}>
                     {isActive && <ActiveStrip />}
                     <item.icon className="transition-transform duration-200 group-hover/item:scale-110" />
                     <span className="tracking-widest">{item.title}</span>
@@ -822,11 +839,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    closeMobileSidebar();
+                    router.push("/profile");
+                  }}
+                >
                   <UserIcon className="mr-2 size-4" />
                   Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    closeMobileSidebar();
+                    router.push("/settings");
+                  }}
+                >
                   <SettingsIcon className="mr-2 size-4" />
                   Settings
                 </DropdownMenuItem>

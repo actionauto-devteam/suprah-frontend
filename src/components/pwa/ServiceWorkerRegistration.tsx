@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { playShiftAlertSound } from "@/lib/notification-sound";
+import { playPingSound, playShiftAlertSound } from "@/lib/notification-sound";
 
 const ENABLE_SW_DEV = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
@@ -14,9 +14,8 @@ export function ServiceWorkerRegistration() {
             // this flag existed, or while ENABLE_SW_DEV was briefly true) stays
             // active across dev-server restarts. Its baked-in precache manifest
             // then references hashed build filenames that no longer exist once
-            // the dev server rebuilds, producing a stream of "bad-precaching-response
-            // 404" errors. Since dev intentionally has no working SW, clean up
-            // any leftover registration + caches instead of leaving it to fail.
+            // the dev server rebuilds. Development intentionally has no working
+            // SW, so remove stale registrations and caches instead.
             navigator.serviceWorker.getRegistrations().then((regs) => {
                 regs.forEach((r) => r.unregister());
             }).catch(() => {});
@@ -45,12 +44,14 @@ export function ServiceWorkerRegistration() {
             }
         };
 
-        // Shift Alerts pushes ask the SW to have any open client play the
-        // dedicated warning sound — see sw.ts's push handler and
-        // playShiftAlertSound() in lib/notification-sound.ts. Only reachable
-        // while a tab/PWA window is open; closed/locked falls back to the
-        // OS's own default notification sound (Web Push has no sound field).
+        // Custom files can only be played by an open page/PWA client. Closed or
+        // locked devices still receive the OS/browser notification sound. The
+        // worker now distinguishes an attention ping from an urgent warning.
         const handleSwMessage = (event: MessageEvent) => {
+            if (event.data?.type === "PLAY_ATTENTION_ALERT_SOUND") {
+                playPingSound(event.data.soundFile);
+                return;
+            }
             if (event.data?.type === "PLAY_SHIFT_ALERT_SOUND") {
                 playShiftAlertSound(event.data.soundFile);
             }

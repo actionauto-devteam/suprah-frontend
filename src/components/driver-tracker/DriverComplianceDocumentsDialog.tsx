@@ -627,7 +627,8 @@ export function DriverComplianceDocumentsDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[94dvh] max-w-none flex-col gap-0 overflow-hidden p-0"
+          className="z-[90] flex max-h-[94dvh] max-w-none flex-col gap-0 overflow-hidden p-0"
+          overlayClassName="z-[80] bg-black/70 backdrop-blur-[3px]"
           style={{ width: "min(96vw, 78rem)", maxWidth: "min(96vw, 78rem)" }}
         >
           <DialogHeader className="shrink-0 border-b border-border/70 bg-linear-to-b from-emerald-500/[0.07] to-background px-4 py-4 sm:px-6 sm:py-5">
@@ -675,7 +676,31 @@ export function DriverComplianceDocumentsDialog({
 
           {profile && (
             <div className="shrink-0 border-b border-border/60 bg-muted/[0.12] px-3 py-2 sm:px-5">
-              <div className="flex gap-1 overflow-x-auto pb-1">
+              <div className="sm:hidden">
+                <label
+                  htmlFor="driver-review-section"
+                  className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground"
+                >
+                  Review Section
+                </label>
+                <select
+                  id="driver-review-section"
+                  value={activeTab}
+                  onChange={(event) =>
+                    setActiveTab(event.target.value as ReviewTab)
+                  }
+                  className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm font-bold text-foreground shadow-sm outline-none transition-colors focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/15"
+                  aria-label="Select Driver Review Center section"
+                >
+                  {TABS.map((tab) => (
+                    <option key={tab.id} value={tab.id}>
+                      {tab.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="hidden gap-1 overflow-x-auto pb-1 sm:flex">
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   const active = activeTab === tab.id;
@@ -684,7 +709,7 @@ export function DriverComplianceDocumentsDialog({
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                      className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
                         active
                           ? "bg-foreground text-background"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1071,7 +1096,7 @@ export function DriverComplianceDocumentsDialog({
           setRejectReason("");
         }
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="z-[110] sm:max-w-md" overlayClassName="z-[100] bg-black/70 backdrop-blur-[2px]">
           <DialogHeader>
             <DialogTitle>Reject Document</DialogTitle>
             <DialogDescription>
@@ -1106,7 +1131,7 @@ export function DriverComplianceDocumentsDialog({
       <Dialog open={showFinalApprove} onOpenChange={(next) => {
         if (actionLoading !== "final-approval") setShowFinalApprove(next);
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="z-[110] sm:max-w-md" overlayClassName="z-[100] bg-black/70 backdrop-blur-[2px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><BadgeCheck className="size-5 text-emerald-500" /> Final Approve Driver</DialogTitle>
             <DialogDescription>
@@ -1130,7 +1155,7 @@ export function DriverComplianceDocumentsDialog({
       <Dialog open={!!previewDocument} onOpenChange={(next) => {
         if (!next) closePreview();
       }}>
-        <DialogContent className="flex h-[88dvh] max-w-5xl flex-col overflow-hidden p-0">
+        <DialogContent className="z-[110] flex h-[88dvh] max-w-5xl flex-col overflow-hidden p-0" overlayClassName="z-[100] bg-black/70 backdrop-blur-[2px]">
           <DialogHeader className="shrink-0 border-b border-border/60 px-5 py-4 text-left">
             <DialogTitle>{previewDocument?.label || previewDocument?.fileName || "Driver Document"}</DialogTitle>
             <DialogDescription>

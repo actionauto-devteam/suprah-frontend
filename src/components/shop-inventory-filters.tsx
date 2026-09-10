@@ -36,7 +36,7 @@ function pillSelectCls(active: boolean) {
     "focus:ring-0 focus:ring-offset-0 data-[state=open]:border-primary/50 data-[state=open]:ring-2 data-[state=open]:ring-primary/10",
     active
       ? "border-primary bg-primary/10 text-primary font-semibold dark:bg-primary/15"
-      : "border-border/60 hover:border-border dark:border-zinc-700 dark:hover:border-zinc-500 text-muted-foreground hover:text-foreground",
+      : "border-border/60 bg-card/60 hover:border-border dark:border-zinc-700 dark:hover:border-zinc-500 text-muted-foreground hover:text-foreground",
   );
 }
 
@@ -108,7 +108,7 @@ function MobileFilterSelect({
         {label}
       </span>
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="h-11 w-full rounded-xl border-border/60 bg-card text-sm dark:bg-zinc-900">
+        <SelectTrigger className="h-10 w-full rounded-xl border-border/60 bg-background/70 text-sm shadow-sm dark:bg-zinc-900/80">
           <SelectValue />
         </SelectTrigger>
         <SelectContent
@@ -331,7 +331,7 @@ export function ShopInventoryFilters({
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
           <Input
             placeholder="Search make, model, VIN, stock #..."
-            className="h-11 rounded-xl border-border/50 bg-card pl-10 pr-10 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/40 dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 rounded-xl border-border/60 bg-background/70 pl-10 pr-9 text-sm shadow-sm placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-emerald-500/35 dark:border-zinc-700 dark:bg-zinc-900/80"
             value={filters.search || ""}
             onChange={(event) => onFilterChange("search", event.target.value)}
           />
@@ -347,12 +347,12 @@ export function ShopInventoryFilters({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center overflow-hidden rounded-xl border border-border/50 dark:border-zinc-700">
+        <div className="flex shrink-0 items-center overflow-hidden rounded-xl border border-border/60 bg-background/60 shadow-sm dark:border-zinc-700">
           <button
             type="button"
             onClick={() => onViewModeChange("grid")}
             className={cn(
-              "flex h-11 w-11 items-center justify-center transition-colors touch-manipulation",
+              "flex h-10 w-10 items-center justify-center transition-colors",
               viewMode === "grid"
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted",
@@ -366,7 +366,7 @@ export function ShopInventoryFilters({
             type="button"
             onClick={() => onViewModeChange("list")}
             className={cn(
-              "flex h-11 w-11 items-center justify-center transition-colors touch-manipulation",
+              "flex h-10 w-10 items-center justify-center border-l border-border/50 transition-colors",
               viewMode === "list"
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted",
@@ -387,10 +387,10 @@ export function ShopInventoryFilters({
           aria-expanded={mobileFiltersOpen}
           aria-controls="mobile-inventory-filters"
           className={cn(
-            "flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors touch-manipulation",
+            "flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/60 px-3 text-xs font-bold shadow-sm transition-colors",
             activeCount > 0 || hasRangeFilter
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border/60 bg-card text-foreground dark:bg-zinc-900",
+              ? "border-emerald-500/35 bg-emerald-500/6 text-foreground"
+              : "text-foreground",
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -408,14 +408,17 @@ export function ShopInventoryFilters({
             onValueChange={onSortChange}
             active={!!currentSortValue}
             ariaLabel="Sort inventory"
-            className="h-11 w-full min-w-0 justify-between rounded-xl px-3"
+            className="h-9 w-full min-w-0 justify-between rounded-xl px-3 shadow-sm"
             options={sortOptions}
           />
         </div>
       </div>
 
       {activeCount > 0 && !mobileFiltersOpen && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 md:hidden no-scrollbar">
+        <div
+          className="flex min-w-0 flex-wrap items-start gap-1.5 pb-0.5 md:hidden"
+          aria-label="Active inventory filters"
+        >
           {chipEntries.map(([key, value]) => {
             const label = FILTER_LABELS[key] ?? key;
             const displayVal =
@@ -428,25 +431,34 @@ export function ShopInventoryFilters({
             return (
               <span
                 key={key}
-                className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-3 py-1.5 text-[11px] font-semibold text-primary dark:bg-primary/12"
+                className="inline-flex min-h-8 min-w-0 max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold leading-relaxed text-primary shadow-sm dark:bg-primary/12"
               >
-                <span className="opacity-70">{label}</span>
-                {displayVal && <span>: {displayVal}</span>}
+                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                  <span className="opacity-70">{label}</span>
+                  {displayVal && <span>: {displayVal}</span>}
+                </span>
+
                 <button
                   type="button"
-                  onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)}
-                  className="ml-0.5 rounded-full p-1 transition-colors hover:bg-primary/20"
+                  onClick={() =>
+                    onFilterChange(
+                      key,
+                      key === "status" ? "all" : undefined,
+                    )
+                  }
+                  className="ml-0.5 flex size-5 shrink-0 touch-manipulation items-center justify-center rounded-full transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   aria-label={`Remove ${label} filter`}
                 >
-                  <X className="h-2.5 w-2.5" />
+                  <X className="h-3 w-3" />
                 </button>
               </span>
             );
           })}
+
           <button
             type="button"
             onClick={onClearFilters}
-            className="min-h-8 shrink-0 rounded-full px-3 text-[11px] font-bold text-muted-foreground transition-colors hover:text-destructive"
+            className="inline-flex min-h-8 shrink-0 touch-manipulation items-center rounded-full px-2.5 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
           >
             Clear all
           </button>
@@ -456,17 +468,17 @@ export function ShopInventoryFilters({
       {mobileFiltersOpen && (
         <section
           id="mobile-inventory-filters"
-          className="md:hidden flex max-h-[68vh] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-sm dark:bg-zinc-900/70"
+          className="md:hidden flex max-h-64 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/75 shadow-sm dark:bg-zinc-900/75"
           aria-label="Inventory filters"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-border/50 px-3.5 py-2.5">
+          <div className="flex items-center justify-between gap-3 border-b border-border/50 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <SlidersHorizontal className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black text-foreground">Inventory Filters</p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-[10px] text-muted-foreground">
                   {resultCount !== undefined
                     ? `${resultCount.toLocaleString()} ${resultCount === 1 ? "vehicle" : "vehicles"} match`
                     : "Refine the vehicles shown below"}
@@ -476,7 +488,7 @@ export function ShopInventoryFilters({
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(false)}
-              className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-border/50 px-3 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-border/50 px-2.5 text-[11px] font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ChevronUp className="h-3.5 w-3.5" />
               Hide
@@ -533,23 +545,23 @@ export function ShopInventoryFilters({
             <div className="rounded-xl border border-border/50 bg-muted/20 p-3 dark:bg-zinc-950/35">
               <div className="mb-2.5 flex items-center gap-2">
                 <ArrowUpDown className="h-3.5 w-3.5 text-primary/70" />
-                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-muted-foreground">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                   Price & Mileage Range
                 </span>
               </div>
               <div className="space-y-2.5">
                 <div>
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price</p>
+                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Price</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input type="number" inputMode="numeric" placeholder="Min $" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={priceMin} onChange={(event) => handleMinPriceChange(event.target.value)} />
-                    <Input type="number" inputMode="numeric" placeholder="Max $" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={priceMax} onChange={(event) => handleMaxPriceChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Min $" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={priceMin} onChange={(event) => handleMinPriceChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Max $" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={priceMax} onChange={(event) => handleMaxPriceChange(event.target.value)} />
                   </div>
                 </div>
                 <div>
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Mileage</p>
+                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Mileage</p>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input type="number" inputMode="numeric" placeholder="Min miles" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={mileMin} onChange={(event) => handleMinMileageChange(event.target.value)} />
-                    <Input type="number" inputMode="numeric" placeholder="Max miles" className="h-11 rounded-xl border-border/50 bg-background text-sm" value={mileMax} onChange={(event) => handleMaxMileageChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Min miles" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={mileMin} onChange={(event) => handleMinMileageChange(event.target.value)} />
+                    <Input type="number" inputMode="numeric" placeholder="Max miles" className="h-9 rounded-xl border-border/60 bg-background/70 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-emerald-500/35" value={mileMax} onChange={(event) => handleMaxMileageChange(event.target.value)} />
                   </div>
                 </div>
               </div>
@@ -560,14 +572,14 @@ export function ShopInventoryFilters({
             <button
               type="button"
               onClick={onClearFilters}
-              className="h-11 rounded-xl border border-border/60 bg-card text-xs font-bold text-foreground transition-colors hover:bg-muted"
+              className="h-9 rounded-xl border border-border/60 bg-card text-xs font-bold text-foreground transition-colors hover:bg-muted"
             >
               Clear filters
             </button>
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(false)}
-              className="h-11 rounded-xl bg-primary text-xs font-black text-primary-foreground transition-colors hover:bg-primary/90"
+              className="h-9 rounded-xl bg-primary text-xs font-black text-primary-foreground transition-colors hover:bg-primary/90"
             >
               {resultCount !== undefined ? `Show ${resultCount.toLocaleString()}` : "Show results"}
             </button>
@@ -694,7 +706,7 @@ export function ShopInventoryFilters({
                 <span key={key} className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary/12">
                   <span className="opacity-70">{label}</span>
                   {displayVal && <span>: {displayVal}</span>}
-                  <button type="button" onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)} className="ml-0.5 rounded-full p-1 transition-colors hover:bg-primary/20" aria-label={`Remove ${label} filter`}>
+                  <button type="button" onClick={() => onFilterChange(key, key === "status" ? "all" : undefined)} className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary/20" aria-label={`Remove ${label} filter`}>
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>

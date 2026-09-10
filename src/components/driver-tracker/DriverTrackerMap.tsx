@@ -91,6 +91,17 @@ export function DriverTrackerMap({
   const informationalNotice =
     mapNotice && !isInitialLoading && !showThemeTransition ? mapNotice : null;
 
+  const [legendOpen, setLegendOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 768px)");
+    const syncLegend = () => setLegendOpen(media.matches);
+    syncLegend();
+    media.addEventListener?.("change", syncLegend);
+    return () => media.removeEventListener?.("change", syncLegend);
+  }, []);
+
   const mapControls = [
     {
       action: onZoomIn,
@@ -110,13 +121,48 @@ export function DriverTrackerMap({
   ];
 
   return (
-    <Card className="gap-0 overflow-hidden border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300">
+    <Card
+      data-driver-tracker-map-shell
+      className="gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:rounded-xl md:border-x"
+    >
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/[0.08]">
+            <MapPinned className="size-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-primary/80">
+              Suprah Live Fleet
+            </p>
+            <p className="mt-0.5 break-words text-xs font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-sm">
+              Live Driver Map
+            </p>
+          </div>
+        </div>
+
+        <div
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${
+            activeCount > 0
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : "border-border/50 bg-muted/25 text-muted-foreground"
+          }`}
+        >
+          <span
+            className={`size-1.5 rounded-full ${
+              activeCount > 0 ? "bg-emerald-500 animate-pulse motion-reduce:animate-none" : "bg-slate-400"
+            }`}
+          />
+          {activeCount > 0 ? `${activeCount} GPS Sharing` : "No GPS Sharing"}
+        </div>
+      </div>
+
       <CardContent className="p-0">
         <div
           className={`
-            relative h-[60vh] min-h-80 max-h-105 touch-none overflow-hidden
+            relative h-[36dvh] min-h-[17rem] max-h-[23rem] touch-none overflow-hidden
             bg-background text-foreground transition-colors duration-300
-            sm:h-120 lg:h-150 lg:max-h-none
+            sm:h-[40dvh] sm:max-h-[29rem] md:h-120 md:max-h-none
+            lg:h-150 lg:max-h-none
             ${showThemeTransition ? "[&_.map-ui-control]:opacity-75" : ""}
           `}
         >
@@ -320,8 +366,9 @@ export function DriverTrackerMap({
           {/* Status legend */}
           {isMapReady && (
             <details
-              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-44 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-4 sm:left-4 sm:w-48"
-              open
+              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-4 sm:left-4 sm:w-48"
+              open={legendOpen}
+              onToggle={(event) => setLegendOpen(event.currentTarget.open)}
             >
               <summary className="flex cursor-pointer list-none select-none items-center justify-between p-3 sm:p-4 sm:pb-0 [&::-webkit-details-marker]:hidden">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">

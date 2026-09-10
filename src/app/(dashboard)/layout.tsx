@@ -17,6 +17,8 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { CrmNotificationProvider } from "@/context/CrmNotificationContext";
 import { CalendarNotificationProvider } from "@/context/CalendarNotificationContext";
 import { useCalendarSocket } from "@/hooks/useCalendarSocket";
+import { ProjectNotificationProvider } from "@/context/ProjectNotificationContext";
+import { useProjectSocket } from "@/hooks/useProjectSocket";
 import { SupraSpaceMessengerProvider } from "@/context/SupraSpaceMessengerContext";
 import { MessengerDropdown } from "@/components/supraspace/MessengerDropdown";
 import { ChatPopupManager } from "@/components/supraspace/ChatPopupManager";
@@ -473,6 +475,20 @@ function CalendarNotificationsGate({ children }: { children: React.ReactNode }) 
   );
 }
 
+/**
+ * Project notifications live at the dashboard-shell level so AppSidebar and
+ * /project consume the SAME unread state and the SAME shared socket. The hook
+ * reuses socket.client.ts's singleton; it does not create a second connection.
+ */
+function ProjectNotificationsGate({ children }: { children: React.ReactNode }) {
+  const socket = useProjectSocket();
+  return (
+    <ProjectNotificationProvider socket={socket}>
+      {children}
+    </ProjectNotificationProvider>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: Readonly<{
@@ -505,7 +521,9 @@ export default function DashboardLayout({
               CrmNotificationProvider is safe outside CRM routes: without a
               crm_token it remains idle and exposes an empty CRM feed. */}
           <CrmNotificationProvider>
-            <CalendarNotificationsGate>{content}</CalendarNotificationsGate>
+            <ProjectNotificationsGate>
+              <CalendarNotificationsGate>{content}</CalendarNotificationsGate>
+            </ProjectNotificationsGate>
           </CrmNotificationProvider>
         </NotificationProvider>
       </ProfileToastProvider>

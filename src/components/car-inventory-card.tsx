@@ -361,9 +361,9 @@ export function CarInventoryCard({
     Number.isFinite(vehicle.daysOnLot) ? Number(vehicle.daysOnLot) : 0,
   );
   const priceUpdatedLabel = React.useMemo(() => {
-    if (!vehicle.priceUpdatedAt) return "No price update recorded";
+    if (!vehicle.priceUpdatedAt) return "No update recorded";
     const date = new Date(vehicle.priceUpdatedAt);
-    if (Number.isNaN(date.getTime())) return "No price update recorded";
+    if (Number.isNaN(date.getTime())) return "No update recorded";
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
@@ -479,7 +479,7 @@ export function CarInventoryCard({
 
         <div className="hidden sm:flex flex-col items-end justify-center gap-1 pr-5 pl-3 py-2 shrink-0 border-l border-border/30 min-w-40">
           {!hasPrice ? (
-            <span className="text-xl font-black text-primary">Price Pending</span>
+            <span className="text-lg font-black text-primary">Price Pending</span>
           ) : hasDiscount ? (
             <>
               <div className="flex items-center gap-1.5">
@@ -532,7 +532,7 @@ export function CarInventoryCard({
           {statusCfg && (
             <Badge
               className={cn(
-                "mt-0.5 flex h-6 max-w-full items-center gap-1 rounded-full px-2 text-[11px] font-bold leading-none whitespace-nowrap",
+                "mt-0.5 flex h-5 max-w-full items-center gap-1 rounded-full px-2 text-[10px] font-bold leading-none whitespace-nowrap",
                 statusCfg.pill,
               )}
             >
@@ -554,8 +554,8 @@ export function CarInventoryCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-2xl border border-border/40 bg-card",
-        "transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/8 hover:-translate-y-0.5",
+        "group relative flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_0_0_1px_rgba(148,163,184,0.10)]",
+        "transition-all duration-300 hover:border-primary/45 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-0.5",
       )}
     >
       <VehicleImage
@@ -582,15 +582,15 @@ export function CarInventoryCard({
 
       <div
         className={cn(
-          "flex flex-1 flex-col cursor-pointer",
-          mobileOptimized ? "gap-2.5 p-3 sm:gap-3 sm:p-4" : "gap-3 p-4",
+          "flex flex-1 flex-col cursor-pointer border-t border-border/40",
+          mobileOptimized ? "gap-2.5 px-3 py-3 sm:gap-3 sm:p-4" : "gap-3 p-4",
         )}
         onClick={() => onVehicleClick?.(vehicle)}
       >
         <div>
           <h3
             className={cn(
-              "font-bold text-base leading-snug text-foreground group-hover:text-primary transition-colors",
+              "font-bold text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors",
               mobileOptimized ? "line-clamp-2 sm:line-clamp-1" : "line-clamp-1",
             )}
           >
@@ -601,26 +601,65 @@ export function CarInventoryCard({
           )}
         </div>
 
-        <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <GaugeIcon className="h-3.5 w-3.5 text-primary/50 shrink-0" />
-            {safeMileage.toLocaleString()} mi
-          </span>
-          <span className="h-3 w-px bg-border/60" />
-          <span className="flex min-w-0 items-center gap-1.5 truncate">
-            <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{safeLocation}</span>
-          </span>
-          {showInventoryMeta && mobileOptimized && (
-            <>
-              <span className="h-3 w-px bg-border/60 sm:hidden" />
-              <span className="flex shrink-0 items-center gap-1 sm:hidden">
-                <Clock3 className="h-3.5 w-3.5 text-primary/60" />
-                {daysOnLot}d
+        {mobileOptimized ? (
+          <>
+            <div className="grid grid-cols-3 gap-1.5 sm:hidden">
+              <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                  <GaugeIcon className="h-3 w-3 shrink-0 text-emerald-500/80" />
+                  Mileage
+                </span>
+                <span className="mt-1 block truncate text-[11px] font-black text-foreground tabular-nums">
+                  {safeMileage.toLocaleString()} mi
+                </span>
+              </div>
+
+              <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                  <MapPinIcon className="h-3 w-3 shrink-0 text-cyan-500/80" />
+                  Location
+                </span>
+                <span className="mt-1 block truncate text-[11px] font-black text-foreground">
+                  {safeLocation}
+                </span>
+              </div>
+
+              <div className="min-w-0 rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.04em] text-muted-foreground/75">
+                  <Clock3 className="h-3 w-3 shrink-0 text-amber-500/80" />
+                  Days on lot
+                </span>
+                <span className="mt-1 block truncate text-[11px] font-black text-foreground tabular-nums">
+                  {daysOnLot}d
+                </span>
+              </div>
+            </div>
+
+            <div className="hidden items-center gap-3 text-xs text-muted-foreground sm:flex">
+              <span className="flex items-center gap-1.5">
+                <GaugeIcon className="h-3.5 w-3.5 text-primary/50 shrink-0" />
+                {safeMileage.toLocaleString()} mi
               </span>
-            </>
-          )}
-        </div>
+              <span className="h-3 w-px bg-border/60" />
+              <span className="flex min-w-0 items-center gap-1.5 truncate">
+                <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{safeLocation}</span>
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <GaugeIcon className="h-3.5 w-3.5 text-primary/50 shrink-0" />
+              {safeMileage.toLocaleString()} mi
+            </span>
+            <span className="h-3 w-px bg-border/60" />
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{safeLocation}</span>
+            </span>
+          </div>
+        )}
 
         <div className={cn("flex flex-wrap gap-1", mobileOptimized && "hidden sm:flex")}>
           {vehicle.bodyStyle && (
@@ -642,13 +681,66 @@ export function CarInventoryCard({
           )}
         </div>
 
-        <div className="mt-auto pt-1 border-t border-border/30">
-          {!hasPrice ? (
+        <div
+          className={cn(
+            "mt-auto border-t border-border/40 pt-2.5",
+            mobileOptimized && "sm:pt-1",
+          )}
+        >
+          {mobileOptimized ? (
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_9.75rem] items-end gap-2 sm:block">
+              <div className="min-w-0">
+                <p className="mb-1 text-[9px] font-black uppercase tracking-[0.06em] text-muted-foreground/70 sm:hidden">
+                  Price
+                </p>
+                {!hasPrice ? (
+                  <span className="block text-lg font-black text-primary">Price Pending</span>
+                ) : hasDiscount ? (
+                  <>
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-1.5 mb-0.5">
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        ${memberPrice.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                        {tierName} -{discountPct}%
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">
+                      ${price.toLocaleString()} retail
+                    </span>
+                  </>
+                ) : (
+                  <span className="block text-xl font-black text-foreground tabular-nums">
+                    ${price.toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              {showInventoryMeta ? (
+                <div
+                  className="flex min-w-0 flex-col items-end justify-center rounded-xl border border-border/50 bg-muted/18 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] text-right sm:hidden"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <span className="flex w-full items-center justify-end gap-1 text-right text-[9px] font-black uppercase leading-none tracking-[0.04em] text-muted-foreground/75">
+                    <CalendarClock className="h-3 w-3 shrink-0 text-primary/70" />
+                    <span className="whitespace-nowrap">Price updated</span>
+                  </span>
+                  <VehiclePriceHistoryDialog
+                    vehicle={vehicle}
+                    triggerLabel={priceUpdatedLabel}
+                    triggerClassName="mt-1 inline-flex w-full max-w-full items-center justify-end whitespace-nowrap text-right text-[11px] font-black leading-[1.15] text-foreground tabular-nums"
+                  />
+                </div>
+              ) : (
+                <div className="sm:hidden" />
+              )}
+            </div>
+          ) : !hasPrice ? (
             <span className="text-lg font-black text-primary">Price Pending</span>
           ) : hasDiscount ? (
             <>
               <div className="flex items-baseline gap-2 mb-0.5">
-                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                   ${memberPrice.toLocaleString()}
                 </span>
                 <span className="text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
@@ -660,39 +752,22 @@ export function CarInventoryCard({
               </span>
             </>
           ) : (
-            <span className="text-2xl font-black text-foreground tabular-nums">
+            <span className="text-xl font-black text-foreground tabular-nums">
               ${price.toLocaleString()}
             </span>
           )}
         </div>
-
-        {showInventoryMeta && mobileOptimized && (
-          <div
-            className="flex items-center justify-between gap-2 border-t border-border/30 pt-2.5 text-[11px] text-muted-foreground sm:hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span className="flex items-center gap-1 font-semibold">
-              <CalendarClock className="h-3 w-3 text-primary/70" />
-              Price updated
-            </span>
-            <VehiclePriceHistoryDialog
-              vehicle={vehicle}
-              triggerLabel={priceUpdatedLabel}
-              triggerClassName="max-w-32 truncate font-bold text-foreground/80 tabular-nums"
-            />
-          </div>
-        )}
       </div>
 
       {mobileOptimized && (
         <div
-          className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)_auto] gap-2 px-3 pb-3 sm:hidden"
+          className="mt-1 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.35fr)_auto] gap-2 border-t border-border/40 px-3 pt-3 pb-3 sm:hidden"
           onClick={(event) => event.stopPropagation()}
         >
           <Button
             variant="outline"
             size="sm"
-            className="h-11 min-w-0 rounded-xl border-border/50 text-[11px] font-bold whitespace-nowrap xxs:text-xs touch-manipulation"
+            className="h-9 min-w-0 rounded-xl border-border/70 bg-card/70 text-[11px] font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28 xxs:text-xs"
             onClick={() =>
               onCheckAvailability
                 ? onCheckAvailability(vehicle)
@@ -705,7 +780,7 @@ export function CarInventoryCard({
 
           <Button
             size="sm"
-            className="h-11 min-w-0 rounded-xl px-2 text-[11px] font-black whitespace-nowrap xxs:px-3 xxs:text-xs touch-manipulation"
+            className="h-9 min-w-0 rounded-xl border border-emerald-400/25 px-2 text-[11px] font-semibold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] xxs:px-3 xxs:text-xs"
             onClick={() =>
               onCreateLoad ? onCreateLoad(vehicle) : onVehicleClick?.(vehicle)
             }
@@ -713,7 +788,7 @@ export function CarInventoryCard({
             {onCreateLoad ? (
               <>
                 <TruckIcon className="mr-1.5 h-3.5 w-3.5" />
-                Create Load
+                Create Managed Load
               </>
             ) : (
               <>
@@ -727,7 +802,7 @@ export function CarInventoryCard({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-11 w-11 rounded-xl border-border/50 touch-manipulation"
+                className="h-9 w-9 rounded-xl border-border/70 bg-card/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
                 aria-label="More vehicle actions"
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -777,7 +852,7 @@ export function CarInventoryCard({
         <Button
           variant="outline"
           size="sm"
-          className="h-9 text-xs font-semibold gap-1.5 rounded-xl border-border/50 hover:border-primary/40"
+          className="h-9 gap-1.5 rounded-xl border-border/70 bg-card/70 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-primary/45 hover:bg-muted/28"
           onClick={() => onCheckAvailability?.(vehicle)}
         >
           <MessageSquare className="h-3.5 w-3.5" />
@@ -785,7 +860,7 @@ export function CarInventoryCard({
         </Button>
         <Button
           size="sm"
-          className="h-9 text-xs font-semibold gap-1.5 rounded-xl"
+          className="h-9 gap-1.5 rounded-xl border border-emerald-400/25 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
           onClick={() =>
             mobileOptimized && onCreateLoad
               ? onCreateLoad(vehicle)

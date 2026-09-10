@@ -14,6 +14,7 @@ import {
   Hash,
   ImageIcon,
   MapPin,
+  Maximize2,
   Palette,
   Route,
   ClipboardList,
@@ -23,6 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatScheduleDate } from "@/utils/calendar.utils";
 import type { Load, LoadStatus, LoadVehicleItem } from "@/types/load";
+import {
+  VehicleImageLightbox,
+  type VehicleImageLightboxItem,
+} from "@/components/transportation/VehicleImageLightbox";
 
 export type TransportationMobileLoadTab = "overview" | "vehicles" | "financials";
 
@@ -170,7 +175,7 @@ function DetailField({
           : "border-border/60 bg-background/45",
       )}
     >
-      <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
         {icon}
         <span className="min-w-0 break-words">{label}</span>
       </div>
@@ -205,7 +210,7 @@ function RouteBlock({
     <div className="min-w-0 rounded-xl border border-border/60 bg-background/45 p-3">
       <div
         className={cn(
-          "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.10em]",
+          "flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.16em]",
           tone === "emerald" ? "text-emerald-500" : "text-cyan-500",
         )}
       >
@@ -270,7 +275,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
       {journey ? (
         <section className="rounded-xl border border-border/60 bg-background/45 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
               Journey Progress
             </span>
             <Badge
@@ -309,7 +314,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
             Current Schedule Focus
           </span>
           <Badge
@@ -426,7 +431,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
               {item.isCurrent ? (
                 <span
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.08em]",
+                    "rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-widest",
                     item.tone === "emerald" &&
                       "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                     item.tone === "cyan" &&
@@ -439,7 +444,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
                 </span>
               ) : null}
             </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
               {item.label}
             </p>
             <p className="mt-1 break-words text-sm font-black tracking-tight text-foreground">
@@ -472,7 +477,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
 
       {load.dates?.notes ? (
         <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
             Schedule Notes
           </p>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/85">
@@ -485,7 +490,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
         <div className="rounded-xl border border-border/60 bg-background/45 p-3">
           {load.additionalInfo?.notes ? (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Notes
               </p>
               <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
@@ -495,7 +500,7 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
           ) : null}
           {load.additionalInfo?.instructions ? (
             <div className={load.additionalInfo?.notes ? "mt-3 border-t border-border/50 pt-3" : ""}>
-              <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                 Instructions
               </p>
               <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">
@@ -511,6 +516,15 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
 
 export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
   const vehicles = load.vehicles ?? [];
+  const [imageViewerOpen, setImageViewerOpen] = React.useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = React.useState(0);
+
+  const imageViewerItems: VehicleImageLightboxItem[] = vehicles.map((vehicle, index) => ({
+    id: String(vehicle.vehicleId ?? vehicle.vin ?? `vehicle-${index + 1}`),
+    src: vehicle.imageUrl || undefined,
+    label: getVehicleName(vehicle, index),
+    subtitle: vehicle.vin ? `VIN ${vehicle.vin}` : undefined,
+  }));
 
   if (vehicles.length === 0) {
     return (
@@ -527,7 +541,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
-        <p className="text-[10px] font-black uppercase tracking-[0.10em] text-emerald-600 dark:text-emerald-400">
+        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">
           Vehicles on {load.loadNumber}
         </p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -541,22 +555,36 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
           className="min-w-0 overflow-hidden rounded-2xl border border-border/70 bg-background/45 shadow-sm"
         >
           <div className="relative overflow-hidden border-b border-border/60 bg-muted/30">
-            {vehicle.imageUrl ? (
-              <img
-                src={vehicle.imageUrl}
-                alt={getVehicleName(vehicle, index)}
-                loading="lazy"
-                className="h-36 w-full object-contain object-center"
-              />
-            ) : (
-              <div className="flex h-32 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
-                <ImageIcon className="size-7 text-muted-foreground/45" />
-                <span className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground/60">
-                  No photo
-                </span>
-              </div>
-            )}
-            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white backdrop-blur">
+            <button
+              type="button"
+              onClick={() => {
+                setImageViewerIndex(index);
+                setImageViewerOpen(true);
+              }}
+              aria-label={`View full image for vehicle ${index + 1}`}
+              className="group/image block w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
+            >
+              {vehicle.imageUrl ? (
+                <img
+                  src={vehicle.imageUrl}
+                  alt={getVehicleName(vehicle, index)}
+                  loading="lazy"
+                  className="h-36 w-full object-contain object-center transition-transform duration-300 group-hover/image:scale-[1.02]"
+                />
+              ) : (
+                <div className="flex h-32 flex-col items-center justify-center gap-2 bg-linear-to-br from-emerald-950/20 via-muted/20 to-cyan-950/20">
+                  <ImageIcon className="size-7 text-muted-foreground/45" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                    No photo
+                  </span>
+                </div>
+              )}
+              <span className="absolute bottom-3 right-3 flex size-9 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white shadow-lg backdrop-blur-sm">
+                <Maximize2 className="size-4" />
+              </span>
+            </button>
+
+            <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white backdrop-blur">
               Vehicle {index + 1}
             </span>
           </div>
@@ -593,7 +621,7 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
 
             {vehicle.carrierNotes ? (
               <div className="mt-3 rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-                <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+                <p className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                   Carrier Notes
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-foreground/85">
@@ -604,6 +632,13 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
           </div>
         </section>
       ))}
+
+      <VehicleImageLightbox
+        open={imageViewerOpen}
+        onOpenChange={setImageViewerOpen}
+        items={imageViewerItems}
+        initialIndex={imageViewerIndex}
+      />
     </div>
   );
 }
@@ -614,7 +649,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
       <section className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/8 via-background to-cyan-500/4 p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
               Carrier Pay
             </p>
             <p className="mt-1 break-words text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
@@ -622,7 +657,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
             </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-background/55 px-3 py-2.5">
-            <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               Route Distance
             </p>
             <p className="mt-0.5 break-words font-mono text-sm font-black text-foreground">
@@ -667,7 +702,7 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
       </div>
 
       <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.10em] text-muted-foreground">
+        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
           Financial Context
         </p>
         <p className="mt-1.5 break-words text-[11px] leading-relaxed text-muted-foreground">

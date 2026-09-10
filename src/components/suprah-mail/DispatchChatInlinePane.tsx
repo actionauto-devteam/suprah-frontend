@@ -34,6 +34,7 @@ import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { resolveImageUrl } from "@/lib/utils";
 import { useAuth, useUser } from "@/providers/AuthProvider";
+import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 
 export type InlineDispatchDriver = {
   id: string;
@@ -98,6 +99,18 @@ function statusLabel(status: string) {
   }
 }
 
+function formatDispatchChatTime(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: CALENDAR_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+  return `${time} ${getCalendarTimeZoneAbbreviation(date)}`;
+}
+
 function mergeMessage(
   current: DispatchChatMessage[],
   incoming: DispatchChatMessage,
@@ -117,11 +130,13 @@ export function DispatchChatInlinePane({
   driver,
   onBack,
   onUnreadRefresh,
+  onReviewLoadRequest,
   refreshSignal = 0,
 }: {
   driver: InlineDispatchDriver;
   onBack?: () => void;
   onUnreadRefresh?: () => void | Promise<void>;
+  onReviewLoadRequest?: (loadId: string, driverId: string) => void;
   refreshSignal?: number;
 }) {
   const { getToken, isSignedIn } = useAuth();
@@ -154,6 +169,7 @@ export function DispatchChatInlinePane({
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const searchJumpActiveRef = React.useRef(false);
   const searchJumpClearTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchJumpRetryTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const timelineRef = React.useRef<HTMLDivElement | null>(null);
   const requestGenerationRef = React.useRef(0);
   const manualRefreshSignalRef = React.useRef(refreshSignal);
@@ -165,6 +181,11 @@ export function DispatchChatInlinePane({
   });
   const threadCacheRef = React.useRef<Map<string, ThreadSnapshot>>(new Map());
   const archiveCacheRef = React.useRef<Map<string, ArchiveSnapshot>>(new Map());
+  const onUnreadRefreshRef = React.useRef(onUnreadRefresh);
+
+  React.useEffect(() => {
+    onUnreadRefreshRef.current = onUnreadRefresh;
+  }, [onUnreadRefresh]);
 
   React.useEffect(() => {
     activeDriverRef.current = driver.id;
@@ -174,6 +195,9 @@ export function DispatchChatInlinePane({
     return () => {
       if (searchJumpClearTimerRef.current) {
         clearTimeout(searchJumpClearTimerRef.current);
+      }
+      if (searchJumpRetryTimerRef.current) {
+        clearTimeout(searchJumpRetryTimerRef.current);
       }
     };
   }, []);
@@ -197,11 +221,11 @@ export function DispatchChatInlinePane({
         id ? { threadId: id } : {},
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      void onUnreadRefresh?.();
+      void onUnreadRefreshRef.current?.();
     } catch {
       // Keep the conversation usable. Realtime/next refresh reconciles read state.
     }
-  }, [driver.id, getToken, isSignedIn, onUnreadRefresh]);
+  }, [driver.id, getToken, isSignedIn]);
 
   const fetchMessages = React.useCallback(async (silent = false) => {
     if (!isSignedIn || !driver.id) return;
@@ -373,7 +397,7 @@ export function DispatchChatInlinePane({
         if (String(message.sender?.id ?? "") !== String(currentUserId ?? "")) {
           void markRead(message.threadId ?? threadId);
         }
-        void onUnreadRefresh?.();
+        void onUnreadRefreshRef.current?.();
       };
 
       const onRead = (payload: {
@@ -396,7 +420,7 @@ export function DispatchChatInlinePane({
           }
           return next;
         });
-        void onUnreadRefresh?.();
+        void onUnreadRefreshRef.current?.();
       };
 
       const onNotification = (notification: any) => {
@@ -449,7 +473,6 @@ export function DispatchChatInlinePane({
     getToken,
     isSignedIn,
     markRead,
-    onUnreadRefresh,
     threadId,
   ]);
 
@@ -597,6 +620,33 @@ export function DispatchChatInlinePane({
     });
   }, [detailsOpen, messages]);
 
+  const scrollTimelineItemToCenter = React.useCallback(
+    (targetItemId: string) => {
+      const viewport = timelineRef.current;
+      const target = document.getElementById(
+        `dispatch-chat-inline-timeline-${targetItemId}`,
+      );
+
+      if (!viewport || !target) return false;
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const targetTopWithinViewport =
+        viewport.scrollTop + (targetRect.top - viewportRect.top);
+      const centeredTop =
+        targetTopWithinViewport -
+        Math.max(0, (viewport.clientHeight - targetRect.height) / 2);
+
+      viewport.scrollTo({
+        top: Math.max(0, centeredTop),
+        behavior: "smooth",
+      });
+
+      return true;
+    },
+    [],
+  );
+
   const jumpToConversationSearchResult = React.useCallback(
     async (result: ConversationDetailsSearchResult) => {
       if (!threadId || !driver.id || !isSignedIn) return;
@@ -727,23 +777,39 @@ export function DispatchChatInlinePane({
 
       setDetailsOpen(false);
 
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          document
-            .getElementById(
-              `dispatch-chat-inline-timeline-${targetItemId}`,
-            )
-            ?.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
+      const finishHighlight = () => {
+        if (searchJumpClearTimerRef.current) {
+          clearTimeout(searchJumpClearTimerRef.current);
+        }
+        searchJumpClearTimerRef.current = setTimeout(() => {
+          setHighlightedTimelineItemId(null);
+          searchJumpActiveRef.current = false;
+        }, 2200);
+      };
 
-          searchJumpClearTimerRef.current =
-            setTimeout(() => {
-              setHighlightedTimelineItemId(null);
-              searchJumpActiveRef.current = false;
-            }, 2200);
-        });
+      const focusResult = (attempt = 0) => {
+        if (scrollTimelineItemToCenter(targetItemId)) {
+          finishHighlight();
+          return;
+        }
+
+        // When Search has to fetch an older window, React may not have committed
+        // the target DOM node yet. Retry briefly instead of silently doing nothing.
+        if (attempt < 10) {
+          searchJumpRetryTimerRef.current = setTimeout(
+            () => focusResult(attempt + 1),
+            60,
+          );
+          return;
+        }
+
+        setHighlightedTimelineItemId(null);
+        searchJumpActiveRef.current = false;
+        toast.error("That message could not be brought into view.");
+      };
+
+      window.requestAnimationFrame(() => {
+        focusResult();
       });
     },
     [
@@ -753,6 +819,7 @@ export function DispatchChatInlinePane({
       messages,
       systemEvents,
       threadId,
+      scrollTimelineItemToCenter,
     ],
   );
 
@@ -812,7 +879,7 @@ export function DispatchChatInlinePane({
       setFiles([]);
       setEmojiOpen(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      void onUnreadRefresh?.();
+      void onUnreadRefreshRef.current?.();
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
@@ -851,7 +918,7 @@ export function DispatchChatInlinePane({
   const resolvedAvatar = avatarSrc(context?.driver?.avatar ?? driver.avatar);
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden" style={{ background: "var(--bg-base)" }}>
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden" style={{ background: "var(--bg-base)" }}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 shrink-0 items-center gap-2.5 border-b border-border/60 px-3 py-3 sm:px-4" style={{ background: "var(--bg-elevated)" }}>
           {onBack && (
@@ -929,7 +996,7 @@ export function DispatchChatInlinePane({
 
         <div
           ref={timelineRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5" style={{ background: "var(--bg-base)" }}
+          className="modal-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5" style={{ background: "var(--bg-base)" }}
         >
           {loading && timeline.length === 0 ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -979,7 +1046,10 @@ export function DispatchChatInlinePane({
                           : ""
                       }`}
                     >
-                      <SystemEventCard event={item.event} />
+                      <SystemEventCard
+                        event={item.event}
+                        onReviewLoadRequest={onReviewLoadRequest}
+                      />
                     </div>
                   );
                 }
@@ -999,8 +1069,9 @@ export function DispatchChatInlinePane({
                           : ""
                       }`}
                     >
-                    <SystemEventCard
-                      event={{
+                      <SystemEventCard
+                        onReviewLoadRequest={onReviewLoadRequest}
+                        event={{
                         id: `chat-system:${message.id}`,
                         kind:
                           message.systemEvent.type === "driver_dispatch_alert" ||
@@ -1016,8 +1087,8 @@ export function DispatchChatInlinePane({
                           "Dispatch activity updated.",
                         metadata: message.systemEvent.metadata ?? {},
                         createdAt: message.createdAt,
-                      }}
-                    />
+                        }}
+                      />
                     </div>
                   );
                 }
@@ -1068,10 +1139,7 @@ export function DispatchChatInlinePane({
                       </div>
 
                       <div className="mt-1 flex items-center gap-1 px-1 text-[10.5px] font-medium text-muted-foreground">
-                        {new Date(message.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatDispatchChatTime(message.createdAt)}
                         {mine && message.readBy.length > 1 && (
                           <>
                             <span>·</span>
@@ -1088,7 +1156,7 @@ export function DispatchChatInlinePane({
           )}
         </div>
 
-        <div className="relative shrink-0 border-t border-border/60 p-3 sm:p-4" style={{ background: "var(--bg-elevated)" }}>
+        <div className="relative z-10 shrink-0 border-t border-border/60 p-3 sm:p-4" style={{ background: "var(--bg-elevated)" }}>
           {files.length > 0 && (
             <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
               {files.map((file, index) => (
@@ -1249,11 +1317,11 @@ export function DispatchChatInlinePane({
         <>
           <button
             type="button"
-            className="absolute inset-0 z-40 bg-black/35 @xl:hidden"
+            className="absolute inset-0 z-40 bg-black/20 backdrop-blur-[1px] @xl:hidden"
             onClick={() => setDetailsOpen(false)}
             aria-label="Close conversation details"
           />
-          <aside className="absolute inset-y-0 right-0 z-50 w-full border-l border-border/70 bg-background shadow-2xl sm:w-[22rem] @xl:hidden">
+          <aside className="absolute inset-y-0 right-0 z-50 w-[86vw] max-w-[21rem] border-l border-border/70 bg-background shadow-2xl animate-in slide-in-from-right-4 duration-200 @xl:hidden">
             <ConversationDetailsPanel
               counterpartName={resolvedDriverName}
               counterpartRole="Driver"
@@ -1265,6 +1333,7 @@ export function DispatchChatInlinePane({
               onTabChange={setDetailsTab}
               query={detailsQuery}
               onQueryChange={setDetailsQuery}
+              onSearchResultSelect={jumpToConversationSearchResult}
               onClose={() => setDetailsOpen(false)}
             />
           </aside>

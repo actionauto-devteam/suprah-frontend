@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  MapPin,
   Clock,
   Users,
   Radio,
@@ -53,6 +52,10 @@ import { DriverTrackerMap } from "@/components/driver-tracker/DriverTrackerMap";
 import { DriverTrackerShareCard } from "@/components/driver-tracker/DriverTrackerShareCard";
 import { DriverTrackerLoadsCard } from "@/components/driver-tracker/DriverTrackerLoadsCard";
 import { DriverTrackerListCard } from "@/components/driver-tracker/DriverTrackerListCard";
+import {
+  DriverTrackerMobileDrawer,
+  type DriverTrackerMobileDrawerTab,
+} from "@/components/driver-tracker/DriverTrackerMobileDrawer";
 import { DriverAssignLoadModal } from "@/components/driver-tracker/DriverAssignLoadModal";
 import { DriverTrackerAvailableLoadsCard } from "@/components/driver-tracker/DriverTrackerAvailableLoadsCard";
 import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTrackerRequestsCard";
@@ -219,6 +222,13 @@ export default function DriverTrackerPage() {
   const [mapFilter, setMapFilter] = React.useState<
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
+  const [mobileWorkspace, setMobileWorkspace] = React.useState<
+    "drivers" | "loads"
+  >("drivers");
+  const [mobileDrawerDriverId, setMobileDrawerDriverId] = React.useState<string | null>(null);
+  const [mobileDriverDrawerOpen, setMobileDriverDrawerOpen] = React.useState(false);
+  const [mobileDriverDrawerTab, setMobileDriverDrawerTab] =
+    React.useState<DriverTrackerMobileDrawerTab>("overview");
 
   const loadManagementRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<HTMLDivElement | null>(null);
@@ -283,9 +293,24 @@ export default function DriverTrackerPage() {
     [drivers],
   );
 
+  const mobileDrawerDriver = React.useMemo(
+    () =>
+      mobileDrawerDriverId
+        ? drivers.find(
+            (driver) =>
+              String(driver.driver?.id ?? driver.id) ===
+              String(mobileDrawerDriverId),
+          ) ?? null
+        : null,
+    [drivers, mobileDrawerDriverId],
+  );
+
   const handledDispatchChatDeepLinkRef = React.useRef<string | null>(null);
   const chatDialogOpenRef = React.useRef(chatDialogOpen);
   const openChatDriverIdRef = React.useRef<string | null>(null);
+  const mobileDriverDrawerOpenRef = React.useRef(false);
+  const mobileDriverDrawerTabRef = React.useRef<DriverTrackerMobileDrawerTab>("overview");
+  const openMobileDrawerDriverIdRef = React.useRef<string | null>(null);
 
   const handleChatUnreadChange = React.useCallback(
     (count: number) => {
@@ -313,6 +338,12 @@ export default function DriverTrackerPage() {
     openChatDriverIdRef.current =
       chatDriver?.driver?.id ?? chatDriver?.id ?? null;
   }, [chatDialogOpen, chatDriver]);
+
+  React.useEffect(() => {
+    mobileDriverDrawerOpenRef.current = mobileDriverDrawerOpen;
+    mobileDriverDrawerTabRef.current = mobileDriverDrawerTab;
+    openMobileDrawerDriverIdRef.current = mobileDrawerDriverId;
+  }, [mobileDriverDrawerOpen, mobileDriverDrawerTab, mobileDrawerDriverId]);
 
   // GPS-offline notifications deep-link to:
   // /driver-tracker?driverId=<id>&openDispatchChat=1
@@ -990,6 +1021,8 @@ export default function DriverTrackerPage() {
       // exact server-authorized load + driver pair, so no extra backend lookup
       // or thread ownership rule is introduced here.
       setLoadsTab("requests");
+      setMobileWorkspace("loads");
+      setMobileDriverDrawerOpen(false);
       setFocusedRequestKey(requestKey);
       setChatDialogOpen(false);
       setChatDriver(null);
@@ -1018,6 +1051,94 @@ export default function DriverTrackerPage() {
 
       setChatDriver(driver);
       setChatDialogOpen(true);
+    },
+    [],
+  );
+
+  const openMobileDriverDrawer = React.useCallback(
+    (driver: DriverTrackingItem, tab: DriverTrackerMobileDrawerTab = "overview") => {
+      const driverId = String(driver.driver?.id ?? driver.id ?? "");
+      if (!driverId) return;
+      setMobileDrawerDriverId(driverId);
+      setMobileDriverDrawerTab(tab);
+      setMobileDriverDrawerOpen(true);
+    },
+    [],
+  );
+
+  const refreshDriverUnread = React.useCallback(
+    async (driverId: string) => {
+      if (!driverId || !isSignedIn) return;
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const response = await apiClient.get(
+          `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/unread`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const nextCount = Math.max(
+          0,
+          Number(response.data?.data?.unreadCount ?? 0),
+        );
+        setUnreadMessageCounts((previous) => ({
+          ...previous,
+          [driverId]: nextCount,
+        }));
+      } catch {
+        // Existing socket + polling reconciliation remains the fallback.
+      }
+    },
+    [getToken, isSignedIn],
+  );
+
+  const focusDriverOnLiveMap = React.useCallback(
+    (
+      driver: DriverTrackingItem,
+      options?: { closeDrawer?: boolean },
+    ) => {
+      const coords = driver.coords;
+      if (!coords) return;
+
+      if (options?.closeDrawer) {
+        setMobileDriverDrawerOpen(false);
+      }
+      setMapFilter("all");
+
+      const focusMap = () => {
+        const mapElement = mapRef.current;
+        const mapShell =
+          (mapElement?.closest(
+            "[data-driver-tracker-map-shell]",
+          ) as HTMLElement | null) ?? mapElement;
+
+        mapShell?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        map.resize?.();
+        map.flyTo({
+          center: [coords.lng, coords.lat],
+          zoom: 15,
+          essential: true,
+        });
+
+        window.setTimeout(() => {
+          mapInstanceRef.current?.resize?.();
+        }, 360);
+      };
+
+      if (options?.closeDrawer) {
+        window.setTimeout(focusMap, 240);
+      } else {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(focusMap);
+        });
+      }
     },
     [],
   );
@@ -1247,8 +1368,15 @@ export default function DriverTrackerPage() {
             // The open chat marks incoming messages read itself, so don't flash
             // an unread badge for the conversation the dispatcher is viewing.
             if (
-              chatDialogOpenRef.current &&
-              String(openChatDriverIdRef.current ?? "") === driverId
+              (
+                chatDialogOpenRef.current &&
+                String(openChatDriverIdRef.current ?? "") === driverId
+              ) ||
+              (
+                mobileDriverDrawerOpenRef.current &&
+                mobileDriverDrawerTabRef.current === "chat" &&
+                String(openMobileDrawerDriverIdRef.current ?? "") === driverId
+              )
             ) {
               return;
             }
@@ -1564,6 +1692,22 @@ export default function DriverTrackerPage() {
     });
   };
 
+  React.useEffect(() => {
+    // The live map remains mounted in the mobile operations workspace.
+    // Reconcile Mapbox dimensions after Drivers/Loads transitions so responsive
+    // layout changes never leave a stale canvas size.
+    const frame = window.requestAnimationFrame(() => {
+      mapInstanceRef.current?.resize?.();
+    });
+    const timer = window.setTimeout(() => {
+      mapInstanceRef.current?.resize?.();
+    }, 220);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [mobileWorkspace]);
+
   const [currentTime, setCurrentTime] = React.useState(new Date());
 
   React.useEffect(() => {
@@ -1587,39 +1731,202 @@ export default function DriverTrackerPage() {
     );
   }, [focusedRequestKey, loadRequests]);
 
+  const driversOnRoute = React.useMemo(
+    () => drivers.filter((driver) => driver.status === "on-route").length,
+    [drivers],
+  );
+
+  const pendingActionCount =
+    loadRequests.length + openStatusRequestDrivers.length;
+
   const kpis = [
     {
       label: "Total Drivers",
       value: drivers.length,
-      icon: <Users className="size-6 sm:size-7 text-primary" />,
+      icon: <Users className="size-5 md:size-7 text-primary" />,
       description: "All tracked drivers",
     },
     {
       label: "Active Drivers",
       value: dispatchActiveDrivers.length,
-      icon: <Radio className="size-6 sm:size-7 text-emerald-600 dark:text-emerald-400" />,
+      icon: <Radio className="size-5 md:size-7 text-emerald-600 dark:text-emerald-400" />,
       description: "Currently dispatch active",
       color: "text-emerald-500 dark:text-emerald-400",
     },
     {
       label: "On Route",
-      value: drivers.filter((d) => d.status === "on-route").length,
-      icon: <Truck className="size-6 sm:size-7 text-amber-600 dark:text-amber-400" />,
+      value: driversOnRoute,
+      icon: <Truck className="size-5 md:size-7 text-amber-600 dark:text-amber-400" />,
       description: "Delivering loads",
       color: "text-amber-500 dark:text-amber-400",
     },
     {
-      label: "Loads Assigned",
+      label: "Assigned Loads",
       value: totalLoads,
-      icon: <Package className="size-6 sm:size-7 text-blue-600 dark:text-blue-400" />,
-      description: "Active shipments",
+      icon: <Package className="size-5 md:size-7 text-blue-600 dark:text-blue-400" />,
+      description: "Currently assigned loads",
       color: "text-blue-500 dark:text-blue-400",
     },
   ];
 
   return (
-    <div className="p-3 xs:p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 container mx-auto min-h-screen overflow-x-hidden">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+    <div className="min-h-screen w-full min-w-0 max-w-none space-y-3 overflow-x-hidden px-2 py-3 md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8">
+      {/* Mobile: Suprah Driver Operations identity.
+          The operational summary replaces six equally-weighted KPI tiles while
+          desktop keeps the existing analytics cards below. */}
+      <section className="relative overflow-hidden rounded-2xl border border-border/45 bg-card md:hidden">
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-cyan-400/20" />
+        <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-primary/[0.07] blur-3xl" />
+
+        <div className="relative px-3 py-3">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="relative flex size-2 shrink-0">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-50 motion-reduce:animate-none" />
+                  <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                </span>
+                <span className="min-w-0 break-words text-[9px] font-black uppercase tracking-[0.2em] text-primary/80 [overflow-wrap:anywhere]">
+                  Suprah Driver Operations
+                </span>
+              </div>
+
+              <h1 className="mt-2 text-[22px] font-black uppercase leading-none tracking-tight text-foreground">
+                Driver <span className="text-primary">Tracker</span>
+              </h1>
+              <p className="mt-1.5 max-w-[27rem] text-[11px] font-medium leading-relaxed text-muted-foreground">
+                Live driver location, availability, communication, and assignment readiness.
+              </p>
+            </div>
+
+            <div
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${
+                gpsSharingDrivers.length > 0
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "border-border/60 bg-muted/30 text-muted-foreground"
+              }`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${
+                  gpsSharingDrivers.length > 0
+                    ? "bg-emerald-500 animate-pulse motion-reduce:animate-none"
+                    : "bg-slate-400"
+                }`}
+              />
+              {gpsSharingDrivers.length > 0 ? "Live Fleet" : "Monitoring"}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-y border-border/35 py-2 text-[11px]">
+            <span className="inline-flex items-center gap-1.5 font-bold text-foreground">
+              <Users className="size-3.5 text-primary" />
+              {drivers.length} Driver{drivers.length === 1 ? "" : "s"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+              <Radio className="size-3.5" />
+              {dispatchActiveDrivers.length} Active Drivers
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-bold text-sky-600 dark:text-sky-400">
+              <span className="size-1.5 rounded-full bg-sky-500" />
+              {gpsSharingDrivers.length} GPS Sharing
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
+              <Truck className="size-3.5" />
+              {driversOnRoute} On Route
+            </span>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoadsTab("assigned");
+                setMobileWorkspace("loads");
+              }}
+              className="flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-left transition-colors hover:bg-blue-500/10"
+            >
+              <span className="min-w-0">
+                <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                  Assigned Loads
+                </span>
+                <span className="mt-0.5 block text-sm font-black text-blue-600 dark:text-blue-400">
+                  {totalLoads}
+                </span>
+              </span>
+              <Package className="size-4 shrink-0 text-blue-500" />
+            </button>
+
+            <button
+              type="button"
+              disabled={pendingActionCount === 0}
+              onClick={() => {
+                if (loadRequests.length > 0) {
+                  setLoadsTab("requests");
+                  setMobileWorkspace("loads");
+                  return;
+                }
+                const first = openStatusRequestDrivers[0];
+                if (first) {
+                  setStatusRequestDriver(first);
+                  setStatusRequestDialogOpen(true);
+                }
+              }}
+              className={`flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
+                pendingActionCount > 0
+                  ? "border-amber-500/25 bg-amber-500/[0.07] hover:bg-amber-500/12"
+                  : "border-border/45 bg-muted/[0.18]"
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                  Pending Actions
+                </span>
+                <span
+                  className={`mt-0.5 block text-sm font-black ${
+                    pendingActionCount > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {pendingActionCount}
+                </span>
+              </span>
+              <Bell
+                className={`size-4 shrink-0 ${
+                  pendingActionCount > 0
+                    ? "text-amber-500"
+                    : "text-muted-foreground/50"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <Clock className="size-3 shrink-0" />
+            <span className="min-w-0 break-words">
+              {currentTime.toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                timeZone: "America/Denver",
+              })}
+              {" · "}
+              <span className="text-primary">
+                {currentTime.toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  timeZone: "America/Denver",
+                })}{" "}
+                {mountainTimeZoneLabel}
+              </span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Desktop/tablet header preserved. */}
+      <div className="hidden md:flex md:flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
           <nav className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2 overflow-x-auto no-scrollbar whitespace-nowrap">
             <Link href="/" className="hover:text-foreground transition-colors">
@@ -1635,7 +1942,7 @@ export default function DriverTrackerPage() {
             <ChevronRight className="size-3 shrink-0" />
             <span className="text-foreground font-bold">Driver Tracker</span>
           </nav>
-          <h1 className="text-xl xs:text-2xl md:text-3xl font-black tracking-tight text-foreground">
+          <h1 className="text-3xl font-black tracking-tight text-foreground">
             Driver Tracker
           </h1>
           <p className="text-sm text-muted-foreground/80 font-medium mt-1">
@@ -1643,8 +1950,8 @@ export default function DriverTrackerPage() {
           </p>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
-          <span className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex flex-wrap items-center gap-2">
             <Clock className="size-3 shrink-0" />
             {currentTime.toLocaleDateString("en-US", {
               weekday: "short",
@@ -1661,23 +1968,28 @@ export default function DriverTrackerPage() {
               })}{" "}
               {mountainTimeZoneLabel}
             </span>
-            <span className="hidden xs:inline text-muted-foreground/40 font-medium normal-case whitespace-nowrap">
+            <span className="text-muted-foreground/40 font-medium normal-case whitespace-nowrap">
               (Mountain Time)
             </span>
           </span>
+
           {loadRequests.length > 0 && (
             <Badge
-              className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 text-xs font-bold gap-1 cursor-pointer shrink-0"
-              onClick={() => setLoadsTab("requests")}
+              className="max-w-full cursor-pointer gap-1 whitespace-normal border-amber-200 bg-amber-500/10 text-xs font-bold text-amber-600 dark:border-amber-500/30 dark:text-amber-400"
+              onClick={() => {
+                setLoadsTab("requests");
+                setMobileWorkspace("loads");
+              }}
             >
               <Bell className="size-3" />
               {loadRequests.length} request
               {loadRequests.length !== 1 ? "s" : ""}
             </Badge>
           )}
+
           {openStatusRequestDrivers.length > 0 && (
             <Badge
-              className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30 text-xs font-bold gap-1 cursor-pointer shrink-0"
+              className="max-w-full cursor-pointer gap-1 whitespace-normal border-red-200 bg-red-500/10 text-xs font-bold text-red-600 dark:border-red-500/30 dark:text-red-400"
               onClick={() => {
                 const first = openStatusRequestDrivers[0];
                 if (first) {
@@ -1694,29 +2006,29 @@ export default function DriverTrackerPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="hidden w-full min-w-0 grid-cols-2 gap-3 md:grid lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}
-            className="p-0 border-border/50 shadow-sm hover:shadow-md transition-all duration-200 group relative overflow-hidden"
+            className="group relative min-w-0 overflow-hidden border-border/50 p-0 shadow-sm transition-all duration-200 hover:shadow-md"
           >
-            <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 rounded-lg bg-muted/40 dark:bg-muted/30 opacity-100 transition-opacity">
+            <div className="absolute right-3 top-3 rounded-lg bg-muted/40 p-1.5 dark:bg-muted/30">
               {kpi.icon}
             </div>
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1 pr-7">
+            <CardContent className="min-w-0 p-4">
+              <p className="mb-1 min-w-0 break-words pr-7 text-xs font-bold uppercase tracking-widest text-muted-foreground [overflow-wrap:anywhere]">
                 {kpi.label}
               </p>
               {isLoading ? (
-                <Skeleton className="h-6 sm:h-7 w-14 mb-1" />
+                <Skeleton className="mb-1 h-7 w-14" />
               ) : (
                 <h3
-                  className={`text-2xl sm:text-3xl font-black tracking-tighter ${kpi.color || "text-foreground"}`}
+                  className={`text-3xl font-black tracking-tighter ${kpi.color || "text-foreground"}`}
                 >
                   {kpi.value}
                 </h3>
               )}
-              <p className="text-xs text-muted-foreground/80 font-medium mt-1">
+              <p className="mt-1 text-xs font-medium text-muted-foreground/80">
                 {kpi.description}
               </p>
             </CardContent>
@@ -1742,21 +2054,74 @@ export default function DriverTrackerPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] items-start gap-3 sm:gap-4">
-        <DriverTrackerMap
-          mapboxToken={normalizedToken}
-          mapRef={mapRef}
-          onZoomIn={() => zoomMap(1)}
-          onZoomOut={() => zoomMap(-1)}
-          onCenter={centerOnMe}
-          mapNotice={mapNotice}
-          activeCount={gpsSharingDrivers.length}
-          mapFilter={mapFilter}
-          onMapFilterChange={setMapFilter}
-          isMapReady={isMapReady}
-          isMapTransitioning={isMapTransitioning}
-        />
+      <div className="grid w-full min-w-0 grid-cols-1 items-start gap-0 md:gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
 
+        <div className="-mx-2 min-w-0 md:mx-0">
+          <DriverTrackerMap
+            mapboxToken={normalizedToken}
+            mapRef={mapRef}
+            onZoomIn={() => zoomMap(1)}
+            onZoomOut={() => zoomMap(-1)}
+            onCenter={centerOnMe}
+            mapNotice={mapNotice}
+            activeCount={gpsSharingDrivers.length}
+            mapFilter={mapFilter}
+            onMapFilterChange={setMapFilter}
+            isMapReady={isMapReady}
+            isMapTransitioning={isMapTransitioning}
+          />
+        </div>
+
+        <div className="-mx-2 border-y border-border/50 bg-background/95 p-1.5 backdrop-blur md:hidden">
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border/40 bg-muted/25 p-1">
+            {([
+              {
+                key: "drivers" as const,
+                label: "Drivers",
+                count: drivers.length,
+                icon: Users,
+              },
+              {
+                key: "loads" as const,
+                label: "Load Management",
+                count: totalLoads,
+                icon: LayoutGrid,
+              },
+            ]).map((item) => {
+              const Icon = item.icon;
+              const active = mobileWorkspace === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setMobileWorkspace(item.key)}
+                  className={`relative flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-black transition-colors ${
+                    active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span>{item.label}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[9px] ${
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                  {item.key === "loads" && loadRequests.length > 0 && (
+                    <span className="absolute right-2 top-2 size-2 rounded-full bg-amber-500" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block`}>
         <DriverTrackerListCard
           drivers={drivers}
           isLoading={isLoading}
@@ -1765,13 +2130,7 @@ export default function DriverTrackerPage() {
           statusStyles={statusStyles}
           statusText={statusText}
           onDriverClick={(driver) => {
-            const map = mapInstanceRef.current;
-            if (!map || !driver.coords) return;
-            map.flyTo({
-              center: [driver.coords.lng, driver.coords.lat],
-              zoom: 15,
-              essential: true,
-            });
+            focusDriverOnLiveMap(driver);
           }}
           onAssignLoad={(driver) => {
             setAssigningTo(driver);
@@ -1791,15 +2150,20 @@ export default function DriverTrackerPage() {
             setStatusRequestDialogOpen(true);
           }}
           unreadMessageCounts={unreadMessageCounts}
+          onOpenDriver={openMobileDriverDrawer}
         />
+        </div>
       </div>
 
-      <div ref={loadManagementRef} className="scroll-mt-4">
-      <Card className="border-border/50 shadow-sm p-0 gap-0 overflow-hidden">
-        <CardHeader className="py-3 px-3 sm:px-5 border-b border-border/30 space-y-3">
+      <div
+        ref={loadManagementRef}
+        className={`${mobileWorkspace === "loads" ? "block" : "hidden"} -mx-2 scroll-mt-4 md:mx-0 md:block`}
+      >
+      <Card className="flex h-[calc(58dvh+6.25rem-var(--mobile-bottom-nav-offset))] min-h-[24rem] max-h-[calc(36rem+6.25rem-var(--mobile-bottom-nav-offset))] flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-auto md:min-h-0 md:max-h-none md:rounded-xl md:border-x">
+        <CardHeader className="shrink-0 space-y-3 border-b border-border/30 px-3 py-3 sm:px-5">
           <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
             <LayoutGrid className="size-4.5 text-primary shrink-0" />
-            Load Management
+            <span>Load Management</span>
           </CardTitle>
           <div className="flex gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
             {(
@@ -1863,6 +2227,7 @@ export default function DriverTrackerPage() {
           </div>
         </CardHeader>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:overflow-visible">
         {loadsTab === "assigned" && (
           <DriverTrackerLoadsCard
             drivers={driversWithLoads}
@@ -1917,8 +2282,55 @@ export default function DriverTrackerPage() {
             )}
           </>
         )}
+        </div>
       </Card>
       </div>
+
+      <DriverTrackerMobileDrawer
+        open={mobileDriverDrawerOpen}
+        onOpenChange={setMobileDriverDrawerOpen}
+        driver={mobileDrawerDriver}
+        activeTab={mobileDriverDrawerTab}
+        onActiveTabChange={setMobileDriverDrawerTab}
+        statusLabel={statusLabel}
+        unreadMessageCount={
+          mobileDrawerDriver
+            ? Math.max(
+                0,
+                Number(
+                  unreadMessageCounts[
+                    mobileDrawerDriver.driver?.id ?? mobileDrawerDriver.id
+                  ] ?? 0,
+                ),
+              )
+            : 0
+        }
+        onUnreadRefresh={refreshDriverUnread}
+        onReviewLoadRequest={handleReviewLoadRequest}
+        onAlertDriver={(driver) => {
+          setAlertDriver(driver);
+          setAlertDialogOpen(true);
+        }}
+        onAssignLoad={(driver) => {
+          setAssigningTo(driver);
+          setAssignModalOpen(true);
+        }}
+        onViewCompliance={(driver) => {
+          setComplianceDriver(driver);
+          setComplianceDialogOpen(true);
+        }}
+        onViewStatusRequest={(driver) => {
+          setStatusRequestDriver(driver);
+          setStatusRequestDialogOpen(true);
+        }}
+        onLocateDriver={(driver) => {
+          focusDriverOnLiveMap(driver, { closeDrawer: true });
+        }}
+        onOpenLoadManagement={() => {
+          setMobileDriverDrawerOpen(false);
+          setMobileWorkspace("loads");
+        }}
+      />
 
       <DriverAssignLoadModal
         open={assignModalOpen}

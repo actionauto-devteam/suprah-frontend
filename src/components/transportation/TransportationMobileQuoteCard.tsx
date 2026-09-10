@@ -10,6 +10,7 @@ import {
   Gauge,
   Loader2,
   MapPin,
+  Maximize2,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,10 @@ import { cn, resolveImageUrl } from "@/lib/utils";
 import { useAlert, AlertDialog } from "@/components/AlertDialog";
 import { EditQuoteModal } from "@/components/EditQuoteModal";
 import type { Quote } from "@/types/transportation";
+import {
+  VehicleImageLightbox,
+  type VehicleImageLightboxItem,
+} from "@/components/transportation/VehicleImageLightbox";
 
 export type TransportationMobileQuoteTab = "overview" | "vehicle" | "financials";
 
@@ -61,6 +66,7 @@ function QuoteStatTile({
   valueClassName,
   ariaLabel,
   onClick,
+  tone = "neutral",
 }: {
   title: string;
   icon: React.ReactNode;
@@ -68,14 +74,24 @@ function QuoteStatTile({
   valueClassName?: string;
   ariaLabel: string;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
+  tone?: "neutral" | "emerald" | "cyan" | "amber";
 }) {
+  const interactionClass =
+    tone === "emerald"
+      ? "hover:border-emerald-500/85 hover:bg-emerald-50 hover:shadow-[0_0_0_2px_rgba(16,185,129,0.12)] active:border-emerald-600 active:bg-emerald-100/90 dark:hover:border-emerald-300/65 dark:hover:bg-emerald-500/16 dark:hover:shadow-[0_0_0_2px_rgba(52,211,153,0.08)] dark:active:border-emerald-300 dark:active:bg-emerald-500/24 focus-visible:ring-emerald-500/50"
+      : tone === "cyan"
+        ? "hover:border-cyan-500/85 hover:bg-cyan-50 hover:shadow-[0_0_0_2px_rgba(6,182,212,0.12)] active:border-cyan-600 active:bg-cyan-100/90 dark:hover:border-cyan-300/65 dark:hover:bg-cyan-500/16 dark:hover:shadow-[0_0_0_2px_rgba(34,211,238,0.08)] dark:active:border-cyan-300 dark:active:bg-cyan-500/24 focus-visible:ring-cyan-500/50"
+        : tone === "amber"
+          ? "hover:border-amber-500/85 hover:bg-amber-50 hover:shadow-[0_0_0_2px_rgba(245,158,11,0.12)] active:border-amber-600 active:bg-amber-100/90 dark:hover:border-amber-300/65 dark:hover:bg-amber-500/16 dark:hover:shadow-[0_0_0_2px_rgba(251,191,36,0.08)] dark:active:border-amber-300 dark:active:bg-amber-500/24 focus-visible:ring-amber-500/50"
+          : "hover:border-slate-400/85 hover:bg-slate-100/90 hover:shadow-[0_0_0_2px_rgba(100,116,139,0.10)] active:border-slate-500 active:bg-slate-200/90 dark:hover:border-white/28 dark:hover:bg-white/10 dark:hover:shadow-[0_0_0_2px_rgba(255,255,255,0.06)] dark:active:border-white/40 dark:active:bg-white/14 focus-visible:ring-primary/45";
+
   return (
     <button
       type="button"
       onClick={onClick}
       aria-haspopup="dialog"
       aria-label={ariaLabel}
-      className="group/stat min-w-0 min-h-14 rounded-xl border border-transparent bg-muted/25 px-2.5 py-2.5 text-left transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/6 active:border-emerald-500/40 active:bg-emerald-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+      className={cn("group/stat min-w-0 min-h-[58px] rounded-lg border border-border/20 bg-muted/14 px-2 py-2 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2", interactionClass)}
     >
       <span className="relative block min-w-0 pl-5 pr-3">
         <span className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center justify-center">
@@ -113,6 +129,7 @@ export function TransportationMobileQuoteCard({
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [imageFailed, setImageFailed] = React.useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = React.useState(false);
   const { showAlert, alert, hideAlert } = useAlert();
 
   const vehicle = quote.vehicleId;
@@ -123,6 +140,17 @@ export function TransportationMobileQuoteCard({
   const statusMeta = STATUS_META[normalizedStatus] ?? STATUS_META.pending;
   const busy = isDeleting;
   const heroImage = !imageFailed ? resolveImageUrl(quote.vehicleImage) : undefined;
+  const imageViewerItems: VehicleImageLightboxItem[] = [
+    {
+      id: String(quote.vehicleId?._id ?? quote.vin ?? quote._id),
+      src: heroImage,
+      label: vehicleName,
+      subtitle:
+        quote.vin || quote.vehicleId?.vin
+          ? `VIN ${quote.vin || quote.vehicleId?.vin}`
+          : undefined,
+    },
+  ];
   const originSummary =
     [quote.fromLocation?.city, quote.fromLocation?.state].filter(Boolean).join(", ") ||
     quote.fromAddress;
@@ -190,25 +218,40 @@ export function TransportationMobileQuoteCard({
       >
         <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent" />
 
-        <div className="flex min-w-0 items-stretch">
-          <div className="relative w-[30%] min-w-24 max-w-36 shrink-0 overflow-hidden bg-muted/40">
-            {heroImage ? (
-              <img
-                src={heroImage}
-                alt={vehicleName}
-                loading="lazy"
-                onError={() => setImageFailed(true)}
-                className="h-full min-h-32 w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.03] sm:min-h-36"
-              />
-            ) : (
-              <div className="flex h-full min-h-32 flex-col items-center justify-center gap-1.5 bg-linear-to-br from-emerald-950/25 via-card to-cyan-950/20 px-2 text-center sm:min-h-36">
-                <Car className="size-6 text-primary/65" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  No photo on file
-                </span>
-              </div>
-            )}
-            <div className="absolute left-2 top-2">
+        <div className="min-w-0">
+          <div className="relative h-44 w-full overflow-hidden border-b border-border/50 bg-muted/40 sm:h-52">
+            <button
+              type="button"
+              aria-label="View full quote vehicle image"
+              className="group/image block h-full w-full text-left transition-[box-shadow,filter] duration-150 hover:ring-2 hover:ring-inset hover:ring-emerald-500/70 hover:brightness-[1.06] active:ring-emerald-600 active:brightness-[0.97] dark:hover:ring-emerald-300/55 dark:hover:brightness-[1.10] dark:active:ring-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/60"
+              onClick={(event) => {
+                event.stopPropagation();
+                event.preventDefault();
+                setImageViewerOpen(true);
+              }}
+            >
+              {heroImage ? (
+                <img
+                  src={heroImage}
+                  alt={vehicleName}
+                  loading="lazy"
+                  onError={() => setImageFailed(true)}
+                  className="h-full w-full bg-black/10 object-contain object-center p-2 transition-transform duration-300 group-hover/image:scale-[1.02]"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-linear-to-br from-emerald-950/25 via-card to-cyan-950/20 px-2 text-center">
+                  <Car className="size-6 text-primary/65" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    No photo on file
+                  </span>
+                </div>
+              )}
+              <span className="absolute bottom-2 right-2 flex size-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur-sm transition-colors group-hover/image:bg-black/75">
+                <Maximize2 className="size-3.5" />
+              </span>
+            </button>
+
+            <div className="pointer-events-none absolute left-2 top-2">
               <Badge
                 className={cn(
                   "border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide",
@@ -270,37 +313,57 @@ export function TransportationMobileQuoteCard({
               </div>
             </div>
 
-            <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-              <div className="min-w-0">
+            <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-2">
+              <button
+                type="button"
+                aria-label="View quote origin details"
+                onClick={(event) => openInspectorSection(event, "overview")}
+                className="min-w-0 rounded-xl border border-transparent px-2 py-1.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-emerald-500/85 hover:bg-emerald-50 hover:shadow-[0_0_0_2px_rgba(16,185,129,0.12)] active:scale-[0.985] active:border-emerald-600 active:bg-emerald-100/90 dark:hover:border-emerald-300/65 dark:hover:bg-emerald-500/16 dark:hover:shadow-[0_0_0_2px_rgba(52,211,153,0.08)] dark:active:border-emerald-300 dark:active:bg-emerald-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+              >
                 <span className="flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-emerald-500">
                   <MapPin className="size-3" /> Origin
                 </span>
                 <p className="mt-1 truncate text-sm font-black text-foreground">
                   {originSummary}
                 </p>
-              </div>
-              <span className="rounded-full bg-muted/60 px-2 py-1 text-[11px] font-mono font-bold text-muted-foreground">
+              </button>
+
+              <button
+                type="button"
+                aria-label="View quote distance"
+                onClick={(event) => openInspectorSection(event, "overview")}
+                className="self-center rounded-full border border-transparent bg-muted/60 px-2 py-1 text-[11px] font-mono font-bold text-muted-foreground transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-amber-500/80 hover:bg-amber-50 hover:text-amber-700 hover:shadow-[0_0_0_2px_rgba(245,158,11,0.10)] active:scale-[0.96] active:border-amber-600 active:bg-amber-100/90 dark:hover:border-amber-300/60 dark:hover:bg-amber-500/16 dark:hover:text-amber-200 dark:hover:shadow-[0_0_0_2px_rgba(251,191,36,0.07)] dark:active:border-amber-300 dark:active:bg-amber-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/35 dark:hover:text-amber-300"
+              >
                 {Math.round(quote.miles)} MI
-              </span>
-              <div className="min-w-0 text-right">
+              </button>
+
+              <button
+                type="button"
+                aria-label="View quote destination details"
+                onClick={(event) => openInspectorSection(event, "overview")}
+                className="min-w-0 rounded-xl border border-transparent px-2 py-1.5 text-right transition-[background-color,border-color,box-shadow,transform] duration-150 hover:border-cyan-500/85 hover:bg-cyan-50 hover:shadow-[0_0_0_2px_rgba(6,182,212,0.12)] active:scale-[0.985] active:border-cyan-600 active:bg-cyan-100/90 dark:hover:border-cyan-300/65 dark:hover:bg-cyan-500/16 dark:hover:shadow-[0_0_0_2px_rgba(34,211,238,0.08)] dark:active:border-cyan-300 dark:active:bg-cyan-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40"
+              >
                 <span className="flex items-center justify-end gap-1 text-[11px] font-black uppercase tracking-[0.06em] text-cyan-500">
                   Destination <MapPin className="size-3" />
                 </span>
                 <p className="mt-1 truncate text-sm font-black text-foreground">
                   {destinationSummary}
                 </p>
-              </div>
+              </button>
             </div>
 
-            {/* Match the Load card's 2x2 operational tile language.
-                Every quote value is an explicit inspector target. */}
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            {/* Fixed 2x2 quote metric grid — same interaction language as Load.
+                Stable order:
+                1) Vehicles      2) Quote Rate
+                3) ETA           4) Distance */}
+            <div className="mt-3 grid grid-cols-2 gap-1.5">
               <QuoteStatTile
                 title="Vehicles"
                 ariaLabel="View quote vehicle information"
                 onClick={(event) => openInspectorSection(event, "vehicle")}
                 icon={<Car className="size-2.5 shrink-0 text-emerald-500" />}
                 value={`${quote.units ?? 1} UNIT${Number(quote.units ?? 1) !== 1 ? "S" : ""}`}
+                tone="emerald"
               />
 
               <QuoteStatTile
@@ -310,6 +373,7 @@ export function TransportationMobileQuoteCard({
                 icon={<DollarSign className="size-2.5 shrink-0 text-emerald-500" />}
                 value={`$${quote.rate.toLocaleString()}`}
                 valueClassName="text-emerald-600 dark:text-emerald-400"
+                tone="emerald"
               />
 
               <QuoteStatTile
@@ -318,6 +382,7 @@ export function TransportationMobileQuoteCard({
                 onClick={(event) => openInspectorSection(event, "overview")}
                 icon={<Clock className="size-2.5 shrink-0 text-cyan-500" />}
                 value={`${quote.eta.min}–${quote.eta.max} DAYS`}
+                tone="cyan"
               />
 
               <QuoteStatTile
@@ -326,6 +391,7 @@ export function TransportationMobileQuoteCard({
                 onClick={(event) => openInspectorSection(event, "overview")}
                 icon={<Gauge className="size-2.5 shrink-0 text-amber-500" />}
                 value={`${quote.miles.toLocaleString()} MI`}
+                tone="amber"
               />
             </div>
 
@@ -333,6 +399,13 @@ export function TransportationMobileQuoteCard({
           </div>
         </div>
       </article>
+
+      <VehicleImageLightbox
+        open={imageViewerOpen}
+        onOpenChange={setImageViewerOpen}
+        items={imageViewerItems}
+        initialIndex={0}
+      />
 
       <EditQuoteModal
         quote={quote}
