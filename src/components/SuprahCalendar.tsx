@@ -82,13 +82,24 @@ async function fetchTeamMembers(): Promise<CrmUserLite[]> {
   try {
     const res = await apiClient.getTeamMembers();
     const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
-    const mapped = (Array.isArray(raw) ? raw : []).map((u: any) => ({
-      _id: String(u._id ?? u.id),
-      fullName: u.fullName ?? u.name,
-      username: u.username,
-      email: u.email,
-    }));
-    return Array.from(new Map(mapped.map((u) => [u._id, u])).values());
+    const mapped = (Array.isArray(raw) ? raw : []).flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+
+      const user = value as Record<string, unknown>;
+      const id = user._id ?? user.id;
+      if (typeof id !== "string" && typeof id !== "number") return [];
+
+      const text = (field: unknown) =>
+        typeof field === "string" ? field : undefined;
+
+      return [{
+        _id: String(id),
+        fullName: text(user.fullName) ?? text(user.name),
+        username: text(user.username),
+        email: text(user.email),
+      }];
+    });
+    return Array.from(new Map(mapped.map((user) => [user._id, user])).values());
   } catch {
     return [];
   }
@@ -646,7 +657,7 @@ export default function SuprahCalendar() {
     teamFilter.length + typeFilter.length + statusFilter.length;
 
   return (
-    <div className="suprah-calendar-print relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
+    <div className="suprah-calendar-print relative flex flex-col overflow-visible rounded-2xl border border-border bg-card text-foreground md:h-full md:min-h-0 md:overflow-hidden print:h-auto print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
       {/* Toolbar */}
       <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 px-3 py-3 sm:gap-3 sm:px-5 print:hidden">
         <div className="flex h-9 shrink-0 items-center gap-2">
@@ -681,12 +692,12 @@ export default function SuprahCalendar() {
           </span>
         </div>
 
-        <div className="ml-auto flex h-9 shrink-0 flex-wrap items-center gap-2">
+        <div className="order-3 flex h-auto w-full min-w-0 flex-wrap items-center gap-2 sm:order-none sm:ml-auto sm:h-9 sm:w-auto sm:shrink-0">
           {/* View switcher: segmented tabs everywhere — compact below sm, full-width labels from sm up */}
           <div
             role="tablist"
             aria-label="Calendar view"
-            className="flex h-9 items-center overflow-hidden rounded-lg border border-border bg-background sm:hidden"
+            className="flex h-9 basis-full items-center overflow-hidden rounded-lg border border-border bg-background sm:basis-auto sm:hidden"
           >
             {(["day", "week", "month", "agenda"] as CalendarView[]).map((v) => (
               <button
@@ -921,8 +932,8 @@ export default function SuprahCalendar() {
       )}
 
       {/* Body */}
-      <div className="relative z-10 flex min-h-0 flex-1 print:h-auto print:flex-none">
-        <div className="min-h-0 flex-1 overflow-auto print:h-auto print:overflow-visible">
+      <div className="relative z-10 flex flex-1 print:h-auto print:flex-none md:min-h-0">
+        <div className="flex-1 overflow-visible print:h-auto print:overflow-visible md:min-h-0 md:overflow-auto">
           {error && (
             <p className="p-6 text-sm font-medium text-rose-700 dark:text-rose-300">
               Couldn’t load the calendar — {error}. Check your connection and

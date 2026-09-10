@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
+const IMAGE_LOAD_TIMEOUT_MS = 12_000;
 
 // Set to false in production to silence per-image console logging.
 const DEBUG_IMAGES = false;
@@ -184,13 +185,14 @@ function VehicleImage({
   const [imgIdx, setImgIdx] = React.useState(0);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
+  const [imageVisible, setImageVisible] = React.useState(false);
+  const candidateKey = candidates.join("\u0001");
 
-  // Reset when the candidate set changes (e.g. list re-renders with new vehicle)
   React.useEffect(() => {
     setImgIdx(0);
     setImgLoaded(false);
     setImgError(false);
-  }, [vehicle.id]);
+  }, [candidateKey]);
 
   const activeSrc = candidates[imgIdx];
 
@@ -199,9 +201,31 @@ function VehicleImage({
       setImgLoaded(true);
     }
   }, [activeSrc]);
+
+  React.useEffect(() => {
+    const image = imgRef.current;
+    if (!image || !activeSrc) return;
+    if (!("IntersectionObserver" in window)) {
+      setImageVisible(true);
+      return;
+    }
+
+    setImageVisible(false);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setImageVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(image);
+    return () => observer.disconnect();
+  }, [activeSrc]);
+
   const StatusIcon = statusCfg?.icon ?? Clock;
 
-  const handleImgError = () => {
+  const advanceCandidate = React.useCallback(() => {
     if (DEBUG_IMAGES) {
       // eslint-disable-next-line no-console
       console.warn(
@@ -215,7 +239,15 @@ function VehicleImage({
       setImgError(true);
       setImgLoaded(true);
     }
-  };
+  }, [activeSrc, candidates.length, imgIdx, vehicle.id, vehicle.make, vehicle.model, vehicle.year]);
+
+  React.useEffect(() => {
+    if (!activeSrc || !imageVisible || imgLoaded || imgError) return;
+    const timeoutId = window.setTimeout(advanceCandidate, IMAGE_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeSrc, advanceCandidate, imageVisible, imgError, imgLoaded]);
+
+  const handleImgError = advanceCandidate;
 
   const handleImgLoad = () => setImgLoaded(true);
 

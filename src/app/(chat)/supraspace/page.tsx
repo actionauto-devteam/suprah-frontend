@@ -9473,14 +9473,16 @@ export default function SupraSpacePage() {
       setInput(value);
       return;
     }
-    if (composerMetricsTimerRef.current !== null) return;
+    if (composerMetricsTimerRef.current !== null) {
+      window.clearTimeout(composerMetricsTimerRef.current);
+    }
     composerMetricsTimerRef.current = window.setTimeout(() => {
       composerMetricsTimerRef.current = null;
       const latest = inputTextRef.current;
       setComposerCharCount(prev => prev === latest.length ? prev : latest.length);
       const latestHasText = Boolean(latest.trim());
       setComposerHasText(prev => prev === latestHasText ? prev : latestHasText);
-    }, 120);
+    }, 300);
   }, []);
 
   React.useEffect(() => () => {

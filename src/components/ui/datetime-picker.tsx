@@ -76,7 +76,7 @@ function TimeColumn({
             "flex w-full items-center justify-center py-1.5 text-sm transition-colors",
             v === selected
               ? "bg-primary text-primary-foreground"
-              : "text-foreground hover:bg-accent"
+              : "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
           )}
         >
           {pad(v)}
@@ -144,8 +144,11 @@ export function DateTimePicker({
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto max-w-[calc(100vw-1.5rem)] p-0 z-300" align="start">
-        <div className="flex flex-col sm:flex-row">
+      <PopoverContent
+        className="z-300 w-[min(22rem,calc(100vw-1.5rem))] max-h-[calc(var(--radix-popover-content-available-height)-0.75rem)] overflow-y-auto p-0 md:w-auto"
+        align="start"
+      >
+        <div className="flex flex-col md:flex-row">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -153,10 +156,10 @@ export function DateTimePicker({
             disabled={minDate ? (d) => d < minDate : undefined}
             initialFocus
           />
-          <div className="flex border-t border-border/50 sm:border-t-0">
-            <TimeColumn values={HOURS} selected={hour12} onSelect={(v) => commitTime(v, minute, period)} className="border-l-0 sm:border-l" />
-            <TimeColumn values={MINUTES} selected={minute} onSelect={(v) => commitTime(hour12, v, period)} />
-            <div className="flex h-56 w-14 shrink-0 flex-col border-l border-border/50">
+          <div className="flex w-full justify-center border-t border-border/50 md:w-auto md:border-t-0">
+            <TimeColumn values={HOURS} selected={hour12} onSelect={(v) => commitTime(v, minute, period)} className="h-40 border-l-0 md:h-56 md:border-l" />
+            <TimeColumn values={MINUTES} selected={minute} onSelect={(v) => commitTime(hour12, v, period)} className="h-40 md:h-56" />
+            <div className="flex h-40 w-14 shrink-0 flex-col border-l border-border/50 md:h-56">
               {(["AM", "PM"] as const).map((p) => (
                 <button
                   key={p}
@@ -166,7 +169,7 @@ export function DateTimePicker({
                     "flex-1 text-sm font-medium transition-colors",
                     p === period
                       ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-accent"
+                      : "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
                   {p}
