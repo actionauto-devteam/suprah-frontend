@@ -48,7 +48,7 @@ export function SupraSpaceLogo({
         borderRadius: radius,
         overflow: 'hidden',
         boxShadow: withGlow
-          ? '0 0 0 1px rgba(52,201,125,0.30), 0 4px 16px rgba(52,201,125,0.28)'
+          ? '0 0 0 1px rgba(22,163,74,0.32), 0 4px 16px rgba(22,163,74,0.28)'
           : undefined,
         flexShrink: 0,
       }}
@@ -62,8 +62,8 @@ export function SupraSpaceLogo({
       >
         <defs>
           <linearGradient id={bgId} x1="6" y1="4" x2="42" y2="46" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#16a34a" />
-            <stop offset="1" stopColor="#34c97d" />
+            <stop offset="0" stopColor="#15803d" />
+            <stop offset="1" stopColor="#16a34a" />
           </linearGradient>
           <linearGradient id={sheenId} x1="24" y1="0" x2="24" y2="30" gradientUnits="userSpaceOnUse">
             <stop offset="0" stopColor="#ffffff" stopOpacity="0.20" />

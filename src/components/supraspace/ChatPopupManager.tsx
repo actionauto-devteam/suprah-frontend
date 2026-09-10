@@ -800,7 +800,7 @@ type PopupEditFormatState = {
   code: boolean;
 };
 
-const AVATAR_COLORS = ['#5b7cf6', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
+const AVATAR_COLORS = ['#16a34a', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
 const DEFAULT_QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👌', '👍'];
 const QUICK_REACTION_CHOICES = ['❤️', '😂', '😮', '😢', '👌', '👍', '🔥', '🎉', '👏', '🙏', '💯', '😍', '🤔', '😅', '🙌', '✅'];
 const MUTE_DURATION_OPTIONS: { label: string; ms: number | null }[] = [
@@ -2708,7 +2708,7 @@ function ForwardModal({ message, token, myId, onClose }: {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Share2 style={{ width: 16, height: 16, color: '#5b7cf6' }} />
+            <Share2 style={{ width: 16, height: 16, color: '#16a34a' }} />
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--popover-foreground)' }}>Forward message</span>
           </div>
           <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'transparent', color: 'var(--muted-foreground)', cursor: 'pointer', border: 'none' }}>
@@ -2722,8 +2722,8 @@ function ForwardModal({ message, token, myId, onClose }: {
           {selected.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
               {selected.map(u => (
-                <span key={u._id} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '3px 10px 3px 6px', background: 'rgba(91,124,246,0.15)', border: '1px solid rgba(91,124,246,0.3)' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#5b7cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
+                <span key={u._id} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '3px 10px 3px 6px', background: 'rgba(22,163,74,0.15)', border: '1px solid rgba(22,163,74,0.3)' }}>
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
                     {u.avatar
                       ? <img src={resolveImageUrl(u.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : u.fullName[0]?.toUpperCase()}
@@ -2765,7 +2765,7 @@ function ForwardModal({ message, token, myId, onClose }: {
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#5b7cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
                   {u.avatar
                     ? <img src={resolveImageUrl(u.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : u.fullName[0]?.toUpperCase()}
@@ -2781,7 +2781,7 @@ function ForwardModal({ message, token, myId, onClose }: {
           {/* Forward button */}
           {selected.length > 0 && (
             <button onClick={handleForward} disabled={sending}
-              style={{ marginTop: 12, width: '100%', height: 36, borderRadius: 8, background: '#5b7cf6', color: '#fff', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: sending ? 0.6 : 1, cursor: sending ? 'not-allowed' : 'pointer', border: 'none' }}
+              style={{ marginTop: 12, width: '100%', height: 36, borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: sending ? 0.6 : 1, cursor: sending ? 'not-allowed' : 'pointer', border: 'none' }}
             >
               <Share2 style={{ width: 14, height: 14 }} />
               {sending ? 'Forwarding…' : `Forward to ${selected.length} ${selected.length === 1 ? 'person' : 'people'}`}
@@ -2841,7 +2841,7 @@ function PinnedMessagesModal({
                   {idx > 0 && <div style={{ height: 1, background: 'var(--border)' }} />}
                   <div style={{ padding: '14px 20px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                     {/* Avatar */}
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#5b7cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: 2 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#16a34a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: 2 }}>
                       {m.sender?.avatar
                         ? <img src={resolveImageUrl(m.sender.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{avatarLetter}</span>
@@ -3591,7 +3591,7 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
                   />
                 ))}
                 <label className="h-8 w-8 rounded-full flex items-center justify-center cursor-pointer border border-dashed border-border text-muted-foreground">
-                  <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="sr-only" />
+                  <input type="color" value={accent || '#16a34a'} onChange={e => setAccent(e.target.value)} className="sr-only" />
                   <Palette className="h-4 w-4" />
                 </label>
                 {accent && (
@@ -4945,7 +4945,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const notificationPref = notifPrefs[conv._id] || conv.notificationPreference || { type: 'all' as const, muted: false };
   const avatarSrc = getAvatarSrc(conv, crmUserId);
   const rightPx = baseOffsetPx + stackIndex * (POPUP_W + POPUP_GAP);
-  const accentColor = conv.theme?.accent || '#5b7cf6';
+  const accentColor = conv.theme?.accent || '#16a34a';
 
   const mentionOptions = React.useMemo(() => {
     if (mentionQuery === null) return [];
@@ -7097,7 +7097,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           {/* Emoji react button — opens quick-react popup */}
           <button title="React"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
-            style={{ color: quickReactMsgId === hovMsg ? '#5b7cf6' : 'rgba(255,255,255,0.55)' }}
+            style={{ color: quickReactMsgId === hovMsg ? '#16a34a' : 'rgba(255,255,255,0.55)' }}
             onClick={(e) => {
               e.stopPropagation();
               if (quickReactMsgId === hovMsg) {
@@ -7127,7 +7127,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             type="button"
             title="More actions"
             className="hover:bg-white/10 rounded-full p-1.5 transition-colors"
-            style={{ color: moreMenuMsgId === hovMsg ? '#5b7cf6' : 'rgba(255,255,255,0.55)' }}
+            style={{ color: moreMenuMsgId === hovMsg ? '#16a34a' : 'rgba(255,255,255,0.55)' }}
             onPointerDown={event => {
               event.stopPropagation();
               handleBarEnter();
@@ -7289,7 +7289,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   }
                   close();
                 }}>
-                  <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? '#5b7cf6' : 'rgba(255,255,255,0.5)' }} />
+                  <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? '#16a34a' : 'rgba(255,255,255,0.5)' }} />
                   <span style={{ fontSize: 13, color: 'var(--popover-foreground)' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
                 </button>
                 {msg?.content && (
@@ -7514,7 +7514,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               <div className="py-1.5">
                 {/* Open in SupraSpace */}
                 <button className={row} onClick={() => { close(); router.push('/crm/supra-space'); }}>
-                  <ExternalLink className={ic} style={{ color: '#5b7cf6' }} />
+                  <ExternalLink className={ic} style={{ color: '#16a34a' }} />
                   {label('Open in SupraSpace')}
                 </button>
 
@@ -7762,7 +7762,7 @@ function MinimizedDock({
       {conversations.map((conv) => {
         const name = getDisplayName(conv, crmUserId);
         const avatar = getAvatarSrc(conv, crmUserId);
-        const accent = conv.theme?.accent || '#5b7cf6';
+        const accent = conv.theme?.accent || '#16a34a';
         const unread = conv.unreadCount || 0;
         return (
           <div key={conv._id} className="group relative shrink-0">

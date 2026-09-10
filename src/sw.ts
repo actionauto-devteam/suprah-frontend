@@ -77,7 +77,7 @@ serwist.addEventListeners();
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || self.location.origin
 ).replace(/\/$/, "");
-const DEFAULT_NOTIFICATION_ICON = "/icon-192x192.png";
+const DEFAULT_NOTIFICATION_ICON = self.location.origin === "https://space.suprah-app.com" ? "/supra-space/icon-192.png" : "/icon-192x192.png";
 const SUMMARY_NOTIFICATION_TAG = "notification-summary";
 
 function cleanPushNotificationText(value: unknown): string {

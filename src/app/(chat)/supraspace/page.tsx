@@ -48,7 +48,6 @@ const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet)
 const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
 const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
 import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
-import { CrmPushPrompt } from '@/components/crm/CrmPushPrompt';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
@@ -994,6 +993,34 @@ function ss4FindPriorNumberedSibling(value: string, lineStart: number, indentLen
 const SS4_VIDEO_EXTENSIONS = new Set([
   '.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.wmv', '.flv', '.3gp', '.mpeg', '.mpg', '.ogv',
 ]);
+const SS4_IMAGE_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tif', '.tiff', '.avif',
+]);
+const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.bmp': 'image/bmp',
+  '.tif': 'image/tiff',
+  '.tiff': 'image/tiff',
+  '.avif': 'image/avif',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.m4v': 'video/x-m4v',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska',
+  '.wmv': 'video/x-ms-wmv',
+  '.flv': 'video/x-flv',
+  '.3gp': 'video/3gpp',
+  '.mpeg': 'video/mpeg',
+  '.mpg': 'video/mpeg',
+  '.ogv': 'video/ogg',
+};
 const SS4_REACTIONS = [
   '\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}',
   '\u{1f525}', '\u{1f389}', '\u{1f44f}', '\u{1f60d}', '\u{1f914}', '\u{1f440}',
@@ -1041,10 +1068,10 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(link);
   }
 
-  let s = document.getElementById('ss4-styles') as HTMLStyleElement | null;
+  let s = document.getElementById('supraspace-page-styles') as HTMLStyleElement | null;
   if (!s) {
     s = document.createElement('style');
-    s.id = 'ss4-styles';
+    s.id = 'supraspace-page-styles';
     document.head.appendChild(s);
   }
   s.textContent = `
@@ -1053,13 +1080,13 @@ if (typeof document !== 'undefined') {
       --bg-hover:rgba(255,255,255,0.04); --bg-active:rgba(255,255,255,0.07); --bg-subtle:rgba(255,255,255,0.03);
       --surface-1:#1e2126; --surface-2:#252a31; --surface-3:#2d3340;
       --border-1:rgba(255,255,255,0.06); --border-2:rgba(255,255,255,0.10); --border-3:rgba(255,255,255,0.14);
-      --accent:#5b7cf6; --accent-muted:rgba(91,124,246,0.15); --accent-hover:#6b8cf8; --accent-text:#a5b8ff;
+      --accent:#16a34a; --accent-muted:rgba(22,163,74,0.15); --accent-hover:#22c55e; --accent-text:#5fe0a0;
       --positive:#34c97d; --positive-muted:rgba(52,201,125,0.12); --warning:#f0a855; --danger:#f05c5c; --danger-muted:rgba(240,92,92,0.12);
       --text-primary:rgba(255,255,255,0.92); --text-secondary:rgba(255,255,255,0.52); --text-tertiary:rgba(255,255,255,0.28); --text-disabled:rgba(255,255,255,0.16);
-      --bubble-own-bg:linear-gradient(145deg,#4a6cf0,#5b7cf6); --bubble-own-shadow:0 4px 20px rgba(91,124,246,0.25);
+      --bubble-own-bg:linear-gradient(145deg,#15803d,#16a34a); --bubble-own-shadow:0 4px 20px rgba(22,163,74,0.25);
       --bubble-other-bg:var(--surface-2); --bubble-other-border:var(--border-2);
       --sidebar-bg:#111316; --sidebar-border:rgba(255,255,255,0.055);
-      --input-bg:var(--surface-1); --input-border:var(--border-2); --input-focus:rgba(91,124,246,0.35);
+      --input-bg:var(--surface-1); --input-border:var(--border-2); --input-focus:rgba(22,163,74,0.35);
       --scrollbar:rgba(255,255,255,0.07);
       --editor-caret:#f8fafc;
       --shadow-sm:0 1px 3px rgba(0,0,0,0.4),0 1px 2px rgba(0,0,0,0.3);
@@ -1069,16 +1096,16 @@ if (typeof document !== 'undefined') {
     }
     .ss4[data-theme="light"] {
       --bg-base:#f4f5f7; --bg-elevated:#ffffff; --bg-overlay:#f9fafb;
-      --bg-hover:rgba(0,0,0,0.03); --bg-active:rgba(91,124,246,0.08); --bg-subtle:rgba(0,0,0,0.02);
+      --bg-hover:rgba(0,0,0,0.03); --bg-active:rgba(22,163,74,0.08); --bg-subtle:rgba(0,0,0,0.02);
       --surface-1:#ffffff; --surface-2:#f4f5f7; --surface-3:#eaecf0;
       --border-1:rgba(0,0,0,0.06); --border-2:rgba(0,0,0,0.09); --border-3:rgba(0,0,0,0.14);
-      --accent:#4a6cf0; --accent-muted:rgba(74,108,240,0.1); --accent-hover:#3a5ce0; --accent-text:#4a6cf0;
+      --accent:#15803d; --accent-muted:rgba(21,128,61,0.1); --accent-hover:#166534; --accent-text:#15803d;
       --positive:#22b060; --positive-muted:rgba(34,176,96,0.1); --warning:#e0922a; --danger:#dc3545; --danger-muted:rgba(220,53,69,0.08);
       --text-primary:rgba(0,0,0,0.87); --text-secondary:rgba(0,0,0,0.50); --text-tertiary:rgba(0,0,0,0.32); --text-disabled:rgba(0,0,0,0.20);
-      --bubble-own-bg:linear-gradient(145deg,#4a6cf0,#5b7cf6); --bubble-own-shadow:0 3px 14px rgba(74,108,240,0.22);
+      --bubble-own-bg:linear-gradient(145deg,#15803d,#16a34a); --bubble-own-shadow:0 3px 14px rgba(21,128,61,0.22);
       --bubble-other-bg:#ffffff; --bubble-other-border:rgba(0,0,0,0.09);
       --sidebar-bg:#ffffff; --sidebar-border:rgba(0,0,0,0.08);
-      --input-bg:#ffffff; --input-border:rgba(0,0,0,0.1); --input-focus:rgba(74,108,240,0.3);
+      --input-bg:#ffffff; --input-border:rgba(0,0,0,0.1); --input-focus:rgba(21,128,61,0.3);
       --scrollbar:rgba(0,0,0,0.1);
       --editor-caret:#111827;
       --shadow-sm:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
@@ -1093,7 +1120,7 @@ if (typeof document !== 'undefined') {
     .ss4-sidebar { background:var(--sidebar-bg); border-right:1px solid var(--sidebar-border); }
     .ss4-conv { border-radius:10px; cursor:pointer; transition:background .15s ease,box-shadow .15s ease; position:relative; }
     .ss4-conv:hover { background:var(--bg-hover); }
-    .ss4-conv-active { background:rgba(91,124,246,0.18)!important; }
+    .ss4-conv-active { background:rgba(22,163,74,0.18)!important; }
     .ss4-conv-name { color:var(--text-primary); }
     .ss4-conv-preview { color:var(--text-secondary); }
     .ss4-conv-active::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); height:60%; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
@@ -1110,7 +1137,7 @@ if (typeof document !== 'undefined') {
        via cn(), but ss4-conv--card's own background wins the cascade (its
        CSS is injected after Tailwind's stylesheet), so it needs its own rule
        here to actually show through. */
-    .ss4-conv--card.ss4-conv--unread { background:rgba(91,124,246,0.08); border-color:rgba(91,124,246,0.22); }
+    .ss4-conv--card.ss4-conv--unread { background:rgba(22,163,74,0.08); border-color:rgba(22,163,74,0.22); }
     .ss4-conv--card.ss4-conv-active { border-color:var(--accent); }
     .ss4-conv--card.ss4-conv-active::before { display:none; }
     .ss4-search-input { background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:8px; transition:border-color .15s ease,box-shadow .15s ease; }
@@ -1193,8 +1220,8 @@ if (typeof document !== 'undefined') {
     .ss4-composer-pill button { cursor:pointer; }
     .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:none!important; }
     .ss4-desktop-toolbar { display:flex!important; }
-    .ss4-send-btn { background:var(--accent); color:#fff; border-radius:10px; transition:all .15s ease; box-shadow:0 2px 8px rgba(91,124,246,0.3); }
-    .ss4-send-btn:hover:not(:disabled) { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(91,124,246,0.4); }
+    .ss4-send-btn { background:var(--accent); color:#fff; border-radius:10px; transition:all .15s ease; box-shadow:0 2px 8px rgba(22,163,74,0.3); }
+    .ss4-send-btn:hover:not(:disabled) { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(22,163,74,0.4); }
     .ss4-send-btn:disabled { background:var(--surface-2); box-shadow:none; cursor:not-allowed; }
     .ss4-icon-btn { border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; display:flex; align-items:center; justify-content:center; }
     .ss4-icon-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
@@ -1209,16 +1236,16 @@ if (typeof document !== 'undefined') {
     .ss4-settings-swatch { transition:transform .15s ease,box-shadow .15s ease; cursor:pointer; }
     .ss4-settings-swatch:hover { transform:scale(1.08); }
     .ss4-settings-swatch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-    .ss4-video-btn { background:rgba(91,124,246,0.1); border:1px solid rgba(91,124,246,0.2); color:var(--accent-text); border-radius:8px; transition:all .15s ease; }
-    .ss4-video-btn:hover { background:rgba(91,124,246,0.18); border-color:rgba(91,124,246,0.35); }
-    .ss4-ai-btn { background:linear-gradient(135deg,rgba(120,80,220,0.12),rgba(91,124,246,0.08)); border:1px solid rgba(150,100,240,0.2); color:#b49dff; border-radius:8px; transition:all .15s ease; position:relative; overflow:hidden; }
+    .ss4-video-btn { background:rgba(22,163,74,0.1); border:1px solid rgba(22,163,74,0.2); color:var(--accent-text); border-radius:8px; transition:all .15s ease; }
+    .ss4-video-btn:hover { background:rgba(22,163,74,0.18); border-color:rgba(22,163,74,0.35); }
+    .ss4-ai-btn { background:linear-gradient(135deg,rgba(120,80,220,0.12),rgba(22,163,74,0.08)); border:1px solid rgba(150,100,240,0.2); color:#b49dff; border-radius:8px; transition:all .15s ease; position:relative; overflow:hidden; }
     .ss4-ai-btn:hover { border-color:rgba(150,100,240,0.4); box-shadow:0 0 16px rgba(120,80,220,0.15); }
     @keyframes ss4-shimmer { 0%{background-position:-200% center;} 100%{background-position:200% center;} }
-    .ss4-ai-text { background:linear-gradient(90deg,#b49dff 0%,#a5b8ff 40%,#c4a0ff 70%,#b49dff 100%); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:ss4-shimmer 3s linear infinite; }
-    .ss4-reply-bar { background:var(--accent-muted); border:1px solid rgba(91,124,246,0.2); border-left:3px solid var(--accent); border-radius:10px; }
+    .ss4-ai-text { background:linear-gradient(90deg,#b49dff 0%,#5fe0a0 40%,#c4a0ff 70%,#b49dff 100%); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:ss4-shimmer 3s linear infinite; }
+    .ss4-reply-bar { background:var(--accent-muted); border:1px solid rgba(22,163,74,0.2); border-left:3px solid var(--accent); border-radius:10px; }
     .ss4-overlay { background:rgba(0,0,0,0.6); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
     .ss4-modal { background:var(--bg-elevated); border:1px solid var(--border-2); border-radius:16px; box-shadow:var(--shadow-lg); }
-    .ss4-ava-accent { background:linear-gradient(140deg,#3a5ce0,#5b7cf6); }
+    .ss4-ava-accent { background:linear-gradient(140deg,#166534,#16a34a); }
     .ss4-ava-purple { background:linear-gradient(140deg,#7038c0,#9b6fd6); }
     .ss4-ava-teal { background:linear-gradient(140deg,#0e7c6a,#22b060); }
     @keyframes ss4-dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.4;} 40%{transform:translateY(-4px);opacity:1;} }
@@ -1228,7 +1255,7 @@ if (typeof document !== 'undefined') {
     .ss4-msg-actions-pop { animation:ss4-action-pop .16s cubic-bezier(.2,.8,.2,1) both; }
     @keyframes ss4-mobile-sheet-in { from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);} }
     @keyframes ss4-mobile-pop-in { from{opacity:0;transform:translateY(8px) scale(.96);} to{opacity:1;transform:translateY(0) scale(1);} }
-    .ss4-mention-highlight { background:var(--accent-muted,rgba(91,124,246,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
+    .ss4-mention-highlight { background:var(--accent-muted,rgba(22,163,74,0.09)); border-left:2px solid var(--accent); padding-left:6px; border-radius:4px; }
     /* Composer's own visual confirmation that an @mention was actually
        inserted — matches renderMessageContent's styling for the same token
        once sent, so what you see while typing is what it'll look like. */
@@ -1249,7 +1276,7 @@ if (typeof document !== 'undefined') {
     .ss4-date-chip { background:var(--surface-2); border:1px solid var(--border-1); border-radius:20px; color:var(--text-tertiary); font-size:11px; padding:3px 12px; white-space:nowrap; }
     .ss4-vcall-modal { background:#0d1117; border:1px solid rgba(255,255,255,0.08); border-radius:20px; box-shadow:var(--shadow-lg); }
     .ss4-vcall-screen { background:radial-gradient(ellipse at 50% 30%,#141e3a 0%,#0a0d14 100%); position:relative; overflow:hidden; }
-    @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(91,124,246,0.4);} 50%{box-shadow:0 0 0 12px rgba(91,124,246,0);} }
+    @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.4);} 50%{box-shadow:0 0 0 12px rgba(22,163,74,0);} }
     .ss4-calling-ring { animation:ss4-call-ring 2s ease-in-out infinite; }
 .ss4-tab-bar {
   background: rgba(127, 127, 127, 0.08);
@@ -1277,11 +1304,11 @@ if (typeof document !== 'undefined') {
 .ss4-tab-active {
   background: var(--accent);
   color: #fff !important;
-  box-shadow: 0 2px 8px rgba(91, 124, 246, 0.35);
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
 }
-    .ss4-logo-mark { background:linear-gradient(140deg,#16a34a,#34c97d); box-shadow:0 0 0 1px rgba(52,201,125,0.3),0 4px 16px rgba(52,201,125,0.25); border-radius:10px; }
-    .ss4-new-btn { background:rgba(91,124,246,0.15); border:1px solid rgba(91,124,246,0.25); border-radius:8px; color:var(--accent-text); transition:all .15s ease; }
-    .ss4-new-btn:hover { background:rgba(91,124,246,0.25); }
+    .ss4-logo-mark { background:linear-gradient(140deg,#15803d,#16a34a); box-shadow:0 0 0 1px rgba(22,163,74,0.32),0 4px 16px rgba(22,163,74,0.28); border-radius:10px; }
+    .ss4-new-btn { background:rgba(22,163,74,0.15); border:1px solid rgba(22,163,74,0.25); border-radius:8px; color:var(--accent-text); transition:all .15s ease; }
+    .ss4-new-btn:hover { background:rgba(22,163,74,0.25); }
     .ss4-theme-btn { background:var(--bg-hover); border:1px solid var(--border-2); border-radius:8px; color:var(--text-tertiary); transition:all .15s ease; }
     .ss4-theme-btn:hover { color:var(--text-primary); border-color:var(--border-3); }
     .ss4[data-theme="dark"] .ss4-theme-btn { color:rgba(255,255,255,0.78); }
@@ -1291,7 +1318,7 @@ if (typeof document !== 'undefined') {
     @keyframes ss4-fade-up { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
     .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; -webkit-touch-callout:default; -webkit-user-select:text; user-select:text; }
     .ss4-copyable-text { -webkit-user-select:text; user-select:text; cursor:text; }
-    .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(91,124,246,0.25); border-radius:16px; }
+    .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(22,163,74,0.25); border-radius:16px; }
     .ss4-divider { height:1px; background:var(--border-1); }
     .ss4-reaction-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-hover); font-size:11px; cursor:pointer; transition:all .12s ease; }
     .ss4-reaction-chip:hover { border-color:var(--accent); }
@@ -1368,12 +1395,12 @@ if (typeof document !== 'undefined') {
         position:fixed;
         left:0;
         right:0;
-        bottom:0;
+        bottom:var(--ss4-ios-keyboard-accessory-height, 0px);
         z-index:80;
         background:var(--bg-base);
       }
       html.ss4-ios-keyboard-open .ss4-chat-messages {
-        padding-bottom:var(--ss4-composer-height, 76px) !important;
+        padding-bottom:calc(var(--ss4-composer-height, 76px) + var(--ss4-ios-keyboard-accessory-height, 0px)) !important;
       }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
@@ -3726,13 +3753,38 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 const isVideoFileLike = (file: Pick<File, 'name' | 'type'>) => {
-  const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')).toLowerCase() : '';
+  const extension = getMediaExtension(file.name);
   return file.type.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
 };
-const isVideoAttachment = (attachment: SSMessage['attachments'][number]) => {
-  const extension = attachment.originalName.includes('.') ? attachment.originalName.slice(attachment.originalName.lastIndexOf('.')).toLowerCase() : '';
-  return attachment.mimeType.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
+const isImageFileLike = (file: Pick<File, 'name' | 'type'>) => {
+  const extension = getMediaExtension(file.name);
+  return file.type.startsWith('image/') || SS4_IMAGE_EXTENSIONS.has(extension);
 };
+const isVideoAttachment = (attachment: SSMessage['attachments'][number]) => {
+  const extension = getMediaExtension(attachment.originalName);
+  return getAttachmentMimeType(attachment).startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(extension);
+};
+const isImageAttachment = (attachment: SSMessage['attachments'][number]) => {
+  const extension = getMediaExtension(attachment.originalName);
+  return getAttachmentMimeType(attachment).startsWith('image/') || SS4_IMAGE_EXTENSIONS.has(extension);
+};
+function getMediaExtension(name: string | undefined | null): string {
+  if (!name || !name.includes('.')) return '';
+  return name.slice(name.lastIndexOf('.')).toLowerCase();
+}
+function getMediaMimeType(file: Pick<File, 'name' | 'type'>): string {
+  const extension = getMediaExtension(file.name);
+  const inferred = SS4_MEDIA_EXTENSION_MIME[extension];
+  if (inferred && (!file.type || file.type === 'application/octet-stream' || file.type === 'audio/mp4')) return inferred;
+  return file.type || inferred || 'application/octet-stream';
+}
+function getAttachmentMimeType(attachment: Pick<SSAttachment, 'originalName' | 'mimeType'>): string {
+  const extension = getMediaExtension(attachment.originalName);
+  const inferred = SS4_MEDIA_EXTENSION_MIME[extension];
+  const current = attachment.mimeType || '';
+  if (inferred && (!current || current === 'application/octet-stream' || current === 'audio/mp4')) return inferred;
+  return current || inferred || 'application/octet-stream';
+}
 const safeMembers = (c: SSConversation) => (c.members || []).filter(Boolean);
 const getConvName = (c: SSConversation, uid: string) => {
   if (c.type === 'group') return c.name || 'Group';
@@ -4165,8 +4217,8 @@ async function mediaUrlToBlob(url: string): Promise<Blob> {
 }
 
 async function copyAttachmentToClipboard(attachment: SSAttachment): Promise<'file' | 'link'> {
-  const mimeType = (attachment.mimeType || 'application/octet-stream').split(';')[0].trim() || 'application/octet-stream';
-  if (mimeType.startsWith('image/')) {
+  const mimeType = getAttachmentMimeType(attachment).split(';')[0].trim() || 'application/octet-stream';
+  if (isImageAttachment(attachment)) {
     try {
       await copyImageToClipboard(attachment.url);
       return 'file';
@@ -4236,6 +4288,110 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
   if (!first || !second) return 0;
   return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 };
+
+type SS4LocalPreviewAttachment = SSAttachment & { localPreviewUrl?: string };
+
+function getAttachmentLocalPreviewUrl(attachment: SSAttachment): string | undefined {
+  const localPreviewUrl = (attachment as SS4LocalPreviewAttachment).localPreviewUrl;
+  return typeof localPreviewUrl === 'string' && localPreviewUrl ? localPreviewUrl : undefined;
+}
+
+function getAttachmentImagePreviewUrl(attachment: SSAttachment): string {
+  return getAttachmentLocalPreviewUrl(attachment) || attachment.thumbnailUrl || attachment.url;
+}
+
+function getAttachmentMediaUrl(attachment: SSAttachment): string {
+  return getAttachmentLocalPreviewUrl(attachment) || attachment.url;
+}
+
+function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: string[]): SSMessage {
+  if (!localPreviewUrls.length) return message;
+  return {
+    ...message,
+    attachments: (message.attachments || []).map((attachment, index) => {
+      const localPreviewUrl = localPreviewUrls[index];
+      return localPreviewUrl ? ({ ...attachment, localPreviewUrl } as SSAttachment) : attachment;
+    }),
+  };
+}
+
+function SS4AttachmentImage({ attachment, alt, className, style }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties }) {
+  return <img src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} decoding="async" />;
+}
+
+function SS4AttachmentVideo({ attachment, className, style }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties }) {
+  const localPreviewUrl = getAttachmentLocalPreviewUrl(attachment);
+  const mediaUrl = getAttachmentMediaUrl(attachment);
+  return (
+    <video
+      controls
+      preload={localPreviewUrl ? 'auto' : 'metadata'}
+      poster={attachment.thumbnailUrl || undefined}
+      playsInline
+      className={className}
+      style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
+    >
+      <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
+    </video>
+  );
+}
+
+function createSS4VideoThumbnail(file: File): Promise<Blob | null> {
+  return new Promise(resolve => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let settled = false;
+    const finish = (blob: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      video.removeAttribute('src');
+      video.load();
+      resolve(blob);
+    };
+    const draw = () => {
+      const width = video.videoWidth || 720;
+      const height = video.videoHeight || 1280;
+      const scale = Math.min(1, 720 / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return finish(null);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => finish(blob), 'image/jpeg', 0.78);
+    };
+    const timeout = window.setTimeout(() => finish(null), 7000);
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      video.currentTime = Math.min(0.2, duration / 3 || 0.1);
+    };
+    video.onseeked = draw;
+    video.onloadeddata = () => {
+      if (!Number.isFinite(video.duration) || video.duration === 0) draw();
+    };
+    video.onerror = () => finish(null);
+    video.src = url;
+    video.load();
+  });
+}
+
+async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
+  const thumbnails = await Promise.all(files.map(async (file, index) => {
+    if (!isVideoFileLike(file)) return null;
+    const thumbnail = await createSS4VideoThumbnail(file).catch(() => null);
+    return thumbnail ? { index, thumbnail } : null;
+  }));
+  thumbnails.forEach(item => {
+    if (!item) return;
+    formData.append('thumbnails', item.thumbnail, `video-${item.index}-thumb.jpg`);
+    formData.append('thumbnailIndexes', String(item.index));
+  });
+}
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
@@ -5073,9 +5229,9 @@ const Bubble = React.memo(function Bubble({
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     target.animate(
       [
-        { boxShadow: '0 0 0 0 rgba(91, 124, 246, 0)', transform: 'scale(1)' },
-        { boxShadow: '0 0 0 4px rgba(91, 124, 246, 0.55), 0 0 28px rgba(91, 124, 246, 0.35)', transform: 'scale(1.01)' },
-        { boxShadow: '0 0 0 0 rgba(91, 124, 246, 0)', transform: 'scale(1)' },
+        { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0)', transform: 'scale(1)' },
+        { boxShadow: '0 0 0 4px rgba(22, 163, 74, 0.55), 0 0 28px rgba(22, 163, 74, 0.35)', transform: 'scale(1.01)' },
+        { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0)', transform: 'scale(1)' },
       ],
       { duration: 1400, easing: 'ease' },
     );
@@ -5177,18 +5333,18 @@ const Bubble = React.memo(function Bubble({
     ? `@${_nameParts[0]} ${_nameParts[_nameParts.length - 1]}`
     : `@${_nameParts[0]}`).toLowerCase();
   const currentUserFirstName = _nameParts[0].toLowerCase();
-  const imageAttachmentForCopy = message.attachments.find(a => a.mimeType.startsWith('image/'));
+  const imageAttachmentForCopy = message.attachments.find(isImageAttachment);
   const firstAttachmentForCopy = message.attachments.find(a => !a.mimeType.startsWith('audio/'));
   const copyAttachmentFromMessage = async (attachment: SSAttachment) => {
     try {
       const result = await copyAttachmentToClipboard(attachment);
       if (result === 'link') {
-        toast.success(attachment.mimeType.startsWith('image/') ? 'Image link copied' : 'Attachment link copied');
+        toast.success(isImageAttachment(attachment) ? 'Image link copied' : 'Attachment link copied');
       } else {
-        toast.success(attachment.mimeType.startsWith('image/') ? 'Image copied' : 'Attachment copied');
+        toast.success(isImageAttachment(attachment) ? 'Image copied' : 'Attachment copied');
       }
     } catch {
-      toast.error(attachment.mimeType.startsWith('image/') ? 'Could not copy image' : 'Could not copy attachment');
+      toast.error(isImageAttachment(attachment) ? 'Could not copy image' : 'Could not copy attachment');
     }
   };
   const isMentioned = !isOwn && !!message.content && !message.readBy?.includes(uid) && (
@@ -5637,7 +5793,7 @@ const Bubble = React.memo(function Bubble({
                       <p className="font-semibold" style={{ fontSize: 10, opacity: 0.65 }}>Current attachment{editableAttachmentCount === 1 ? '' : 's'}</p>
                       {(message.attachments || []).filter(a => !a.mimeType?.startsWith('audio/')).map((att, index) => (
                         <div key={`${att.url}-${index}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                          {att.mimeType?.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
+                          {isImageAttachment(att) ? <ImageIcon className="h-3.5 w-3.5 shrink-0" /> : <Paperclip className="h-3.5 w-3.5 shrink-0" />}
                           <span className="min-w-0 flex-1 truncate" style={{ fontSize: 11 }}>{att.originalName || `Attachment ${index + 1}`}</span>
                           <button
                             type="button"
@@ -5880,7 +6036,7 @@ const Bubble = React.memo(function Bubble({
                   }}
                   className="ss4-action-btn h-7 w-7 rounded-lg flex items-center justify-center transition-colors"
                   title="More actions"
-                  style={{ color: moreActionsOpen ? '#5b7cf6' : actionText }}
+                  style={{ color: moreActionsOpen ? '#16a34a' : actionText }}
                   onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
                   onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
                 >
@@ -5938,7 +6094,7 @@ const Bubble = React.memo(function Bubble({
                       {onPin && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={() => { onPin(message._id); setMoreActionsOpen(false); setDropdownFixedPos(null); }}>
-                          <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? 'var(--accent, #5b7cf6)' : 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
+                          <Pin className="h-4 w-4 shrink-0" style={{ color: isPinned ? 'var(--accent, #16a34a)' : 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
                           <span style={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.92))' }}>{isPinned ? 'Unpin message' : 'Pin message'}</span>
                         </button>
                       )}
@@ -6029,21 +6185,21 @@ const Bubble = React.memo(function Bubble({
         {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
             {(() => {
-              const images = message.attachments.filter(a => a.mimeType.startsWith('image/'));
+              const images = message.attachments.filter(isImageAttachment);
               if (images.length === 0) return null;
               if (images.length === 1) return (
-                <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: images[0].url, type: 'image', name: images[0].originalName }); }}
+                <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(images[0]), type: 'image', name: images[0].originalName }); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
+                  <SS4AttachmentImage attachment={images[0]} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
                 </button>
               );
-              const gallery = images.map(im => ({ src: im.url, type: 'image' as const, name: im.originalName }));
+              const gallery = images.map(im => ({ src: getAttachmentMediaUrl(im), type: 'image' as const, name: im.originalName }));
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
                   {images.map((att, i) => (
-                    <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName, gallery, index: i }); }}
+                    <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(att), type: 'image', name: att.originalName, gallery, index: i }); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
+                      <SS4AttachmentImage attachment={att} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
                     </button>
                   ))}
                 </div>
@@ -6051,12 +6207,10 @@ const Bubble = React.memo(function Bubble({
             })()}
             {message.attachments.filter(isVideoAttachment).map((att, i) => (
               <div key={`video-${i}`} data-ss4-attachment-url={att.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
-                <video controls preload="metadata" className="block w-full rounded-xl" style={{ maxHeight: 220 }}>
-                  <source src={att.url} type={att.mimeType || 'video/mp4'} />
-                </video>
+                <SS4AttachmentVideo attachment={att} className="block w-full rounded-xl" style={{ maxHeight: 220 }} />
               </div>
             ))}
-            {message.attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
+            {message.attachments.filter(a => !isImageAttachment(a) && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
               <button
                 key={`file-${i}`}
                 type="button"
@@ -6432,7 +6586,7 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
           {tab === 'dm' && selectedUsers.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pb-1">
               {selectedUsers.map(u => (
-                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
+                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(22,163,74,0.2)' }}>
                   <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
                     {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
                   </span>
@@ -6459,7 +6613,7 @@ function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreat
                   return (
                     <button key={u._id} onClick={() => toggle(u._id)}
                       className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                      style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                      style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}>
                       <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
                         {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                       </div>
@@ -6512,6 +6666,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const hasDraggedRef = React.useRef(false);
+  const isIOSLightbox = isIOSLikeDevice();
 
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -6606,7 +6761,12 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   return (
     <div
       className="fixed inset-0 z-200 flex flex-col"
-      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      style={{
+        background: 'rgba(0,0,0,0.92)',
+        backdropFilter: 'blur(10px)',
+        paddingTop: isIOSLightbox ? 'max(env(safe-area-inset-top, 0px), 54px)' : 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
       onClick={onClose}
     >
       { }
@@ -6739,8 +6899,8 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
 }
 
 function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void }) {
-  const isImg = file.type.startsWith('image/');
-  const isVid = file.type.startsWith('video/') || SS4_VIDEO_EXTENSIONS.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase());
+  const isImg = isImageFileLike(file);
+  const isVid = isVideoFileLike(file);
   const [preview, setPreview] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (isImg || isVid) { const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }
@@ -6748,7 +6908,7 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 180, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
       {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} />
-        : preview && isVid ? <video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted />
+        : preview && isVid ? <video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted playsInline preload="metadata" />
           : <div className="flex items-center justify-center" style={{ height: 128, background: 'var(--accent-muted)' }}><FileText className="h-8 w-8" style={{ color: 'var(--accent)' }} /></div>}
       <div className="px-2 py-1.5">
         <p className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>{file.name}</p>
@@ -6807,8 +6967,8 @@ function MobileFilePicker({ files, maxFiles, onBrowse, onRemove, onClear, onClos
             <div className="space-y-2">
               {files.map((file, index) => (
                 <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: file.type.startsWith('image/') ? 'rgba(46,127,255,0.16)' : 'var(--accent-muted)', color: 'var(--accent)' }}>
-                    {file.type.startsWith('image/') ? <ImageIcon className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: isImageFileLike(file) ? 'rgba(46,127,255,0.16)' : 'var(--accent-muted)', color: 'var(--accent)' }}>
+                    {isImageFileLike(file) ? <ImageIcon className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold" style={{ color: 'var(--text-primary)', fontSize: 13 }}>{file.name}</p>
@@ -7304,7 +7464,7 @@ function ThemeModal({ current, conv, uid, token, onClose, onApply, onMemberSetti
                       <button key={p.name} onClick={() => { setAccent(p.accent); setWallpaper(p.wallpaper); }}
                         className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
                         style={{ border: `1px solid ${accent === p.accent ? 'var(--accent)' : 'var(--border-2)'}`, background: accent === p.accent ? 'var(--accent-muted)' : 'transparent' }}>
-                        <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#4a6cf0,#5b7cf6)' }} />
+                        <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#15803d,#16a34a)' }} />
                         <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{p.name}</span>
                       </button>
                     ))}
@@ -7313,7 +7473,7 @@ function ThemeModal({ current, conv, uid, token, onClose, onApply, onMemberSetti
                 <div>
                   <p className="ss4-section-label mb-2">Custom color</p>
                   <div className="flex items-center gap-3">
-                    <input type="color" value={accent || '#5b7cf6'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
+                    <input type="color" value={accent || '#16a34a'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
                     <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
                   </div>
                 </div>
@@ -7404,7 +7564,7 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
             {list.map(u => {
               const active = sel.includes(u._id);
               return (
-                <button key={u._id} onClick={() => toggle(u._id)} className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')} style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}>
+                <button key={u._id} onClick={() => toggle(u._id)} className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')} style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}>
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
                     {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
@@ -7530,7 +7690,7 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
           {selected.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pb-1">
               {selected.map(target => (
-                <span key={target.id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
+                <span key={target.id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(22,163,74,0.2)' }}>
                   <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))} style={{ fontSize: 8, fontWeight: 700 }}>
                     {target.kind === 'conversation'
                       ? target.avatar
@@ -7628,7 +7788,7 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {options.map(opt => (
             <label key={opt.value} onClick={() => setType(opt.value)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '10px 0', cursor: 'pointer' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${type === opt.value ? '#5865f2' : 'rgba(255,255,255,0.3)'}`, background: type === opt.value ? '#5865f2' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${type === opt.value ? '#16a34a' : 'rgba(255,255,255,0.3)'}`, background: type === opt.value ? '#16a34a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
                 {type === opt.value && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
               </div>
               <div>
@@ -7642,7 +7802,7 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
         <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '8px 0 14px' }} />
 
         <label onClick={() => setMuted(m => !m)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer' }}>
-          <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${muted ? '#5865f2' : 'rgba(255,255,255,0.3)'}`, background: muted ? '#5865f2' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
+          <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${muted ? '#16a34a' : 'rgba(255,255,255,0.3)'}`, background: muted ? '#16a34a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
             {muted && <CheckIcon className="h-2.5 w-2.5 text-white" />}
           </div>
           <div>
@@ -7664,7 +7824,7 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
                   }}
                   style={{
                     padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                    border: `1px solid ${active ? '#5865f2' : 'rgba(255,255,255,0.15)'}`,
+                    border: `1px solid ${active ? '#16a34a' : 'rgba(255,255,255,0.15)'}`,
                     background: active ? 'rgba(88,101,242,0.2)' : 'transparent',
                     color: active ? '#c7cdff' : 'rgba(255,255,255,0.6)',
                   }}
@@ -7680,7 +7840,7 @@ function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
           <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={() => { onSave({ type, muted, muteUntil: muted ? muteUntil : null }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#5865f2', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => { onSave({ type, muted, muteUntil: muted ? muteUntil : null }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#16a34a', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
             Save
           </button>
         </div>
@@ -7927,7 +8087,7 @@ function PrioritySendersModal({ users, selfId, onClose }: {
                   disabled={savingId === u._id}
                   onClick={() => toggle(u._id)}
                   className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                  style={active ? { border: '1px solid rgba(91,124,246,0.2)' } : undefined}
+                  style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}
                 >
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
                     {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
@@ -8389,7 +8549,7 @@ function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvR
       <div className="rounded-2xl overflow-hidden mb-4" style={{ border: '1px solid var(--border-1)' }}>
         <MenuListRow
           icon={<SettingsIcon className="h-4 w-4" />}
-          iconBg="rgba(91,124,246,0.18)" iconColor="var(--accent)"
+          iconBg="rgba(22,163,74,0.18)" iconColor="var(--accent)"
           label="Settings"
           subtitle="Notification preferences"
           onClick={() => setView('settings')}
@@ -8993,6 +9153,7 @@ export default function SupraSpacePage() {
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localAttachmentPreviewUrlsRef = React.useRef<Set<string>>(new Set());
   const [token, setToken] = React.useState('');
   const [uid, setUid] = React.useState('');
   const [loading, setLoading] = React.useState(true);
@@ -9131,6 +9292,29 @@ export default function SupraSpacePage() {
     setIsIOSStandaloneApp(standalone && iosLike);
     setIsIOSDevice(iosLike);
   }, []);
+  React.useEffect(() => {
+    const restored = new Map<HTMLStyleElement, string | null>();
+    const syncStyles = () => {
+      const legacy = document.getElementById('ss4-styles') as HTMLStyleElement | null;
+      if (legacy) {
+        if (!restored.has(legacy)) restored.set(legacy, legacy.getAttribute('media'));
+        legacy.setAttribute('media', 'not all');
+      }
+      const style = document.getElementById('supraspace-page-styles');
+      if (style?.nextSibling) document.head.appendChild(style);
+    };
+    syncStyles();
+    const observer = new MutationObserver(syncStyles);
+    observer.observe(document.head, { childList: true });
+    return () => {
+      observer.disconnect();
+      restored.forEach((media, node) => {
+        if (!node.isConnected) return;
+        if (media === null) node.removeAttribute('media');
+        else node.setAttribute('media', media);
+      });
+    };
+  }, []);
   const openMobileSearch = React.useCallback(() => {
     if (!isStandaloneApp && !isMobileViewport) return;
     setSidebarTab('chats');
@@ -9193,12 +9377,14 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
+        const keyboardAccessoryHeight = keyboardOpen ? 54 : 0;
         if (keyboardOpen) {
           document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
         } else {
           document.documentElement.style.removeProperty('--ss4-vvh');
         }
         document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
+        document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
         document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
         if (wasKeyboardOpenRef.current && !keyboardOpen) {
           setTimeout(nudgeViewportUnits, 350);
@@ -9254,6 +9440,7 @@ export default function SupraSpacePage() {
       document.removeEventListener('focusout', settleAfterKeyboard);
       document.documentElement.style.removeProperty('--ss4-vvh');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
+      document.documentElement.style.removeProperty('--ss4-ios-keyboard-accessory-height');
       document.documentElement.classList.remove('ss4-ios-keyboard-open');
     };
   }, [isIOSDevice]);
@@ -10304,6 +10491,8 @@ export default function SupraSpacePage() {
     if (uploadNoticeTimerRef.current) clearTimeout(uploadNoticeTimerRef.current);
     if (resumeRefreshTimerRef.current) clearTimeout(resumeRefreshTimerRef.current);
     if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    localAttachmentPreviewUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    localAttachmentPreviewUrlsRef.current.clear();
   }, []);
 
   const routeConversationId = searchParams.get('convId');
@@ -10920,9 +11109,18 @@ export default function SupraSpacePage() {
         const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
           const url = URL.createObjectURL(f);
           optimisticAttachmentUrls.push(url);
-          return { url, originalName: f.name, mimeType: f.type, size: f.size };
+          localAttachmentPreviewUrlsRef.current.add(url);
+          const mimeType = getMediaMimeType(f);
+          return {
+            url,
+            originalName: f.name,
+            mimeType,
+            size: f.size,
+            thumbnailUrl: isImageFileLike(f) ? url : undefined,
+            localPreviewUrl: url,
+          } as SSAttachment;
         });
-        const allImages = filesToUpload.every(f => f.type.startsWith('image/'));
+        const allImages = filesToUpload.every(isImageFileLike);
         const member = activeConv?.members.find(m => m._id === uid);
         appendMessageLocal(conversationId, {
           _id: tempId,
@@ -10951,10 +11149,16 @@ export default function SupraSpacePage() {
         if (replyMessageId) fd.append('replyTo', replyMessageId);
         setPendingFiles([]); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         setSending(false);
+        await appendSS4VideoThumbnails(fd, filesToUpload);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
-        if (r.data?.data) replaceMessageLocal(conversationId, tempId, r.data.data);
-        else removeMessageLocal(conversationId, tempId);
-        optimisticAttachmentUrls.forEach(u => URL.revokeObjectURL(u));
+        if (r.data?.data) replaceMessageLocal(conversationId, tempId, mergeLocalAttachmentPreviews(r.data.data, optimisticAttachmentUrls));
+        else {
+          removeMessageLocal(conversationId, tempId);
+          optimisticAttachmentUrls.forEach(u => {
+            URL.revokeObjectURL(u);
+            localAttachmentPreviewUrlsRef.current.delete(u);
+          });
+        }
         showUploadNotice('success', filesToUpload.length === 1 ? 'Attachment sent.' : `${filesToUpload.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
@@ -11006,7 +11210,10 @@ export default function SupraSpacePage() {
     } catch (error) {
       if (hasPendingFiles) {
         if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
-        optimisticAttachmentUrls.forEach(u => URL.revokeObjectURL(u));
+        optimisticAttachmentUrls.forEach(u => {
+          URL.revokeObjectURL(u);
+          localAttachmentPreviewUrlsRef.current.delete(u);
+        });
         showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
       }
       else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
@@ -11081,7 +11288,7 @@ export default function SupraSpacePage() {
     for (const f of uniqueSelected) {
       if (f.size === 0) { showUploadNotice('error', `${f.name} is empty.`); return; }
       const vid = isVideoFileLike(f);
-      if (f.size > (vid ? SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES : SS4_MAX_UPLOAD_SIZE_BYTES)) { showUploadNotice('error', `${f.name} exceeds ${vid ? '40 MB' : '25 MB'}.`); return; }
+      if (f.size > (vid ? SS4_MAX_VIDEO_UPLOAD_SIZE_BYTES : SS4_MAX_UPLOAD_SIZE_BYTES)) { showUploadNotice('error', `${f.name} exceeds ${vid ? '100 MB' : '25 MB'}.`); return; }
     }
     setPendingFiles(prev => [...prev, ...uniqueSelected]);
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
@@ -11852,6 +12059,7 @@ export default function SupraSpacePage() {
       fd.append('content', cleanContent);
       if (replaceIndex !== undefined && replaceIndex !== null) fd.append('replaceIndex', String(replaceIndex));
       replacementFiles.forEach(file => fd.append('files', file));
+      await appendSS4VideoThumbnails(fd, replacementFiles);
       const r = await apiClient.patch(`/api/supraspace/messages/${msgId}/attachments`, fd, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
       });
@@ -13186,7 +13394,7 @@ export default function SupraSpacePage() {
       <div className="flex flex-col items-center gap-4">
         <SupraSpaceLogo size={56} />
         <div className="flex flex-col items-center gap-2">
-          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+          <p className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--accent-text)' }}>Space</span></p>
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', letterSpacing: '0.01em' }}>The Communication Hub That Drives Every Deal</p>
           <div className="flex gap-1.5">{[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1.5 w-1.5 rounded-full" style={{ background: 'var(--accent)', animationDelay: `${i * 0.2}s` }} />)}</div>
           {initSlow && (
@@ -13220,7 +13428,6 @@ export default function SupraSpacePage() {
 
   return (
     <>
-      {me?.role && <CrmPushPrompt role={me.role} />}
       { }
       {(dragConvId || dragSpaceId) && (
         <style>{`* { cursor: grabbing !important; }`}</style>
@@ -13233,7 +13440,7 @@ export default function SupraSpacePage() {
           pointerEvents: 'none',
           zIndex: 99999,
           background: 'var(--surface-2, #252a31)',
-          border: '1px solid var(--accent, #5b7cf6)',
+          border: '1px solid var(--accent, #16a34a)',
           borderRadius: 8,
           padding: '5px 12px',
           fontSize: 12,
@@ -13259,7 +13466,7 @@ export default function SupraSpacePage() {
               {!embedded && (<><button onClick={() => router.push('/crm/dashboard')} className="ss4-icon-btn h-8 w-8 shrink-0"><ArrowLeft className="h-4 w-4" /></button><div className="h-5 w-px shrink-0" style={{ background: 'var(--border-2)' }} /></>)}
               <SupraSpaceLogo size={32} className="shrink-0" />
               <div className="flex items-center gap-1.5 leading-none min-w-0">
-                <p className="ss4-display font-bold truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                <p className="ss4-display font-bold truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--accent-text)' }}>Space</span></p>
                 <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: isConnected ? 'var(--positive)' : 'var(--text-disabled)', boxShadow: isConnected ? '0 0 6px rgba(52,201,125,0.7)' : 'none' }} />
                 {isConnected && <span className="shrink-0 hidden sm:inline" style={{ fontSize: 9, fontWeight: 700, color: 'var(--positive)', letterSpacing: '0.06em' }}>Live</span>}
               </div>
@@ -13491,7 +13698,7 @@ export default function SupraSpacePage() {
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between group" onClick={() => toggleSection('dm')}>
                     {isStandaloneApp ? (
                       <span className="flex items-center gap-2">
-                        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(91,124,246,0.18)' }}>
+                        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(22,163,74,0.18)' }}>
                           <MessageSquare className="h-3 w-3" style={{ color: 'var(--accent)' }} />
                         </span>
                         <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Direct Messages</span>
@@ -13538,7 +13745,7 @@ export default function SupraSpacePage() {
                           <div style={{ height: 2, background: 'var(--accent)', borderRadius: 1, margin: '2px 8px' }} />
                         )}
                         <div
-                          style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(91,124,246,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
+                          style={{ borderRadius: 8, transition: 'background .15s', background: isConvDropTarget ? 'rgba(22,163,74,0.12)' : 'transparent', outline: isConvDropTarget ? '1.5px dashed var(--accent)' : 'none', margin: '0 4px 2px' }}>
                           <div className="group flex items-center gap-1 px-2 py-1.5">
                             { }
                             <div
@@ -13590,7 +13797,7 @@ export default function SupraSpacePage() {
               {(channelList.length > 0 || !!dragConvId) && (
                 <div
                   data-drop-zone="__channels__"
-                  style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(91,124,246,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
+                  style={{ borderRadius: 8, transition: 'background .15s', background: dropSpaceId === '__channels__' ? 'rgba(22,163,74,0.12)' : 'transparent', outline: dropSpaceId === '__channels__' ? '1.5px dashed var(--accent)' : 'none', margin: dropSpaceId === '__channels__' ? '0 4px 2px' : undefined }}>
                   <button className="w-full px-3 pt-3 pb-1.5 flex items-center justify-between" onClick={() => toggleSection('channels')}>
                     {isStandaloneApp ? (
                       <span className="flex items-center gap-2">
@@ -13833,7 +14040,7 @@ export default function SupraSpacePage() {
                   <DropdownMenuTrigger asChild>
                     <button
                       className="h-13 w-13 rounded-full flex items-center justify-center"
-                      style={{ background: 'linear-gradient(135deg, var(--accent), #8b7cf6)', boxShadow: '0 6px 18px rgba(91,124,246,0.45)' }}
+                      style={{ background: 'linear-gradient(135deg, var(--accent), #8b7cf6)', boxShadow: '0 6px 18px rgba(22,163,74,0.45)' }}
                       aria-label="New"
                     >
                       <Plus className="h-5 w-5 text-white" />
@@ -14001,7 +14208,7 @@ export default function SupraSpacePage() {
                 <div className="hidden lg:flex flex-1 items-center justify-center flex-col gap-4" style={{ background: 'var(--bg-base)' }}>
                   <SupraSpaceLogo size={64} />
                   <div className="text-center">
-                    <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--positive)' }}>Space</span></p>
+                    <p className="ss4-display font-bold" style={{ fontSize: 18, color: 'var(--text-primary)' }}>Suprah <span style={{ color: 'var(--accent-text)' }}>Space</span></p>
                     <p className="mt-1.5" style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>The Communication Hub That Drives Every Deal</p>
                     <p className="mt-0.5" style={{ fontSize: 12, color: 'var(--text-disabled)' }}>Select a conversation to start messaging</p>
                   </div>
@@ -14177,7 +14384,7 @@ export default function SupraSpacePage() {
                   <div
                     ref={composerDockRef}
                     className="ss4-chat-composer-dock shrink-0 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] space-y-1 md:pb-2 sm:px-4 sm:pt-2 sm:space-y-1.5"
-                    style={isIOSStandaloneApp
+                    style={isIOSDevice
                       ? { paddingBottom: 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.25rem)' }
                       : undefined}
                   >
@@ -15173,8 +15380,8 @@ export default function SupraSpacePage() {
                             {ssMediaItems.map(({ messageId, attachment: a }, i) => {
                               const isVid = isVideoAttachment(a);
                               return (
-                                <button key={`${messageId}-${i}`} onClick={() => setLightbox({ src: a.url, type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
-                                  {isVid ? <><video src={a.url} className="w-full h-full object-cover" muted /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <img src={a.thumbnailUrl || a.url} alt={a.originalName} className="w-full h-full object-cover" />}
+                                <button key={`${messageId}-${i}`} onClick={() => setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
+                                  {isVid ? <><video src={getAttachmentMediaUrl(a)} className="w-full h-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
                               );
                             })}
