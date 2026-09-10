@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useWebPush } from "@/hooks/useWebPush";
+import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
 import { Bell, X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +26,10 @@ export function PushPrompt() {
         (typeof window !== "undefined" && window.location.hostname === SUPRASPACE_SUBDOMAIN);
     const { isSupported, isSubscribed, subscribe, isLoading } = useWebPush({ disabled: isSupraSpaceContext });
     const [showPrompt, setShowPrompt] = useState(false);
+    // Lower priority than InstallPrompt/IOSInstallHint (2) — the ability to
+    // add-to-home-screen is more actionable/rarer than a re-askable push
+    // opt-in, so this one yields the shared slot to those first.
+    const slot = usePwaNagSlot("push", 1);
 
     useEffect(() => {
         // If not supported, already subscribed, or loading, do nothing
@@ -45,21 +50,30 @@ export function PushPrompt() {
         if (isSupraSpaceContext) return;
 
         // Show prompt after a delay to ensure it feels non-intrusive
-        const timer = setTimeout(() => setShowPrompt(true), 4000);
+        const timer = setTimeout(() => {
+            setShowPrompt(true);
+            slot.request();
+        }, 4000);
         return () => clearTimeout(timer);
-    }, [isSupported, isSubscribed, isLoading, pathname, isSupraSpaceContext]);
+    }, [isSupported, isSubscribed, isLoading, pathname, isSupraSpaceContext, slot.request]);
+
+    useEffect(() => {
+        if (isSubscribed) slot.release();
+    }, [isSubscribed, slot.release]);
 
     const handleDismiss = () => {
         setShowPrompt(false);
+        slot.release();
         sessionStorage.setItem("push_prompt_dismissed", "true");
     };
 
     const handleSubscribe = async () => {
         await subscribe();
         setShowPrompt(false);
+        slot.release();
     };
 
-    if (!showPrompt) return null;
+    if (!showPrompt || !slot.isActive) return null;
 
     return (
         <AnimatePresence>
@@ -67,7 +81,7 @@ export function PushPrompt() {
                 initial={{ y: 100, opacity: 0, scale: 0.95 }}
                 animate={{ y: 0, opacity: 1, scale: 1 }}
                 exit={{ y: 50, opacity: 0, scale: 0.95 }}
-                className="fixed bottom-6 left-6 right-6 z-50 md:left-auto md:right-8 md:w-95"
+                className="fixed bottom-6 inset-x-6 z-45 mx-auto max-w-md md:inset-x-auto md:right-8 md:w-95"
             >
                 <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-card/80 p-5 shadow-2xl backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5">
                     {/* Subtle Glow Effect */}

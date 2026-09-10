@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDriverLocationSharing } from "@/context/DriverLocationSharingContext";
+import { useAuthActions } from "@/providers/AuthProvider";
 
 export function DriverLocationRequiredGate() {
   const {
@@ -25,6 +26,18 @@ export function DriverLocationRequiredGate() {
     isStarting,
     startSharing,
   } = useDriverLocationSharing();
+  const { signOut } = useAuthActions();
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
+
+  const handleSignOut = React.useCallback(async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [isSigningOut, signOut]);
 
   const gateRef = React.useRef<HTMLDivElement | null>(null);
   const isCheckingPolicy = !isLoadPolicyResolved;
@@ -243,6 +256,19 @@ export function DriverLocationRequiredGate() {
                 : "SUPRAH first reconnects GPS without interrupting your page. A one-time automatic refresh is used only if the browser cannot activate the restored location permission without it."}
             </p>
           </div>
+
+          {!isCheckingPolicy && !isRecoveringLocationAccess && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="text-xs font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+              >
+                {isSigningOut ? "Signing out…" : "Can't enable location right now? Sign out"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

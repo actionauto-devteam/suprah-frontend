@@ -71,17 +71,6 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Lets a waiting worker be told to activate on demand — see sw-update.ts's
-// applyServiceWorkerUpdate(), the other half of this: skipWaiting is false
-// above so a deploy never yanks a page out from under the user, but that
-// means someone has to actually ask this worker to take over once they're
-// ready (an "Update available" toast's Refresh button, currently).
-self.addEventListener("message", (event: any) => {
-  if (event.data?.type === "SKIP_WAITING") {
-    (self as any).skipWaiting();
-  }
-});
-
 // --- CUSTOM WEB PUSH LISTENERS ---
 // (unchanged from your original — carried over verbatim)
 
@@ -90,6 +79,42 @@ const API_BASE_URL = (
 ).replace(/\/$/, "");
 const DEFAULT_NOTIFICATION_ICON = "/icon-192x192.png";
 const SUMMARY_NOTIFICATION_TAG = "notification-summary";
+
+function cleanPushNotificationText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = typeof value === "string" ? value : String(value);
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/\{\{\s*\/?\s*(?:color|font|size)(?:\s*:\s*[^{}\n]+)?\s*\}\}/gi, "")
+    .replace(/\{\s*(?:color|font|size)\s*:\s*[^{}\n]+\s*\}|\{\s*\/\s*(?:color|font|size)\s*\}/gi, "")
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+    .replace(/\*\*([\s\S]*?)\*\*/g, "$1")
+    .replace(/__([^_\n]+)__/g, "$1")
+    .replace(/~~([^~\n]+)~~/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, "$1$2")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1$2")
+    .replace(/\*{2,}/g, "")
+    .replace(/_{2,}/g, "")
+    .replace(/~{2,}/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\s{2,}/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function cleanPushNotificationPayload(payload: any): any {
+  if (!payload || typeof payload !== "object") return payload;
+  const title = cleanPushNotificationText(payload.title);
+  const body = cleanPushNotificationText(payload.body);
+  return {
+    ...payload,
+    ...(payload.title !== undefined ? { title: title || "New notification" } : {}),
+    ...(payload.body !== undefined ? { body } : {}),
+  };
+}
 
 /**
  * True when at least one tab has the app open AND in the foreground. This is
@@ -123,7 +148,9 @@ async function showBurstSummary(data: any): Promise<void> {
     tag: SUMMARY_NOTIFICATION_TAG,
   });
   const count = (existing[0]?.data?.count || 0) + 1;
-  const latest = data.title && data.body ? `${data.title}: ${data.body}` : (data.title || data.body || "New activity");
+  const title = cleanPushNotificationText(data.title);
+  const body = cleanPushNotificationText(data.body);
+  const latest = title && body ? `${title}: ${body}` : (title || body || "New activity");
 
   await (self as any).registration.showNotification(
     `You have ${count} new notification${count === 1 ? "" : "s"}`,
@@ -326,7 +353,7 @@ self.addEventListener("push", (event: any) => {
 
       let data: any;
       try {
-        data = event.data.json();
+        data = cleanPushNotificationPayload(event.data.json());
       } catch (err) {
         console.error("[SW] Push payload parse error:", err);
         if (!(await isAppActive())) return void (await showBurstSummary(fallback));

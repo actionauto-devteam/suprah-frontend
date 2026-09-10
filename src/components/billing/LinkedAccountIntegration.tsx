@@ -9,6 +9,7 @@ import {
   LinkedTransaction,
   LinkedBalance,
 } from "@/lib/linkedAccountApi";
+import { useAlert } from "@/components/AlertDialog";
 
 const GREEN = "#16A34A";
 const GREEN_DARK = "#0F7A39";
@@ -382,6 +383,7 @@ function ConnectedCard() {
   const [txError, setTxError] = React.useState<string | null>(null);
   const [txs, setTxs] = React.useState<LinkedTransaction[]>([]);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const { confirm, AlertComponent } = useAlert();
 
   const activeBalance: LinkedBalance =
     primary.balances.find((b) => b.currency === activeCurrency) ?? primary.balances[0];
@@ -409,10 +411,16 @@ function ConnectedCard() {
   };
 
   const handleDisconnect = async () => {
-    if (!window.confirm(`Disconnect ${m.label} from SuprahPay?`)) return;
-    setDisconnecting(true);
-    await disconnect(primary.provider);
-    setDisconnecting(false);
+    await confirm(
+      "Disconnect account?",
+      `Disconnect ${m.label} from SuprahPay?`,
+      async () => {
+        setDisconnecting(true);
+        await disconnect(primary.provider);
+        setDisconnecting(false);
+      },
+      "Disconnect",
+    );
   };
 
   return (
@@ -584,6 +592,7 @@ function ConnectedCard() {
           }}>{disconnecting ? "Disconnecting…" : "Disconnect"}</button>
         </div>
       </div>
+      <AlertComponent />
     </div>
   );
 }

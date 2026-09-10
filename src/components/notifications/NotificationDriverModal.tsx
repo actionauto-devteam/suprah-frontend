@@ -15,6 +15,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { formatNotificationDate } from './notification-utils';
 import { Notification } from '@/types/notification';
+import { toast } from 'sonner';
 
 interface DriverRequestModalProps {
   notification: Notification | null;
@@ -56,7 +57,7 @@ export function NotificationDriverModal({ notification, open, onOpenChange }: Dr
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Action failed. The request may have already been processed.';
-      alert(msg);
+      toast.error(msg);
     } finally {
       setIsActioning(false);
     }

@@ -2198,7 +2198,7 @@ export const DocumentsPage: React.FC = () => {
                 <iframe
                   src={`${viewingObjectUrl}#toolbar=1`}
                   title={viewingDoc?.fileName || viewingDoc?.label || 'Driver document'}
-                  className="min-h-[560px] w-full rounded-lg"
+                  className="h-[min(560px,60dvh)] w-full rounded-lg"
                 />
               ) : viewingMimeType.startsWith('image/') ? (
                 <img

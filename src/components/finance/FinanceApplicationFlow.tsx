@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm, Path, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFinancePersistence } from "@/hooks/useFinancePersistence";
+import { toast } from "sonner";
 import {
   FinanceApplicationSchema,
   FinanceApplicationData,
@@ -235,7 +236,7 @@ export function FinanceApplicationFlow({
       clearPersistence();
       if (onComplete) onComplete();
     } catch (e) {
-      alert("Failed to submit application. Please try again.");
+      toast.error("Failed to submit application. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

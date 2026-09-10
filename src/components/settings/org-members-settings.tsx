@@ -38,6 +38,8 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Loader2, Mail, Trash2, UserPlus, Shield, User as UserIcon, Briefcase, Check, X } from "lucide-react"
+import { toast } from "sonner"
+import { useAlert } from "@/components/AlertDialog"
 
 
 export function OrganizationMembersSettings() {
@@ -45,7 +47,7 @@ export function OrganizationMembersSettings() {
     const { getToken } = useAuth()
     const { user } = useUser()
     const queryClient = useQueryClient()
-
+    const { confirm, AlertComponent } = useAlert()
 
     const [isInviteOpen, setIsInviteOpen] = useState(false)
     const [inviteEmail, setInviteEmail] = useState("")
@@ -140,10 +142,10 @@ export function OrganizationMembersSettings() {
             setIsInviteOpen(false)
             setInviteEmail("")
             setInviteRole("member")
-            alert(`Invitation sent to ${inviteEmail}`)
+            toast.success(`Invitation sent to ${inviteEmail}`)
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || "Failed to send invitation")
+            toast.error(error.response?.data?.message || "Failed to send invitation")
         }
     })
 
@@ -158,10 +160,10 @@ export function OrganizationMembersSettings() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['org-members', organizationId] })
-            alert("Member removed")
+            toast.success("Member removed")
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || "Failed to remove member")
+            toast.error(error.response?.data?.message || "Failed to remove member")
         }
     })
 
@@ -182,7 +184,7 @@ export function OrganizationMembersSettings() {
             queryClient.invalidateQueries({ queryKey: ['org-members', organizationId] })
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || "Failed to update Dispatcher access")
+            toast.error(error.response?.data?.message || "Failed to update Dispatcher access")
         }
     })
 
@@ -198,10 +200,10 @@ export function OrganizationMembersSettings() {
         onSuccess: () => {
             setJobTitle(tempJobTitle)
             setIsEditingRank(false)
-            alert("Rank updated successfully")
+            toast.success("Rank updated successfully")
         },
         onError: (error: any) => {
-            alert(error.response?.data?.message || "Failed to update rank")
+            toast.error(error.response?.data?.message || "Failed to update rank")
         }
     })
 
@@ -444,9 +446,12 @@ export function OrganizationMembersSettings() {
                                                 size="sm"
                                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                                 onClick={() => {
-                                                    if (confirm("Are you sure you want to remove this member?")) {
-                                                        removeMutation.mutate(member.userId)
-                                                    }
+                                                    void confirm(
+                                                        "Remove member?",
+                                                        "Are you sure you want to remove this member?",
+                                                        () => { removeMutation.mutate(member.userId) },
+                                                        "Remove",
+                                                    )
                                                 }}
                                                 disabled={removeMutation.isPending}
                                             >
@@ -502,6 +507,7 @@ export function OrganizationMembersSettings() {
                     </div>
                 </div>
             )}
+            <AlertComponent />
         </div>
     )
 }

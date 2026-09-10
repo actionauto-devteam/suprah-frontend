@@ -33,7 +33,7 @@ export function CrmNotificationBell({ open, onOpenChange }: CrmNotificationBellP
         variant="outline"
         size="icon"
         className={cn(
-          'relative h-9 w-9 overflow-visible rounded-full transition-all duration-200',
+          'relative h-11 w-11 overflow-visible rounded-full transition-all duration-200',
           open && 'border-emerald-400 bg-emerald-500/10 text-emerald-600 dark:border-emerald-700 dark:text-emerald-400',
           !open && unreadCount > 0
             ? 'border-emerald-300 shadow-sm shadow-emerald-500/10 dark:border-emerald-700'

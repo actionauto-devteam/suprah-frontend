@@ -57,9 +57,25 @@ function cleanPreviewContent(content?: string | null): string {
   return stripSupraSpaceFormattingForPreview(content);
 }
 
-function previewText(conv: SSConv): string {
+function shortReactionName(value?: string | null): string {
+  return (value || '').trim().split(/\s+/)[0] || 'Someone';
+}
+
+function reactionPreviewText(conv: SSConv, myId: string | null): string | null {
   const msg = conv.lastMessage;
+  const reaction = conv.lastReaction;
+  const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
+  const messageAt = msg?.createdAt ? new Date(msg.createdAt).getTime() : 0;
+  if (!reaction?.emoji || !reactionAt || reactionAt < messageAt) return null;
+  const actor = reaction.userId === myId ? 'You' : shortReactionName(reaction.userName);
+  return `${actor} reacted ${reaction.emoji}`;
+}
+
+function previewText(conv: SSConv, myId: string | null): string {
+  const msg = conv.lastMessage;
+  const reactionPreview = reactionPreviewText(conv, myId);
   if ((conv.unreadCount || 0) >= 2) return `${conv.unreadCount} new messages`;
+  if (reactionPreview) return reactionPreview;
   if (!msg || msg.isDeleted) return 'No messages yet';
   const icons: Record<string, string> = {
     image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
@@ -412,7 +428,7 @@ export function MessengerDropdown() {
                           <span className={cn('text-[13px] truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>{name}</span>
                           {conv.lastMessageAt && <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(conv.lastMessageAt)}</span>}
                         </div>
-                        <p className={cn('text-[11px] truncate mt-0.5', isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{previewText(conv)}</p>
+                        <p className={cn('text-[11px] truncate mt-0.5', isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{previewText(conv, crmUserId)}</p>
                       </div>
                     </button>
                   );

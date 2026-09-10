@@ -63,7 +63,7 @@ export function LocatorMap({
   onGoHome,
 }: LocatorMapProps) {
   return (
-    <Card className={cn("border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0", isMaximized && "fixed inset-0 z-100 rounded-none border-0")}>
+    <Card className={cn("border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0", isMaximized && "fixed inset-0 z-50 rounded-none border-0")}>
       <CardContent className="p-0">
         <div
           className={cn(

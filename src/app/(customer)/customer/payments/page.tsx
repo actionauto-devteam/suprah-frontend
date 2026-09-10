@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { fmtDateMDT } from "@/lib/timezone";
+import { useAlert } from "@/components/AlertDialog";
 
 // --- Types --------------------------------------------------------------------
 
@@ -199,6 +200,7 @@ function PaymentsView() {
   const [payingId, setPayingId] = React.useState<string | null>(null);
   const [cancellingId, setCancellingId] = React.useState<string | null>(null);
   const [banner, setBanner] = React.useState<{ kind: "success" | "info" | "error"; text: string } | null>(null);
+  const { confirm, AlertComponent } = useAlert();
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["my-payments"],
@@ -235,9 +237,8 @@ function PaymentsView() {
     []
   );
 
-  const cancelInvoice = React.useCallback(
+  const doCancelInvoice = React.useCallback(
     async (paymentId: string) => {
-      if (!window.confirm("Cancel this invoice? You won't be charged. This can't be undone.")) return;
       setCancellingId(paymentId);
       setBanner(null);
       try {
@@ -253,6 +254,19 @@ function PaymentsView() {
       }
     },
     [refetch]
+  );
+
+  const cancelInvoice = React.useCallback(
+    async (paymentId: string) => {
+      await confirm(
+        "Cancel invoice?",
+        "Cancel this invoice? You won't be charged. This can't be undone.",
+        () => doCancelInvoice(paymentId),
+        "Cancel Invoice",
+        "Keep Invoice",
+      );
+    },
+    [confirm, doCancelInvoice]
   );
 
   // Handle return from Stripe + Buy Now hand-off.
@@ -370,6 +384,7 @@ function PaymentsView() {
           )}
         </div>
       )}
+      <AlertComponent />
     </div>
   );
 }

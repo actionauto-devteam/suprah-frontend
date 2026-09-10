@@ -2,12 +2,13 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   Search, Plus, Users, MessageSquare, Send, Paperclip, Home, User, Menu, ChevronRight,
   X, ChevronLeft, ChevronDown, Download, FileText,
   Loader2, CheckCheck, Hash, Reply, Trash2,
-  ArrowLeft, Radio, Bot, Video, Phone,
+  ArrowLeft, Radio, Bot, Video, Phone, Camera,
   Sun, Moon, Sparkles, SmilePlus,
   Smile, Pin, PinOff, Info, ImageIcon,
   Pencil, Check as CheckIcon,
@@ -17,6 +18,7 @@ import {
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
   ExternalLink,
+  Folder,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
 import {
@@ -30,7 +32,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useSupraSpaceSocket, SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
-import { useSupraSpaceMessenger, SSSpace } from '@/context/SupraSpaceMessengerContext';
+import { useSupraSpaceMessenger, SSSpace, type SSConv } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
@@ -125,13 +127,29 @@ type SS4ViewportState = {
 
 function isTextEntryElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
-  return Boolean(element.closest('input, textarea, [contenteditable="true"]'));
+  const target = element.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null;
+  if (!target) return false;
+  const style = window.getComputedStyle(target);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = target.getBoundingClientRect();
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < viewportHeight;
 }
 
 function isIOSLikeDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function readSafeAreaInsetBottom(): number {
+  if (typeof document === 'undefined' || !document.body) return 0;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:0;bottom:0;height:env(safe-area-inset-bottom,0px);width:1px;visibility:hidden;pointer-events:none;';
+  document.body.appendChild(probe);
+  const value = Math.round(probe.getBoundingClientRect().height || 0);
+  probe.remove();
+  return Number.isFinite(value) ? Math.max(0, Math.min(value, 40)) : 0;
 }
 
 function getUnreadDotColor(): string {
@@ -328,13 +346,29 @@ function readSupraSpaceConversationPayload(payload: unknown) {
   };
 }
 
-function mergeSupraSpaceConversations(primary: SSConversation[], secondary: SSConversation[] = []) {
+function normalizeSupraSpaceConversation(conversation: SSConversation | SSConv): SSConversation {
+  const fullConversation = conversation as SSConversation;
+  return {
+    ...fullConversation,
+    admins: conversation.admins || [],
+    members: conversation.members || [],
+    createdBy: conversation.createdBy || '',
+    theme: {
+      accent: conversation.theme?.accent ?? null,
+      bubble: fullConversation.theme?.bubble ?? null,
+      wallpaper: fullConversation.theme?.wallpaper ?? null,
+      emoji: conversation.theme?.emoji ?? null,
+    },
+  } as SSConversation;
+}
+
+function mergeSupraSpaceConversations(primary: Array<SSConversation | SSConv>, secondary: Array<SSConversation | SSConv> = []) {
   const byId = new Map<string, SSConversation>();
   secondary.forEach((conversation) => {
-    if (conversation?._id) byId.set(conversation._id, conversation);
+    if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
   });
   primary.forEach((conversation) => {
-    if (conversation?._id) byId.set(conversation._id, conversation);
+    if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
   });
   return Array.from(byId.values()).sort(
     (a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
@@ -838,8 +872,16 @@ function insertSoftLineBreakWithCaretFormatting(
   return true;
 }
 
+function stripCopiedTextArtifacts(value: string): string {
+  if (!value) return '';
+  return value
+    .replace(/[\uFFFC\uFFFD]/g, '')
+    .replace(/[\u200B\u2060\uFEFF\u00AD]/g, '')
+    .replace(/\\(["'“”‘’])/g, '$1');
+}
+
 function stripSupraSpaceTypingMarkers(value: string): string {
-  return value.replace(/[\u200B\u2060\uFEFF]/g, '');
+  return stripCopiedTextArtifacts(value);
 }
 
 function clipboardElementIsHidden(element: HTMLElement): boolean {
@@ -886,6 +928,23 @@ function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
     || rawStyle.includes('mso-list:ignore')
     || (element.getAttribute('aria-hidden') === 'true' && markerOnly)
   );
+}
+
+const CLIPBOARD_METADATA_TEXT_RE = /^(?:now|today|yesterday|\d{1,2}:\d{2}(?:\s?[ap]\.?m\.?)?|(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/i;
+
+function clipboardElementIsMetadata(element: HTMLElement): boolean {
+  const tag = element.tagName.toLowerCase();
+  const className = String(element.className || '').toLowerCase();
+  const role = (element.getAttribute('role') || '').toLowerCase();
+  const aria = (element.getAttribute('aria-label') || '').toLowerCase();
+  const data = Array.from(element.attributes).map(attribute => `${attribute.name}=${attribute.value}`).join(' ').toLowerCase();
+  const hasMetadataHint = tag === 'time'
+    || element.hasAttribute('datetime')
+    || /\b(?:timestamp|time|date|message-time|sent-at|created-at|metadata|meta)\b/.test(`${className} ${role} ${aria} ${data}`)
+    || (className.includes('ss4-mono') && className.includes('tabular-nums'));
+  if (!hasMetadataHint) return false;
+  const text = stripCopiedTextArtifacts(element.textContent || '').replace(/\s+/g, ' ').trim();
+  return !text || CLIPBOARD_METADATA_TEXT_RE.test(text);
 }
 
 function stripLeadingSemanticListMarker(root: HTMLElement): void {
@@ -949,6 +1008,14 @@ const SS4_MORE_TEXT_COLORS = [
   '#14b8a6', '#06b6d4', '#38bdf8', '#3b82f6', '#60a5fa',
   '#6366f1', '#818cf8', '#8b5cf6', '#a78bfa', '#d946ef',
   '#f472b6', '#ec4899', '#be185d',
+];
+const SS4_MOBILE_TEXT_COLORS = [
+  { value: '#ffffff', swatch: '#ffffff', label: 'White' },
+  { value: '#ef4444', swatch: '#ef4444', label: 'Red' },
+  { value: '#3b82f6', swatch: '#3b82f6', label: 'Blue' },
+  { value: '#22c55e', swatch: '#22c55e', label: 'Green' },
+  { value: '#facc15', swatch: '#facc15', label: 'Yellow' },
+  { value: '#94a3b8', swatch: '#94a3b8', label: 'Gray' },
 ];
 
 
@@ -1050,6 +1117,14 @@ if (typeof document !== 'undefined') {
     .ss4-search-input::placeholder { color:var(--text-tertiary); }
     .ss4-search-input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-search-icon { color:var(--text-tertiary); }
+    .ss4-search-field .ss4-search-input { height:44px; border-radius:16px; padding-left:46px; padding-right:42px; font-size:15px; background:color-mix(in srgb,var(--input-bg) 86%,var(--bg-hover)); border-color:var(--border-2); box-shadow:inset 0 1px 0 rgba(255,255,255,0.03); transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease; }
+    .ss4-search-field .ss4-search-input::placeholder { color:var(--text-tertiary); opacity:.95; }
+    .ss4-search-field .ss4-search-icon { left:16px; width:18px; height:18px; color:var(--text-tertiary); transition:color .15s ease; pointer-events:none; }
+    .ss4-search-field:hover .ss4-search-input { background:var(--bg-hover); border-color:var(--border-3); }
+    .ss4-search-field:focus-within .ss4-search-input { background:var(--bg-base); border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus),inset 0 1px 0 rgba(255,255,255,0.04); }
+    .ss4-search-field:focus-within .ss4-search-icon { color:var(--accent); }
+    .ss4-search-clear { background:transparent; color:var(--text-tertiary); transition:background-color .15s ease,color .15s ease; }
+    .ss4-search-clear:hover { background:var(--bg-hover); color:var(--text-primary); }
     .ss4-chat-header { background:var(--bg-elevated); border-bottom:1px solid var(--border-1); }
     .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
@@ -1256,14 +1331,38 @@ if (typeof document !== 'undefined') {
       .ss4-composer-main { display:grid!important; grid-template-columns:44px minmax(0,1fr) auto; align-items:end; gap:8px; width:100%; max-width:100%; min-width:0; padding:4px 0; }
       .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex!important; align-items:center; justify-content:center; }
       .ss4-mobile-leading { position:relative; }
-      .ss4-mobile-trailing { gap:6px; min-width:0; color:var(--text-primary); }
+      .ss4-mobile-trailing { gap:4px; min-width:0; color:var(--text-primary); flex-shrink:0; }
       .ss4-composer-pill { min-height:44px; width:100%; max-width:100%; align-items:center; border-radius:999px; padding:8px 8px 8px 16px; background:var(--bubble-other-bg); min-width:0; overflow:hidden; }
       .ss4-composer-pill .ss4-composer-placeholder { left:16px; top:50%; transform:translateY(-50%); }
       .ss4-composer-pill .ss4-composer-editor { flex:1 1 0%; min-width:0; min-height:24px; max-height:88px; padding:0 !important; }
       .ss4-mobile-emoji { flex:0 0 32px; width:32px; min-width:32px; }
-      .ss4-mobile-emoji-panel { position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 76px); z-index:90; max-height:min(360px,calc(100dvh - 180px)); border-radius:14px; overflow:hidden; box-shadow:var(--shadow-lg); }
-      .ss4-mobile-emoji-panel .EmojiPickerReact { width:100% !important; max-width:100% !important; border-radius:14px !important; }
+      .ss4-mobile-media-action { height:40px; width:34px; flex-shrink:0; border-radius:999px; }
+      .ss4-mobile-emoji-sheet .EmojiPickerReact {
+        width:100% !important; height:100% !important; max-width:100% !important; border:none !important; border-radius:0 !important;
+        --epr-bg-color:var(--bg-elevated); --epr-dark-bg-color:var(--bg-elevated);
+        --epr-category-label-bg-color:var(--bg-elevated); --epr-dark-category-label-bg-color:var(--bg-elevated);
+        --epr-text-color:var(--text-primary); --epr-dark-text-color:var(--text-primary);
+        --epr-category-label-text-color:var(--text-tertiary);
+        --epr-category-icon-active-color:var(--accent); --epr-dark-category-icon-active-color:var(--accent);
+        --epr-highlight-color:var(--accent); --epr-dark-highlight-color:var(--accent);
+        --epr-hover-bg-color:var(--bg-hover); --epr-dark-hover-bg-color:var(--bg-hover);
+        --epr-focus-bg-color:var(--bg-hover); --epr-dark-focus-bg-color:var(--bg-hover);
+        --epr-search-input-bg-color:var(--input-bg); --epr-dark-search-input-bg-color:var(--input-bg);
+        --epr-search-input-bg-color-active:var(--input-bg); --epr-dark-search-input-bg-color-active:var(--input-bg);
+        --epr-search-input-text-color:var(--text-primary);
+        --epr-search-border-color:var(--accent); --epr-dark-picker-border-color:transparent;
+        --epr-picker-border-color:transparent;
+      }
       .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
+      .ss4-mobile-format-toolbar { display:flex; align-items:center; gap:8px; height:50px; margin:0 -1px; padding:0 8px; background:var(--bg-elevated); border-top:1px solid var(--border-1); border-bottom:1px solid var(--border-1); overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
+      .ss4-mobile-format-toolbar::-webkit-scrollbar { display:none; }
+      .ss4-mobile-format-btn { height:42px; min-width:36px; border-radius:10px; color:var(--text-secondary); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+      .ss4-mobile-format-btn svg { height:18px; width:18px; }
+      .ss4-mobile-format-divider { height:24px; width:1px; flex-shrink:0; background:var(--border-1); }
+      .ss4-mobile-format-color-pop { display:flex; align-items:center; justify-content:center; gap:10px; width:max-content; max-width:calc(100vw - 20px); height:40px; margin:0 auto 4px; border-radius:999px; padding:6px 10px; background:var(--bg-elevated); border:1px solid var(--border-2); box-shadow:var(--shadow-lg); }
+      .ss4-mobile-color-swatch { position:relative; height:24px; width:24px; min-width:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; border:0; box-shadow:0 0 0 1px rgba(255,255,255,0.28); }
+      .ss4-mobile-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--bg-elevated),0 0 0 4px rgba(255,255,255,0.72); }
+      .ss4-mobile-color-swatch svg { height:16px; width:16px; }
       .ss4-chat-composer-dock { transform:translateZ(0); }
       html.ss4-ios-keyboard-open .ss4-chat-composer-dock {
         position:fixed;
@@ -1280,6 +1379,7 @@ if (typeof document !== 'undefined') {
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
       .ss4-sidebar .ss4-search-input { height:38px; font-size:16px !important; }
+      .ss4-sidebar .ss4-search-field .ss4-search-input { height:44px; font-size:16px !important; }
     }
     @media (max-width:767px) and (hover:none) and (pointer:coarse) {
       .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
@@ -1733,7 +1833,7 @@ function htmlToMarkdown(el: HTMLElement): string {
 
   const walk = (node: Node, listDepth = 0, inherited: InheritedFormats = NO_FORMATS): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
+      return stripCopiedTextArtifacts(node.textContent || '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1742,18 +1842,21 @@ function htmlToMarkdown(el: HTMLElement): string {
       element.hasAttribute('data-rich-editor-selection-marker')
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') {
-      return element.getAttribute('alt')
+      return stripCopiedTextArtifacts(
+        element.getAttribute('alt')
         || element.getAttribute('aria-label')
         || element.getAttribute('title')
-        || '';
+        || '',
+      );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const fontWeight = element.style.fontWeight;
@@ -1830,7 +1933,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .map(child => walk(child, listDepth, childInherited))
       .join('');
     if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
-      inner = clipboardControlValue(element);
+      inner = stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const href = tag === 'a' ? element.getAttribute('href') : null;
@@ -1896,7 +1999,7 @@ function htmlToMarkdown(el: HTMLElement): string {
       .map(child => walk(child, 0))
       .join('')
       .replace(/\u00A0/g, ' ')
-      .replace(/[\u200B\u2060\uFEFF]/g, '')
+      .replace(/[\u200B\u2060\uFEFF\uFFFC\uFFFD]/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
@@ -1907,7 +2010,7 @@ function clipboardHtmlToPlainText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
-      return (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, '');
+      return stripCopiedTextArtifacts(node.textContent || '');
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
@@ -1915,18 +2018,21 @@ function clipboardHtmlToPlainText(html: string): string {
     if (
       clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     const tag = element.tagName.toLowerCase();
     if (tag === 'br') return '\n';
     if (tag === 'img') {
-      return element.getAttribute('alt')
+      return stripCopiedTextArtifacts(
+        element.getAttribute('alt')
         || element.getAttribute('aria-label')
         || element.getAttribute('title')
-        || '';
+        || '',
+      );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     let inner = Array.from(element.childNodes).map(walk).join('');
@@ -2123,7 +2229,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 }
 
 function stripListMarkerNoise(value: string): string {
-  return value
+  return stripCopiedTextArtifacts(value)
     .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ');
 }
@@ -2331,7 +2437,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const pushLine = (value: string) => {
-    const clean = value
+    const clean = stripCopiedTextArtifacts(value)
       .replace(/[\u200b\ufeff]/g, '')
       .replace(/\u00a0/g, ' ')
       .replace(/[ \t]*\n[ \t]*/g, ' ')
@@ -2379,7 +2485,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const renderInline = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node.nodeType === Node.TEXT_NODE) return stripCopiedTextArtifacts(node.textContent || '');
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
     const element = node as HTMLElement;
@@ -2391,11 +2497,12 @@ function clipboardHtmlToListAwareText(html: string): string {
       || tag === 'ol'
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
     if (tag === 'br') return '\n';
-    if (tag === 'img') return element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '';
+    if (tag === 'img') return stripCopiedTextArtifacts(element.getAttribute('alt') || element.getAttribute('aria-label') || element.getAttribute('title') || '');
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return clipboardControlValue(element);
+      return stripCopiedTextArtifacts(clipboardControlValue(element));
     }
 
     const inner = Array.from(element.childNodes).map(renderInline).join('');
@@ -2403,6 +2510,7 @@ function clipboardHtmlToListAwareText(html: string): string {
   };
 
   const normalizeListItemText = (value: string): string => value
+    .replace(/[\uFFFC\uFFFD]/g, '')
     .replace(/[\u200b\ufeff]/g, '')
     .replace(/\u00a0/g, ' ')
     .replace(/[ \t]*\n[ \t]*/g, ' ')
@@ -2568,6 +2676,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       if (
         clipboardElementIsHidden(child)
         || clipboardElementIsDecorativeMarker(child)
+        || clipboardElementIsMetadata(child)
       ) child.remove();
     });
     stripLeadingSemanticListMarker(clone);
@@ -2577,7 +2686,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       return escapeHtmlText(
-        (node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, ''),
+        stripCopiedTextArtifacts(node.textContent || ''),
       );
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
@@ -2588,19 +2697,22 @@ function clipboardHtmlToEditorHtml(html: string): string {
       ['script', 'style', 'meta', 'link', 'iframe', 'object'].includes(tag)
       || clipboardElementIsHidden(element)
       || clipboardElementIsDecorativeMarker(element)
+      || clipboardElementIsMetadata(element)
     ) return '';
 
     if (tag === 'br') return '<br>';
     if (tag === 'img') {
       return escapeHtmlText(
-        element.getAttribute('alt')
-        || element.getAttribute('aria-label')
-        || element.getAttribute('title')
-        || '',
+        stripCopiedTextArtifacts(
+          element.getAttribute('alt')
+          || element.getAttribute('aria-label')
+          || element.getAttribute('title')
+          || '',
+        ),
       );
     }
     if (['input', 'textarea', 'select'].includes(tag)) {
-      return escapeHtmlText(clipboardControlValue(element));
+      return escapeHtmlText(stripCopiedTextArtifacts(clipboardControlValue(element)));
     }
 
     if (tag === 'ul' || tag === 'ol') {
@@ -2708,7 +2820,7 @@ function clipboardPayloadToPlainText(text: string, html: string): string {
   const markerPreservedListText = structuredListText
     ? applySourceBulletMarkers(structuredListText, text)
     : '';
-  const raw = markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : '');
+  const raw = stripCopiedTextArtifacts(markerPreservedListText || text || (html ? clipboardHtmlToPlainText(html) : ''));
   return normalizePastedListArtifacts(
     stripRichTextMarkupForPlainPaste(raw)
       .replace(/\r\n?/g, '\n')
@@ -2965,9 +3077,22 @@ function markdownTextToEditorHtml(text: string): string {
 }
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
-    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  const perLine = (inner: string, marker: string) =>
+    inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
+  let normalized = text
+    .replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
+    .replace(/__([\s\S]*?)__/g, (_match, inner: string) => perLine(inner, '__'))
+    .replace(/~~([\s\S]*?)~~/g, (_match, inner: string) => perLine(inner, '~~'));
+  normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
+    inner.includes('\n') ? `${prefix}${perLine(inner, '_')}` : match
   );
+  return normalized;
+}
+
+function stripResidualSingleMarkdownMarkers(value: string): string {
+  return value
+    .replace(/(^|[^\w_])_(?=\S)/g, '$1')
+    .replace(/(?<=\S)_(?=$|[^\w_])/g, '');
 }
 
 const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
@@ -3123,15 +3248,16 @@ function stripOrphanedBoldMarker(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  return stripOrphanedBoldMarker(
+  const normalized = stripOrphanedBoldMarker(
     normalizeListExitLineSpacing(
       normalizePastedListArtifacts(
-        text
+        stripCopiedTextArtifacts(text)
           .replace(/\r\n?/g, '\n')
           .replace(/\u00a0/g, ' '),
       ),
     ),
-  ).trim();
+  );
+  return stripCopiedTextArtifacts(normalized).trim();
 }
 
 function hasSplitListMarkerLines(text: string): boolean {
@@ -3182,9 +3308,24 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 
 function messagePreviewText(content?: string | null): string {
   if (!content) return '';
-  return stripSupraSpaceFormattingForPreview(
-    normalizeMessageMarkdownForDisplay(content),
+  return stripResidualSingleMarkdownMarkers(
+    stripSupraSpaceFormattingForPreview(
+      normalizeMessageMarkdownForDisplay(content),
+    ),
   );
+}
+
+function shortReactionName(value?: string | null): string {
+  return (value || '').trim().split(/\s+/)[0] || 'Someone';
+}
+
+function reactionActivityPreviewText(conv: SSConversation, uid: string, message?: SSMessage | null): string | null {
+  const reaction = conv.lastReaction;
+  const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
+  const messageAt = message?.createdAt ? new Date(message.createdAt).getTime() : 0;
+  if (!reaction?.emoji || !Number.isFinite(reactionAt) || reactionAt <= 0 || reactionAt < messageAt) return null;
+  const actor = reaction.userId === uid ? 'You' : shortReactionName(reaction.userName);
+  return `${actor} reacted ${reaction.emoji}`;
 }
 
 function isNearWhiteHexColor(color?: string): boolean {
@@ -3214,6 +3355,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
           plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
         ),
       );
+      plain = stripResidualSingleMarkdownMarkers(plain);
       const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -3331,7 +3473,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (token.type === 'color') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
-          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={isOwn ? undefined : { color: token.color }}>
+          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
             {renderInline(inner, key, insideLink)}
           </span>
         );
@@ -3622,6 +3764,10 @@ function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; 
 }
 
 interface CrmUser { _id: string; fullName: string; username: string; email?: string; avatar?: string; role: string; department?: string | null }
+type SSMessageSearchResult = Omit<SSMessage, 'conversationId' | 'sender'> & {
+  conversationId?: string | (Partial<SSConversation> & { _id?: string });
+  sender?: Partial<SSMessage['sender']>;
+};
 type ConversationFilter = 'all' | 'unread' | 'read' | 'mentions';
 const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = [
   { key: 'all', label: 'All' },
@@ -3732,7 +3878,7 @@ function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
 
 const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   return (
-    <div className="flex items-center gap-2.5 sm:gap-3 my-2 sm:my-3 px-4 sm:px-5">
+    <div className="flex items-center gap-2.5 sm:gap-3 my-2 sm:my-3 px-4 sm:px-5" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
       <div className="flex-1 ss4-date-line" />
       <span className="ss4-date-chip">{fmtDate(date)}</span>
       <div className="flex-1 ss4-date-line" />
@@ -4008,12 +4154,49 @@ async function copyImageToClipboard(url: string): Promise<void> {
   ]);
 }
 
-function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
+async function mediaUrlToBlob(url: string): Promise<Blob> {
+  const resolvedUrl = resolveImageUrl(url) || url;
+  const fetchUrl = resolvedUrl.includes('.r2.cloudflarestorage.com')
+    ? `/api/proxy-image?url=${encodeURIComponent(resolvedUrl)}`
+    : resolvedUrl;
+  const res = await fetch(fetchUrl, { cache: 'no-store', credentials: 'include' });
+  if (!res.ok) throw new Error('media fetch failed');
+  return res.blob();
+}
+
+async function copyAttachmentToClipboard(attachment: SSAttachment): Promise<'file' | 'link'> {
+  const mimeType = (attachment.mimeType || 'application/octet-stream').split(';')[0].trim() || 'application/octet-stream';
+  if (mimeType.startsWith('image/')) {
+    try {
+      await copyImageToClipboard(attachment.url);
+      return 'file';
+    } catch {
+    }
+  }
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    const supports = (ClipboardItem as unknown as { supports?: (type: string) => boolean }).supports;
+    if (supports?.(mimeType)) {
+      const resolvedUrl = resolveImageUrl(attachment.url) || attachment.url;
+      const blobPromise = mediaUrlToBlob(resolvedUrl).then(blob => blob.type === mimeType ? blob : blob.slice(0, blob.size, mimeType));
+      await navigator.clipboard.write([
+        new ClipboardItem({ [mimeType]: blobPromise }),
+      ]);
+      return 'file';
+    }
+  }
+
+  if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+  await navigator.clipboard.writeText(resolveImageUrl(attachment.url) || attachment.url);
+  return 'link';
+}
+
+function clipboardAttachmentFiles(data: DataTransfer | null | undefined): File[] {
   if (!data) return [];
   const byName = new Set<string>();
   const files: File[] = [];
   const add = (file: File | null) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file || file.size <= 0) return;
     const key = `${file.name}:${file.type}:${file.size}`;
     if (byName.has(key)) return;
     byName.add(key);
@@ -4021,7 +4204,7 @@ function clipboardImageFiles(data: DataTransfer | null | undefined): File[] {
   };
   Array.from(data.files || []).forEach(add);
   Array.from(data.items || []).forEach(item => {
-    if (item.kind === 'file' && item.type.startsWith('image/')) add(item.getAsFile());
+    if (item.kind === 'file') add(item.getAsFile());
   });
   return files;
 }
@@ -4043,14 +4226,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 async function downloadMediaFile(url: string, filename: string): Promise<void> {
-  const resolvedUrl = resolveImageUrl(url) || url;
-  const fetchUrl = resolvedUrl.includes('.r2.cloudflarestorage.com')
-    ? `/api/proxy-image?url=${encodeURIComponent(resolvedUrl)}`
-    : resolvedUrl;
-
-  const res = await fetch(fetchUrl, { cache: 'no-store', credentials: 'include' });
-  if (!res.ok) throw new Error('download failed');
-  const blob = await res.blob();
+  const blob = await mediaUrlToBlob(url);
   downloadBlob(blob, filename);
 }
 
@@ -4151,11 +4327,13 @@ const Bubble = React.memo(function Bubble({
   const bubbleRowRef = React.useRef<HTMLDivElement>(null);
   const [mobileOverlayHost, setMobileOverlayHost] = React.useState<HTMLElement | null>(null);
   const [mobileReactionPos, setMobileReactionPos] = React.useState<{ top: number; left: number } | null>(null);
+  const [mobileCopyAttachment, setMobileCopyAttachment] = React.useState<SSAttachment | null>(null);
   const columnRef = React.useRef<HTMLDivElement>(null);
   const bubbleRef = React.useRef<HTMLDivElement>(null);
   const [actionBarPos, setActionBarPos] = React.useState<{ top: number; left: number } | null>(null);
   const swipeStartRef = React.useRef<{ x: number; y: number; active: boolean; direction: 1 | -1 } | null>(null);
   const touchMovedRef = React.useRef(false);
+  const longPressTriggeredRef = React.useRef(false);
   const swipeOffsetRef = React.useRef(0);
   const swipeRafRef = React.useRef<number | null>(null);
   const swipeCueRef = React.useRef<HTMLDivElement>(null);
@@ -4170,11 +4348,21 @@ const Bubble = React.memo(function Bubble({
     return bubbleRowRef.current?.closest<HTMLElement>('[data-supraspace-chat-boundary="true"]') || null;
   }, []);
 
-  const openMobileActions = React.useCallback(() => {
+  const attachmentFromActionTarget = React.useCallback((target: EventTarget | null) => {
+    const element = target instanceof Element ? target : null;
+    const attachmentTarget = element?.closest<HTMLElement>('[data-ss4-attachment-url]');
+    const attachmentUrl = attachmentTarget?.dataset.ss4AttachmentUrl;
+    if (!attachmentUrl) return null;
+    return message.attachments.find(attachment => attachment.url === attachmentUrl) || null;
+  }, [message.attachments]);
+
+  const openMobileActions = React.useCallback((target?: EventTarget | null) => {
     const host = getMobileOverlayHost();
     if (!host) return;
     const hostRect = host.getBoundingClientRect();
-    const targetRect = (bubbleRef.current || bubbleRowRef.current)?.getBoundingClientRect();
+    const targetElement = target instanceof Element ? target.closest<HTMLElement>('[data-ss4-attachment-url]') : null;
+    const targetRect = (targetElement || bubbleRef.current || bubbleRowRef.current)?.getBoundingClientRect();
+    const copyAttachment = attachmentFromActionTarget(target || null);
     const stripWidth = 368;
     const stripHeight = 64;
     const left = targetRect
@@ -4186,6 +4374,7 @@ const Bubble = React.memo(function Bubble({
     window.getSelection?.()?.removeAllRanges();
     setMobileOverlayHost(host);
     setMobileReactionPos({ top, left });
+    setMobileCopyAttachment(copyAttachment);
     setHov(false);
     setMoreActionsOpen(false);
     setDropdownFixedPos(null);
@@ -4193,7 +4382,7 @@ const Bubble = React.memo(function Bubble({
     setMobileEmojiSheetOpen(false);
     closePicker();
     setMobileMenu(true);
-  }, [getMobileOverlayHost]);
+  }, [attachmentFromActionTarget, getMobileOverlayHost]);
 
   React.useEffect(() => {
     if ((!mobileMenu && !mobileMoreOpen && !mobileEmojiSheetOpen) || !mobileOverlayHost) return;
@@ -4268,7 +4457,7 @@ const Bubble = React.memo(function Bubble({
     });
   };
   const copyMessageText = async () => {
-    const text = message.content?.trim();
+    const text = normalizeMessageMarkdownText(stripCopiedTextArtifacts(message.content || '')).trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -4894,8 +5083,13 @@ const Bubble = React.memo(function Bubble({
 
   const handleTouchStart = (event: React.TouchEvent) => {
     if (event.touches.length !== 1) return;
-    if ((event.target as HTMLElement | null)?.closest('a, button, textarea, input, [contenteditable="true"], .ss4-reaction-chip')) return;
+    const target = event.target as HTMLElement | null;
+    const attachmentTarget = target?.closest('[data-ss4-attachment-url]');
+    if (target?.closest('a, textarea, input, [contenteditable="true"], .ss4-reaction-chip')) return;
+    if (target?.closest('button') && !attachmentTarget) return;
+    const actionTarget = event.target;
     touchMovedRef.current = false;
+    longPressTriggeredRef.current = false;
     swipeStartRef.current = {
       x: event.touches[0].clientX,
       y: event.touches[0].clientY,
@@ -4908,7 +5102,8 @@ const Bubble = React.memo(function Bubble({
     }
     longPressTimer.current = setTimeout(() => {
       if (touchMovedRef.current || !swipeStartRef.current?.active) return;
-      openMobileActions();
+      longPressTriggeredRef.current = true;
+      openMobileActions(actionTarget);
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
     }, 500);
   };
@@ -4916,7 +5111,8 @@ const Bubble = React.memo(function Bubble({
   const handleMobileContextMenu = (event: React.MouseEvent) => {
     if (typeof window === 'undefined' || !window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
     event.preventDefault();
-    openMobileActions();
+    longPressTriggeredRef.current = true;
+    openMobileActions(event.target);
   };
 
   const handleTouchMove = (event: React.TouchEvent) => {
@@ -4968,12 +5164,33 @@ const Bubble = React.memo(function Bubble({
     resetSwipeReply();
   };
 
+  const preventClickAfterLongPress = (event: React.MouseEvent) => {
+    if (!longPressTriggeredRef.current) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    longPressTriggeredRef.current = false;
+    return true;
+  };
+
   const _nameParts = nameFor(uid).trim().split(/\s+/);
   const currentUserMention = (_nameParts.length >= 2
     ? `@${_nameParts[0]} ${_nameParts[_nameParts.length - 1]}`
     : `@${_nameParts[0]}`).toLowerCase();
   const currentUserFirstName = _nameParts[0].toLowerCase();
   const imageAttachmentForCopy = message.attachments.find(a => a.mimeType.startsWith('image/'));
+  const firstAttachmentForCopy = message.attachments.find(a => !a.mimeType.startsWith('audio/'));
+  const copyAttachmentFromMessage = async (attachment: SSAttachment) => {
+    try {
+      const result = await copyAttachmentToClipboard(attachment);
+      if (result === 'link') {
+        toast.success(attachment.mimeType.startsWith('image/') ? 'Image link copied' : 'Attachment link copied');
+      } else {
+        toast.success(attachment.mimeType.startsWith('image/') ? 'Image copied' : 'Attachment copied');
+      }
+    } catch {
+      toast.error(attachment.mimeType.startsWith('image/') ? 'Could not copy image' : 'Could not copy attachment');
+    }
+  };
   const isMentioned = !isOwn && !!message.content && !message.readBy?.includes(uid) && (
     message.content.includes('@all') ||
     message.content.toLowerCase().includes(currentUserMention) ||
@@ -5749,8 +5966,7 @@ const Bubble = React.memo(function Bubble({
                       {imageAttachmentForCopy && (
                         <button className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
                           onClick={async () => {
-                            try { await copyImageToClipboard(imageAttachmentForCopy.url); toast.success('Image copied'); }
-                            catch { toast.error('Could not copy image'); }
+                            await copyAttachmentFromMessage(imageAttachmentForCopy);
                             setMoreActionsOpen(false); setDropdownFixedPos(null);
                           }}>
                           <ImageIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary, rgba(255,255,255,0.52))' }} />
@@ -5816,7 +6032,7 @@ const Bubble = React.memo(function Bubble({
               const images = message.attachments.filter(a => a.mimeType.startsWith('image/'));
               if (images.length === 0) return null;
               if (images.length === 1) return (
-                <button onClick={() => onOpenMedia?.({ src: images[0].url, type: 'image', name: images[0].originalName })}
+                <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: images[0].url, type: 'image', name: images[0].originalName }); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
                   <img src={images[0].thumbnailUrl || images[0].url} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
                 </button>
@@ -5825,7 +6041,7 @@ const Bubble = React.memo(function Bubble({
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
                   {images.map((att, i) => (
-                    <button key={`img-${i}`} onClick={() => onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName, gallery, index: i })}
+                    <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: att.url, type: 'image', name: att.originalName, gallery, index: i }); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
                       <img src={att.thumbnailUrl || att.url} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
                     </button>
@@ -5834,7 +6050,7 @@ const Bubble = React.memo(function Bubble({
               );
             })()}
             {message.attachments.filter(isVideoAttachment).map((att, i) => (
-              <div key={`video-${i}`} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
+              <div key={`video-${i}`} data-ss4-attachment-url={att.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
                 <video controls preload="metadata" className="block w-full rounded-xl" style={{ maxHeight: 220 }}>
                   <source src={att.url} type={att.mimeType || 'video/mp4'} />
                 </video>
@@ -5844,7 +6060,9 @@ const Bubble = React.memo(function Bubble({
               <button
                 key={`file-${i}`}
                 type="button"
-                onClick={async () => {
+                data-ss4-attachment-url={att.url}
+                onClick={async (event) => {
+                  if (preventClickAfterLongPress(event)) return;
                   try {
                     await downloadMediaFile(att.url, att.originalName || 'attachment');
                   } catch {
@@ -5919,7 +6137,7 @@ const Bubble = React.memo(function Bubble({
           if (hideTime && !hasSeen) return null;
           return (
             <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
-              {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{fmtTime(message.createdAt)}</span>}
+              {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)', userSelect: 'none', WebkitUserSelect: 'none' }}>{fmtTime(message.createdAt)}</span>}
               {isOwn && (hasSeen ? (
                 <div className="flex items-center" style={{ gap: 2 }}>
                   {seenByOthers.slice(0, 5).map(m => (
@@ -5947,7 +6165,7 @@ const Bubble = React.memo(function Bubble({
         >
           <div
             className="absolute inset-0 bg-transparent"
-            onClick={() => { setMobileMenu(false); setMobileMoreOpen(false); setMobileEmojiSheetOpen(false); setMobileReactionPos(null); closePicker(); }}
+            onClick={() => { setMobileMenu(false); setMobileMoreOpen(false); setMobileEmojiSheetOpen(false); setMobileReactionPos(null); setMobileCopyAttachment(null); closePicker(); }}
           />
           {mobileReactionPos && <div
             className="absolute z-20 flex max-w-[calc(100%-20px)] items-center gap-1 rounded-full px-2 py-2"
@@ -5964,7 +6182,7 @@ const Bubble = React.memo(function Bubble({
             {SS4_REACTIONS.slice(0, 6).map(e => (
               <button
                 key={e}
-                onClick={() => { onReact(message._id, e); setMobileMenu(false); setMobileReactionPos(null); }}
+                onClick={() => { onReact(message._id, e); setMobileMenu(false); setMobileReactionPos(null); setMobileCopyAttachment(null); }}
                 className="flex h-11 w-11 items-center justify-center rounded-full text-3xl transition-transform active:scale-90"
                 aria-label={`React with ${e}`}
               >
@@ -5976,6 +6194,7 @@ const Bubble = React.memo(function Bubble({
                 closePicker();
                 setMobileMenu(false);
                 setMobileReactionPos(null);
+                setMobileCopyAttachment(null);
                 setMobileEmojiSheetOpen(true);
               }}
               className="flex h-12 w-12 items-center justify-center rounded-full text-4xl"
@@ -5988,7 +6207,7 @@ const Bubble = React.memo(function Bubble({
           {pickerPos && (
             <EmojiReactionPicker
               position={pickerPos}
-              onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); setMobileMenu(false); setMobileReactionPos(null); }}
+              onSelect={(emoji) => { onReact(message._id, emoji); closePicker(); setMobileMenu(false); setMobileReactionPos(null); setMobileCopyAttachment(null); }}
               onClose={closePicker}
             />
           )}
@@ -6006,7 +6225,7 @@ const Bubble = React.memo(function Bubble({
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full" style={{ background: 'var(--border-3)' }} />
             <div className="grid grid-cols-4 gap-2">
-              <button onClick={() => { onReply(message); setMobileMenu(false); setMobileReactionPos(null); }}
+              <button onClick={() => { onReply(message); setMobileMenu(false); setMobileReactionPos(null); setMobileCopyAttachment(null); }}
                 className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
                 <Reply className="h-8 w-8" style={{ color: '#4f7cff' }} />
                 <span className="text-center text-sm">Reply</span>
@@ -6015,9 +6234,10 @@ const Bubble = React.memo(function Bubble({
                 onClick={async () => {
                   setMobileMenu(false);
                   setMobileReactionPos(null);
-                  if (imageAttachmentForCopy) {
-                    try { await copyImageToClipboard(imageAttachmentForCopy.url); toast.success('Image copied'); }
-                    catch { toast.error('Could not copy image'); }
+                  const attachmentToCopy = mobileCopyAttachment || imageAttachmentForCopy || firstAttachmentForCopy;
+                  if (attachmentToCopy) {
+                    await copyAttachmentFromMessage(attachmentToCopy);
+                    setMobileCopyAttachment(null);
                     return;
                   }
                   message.content ? copyMessageText() : toast.info('No content to copy');
@@ -6037,6 +6257,7 @@ const Bubble = React.memo(function Bubble({
                   closePicker();
                   setMobileMenu(false);
                   setMobileReactionPos(null);
+                  setMobileCopyAttachment(null);
                   setMobileMoreOpen(true);
                 }}
                 className="flex flex-col items-center gap-2 rounded-2xl px-1 py-3" style={{ color: 'var(--text-primary)' }}>
@@ -6385,13 +6606,13 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   return (
     <div
       className="fixed inset-0 z-200 flex flex-col"
-      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)' }}
+      style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       onClick={onClose}
     >
       { }
       <div
         className="flex items-center justify-between px-4 shrink-0"
-        style={{ height: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ minHeight: 52, borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 min-w-0" style={{ maxWidth: '55%' }}>
@@ -6538,30 +6759,201 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
   );
 }
 
-function GifPicker({ onPick, onClose, mobile = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean }) {
+function MobileFilePicker({ files, maxFiles, onBrowse, onRemove, onClear, onClose }: { files: File[]; maxFiles: number; onBrowse: () => void; onRemove: (index: number) => void; onClear: () => void; onClose: () => void }) {
+  const canAddMore = files.length < maxFiles;
+
+  return (
+    <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <p className="pb-2 text-center font-semibold" style={{ color: 'var(--text-primary)', fontSize: 13 }}>Select up to {maxFiles} files.</p>
+      <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center pb-4">
+        <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-primary)' }}>
+          <X className="h-6 w-6" />
+        </button>
+        <div className="justify-self-center rounded-full p-1" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-2)' }}>
+          <span className="block rounded-full px-5 py-2 font-bold" style={{ background: 'rgba(255,255,255,0.12)', color: 'var(--text-primary)', fontSize: 14 }}>Files</span>
+        </div>
+        <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center justify-self-end rounded-full" style={{ background: 'rgba(255,255,255,0.12)', color: 'var(--text-primary)' }}>
+          <CheckIcon className="h-6 w-6" />
+        </button>
+      </div>
+      <div
+        className="flex-1 min-h-0 space-y-3 overflow-y-auto ss4-scroll pb-2"
+        onTouchMove={e => e.stopPropagation()}
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}
+      >
+        <button
+          type="button"
+          onClick={onBrowse}
+          disabled={!canAddMore}
+          className="flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left disabled:opacity-50"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-primary)' }}
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+            <Folder className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold" style={{ fontSize: 14 }}>{canAddMore ? 'Browse files' : 'File limit reached'}</p>
+            <p className="mt-0.5 truncate" style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{canAddMore ? 'Documents, PDFs, images, videos, and more' : `${maxFiles} files already selected`}</p>
+          </div>
+          {canAddMore && <Plus className="h-5 w-5 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
+        </button>
+
+        {files.length > 0 ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="font-semibold" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{files.length} selected</p>
+              <button type="button" onClick={onClear} className="rounded-full px-3 py-1.5 font-semibold" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)', fontSize: 11 }}>Clear all</button>
+            </div>
+            <div className="space-y-2">
+              {files.map((file, index) => (
+                <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: file.type.startsWith('image/') ? 'rgba(46,127,255,0.16)' : 'var(--accent-muted)', color: 'var(--accent)' }}>
+                    {file.type.startsWith('image/') ? <ImageIcon className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold" style={{ color: 'var(--text-primary)', fontSize: 13 }}>{file.name}</p>
+                    <p className="ss4-mono mt-0.5" style={{ color: 'var(--text-tertiary)', fontSize: 10.5 }}>{fmtSize(file.size)}</p>
+                  </div>
+                  <button type="button" onClick={() => onRemove(index)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-3xl px-6 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--border-3)' }}>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+              <FileText className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="font-bold" style={{ color: 'var(--text-primary)', fontSize: 14 }}>No files selected</p>
+              <p className="mt-1" style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>Choose files from your device to attach them here.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean; inline?: boolean }) {
   const [q, setQ] = React.useState('');
   const [gifs, setGifs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const gifGridRef = React.useRef<HTMLDivElement | null>(null);
+  const [gifTileSize, setGifTileSize] = React.useState(0);
+  const mobileInline = inline && mobile;
+  const gifTopics = React.useMemo(() => ['Whatever', 'Hungry', 'Dance', 'Annoyed', 'Omg'], []);
   const run = React.useCallback(async (query: string) => {
     if (!GIPHY_KEY) return;
     setLoading(true);
     try {
+      const limit = mobileInline ? 45 : 24;
       const endpoint = query.trim()
-        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
-        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
+        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
+        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=${limit}&rating=pg-13`;
       const r = await fetch(endpoint);
       const d = await r.json();
       setGifs(d?.data || []);
     } catch { setGifs([]); } finally { setLoading(false); }
-  }, []);
+  }, [mobileInline]);
   React.useEffect(() => { run(''); }, [run]);
   React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
+  React.useEffect(() => {
+    if (!mobileInline) return;
+    const node = gifGridRef.current;
+    if (!node) return;
+    const measure = () => {
+      const next = Math.max(72, Math.floor((node.clientWidth - 12) / 3));
+      setGifTileSize(current => current === next ? current : next);
+    };
+    measure();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(node);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [mobileInline]);
+
+  if (mobileInline) {
+    return (
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center pb-3">
+          <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-primary)' }}>
+            <X className="h-6 w-6" />
+          </button>
+          <h3 className="text-center font-bold" style={{ color: 'var(--text-primary)', fontSize: 18 }}>Add GIF</h3>
+          <button type="button" onClick={() => setSearchOpen(open => !open)} className="flex h-11 w-11 items-center justify-center justify-self-end rounded-full" style={{ color: 'var(--text-primary)' }}>
+            <Search className="h-5 w-5" />
+          </button>
+        </div>
+        {searchOpen && (
+          <div className="pb-3">
+            <div className="relative h-10">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={GIPHY_KEY ? 'Search GIFs...' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'} className="w-full h-10 rounded-full pl-11 pr-12 text-sm ss4-search-input" />
+              {q && (
+                <button type="button" onClick={() => setQ('')} className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full" style={{ color: 'var(--text-primary)' }}>
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 overflow-x-auto pb-4 [scrollbar-width:none]">
+          {gifTopics.map(topic => {
+            const active = q.trim().toLowerCase() === topic.toLowerCase();
+            return (
+              <button
+                key={topic}
+                type="button"
+                onClick={() => { setQ(topic); setSearchOpen(false); }}
+                className="shrink-0 rounded-full px-4 py-2 font-semibold"
+                style={{
+                  border: active ? '1px solid var(--accent)' : '1px solid var(--border-3)',
+                  background: active ? 'var(--accent-muted)' : 'transparent',
+                  color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  fontSize: 12,
+                }}
+              >
+                # {topic}
+              </button>
+            );
+          })}
+        </div>
+        <div
+          ref={gifGridRef}
+          className="grid flex-1 min-h-0 grid-cols-3 content-start items-stretch gap-1.5 overflow-y-auto ss4-scroll pb-2"
+          onTouchMove={e => e.stopPropagation()}
+          style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y', gridAutoFlow: 'row', gridAutoRows: gifTileSize ? `${gifTileSize}px` : 'auto' }}
+        >
+          {loading && <div className="col-span-3 flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
+          {!loading && gifs.length === 0 && <p className="col-span-3 text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{GIPHY_KEY ? 'No results' : 'GIPHY key not configured'}</p>}
+          {!loading && gifs.map((g: any) => {
+            const img = g.images?.fixed_width_small || g.images?.fixed_height_small || g.images?.fixed_width || g.images?.fixed_height;
+            if (!img?.url) return null;
+            return (
+              <button key={g.id} type="button" onClick={() => { onPick({ url: g.images?.original?.url || img.url, width: Number(img.width), height: Number(img.height), title: g.title }); onClose(); }} className="relative block w-full overflow-hidden rounded-md" style={{ background: 'var(--bg-hover)', contain: 'layout paint', height: gifTileSize ? `${gifTileSize}px` : undefined, minHeight: gifTileSize ? `${gifTileSize}px` : undefined, maxHeight: gifTileSize ? `${gifTileSize}px` : undefined, aspectRatio: '1 / 1', transform: 'translateZ(0)' }}>
+                <img src={img.url} alt={g.title || 'GIF'} draggable={false} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={cn(mobile ? 'absolute bottom-full right-0 mb-2 z-90 rounded-xl overflow-hidden' : 'absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden')}
+      className={cn(inline ? 'relative z-10 rounded-xl overflow-hidden' : mobile ? 'absolute bottom-full right-0 mb-2 z-90 rounded-xl overflow-hidden' : 'absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden')}
       style={{
-        ...(mobile
+        ...(inline
+          ? { width: '100%', maxHeight: 'min(420px, calc(100dvh - 210px))' }
+          : mobile
           ? { width: 'min(300px, calc(100vw - 24px))', maxHeight: 'min(420px, calc(100dvh - 160px))' }
           : { width: 300 }),
         background: 'var(--bg-elevated)',
@@ -7029,38 +7421,97 @@ function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
   );
 }
 
-function ForwardMessageModal({ users, message, token, onClose }: {
-  users: CrmUser[]; message: SSMessage; token: string; onClose: () => void;
+type ForwardMessageTarget = {
+  id: string;
+  kind: 'user' | 'conversation';
+  label: string;
+  subtitle: string;
+  avatar?: string;
+  userId?: string;
+  conversationId?: string;
+  conversation?: SSConversation;
+};
+
+function ForwardMessageModal({ users, conversations, message, token, onClose }: {
+  users: CrmUser[]; conversations: SSConversation[]; message: SSMessage; token: string; onClose: () => void;
 }) {
   const [q, setQ] = React.useState('');
-  const [selected, setSelected] = React.useState<CrmUser[]>([]);
+  const [selected, setSelected] = React.useState<ForwardMessageTarget[]>([]);
   const [sending, setSending] = React.useState(false);
 
-  const filtered = users.filter(u => {
-    if (selected.some(s => s._id === u._id)) return false;
+  const targets = React.useMemo<ForwardMessageTarget[]>(() => {
+    const userTargets = users.map(user => ({
+      id: `user:${user._id}`,
+      kind: 'user' as const,
+      label: user.fullName,
+      subtitle: `@${user.username}`,
+      avatar: user.avatar,
+      userId: user._id,
+    }));
+    const groupTargets = conversations
+      .filter(conversation => conversation.type === 'group')
+      .map(conversation => {
+        const label = getConvName(conversation, '');
+        return {
+          id: `conversation:${conversation._id}`,
+          kind: 'conversation' as const,
+          label,
+          subtitle: `${safeMembers(conversation).length} members`,
+          avatar: getConvAvatar(conversation, '') || undefined,
+          conversationId: conversation._id,
+          conversation,
+        };
+      });
+    return [...groupTargets, ...userTargets];
+  }, [conversations, users]);
+
+  const filtered = targets.filter(target => {
+    if (selected.some(s => s.id === target.id)) return false;
     const lq = q.toLowerCase();
-    return u.fullName.toLowerCase().includes(lq) || u.username.toLowerCase().includes(lq);
+    return target.label.toLowerCase().includes(lq) || target.subtitle.toLowerCase().includes(lq);
   });
 
-  const addUser = (u: CrmUser) => { setSelected(p => [...p, u]); setQ(''); };
-  const removeUser = (id: string) => setSelected(p => p.filter(s => s._id !== id));
+  const addTarget = (target: ForwardMessageTarget) => { setSelected(p => p.some(s => s.id === target.id) ? p : [...p, target]); setQ(''); };
+  const removeTarget = (id: string) => setSelected(p => p.filter(s => s.id !== id));
 
   const handleForward = async () => {
     if (!selected.length || sending) return;
+    const attachments = (message.attachments || [])
+      .filter(attachment => !attachment.mimeType?.startsWith('audio/'))
+      .map(attachment => ({
+        url: attachment.fileKey || attachment.url,
+        fileKey: attachment.fileKey || attachment.url,
+        originalName: attachment.originalName,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        thumbnailUrl: attachment.thumbnailUrl,
+        duration: attachment.duration,
+      }));
+    const payload: { content: string; attachments?: SSAttachment[]; gif?: SSMessage['gif'] } = {
+      content: message.content || '',
+    };
+    if (attachments.length > 0) payload.attachments = attachments;
+    if (message.type === 'gif' && message.gif?.url) payload.gif = message.gif;
+    if (!payload.content.trim() && !payload.attachments?.length && !payload.gif?.url) {
+      toast.error('This message cannot be forwarded.');
+      return;
+    }
     setSending(true);
     let ok = 0;
-    for (const user of selected) {
+    for (const target of selected) {
       try {
-        const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: user._id }, { headers: { Authorization: `Bearer ${token}` } });
-        const convId = r.data?.data?._id;
-        if (convId && message.content) {
-          await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, { content: message.content }, { headers: { Authorization: `Bearer ${token}` } });
+        let convId = target.conversationId;
+        if (target.kind === 'user' && target.userId) {
+          const r = await apiClient.post('/api/supraspace/conversations/direct', { targetUserId: target.userId }, { headers: { Authorization: `Bearer ${token}` } });
+          convId = r.data?.data?._id;
         }
+        if (!convId) continue;
+        await apiClient.post(`/api/supraspace/conversations/${convId}/messages`, payload, { headers: { Authorization: `Bearer ${token}` } });
         ok++;
       } catch { }
     }
     setSending(false);
-    if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} people.`);
+    if (ok > 0) toast.success(ok === 1 ? 'Message forwarded.' : `Message forwarded to ${ok} chats.`);
     else toast.error('Could not forward the message.');
     onClose();
   };
@@ -7078,13 +7529,19 @@ function ForwardMessageModal({ users, message, token, onClose }: {
         <div className="px-4 py-4 space-y-3">
           {selected.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pb-1">
-              {selected.map(u => (
-                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
-                  <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+              {selected.map(target => (
+                <span key={target.id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(91,124,246,0.2)' }}>
+                  <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))} style={{ fontSize: 8, fontWeight: 700 }}>
+                    {target.kind === 'conversation'
+                      ? target.avatar
+                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        : <Users className="h-3 w-3" />
+                      : target.avatar
+                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        : ini(target.label)}
                   </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
-                  <button onClick={() => removeUser(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{target.label.split(' ')[0]}</span>
+                  <button onClick={() => removeTarget(target.id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }}>
                     <X className="h-3 w-3" />
                   </button>
                 </span>
@@ -7093,18 +7550,24 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           )}
           <div className="relative">
             <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search people…" className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search people or groups..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
           </div>
           <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
-            {filtered.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{q ? 'No people found' : 'All users selected'}</p>}
-            {filtered.map(u => (
-              <button key={u._id} onClick={() => addUser(u)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left hover:bg-(--bg-hover)">
-                <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))}>
-                  {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span style={{ fontSize: 11, fontWeight: 700 }}>{ini(u.fullName)}</span>}
+            {filtered.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{q ? 'No people or groups found' : 'All targets selected'}</p>}
+            {filtered.map(target => (
+              <button key={target.id} onClick={() => addTarget(target)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left hover:bg-(--bg-hover)">
+                <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))}>
+                  {target.kind === 'conversation'
+                    ? target.avatar
+                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      : <Users className="h-4 w-4" />
+                    : target.avatar
+                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      : <span style={{ fontSize: 11, fontWeight: 700 }}>{ini(target.label)}</span>}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-                  <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username}</p>
+                  <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{target.label}</p>
+                  <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{target.subtitle}</p>
                 </div>
               </button>
             ))}
@@ -7112,7 +7575,7 @@ function ForwardMessageModal({ users, message, token, onClose }: {
           {selected.length > 0 && (
             <button onClick={handleForward} disabled={sending} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: sending ? 0.6 : 1 }}>
               <Share2 className="h-3.5 w-3.5" />
-              {sending ? 'Forwarding…' : `Forward to ${selected.length} ${selected.length === 1 ? 'person' : 'people'}`}
+              {sending ? 'Forwarding...' : `Forward to ${selected.length} ${selected.length === 1 ? 'chat' : 'chats'}`}
             </button>
           )}
         </div>
@@ -8273,17 +8736,19 @@ const ConvRow = React.memo(function ConvRow({
   const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
     ? conv.lastMessage
     : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+  const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
   const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
-    : !effectiveLastMsg ? 'No messages yet'
-      : effectiveLastMsg.isDeleted ? 'Message deleted'
-        : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
-          : effectiveLastMsg.type === 'gif' ? 'GIF'
-            : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
-              : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
-                : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+    : reactionPreview ? reactionPreview
+      : !effectiveLastMsg ? 'No messages yet'
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
   const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
   const hasDraftPreview = Boolean(draftPreview);
-  const senderPrefix = conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
+  const senderPrefix = !reactionPreview && conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
   const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
   const ddOpen = openConvMenuId === conv._id;
   const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
@@ -8641,40 +9106,104 @@ export default function SupraSpacePage() {
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
+  const [mobileSearchFilter, setMobileSearchFilter] = React.useState<'messages' | 'spaces' | 'from' | 'saidIn' | 'attachments'>('messages');
+  const mobileSearchInputRef = React.useRef<HTMLInputElement>(null);
   const [conversationFilter, setConversationFilter] = React.useState<ConversationFilter>('all');
   const [sidebarTab, setSidebarTab] = React.useState<'chats' | 'spaces' | 'notifications' | 'profile'>('chats');
   const [isStandaloneApp, setIsStandaloneApp] = React.useState(false);
   const [isIOSStandaloneApp, setIsIOSStandaloneApp] = React.useState(false);
+  // Broader than isIOSStandaloneApp on purpose: iOS Safari's `dvh` unit does
+  // NOT shrink when the on-screen keyboard opens whether the page is an
+  // installed standalone app or a plain browser tab — the same WebKit quirk
+  // either way. The viewport-tracking effect below (--ss4-vvh /
+  // ss4-ios-keyboard-open) uses this so the message composer still gets
+  // pinned above the keyboard in a regular Safari tab, not just when
+  // installed. Kept separate from isStandaloneApp/isIOSStandaloneApp, which
+  // still correctly gate the standalone-only body-scroll-lock/app-shell
+  // sizing below — that native-app-feel lock should NOT apply to a normal
+  // browser tab.
+  const [isIOSDevice, setIsIOSDevice] = React.useState(false);
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
     setIsStandaloneApp(standalone);
-    setIsIOSStandaloneApp(standalone && isIOSLikeDevice());
+    const iosLike = isIOSLikeDevice();
+    setIsIOSStandaloneApp(standalone && iosLike);
+    setIsIOSDevice(iosLike);
   }, []);
-  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
+  const openMobileSearch = React.useCallback(() => {
+    if (!isStandaloneApp && !isMobileViewport) return;
+    setSidebarTab('chats');
+    setMobileSearchOpen(true);
+  }, [isMobileViewport, isStandaloneApp]);
+  const closeMobileSearch = React.useCallback(() => {
+    setMobileSearchOpen(false);
+    setQ('');
+  }, []);
   React.useEffect(() => {
-    if (!isIOSStandaloneApp || typeof window === 'undefined' || !window.visualViewport) return;
+    if (!mobileSearchOpen) return;
+    const timer = window.setTimeout(() => {
+      mobileSearchInputRef.current?.focus();
+    }, 35);
+    return () => window.clearTimeout(timer);
+  }, [mobileSearchOpen]);
+  React.useEffect(() => {
+    if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
+  }, [isMobileViewport, isStandaloneApp]);
+  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
+  const wasKeyboardOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
     const timers = new Set<ReturnType<typeof setTimeout>>();
+    const nudgeViewportUnits = () => {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const content = meta.getAttribute('content') || '';
+      meta.setAttribute('content', `${content},`);
+      requestAnimationFrame(() => meta.setAttribute('content', content));
+    };
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
-        // negative offsetTop is observed from plain list scroll on iOS, not keyboard.
         const top = Math.max(0, Math.round(viewport.offsetTop || 0));
+        // window.screen.height is the raw physical display resolution, not the
+        // usable web-content viewport — it can read larger than the real
+        // layout height (notably right after a cold standalone launch or on
+        // rotation), which used to always win the Math.max below and get
+        // baked into the app shell's fixed pixel height, pushing the bottom
+        // nav/compose FAB below the real visible screen (looked like a blank
+        // void under the conversation list). Only fall back to it if the real
+        // measurements are unavailable (all read 0), never to override them.
         const screenHeight = window.screen?.height || 0;
-        const layoutHeight = Math.max(
+        const measuredHeight = Math.max(
           window.innerHeight || 0,
           document.documentElement.clientHeight || 0,
-          screenHeight,
           visualHeight,
         );
-        const visualKeyboardGap = layoutHeight - visualHeight - top;
-        const keyboardOpen = visualKeyboardGap > 120 || isTextEntryElement(document.activeElement);
-        const height = keyboardOpen ? visualHeight : layoutHeight;
-        document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
-        document.documentElement.style.setProperty('--ss4-safe-bottom', keyboardOpen ? '0px' : 'env(safe-area-inset-bottom, 0px)');
+        const layoutHeight = measuredHeight > 0 ? measuredHeight : screenHeight;
+        // A changing offset can also be caused by ordinary iOS list scrolling;
+        // only treat it as a keyboard when a text control is actually focused.
+        const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
+        const focusedTextEntry = isTextEntryElement(document.activeElement);
+        const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
+        // visualViewport is the usable display area in both states. This avoids
+        // expanding the fixed app shell to window.screen.height on cold launches.
+        const height = visualHeight;
+        const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
+        if (keyboardOpen) {
+          document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+        } else {
+          document.documentElement.style.removeProperty('--ss4-vvh');
+        }
+        document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
         document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
+        if (wasKeyboardOpenRef.current && !keyboardOpen) {
+          setTimeout(nudgeViewportUnits, 350);
+        }
+        wasKeyboardOpenRef.current = keyboardOpen;
         setVv(prev => (
           prev?.height === height && prev.top === top && prev.keyboardOpen === keyboardOpen
             ? prev
@@ -8704,6 +9233,10 @@ export default function SupraSpacePage() {
     viewport.addEventListener('scroll', update);
     window.addEventListener('resize', settleAfterKeyboard);
     window.addEventListener('orientationchange', settleAfterKeyboard);
+    window.addEventListener('pageshow', settleAfterKeyboard);
+    document.addEventListener('touchend', settleAfterKeyboard, true);
+    document.addEventListener('pointerup', settleAfterKeyboard, true);
+    document.addEventListener('visibilitychange', settleAfterKeyboard);
     document.addEventListener('focusin', settleAfterKeyboard);
     document.addEventListener('focusout', settleAfterKeyboard);
     return () => {
@@ -8713,13 +9246,17 @@ export default function SupraSpacePage() {
       viewport.removeEventListener('scroll', update);
       window.removeEventListener('resize', settleAfterKeyboard);
       window.removeEventListener('orientationchange', settleAfterKeyboard);
+      window.removeEventListener('pageshow', settleAfterKeyboard);
+      document.removeEventListener('touchend', settleAfterKeyboard, true);
+      document.removeEventListener('pointerup', settleAfterKeyboard, true);
+      document.removeEventListener('visibilitychange', settleAfterKeyboard);
       document.removeEventListener('focusin', settleAfterKeyboard);
       document.removeEventListener('focusout', settleAfterKeyboard);
       document.documentElement.style.removeProperty('--ss4-vvh');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
       document.documentElement.classList.remove('ss4-ios-keyboard-open');
     };
-  }, [isIOSStandaloneApp]);
+  }, [isIOSDevice]);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
@@ -8733,8 +9270,9 @@ export default function SupraSpacePage() {
     const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
-    document.body.style.height = 'var(--ss4-vvh, 100dvh)';
-    document.documentElement.style.height = 'var(--ss4-vvh, 100dvh)';
+    const restHeight = isIOSDevice ? `${window.screen.height}px` : '100dvh';
+    document.body.style.height = `var(--ss4-vvh, ${restHeight})`;
+    document.documentElement.style.height = `var(--ss4-vvh, ${restHeight})`;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overscrollBehavior = 'none';
@@ -8777,6 +9315,14 @@ export default function SupraSpacePage() {
   const [activeFontFamilyChosen, setActiveFontFamilyChosen] = React.useState(false);
   const [activeFontSize, setActiveFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [activeFontSizeChosen, setActiveFontSizeChosen] = React.useState(false);
+  const activeFormatsRef = React.useRef(activeFormats);
+  const activeTypingFormatsRef = React.useRef(activeTypingFormats);
+  const activeTextColorRef = React.useRef(activeTextColor);
+  const activeTextColorChosenRef = React.useRef(activeTextColorChosen);
+  const activeFontFamilyRef = React.useRef(activeFontFamily);
+  const activeFontFamilyChosenRef = React.useRef(activeFontFamilyChosen);
+  const activeFontSizeRef = React.useRef(activeFontSize);
+  const activeFontSizeChosenRef = React.useRef(activeFontSizeChosen);
   const [textPalette, setTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [textColorPickerOpen, setTextColorPickerOpen] = React.useState(false);
   const autrixRef = React.useRef<HTMLDivElement>(null);
@@ -8838,8 +9384,10 @@ export default function SupraSpacePage() {
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [gcEmojiInput, setGcEmojiInput] = React.useState('');
   const [emojiOpen, setEmojiOpen] = React.useState(false);
+  const [mobileEmojiSearchOpen, setMobileEmojiSearchOpen] = React.useState(false);
   const emojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiRef = React.useRef<HTMLDivElement>(null);
+  const mobileEmojiSheetRef = React.useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number } | null>(null);
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
@@ -8856,13 +9404,15 @@ export default function SupraSpacePage() {
   const [meetingActionLoading, setMeetingActionLoading] = React.useState<'later' | 'instant' | null>(null);
   const [scheduleMeetingOpen, setScheduleMeetingOpen] = React.useState(false);
   const [gifOpen, setGifOpen] = React.useState(false);
+  const [mobileAttachSheetOpen, setMobileAttachSheetOpen] = React.useState(false);
+  const [mobileFilePickerOpen, setMobileFilePickerOpen] = React.useState(false);
   const [activeUsersOpen, setActiveUsersOpen] = React.useState(false);
   const [summarizeOpen, setSummarizeOpen] = React.useState(false);
   const [createMenuOpen, setCreateMenuOpen] = React.useState(false);
   const createMenuRef = React.useRef<HTMLDivElement>(null);
   const meetingMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
-  const mobileGifRef = React.useRef<HTMLDivElement>(null);
+  const mobileAttachSheetRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
   const [moveSpaceSheetConv, setMoveSpaceSheetConv] = React.useState<string | null>(null);
@@ -8877,7 +9427,7 @@ export default function SupraSpacePage() {
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recStreamRef = React.useRef<MediaStream | null>(null);
 
-  const [msgResults, setMsgResults] = React.useState<any[]>([]);
+  const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
 
   const endRef = React.useRef<HTMLDivElement>(null);
@@ -8891,11 +9441,16 @@ export default function SupraSpacePage() {
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
   const imageFileRef = React.useRef<HTMLInputElement>(null);
+  const cameraFileRef = React.useRef<HTMLInputElement>(null);
+  const fileInputId = React.useId();
+  const imageInputId = React.useId();
+  const cameraInputId = React.useId();
   const textareaRef = React.useRef<HTMLDivElement>(null);
   const composerDockRef = React.useRef<HTMLDivElement>(null);
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const composerMetricsTimerRef = React.useRef<number | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
@@ -8907,14 +9462,43 @@ export default function SupraSpacePage() {
 
   const syncComposerText = React.useCallback((value: string, commitToState = false) => {
     inputTextRef.current = value;
-    setComposerCharCount(prev => prev === value.length ? prev : value.length);
     const hasText = Boolean(value.trim());
     setComposerHasText(prev => prev === hasText ? prev : hasText);
-    if (commitToState) setInput(value);
+    if (commitToState) {
+      if (composerMetricsTimerRef.current !== null) {
+        window.clearTimeout(composerMetricsTimerRef.current);
+        composerMetricsTimerRef.current = null;
+      }
+      setComposerCharCount(prev => prev === value.length ? prev : value.length);
+      setInput(value);
+      return;
+    }
+    if (composerMetricsTimerRef.current !== null) {
+      window.clearTimeout(composerMetricsTimerRef.current);
+    }
+    composerMetricsTimerRef.current = window.setTimeout(() => {
+      composerMetricsTimerRef.current = null;
+      const latest = inputTextRef.current;
+      setComposerCharCount(prev => prev === latest.length ? prev : latest.length);
+      const latestHasText = Boolean(latest.trim());
+      setComposerHasText(prev => prev === latestHasText ? prev : latestHasText);
+    }, 300);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (composerMetricsTimerRef.current !== null) {
+      window.clearTimeout(composerMetricsTimerRef.current);
+      composerMetricsTimerRef.current = null;
+    }
   }, []);
 
   React.useEffect(() => {
-    if (!isIOSStandaloneApp || typeof document === 'undefined') return;
+    // Companion to the --ss4-vvh/ss4-ios-keyboard-open effect above — same
+    // isIOSDevice gating (not just standalone) so a plain iOS Safari tab's
+    // message list gets the composer's REAL height instead of always
+    // falling back to the CSS default (76px), which under-pads whenever the
+    // composer is taller (reply preview, format bar, attached files).
+    if (!isIOSDevice || typeof document === 'undefined') return;
     const update = () => {
       const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
       document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
@@ -8928,7 +9512,7 @@ export default function SupraSpacePage() {
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
     };
-  }, [isIOSStandaloneApp, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
+  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
 
   React.useEffect(() => {
     inputTextRef.current = input;
@@ -9379,6 +9963,7 @@ export default function SupraSpacePage() {
     setShowJumpToLatest(false);
     setShowInfo(false);
     setQ('');
+    setMobileSearchOpen(false);
     activeIdRef.current = conversationId;
     setStoredSupraSpaceConversationId(conversationId, uid);
     setActiveId(conversationId);
@@ -9481,7 +10066,7 @@ export default function SupraSpacePage() {
     });
   }, [ctxConversations]);
 
-  const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string) => {
+  const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string, restoreActiveConversation = true) => {
     if (!cachedUserId || cacheHydratedRef.current) return false;
     const cached = await readSupraSpaceCache(cachedUserId);
     if (!cached || !cached.conversations.length) return false;
@@ -9512,7 +10097,7 @@ export default function SupraSpacePage() {
     conversationsOffsetRef.current = cached.conversations.length;
     setMsgFetchState(cachedStatuses);
     if (cachedUsers.length) setAllUsers(cachedUsers);
-    if (cachedActiveId) {
+    if (restoreActiveConversation && cachedActiveId) {
       activeIdRef.current = cachedActiveId;
       forceScrollToBottomRef.current = cachedActiveId;
       setActiveId(cachedActiveId);
@@ -9562,7 +10147,15 @@ export default function SupraSpacePage() {
       tokenRef.current = t;
       setToken(t);
       const cachedUserId = getSupraSpaceCacheUserIdFromToken(t);
-      const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId) : false;
+      const initialUrlParams = new URLSearchParams(window.location.search);
+      const hasInitialConversationTarget = Boolean(
+        initialUrlParams.get('conversationId')
+        || initialUrlParams.get('convId')
+        || initialUrlParams.get('userId')
+        || initialUrlParams.get('meeting'),
+      );
+      const allowSavedConversationRestore = !isRunningAsSupraSpaceStandalone() || hasInitialConversationTarget;
+      const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
 
       try {
         const [me, cv] = await Promise.all([
@@ -9662,11 +10255,11 @@ export default function SupraSpacePage() {
           }
         }
 
-        if (!openedInitialConversation && hydratedFromCache && activeIdRef.current) {
+        if (!openedInitialConversation && allowSavedConversationRestore && hydratedFromCache && activeIdRef.current) {
           openedInitialConversation = true;
         }
 
-        if (!openedInitialConversation) {
+        if (!openedInitialConversation && allowSavedConversationRestore) {
           const rememberedConversationId = getStoredSupraSpaceConversationId(myData._id);
           if (rememberedConversationId) {
             const restored = openFetchedConversation(rememberedConversationId);
@@ -9814,7 +10407,20 @@ export default function SupraSpacePage() {
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
       setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
-    const onReaction = ({ conversationId, messageId, reactions }: any) => patchMsg(conversationId, messageId, { reactions });
+    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, conversationLastMessageAt }: any) => {
+      patchMsg(conversationId, messageId, { reactions });
+      if (reactionActivity === undefined && conversationLastMessageAt === undefined) return;
+      setConvos(p => p.map(c => {
+        if (c._id !== conversationId) return c;
+        if (reactionActivity === null) {
+          return { ...c, lastReaction: null, lastMessageAt: conversationLastMessageAt || c.lastMessage?.createdAt || c.lastMessageAt };
+        }
+        if (reactionActivity) {
+          return { ...c, lastReaction: reactionActivity, lastMessageAt: reactionActivity.createdAt || conversationLastMessageAt || c.lastMessageAt };
+        }
+        return conversationLastMessageAt ? { ...c, lastMessageAt: conversationLastMessageAt } : c;
+      }).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+    };
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
     const onMeetingJoinRequested = (payload: MeetingJoinRequestedPayload) => {
@@ -10193,6 +10799,7 @@ export default function SupraSpacePage() {
     setMentionQuery(null);
     setMentionAnchor(-1);
     setEmojiOpen(false);
+    setMobileEmojiSearchOpen(false);
     setScheduleOpen(false);
     if (textareaRef.current) {
       textareaRef.current.innerHTML = nextDraft ? markdownTextToEditorHtml(nextDraft) : '';
@@ -10206,14 +10813,15 @@ export default function SupraSpacePage() {
       [autrixOpen, make(autrixRef, () => setAutrixOpen(false))],
       [emojiOpen, (e: MouseEvent) => {
         const target = e.target as Node;
-        if (emojiRef.current?.contains(target) || mobileEmojiRef.current?.contains(target)) return;
+        if (emojiRef.current?.contains(target) || mobileEmojiRef.current?.contains(target) || mobileEmojiSheetRef.current?.contains(target)) return;
         setEmojiOpen(false);
       }],
       [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
       [meetingMenuOpen, make(meetingMenuRef, () => setMeetingMenuOpen(false))],
       [gifOpen, (e: MouseEvent) => {
         const target = e.target as Node;
-        if (!gifRef.current?.contains(target) && !mobileGifRef.current?.contains(target)) setGifOpen(false);
+        if (gifRef.current?.contains(target) || mobileAttachSheetRef.current?.contains(target)) return;
+        setGifOpen(false);
       }],
     ];
     const active = hs.filter(([on]) => on).map(([, h]) => h);
@@ -10229,7 +10837,7 @@ export default function SupraSpacePage() {
   }, [memberCard]);
 
   React.useEffect(() => {
-    if (!token || q.trim().length < 2) { setMsgResults([]); return; }
+    if (!token || q.trim().length < 2) { setMsgResults([]); setSearching(false); return; }
     setSearching(true);
     const t = setTimeout(() => {
       apiClient.get('/api/supraspace/search', { headers: { Authorization: `Bearer ${token}` }, params: { q: q.trim() } })
@@ -10240,7 +10848,7 @@ export default function SupraSpacePage() {
 
   const handleSend = async (scheduledAt?: string) => {
     if (!activeId || sending) return;
-    const currentComposerText = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input;
+    const currentComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
     const hasText = Boolean(currentComposerText.trim());
     const hasPendingFiles = pendingFiles.length > 0;
     const hasPendingMeeting = !!pendingMeeting;
@@ -10248,8 +10856,8 @@ export default function SupraSpacePage() {
     if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
     if (sendInFlightRef.current) return;
     const conversationId = activeId;
-    const visibleComposerText = textareaRef.current?.innerText || inputTextRef.current || input;
-    const serializedComposerText = textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim();
+    const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
+    const serializedComposerText = stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
     const content = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         restoreMissingSerialsFromSources(
@@ -10259,9 +10867,9 @@ export default function SupraSpacePage() {
           ),
           [
             visibleComposerText,
-            inputTextRef.current,
-            pastedPlainTextRef.current,
-            textareaRef.current?.textContent || '',
+            stripCopiedTextArtifacts(inputTextRef.current),
+            stripCopiedTextArtifacts(pastedPlainTextRef.current),
+            stripCopiedTextArtifacts(textareaRef.current?.textContent || ''),
             serializedComposerText,
           ],
         ),
@@ -10556,10 +11164,10 @@ export default function SupraSpacePage() {
         strike: caret.strike,
         list:
           document.queryCommandState('insertUnorderedList')
-          || /^[•◦▪]\s/.test(line.trimStart()),
+          || /^[•◦▪](?:\s|$)/.test(line.trimStart()),
         numbered:
           document.queryCommandState('insertOrderedList')
-          || /^\d+\.\s/.test(line.trimStart()),
+          || /^\d+\.(?:\s|$)/.test(line.trimStart()),
         quote:
           blockValue.includes('blockquote')
           || line.trimStart().startsWith('> '),
@@ -10567,17 +11175,26 @@ export default function SupraSpacePage() {
           /(monospace|courier|consolas|menlo|monaco)/i.test(fontValue)
           || beforeCursor.split('`').length % 2 === 0,
       };
+      activeFormatsRef.current = nextFormats;
       setActiveFormats(prev => shallowEqualFlat(prev, nextFormats) ? prev : nextFormats);
 
-      setActiveFontFamily(caret.fontFamily);
-      setActiveFontSize(caret.fontSize);
-      setActiveTextColor(caret.color);
+      activeFontFamilyRef.current = caret.fontFamily;
+      activeFontSizeRef.current = caret.fontSize;
+      activeTextColorRef.current = caret.color;
+      activeFontFamilyChosenRef.current = caret.fontFamilyExplicit;
+      activeFontSizeChosenRef.current = caret.fontSizeExplicit;
+      activeTextColorChosenRef.current = caret.colorExplicit;
 
-      setActiveFontFamilyChosen(caret.fontFamilyExplicit);
-      setActiveFontSizeChosen(caret.fontSizeExplicit);
-      setActiveTextColorChosen(caret.colorExplicit);
+      setActiveFontFamily(prev => prev === caret.fontFamily ? prev : caret.fontFamily);
+      setActiveFontSize(prev => prev === caret.fontSize ? prev : caret.fontSize);
+      setActiveTextColor(prev => prev === caret.color ? prev : caret.color);
+
+      setActiveFontFamilyChosen(prev => prev === caret.fontFamilyExplicit ? prev : caret.fontFamilyExplicit);
+      setActiveFontSizeChosen(prev => prev === caret.fontSizeExplicit ? prev : caret.fontSizeExplicit);
+      setActiveTextColorChosen(prev => prev === caret.colorExplicit ? prev : caret.colorExplicit);
 
       const nextTypingFormats = ss4TypingPreferencesFromCaretSnapshot(caret);
+      activeTypingFormatsRef.current = nextTypingFormats;
       setActiveTypingFormats(prev => shallowEqualFlat(prev, nextTypingFormats) ? prev : nextTypingFormats);
     } catch {
     }
@@ -10592,9 +11209,31 @@ export default function SupraSpacePage() {
   }, [refreshActiveFormats]);
 
   React.useEffect(() => {
-    document.addEventListener('selectionchange', refreshActiveFormats);
-    return () => document.removeEventListener('selectionchange', refreshActiveFormats);
-  }, [refreshActiveFormats]);
+    const handleSelectionChange = () => {
+      const el = textareaRef.current;
+      const selection = window.getSelection();
+      if (
+        !el
+        || !selection
+        || selection.rangeCount === 0
+        || !selection.anchorNode
+        || !el.contains(selection.anchorNode)
+      ) {
+        return;
+      }
+
+      const hasActiveTypography =
+        activeFontFamilyChosenRef.current
+        || activeFontSizeChosenRef.current
+        || activeTextColorChosenRef.current
+        || Object.values(activeTypingFormatsRef.current).some(value => value !== null);
+
+      if (!showFormatBar && !hasActiveTypography) return;
+      scheduleRefreshActiveFormats();
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [scheduleRefreshActiveFormats, showFormatBar]);
 
   const getCaretOffset = (el: HTMLElement): number => {
     const sel = window.getSelection();
@@ -10790,16 +11429,21 @@ export default function SupraSpacePage() {
 
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const caretBeforeLimit = getCaretOffset(el);
-    const val = enforceComposerLengthFromDom(el, caretBeforeLimit);
+    const currentText = el.innerText.replace(/\n$/, '');
+    const val = currentText.length > SS4_MAX_MESSAGE_CHARS
+      ? enforceComposerLengthFromDom(el, getCaretOffset(el))
+      : currentText;
     syncComposerText(val);
     const inputEvent = e.nativeEvent as InputEvent;
-    const textBeforeCaret = getComposerTextBeforeCaret(el);
-    const cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
-    const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
-    const shouldInspectMention = inputEvent.inputType !== 'insertFromPaste' && (mentionAnchor >= 0 || !!mentionCandidate);
+    let cursorAfterInput: number | null = null;
+    const shouldInspectMention =
+      inputEvent.inputType !== 'insertFromPaste' &&
+      (mentionAnchor >= 0 || inputEvent.data === '@');
 
     if (shouldInspectMention) {
+      const textBeforeCaret = getComposerTextBeforeCaret(el);
+      cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
+      const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
       const cursor = Math.max(0, Math.min(cursorAfterInput || composerCaretOffsetRef.current || val.length, val.length));
       composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
       if (mentionCandidate) {
@@ -10814,11 +11458,10 @@ export default function SupraSpacePage() {
 
     const shouldInspectChannelMention =
       channelMentionAnchor >= 0 ||
-      inputEvent.data === '#' ||
-      inputEvent.inputType === 'insertFromPaste';
+      inputEvent.data === '#';
 
     if (shouldInspectChannelMention) {
-      const cursor = getCaretOffset(el);
+      const cursor = cursorAfterInput ?? getCaretOffset(el);
       composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
       if (channelMentionAnchor >= 0) {
         if (cursor <= channelMentionAnchor || val[channelMentionAnchor] !== '#') {
@@ -10840,12 +11483,13 @@ export default function SupraSpacePage() {
       requestAnimationFrame(() => {
         const current = textareaRef.current;
         if (!current) return;
+        const restoreCursor = cursorAfterInput ?? getCaretOffset(current);
         highlightMentionsInComposer(current);
         const nextText = current.innerText.replace(/\n$/, '');
-        syncComposerText(nextText, true);
+        syncComposerText(nextText);
         const selection = window.getSelection();
         if (selection) {
-          const range = rangeFromTextOffset(current, Math.min(cursorAfterInput, nextText.length));
+          const range = rangeFromTextOffset(current, Math.min(restoreCursor, nextText.length));
           selection.removeAllRanges();
           selection.addRange(range);
         }
@@ -11202,9 +11846,10 @@ export default function SupraSpacePage() {
 
   const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
     if (!activeId) return;
+    const cleanContent = normalizeMessageMarkdownText(content);
     if (replacementFiles?.length) {
       const fd = new FormData();
-      fd.append('content', content);
+      fd.append('content', cleanContent);
       if (replaceIndex !== undefined && replaceIndex !== null) fd.append('replaceIndex', String(replaceIndex));
       replacementFiles.forEach(file => fd.append('files', file));
       const r = await apiClient.patch(`/api/supraspace/messages/${msgId}/attachments`, fd, {
@@ -11222,7 +11867,7 @@ export default function SupraSpacePage() {
       return;
     }
 
-    const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content }, { headers: { Authorization: `Bearer ${token}` } });
+    const r = await apiClient.patch(`/api/supraspace/messages/${msgId}`, { content: cleanContent }, { headers: { Authorization: `Bearer ${token}` } });
     if (r.data?.data) patchMsg(activeId, msgId, { content: r.data.data.content, isEdited: true });
   }, [activeId, token, patchMsg]);
 
@@ -11406,11 +12051,18 @@ export default function SupraSpacePage() {
     const line = value.slice(lineStart, lineEnd);
     const leading = line.match(/^\s*/)?.[0] || '';
     const trimmed = line.trim();
+    const activeListMode = activeFormatsRef.current.list ? 'bullet' : activeFormatsRef.current.numbered ? 'numbered' : null;
 
     if (/^[•◦▪]$/.test(trimmed)) {
-      const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
+      const insert = `\n${leading}${SS4_BULLET_GLYPHS[0]} `;
+      const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
+      const caret = cursor + insert.length;
       syncComposerText(next, true);
-      setEditableTextAndCaret(next, lineStart);
+      setEditableTextAndCaret(next, caret);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
@@ -11430,9 +12082,16 @@ export default function SupraSpacePage() {
       return true;
     }
     if (/^\d+\.$/.test(trimmed)) {
-      const next = `${value.slice(0, lineStart)}${value.slice(cursor)}`;
+      const currentNum = parseInt(trimmed, 10) || 1;
+      const insert = `\n${leading}${currentNum + 1}. `;
+      const next = `${value.slice(0, cursor)}${insert}${value.slice(cursor)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
+      const caret = cursor + insert.length;
       syncComposerText(next, true);
-      setEditableTextAndCaret(next, lineStart);
+      setEditableTextAndCaret(next, caret);
       requestAnimationFrame(refreshActiveFormats);
       return true;
     }
@@ -11446,6 +12105,27 @@ export default function SupraSpacePage() {
         return true;
       }
       const caret = cursor + insert.length;
+      syncComposerText(next, true);
+      setEditableTextAndCaret(next, caret);
+      requestAnimationFrame(refreshActiveFormats);
+      return true;
+    }
+    if (activeListMode && trimmed) {
+      const markerPrefix = activeListMode === 'bullet'
+        ? `${leading}${SS4_BULLET_GLYPHS[0]} `
+        : `${leading}${ss4FindPriorNumberedSibling(value, lineStart, leading.length) + 1}. `;
+      const nextPrefix = activeListMode === 'bullet'
+        ? markerPrefix
+        : `${leading}${ss4FindPriorNumberedSibling(value, lineStart, leading.length) + 2}. `;
+      const contentStart = lineStart + leading.length;
+      const beforeCursor = value.slice(contentStart, Math.max(contentStart, cursor));
+      const afterCursor = value.slice(Math.max(contentStart, cursor), lineEnd);
+      const next = `${value.slice(0, lineStart)}${markerPrefix}${beforeCursor}\n${nextPrefix}${afterCursor}${value.slice(lineEnd)}`;
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return true;
+      }
+      const caret = lineStart + markerPrefix.length + beforeCursor.length + 1 + nextPrefix.length;
       syncComposerText(next, true);
       setEditableTextAndCaret(next, caret);
       requestAnimationFrame(refreshActiveFormats);
@@ -11593,11 +12273,65 @@ export default function SupraSpacePage() {
         : range.cloneRange();
       composerSelectionRangeRef.current = liveRange;
 
+      activeTypingFormatsRef.current = nextTypingFormats;
+      activeFormatsRef.current = {
+        ...activeFormatsRef.current,
+        [inlineFormat]: nextValue,
+      };
       setActiveTypingFormats(nextTypingFormats);
       setActiveFormats(previous => ({
         ...previous,
         [inlineFormat]: nextValue,
       }));
+      requestAnimationFrame(refreshActiveFormats);
+      return;
+    }
+
+    if ((type === 'list' || type === 'numbered') && range.collapsed) {
+      const value = el.innerText.replace(/\n$/, '');
+      const cursor = getCaretOffset(el);
+      const lineStart = value.lastIndexOf('\n', Math.max(cursor - 1, 0)) + 1;
+      const lineEndRaw = value.indexOf('\n', cursor);
+      const lineEnd = lineEndRaw === -1 ? value.length : lineEndRaw;
+      const line = value.slice(lineStart, lineEnd);
+      const leading = line.match(/^\s*/)?.[0] || '';
+      const contentStart = lineStart + leading.length;
+      const body = line.slice(leading.length).replace(/^(?:[•◦▪]|\d+\.)\s*/, '');
+      const bodyBeforeCursor = value
+        .slice(contentStart, Math.max(contentStart, cursor))
+        .replace(/^(?:[•◦▪]|\d+\.)\s*/, '');
+      const currentActive = type === 'list'
+        ? activeFormatsRef.current.list
+        : activeFormatsRef.current.numbered;
+      const activating = !currentActive;
+      const marker = type === 'list'
+        ? `${SS4_BULLET_GLYPHS[0]} `
+        : `${ss4FindPriorNumberedSibling(value, lineStart, leading.length) + 1}. `;
+      const replacementLine = activating
+        ? `${leading}${marker}${body}`
+        : `${leading}${body}`;
+      const next = `${value.slice(0, lineStart)}${replacementLine}${value.slice(lineEnd)}`;
+
+      if (next.length > SS4_MAX_MESSAGE_CHARS) {
+        showMessageLimitNotice();
+        return;
+      }
+
+      const caret = lineStart
+        + leading.length
+        + (activating ? marker.length : 0)
+        + Math.min(bodyBeforeCursor.length, body.length);
+      const nextFormats = {
+        ...activeFormatsRef.current,
+        list: type === 'list' ? activating : false,
+        numbered: type === 'numbered' ? activating : false,
+      };
+
+      activeFormatsRef.current = nextFormats;
+      setActiveFormats(nextFormats);
+      syncComposerText(next, true);
+      setEditableTextAndCaret(next, caret);
+      saveComposerSelection();
       requestAnimationFrame(refreshActiveFormats);
       return;
     }
@@ -11690,14 +12424,18 @@ export default function SupraSpacePage() {
       const nextValue = document.queryCommandState(
         ss4InlineCommandForFormat(inlineFormat),
       );
-      setActiveTypingFormats(previous => ({
-        ...previous,
+      const nextTypingFormats = {
+        ...activeTypingFormatsRef.current,
         [inlineFormat]: nextValue,
-      }));
-      setActiveFormats(previous => ({
-        ...previous,
+      };
+      const nextFormats = {
+        ...activeFormatsRef.current,
         [inlineFormat]: nextValue,
-      }));
+      };
+      activeTypingFormatsRef.current = nextTypingFormats;
+      activeFormatsRef.current = nextFormats;
+      setActiveTypingFormats(nextTypingFormats);
+      setActiveFormats(nextFormats);
     }
 
     const nextText = el.innerText.replace(/\n$/, '');
@@ -11705,9 +12443,11 @@ export default function SupraSpacePage() {
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
-    activeTypingFormats,
+    getCaretOffset,
     refreshActiveFormats,
     saveComposerSelection,
+    setEditableTextAndCaret,
+    showMessageLimitNotice,
     syncComposerText,
   ]);
 
@@ -11758,6 +12498,8 @@ export default function SupraSpacePage() {
   const applyTextColor = React.useCallback((color: string) => {
     const root = textareaRef.current;
     if (!root) return;
+    activeTextColorRef.current = color;
+    activeTextColorChosenRef.current = true;
 
     const range = getRichEditorSelectionRange(
       root,
@@ -11776,8 +12518,8 @@ export default function SupraSpacePage() {
       );
       if (nextRange) composerSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
-      setActiveTextColor(color);
-      setActiveTextColorChosen(true);
+      setActiveTextColor(prev => prev === color ? prev : color);
+      setActiveTextColorChosen(prev => prev === true ? prev : true);
       saveComposerSelection();
       requestAnimationFrame(refreshActiveFormats);
       return;
@@ -11799,8 +12541,8 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveTextColor(color);
-    setActiveTextColorChosen(true);
+    setActiveTextColor(prev => prev === color ? prev : color);
+    setActiveTextColorChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11810,8 +12552,10 @@ export default function SupraSpacePage() {
   ]);
 
   const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
-    setActiveFontFamilyChosen(true);
-    setActiveFontFamily(fontFamily);
+    activeFontFamilyRef.current = fontFamily;
+    activeFontFamilyChosenRef.current = true;
+    setActiveFontFamilyChosen(prev => prev === true ? prev : true);
+    setActiveFontFamily(prev => prev === fontFamily ? prev : fontFamily);
 
     const root = textareaRef.current;
     if (!root) return;
@@ -11865,8 +12609,10 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveFontFamily(fontFamily);
-    setActiveFontFamilyChosen(true);
+    activeFontFamilyRef.current = fontFamily;
+    activeFontFamilyChosenRef.current = true;
+    setActiveFontFamily(prev => prev === fontFamily ? prev : fontFamily);
+    setActiveFontFamilyChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11876,8 +12622,10 @@ export default function SupraSpacePage() {
   ]);
 
   const applyComposerFontSize = React.useCallback((fontSize: SS4FontSize) => {
-    setActiveFontSizeChosen(true);
-    setActiveFontSize(fontSize);
+    activeFontSizeRef.current = fontSize;
+    activeFontSizeChosenRef.current = true;
+    setActiveFontSizeChosen(prev => prev === true ? prev : true);
+    setActiveFontSize(prev => prev === fontSize ? prev : fontSize);
 
     const root = textareaRef.current;
     if (!root) return;
@@ -11924,8 +12672,10 @@ export default function SupraSpacePage() {
       ? window.getSelection()!.getRangeAt(0).cloneRange()
       : range.cloneRange();
 
-    setActiveFontSize(fontSize);
-    setActiveFontSizeChosen(true);
+    activeFontSizeRef.current = fontSize;
+    activeFontSizeChosenRef.current = true;
+    setActiveFontSize(prev => prev === fontSize ? prev : fontSize);
+    setActiveFontSizeChosen(prev => prev === true ? prev : true);
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [
@@ -11936,6 +12686,15 @@ export default function SupraSpacePage() {
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = event.nativeEvent as InputEvent;
+    if (
+      inputEvent.inputType === 'insertParagraph'
+      || inputEvent.inputType === 'insertLineBreak'
+    ) {
+      if (handleFormattedLineBreak()) {
+        event.preventDefault();
+        return;
+      }
+    }
     const incomingText = [
       'insertText',
       'insertCompositionText',
@@ -11944,6 +12703,10 @@ export default function SupraSpacePage() {
       ? inputEvent.data || ''
       : '';
     const root = event.currentTarget;
+    const selectedFontFamily = activeFontFamilyChosenRef.current ? activeFontFamilyRef.current : null;
+    const selectedFontSize = activeFontSizeChosenRef.current ? activeFontSizeRef.current : null;
+    const selectedTypingFormats = activeTypingFormatsRef.current;
+    const selectedTextColor = activeTextColorChosenRef.current ? activeTextColorRef.current : null;
 
     if (incomingText) {
       const currentText = root.innerText.replace(/\n$/, '');
@@ -11961,10 +12724,10 @@ export default function SupraSpacePage() {
         event.preventDefault();
         const inserted = insertPreselectedTypographyText(
           event,
-          activeFontFamilyChosen ? activeFontFamily : null,
-          activeFontSizeChosen ? activeFontSize : null,
-          activeTypingFormats,
-          activeTextColorChosen ? activeTextColor : null,
+          selectedFontFamily,
+          selectedFontSize,
+          selectedTypingFormats,
+          selectedTextColor,
           limitedText,
         );
         if (!inserted) document.execCommand('insertText', false, limitedText);
@@ -11972,7 +12735,7 @@ export default function SupraSpacePage() {
         requestAnimationFrame(() => {
           const activeRoot = textareaRef.current;
           if (!activeRoot) return;
-          syncComposerText(activeRoot.innerText.replace(/\n$/, ''), true);
+          syncComposerText(activeRoot.innerText.replace(/\n$/, ''));
           saveComposerSelection();
           refreshActiveFormats();
         });
@@ -11982,27 +12745,21 @@ export default function SupraSpacePage() {
 
     const inserted = insertPreselectedTypographyText(
       event,
-      activeFontFamilyChosen ? activeFontFamily : null,
-      activeFontSizeChosen ? activeFontSize : null,
-      activeTypingFormats,
-      activeTextColorChosen ? activeTextColor : null,
+      selectedFontFamily,
+      selectedFontSize,
+      selectedTypingFormats,
+      selectedTextColor,
     );
     if (!inserted) return;
     requestAnimationFrame(() => {
       const root = textareaRef.current;
       if (!root) return;
-      syncComposerText(root.innerText.replace(/\n$/, ''), true);
+      syncComposerText(root.innerText.replace(/\n$/, ''));
       saveComposerSelection();
       refreshActiveFormats();
     });
   }, [
-    activeFontFamily,
-    activeFontFamilyChosen,
-    activeFontSize,
-    activeFontSizeChosen,
-    activeTextColor,
-    activeTextColorChosen,
-    activeTypingFormats,
+    handleFormattedLineBreak,
     refreshActiveFormats,
     saveComposerSelection,
     showMessageLimitNotice,
@@ -12020,6 +12777,32 @@ export default function SupraSpacePage() {
     applyTextColor(color);
     setTextColorPickerOpen(false);
   }, [activeTextColor, applyTextColor]);
+
+  const applyMobileTextColor = React.useCallback((color: string) => {
+    applyTextColor(color);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [applyTextColor]);
+
+  const prepareMobileMediaPicker = React.useCallback(() => {
+    saveComposerSelection();
+    setEmojiOpen(false);
+    setTextColorPickerOpen(false);
+    setGifOpen(false);
+    setMobileAttachSheetOpen(false);
+    setMobileFilePickerOpen(false);
+  }, [saveComposerSelection]);
+
+  const openMobileImagePicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    imageFileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
+  const restoreComposerAfterMobilePicker = React.useCallback(() => {
+    if (!isStandaloneApp && !isMobileViewport) return;
+    window.setTimeout(() => {
+      focusComposerAtSavedCaret();
+    }, 120);
+  }, [focusComposerAtSavedCaret, isMobileViewport, isStandaloneApp]);
 
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
     'h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)',
@@ -12144,6 +12927,7 @@ export default function SupraSpacePage() {
 
   const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
     setQ('');
+    setMobileSearchOpen(false);
     pendingScrollRestoreRef.current = null;
     if (forceScrollToBottomRef.current === convId) forceScrollToBottomRef.current = null;
     suppressAutoScrollOnceRef.current = true;
@@ -12281,6 +13065,114 @@ export default function SupraSpacePage() {
     return out;
   }, [convos, uid, manualUnread]);
 
+  const mobileFrequentConversations = React.useMemo(() => (
+    convos.filter(c => !isArchivedConv(c)).slice(0, 8)
+  ), [convos, isArchivedConv]);
+  const mobileSearchConversationMatches = React.useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (term.length < 2) return [];
+    const memberRank = (c: SSConversation) => {
+      const candidates = safeMembers(c).map(member => `${member.fullName} ${member.username}`.trim().toLowerCase());
+      if (candidates.some(candidate => candidate === term)) return 0;
+      if (candidates.some(candidate => candidate.startsWith(term))) return 1;
+      if (candidates.some(candidate => candidate.includes(term))) return 2;
+      return null;
+    };
+    const nameRank = (name: string) => {
+      if (name === term) return 0;
+      if (name.startsWith(term)) return 1;
+      if (name.includes(term)) return 2;
+      return null;
+    };
+    return convos.map(c => {
+      if (mobileSearchFilter === 'spaces' && c.type !== 'group') return false;
+      const name = getConvName(c, uid).toLowerCase();
+      const last = c.lastMessage && !c.lastMessage.isDeleted ? c.lastMessage : null;
+      const preview = last ? messagePreviewText(last.content).toLowerCase() : '';
+      const attachmentText = last?.attachments?.map(att => `${att.originalName} ${att.mimeType}`).join(' ').toLowerCase() || '';
+      const byName = nameRank(name);
+      const byMember = memberRank(c);
+      let score: number | null = null;
+
+      if (mobileSearchFilter === 'attachments') {
+        if (byName !== null) score = byName;
+        else if (byMember !== null) score = 4 + byMember;
+        else if (last?.attachments?.length && attachmentText.includes(term)) score = 8;
+      } else if (mobileSearchFilter === 'from') {
+        if (byMember !== null) score = byMember;
+        else if (byName !== null) score = 5 + byName;
+      } else if (mobileSearchFilter === 'saidIn' || mobileSearchFilter === 'spaces') {
+        if (byName !== null) score = byName;
+      } else {
+        if (byName !== null) score = byName;
+        else if (byMember !== null) score = 5 + byMember;
+        else if (preview.includes(term)) score = 9;
+        else if (attachmentText.includes(term)) score = 10;
+      }
+
+      if (score === null) return null;
+      const activity = new Date(c.lastMessageAt || c.lastMessage?.createdAt || 0).getTime();
+      return { conversation: c, score, activity };
+    }).filter((entry): entry is { conversation: SSConversation; score: number; activity: number } => Boolean(entry))
+      .sort((a, b) => a.score - b.score || (a.conversation.type === 'direct' ? -1 : 0) - (b.conversation.type === 'direct' ? -1 : 0) || b.activity - a.activity)
+      .slice(0, 20)
+      .map(entry => entry.conversation);
+  }, [convos, mobileSearchFilter, q, uid]);
+  const mobileSearchShowsMessages = mobileSearchFilter === 'messages' || mobileSearchFilter === 'from' || mobileSearchFilter === 'saidIn';
+  const renderMobileSearchConversation = (conv: SSConversation) => {
+    const cName = getConvName(conv, uid);
+    const cAvatar = getConvAvatar(conv, uid);
+    const other = safeMembers(conv).find(member => member._id !== uid);
+    const otherPresence = other ? presence[other._id] : undefined;
+    const online = !!otherPresence?.onlineStatus && otherPresence.onlineStatus !== 'offline';
+    const cachedConvMsgs = msgs[conv._id];
+    const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
+      ? conv.lastMessage
+      : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
+    const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
+    const preview = reactionPreview
+      ? reactionPreview
+      : !effectiveLastMsg ? 'No messages yet'
+        : effectiveLastMsg.isDeleted ? 'Message deleted'
+          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
+            : effectiveLastMsg.type === 'gif' ? 'GIF'
+              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
+                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
+                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+    const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+    const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
+    return (
+      <button
+        key={conv._id}
+        type="button"
+        onClick={() => openConversation(conv._id)}
+        className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors active:bg-white/5"
+      >
+        <span className="relative shrink-0">
+          <span className={cn('h-10 w-10 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
+            {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={14} /> : <GroupAvatarFace src={cAvatar} name={cName} size={12} />}
+          </span>
+          {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
+            : isUnread ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full" style={{ background: SS4_UNREAD_DOT_COLOR, boxShadow: '0 0 0 2px var(--bg-base)' }} /> : null}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</span>
+            <span className="ml-auto shrink-0" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+          </span>
+          <span className="mt-0.5 flex items-center gap-2">
+            <span className="truncate" style={{ fontSize: 12, color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400 }}>{preview}</span>
+            {unreadCount > 0 && (
+              <span className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-bold" style={{ fontSize: 9, background: 'var(--accent)', color: '#fff' }}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
@@ -12309,17 +13201,20 @@ export default function SupraSpacePage() {
 
   const standaloneShellStyle: React.CSSProperties = isStandaloneApp
     ? (isIOSStandaloneApp
-      ? {
-        position: 'fixed',
-        top: vv?.top ?? 0,
-        right: 0,
-        bottom: 'auto',
-        left: 0,
-        height: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
-        maxHeight: vv ? `${vv.height}px` : 'var(--ss4-vvh, 100dvh)',
-        minHeight: 0,
-        boxSizing: 'border-box',
-      }
+      ? (vv?.keyboardOpen
+        ? {
+          position: 'fixed',
+          top: vv.top,
+          right: 0,
+          bottom: 'auto',
+          left: 0,
+          height: `${vv.height}px`,
+          maxHeight: `${vv.height}px`,
+          minHeight: 0,
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+        }
+        : { height: typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh', boxSizing: 'border-box' })
       : { height: '100dvh', boxSizing: 'border-box' })
     : {};
 
@@ -12505,17 +13400,16 @@ export default function SupraSpacePage() {
                   )}
                 </div>
               </div>
-              <div className="relative">
-                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full h-9 rounded-lg pl-9 pr-8 text-xs ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
+              <div className="relative ss4-search-field">
+                <Search className="ss4-search-icon absolute top-1/2 -translate-y-1/2" />
+                <input value={q} onFocus={() => openMobileSearch()} onClick={() => openMobileSearch()} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
                 {q.length > 0 && (
                   <button
                     onClick={() => setQ('')}
                     aria-label="Clear search"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 rounded-full flex items-center justify-center"
-                    style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}
+                    className="ss4-search-clear absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center"
                   >
-                    <X className="h-2.5 w-2.5" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -12559,26 +13453,7 @@ export default function SupraSpacePage() {
             </div>
             <div className="mx-4 ss4-divider" />
 
-            <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll pb-2" onScroll={handleConversationListScroll}>
-              {q.trim().length >= 2 && (
-                <div className="pt-2">
-                  <div className="px-3 pb-1.5 flex items-center justify-between">
-                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
-                  </div>
-                  {msgResults.map((m: any) => {
-                    const c = m.conversationId; const cName = c?.type === 'group' ? (c?.name || 'Channel') : 'Direct message';
-                    return (
-                      <button key={m._id} onClick={() => openSearchResult(c?._id || c, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
-                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
-                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
-                      </button>
-                    );
-                  })}
-                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
-                  <div className="mx-3 my-2 ss4-divider" />
-                </div>
-              )}
-
+            <div className={cn('flex-1 min-h-0 overflow-y-auto ss4-scroll', isStandaloneApp ? 'pb-28' : 'pb-2')} onScroll={handleConversationListScroll}>
               {isStandaloneApp && q.trim().length >= 2 && archivedList.length > 0 && (
                 <div className="pt-1">
                   <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
@@ -12763,6 +13638,26 @@ export default function SupraSpacePage() {
                   {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
+              {q.trim().length >= 2 && (
+                <div className="pt-3">
+                  <div className="mx-3 mb-2 ss4-divider" />
+                  <div className="px-3 pb-1.5 flex items-center justify-between">
+                    <span className="ss4-section-label">Messages{searching ? '…' : ` · ${msgResults.length}`}</span>
+                  </div>
+                  {msgResults.map((m) => {
+                    const rawConv = m.conversationId;
+                    const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
+                    const cName = typeof rawConv === 'object' && rawConv?.type === 'group' ? (rawConv.name || 'Channel') : 'Direct message';
+                    return (
+                      <button key={m._id} onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)} className="ss4-conv w-full flex flex-col items-start gap-0.5 px-3 py-2 text-left">
+                        <span className="font-semibold truncate w-full" style={{ fontSize: 11.5, color: 'var(--accent-text)' }}>{cName} · {m.sender?.fullName}</span>
+                        <span className="truncate w-full" style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{messagePreviewText(m.content)}</span>
+                      </button>
+                    );
+                  })}
+                  {!searching && msgResults.length === 0 && <p className="px-3 py-2" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>No matching messages</p>}
+                </div>
+              )}
               {loadingMoreConversations && q.trim().length < 2 && (
                 <div className="px-3 py-3 space-y-2">
                   {[0, 1, 2].map(index => (
@@ -12779,14 +13674,159 @@ export default function SupraSpacePage() {
               </div>
             </div>
 
-            {isStandaloneApp && sidebarTab === 'chats' && (
+            {mobileSearchOpen && (isStandaloneApp || isMobileViewport) && (
               <div
-                className="absolute z-30"
+                className="fixed inset-0 z-[90] flex flex-col md:hidden"
+                style={{
+                  background: 'var(--bg-base)',
+                  color: 'var(--text-primary)',
+                  height: isIOSStandaloneApp ? 'var(--ss4-vvh, 100dvh)' : '100dvh',
+                }}
+              >
+                <div className="flex shrink-0 items-center gap-2 px-3" style={{ height: 58, borderBottom: '1px solid var(--border-2)' }}>
+                  <button type="button" onClick={closeMobileSearch} className="ss4-icon-btn h-10 w-10 shrink-0" aria-label="Back">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <div className="relative min-w-0 flex-1 ss4-search-field">
+                    <Search className="ss4-search-icon absolute top-1/2 -translate-y-1/2" />
+                    <input
+                      ref={mobileSearchInputRef}
+                      value={q}
+                      onChange={e => setQ(e.target.value)}
+                      placeholder="Search in chat"
+                      className="w-full ss4-search-input"
+                      style={{ color: 'var(--text-primary)', caretColor: 'var(--accent)', fontFamily: 'var(--font-geist-sans), sans-serif' }}
+                    />
+                    {q.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQ('');
+                          mobileSearchInputRef.current?.focus();
+                        }}
+                        aria-label="Clear search"
+                        className="ss4-search-clear absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0 overflow-x-auto no-scrollbar px-4 py-3" style={{ borderBottom: '1px solid var(--border-2)' }}>
+                  <div className="flex gap-2">
+                    {([
+                      { key: 'messages', label: 'Messages' },
+                      { key: 'spaces', label: 'Spaces' },
+                      { key: 'from', label: 'From' },
+                      { key: 'saidIn', label: 'Said in' },
+                      { key: 'attachments', label: 'Attachments' },
+                    ] as const).map(filter => {
+                      const active = mobileSearchFilter === filter.key;
+                      return (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          onClick={() => setMobileSearchFilter(filter.key)}
+                          className="shrink-0 rounded-full border px-3 font-semibold"
+                          style={{
+                            height: 31,
+                            background: active ? 'var(--accent)' : 'transparent',
+                            borderColor: active ? 'var(--accent)' : 'var(--border-2)',
+                            color: active ? '#fff' : 'var(--text-secondary)',
+                            fontSize: 11,
+                          }}
+                        >
+                          {filter.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto ss4-scroll px-4 pb-10" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  {q.trim().length < 2 ? (
+                    <div className="pt-4">
+                      <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>Frequent</p>
+                      <div className="space-y-0.5">
+                        {mobileFrequentConversations.map(renderMobileSearchConversation)}
+                      </div>
+                      {mobileFrequentConversations.length === 0 && (
+                        <p className="px-1 py-4" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No recent conversations</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="pt-4">
+                      {mobileSearchConversationMatches.length > 0 && (
+                        <div className="pb-3">
+                          <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>
+                            {mobileSearchFilter === 'spaces' ? 'Spaces' : mobileSearchFilter === 'attachments' ? 'Attachments' : 'Conversations'}
+                          </p>
+                          <div className="space-y-0.5">
+                            {mobileSearchConversationMatches.map(renderMobileSearchConversation)}
+                          </div>
+                        </div>
+                      )}
+                      {mobileSearchShowsMessages && (
+                        <div className="pb-4">
+                          <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>
+                            Messages{searching ? '…' : ` · ${msgResults.length}`}
+                          </p>
+                          <div className="space-y-0.5">
+                            {msgResults.map((m) => {
+                              const rawConv = m.conversationId;
+                              const resultConversationId = typeof rawConv === 'string' ? rawConv : rawConv?._id;
+                              const localConv = convos.find(c => c._id === resultConversationId);
+                              const populatedConv = typeof rawConv === 'object' && rawConv ? rawConv : undefined;
+                              const resultConv = localConv || populatedConv;
+                              const cName = resultConv?.type === 'group'
+                                ? resultConv.name || 'Channel'
+                                : localConv ? getConvName(localConv, uid) : 'Direct message';
+                              return (
+                                <button
+                                  key={m._id}
+                                  type="button"
+                                  disabled={!resultConversationId}
+                                  onClick={() => resultConversationId && openSearchResult(resultConversationId, m._id, m.createdAt)}
+                                  className="flex w-full flex-col items-start rounded-2xl px-2.5 py-2.5 text-left transition-colors active:bg-white/5 disabled:opacity-50"
+                                >
+                                  <span className="max-w-full truncate font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{cName}</span>
+                                  <span className="max-w-full truncate" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{m.sender?.fullName || 'Unknown sender'}</span>
+                                  <span className="mt-1 max-w-full truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{messagePreviewText(m.content)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {searching && (
+                        <div className="space-y-3 px-1 py-3">
+                          {[0, 1, 2].map(index => (
+                            <div key={index} className="flex items-center gap-3">
+                              <div className="h-10 w-10 shrink-0 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                              <div className="min-w-0 flex-1 space-y-2">
+                                <div className="h-3 w-32 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                                <div className="h-2.5 w-44 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!searching && mobileSearchConversationMatches.length === 0 && (!mobileSearchShowsMessages || msgResults.length === 0) && (
+                        <p className="px-1 py-6 text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No results found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isStandaloneApp && sidebarTab === 'chats' && !mobileSearchOpen && (
+              <div
+                className="fixed z-50"
                 style={{
                   right: 18,
                   bottom: isIOSStandaloneApp
-                    ? 'calc(70px + var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)))'
-                    : 'calc(70px + env(safe-area-inset-bottom))',
+                    ? 'calc(106px + var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)))'
+                    : 'calc(106px + env(safe-area-inset-bottom))',
                 }}
               >
                 <DropdownMenu modal={false}>
@@ -12851,50 +13891,80 @@ export default function SupraSpacePage() {
               <MenuTab me={me} allUsers={allUsers} presence={presence} uid={uid} token={token || ''} archivedList={archivedList} sharedConvRowProps={sharedConvRowProps} />
             )}
 
-            {isStandaloneApp && (
+            {isStandaloneApp && !mobileSearchOpen && (
               <div
-                className="shrink-0 flex items-stretch"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 md:hidden"
                 style={{
-                  borderTop: '1px solid var(--sidebar-border)',
                   paddingBottom: isIOSStandaloneApp
-                    ? 'var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px))'
-                    : 'env(safe-area-inset-bottom)',
-                  background: 'var(--bg-base)',
+                    ? 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 8px)'
+                    : 'calc(env(safe-area-inset-bottom) + 8px)',
                 }}
               >
-                {([
-                  { key: 'chats', label: 'Home', Icon: Home },
-                  { key: 'spaces', label: 'People', Icon: Users },
-                  { key: 'notifications', label: 'Notifications', Icon: Bell },
-                  { key: 'profile', label: 'Menu', Icon: Menu },
-                ] as const).map(({ key, label, Icon }) => {
-                  const active = sidebarTab === key;
-                  const badgeCount = key === 'notifications'
-                    ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
-                    : 0;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSidebarTab(key)}
-                      className="relative flex-1 flex flex-col items-center justify-center gap-1 py-2"
-                      style={{ color: active ? 'var(--accent)' : 'var(--text-tertiary)' }}
-                    >
-                      {active && <span className="absolute top-0 rounded-full" style={{ width: 28, height: 3, background: 'var(--accent)' }} />}
-                      <span className="relative">
-                        <Icon className="h-6.5 w-6.5" strokeWidth={active ? 2.3 : 1.8} />
-                        {badgeCount > 0 && (
-                          <span
-                            className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
-                            style={{ minWidth: 16, height: 16, padding: '0 3px', fontSize: 9.5, background: '#ef4444', color: '#fff' }}
+                <div
+                  className="pointer-events-auto relative mx-auto overflow-visible rounded-3xl border px-1.5 pb-1.5 pt-4 backdrop-blur-2xl"
+                  style={{
+                    width: 'min(calc(100vw - 24px), 420px)',
+                    background: 'color-mix(in srgb, var(--bg-base) 88%, transparent)',
+                    borderColor: 'var(--border-2)',
+                    boxShadow: '0 12px 38px rgba(0,0,0,0.38)',
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-x-8 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--accent), transparent)', opacity: 0.55 }} />
+                  <div className="grid items-end" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
+                    {([
+                      { key: 'chats', label: 'Home', Icon: Home },
+                      { key: 'spaces', label: 'People', Icon: Users },
+                      { key: 'notifications', label: 'Notifications', Icon: Bell },
+                      { key: 'profile', label: 'Menu', Icon: Menu },
+                    ] as const).map(({ key, label, Icon }) => {
+                      const active = sidebarTab === key;
+                      const badgeCount = key === 'notifications'
+                        ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
+                        : 0;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSidebarTab(key)}
+                          className={cn('relative flex flex-col items-center gap-0.5', active ? '-mt-7' : 'py-1')}
+                        >
+                          <motion.div
+                            whileTap={{ scale: active ? 0.9 : 0.84 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+                            className="relative flex items-center justify-center"
+                            style={active
+                              ? { height: 52, width: 52, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 8px 24px rgba(0,0,0,0.28)' }
+                              : { height: 32, width: 40, borderRadius: 12, background: 'transparent' }}
                           >
-                            {badgeCount > 9 ? '9+' : badgeCount}
-                          </span>
-                        )}
-                      </span>
-                      <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500 }}>{label}</span>
-                    </button>
-                  );
-                })}
+                            {active && (
+                              <motion.div
+                                layoutId="ss4ActiveNavCircle"
+                                className="absolute inset-0 rounded-full"
+                                style={{ background: 'var(--accent)' }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                              />
+                            )}
+                            <span className="relative z-10">
+                              <Icon
+                                className={active ? 'h-5.5 w-5.5' : 'h-5 w-5'}
+                                strokeWidth={active ? 2.5 : 1.8}
+                                style={{ color: active ? '#fff' : 'var(--text-tertiary)' }}
+                              />
+                              {badgeCount > 0 && (
+                                <span
+                                  className="absolute -top-1.5 -right-2 rounded-full flex items-center justify-center font-bold"
+                                  style={{ minWidth: 16, height: 16, padding: '0 3px', fontSize: 9.5, background: '#ef4444', color: '#fff' }}
+                                >
+                                  {badgeCount > 9 ? '9+' : badgeCount}
+                                </span>
+                              )}
+                            </span>
+                          </motion.div>
+                          <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, textTransform: 'uppercase', letterSpacing: '0.04em', color: active ? 'var(--accent)' : 'var(--text-tertiary)' }}>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </aside>
@@ -13208,7 +14278,7 @@ export default function SupraSpacePage() {
                           </div>
                         )}
                         {showFormatBar && (
-                          <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
+                          <div className="hidden md:flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
                               <Bold className="h-3.5 w-3.5" style={formatIconStyle('bold')} />
                             </button>
@@ -13350,7 +14420,7 @@ export default function SupraSpacePage() {
                         )}
                         <div className="ss4-composer-main flex flex-col max-md:grid max-md:grid-cols-[44px_minmax(0,1fr)_auto] max-md:items-end max-md:gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
                           <div className="ss4-mobile-leading flex md:hidden">
-                            <button onClick={() => fileRef.current?.click()} className="ss4-mobile-round-action" title="Add">
+                            <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); setMobileAttachSheetOpen(true); }} className="ss4-mobile-round-action" title="Add">
                               <Plus className="h-6 w-6" />
                             </button>
                           </div>
@@ -13369,13 +14439,17 @@ export default function SupraSpacePage() {
                               suppressContentEditableWarning
                               onBeforeInput={handleComposerTypographyBeforeInput}
                               onInput={event => {
-                                normalizeRichEditorFontSizeElements(
-                                  textareaRef.current,
-                                  activeFontSize,
-                                );
+                                if (activeFontSizeChosenRef.current) {
+                                  normalizeRichEditorFontSizeElements(
+                                    textareaRef.current,
+                                    activeFontSizeRef.current,
+                                  );
+                                }
                                 handleTyping(event);
-                                saveComposerSelection();
-                                scheduleRefreshActiveFormats();
+                                if (showFormatBar) {
+                                  saveComposerSelection();
+                                  scheduleRefreshActiveFormats();
+                                }
                               }}
                               onFocus={() => {
                                 saveComposerSelection();
@@ -13395,8 +14469,10 @@ export default function SupraSpacePage() {
                                 scheduleRefreshActiveFormats();
                               }}
                               onKeyUp={() => {
-                                saveComposerSelection();
-                                scheduleRefreshActiveFormats();
+                                if (showFormatBar) {
+                                  saveComposerSelection();
+                                  scheduleRefreshActiveFormats();
+                                }
                               }}
                               onKeyDown={e => {
                                 if (
@@ -13513,6 +14589,11 @@ export default function SupraSpacePage() {
                                   && !e.shiftKey
                                   && !e.altKey
                                 ) {
+                                  if (handleFormattedLineBreak()) {
+                                    e.preventDefault();
+                                    return;
+                                  }
+
                                   if (isInsideStructuredBlock) {
                                     requestAnimationFrame(() => {
                                       const el = textareaRef.current;
@@ -13527,11 +14608,6 @@ export default function SupraSpacePage() {
                                       saveComposerSelection();
                                       refreshActiveFormats();
                                     });
-                                    return;
-                                  }
-
-                                  if (handleFormattedLineBreak()) {
-                                    e.preventDefault();
                                     return;
                                   }
 
@@ -13643,10 +14719,10 @@ export default function SupraSpacePage() {
                                 }
                               }}
                               onPaste={e => {
-                                const pastedImages = clipboardImageFiles(e.clipboardData);
-                                if (pastedImages.length > 0) {
+                                const pastedAttachments = clipboardAttachmentFiles(e.clipboardData);
+                                if (pastedAttachments.length > 0) {
                                   e.preventDefault();
-                                  handleUploadFiles(pastedImages);
+                                  handleUploadFiles(pastedAttachments);
                                   return;
                                 }
 
@@ -13693,7 +14769,7 @@ export default function SupraSpacePage() {
                                       normalizeRichEditorListExitArtifacts(el);
                                       if (pasteHasMentionText) highlightMentionsInComposer(el);
                                       const nextText = enforceComposerLengthFromDom(el);
-                                      syncComposerText(nextText, true);
+                                      syncComposerText(nextText);
                                       saveComposerSelection();
                                     }
                                   });
@@ -13715,15 +14791,63 @@ export default function SupraSpacePage() {
                               </button>
                               {emojiOpen && (
                                 <div
-                                  className="ss4-mobile-emoji-panel"
-                                  onPointerDown={e => e.stopPropagation()}
+                                  className="ss4-overlay fixed inset-0 z-200 flex items-end md:hidden"
+                                  onClick={() => { setEmojiOpen(false); setMobileEmojiSearchOpen(false); }}
                                 >
-                                  <EmojiPicker onEmojiClick={(d: EmojiClickData) => { insertComposerText(d.emoji, { preferEndOnZero: true }); setEmojiOpen(false); }} theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT} width="100%" height={340} searchDisabled={false} skinTonesDisabled lazyLoadEmojis />
+                                  <div
+                                    ref={mobileEmojiSheetRef}
+                                    className="ss4-mobile-emoji-sheet flex w-full flex-col rounded-t-[28px]"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{
+                                      background: 'var(--bg-elevated)',
+                                      boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
+                                      height: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
+                                      maxHeight: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
+                                      minHeight: 0,
+                                      overflow: 'hidden',
+                                      paddingBottom: isIOSStandaloneApp
+                                        ? 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 12px)'
+                                        : 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+                                    }}
+                                  >
+                                    <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center px-5 pt-4 pb-3 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEmojiOpen(false); setMobileEmojiSearchOpen(false); }}
+                                        className="flex h-11 w-11 items-center justify-center rounded-full"
+                                        style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-primary)' }}
+                                      >
+                                        <X className="h-6 w-6" />
+                                      </button>
+                                      <h3 className="text-center font-bold" style={{ color: 'var(--text-primary)', fontSize: 18 }}>Add emoji</h3>
+                                      <button
+                                        type="button"
+                                        onClick={() => setMobileEmojiSearchOpen(v => !v)}
+                                        className="flex h-11 w-11 items-center justify-center justify-self-end rounded-full"
+                                        style={{ color: 'var(--text-primary)' }}
+                                      >
+                                        <Search className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                    <div className="flex-1 min-h-0 overflow-hidden">
+                                      <EmojiPicker
+                                        onEmojiClick={(d: EmojiClickData) => { insertComposerText(d.emoji, { preferEndOnZero: true }); setEmojiOpen(false); setMobileEmojiSearchOpen(false); }}
+                                        theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT}
+                                        width="100%"
+                                        height="100%"
+                                        searchDisabled={!mobileEmojiSearchOpen}
+                                        autoFocusSearch
+                                        skinTonesDisabled
+                                        lazyLoadEmojis
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
+                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
@@ -13742,19 +14866,68 @@ export default function SupraSpacePage() {
                                 {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                               </button>
                             ) : (
-                              <>
-                                <div ref={mobileGifRef} className="relative">
-                                  <button onClick={() => setGifOpen(v => !v)} className="ss4-icon-btn h-10 px-1.5 font-bold" title="GIF" aria-label="Choose a GIF">
-                                    <span style={{ fontSize: 12 }}>GIF</span>
-                                  </button>
-                                  {gifOpen && <GifPicker mobile onPick={selectGif} onClose={() => setGifOpen(false)} />}
-                                </div>
-                                <button onClick={() => imageFileRef.current?.click()} className="ss4-icon-btn h-10 w-10" title="Image"><ImageIcon className="h-6 w-6" /></button>
-                                <button onClick={startRecording} className="ss4-icon-btn h-10 w-10" title="Voice message"><Mic className="h-6 w-6" /></button>
-                              </>
+                              <button onClick={startRecording} className="ss4-icon-btn ss4-mobile-media-action" title="Voice message"><Mic className="h-6 w-6" /></button>
                             )}
                           </div>
                         </div>
+                        {showFormatBar && (
+                          <>
+                            {textColorPickerOpen && (
+                              <div className="ss4-mobile-format-color-pop md:hidden">
+                                {SS4_MOBILE_TEXT_COLORS.map(({ value, swatch, label }) => {
+                                  const selected = activeTextColor.toLowerCase() === value && (activeTextColorChosen || value === '#ffffff');
+                                  const checkColor = value === '#facc15' || value === '#ffffff' || value === '#94a3b8' ? '#111827' : '#ffffff';
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onPointerDown={e => { e.preventDefault(); e.stopPropagation(); saveComposerSelection(); applyMobileTextColor(value); }}
+                                      className="ss4-mobile-color-swatch"
+                                      style={{ background: swatch }}
+                                      aria-pressed={selected}
+                                      title={label}
+                                    >
+                                      {selected && <CheckIcon style={{ color: checkColor }} />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <div className="ss4-mobile-format-toolbar md:hidden">
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={cn('ss4-mobile-format-btn', activeFormats.bold && 'ss4-video-btn')} title="Bold" aria-pressed={activeFormats.bold}>
+                              <Bold style={formatIconStyle('bold')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={cn('ss4-mobile-format-btn', activeFormats.italic && 'ss4-video-btn')} title="Italic" aria-pressed={activeFormats.italic}>
+                              <Italic style={formatIconStyle('italic')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={cn('ss4-mobile-format-btn', activeFormats.underline && 'ss4-video-btn')} title="Underline" aria-pressed={activeFormats.underline}>
+                              <Underline style={formatIconStyle('underline')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={cn('ss4-mobile-format-btn', activeFormats.strike && 'ss4-video-btn')} title="Strikethrough" aria-pressed={activeFormats.strike}>
+                              <Strikethrough style={formatIconStyle('strike')} />
+                            </button>
+                            <div className="relative flex shrink-0 items-center">
+                              <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); saveComposerSelection(); setTextColorPickerOpen(v => !v); }} className={cn('ss4-mobile-format-btn', activeTextColorChosen && 'ss4-video-btn')} title="Text color" aria-expanded={textColorPickerOpen}>
+                                <span className="font-bold leading-none" style={{ color: activeTextColorChosen ? activeTextColor : 'var(--text-secondary)', fontSize: 18, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 5 }}>A</span>
+                              </button>
+                            </div>
+                            <div className="ss4-mobile-format-divider" />
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={cn('ss4-mobile-format-btn', activeFormats.list && 'ss4-video-btn')} title="Bullet list" aria-pressed={activeFormats.list}>
+                              <List style={formatIconStyle('list')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('link'); }} className="ss4-mobile-format-btn" title="Link">
+                              <Link2 style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('quote'); }} className={cn('ss4-mobile-format-btn', activeFormats.quote && 'ss4-video-btn')} title="Quote" aria-pressed={activeFormats.quote}>
+                              <TextQuote style={formatIconStyle('quote')} />
+                            </button>
+                            <div className="ss4-mobile-format-divider" />
+                            <button type="button" onMouseDown={e => { e.preventDefault(); setTextColorPickerOpen(false); setShowFormatBar(false); setTimeout(() => textareaRef.current?.focus(), 0); }} className="ss4-mobile-format-btn ml-auto" title="Close formatting">
+                              <X style={{ color: 'var(--text-secondary)' }} />
+                            </button>
+                            </div>
+                          </>
+                        )}
                         {composerHasText && (
                           <div className="flex items-center justify-end px-3 pb-1 sm:px-3.5">
                             <span
@@ -13765,10 +14938,11 @@ export default function SupraSpacePage() {
                             </span>
                           </div>
                         )}
+                        <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
-                            <input ref={fileRef} type="file" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
-                            <input ref={imageFileRef} type="file" accept="image/*,video/*" multiple hidden onChange={e => { handleUpload(e.target.files); e.target.value = ''; }} />
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
                             <button onClick={startRecording} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Voice message"><Mic className="h-4 w-4" /></button>
                             <div ref={gifRef} className="relative">
@@ -14201,6 +15375,70 @@ export default function SupraSpacePage() {
             </div>
           </div>
         )}
+        {mobileAttachSheetOpen && activeId && (
+          <div className="ss4-overlay fixed inset-0 z-200 flex items-end md:hidden" onClick={() => { setMobileAttachSheetOpen(false); setGifOpen(false); setMobileFilePickerOpen(false); }}>
+            <div
+              ref={mobileAttachSheetRef}
+              className="flex w-full flex-col rounded-t-[28px] px-5 pt-4"
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'var(--bg-elevated)',
+                boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
+                height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
+                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
+                minHeight: 0,
+                overflow: 'hidden',
+                overscrollBehavior: 'contain',
+                paddingBottom: isIOSStandaloneApp
+                  ? 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 24px)'
+                  : 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+              }}
+            >
+              {gifOpen ? (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <GifPicker inline mobile onPick={(gif) => { selectGif(gif); setMobileAttachSheetOpen(false); }} onClose={() => { setGifOpen(false); setMobileAttachSheetOpen(false); }} />
+                </div>
+              ) : mobileFilePickerOpen ? (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <MobileFilePicker files={pendingFiles} maxFiles={SS4_MAX_UPLOAD_FILES} onBrowse={() => fileRef.current?.click()} onRemove={removePendingFile} onClear={() => setPendingFiles([])} onClose={() => { setMobileFilePickerOpen(false); setMobileAttachSheetOpen(false); }} />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {!isIOSStandaloneApp && (
+                    <>
+                      <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Photos</span>
+                      </label>
+                      <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
+                      </label>
+                    </>
+                  )}
+                  <button type="button" onClick={() => { setMobileFilePickerOpen(false); setGifOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Film className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>GIF</span>
+                  </button>
+                  {!isIOSStandaloneApp && (
+                    <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                      <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                      <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
+                    </button>
+                  )}
+                  <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <CalendarPlus className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Calendar</span>
+                  </button>
+                  <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setTextColorPickerOpen(false); setShowFormatBar(true); setTimeout(() => textareaRef.current?.focus(), 0); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Type className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Format</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
         {meetingOpen && (
@@ -14294,7 +15532,7 @@ export default function SupraSpacePage() {
           </div>
         )}
         {forwardMsg && (
-          <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} token={token} onClose={() => setForwardMsg(null)} />
+          <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} conversations={mergeSupraSpaceConversations(convos, ctxConversations)} token={token} onClose={() => setForwardMsg(null)} />
         )}
         {notifModalConv && (
           <NotificationSettingsModal

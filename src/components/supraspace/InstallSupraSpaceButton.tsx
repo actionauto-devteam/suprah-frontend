@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Download, Share, PlusSquare, X, Check, MoreVertical, PlusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { markSupraSpaceInstalled, isSupraSpaceInstalled } from '@/lib/supraspace-install';
+import { usePwaNagSlot } from '@/hooks/usePwaNagSlot';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -46,6 +47,11 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   // through "Add to Home Screen" again would be confusing. Point back at the
   // existing icon instead.
   const [alreadyInstalledElsewhere, setAlreadyInstalledElsewhere] = React.useState(false);
+  // Same tier as InstallPrompt/IOSInstallHint (2) — this shows near-identical
+  // "Add to Home Screen" instructions and can otherwise land on SupraSpace's
+  // page stacked on top of (or underneath) those, or PushPrompt/CrmPushPrompt,
+  // when reached via a "Get SupraSpace" link's ?install=1 auto-trigger.
+  const slot = usePwaNagSlot('supraspace-install', 2);
 
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
@@ -77,6 +83,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       return;
     }
     setShowHint(true);
+    slot.request();
   };
 
   // "Get SupraSpace" links on the main Suprah AI domain append ?install=1
@@ -110,11 +117,16 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       if (!autoTriggeredRef.current) {
         autoTriggeredRef.current = true;
         setShowHint(true);
+        slot.request();
       }
     }, 2000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deferredPrompt, installed, alreadyInstalledElsewhere]);
+  }, [deferredPrompt, installed, alreadyInstalledElsewhere, slot.request]);
+
+  React.useEffect(() => {
+    if (installed) slot.release();
+  }, [installed, slot.release]);
 
   if (installed) {
     if (variant !== 'row') return null;
@@ -139,7 +151,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
       </button>
 
       <AnimatePresence>
-        {showHint && (
+        {showHint && slot.isActive && (
           <motion.div
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -150,7 +162,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
             <div className="relative overflow-hidden rounded-t-4xl bg-background border-t border-x border-border/50 p-7 shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.5)] mx-auto max-w-md">
               <div className="mx-auto w-12 h-1.5 rounded-full bg-muted/40 mb-6" />
               <button
-                onClick={() => setShowHint(false)}
+                onClick={() => { setShowHint(false); slot.release(); }}
                 className="absolute right-6 top-7 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
               >
                 <X className="h-6 w-6" />

@@ -13,6 +13,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useInventoryActions } from "@/hooks/useInventoryActions";
 import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
+import { toast } from "sonner";
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
 import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
 import { FinanceApplicationModal } from "@/components/finance-application-modal";
@@ -67,7 +68,7 @@ function SavedVehiclesFloatingButton({ savedVehicles, liftForTray }: { savedVehi
         onClick={() => setOpen(true)}
         style={{ "--tw-mobile-bottom": `calc(env(safe-area-inset-bottom) + ${liftForTray ? 176 : 76}px)` } as React.CSSProperties}
         className={cn(
-          "fixed z-45",
+          "fixed z-40",
           "bottom-(--tw-mobile-bottom) md:bottom-6",
           "left-4",
           !isMobile && (state === "collapsed" ? "md:left-[calc(var(--sidebar-width-icon)+1rem)]" : "md:left-[calc(var(--sidebar-width)+1rem)]"),
@@ -433,10 +434,11 @@ function ShopVehiclesContent() {
       if (formData.vehicleId) {
         setShippingRates((prev) => ({ ...prev, [formData.vehicleId!]: data.rate }));
       }
-      alert(`Quote created! Rate: $${data.rate}`);
+      toast.success(`Quote created! Rate: $${data.rate}`);
       setShippingOpen(false);
     } catch (error) {
       console.error("Error creating quote:", error);
+      toast.error("Could not create shipping quote. Please try again.");
     }
   };
 

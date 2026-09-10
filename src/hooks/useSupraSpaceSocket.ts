@@ -59,6 +59,15 @@ export interface SSTheme {
   emoji?: string | null;
 }
 
+export interface SSLastReaction {
+  messageId: string;
+  userId: string;
+  userName: string;
+  emoji: string;
+  targetUserId?: string;
+  createdAt: string;
+}
+
 export interface SSConversation {
   _id: string;
   type: 'direct' | 'group';
@@ -73,6 +82,7 @@ export interface SSConversation {
   theme?: SSTheme;
   lastMessage?: SSMessage;
   lastMessageAt?: string;
+  lastReaction?: SSLastReaction | null;
   unreadCount?: number;
   mentionCount?: number;
   unreadMentionCount?: number;
@@ -140,7 +150,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     const socket = io(resolveSupraSpaceSocketUrl(), {
       path: '/socket/supraspace',
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       upgrade: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -168,7 +178,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     });
 
     socket.on('connect_error', (err) => {
-      console.error('[SupraSpace] Connection error:', err.message);
+      if (process.env.NODE_ENV !== 'production') console.warn('[SupraSpace] Connection warning:', err.message);
     });
 
     // Full org roster's real status, seeded on connect (see presenceBridge.ts on the backend —

@@ -1025,7 +1025,7 @@ function DispatcherConversationList({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-10"
               onClick={onCloseMobile}
               aria-label="Close dispatcher conversations"
             >

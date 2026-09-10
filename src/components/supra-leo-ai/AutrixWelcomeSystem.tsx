@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { X, ChevronRight, Zap, Car, Shield, Clock, MessageSquare, Rss, Calendar } from 'lucide-react'
 import { SupraLeoAvatar } from './SupraLeoAvatar'
 import { useOrg } from '@/hooks/useOrg'
+import { usePwaNagSlot } from '@/hooks/usePwaNagSlot'
 
 const GLOBAL_WELCOME_KEY = 'autrix_welcomed_v1'
 
@@ -690,17 +691,27 @@ function PageWelcomeModal({ pageKey, onClose }: PageWelcomeModalProps) {
 // ─── Hook: Dashboard welcome — shows ONCE EVER via localStorage ───────────────
 export function useAutrixVoiceWelcome(userName: string, isReady: boolean) {
   const [show, setShow] = React.useState(false)
+  // Highest priority in the shared PWA-nag mutex — a full-screen, voice-narrated,
+  // one-time-ever welcome shouldn't render invisibly stacked underneath
+  // DashboardNotifications' welcome modal (priority 3) or the install/push
+  // nags (1-2), which is what happened before this was wired in.
+  const slot = usePwaNagSlot("autrix-welcome", 4)
 
   React.useEffect(() => {
     if (!isReady || !userName) return
     // Use localStorage so this persists across sessions — shows only once ever.
     if (localStorage.getItem(GLOBAL_WELCOME_KEY)) return
     localStorage.setItem(GLOBAL_WELCOME_KEY, '1')
-    const t = setTimeout(() => setShow(true), 1200)
+    const t = setTimeout(() => {
+      setShow(true)
+      slot.request()
+    }, 1200)
     return () => clearTimeout(t)
-  }, [isReady, userName])
+  }, [isReady, userName, slot.request])
 
-  return show ? <DashboardWelcomeModal userName={userName} onClose={() => setShow(false)} /> : null
+  return show && slot.isActive ? (
+    <DashboardWelcomeModal userName={userName} onClose={() => { setShow(false); slot.release() }} />
+  ) : null
 }
 
 // ─── Hook: Page welcome on first visit per page ───────────────────────────────

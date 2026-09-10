@@ -14,7 +14,7 @@ export const metadata = { title: "Suprah Calendar" };
  */
 export default function SuprahCalendarPage() {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+    <div className="flex min-h-full flex-col gap-3 p-4 md:h-full md:min-h-0">
       <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-600/10 sm:h-9 sm:w-9">
           <CalendarDays className="h-4 w-4 text-emerald-600 sm:h-5 sm:w-5" />
@@ -27,7 +27,7 @@ export default function SuprahCalendarPage() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1">
+      <div className="flex-1 md:min-h-0">
         <Suspense fallback={null}>
           <CalendarClient />
         </Suspense>

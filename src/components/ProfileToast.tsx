@@ -83,7 +83,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
   return (
     <div
       className={cn(
-        'relative w-80 rounded-xl border shadow-lg overflow-hidden pointer-events-auto',
+        'relative w-full max-w-80 rounded-xl border shadow-lg overflow-hidden pointer-events-auto',
         'transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
         style.bg, style.border,
         isLeaving ? 'opacity-0 translate-x-6 scale-95' : 'opacity-100 translate-x-0 scale-100',
@@ -143,7 +143,7 @@ export function ProfileToastProvider({ children }: { children: React.ReactNode }
     <ToastContext.Provider value={{ addToast }}>
       {children}
       {/* Toast container — fixed top-right */}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 pointer-events-none">
+      <div className="fixed top-4 inset-x-4 z-90 flex flex-col items-end gap-2.5 pointer-events-none sm:left-auto">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}

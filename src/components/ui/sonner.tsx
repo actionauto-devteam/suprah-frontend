@@ -21,14 +21,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // under the Dynamic Island / notch on an installed iOS PWA (no browser
       // chrome there to naturally push it down) — max() keeps the same
       // default spacing on devices with no safe-area-inset-top at all.
+      // SystemStatusBanner (fixed top, z-100) publishes its live height to
+      // --suprah-status-banner-h while visible so toasts stack below it
+      // instead of overlapping its dismiss button during an outage.
       offset={{
-        top: "max(env(safe-area-inset-top), 1rem)",
+        top: "calc(max(env(safe-area-inset-top), 1rem) + var(--suprah-status-banner-h, 0px))",
         bottom: "max(env(safe-area-inset-bottom), 1rem)",
         left: "1rem",
         right: "1rem",
       }}
       mobileOffset={{
-        top: "max(env(safe-area-inset-top), 1rem)",
+        top: "calc(max(env(safe-area-inset-top), 1rem) + var(--suprah-status-banner-h, 0px))",
         bottom: "max(env(safe-area-inset-bottom), 1rem)",
         left: "1rem",
         right: "1rem",
