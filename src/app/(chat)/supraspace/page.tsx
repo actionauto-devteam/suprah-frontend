@@ -9377,7 +9377,7 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        const keyboardAccessoryHeight = keyboardOpen ? 54 : 0;
+        const keyboardAccessoryHeight = keyboardOpen ? 30 : 0;
         if (keyboardOpen) {
           document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
         } else {
