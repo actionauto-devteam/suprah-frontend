@@ -265,8 +265,8 @@ export function DriverTrackerLoadsCard({
                   </div>
                 </div>
 
-                <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                  {shipments.length > 0 && shipments.length <= 2 && shipments.map((s) => (
+                <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1 sm:justify-end">
+                  {shipments.length > 0 && shipments.map((s) => (
                     <div key={s.id} className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
                       <Badge variant="outline" className="min-h-6 h-auto max-w-full whitespace-normal break-all px-2 py-1 text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] border-border/50">
                         <Package className="mr-0.5 size-2.5 shrink-0" />
@@ -426,7 +426,7 @@ export function DriverTrackerLoadsCard({
                         size="sm"
                         variant="outline"
                         className="h-9 w-full gap-1 border-emerald-500/25 px-2.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-500/10 sm:h-8 sm:w-auto dark:text-emerald-400"
-                        disabled={keepingAssigned === shipment.id}
+                        disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           void handleKeepAssigned(shipment.id);
@@ -441,14 +441,14 @@ export function DriverTrackerLoadsCard({
                         size="sm"
                         variant="outline"
                         className="h-9 w-full gap-1 border-destructive/20 px-2.5 text-[10px] font-semibold text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
-                        disabled={removing === shipment.id}
+                        disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           void handleRemove(shipment.id);
                         }}
                       >
                         {removing === shipment.id ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-                        {shipment.releaseRequest?.status === "pending" ? "Approve & Return to Available" : "Remove"}
+                        {shipment.releaseRequest?.status === "pending" ? "Approve & Return to Available" : "Return to Available"}
                       </Button>
                     )}
                     {onReassignLoad && (
@@ -456,7 +456,7 @@ export function DriverTrackerLoadsCard({
                         size="sm"
                         variant="outline"
                         className="h-9 w-full gap-1 border-border/50 px-2.5 text-[10px] font-semibold hover:bg-primary/5 sm:h-8 sm:w-auto"
-                        disabled={reassigning === shipment.id}
+                        disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           setReassignShipmentId(shipment.id);

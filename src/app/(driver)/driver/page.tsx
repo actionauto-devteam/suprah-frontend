@@ -82,6 +82,18 @@ import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
 import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 
+function formatDashboardLoadLocation(
+  location: { city?: string; state?: string; address?: string } | null | undefined,
+  legacyValue: unknown,
+  fallback: string,
+): string {
+  const clean = (value: unknown) => typeof value === "string" ? value.trim() : "";
+  return [clean(location?.city), clean(location?.state)].filter(Boolean).join(", ")
+    || clean(location?.address)
+    || clean(legacyValue)
+    || fallback;
+}
+
 type DriverStatus = "on-route" | "idle" | "on-break" | "waiting" | "offline";
 
 const STATUS_CONFIG: Array<{
@@ -2093,7 +2105,7 @@ export default function DriverDashboardPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 flex-1 min-h-0 overflow-hidden">
+            <CardContent className="p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
               {isLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-5 w-40" />
@@ -2101,9 +2113,14 @@ export default function DriverDashboardPage() {
                   <Skeleton className="h-4 w-32" />
                 </div>
               ) : currentLoad ? (
-                <div className="flex h-full min-h-0 flex-col gap-4">
+                <div className="flex min-h-0 flex-col gap-4">
                   {/* Primary / selected load remains visible while additional active loads scroll below it. */}
                   <div className="shrink-0 space-y-3">
+                    <Link
+                      href={`/driver/loads/${encodeURIComponent(String(currentLoad._id))}`}
+                      aria-label={`View details for ${getLoadReference(currentLoad)}`}
+                      className="group block space-y-3 rounded-xl border border-border/60 bg-muted/10 p-3 transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
                     {activeLoads.length > 1 && (
                       <div
                         aria-live="polite"
@@ -2135,9 +2152,9 @@ export default function DriverDashboardPage() {
 
                     <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
                       <MapPin className="size-3.5 text-primary shrink-0" />
-                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{currentLoad.origin}</span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{formatDashboardLoadLocation(currentLoad.pickupLocation, currentLoad.origin, "Pickup not provided")}</span>
                       <ArrowRight className="size-3 shrink-0 text-primary" />
-                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{currentLoad.destination}</span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{formatDashboardLoadLocation(currentLoad.deliveryLocation, currentLoad.destination, "Delivery not provided")}</span>
                     </div>
 
                     <p className="text-sm text-muted-foreground/80 font-medium flex items-center gap-1">
@@ -2147,6 +2164,11 @@ export default function DriverDashboardPage() {
                           currentLoad.requestedPickupDate,
                       )}
                     </p>
+
+                      <span className="flex items-center justify-end gap-1 text-xs font-semibold text-primary">
+                        Load details <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                      </span>
+                    </Link>
 
                     {currentPendingAmendment && (
                       <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 shadow-sm">
@@ -2204,6 +2226,23 @@ export default function DriverDashboardPage() {
                       </div>
                     )}
 
+                    <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-3 text-sm" aria-live="polite">
+                      <p className="font-bold">Next step</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {currentPendingAmendment
+                          ? "Review and acknowledge the dispatch changes above before continuing."
+                          : currentLoadHasPendingRelease && currentLoad.status !== "In-Transit"
+                            ? "Dispatch is reviewing your release request. This load remains assigned until a decision is made."
+                            : currentLoad.status === "Assigned"
+                              ? (!workEligibility.canTakeNewWork ? workEligibility.blockReason || "New work is currently unavailable. Review your work availability and documents." : "Review the load details and sign to accept this assignment.")
+                              : currentLoad.status === "Accepted"
+                                ? "Confirm pickup after collecting the vehicles."
+                                : currentLoad.status === "Picked Up"
+                                  ? "Start Route when you begin travelling to delivery."
+                                  : "Upload delivery proof and complete delivery. Dispatch reviews the proof separately."}
+                      </p>
+                    </div>
+
                     {!currentLoadHasPendingRelease && currentLoad.status === "Assigned" && (
                       <Button
                         size="sm"
@@ -2229,7 +2268,7 @@ export default function DriverDashboardPage() {
                       <Button
                         size="sm"
                         className="w-full h-11 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
-                        disabled={pickingUp === currentLoad._id}
+                        disabled={pickingUp === currentLoad._id || Boolean(currentPendingAmendment)}
                         onClick={() => handleAction("mark-picked-up", currentLoad)}
                       >
                         {pickingUp === currentLoad._id ? (
@@ -2244,7 +2283,7 @@ export default function DriverDashboardPage() {
                       <Button
                         size="sm"
                         className="w-full h-11 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm"
-                        disabled={startingRoute === currentLoad._id}
+                        disabled={startingRoute === currentLoad._id || Boolean(currentPendingAmendment)}
                         onClick={() => handleAction("start-route", currentLoad)}
                       >
                         {startingRoute === currentLoad._id ? (
@@ -2269,6 +2308,7 @@ export default function DriverDashboardPage() {
                         <Button
                           size="sm"
                           className="w-full h-11 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                          disabled={Boolean(currentPendingAmendment)}
                           onClick={() => setDeliveryDialogLoad(currentLoad)}
                         >
                           <Camera className="size-3.5 mr-2" />
@@ -2370,7 +2410,7 @@ export default function DriverDashboardPage() {
                                 {getLoadReference(load)}
                               </p>
                               <p className="mt-0.5 break-words text-sm leading-relaxed text-muted-foreground/85 [overflow-wrap:anywhere]">
-                                {load.origin} &rarr; {load.destination}
+                                {formatDashboardLoadLocation(load.pickupLocation, load.origin, "Pickup not provided")} &rarr; {formatDashboardLoadLocation(load.deliveryLocation, load.destination, "Delivery not provided")}
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">

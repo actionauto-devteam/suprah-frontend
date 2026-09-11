@@ -124,7 +124,12 @@ function DashboardLayoutContent({
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [leadConvoActive, setLeadConvoActive] = React.useState(false);
   const [mailWorkspaceActive, setMailWorkspaceActive] = React.useState(false);
-  const [notificationDrawerOpen, setNotificationDrawerOpen] = React.useState(false);
+  const [activeHeaderDrawer, setActiveHeaderDrawer] = React.useState<"notifications" | "pulse360" | "messenger" | null>(null);
+  const notificationDrawerOpen = activeHeaderDrawer === "notifications";
+  const updateHeaderDrawer = React.useCallback((drawer: "notifications" | "pulse360" | "messenger", open: boolean) => {
+    setActiveHeaderDrawer(current => open ? drawer : current === drawer ? null : current);
+  }, []);
+  const setNotificationDrawerOpen = React.useCallback((open: boolean) => updateHeaderDrawer("notifications", open), [updateHeaderDrawer]);
 
   React.useEffect(() => {
     const handler = (e: Event) => {
@@ -153,7 +158,7 @@ function DashboardLayoutContent({
   React.useEffect(() => {
     // A notification click can navigate between modules. Close the drawer on
     // route changes so the destination always opens with its full workspace.
-    setNotificationDrawerOpen(false);
+    setActiveHeaderDrawer(null);
   }, [pathname]);
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
@@ -286,12 +291,14 @@ function DashboardLayoutContent({
       <SidebarInset
         className={cn(
           "min-w-0 w-full min-h-0 overflow-hidden transition-[padding] duration-300 ease-out print:h-auto print:overflow-visible",
-          notificationDrawerOpen && "lg:pr-85 xl:pr-95",
+          activeHeaderDrawer !== null && "lg:pr-85 xl:pr-95",
         )}
       >
         {showCrmHeader && (
           <CrmHeader
             showMessenger={showCrmMessenger}
+            messengerDrawerOpen={activeHeaderDrawer === "messenger"}
+            onMessengerDrawerOpenChange={(open) => updateHeaderDrawer("messenger", open)}
             notificationDrawerOpen={notificationDrawerOpen}
             onNotificationDrawerOpenChange={setNotificationDrawerOpen}
           />
@@ -336,7 +343,7 @@ function DashboardLayoutContent({
                 <ThemeModeToggle compact />
 
                 { }
-                <Pulse360Bell />
+                <Pulse360Bell open={activeHeaderDrawer === "pulse360"} onOpenChange={(open) => updateHeaderDrawer("pulse360", open)} />
 
                 { }
                 <NotificationBell
@@ -345,7 +352,7 @@ function DashboardLayoutContent({
                 />
 
                 { }
-                <MessengerDropdown />
+                <MessengerDropdown open={activeHeaderDrawer === "messenger"} onOpenChange={(open) => updateHeaderDrawer("messenger", open)} />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

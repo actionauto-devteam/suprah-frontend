@@ -123,9 +123,9 @@ export function DriverTrackerMap({
   return (
     <Card
       data-driver-tracker-map-shell
-      className="gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:rounded-xl md:border-x"
+      className="gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:h-120 md:rounded-2xl md:border-x lg:h-150"
     >
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4 md:min-h-20 md:shrink-0 md:gap-4 md:px-5 md:py-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/[0.08]">
             <MapPinned className="size-4 text-primary" />
@@ -134,8 +134,9 @@ export function DriverTrackerMap({
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-primary/80">
               Suprah Live Fleet
             </p>
-            <p className="mt-0.5 break-words text-xs font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-sm">
-              Live Driver Map
+            <p className="mt-0.5 break-words text-xs font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-sm md:text-lg">
+              <span className="md:hidden">Live Driver Map</span>
+              <span className="hidden md:inline">Live Fleet Map</span>
             </p>
           </div>
         </div>
@@ -156,13 +157,13 @@ export function DriverTrackerMap({
         </div>
       </div>
 
-      <CardContent className="p-0">
+      <CardContent className="p-0 md:min-h-0 md:flex-1 md:bg-muted/[0.12] md:p-3">
         <div
           className={`
             relative h-[36dvh] min-h-[17rem] max-h-[23rem] touch-none overflow-hidden
             bg-background text-foreground transition-colors duration-300
-            sm:h-[40dvh] sm:max-h-[29rem] md:h-120 md:max-h-none
-            lg:h-150 lg:max-h-none
+            sm:h-[40dvh] sm:max-h-[29rem] md:h-full md:min-h-0 md:max-h-none
+            md:rounded-xl md:border md:border-border/50
             ${showThemeTransition ? "[&_.map-ui-control]:opacity-75" : ""}
           `}
         >

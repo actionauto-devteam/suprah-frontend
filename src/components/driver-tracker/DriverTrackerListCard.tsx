@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  ChevronLeft,
   Bell,
   MessageSquare,
   FileCheck2,
@@ -98,6 +99,7 @@ export function DriverTrackerListCard({
   const [gpsFilter, setGpsFilter] = React.useState<GpsFilter>("all");
   const [query, setQuery] = React.useState("");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = React.useState<Record<string, string>>({});
   const listScrollRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -306,6 +308,21 @@ export function DriverTrackerListCard({
 
         {filtered.map((driver) => {
           const shipments = driver.shipments ?? [];
+          // Keep the same load selected when realtime updates reorder the list.
+          // If it is released or removed, display the first remaining assignment.
+          const selectedAssignmentIndex = Math.max(
+            0,
+            shipments.findIndex((shipment) => shipment.id === selectedAssignmentIds[driver.id]),
+          );
+          const selectedAssignment = shipments[selectedAssignmentIndex];
+          const switchAssignment = (direction: number) => {
+            if (shipments.length < 2) return;
+            const nextIndex = (selectedAssignmentIndex + direction + shipments.length) % shipments.length;
+            setSelectedAssignmentIds((previous) => ({
+              ...previous,
+              [driver.id]: shipments[nextIndex].id,
+            }));
+          };
           const isExpanded = expandedId === driver.id;
           const eq = driver.equipment;
           const unreadMessageCount = Math.max(
@@ -513,39 +530,70 @@ export function DriverTrackerListCard({
                       )}
                     </div>
 
-                    {shipments[0] && (
+                    {selectedAssignment && (
                       <div className="mt-2 rounded-xl border border-border/45 bg-muted/[0.10] p-2.5 md:hidden">
-                        <p className="mb-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
-                          Current Assignment
-                        </p>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                            Current Assignment
+                          </p>
+                          {shipments.length > 1 && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-7 shrink-0 rounded-md"
+                                aria-label={`Previous load for ${driver.driver?.name || "driver"}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  switchAssignment(-1);
+                                }}
+                              >
+                                <ChevronLeft className="size-4" />
+                              </Button>
+                              <span className="min-w-14 text-center text-[10px] font-bold tabular-nums text-muted-foreground" aria-live="polite" aria-atomic="true">
+                                Load {selectedAssignmentIndex + 1} of {shipments.length}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-7 shrink-0 rounded-md"
+                                aria-label={`Next load for ${driver.driver?.name || "driver"}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  switchAssignment(1);
+                                }}
+                              >
+                                <ChevronRight className="size-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <Package className="size-3.5 shrink-0 text-primary" />
                           <span className="min-w-0 break-all text-xs font-black [overflow-wrap:anywhere]">
-                            {shipments[0].trackingNumber || shipments[0].id}
+                            {selectedAssignment.trackingNumber || selectedAssignment.id}
                           </span>
-                          {shipments[0].status && (
+                          {selectedAssignment.status && (
                             <Badge variant="outline" className="h-auto whitespace-normal px-1.5 py-0.5 text-[9px]">
-                              {shipments[0].status}
+                              {selectedAssignment.status}
                             </Badge>
                           )}
                         </div>
-                        {(shipments[0].origin || shipments[0].destination) && (
+                        {(selectedAssignment.origin || selectedAssignment.destination) && (
                           <div className="mt-2 grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px] leading-relaxed">
                             <span className="font-bold text-muted-foreground">Pickup</span>
                             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                              {shipments[0].origin || "Not provided"}
+                              {selectedAssignment.origin || "Not provided"}
                             </span>
                             <span className="font-bold text-muted-foreground">Delivery</span>
                             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                              {shipments[0].destination || "Not provided"}
+                              {selectedAssignment.destination || "Not provided"}
                             </span>
                           </div>
                         )}
-                        {shipments.length > 1 && (
-                          <p className="mt-2 text-[10px] font-bold text-muted-foreground">
-                            +{shipments.length - 1} more active load{shipments.length - 1 === 1 ? "" : "s"} in the driver workspace
-                          </p>
-                        )}
+
                       </div>
                     )}
 
@@ -749,4 +797,4 @@ export function DriverTrackerListCard({
       </CardContent>
     </Card>
   );
-}
+} 

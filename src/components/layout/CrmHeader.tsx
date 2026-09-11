@@ -28,12 +28,16 @@ function ini(n: string) {
 
 type CrmHeaderProps = {
   showMessenger?: boolean;
+  messengerDrawerOpen?: boolean;
+  onMessengerDrawerOpenChange?: (open: boolean) => void;
   notificationDrawerOpen: boolean;
   onNotificationDrawerOpenChange: (open: boolean) => void;
 };
 
 export function CrmHeader({
   showMessenger = false,
+  messengerDrawerOpen,
+  onMessengerDrawerOpenChange,
   notificationDrawerOpen,
   onNotificationDrawerOpenChange,
 }: CrmHeaderProps) {
@@ -79,7 +83,7 @@ export function CrmHeader({
             onOpenChange={onNotificationDrawerOpenChange}
           />
 
-          {showMessenger && <MessengerDropdown />}
+          {showMessenger && <MessengerDropdown open={messengerDrawerOpen} onOpenChange={onMessengerDrawerOpenChange} />}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

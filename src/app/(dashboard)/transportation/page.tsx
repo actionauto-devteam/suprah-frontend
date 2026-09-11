@@ -505,6 +505,7 @@ function TransportationPageInner() {
     void fetchData({ silent: true, force: true });
   }, [activeTab, fetchBoardLoads, fetchData]);
 
+
   const updateCurrentMobileFilters = React.useCallback(
     (updates: Partial<MobileFilterState>) => {
       setMobileFilters((previous) => ({
@@ -539,6 +540,7 @@ function TransportationPageInner() {
       : activeTab === "drafts"
         ? quotesPagination?.total ?? quotes.length
         : loadsPagination?.total ?? loads.length;
+
 
   const filteredLoads = React.useMemo(() => {
     if (!searchQuery) return loads;
@@ -624,124 +626,159 @@ function TransportationPageInner() {
       )}
 
       { }
-      <div className="bg-card border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-        <div className="flex flex-col gap-3 sm:gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="hidden md:inline-flex xl:hidden relative z-10 -ml-2 h-11 w-11 min-h-11 min-w-11 shrink-0 border-none rounded-lg hover:bg-secondary active:bg-secondary touch-manipulation"
-                onClick={() => setIsSidebarOpen((open) => !open)}
-                aria-label="Open transportation filters"
-                aria-expanded={isSidebarOpen}
-                aria-controls="transportation-sidebar"
-                aria-haspopup="dialog"
-              >
-                <Menu className="size-5" />
-              </Button>
-              <div className="bg-green-500 p-1.5 sm:p-2 rounded shrink-0">
-                <Truck className="size-4 sm:size-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-foreground truncate">
-                  Transport
-                </h1>
-                {vehicles.length > 0 && (
-                  <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                    {vehicles.length} vehicles
+      {/* Transportation identity panel — intentionally mirrors the visual
+          hierarchy used by All Inventory and Driver Tracker while preserving
+          Transportation's own actions, live state, and vehicle context. */}
+      <div className="shrink-0 px-2 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+        <section
+          aria-labelledby="transportation-page-title"
+          className="relative overflow-hidden rounded-2xl border border-border/40 bg-card shadow-sm dark:bg-zinc-900/60"
+        >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-emerald-500 via-cyan-400 to-emerald-500/20" />
+          <div className="pointer-events-none absolute -right-16 -top-24 size-64 rounded-full bg-emerald-500/[0.07] blur-3xl" />
+          <div className="pointer-events-none absolute -left-20 bottom-0 size-52 rounded-full bg-cyan-500/[0.035] blur-3xl" />
+
+          <div className="relative px-3 py-3 sm:px-6 sm:py-5">
+            <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+              <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:inline-flex xl:hidden relative z-10 -ml-2 h-11 w-11 min-h-11 min-w-11 shrink-0 border-none rounded-xl hover:bg-secondary active:bg-secondary touch-manipulation"
+                  onClick={() => setIsSidebarOpen((open) => !open)}
+                  aria-label="Open transportation filters"
+                  aria-expanded={isSidebarOpen}
+                  aria-controls="transportation-sidebar"
+                  aria-haspopup="dialog"
+                >
+                  <Menu className="size-5" />
+                </Button>
+
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 shadow-sm sm:size-11">
+                  <Truck className="size-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="relative flex size-2 shrink-0">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50 motion-reduce:animate-none" />
+                      <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300/80 sm:text-[10px]">
+                      Suprah Transport Operations
+                    </span>
+                  </div>
+
+                  <h1
+                    id="transportation-page-title"
+                    className="mt-2 text-[22px] font-black uppercase leading-none tracking-tight text-foreground xs:text-2xl sm:text-3xl lg:text-4xl"
+                  >
+                    Transportation
+                  </h1>
+                  <p className="mt-1.5 max-w-2xl text-[11px] font-medium leading-relaxed text-muted-foreground sm:text-xs md:text-sm">
+                    Manage quotes, load execution, dispatch status, and delivery progress from one operational workspace.
                   </p>
-                )}
+                </div>
+              </div>
+
+              <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 sm:w-auto sm:grid-cols-none sm:grid-flow-col lg:shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-11 min-w-0 gap-1.5 rounded-xl border-border px-3 text-[11px] font-black touch-manipulation sm:min-w-32 sm:text-xs md:h-10 md:px-4"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (searchQuery) params.set("search", searchQuery);
+                    if (selectedStatus !== "all")
+                      params.set("status", selectedStatus);
+                    if (activeTab !== "shipments") params.set("tab", activeTab);
+                    const query = params.toString();
+                    router.push(
+                      `/transportation/create-load${query ? `?${query}` : ""}`,
+                    );
+                  }}
+                >
+                  <Plus className="size-3.5 shrink-0 sm:size-4" />
+                  <span>CREATE LOAD</span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  className="h-11 min-w-0 gap-1.5 rounded-xl bg-green-500 px-3 text-[11px] font-black text-white hover:bg-green-600 touch-manipulation sm:min-w-32 sm:text-xs md:h-10 md:px-4"
+                  onClick={() => setIsQuoteModalOpen(true)}
+                >
+                  <Plus className="size-3.5 shrink-0 sm:size-4" />
+                  <span className="hidden xxs:inline">NEW QUOTE</span>
+                  <span className="xxs:hidden">NEW</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-11 w-11 shrink-0 gap-1.5 rounded-xl border-border/60 bg-muted/60 px-0 text-foreground hover:bg-muted sm:w-auto sm:px-3 sm:text-xs md:h-10"
+                  onClick={handleManualRefresh}
+                  disabled={
+                    activeTab === "load-board"
+                      ? isBoardLoading
+                      : isLoading || isSilentRefreshing
+                  }
+                  aria-label="Refresh transportation data"
+                  title="Refresh"
+                >
+                  <RefreshCw
+                    className={`size-3.5 ${
+                      activeTab === "load-board"
+                        ? isBoardLoading
+                          ? "animate-spin"
+                          : ""
+                        : isLoading || isSilentRefreshing
+                          ? "animate-spin"
+                          : ""
+                    }`}
+                  />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
               </div>
             </div>
-            <div className="flex gap-1.5 sm:gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex gap-1.5 sm:gap-2 text-[11px] sm:text-xs h-11 md:h-9 px-3 md:px-4 border-border rounded-xl touch-manipulation"
-                onClick={() => {
-                  const params = new URLSearchParams();
-                  if (searchQuery) params.set("search", searchQuery);
-                  if (selectedStatus !== "all")
-                    params.set("status", selectedStatus);
-                  if (activeTab !== "shipments") params.set("tab", activeTab);
-                  const query = params.toString();
-                  router.push(
-                    `/transportation/create-load${query ? `?${query}` : ""}`,
-                  );
-                }}
-              >
-                <Plus className="size-3.5 sm:size-4" />
-                <span>CREATE LOAD</span>
-              </Button>
-              <Button
-                size="sm"
-                className="gap-1.5 sm:gap-2 bg-green-500 hover:bg-green-600 text-white text-[11px] sm:text-xs h-11 md:h-9 px-3 md:px-4 rounded-xl touch-manipulation"
-                onClick={() => setIsQuoteModalOpen(true)}
-              >
-                <Plus className="size-3.5 sm:size-4" />
-                <span className="hidden xxs:inline">NEW QUOTE</span>
-                <span className="xxs:hidden">NEW</span>
-              </Button>
-            </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 size-3.5 sm:size-4 text-muted-foreground" />
-              <Input
-                placeholder={
-                  activeTab === "load-board"
-                    ? "Search by load #, city, state, make, model, or VIN..."
-                    : "Search by name, VIN, stock, or tracking number..."
-                }
-                className="pl-9 sm:pl-10 w-full text-sm h-11 md:h-10 rounded-xl bg-background border-border text-foreground"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          { }
-          <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground border-t border-border pt-2">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                Live
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/35 pt-2.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50 motion-reduce:animate-none" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+                </span>
+                Live operations
               </span>
-              {isSilentRefreshing && (
-                <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                  · <RefreshCw className="w-2.5 h-2.5 animate-spin" />{" "}
-                  Refreshing
+
+              {vehicles.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/55 bg-background/55 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                  <Package className="size-3 text-emerald-600 dark:text-emerald-400" />
+                  {vehicles.length} vehicle{vehicles.length === 1 ? "" : "s"} available
                 </span>
               )}
+
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 gap-1 text-[11px] sm:text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleManualRefresh}
-              disabled={
-                activeTab === "load-board"
-                  ? isBoardLoading
-                  : isLoading || isSilentRefreshing
-              }
-            >
-              <RefreshCw
-                className={`w-3 h-3 ${
-                  activeTab === "load-board"
-                    ? isBoardLoading
-                      ? "animate-spin"
-                      : ""
-                    : isLoading || isSilentRefreshing
-                      ? "animate-spin"
-                      : ""
-                }`}
-              />
-              Refresh
-            </Button>
           </div>
+        </section>
+      </div>
+
+      {/* Search remains outside the identity panel, while Refresh now lives
+          with the panel actions like the All Inventory header. */}
+      <div className="shrink-0 px-2 pt-2.5 sm:px-4 md:px-6">
+        <div className="relative min-w-0">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={
+              activeTab === "load-board"
+                ? "Search by load #, city, state, make, model, or VIN..."
+                : "Search by name, VIN, stock, or tracking number..."
+            }
+            className="h-11 w-full rounded-xl border-border bg-card/70 pl-10 pr-3 text-sm text-foreground shadow-sm md:h-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
 

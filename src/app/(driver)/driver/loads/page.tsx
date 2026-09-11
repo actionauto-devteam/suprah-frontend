@@ -692,7 +692,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
   const vehicleImg = vehicle?.imageUrl ? resolveImageUrl(vehicle.imageUrl) : null;
 
   return (
-    <Card className={cn('overflow-hidden border-border/75 hover:shadow-lg transition-all duration-200 rounded-2xl group',
+    <Card className={cn('relative isolate overflow-hidden border-border/75 hover:shadow-lg transition-all duration-200 rounded-2xl group',
       isPending ? 'border-amber-500/30 bg-amber-500/3' : isRejected ? 'border-red-500/20 opacity-75' :
         (status === 'In-Transit') ? 'border-emerald-500/30 bg-emerald-500/3' :
           status === 'Picked Up' ? 'border-orange-500/30 bg-orange-500/3' :
@@ -711,7 +711,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link
                     href={`/driver/loads/${load._id}`}
-                    className="text-sm font-mono font-bold hover:text-primary transition-colors"
+                    aria-label={`View details for ${load.loadNumber || "load"}`}
+                    className="text-sm font-mono font-bold hover:text-primary transition-colors after:absolute after:inset-0 after:z-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
                   >
                     {load.loadNumber || "No load #"}
                   </Link>
@@ -763,7 +764,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               </div>
 
               {!isRequest && (
-                <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="relative z-10 flex flex-col items-end gap-2 shrink-0">
                   {status === 'Assigned' && !load.driverAcceptedAt && isActive && (
                     <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="h-11 rounded-lg gap-1.5">
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
@@ -837,7 +838,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-1 text-[11px] text-primary font-semibold hover:underline"
+                className="relative z-10 flex items-center gap-1 text-[11px] text-primary font-semibold hover:underline"
               >
                 <FileText className="size-3" />
                 {expanded ? "Hide" : "View"}{" "}
@@ -901,7 +902,7 @@ function ContactBlock({ label, contact }: { label: string; contact: any }) {
         {contact.phone && (
           <a
             href={`tel:${contact.phone}`}
-            className="flex items-center gap-1 text-primary hover:underline"
+            className="relative z-10 flex items-center gap-1 text-primary hover:underline"
           >
             <Phone className="size-3" />
             {contact.phone}
@@ -910,7 +911,7 @@ function ContactBlock({ label, contact }: { label: string; contact: any }) {
         {contact.email && (
           <a
             href={`mailto:${contact.email}`}
-            className="flex items-center gap-1 text-primary hover:underline"
+            className="relative z-10 flex items-center gap-1 text-primary hover:underline"
           >
             <Mail className="size-3" />
             {contact.email}

@@ -1,5 +1,7 @@
 "use client";
 
+import contrastStyles from "./driver-tracker-contrast.module.css";
+
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,9 +15,8 @@ import {
   Bell,
   LayoutGrid,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
@@ -170,6 +171,10 @@ export default function DriverTrackerPage() {
   const [isMapTransitioning, setIsMapTransitioning] = React.useState(false);
   const [availableLoads, setAvailableLoads] = React.useState<AvailableItem[]>([]);
   const [loadsLoading, setLoadsLoading] = React.useState(false);
+  const [availableLoadsHasMore, setAvailableLoadsHasMore] = React.useState(false);
+  const [availableLoadsError, setAvailableLoadsError] = React.useState<string | null>(null);
+  const [loadRequestsError, setLoadRequestsError] = React.useState<string | null>(null);
+  const [selectedLoadsDriverId, setSelectedLoadsDriverId] = React.useState<string | null>(null);
   const [assignModalOpen, setAssignModalOpen] = React.useState(false);
   const [assigningTo, setAssigningTo] =
     React.useState<DriverTrackingItem | null>(null);
@@ -542,6 +547,7 @@ export default function DriverTrackerPage() {
   const fetchAvailableLoads = React.useCallback(async () => {
     if (!isSignedIn) return;
     setLoadsLoading(true);
+    setAvailableLoadsError(null);
     try {
       const token = await getToken();
       const loadsRes = await apiClient.get("/api/loads", {
@@ -577,7 +583,9 @@ export default function DriverTrackerPage() {
           isPostedToBoard: false,
         }));
       setAvailableLoads(mapped);
+      setAvailableLoadsHasMore(Boolean(loadsRes.data?.data?.pagination?.hasMore));
     } catch {
+      setAvailableLoadsError("Could not refresh available loads. Previously loaded results may be out of date.");
     } finally {
       setLoadsLoading(false);
     }
@@ -586,6 +594,7 @@ export default function DriverTrackerPage() {
   const fetchLoadRequests = React.useCallback(async () => {
     if (!isSignedIn || isDriver) return;
     setLoadRequestsLoading(true);
+    setLoadRequestsError(null);
     try {
       const token = await getToken();
       const res = await apiClient.get("/api/driver-tracking/load-requests", {
@@ -593,6 +602,7 @@ export default function DriverTrackerPage() {
       });
       setLoadRequests(res.data?.data || []);
     } catch {
+      setLoadRequestsError("Could not refresh requests. Previously loaded requests may be out of date.");
     } finally {
       setLoadRequestsLoading(false);
     }
@@ -1013,6 +1023,18 @@ export default function DriverTrackerPage() {
     [getToken, fetchLoadRequests],
   );
 
+  const openLoadManagement = React.useCallback((tab: string, driverId: string | null = null) => {
+    setLoadsTab(tab);
+    setMobileWorkspace("loads");
+    setMobileDriverDrawerOpen(false);
+    setSelectedLoadsDriverId(driverId);
+    setFocusedRequestKey(null);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      loadManagementRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      loadManagementRef.current?.focus({ preventScroll: true });
+    }));
+  }, []);
+
   const handleReviewLoadRequest = React.useCallback(
     (loadId: string, driverId: string) => {
       const requestKey = `${loadId}-${driverId}`;
@@ -1024,6 +1046,7 @@ export default function DriverTrackerPage() {
       setMobileWorkspace("loads");
       setMobileDriverDrawerOpen(false);
       setFocusedRequestKey(requestKey);
+      setSelectedLoadsDriverId(null);
       setChatDialogOpen(false);
       setChatDriver(null);
       clearDispatchChatDeepLink();
@@ -1057,13 +1080,21 @@ export default function DriverTrackerPage() {
 
   const openMobileDriverDrawer = React.useCallback(
     (driver: DriverTrackingItem, tab: DriverTrackerMobileDrawerTab = "overview") => {
+      // DriverTrackerListCard already uses "chat" as part of this callback's
+      // public contract. Keep that contract intact and route only the chat
+      // target to the established full DispatchChatDialog.
+      if (tab === "chat") {
+        handleMessageDriver(driver);
+        return;
+      }
+
       const driverId = String(driver.driver?.id ?? driver.id ?? "");
       if (!driverId) return;
       setMobileDrawerDriverId(driverId);
       setMobileDriverDrawerTab(tab);
       setMobileDriverDrawerOpen(true);
     },
-    [],
+    [handleMessageDriver],
   );
 
   const refreshDriverUnread = React.useCallback(
@@ -1220,8 +1251,23 @@ export default function DriverTrackerPage() {
   }, [fetchDrivers]);
 
   React.useEffect(() => {
-    fetchAvailableLoads();
-  }, [fetchAvailableLoads]);
+    if (!isSignedIn) return;
+
+    const refreshVisibleLoads = () => {
+      if (document.visibilityState === "visible") void fetchAvailableLoads();
+    };
+    void fetchAvailableLoads();
+    // Socket events provide immediate updates; reconcile missed events while
+    // visible and whenever the user returns from Transportation or another tab.
+    const interval = window.setInterval(refreshVisibleLoads, 15000);
+    window.addEventListener("focus", refreshVisibleLoads);
+    document.addEventListener("visibilitychange", refreshVisibleLoads);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshVisibleLoads);
+      document.removeEventListener("visibilitychange", refreshVisibleLoads);
+    };
+  }, [fetchAvailableLoads, isSignedIn]);
 
   React.useEffect(() => {
     fetchLoadRequests();
@@ -1232,6 +1278,10 @@ export default function DriverTrackerPage() {
   React.useEffect(() => {
     if (!isSignedIn) return;
     let cancelled = false;
+    let cleanupLoadListeners: (() => void) | undefined;
+    const refreshAvailableLoads = () => {
+      if (!cancelled) void fetchAvailableLoads();
+    };
 
     const connectSocket = async () => {
       try {
@@ -1296,9 +1346,12 @@ export default function DriverTrackerPage() {
           fetchAvailableLoads();
         });
 
-        sock.on("load:change", () => {
-          fetchAvailableLoads();
-        });
+        sock.on("load:change", refreshAvailableLoads);
+        sock.on("connect", refreshAvailableLoads);
+        cleanupLoadListeners = () => {
+          sock.off("load:change", refreshAvailableLoads);
+          sock.off("connect", refreshAvailableLoads);
+        };
 
         sock.on(
           "dispatch-chat:message",
@@ -1414,7 +1467,7 @@ export default function DriverTrackerPage() {
       socketRef.current?.off("driver:loads_updated");
       socketRef.current?.off("driver:load_requested");
       socketRef.current?.off("driver:load_request_updated");
-      socketRef.current?.off("load:change");
+      cleanupLoadListeners?.();
       socketRef.current?.off("dispatch-chat:message");
       socketRef.current?.off("driver:dispatch_alert_acknowledged");
       socketRef.current = null;
@@ -1770,10 +1823,10 @@ export default function DriverTrackerPage() {
   ];
 
   return (
-    <div className="min-h-screen w-full min-w-0 max-w-none space-y-3 overflow-x-hidden px-2 py-3 md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8">
+    <div className={`${contrastStyles.scope} min-h-screen w-full min-w-0 max-w-none space-y-3 overflow-x-hidden px-2 py-3 md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8`}>
       {/* Mobile: Suprah Driver Operations identity.
           The operational summary replaces six equally-weighted KPI tiles while
-          desktop keeps the existing analytics cards below. */}
+          desktop presents the same fleet context in its own header panel. */}
       <section className="relative overflow-hidden rounded-2xl border border-border/45 bg-card md:hidden">
         <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-cyan-400/20" />
         <div className="pointer-events-none absolute -right-12 -top-16 size-44 rounded-full bg-primary/[0.07] blur-3xl" />
@@ -1840,8 +1893,7 @@ export default function DriverTrackerPage() {
             <button
               type="button"
               onClick={() => {
-                setLoadsTab("assigned");
-                setMobileWorkspace("loads");
+                openLoadManagement("assigned");
               }}
               className="flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-3 py-2 text-left transition-colors hover:bg-blue-500/10"
             >
@@ -1861,8 +1913,7 @@ export default function DriverTrackerPage() {
               disabled={pendingActionCount === 0}
               onClick={() => {
                 if (loadRequests.length > 0) {
-                  setLoadsTab("requests");
-                  setMobileWorkspace("loads");
+                  openLoadManagement("requests");
                   return;
                 }
                 const first = openStatusRequestDrivers[0];
@@ -1925,8 +1976,15 @@ export default function DriverTrackerPage() {
         </div>
       </section>
 
-      {/* Desktop/tablet header preserved. */}
-      <div className="hidden md:flex md:flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+      {/* Desktop identity and fleet context share one application panel. */}
+      <section
+        aria-labelledby="driver-tracker-desktop-title"
+        className="relative hidden overflow-hidden rounded-2xl border border-border/40 bg-card shadow-sm md:block dark:bg-zinc-900/60"
+      >
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary via-emerald-400 to-cyan-400/20" />
+        <div className="pointer-events-none absolute -right-16 -top-24 size-64 rounded-full bg-primary/[0.07] blur-3xl" />
+        <div className="relative px-5 py-5 lg:px-6">
+      <div className="flex min-w-0 flex-col justify-between gap-4 xl:flex-row xl:items-start xl:gap-6">
         <div className="min-w-0">
           <nav className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2 overflow-x-auto no-scrollbar whitespace-nowrap">
             <Link href="/" className="hover:text-foreground transition-colors">
@@ -1942,16 +2000,22 @@ export default function DriverTrackerPage() {
             <ChevronRight className="size-3 shrink-0" />
             <span className="text-foreground font-bold">Driver Tracker</span>
           </nav>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">
-            Driver Tracker
+          <div className="mt-3 flex items-center gap-2">
+            <span className="size-2 shrink-0 rounded-full bg-primary" />
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-primary/80">
+              Suprah Driver Operations
+            </span>
+          </div>
+          <h1 id="driver-tracker-desktop-title" className="mt-2 text-3xl font-black uppercase leading-none tracking-tight text-foreground lg:text-4xl">
+            Driver <span className="text-primary">Tracker</span>
           </h1>
           <p className="text-sm text-muted-foreground/80 font-medium mt-1">
             Real-time driver tracking, load assignment, and fleet management
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end sm:gap-3">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:max-w-md xl:justify-end">
+          <span className="flex w-full flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground xl:justify-end">
             <Clock className="size-3 shrink-0" />
             {currentTime.toLocaleDateString("en-US", {
               weekday: "short",
@@ -1977,8 +2041,7 @@ export default function DriverTrackerPage() {
             <Badge
               className="max-w-full cursor-pointer gap-1 whitespace-normal border-amber-200 bg-amber-500/10 text-xs font-bold text-amber-600 dark:border-amber-500/30 dark:text-amber-400"
               onClick={() => {
-                setLoadsTab("requests");
-                setMobileWorkspace("loads");
+                openLoadManagement("requests");
               }}
             >
               <Bell className="size-3" />
@@ -2006,35 +2069,23 @@ export default function DriverTrackerPage() {
         </div>
       </div>
 
-      <div className="hidden w-full min-w-0 grid-cols-2 gap-3 md:grid lg:grid-cols-4">
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border/35 pt-3">
         {kpis.map((kpi) => (
-          <Card
-            key={kpi.label}
-            className="group relative min-w-0 overflow-hidden border-border/50 p-0 shadow-sm transition-all duration-200 hover:shadow-md"
-          >
-            <div className="absolute right-3 top-3 rounded-lg bg-muted/40 p-1.5 dark:bg-muted/30">
-              {kpi.icon}
-            </div>
-            <CardContent className="min-w-0 p-4">
-              <p className="mb-1 min-w-0 break-words pr-7 text-xs font-bold uppercase tracking-widest text-muted-foreground [overflow-wrap:anywhere]">
-                {kpi.label}
-              </p>
-              {isLoading ? (
-                <Skeleton className="mb-1 h-7 w-14" />
-              ) : (
-                <h3
-                  className={`text-3xl font-black tracking-tighter ${kpi.color || "text-foreground"}`}
-                >
-                  {kpi.value}
-                </h3>
-              )}
-              <p className="mt-1 text-xs font-medium text-muted-foreground/80">
-                {kpi.description}
-              </p>
-            </CardContent>
-          </Card>
+          <div key={kpi.label} className="flex min-w-0 items-center gap-2" title={kpi.description}>
+            <span className="shrink-0 [&>svg]:size-4">{kpi.icon}</span>
+            <span className="text-xs font-medium text-muted-foreground">{kpi.label}</span>
+            {isLoading ? (
+              <Skeleton className="h-4 w-8" />
+            ) : (
+              <span className={"text-sm font-black tabular-nums " + (kpi.color || "text-foreground")}>
+                {kpi.value}
+              </span>
+            )}
+          </div>
         ))}
       </div>
+        </div>
+      </section>
 
       {isDriver && driverLocationSharing && (
         <DriverTrackerShareCard
@@ -2056,7 +2107,7 @@ export default function DriverTrackerPage() {
 
       <div className="grid w-full min-w-0 grid-cols-1 items-start gap-0 md:gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
 
-        <div className="-mx-2 min-w-0 md:mx-0">
+        <div className="-mx-2 min-w-0 md:mx-0 xl:col-start-1 xl:row-start-1">
           <DriverTrackerMap
             mapboxToken={normalizedToken}
             mapRef={mapRef}
@@ -2121,7 +2172,7 @@ export default function DriverTrackerPage() {
           </div>
         </div>
 
-        <div className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block`}>
+        <div className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block md:[&>div]:rounded-2xl xl:col-start-2 xl:row-start-1`}>
         <DriverTrackerListCard
           drivers={drivers}
           isLoading={isLoading}
@@ -2157,10 +2208,12 @@ export default function DriverTrackerPage() {
 
       <div
         ref={loadManagementRef}
+        tabIndex={-1}
+        aria-label="Load Management"
         className={`${mobileWorkspace === "loads" ? "block" : "hidden"} -mx-2 scroll-mt-4 md:mx-0 md:block`}
       >
-      <Card className="flex h-[calc(58dvh+6.25rem-var(--mobile-bottom-nav-offset))] min-h-[24rem] max-h-[calc(36rem+6.25rem-var(--mobile-bottom-nav-offset))] flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-auto md:min-h-0 md:max-h-none md:rounded-xl md:border-x">
-        <CardHeader className="shrink-0 space-y-3 border-b border-border/30 px-3 py-3 sm:px-5">
+      <Card className="flex h-[calc(58dvh+6.25rem-var(--mobile-bottom-nav-offset))] min-h-[24rem] max-h-[calc(36rem+6.25rem-var(--mobile-bottom-nav-offset))] flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-auto md:min-h-0 md:max-h-none md:rounded-2xl md:border-x">
+        <CardHeader className="shrink-0 space-y-3 border-b border-border/30 px-3 py-3 sm:px-5 md:bg-muted/[0.12] md:py-4">
           <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
             <LayoutGrid className="size-4.5 text-primary shrink-0" />
             <span>Load Management</span>
@@ -2228,9 +2281,15 @@ export default function DriverTrackerPage() {
         </CardHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:overflow-visible">
+        {loadsTab === "assigned" && selectedLoadsDriverId && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 px-4 py-3 text-sm">
+            <span>Loads for <strong>{drivers.find((driver) => String(driver.driver?.id ?? driver.id) === selectedLoadsDriverId)?.driver?.name || "selected driver"}</strong></span>
+            <button type="button" className="min-h-10 rounded-lg border border-border px-3 font-semibold text-primary focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedLoadsDriverId(null)}>Show all drivers</button>
+          </div>
+        )}
         {loadsTab === "assigned" && (
           <DriverTrackerLoadsCard
-            drivers={driversWithLoads}
+            drivers={selectedLoadsDriverId ? driversWithLoads.filter((driver) => String(driver.driver?.id ?? driver.id) === selectedLoadsDriverId) : driversWithLoads}
             isLoading={isLoading}
             error={error}
             activeDrivers={eligibleDrivers}
@@ -2241,23 +2300,40 @@ export default function DriverTrackerPage() {
         )}
 
         {loadsTab === "available" && (
-          <DriverTrackerAvailableLoadsCard
+          <>
+          {availableLoadsError && (
+            <div role="alert" className="m-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <p className="min-w-0 flex-1">{availableLoadsError}</p>
+              <button type="button" disabled={loadsLoading} onClick={() => void fetchAvailableLoads()} className="min-h-10 rounded-lg border border-border bg-background px-3 font-bold disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring">Retry</button>
+            </div>
+          )}
+          {availableLoadsHasMore && (
+            <p className="px-4 pt-3 text-xs text-muted-foreground">More posted loads are available. <Link href="/transportation" className="font-semibold text-primary underline">Open Transportation to search the full list.</Link></p>
+          )}
+          {(!availableLoadsError || availableLoads.length > 0) && <DriverTrackerAvailableLoadsCard
             loads={availableLoads}
-            isLoading={loadsLoading}
+            isLoading={loadsLoading && availableLoads.length === 0}
             activeDrivers={eligibleDrivers}
             onAssign={handleAssignFromAvailable}
-          />
+          />}
+          </>
         )}
 
         {loadsTab === "requests" && (
           <>
-            {focusedRequestKey && !loadRequestsLoading && !focusedRequestExists && (
+          {loadRequestsError && (
+            <div role="alert" className="m-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <p className="min-w-0 flex-1">{loadRequestsError}</p>
+              <button type="button" disabled={loadRequestsLoading} onClick={() => void fetchLoadRequests()} className="min-h-10 rounded-lg border border-border bg-background px-3 font-bold disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring">Retry</button>
+            </div>
+          )}
+            {focusedRequestKey && !loadRequestsLoading && !loadRequestsError && !focusedRequestExists && (
               <div className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
                 This load request is no longer pending. It may already have been approved, rejected, or assigned to another driver.
               </div>
             )}
 
-            {!loadRequestsLoading && loadRequests.length === 0 ? (
+            {!loadRequestsError && !loadRequestsLoading && loadRequests.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center">
                   <Bell className="size-7 text-muted-foreground/40" />
@@ -2270,7 +2346,7 @@ export default function DriverTrackerPage() {
                 </p>
               </div>
             ) : (
-              <DriverTrackerRequestsCard
+              (!loadRequestsError || loadRequests.length > 0) && <DriverTrackerRequestsCard
                 requests={loadRequests}
                 isLoading={loadRequestsLoading}
                 onApprove={handleApproveRequest}
@@ -2305,6 +2381,7 @@ export default function DriverTrackerPage() {
               )
             : 0
         }
+        onOpenChat={handleMessageDriver}
         onUnreadRefresh={refreshDriverUnread}
         onReviewLoadRequest={handleReviewLoadRequest}
         onAlertDriver={(driver) => {
@@ -2326,10 +2403,7 @@ export default function DriverTrackerPage() {
         onLocateDriver={(driver) => {
           focusDriverOnLiveMap(driver, { closeDrawer: true });
         }}
-        onOpenLoadManagement={() => {
-          setMobileDriverDrawerOpen(false);
-          setMobileWorkspace("loads");
-        }}
+        onOpenLoadManagement={(driver) => openLoadManagement("assigned", String(driver.driver?.id ?? driver.id))}
       />
 
       <DriverAssignLoadModal

@@ -5,11 +5,7 @@ import { MessageCircle, ArrowUpRight, Plus, ChevronLeft, Search, Check, CheckChe
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { HeaderDrawer } from "@/components/layout/HeaderDrawer";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -116,7 +112,7 @@ function isConvUnread(conv: SSConv, userId: string | null): boolean {
 
 // --- Component ----------------------------------------------------------------
 
-export function MessengerDropdown() {
+export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void } = {}) {
   const {
     conversations,
     totalUnread,
@@ -133,7 +129,13 @@ export function MessengerDropdown() {
   const router = useRouter();
 
   // -- Dropdown open state (controlled so we can reset on close) --------------
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
 
   // -- Create-flow state ------------------------------------------------------
   const [view, setView] = React.useState<'list' | 'create'>('list');
@@ -178,6 +180,12 @@ export function MessengerDropdown() {
     if (!next) resetCreate();
     if (next) refreshConversations();
   };
+
+  React.useEffect(() => {
+    if (!open) {
+      setView('list'); setCreateTab('dm'); setUserSearch(''); setSelectedIds([]); setGroupName('');
+    }
+  }, [open]);
 
   const enterCreate = async () => {
     setView('create');
@@ -258,9 +266,14 @@ export function MessengerDropdown() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger asChild>
+    <>
         <Button
+          ref={buttonRef}
+          type="button"
+          aria-label={open ? "Close SuprahSpace" : "Open SuprahSpace"}
+          aria-expanded={open}
+          aria-controls="suprahspace-drawer"
+          onClick={() => handleOpenChange(!open)}
           variant="outline"
           size="icon"
           className={cn(
@@ -277,14 +290,9 @@ export function MessengerDropdown() {
             </span>
           )}
         </Button>
-      </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align="end"
-        sideOffset={8}
-        collisionPadding={{ top: 12, bottom: 96, left: 12, right: 12 }}
-        className="p-0 w-[min(320px,calc(100vw-24px))] max-h-[min(420px,var(--radix-dropdown-menu-content-available-height))] flex flex-col overflow-hidden rounded-xl shadow-xl border-border/60"
-      >
+
+      <HeaderDrawer id="suprahspace-drawer" title="SuprahSpace" open={open} onOpenChange={handleOpenChange} triggerRef={buttonRef}>
         {/* -- Header -- */}
         <div className="shrink-0 px-4 py-3 border-b border-border/50 bg-card/90 backdrop-blur-sm">
           {view === 'list' ? (
@@ -409,6 +417,7 @@ export function MessengerDropdown() {
                     <button key={conv._id}
                       className={cn('w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50', isUnread && 'bg-green-500/5 hover:bg-green-500/10')}
                       onClick={() => {
+                        handleOpenChange(false);
                         if (typeof window !== 'undefined' && window.innerWidth < 768) {
                           router.push('/crm/supra-space?convId=' + conv._id);
                         } else {
@@ -560,13 +569,13 @@ export function MessengerDropdown() {
         {/* Footer link — only on list view */}
         {view === 'list' && (
           <div className="shrink-0 border-t border-border/50 px-4 py-2 bg-card/90">
-            <Link href="/crm/supra-space"
+            <Link href="/crm/supra-space" onClick={() => handleOpenChange(false)}
               className="flex items-center justify-center gap-1.5 text-[11px] text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-semibold transition-colors">
               Open Suprah Space <ArrowUpRight className="size-3" />
             </Link>
           </div>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </HeaderDrawer>
+    </>
   );
 }

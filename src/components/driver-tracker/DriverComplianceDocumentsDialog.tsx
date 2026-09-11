@@ -27,6 +27,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -683,21 +690,36 @@ export function DriverComplianceDocumentsDialog({
                 >
                   Review Section
                 </label>
-                <select
-                  id="driver-review-section"
+                <Select
                   value={activeTab}
-                  onChange={(event) =>
-                    setActiveTab(event.target.value as ReviewTab)
-                  }
-                  className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm font-bold text-foreground shadow-sm outline-none transition-colors focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/15"
-                  aria-label="Select Driver Review Center section"
+                  onValueChange={(value) => setActiveTab(value as ReviewTab)}
                 >
-                  {TABS.map((tab) => (
-                    <option key={tab.id} value={tab.id}>
-                      {tab.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id="driver-review-section"
+                    className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm font-bold text-foreground shadow-sm focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/15"
+                    aria-label="Select Driver Review Center section"
+                  >
+                    <SelectValue placeholder="Choose a review section" />
+                  </SelectTrigger>
+                  <SelectContent
+                    position="popper"
+                    className="z-[100] border-border bg-popover text-popover-foreground"
+                    style={{
+                      animation: "none",
+                      transition: "none",
+                      opacity: 1,
+                      backgroundColor: "var(--popover)",
+                      isolation: "isolate",
+                      backfaceVisibility: "hidden",
+                    }}
+                  >
+                    {TABS.map((tab) => (
+                      <SelectItem key={tab.id} value={tab.id} className="min-h-11">
+                        {tab.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="hidden gap-1 overflow-x-auto pb-1 sm:flex">

@@ -1,107 +1,81 @@
+/* Page-local contrast hierarchy. Keep the existing .scope wiring.
+ * Decorative boundaries stay quiet; controls are stronger.
+ * Primary/destructive action fills, status colors, and layout are unchanged.
+ */
 .scope {
   min-width: 0;
-
-  /* Local-only values used by the rules below. */
   --inventory-border-soft: oklch(0.84 0.018 238.46);
   --inventory-border-medium: oklch(0.78 0.022 238.46);
-  --inventory-border-strong: oklch(0.70 0.026 238.46);
-  --inventory-input-border: oklch(0.76 0.024 238.46);
-  --inventory-divider: oklch(0.80 0.020 238.46);
+  --inventory-border-strong: oklch(0.52 0.026 238.46);
+  --inventory-input-border: oklch(0.62 0.024 238.46);
+  --inventory-divider: oklch(0.86 0.012 238.46);
 }
 
-/* Balanced dark-mode contrast: visible, but not bright outlines everywhere. */
 :global(.dark) .scope {
-  --inventory-border-soft: oklch(0.94 0.008 238.46 / 20%);
-  --inventory-border-medium: oklch(0.94 0.008 238.46 / 28%);
-  --inventory-border-strong: oklch(0.96 0.006 238.46 / 38%);
-  --inventory-input-border: oklch(0.95 0.008 238.46 / 32%);
-  --inventory-divider: oklch(0.95 0.008 238.46 / 26%);
+  --inventory-border-soft: oklch(0.94 0.008 238.46 / 16%);
+  --inventory-border-medium: oklch(0.94 0.008 238.46 / 22%);
+  --inventory-border-strong: oklch(0.72 0.018 238.46);
+  --inventory-input-border: oklch(0.62 0.018 238.46);
+  --inventory-divider: oklch(0.94 0.008 238.46 / 16%);
 }
 
-/*
- * FORM CONTROLS
- * Create/Edit Load inputs were especially hard to distinguish from their
- * surrounding panels. Only actual form controls inside All Inventory are
- * strengthened.
- */
-.scope
-  :global(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
-  ),
-.scope :global(textarea),
-.scope :global(select),
-.scope :global([role="combobox"]) {
-  border-color: var(--inventory-input-border) !important;
-}
-
-.scope
-  :global(
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
-  ):hover:not(:disabled),
-.scope :global(textarea):hover:not(:disabled),
-.scope :global(select):hover:not(:disabled),
-.scope :global([role="combobox"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--inventory-border-strong) !important;
-}
-
-/*
- * NEUTRAL CARDS / INFORMATION TILES
- * Only neutral border-border utilities are strengthened. Colored status
- * chips and accent borders keep their original component-specific styling.
- */
-.scope :global([class*="border-border/30"]),
-.scope :global([class*="border-border/40"]),
-.scope :global([class*="border-border/50"]) {
+/* Match complete utilities so hover/status variants are not selected. */
+.scope :global([class~="border-border/30"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/35"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/40"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/45"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/50"]:not([data-slot="badge"]):not([data-slot="button"])) {
   border-color: var(--inventory-border-soft) !important;
 }
 
-.scope :global([class*="border-border/60"]),
-.scope :global([class*="border-border/70"]) {
+.scope :global([class~="border-border"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/60"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/65"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/70"]:not([data-slot="badge"]):not([data-slot="button"])),
+.scope :global([class~="border-border/75"]:not([data-slot="badge"]):not([data-slot="button"])) {
   border-color: var(--inventory-border-medium) !important;
 }
 
-/* Exact neutral border-border cards / panels. */
-.scope :global([class~="border-border"]) {
-  border-color: var(--inventory-border-medium) !important;
+/* Shared outline buttons include link-style buttons rendered with asChild. */
+.scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"])) {
+  border-color: var(--inventory-input-border) !important;
 }
 
-/*
- * BUTTONS
- * Strengthen only neutral outline-style controls. Status pills, primary
- * green CTAs, destructive buttons, and colored filter badges are untouched.
- */
-.scope :global(button[class*="border-border"]),
-.scope :global([role="button"][class*="border-border"]),
-.scope :global(button[class*="border-input"]),
-.scope :global([role="button"][class*="border-input"]) {
-  border-color: var(--inventory-border-strong) !important;
+@media (hover: hover) {
+  .scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"]):hover:not(:disabled):not([aria-disabled="true"]):not([data-disabled])) {
+    border-color: var(--inventory-border-strong) !important;
+  }
 }
 
-/*
- * SEPARATORS / PROGRESS RAILS
- * Improve neutral divider lines without touching emerald/violet/amber status
- * colors or active journey segments.
- */
-.scope :global([class*="bg-border"]) {
+/* Preserve a visible keyboard indicator without introducing layout shifts. */
+.scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"]):focus-visible:not(:disabled):not([aria-disabled="true"]):not([data-disabled])) {
+  border-color: var(--ring) !important;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Error borders take priority over neutral and hover borders. */
+.scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"])[aria-invalid="true"]) {
+  border-color: var(--destructive) !important;
+}
+
+.scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"])[aria-invalid="true"]:focus-visible) {
+  outline-color: var(--destructive);
+}
+
+/* Disabled controls retain their component opacity and pointer behavior. */
+.scope :global(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), textarea, select, [role="combobox"], [data-slot="button"][data-variant="outline"], button[class~="border-border"], button[class~="border-input"], [role="button"][class~="border-border"]):is(:disabled, [aria-disabled="true"], [data-disabled])) {
+  border-color: var(--inventory-border-soft) !important;
+}
+
+/* Quiet structural dividers; colored progress segments are not targeted. */
+.scope :global([class~="bg-border"]),
+.scope :global([class~="bg-border/50"]),
+.scope :global([class~="bg-border/60"]) {
   background-color: var(--inventory-divider) !important;
 }
 
 .scope :global(hr),
 .scope :global([role="separator"]) {
   border-color: var(--inventory-divider) !important;
-}
-
-/*
- * Disabled form controls stay bounded, but remain visually disabled.
- */
-.scope :global(input:disabled),
-.scope :global(textarea:disabled),
-.scope :global(select:disabled),
-.scope :global(button[class*="border-input"]:disabled),
-.scope :global(button[class*="border-border"]:disabled) {
-  border-color: color-mix(
-    in oklab,
-    var(--inventory-border-medium) 68%,
-    transparent
-  ) !important;
 }

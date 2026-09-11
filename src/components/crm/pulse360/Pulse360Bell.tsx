@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
+import { HeaderDrawer } from "@/components/layout/HeaderDrawer";
 import { useRouter } from "next/navigation";
 import { Activity, ArrowRight, CheckCheck, Gauge, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,62 +23,17 @@ import { usePulse360, acknowledgeAll, acknowledgeAlert } from "@/lib/pulse360-st
  * ancestor's overflow, and a measured anchor keeps it pinned under the button.
  */
 
-export function Pulse360Bell({ className }: { className?: string }) {
+export function Pulse360Bell({ className, open: controlledOpen, onOpenChange }: { className?: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const router = useRouter();
   const { alerts, health, ready, enabled } = usePulse360();
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [clearing, setClearing] = React.useState(false);
-  const [mounted, setMounted] = React.useState(false);
-  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
-
   const buttonRef = React.useRef<HTMLButtonElement>(null);
-  const panelRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => setMounted(true), []);
-
-  // Measure the button and pin the panel to viewport coordinates. Recomputed
-  // on open, and on scroll/resize while open so it tracks the button.
-  const reposition = React.useCallback(() => {
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const viewportWidth = window.visualViewport?.width || window.innerWidth;
-    const panelWidth = Math.min(viewportWidth * 0.92, 384);
-    const left = Math.max(12, Math.min(rect.right - panelWidth, viewportWidth - panelWidth - 12));
-    setCoords({ top: rect.bottom + 8, left });
-  }, []);
-
-  React.useEffect(() => {
-    if (!open) return;
-    reposition();
-
-    // Outside-click and Escape both close. The check spans BOTH the button and
-    // the portalled panel, since the panel is no longer a DOM descendant of the
-    // button — a naive "contains" on one ref alone would treat clicks inside the
-    // panel as outside clicks and close it instantly.
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (buttonRef.current?.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    const onReflow = () => reposition();
-
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onReflow);
-    // capture:true so we still track when an inner scroll container moves.
-    window.addEventListener("scroll", onReflow, true);
-
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onReflow);
-      window.removeEventListener("scroll", onReflow, true);
-    };
-  }, [open, reposition]);
 
   if (!enabled) return null;
 
@@ -93,18 +48,7 @@ export function Pulse360Bell({ className }: { className?: string }) {
   };
 
   const panel = (
-    <div
-      ref={panelRef}
-      role="menu"
-      style={{
-        position: "fixed",
-        top: coords?.top ?? 0,
-        left: coords?.left ?? 0,
-        // Hidden until measured, so it never flashes at 0,0 on first paint.
-        visibility: coords ? "visible" : "hidden",
-      }}
-      className="z-[300] w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-border/40 bg-background/98 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border/30 px-4 py-3">
         <div className="min-w-0">
           <p className="text-sm font-black tracking-tight">Pulse360</p>
@@ -128,7 +72,7 @@ export function Pulse360Bell({ className }: { className?: string }) {
         )}
       </div>
 
-      <div className="max-h-[min(70vh,24rem)] overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
         {live.length === 0 ? (
           <div className="px-4 py-10 text-center">
             <Activity className="mx-auto h-7 w-7 text-emerald-500/40" />
@@ -193,10 +137,10 @@ export function Pulse360Bell({ className }: { className?: string }) {
     <div className={cn("relative", className)}>
       <button
         ref={buttonRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         aria-label={`Pulse360, ${live.length} open alert${live.length === 1 ? "" : "s"}`}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-controls="pulse360-drawer"
         className="relative flex h-9 items-center gap-1.5 rounded-xl border border-border/40 px-2.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
       >
         <Gauge className="h-4 w-4" />
@@ -217,9 +161,7 @@ export function Pulse360Bell({ className }: { className?: string }) {
         )}
       </button>
 
-      {/* Portalled to body so no overflow-hidden / backdrop-blur ancestor can
-          clip it. Only rendered client-side (mounted) since document is needed. */}
-      {open && mounted && createPortal(panel, document.body)}
+      <HeaderDrawer id="pulse360-drawer" title="Pulse360" open={open} onOpenChange={setOpen} triggerRef={buttonRef}>{panel}</HeaderDrawer>
     </div>
   );
 }

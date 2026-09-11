@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { createPortal } from 'react-dom';
+import { HeaderDrawer } from "@/components/layout/HeaderDrawer";
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -20,12 +20,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from '@/components/ui/sheet';
+
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/context/NotificationContext';
 import { useOptionalCrmNotifications } from '@/hooks/useCrmNotifications';
@@ -69,26 +64,13 @@ type FilterBranch = {
 };
 
 interface NotificationDrawerProps {
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 const DRAWER_RENDER_LIMIT = 200;
 const OTHER_CRM_GROUP_KEY = 'crm_other';
-
-function useDesktopDrawer() {
-  const [isDesktop, setIsDesktop] = React.useState(false);
-
-  React.useEffect(() => {
-    const query = window.matchMedia('(min-width: 1024px)');
-    const sync = () => setIsDesktop(query.matches);
-    sync();
-    query.addEventListener('change', sync);
-    return () => query.removeEventListener('change', sync);
-  }, []);
-
-  return isDesktop;
-}
 
 const GENERAL_CATEGORY_META = [
   ...notificationPreferenceCategories.filter((category) => category.key !== 'crm'),
@@ -556,34 +538,11 @@ function NotificationDrawerBody({
     <>
       <div className="flex h-full min-h-0 flex-col bg-card">
         <div className="shrink-0 border-b border-border/60 bg-card/95 px-4 py-3.5 backdrop-blur-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <Bell className="size-4.5" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-bold tracking-tight text-foreground">
-                  Notifications
-                </h2>
-                <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
-                  {combinedUnread > 0
-                    ? `${combinedUnread} unread notification${combinedUnread === 1 ? '' : 's'}`
-                    : 'All caught up'}
-                </p>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={onClose}
-              aria-label="Close notifications"
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            {combinedUnread > 0
+              ? `${combinedUnread} unread notification${combinedUnread === 1 ? '' : 's'}`
+              : 'All caught up'}
+          </p>
 
           <div className="mt-3 flex items-center gap-1.5">
             <Button
@@ -755,47 +714,14 @@ function NotificationDrawerBody({
   );
 }
 
-function DrawerSurface({ open, onOpenChange }: NotificationDrawerProps) {
-  const isDesktop = useDesktopDrawer();
-
-  if (!open) return null;
-
-  if (isDesktop) {
-    if (typeof document === 'undefined') return null;
-
-    return createPortal(
-      <aside
-        id="notification-drawer"
-        className="fixed inset-y-0 right-0 z-[70] flex w-[340px] flex-col border-l border-border/70 bg-card shadow-[-18px_0_45px_rgba(0,0,0,0.12)] animate-in slide-in-from-right duration-300 xl:w-[380px] dark:shadow-[-18px_0_45px_rgba(0,0,0,0.32)]"
-        aria-label="Notifications"
-      >
-        <NotificationErrorBoundary>
-          <NotificationDrawerBody onClose={() => onOpenChange(false)} />
-        </NotificationErrorBoundary>
-      </aside>,
-      document.body,
-    );
-  }
-
+export function NotificationDrawer({ open, onOpenChange, triggerRef }: NotificationDrawerProps) {
+  const fallbackTriggerRef = React.useRef<HTMLButtonElement>(null);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="w-full max-w-none gap-0 p-0 sm:w-[340px] sm:max-w-[340px]"
-      >
-        <SheetTitle className="sr-only">Notifications</SheetTitle>
-        <SheetDescription className="sr-only">
-          Review and filter general and CRM notifications.
-        </SheetDescription>
-        <NotificationErrorBoundary>
-          <NotificationDrawerBody onClose={() => onOpenChange(false)} />
-        </NotificationErrorBoundary>
-      </SheetContent>
-    </Sheet>
+    <HeaderDrawer id="notification-drawer" title="Notifications" open={open}
+      onOpenChange={onOpenChange} triggerRef={triggerRef ?? fallbackTriggerRef}>
+      <NotificationErrorBoundary>
+        <NotificationDrawerBody onClose={() => onOpenChange(false)} />
+      </NotificationErrorBoundary>
+    </HeaderDrawer>
   );
-}
-
-export function NotificationDrawer({ open, onOpenChange }: NotificationDrawerProps) {
-  return <DrawerSurface open={open} onOpenChange={onOpenChange} />;
 }

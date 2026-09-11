@@ -3015,8 +3015,8 @@ export function DispatchChatDialog({
           // toward its first focusable element before latest-position setup.
           event.preventDefault();
         }}
-        className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0 sm:h-[calc(100dvh-2rem)] sm:max-h-[820px] sm:w-[94vw] sm:max-w-[94vw] lg:w-[92vw] lg:max-w-[76rem] xl:max-w-[82rem]"
-        overlayClassName="bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
+        className="z-[80] flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0 sm:h-[calc(100dvh-2rem)] sm:max-h-[820px] sm:w-[94vw] sm:max-w-[94vw] lg:w-[92vw] lg:max-w-[76rem] xl:max-w-[82rem]"
+        overlayClassName="z-[80] bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
       >
         <DialogHeader className="relative shrink-0 border-b border-border/60 bg-gradient-to-r from-emerald-500/[0.07] via-background to-background px-3 py-2.5 pr-11 sm:px-4 sm:py-3 sm:pr-12">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -3568,6 +3568,7 @@ export function DispatchChatDialog({
                   onTabChange={setDetailsTab}
                   query={detailsQuery}
                   onQueryChange={setDetailsQuery}
+                  onSearchResultSelect={jumpToConversationSearchResult}
                   onClose={() => setDetailsOpen(false)}
                 />
               </aside>

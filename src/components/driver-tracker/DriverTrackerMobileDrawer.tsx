@@ -52,6 +52,7 @@ interface DriverTrackerMobileDrawerProps {
   onViewStatusRequest?: (driver: DriverTrackingItem) => void;
   onLocateDriver?: (driver: DriverTrackingItem) => void;
   onOpenLoadManagement?: (driver: DriverTrackingItem) => void;
+  onOpenChat?: (driver: DriverTrackingItem) => void;
   onUnreadRefresh?: (driverId: string) => void | Promise<void>;
   onReviewLoadRequest?: (loadId: string, driverId: string) => void;
 }
@@ -138,6 +139,7 @@ export function DriverTrackerMobileDrawer({
   onViewStatusRequest,
   onLocateDriver,
   onOpenLoadManagement,
+  onOpenChat,
   onUnreadRefresh,
   onReviewLoadRequest,
 }: DriverTrackerMobileDrawerProps) {
@@ -366,30 +368,22 @@ export function DriverTrackerMobileDrawer({
         <div className="shrink-0 border-b border-border/50 bg-background px-2.5 py-1.5">
           <div
             className="grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-border/40 bg-muted/25 p-1"
-            role="tablist"
-            aria-label="Driver workspace sections"
+            aria-label="Driver workspace navigation"
           >
             {(
               [
                 { tab: "overview", label: "Overview" },
-                { tab: "chat", label: "Chat" },
                 { tab: "loads", label: "Assigned Loads" },
               ] as const
             ).map(({ tab, label }) => {
               const isActive = activeTab === tab;
-              const count =
-                tab === "loads"
-                  ? shipments.length
-                  : tab === "chat" && unreadMessageCount > 0
-                    ? unreadMessageCount
-                    : null;
+              const count = tab === "loads" ? shipments.length : null;
 
               return (
                 <button
                   key={tab}
                   type="button"
-                  role="tab"
-                  aria-selected={isActive}
+                  aria-pressed={isActive}
                   onClick={() => onActiveTabChange(tab)}
                   className={`relative flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-[10px] font-black transition-[background-color,border-color,color,box-shadow] xs:px-2 xs:text-[11px] ${
                     isActive
@@ -420,6 +414,45 @@ export function DriverTrackerMobileDrawer({
                 </button>
               );
             })}
+
+            <button
+              type="button"
+              aria-haspopup={onOpenChat ? "dialog" : undefined}
+              aria-label={`Open Dispatch Chat with ${driverName}`}
+              onClick={() => {
+                if (!driver) return;
+
+                // Driver Tracker uses the larger page-level dialog when this
+                // callback is provided. Keep the old inline path as a fallback
+                // so existing callers and the established tab contract remain valid.
+                if (onOpenChat) {
+                  onOpenChat(driver);
+                } else {
+                  onActiveTabChange("chat");
+                }
+              }}
+              className={`relative flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-[10px] font-black transition-[background-color,border-color,color,box-shadow] xs:px-2 xs:text-[11px] ${
+                activeTab === "chat" && !onOpenChat
+                  ? "border-primary/25 bg-primary/10 text-primary shadow-sm"
+                  : "border-transparent text-muted-foreground hover:border-primary/25 hover:bg-primary/[0.06] hover:text-primary"
+              }`}
+            >
+              <span className="min-w-0 text-center leading-tight">Chat</span>
+
+              {unreadMessageCount > 0 && (
+                <span
+                  className={`flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[8px] font-black leading-none ${
+                    activeTab === "chat" && !onOpenChat
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                </span>
+              )}
+
+              <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
+            </button>
           </div>
         </div>
 

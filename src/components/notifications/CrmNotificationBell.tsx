@@ -15,6 +15,7 @@ interface CrmNotificationBellProps {
 }
 
 export function CrmNotificationBell({ open, onOpenChange }: CrmNotificationBellProps) {
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   const general = useNotifications();
   const crm = useCrmNotifications();
 
@@ -29,6 +30,7 @@ export function CrmNotificationBell({ open, onOpenChange }: CrmNotificationBellP
   return (
     <>
       <Button
+        ref={triggerRef}
         type="button"
         variant="outline"
         size="icon"
@@ -65,7 +67,7 @@ export function CrmNotificationBell({ open, onOpenChange }: CrmNotificationBellP
         )}
       </Button>
 
-      <NotificationDrawer open={open} onOpenChange={onOpenChange} />
+      <NotificationDrawer triggerRef={triggerRef} open={open} onOpenChange={onOpenChange} />
     </>
   );
 }
