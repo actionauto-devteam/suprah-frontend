@@ -1,6 +1,7 @@
 // Notification sound system using Web Audio API — no audio files required
 
 const STORAGE_KEY = 'ss_sound_enabled';
+const SUPRASPACE_NOTIFICATION_HOST = 'space.suprah-app.com';
 
 export function isSoundEnabled(): boolean {
   if (typeof window === 'undefined') return false;
@@ -215,16 +216,36 @@ export async function requestNotifPermission(): Promise<void> {
   }
 }
 
+function normalizeNotificationTargetUrl(url: string): string {
+  if (typeof window === 'undefined') return url;
+  try {
+    const target = new URL(url, window.location.origin);
+    if (
+      window.location.hostname === SUPRASPACE_NOTIFICATION_HOST
+      && target.origin === window.location.origin
+      && target.pathname === '/crm/supra-space'
+    ) {
+      return `/${target.search}${target.hash}`;
+    }
+    return target.origin === window.location.origin
+      ? `${target.pathname}${target.search}${target.hash}`
+      : target.href;
+  } catch {
+    return url;
+  }
+}
+
 // Primary notification path — uses ServiceWorkerRegistration.showNotification()
 // which works on mobile PWA, plays the OS notification sound, and vibrates on
 // Android. Falls back to new Notification() if no active SW is found (e.g. dev
 // mode where the SW is disabled).
 export async function showNotificationViaSW(
   title: string,
-  options: { body?: string; tag?: string; url?: string } = {}
+  options: { body?: string; tag?: string; url?: string; conversationId?: string; messageId?: string } = {}
 ): Promise<void> {
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
+  const targetUrl = normalizeNotificationTargetUrl(options.url ?? '/crm/supra-space');
 
   // Try SW-based notification first (proper PWA path).
   // navigator.serviceWorker.ready is far more reliable than getRegistration('/')
@@ -243,7 +264,11 @@ export async function showNotificationViaSW(
           badge: '/icon-192x192.png',
           silent: false,
           vibrate: [200, 100, 200],
-          data: { url: options.url ?? '/crm/supra-space' },
+          data: {
+            url: targetUrl,
+            ...(options.conversationId ? { conversationId: options.conversationId } : {}),
+            ...(options.messageId ? { messageId: options.messageId } : {}),
+          },
         } as NotificationOptions);
         return;
       }
@@ -252,7 +277,6 @@ export async function showNotificationViaSW(
 
   // Fallback: direct Notification API (desktop browser without SW)
   try {
-    const targetUrl = options.url ?? '/crm/supra-space';
     const notif = new Notification(title, {
       icon: '/favicon.ico',
       body: options.body,

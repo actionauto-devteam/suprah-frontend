@@ -35,6 +35,7 @@ interface HoursSummary {
 }
 
 interface UserTimeproof {
+  email?: string
   user: {
     _id: string
     fullName: string
@@ -54,6 +55,7 @@ interface UserTimeproof {
 }
 
 interface AgentStatus {
+  email?: string
   user: {
     _id: string
     fullName: string
@@ -379,13 +381,16 @@ export default function AdminShiftBoardPage() {
       const timeprofUsers: UserTimeproof[] = timeprofRes.data?.data?.users ?? []
       const agentStatuses: AgentStatus[] = agentRes.data?.data?.agents ?? []
 
-      const agentMap = new Map(agentStatuses.map((a) => [a.user._id.toString(), a]))
+      const agentById = new Map(agentStatuses.map((a) => [a.user._id.toString(), a]))
+      const agentByEmail = new Map(
+        agentStatuses.filter((a) => a.email).map((a) => [a.email!.toLowerCase(), a])
+      )
 
       const nowMs = Date.now()
       const BREAK_LIMIT_MS = 65 * 60 * 1000 // 1 hour 5 minutes — matches dashboard threshold
 
       const merged: MergedUser[] = timeprofUsers.map((u) => {
-        const agent = agentMap.get(u.user._id.toString())
+        const agent = (u.email && agentByEmail.get(u.email.toLowerCase())) || agentById.get(u.user._id.toString())
         const breakStartedAt = agent?.isOnBreak ? (agent.breakStartedAt ?? null) : null
         const isBreakExceeded = !!breakStartedAt &&
           (nowMs - new Date(breakStartedAt).getTime()) > BREAK_LIMIT_MS

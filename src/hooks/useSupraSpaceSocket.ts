@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getDeviceType } from '@/lib/device';
 
 export interface SSAttachment {
   url: string;
@@ -135,6 +136,7 @@ interface UseSupraSpaceReturn {
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const socketRef = React.useRef<Socket | null>(null);
   const typingStartLastSentRef = React.useRef<Record<string, number>>({});
+  const presenceActivityRef = React.useRef(true);
   // Watchdog per conversationId:userId — self-heals a stuck "is typing..."
   // if a typing:stop is ever missed (crashed tab, dropped packet, etc.),
   // independent of the server-side disconnect cleanup.
@@ -161,10 +163,19 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
 
     socketRef.current = socket;
 
+    const emitPresenceHeartbeat = (activeOverride?: boolean) => {
+      if (!socket.connected) return;
+      const isActive = typeof activeOverride === 'boolean' ? activeOverride : presenceActivityRef.current;
+      presenceActivityRef.current = false;
+      socket.emit('presence:heartbeat', { isActive, deviceType: getDeviceType() });
+    };
+
     socket.on('connect', () => {
       console.log('[SupraSpace] ? Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
       setSocketState(socket);
+      presenceActivityRef.current = true;
+      emitPresenceHeartbeat(true);
       socket.emit('presence:status_request'); // ask for the whole org's real online/away/busy/DND status
     });
 
@@ -191,13 +202,27 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       setPresence(next);
     });
 
-    // Live relay of the same system-wide presence_update TeamPulse/profile use, translated
-    // to this user's CrmUser id server-side.
-    socket.on('presence_update', ({ userId, onlineStatus, customStatus, lastDeviceType }: {
+    const applyPresenceUpdate = ({ userId, onlineStatus, customStatus, lastDeviceType }: {
       userId: string; onlineStatus?: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null;
     }) => {
       if (!onlineStatus) return;
-      setPresence((prev) => ({ ...prev, [userId]: { onlineStatus, customStatus, lastDeviceType } }));
+      setPresence((prev) => ({
+        ...prev,
+        [userId]: {
+          onlineStatus,
+          customStatus: customStatus ?? prev[userId]?.customStatus ?? null,
+          lastDeviceType: lastDeviceType ?? prev[userId]?.lastDeviceType ?? null,
+        },
+      }));
+    };
+
+    // Live relay of the same system-wide presence_update TeamPulse/profile use, translated
+    // to this user's CrmUser id server-side.
+    socket.on('presence_update', applyPresenceUpdate);
+
+    socket.on('presence:update', ({ userId, status }: { userId: string; status?: SSOnlineStatus }) => {
+      if (status !== 'online') return;
+      applyPresenceUpdate({ userId, onlineStatus: 'online' });
     });
 
     const clearTypingWatchdog = (key: string) => {
@@ -235,13 +260,27 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     });
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !socket.connected) {
-        socket.connect();
+      if (document.visibilityState === 'visible') {
+        presenceActivityRef.current = true;
+        if (!socket.connected) {
+          socket.connect();
+        } else {
+          emitPresenceHeartbeat(true);
+          socket.emit('presence:status_request');
+        }
       }
     };
+    const presenceHeartbeatInterval = window.setInterval(() => emitPresenceHeartbeat(), 30000);
+    const onActivity = () => {
+      presenceActivityRef.current = true;
+    };
+    const presenceActivityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'] as const;
+    presenceActivityEvents.forEach((eventName) => document.addEventListener(eventName, onActivity, { passive: true }));
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
+      clearInterval(presenceHeartbeatInterval);
+      presenceActivityEvents.forEach((eventName) => document.removeEventListener(eventName, onActivity));
       document.removeEventListener('visibilitychange', onVisibilityChange);
       socket.removeAllListeners();
       socket.disconnect();

@@ -197,11 +197,18 @@ function clearStoredSupraSpaceConversationId(conversationId?: string | null, use
   } catch { }
 }
 
-function clearSupraSpaceConversationParam(): void {
+function clearSupraSpaceConversationParam(...keys: string[]): void {
   if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
-  if (!url.searchParams.has('convId')) return;
-  url.searchParams.delete('convId');
+  const params = keys.length ? keys : ['convId'];
+  let changed = false;
+  params.forEach(key => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+  if (!changed) return;
   const next = `${url.pathname}${url.search}${url.hash}`;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (next !== current) window.history.replaceState(window.history.state, '', next);
@@ -4643,6 +4650,10 @@ async function mediaUrlToBlob(url: string): Promise<Blob> {
 }
 
 type SS4PastedMediaReference = { url: string; local: boolean };
+type SS4ShareTargetManifest = {
+  files?: Array<{ name?: string; type?: string; lastModified?: number; path?: string }>;
+};
+const SS4_SHARE_TARGET_PREFIX = '/__ss4-share-target';
 
 function cleanSS4PastedUrlCandidate(value: string): string {
   return value
@@ -4784,6 +4795,29 @@ async function readSS4ClipboardMediaFiles(): Promise<File[]> {
     }
   }
   return files;
+}
+
+async function readSS4ShareTargetFiles(shareTargetId: string): Promise<File[]> {
+  const id = encodeURIComponent(shareTargetId);
+  const manifestRes = await fetch(`${SS4_SHARE_TARGET_PREFIX}/${id}/manifest`, { cache: 'no-store' });
+  if (!manifestRes.ok) throw new Error('shared media manifest unavailable');
+  const manifest = await manifestRes.json() as SS4ShareTargetManifest;
+  const files = await Promise.all((manifest.files || []).map(async (entry, index) => {
+    if (!entry.path) return null;
+    const fileRes = await fetch(entry.path, { cache: 'no-store' });
+    if (!fileRes.ok) return null;
+    const blob = await fileRes.blob();
+    if (!blob.size) return null;
+    const normalizedType = normalizeSS4ClipboardMimeType(entry.type || blob.type) || blob.type || 'application/octet-stream';
+    const extension = getSS4PreferredExtensionForMime(normalizedType);
+    const fallbackName = `${normalizedType.startsWith('video/') ? 'shared-video' : 'shared-media'}-${index + 1}${extension || ''}`;
+    const file = new File([blob], entry.name || fallbackName, {
+      type: normalizedType,
+      lastModified: entry.lastModified || Date.now(),
+    });
+    return normalizeSS4ClipboardFile(file, normalizedType, index);
+  }));
+  return files.filter((file): file is File => Boolean(file && (isImageFileLike(file) || isVideoFileLike(file))));
 }
 
 function attachmentFileKey(file: File): string {
@@ -9812,6 +9846,8 @@ export default function SupraSpacePage() {
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  const [sharedTargetFiles, setSharedTargetFiles] = React.useState<File[]>([]);
+  const handledShareTargetIdRef = React.useRef<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const dragCounterRef = React.useRef(0);
   const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
@@ -10959,13 +10995,17 @@ export default function SupraSpacePage() {
       setInitialConversationsLoading(true);
       const cachedUserId = getSupraSpaceCacheUserIdFromToken(t);
       const initialUrlParams = new URLSearchParams(window.location.search);
-      const hasInitialConversationTarget = Boolean(
+      const initialConversationTargetId = (
         initialUrlParams.get('conversationId')
         || initialUrlParams.get('convId')
+        || ''
+      ).trim();
+      const hasInitialConversationTarget = Boolean(
+        initialConversationTargetId
         || initialUrlParams.get('userId')
         || initialUrlParams.get('meeting'),
       );
-      const allowSavedConversationRestore = !isRunningAsSupraSpaceStandalone() || hasInitialConversationTarget;
+      const allowSavedConversationRestore = !hasInitialConversationTarget && !isRunningAsSupraSpaceStandalone();
       const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
       const releaseInitialShell = () => {
         if (initDoneRef.current) return;
@@ -10988,7 +11028,11 @@ export default function SupraSpacePage() {
         convosFetchInFlightRef.current = true;
         const cv = await apiClient.get('/api/supraspace/conversations', {
           headers: { Authorization: `Bearer ${t}` },
-          params: { limit: conversationPageSize, offset: 0 },
+          params: {
+            limit: conversationPageSize,
+            offset: 0,
+            ...(initialConversationTargetId ? { includeConversationId: initialConversationTargetId } : {}),
+          },
         });
         const parsedConvos = readSupraSpaceConversationPayload(cv.data?.data);
         const fetchedConvos = parsedConvos.conversations;
@@ -11016,11 +11060,7 @@ export default function SupraSpacePage() {
         const pendingNotificationConversationId = urlParams.get('conversationId');
         const pendingNotificationMessageId = urlParams.get('messageId');
         if (openFetchedConversation(pendingNotificationConversationId, pendingNotificationMessageId)) {
-          const cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete('conversationId');
-          cleanUrl.searchParams.delete('messageId');
-          cleanUrl.searchParams.delete('convId');
-          window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+          clearSupraSpaceConversationParam('conversationId', 'messageId', 'convId');
         }
 
         const pendingRouteConversationId = urlParams.get('convId');
@@ -11132,19 +11172,70 @@ export default function SupraSpacePage() {
   }, []);
 
   const routeConversationId = searchParams.get('convId');
+  const notificationConversationId = searchParams.get('conversationId');
+  const notificationMessageId = searchParams.get('messageId');
   React.useEffect(() => {
-    const id = (routeConversationId || '').trim();
-    if (loading || !initialConversationsReady || !id || handledRouteConversationIdRef.current === id) return;
-    if (!convos.some(c => c._id === id)) {
-      handledRouteConversationIdRef.current = id;
-      clearSupraSpaceConversationParam();
-      clearStoredSupraSpaceConversationId(id, uid);
-      return;
-    }
-    handledRouteConversationIdRef.current = id;
-    openConversation(id);
-    clearSupraSpaceConversationParam();
-  }, [loading, initialConversationsReady, routeConversationId, convos, openConversation, uid]);
+    const notificationId = (notificationConversationId || '').trim();
+    const id = notificationId || (routeConversationId || '').trim();
+    const messageId = notificationId ? (notificationMessageId || '').trim() : '';
+    const routeKey = `${notificationId ? 'notification' : 'conversation'}:${id}:${messageId}`;
+    if (loading || !initialConversationsReady || !id || handledRouteConversationIdRef.current === routeKey) return;
+
+    const openRouteTarget = (availableConvos: SSConversation[]) => {
+      if (!availableConvos.some(c => c._id === id)) return false;
+      handledRouteConversationIdRef.current = routeKey;
+      if (notificationId) {
+        pendingNotificationTargetRef.current = { conversationId: id, messageId: messageId || undefined };
+      }
+      openConversation(id);
+      clearSupraSpaceConversationParam('conversationId', 'messageId', 'convId');
+      return true;
+    };
+
+    if (openRouteTarget(convos)) return;
+
+    const t = tokenRef.current;
+    if (!t) return;
+    let cancelled = false;
+    handledRouteConversationIdRef.current = routeKey;
+
+    apiClient
+      .get('/api/supraspace/conversations', {
+        headers: { Authorization: `Bearer ${t}` },
+        params: { limit: conversationPageSize, offset: 0, includeConversationId: id },
+      })
+      .then(r => {
+        if (cancelled) return;
+        const parsed = readSupraSpaceConversationPayload(r.data?.data);
+        const nextConvos = mergeSupraSpaceConversations(parsed.conversations, convosRef.current);
+        convosRef.current = nextConvos;
+        setConvos(nextConvos);
+        setHasMoreConversations(parsed.hasMore);
+        setConversationsOffset(parsed.nextOffset);
+        hasMoreConversationsRef.current = parsed.hasMore;
+        conversationsOffsetRef.current = parsed.nextOffset;
+        if (openRouteTarget(nextConvos)) return;
+        clearSupraSpaceConversationParam('conversationId', 'messageId', 'convId');
+        if (!notificationId) clearStoredSupraSpaceConversationId(id, uid);
+      })
+      .catch(() => {
+        if (!cancelled) handledRouteConversationIdRef.current = null;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    loading,
+    initialConversationsReady,
+    routeConversationId,
+    notificationConversationId,
+    notificationMessageId,
+    convos,
+    openConversation,
+    uid,
+    conversationPageSize,
+  ]);
 
   React.useEffect(() => {
     const target = pendingNotificationTargetRef.current;
@@ -11939,6 +12030,47 @@ export default function SupraSpacePage() {
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
   }, [activeId, pendingFiles, showUploadNotice]);
   handleUploadFilesRef.current = handleUploadFiles;
+
+  const shareTargetId = searchParams.get('shareTargetId');
+  React.useEffect(() => {
+    const id = (shareTargetId || '').trim();
+    if (!id || handledShareTargetIdRef.current === id) return;
+    handledShareTargetIdRef.current = id;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const files = await readSS4ShareTargetFiles(id);
+        if (cancelled) return;
+        if (!files.length) {
+          showUploadNotice('error', 'No shared image or video was received.');
+          return;
+        }
+        if (activeIdRef.current) {
+          await handleUploadFiles(files);
+        } else {
+          setSharedTargetFiles(files);
+          showUploadNotice('info', 'Open a conversation to attach the shared media.');
+        }
+      } catch {
+        if (!cancelled) showUploadNotice('error', 'Could not import the shared media.');
+      } finally {
+        if (!cancelled) clearSupraSpaceConversationParam('shareTargetId');
+        fetch(`${SS4_SHARE_TARGET_PREFIX}/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shareTargetId, handleUploadFiles, showUploadNotice]);
+
+  React.useEffect(() => {
+    if (!activeId || sharedTargetFiles.length === 0) return;
+    const files = sharedTargetFiles;
+    setSharedTargetFiles([]);
+    void handleUploadFiles(files);
+  }, [activeId, sharedTargetFiles, handleUploadFiles]);
 
   const handlePastedMediaReference = React.useCallback(async (reference: SS4PastedMediaReference) => {
     if (reference.local) {
@@ -14768,7 +14900,7 @@ export default function SupraSpacePage() {
                 onOpenNotification={(conversationId, messageId) => {
                   setSidebarTab('chats');
                   if (messageId) openSearchResult(conversationId, messageId);
-                  else setActiveId(conversationId);
+                  else openConversation(conversationId);
                 }}
               />
             )}
@@ -16252,24 +16384,28 @@ export default function SupraSpacePage() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <GifPicker inline mobile onPick={(gif) => { selectGif(gif); setMobileAttachSheetOpen(false); }} onClose={() => { setGifOpen(false); setMobileAttachSheetOpen(false); }} />
                 </div>
-              ) : mobileFilePickerOpen ? (
+              ) : mobileFilePickerOpen && !isIOSDevice ? (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <MobileFilePicker files={pendingFiles} maxFiles={SS4_MAX_UPLOAD_FILES} onBrowse={() => fileRef.current?.click()} onRemove={removePendingFile} onClear={() => setPendingFiles([])} onClose={() => { setMobileFilePickerOpen(false); setMobileAttachSheetOpen(false); }} />
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Photos & Videos</span>
-                  </label>
-                  <label htmlFor={videoInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <Video className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Videos</span>
-                  </label>
-                  <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
-                  </label>
+                  {!isIOSDevice && (
+                    <>
+                      <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Photos & Videos</span>
+                      </label>
+                      <label htmlFor={videoInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Video className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Videos</span>
+                      </label>
+                      <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
+                      </label>
+                    </>
+                  )}
                   <button type="button" onClick={pasteMediaFromClipboard} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <Copy className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>Paste Media</span>
@@ -16278,10 +16414,12 @@ export default function SupraSpacePage() {
                     <Film className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>GIF</span>
                   </button>
-                  <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                    <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
-                  </button>
+                  {!isIOSDevice && (
+                    <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                      <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                      <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
+                    </button>
+                  )}
                   <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <CalendarPlus className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>Calendar</span>

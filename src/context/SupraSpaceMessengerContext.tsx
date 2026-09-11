@@ -503,6 +503,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
               body,
               tag: conversationId,
               url: `/crm/supra-space?conversationId=${encodeURIComponent(conversationId)}&messageId=${encodeURIComponent(message._id)}`,
+              conversationId,
+              messageId: message._id,
             });
           } else if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/crm/supra-space')) {
             // Tab is focused but the user is on a different dashboard page —

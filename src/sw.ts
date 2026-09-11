@@ -69,6 +69,104 @@ const serwist = new Serwist({
   },
 });
 
+const SS4_SHARE_TARGET_PATHS = new Set(["/share-target", "/supraspace/share-target", "/crm/supra-space/share-target"]);
+const SS4_SHARE_TARGET_CACHE = "ss4-share-target";
+const SS4_SHARE_TARGET_PREFIX = "/__ss4-share-target";
+
+function ss4ShareTargetCacheUrl(path: string): string {
+  return new URL(path, self.location.origin).href;
+}
+
+async function handleSS4ShareTargetPost(request: Request): Promise<Response> {
+  const shareId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const manifest: {
+    createdAt: number;
+    title?: string;
+    text?: string;
+    url?: string;
+    files: Array<{ index: number; name: string; type: string; size: number; lastModified: number; path: string }>;
+  } = {
+    createdAt: Date.now(),
+    files: [],
+  };
+
+  try {
+    const formData = await request.formData();
+    const cache = await caches.open(SS4_SHARE_TARGET_CACHE);
+    const files: File[] = [];
+
+    formData.forEach((value, key) => {
+      if (typeof value === "string") {
+        if (key === "title" && value) manifest.title = value;
+        if (key === "text" && value) manifest.text = value;
+        if (key === "url" && value) manifest.url = value;
+        return;
+      }
+      if (value.size > 0) files.push(value);
+    });
+
+    await Promise.all(files.map(async (file, index) => {
+      const fileName = file.name || `shared-media-${index + 1}`;
+      const fileType = file.type || "application/octet-stream";
+      const path = `${SS4_SHARE_TARGET_PREFIX}/${shareId}/${index}`;
+      await cache.put(ss4ShareTargetCacheUrl(path), new Response(file, {
+        headers: {
+          "Content-Type": fileType,
+          "Cache-Control": "no-store",
+        },
+      }));
+      manifest.files.push({
+        index,
+        name: fileName,
+        type: fileType,
+        size: file.size,
+        lastModified: file.lastModified || Date.now(),
+        path,
+      });
+    }));
+
+    await cache.put(ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${shareId}/manifest`), new Response(JSON.stringify(manifest), {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+    }));
+  } catch {
+  }
+
+  const isSupraSpaceSubdomain = self.location.origin === "https://space.suprah-app.com";
+  const params = new URLSearchParams({ shareTargetId: shareId });
+  const base = isSupraSpaceSubdomain ? "/" : "/crm/supra-space";
+  return Response.redirect(new URL(`${base}?${params.toString()}`, self.location.origin).href, 303);
+}
+
+async function handleSS4ShareTargetCacheRequest(request: Request, url: URL): Promise<Response> {
+  const cache = await caches.open(SS4_SHARE_TARGET_CACHE);
+  if (request.method === "DELETE") {
+    const id = url.pathname.split("/")[2] || "";
+    if (id) {
+      const prefix = ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${id}/`);
+      const keys = await cache.keys();
+      await Promise.all(keys.map(key => key.url.startsWith(prefix) ? cache.delete(key) : Promise.resolve(false)));
+    }
+    return new Response(null, { status: 204 });
+  }
+  const cached = await cache.match(request);
+  return cached || new Response("Not found", { status: 404 });
+}
+
+self.addEventListener("fetch", (event: any) => {
+  const request = event.request as Request;
+  const url = new URL(request.url);
+  if (request.method === "POST" && SS4_SHARE_TARGET_PATHS.has(url.pathname)) {
+    event.respondWith(handleSS4ShareTargetPost(request));
+    return;
+  }
+  if ((request.method === "GET" || request.method === "DELETE") && url.pathname.startsWith(`${SS4_SHARE_TARGET_PREFIX}/`)) {
+    event.respondWith(handleSS4ShareTargetCacheRequest(request, url));
+  }
+});
+
 serwist.addEventListeners();
 
 // --- CUSTOM WEB PUSH LISTENERS ---
@@ -520,14 +618,22 @@ function openOrFocusNotificationTarget(notificationData: any) {
   // "/crm/supra-space") — see proxy.ts. Resolving it here, against whichever
   // origin is actually running this worker, is the only place that's known.
   let urlToOpen: URL;
-  if (notificationData.conversationId) {
+  let fallbackUrl: URL;
+  try {
+    fallbackUrl = new URL(notificationData.url || "/", self.location.origin);
+  } catch {
+    fallbackUrl = new URL("/", self.location.origin);
+  }
+  const conversationId = notificationData.conversationId || fallbackUrl.searchParams.get("conversationId") || fallbackUrl.searchParams.get("convId");
+  const messageId = notificationData.messageId || fallbackUrl.searchParams.get("messageId");
+  if (conversationId) {
     const isSupraSpaceSubdomain = self.location.origin === "https://space.suprah-app.com";
-    const params = new URLSearchParams({ conversationId: notificationData.conversationId });
-    if (notificationData.messageId) params.set("messageId", notificationData.messageId);
+    const params = new URLSearchParams({ conversationId });
+    if (messageId) params.set("messageId", messageId);
     const base = isSupraSpaceSubdomain ? "/" : "/crm/supra-space";
     urlToOpen = new URL(`${base}?${params.toString()}`, self.location.origin);
   } else {
-    urlToOpen = new URL(notificationData.url || "/", self.location.origin);
+    urlToOpen = fallbackUrl;
   }
   const targetHref = urlToOpen.href;
   const targetPathname = urlToOpen.pathname;

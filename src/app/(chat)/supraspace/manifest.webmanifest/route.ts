@@ -15,6 +15,37 @@ export function GET() {
             display: 'standalone',
             background_color: '#0e0f11',
             theme_color: '#16a34a',
+            share_target: {
+                action: '/share-target',
+                method: 'POST',
+                enctype: 'multipart/form-data',
+                params: {
+                    title: 'title',
+                    text: 'text',
+                    url: 'url',
+                    files: [
+                        {
+                            name: 'media',
+                            accept: [
+                                'image/*',
+                                'video/*',
+                                '.jpg',
+                                '.jpeg',
+                                '.png',
+                                '.gif',
+                                '.webp',
+                                '.heic',
+                                '.heif',
+                                '.mp4',
+                                '.mov',
+                                '.webm',
+                                '.m4v',
+                                '.3gp',
+                            ],
+                        },
+                    ],
+                },
+            },
             icons: [
                 { src: '/supra-space/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
                 { src: '/supra-space/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
