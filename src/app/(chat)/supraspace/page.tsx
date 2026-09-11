@@ -48,7 +48,7 @@ const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet)
 const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
 const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
 import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
-import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT } from '@/lib/timezone';
+import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT, todayStrMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
@@ -1020,6 +1020,46 @@ const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
   '.mpeg': 'video/mpeg',
   '.mpg': 'video/mpeg',
   '.ogv': 'video/ogg',
+};
+const SS4_CLIPBOARD_TYPE_MIME: Record<string, string> = {
+  'public.mpeg-4': 'video/mp4',
+  'public.movie': 'video/quicktime',
+  'public.video': 'video/quicktime',
+  'com.apple.quicktime-movie': 'video/quicktime',
+  'com.apple.m4v-video': 'video/x-m4v',
+  'public.avi': 'video/x-msvideo',
+  'public.mpeg': 'video/mpeg',
+  'public.3gpp': 'video/3gpp',
+  'public.jpeg': 'image/jpeg',
+  'public.jpg': 'image/jpeg',
+  'public.png': 'image/png',
+  'public.gif': 'image/gif',
+  'com.compuserve.gif': 'image/gif',
+  'public.heic': 'image/heic',
+  'public.heif': 'image/heif',
+};
+const SS4_MIME_EXTENSION_PREFERENCE: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
+  'image/bmp': '.bmp',
+  'image/tiff': '.tiff',
+  'image/avif': '.avif',
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'video/x-quicktime': '.mov',
+  'video/webm': '.webm',
+  'video/x-m4v': '.m4v',
+  'video/x-msvideo': '.avi',
+  'video/x-matroska': '.mkv',
+  'video/x-ms-wmv': '.wmv',
+  'video/x-flv': '.flv',
+  'video/3gpp': '.3gp',
+  'video/mpeg': '.mpeg',
+  'video/ogg': '.ogv',
 };
 const SS4_REACTIONS = [
   '\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}',
@@ -3778,6 +3818,56 @@ function getMediaMimeType(file: Pick<File, 'name' | 'type'>): string {
   if (inferred && (!file.type || file.type === 'application/octet-stream' || file.type === 'audio/mp4')) return inferred;
   return file.type || inferred || 'application/octet-stream';
 }
+function normalizeSS4ClipboardMimeType(type?: string | null): string {
+  const value = String(type || '').split(';')[0].trim().toLowerCase();
+  if (!value) return '';
+  const mapped = SS4_CLIPBOARD_TYPE_MIME[value] || value;
+  if (mapped === 'image/jpg') return 'image/jpeg';
+  if (mapped === 'video/x-quicktime') return 'video/quicktime';
+  return mapped;
+}
+function getSS4PreferredExtensionForMime(mimeType: string): string {
+  const normalized = normalizeSS4ClipboardMimeType(mimeType);
+  if (SS4_MIME_EXTENSION_PREFERENCE[normalized]) return SS4_MIME_EXTENSION_PREFERENCE[normalized];
+  return Object.entries(SS4_MEDIA_EXTENSION_MIME).find(([, value]) => value === normalized)?.[0] || '';
+}
+function sanitizeSS4PastedFileBaseName(name: string, fallback: string): string {
+  const extension = getMediaExtension(name);
+  const withoutExtension = extension ? name.slice(0, -extension.length) : name;
+  return (withoutExtension || fallback)
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/\.+$/g, '')
+    .trim() || fallback;
+}
+function normalizeSS4ClipboardFile(file: File, sourceType?: string | null, index = 0): File {
+  const fileMime = normalizeSS4ClipboardMimeType(file.type);
+  const sourceMime = normalizeSS4ClipboardMimeType(sourceType);
+  const extension = getMediaExtension(file.name);
+  const inferred = SS4_MEDIA_EXTENSION_MIME[extension];
+  let mimeType = fileMime || sourceMime || inferred || 'application/octet-stream';
+  if (inferred && (!fileMime || fileMime === 'application/octet-stream' || fileMime === 'audio/mp4')) mimeType = inferred;
+  if (
+    sourceMime
+    && (sourceMime.startsWith('video/') || sourceMime.startsWith('image/'))
+    && (!fileMime || fileMime === 'application/octet-stream' || fileMime === 'audio/mp4')
+  ) {
+    mimeType = sourceMime;
+  }
+  const preferredExtension = getSS4PreferredExtensionForMime(mimeType);
+  const hasKnownMediaExtension = Boolean(inferred);
+  const rawName = file.name?.trim() || '';
+  const shouldRename = !rawName || (preferredExtension && !hasKnownMediaExtension);
+  const name = shouldRename
+    ? `${sanitizeSS4PastedFileBaseName(rawName, mimeType.startsWith('video/') ? `pasted-video-${index + 1}` : `pasted-file-${index + 1}`)}${preferredExtension}`
+    : rawName;
+  if (name === file.name && mimeType === file.type) return file;
+  try {
+    return new File([file], name, { type: mimeType, lastModified: file.lastModified || Date.now() });
+  } catch {
+    return file;
+  }
+}
 function getAttachmentMimeType(attachment: Pick<SSAttachment, 'originalName' | 'mimeType'>): string {
   const extension = getMediaExtension(attachment.originalName);
   const inferred = SS4_MEDIA_EXTENSION_MIME[extension];
@@ -3794,6 +3884,340 @@ const getConvName = (c: SSConversation, uid: string) => {
 const getConvAvatar = (c: SSConversation, uid: string) =>
   c.type === 'group' ? c.avatar : safeMembers(c).find(m => m._id !== uid)?.avatar;
 const getConvEmoji = (c: SSConversation) => c.type === 'group' ? (c.emoji || null) : null;
+const SS4_THREAD_REPORT_CONTROL_TAG = /\{\s*(?:color|font|size)\s*:\s*[^{}\n]+\s*\}|\{\s*\/\s*(?:color|font|size)\s*\}/gi;
+
+function cleanSS4ThreadReportContent(content?: string | null): string {
+  if (!content) return '';
+  return normalizeSupraSpaceLegacyMarkup(content)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(SS4_THREAD_REPORT_CONTROL_TAG, '')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+    .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1$2')
+    .replace(/\*{2,}/g, '')
+    .replace(/_{2,}/g, '')
+    .replace(/~{2,}/g, '')
+    .split('\n')
+    .map(line => stripResidualSupraSpaceInlineControlMarkers(line).replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function formatSS4ThreadReportDate(dateStr: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return dateStr;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0));
+  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: MDT_TZ });
+}
+
+function formatSS4ThreadAttachmentDuration(seconds?: number): string {
+  if (!seconds || !Number.isFinite(seconds)) return '';
+  const rounded = Math.max(0, Math.round(seconds));
+  const mins = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `0:${String(secs).padStart(2, '0')}`;
+}
+
+function getSS4ThreadAttachmentLabel(attachment: SSAttachment): string {
+  const mimeType = getAttachmentMimeType(attachment);
+  const name = attachment.originalName || 'Attachment';
+  if (mimeType.startsWith('image/')) return `Image: ${name}`;
+  if (mimeType.startsWith('video/')) return `Video: ${name}`;
+  if (mimeType.startsWith('audio/')) {
+    const duration = formatSS4ThreadAttachmentDuration(attachment.duration);
+    return duration ? `Voice message: ${name} (${duration})` : `Voice message: ${name}`;
+  }
+  return `Attachment: ${name}`;
+}
+
+function getSS4ThreadReportMessageLines(message: SSMessage): string[] {
+  const lines: string[] = [];
+  const content = cleanSS4ThreadReportContent(message.content);
+  if (content) lines.push(content);
+  if (message.gif?.url) lines.push(message.gif.title ? `GIF: ${message.gif.title}` : 'GIF');
+  if (message.poll) {
+    lines.push(`Poll: ${message.poll.question}`);
+    message.poll.options.forEach((option, index) => lines.push(`${index + 1}. ${option.text} (${option.votes.length})`));
+  }
+  if (message.event) {
+    lines.push(`Event: ${message.event.title}`);
+    if (message.event.startTime) lines.push(`Starts: ${new Date(message.event.startTime).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: MDT_TZ })}`);
+    if (message.event.location) lines.push(`Location: ${message.event.location}`);
+  }
+  (message.attachments || []).forEach(attachment => lines.push(getSS4ThreadAttachmentLabel(attachment)));
+  return lines;
+}
+
+type SS4ThreadReportEntry = {
+  time: string;
+  sender: string;
+  lines: string[];
+};
+
+type SS4ThreadReportDocument = {
+  title: string;
+  conversationName: string;
+  dateLabel: string;
+  dateValue: string;
+  timezoneLabel: string;
+  generatedAt: string;
+  messageCount: number;
+  truncated: boolean;
+  entries: SS4ThreadReportEntry[];
+};
+
+type SS4ThreadReportAction = 'pdf' | 'docx' | 'copy';
+
+function formatSS4ThreadReportGeneratedAt(): string {
+  return new Date().toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: MDT_TZ,
+    timeZoneName: 'short',
+  });
+}
+
+function buildSS4ThreadReportDocument(conversation: SSConversation, uid: string, dateStr: string, messages: SSMessage[], truncated?: boolean): SS4ThreadReportDocument {
+  const conversationName = getConvName(conversation, uid);
+  return {
+    title: `${conversationName} Thread Report`,
+    conversationName,
+    dateLabel: formatSS4ThreadReportDate(dateStr),
+    dateValue: dateStr,
+    timezoneLabel: 'Mountain Time',
+    generatedAt: formatSS4ThreadReportGeneratedAt(),
+    messageCount: messages.length,
+    truncated: Boolean(truncated),
+    entries: messages.map(message => ({
+      time: fmtTimeMDT(message.createdAt),
+      sender: message.sender?.fullName || message.sender?.username || 'Deleted User',
+      lines: getSS4ThreadReportMessageLines(message),
+    })),
+  };
+}
+
+function buildSS4ThreadReportText(report: SS4ThreadReportDocument): string {
+  const lines = [
+    report.title,
+    'SupraSpace Conversation Export',
+    `Conversation: ${report.conversationName}`,
+    `Date: ${report.dateLabel} (${report.timezoneLabel})`,
+    `Generated: ${report.generatedAt}`,
+    `Messages: ${report.messageCount}${report.truncated ? ' (first 1000 shown)' : ''}`,
+    '',
+  ];
+
+  if (report.entries.length === 0) {
+    lines.push('No messages found for this date.');
+    return lines.join('\n');
+  }
+
+  report.entries.forEach(entry => {
+    lines.push(`[${entry.time}] ${entry.sender}:`);
+    lines.push(...(entry.lines.length ? entry.lines : ['No text content']));
+    lines.push('');
+  });
+
+  return lines.join('\n').trimEnd();
+}
+
+function getSS4ThreadReportBaseFilename(conversation: SSConversation, uid: string, dateStr: string): string {
+  const convName = getConvName(conversation, uid)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'conversation';
+  return `supraspace-thread-${convName}-${dateStr}`;
+}
+
+function escapeSS4DocxXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function downloadSS4ThreadReportPdf(report: SS4ThreadReportDocument, filename: string) {
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 48;
+  const maxWidth = pageWidth - margin * 2;
+  const bodyX = margin + 86;
+  const bodyWidth = pageWidth - bodyX - margin;
+  let y = margin;
+
+  const addPageIfNeeded = (needed = 36) => {
+    if (y + needed <= pageHeight - margin) return;
+    pdf.addPage();
+    y = margin;
+  };
+
+  pdf.setFillColor(16, 185, 129);
+  pdf.roundedRect(margin, margin, 7, 72, 3, 3, 'F');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(20);
+  pdf.setTextColor(17, 24, 39);
+  pdf.text(report.title, margin + 18, y + 18, { maxWidth: maxWidth - 18 });
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  pdf.setTextColor(75, 85, 99);
+  pdf.text('SupraSpace Conversation Export', margin + 18, y + 38);
+  pdf.text(`Generated ${report.generatedAt}`, margin + 18, y + 54);
+  y += 98;
+
+  const metaY = y;
+  const metaGap = 10;
+  const metaWidth = (maxWidth - metaGap * 2) / 3;
+  const addMeta = (x: number, label: string, value: string) => {
+    pdf.setDrawColor(229, 231, 235);
+    pdf.setFillColor(249, 250, 251);
+    pdf.roundedRect(x, metaY, metaWidth, 52, 8, 8, 'FD');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(label.toUpperCase(), x + 12, metaY + 17);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(17, 24, 39);
+    const wrapped = pdf.splitTextToSize(value || '-', metaWidth - 24) as string[];
+    pdf.text(wrapped.slice(0, 2), x + 12, metaY + 34);
+  };
+  addMeta(margin, 'Conversation', report.conversationName);
+  addMeta(margin + metaWidth + metaGap, 'Date', report.dateLabel);
+  addMeta(margin + (metaWidth + metaGap) * 2, 'Messages', `${report.messageCount}${report.truncated ? ' of first 1000' : ''}`);
+  y += 86;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor(17, 24, 39);
+  pdf.text('Conversation Thread', margin, y);
+  y += 24;
+
+  if (report.entries.length === 0) {
+    pdf.setDrawColor(229, 231, 235);
+    pdf.setFillColor(249, 250, 251);
+    pdf.roundedRect(margin, y, maxWidth, 48, 8, 8, 'FD');
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(75, 85, 99);
+    pdf.text('No messages found for this date.', margin + 14, y + 28);
+  } else {
+    report.entries.forEach((entry, index) => {
+      const textLines = entry.lines.length ? entry.lines : ['No text content'];
+      const wrappedBody = textLines.flatMap(line => pdf.splitTextToSize(line || ' ', bodyWidth) as string[]);
+      const blockHeight = Math.max(48, 25 + wrappedBody.length * 13);
+      addPageIfNeeded(blockHeight);
+      if (index > 0) {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(margin, y - 8, pageWidth - margin, y - 8);
+      }
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9);
+      pdf.setTextColor(16, 185, 129);
+      pdf.text(entry.time, margin, y);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10.5);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text(entry.sender, bodyX, y);
+      y += 16;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(55, 65, 81);
+      wrappedBody.forEach(line => {
+        addPageIfNeeded(18);
+        pdf.text(line, bodyX, y);
+        y += 13;
+      });
+      y += 14;
+    });
+  }
+
+  const pageCount = pdf.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    pdf.setPage(page);
+    pdf.setDrawColor(229, 231, 235);
+    pdf.line(margin, pageHeight - 34, pageWidth - margin, pageHeight - 34);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text('SupraSpace', margin, pageHeight - 18);
+    pdf.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 18, { align: 'right' });
+  }
+
+  downloadBlob(pdf.output('blob'), filename);
+}
+
+function ss4DocxRun(text: string, options: { bold?: boolean; color?: string; size?: number } = {}): string {
+  const props = [
+    options.bold ? '<w:b/>' : '',
+    options.color ? `<w:color w:val="${options.color}"/>` : '',
+    options.size ? `<w:sz w:val="${options.size}"/>` : '',
+  ].join('');
+  return `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ''}<w:t xml:space="preserve">${escapeSS4DocxXml(text || ' ')}</w:t></w:r>`;
+}
+
+function ss4DocxParagraph(runs: string | string[], options: { spacingAfter?: number } = {}): string {
+  const body = Array.isArray(runs) ? runs.join('') : ss4DocxRun(runs);
+  const spacing = options.spacingAfter == null ? '' : `<w:spacing w:after="${options.spacingAfter}"/>`;
+  return `<w:p>${spacing ? `<w:pPr>${spacing}</w:pPr>` : ''}${body}</w:p>`;
+}
+
+async function downloadSS4ThreadReportDocx(report: SS4ThreadReportDocument, filename: string) {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip();
+  const paragraphs = [
+    ss4DocxParagraph([ss4DocxRun(report.title, { bold: true, size: 32, color: '111827' })], { spacingAfter: 120 }),
+    ss4DocxParagraph([ss4DocxRun('SupraSpace Conversation Export', { bold: true, size: 20, color: '10B981' })], { spacingAfter: 160 }),
+    ss4DocxParagraph([
+      ss4DocxRun('Conversation: ', { bold: true }),
+      ss4DocxRun(report.conversationName),
+    ], { spacingAfter: 40 }),
+    ss4DocxParagraph([
+      ss4DocxRun('Date: ', { bold: true }),
+      ss4DocxRun(`${report.dateLabel} (${report.timezoneLabel})`),
+    ], { spacingAfter: 40 }),
+    ss4DocxParagraph([
+      ss4DocxRun('Generated: ', { bold: true }),
+      ss4DocxRun(report.generatedAt),
+    ], { spacingAfter: 40 }),
+    ss4DocxParagraph([
+      ss4DocxRun('Messages: ', { bold: true }),
+      ss4DocxRun(`${report.messageCount}${report.truncated ? ' (first 1000 shown)' : ''}`),
+    ], { spacingAfter: 240 }),
+    ss4DocxParagraph([ss4DocxRun('Conversation Thread', { bold: true, size: 24, color: '111827' })], { spacingAfter: 120 }),
+    ...(report.entries.length === 0
+      ? [ss4DocxParagraph('No messages found for this date.', { spacingAfter: 120 })]
+      : report.entries.flatMap(entry => [
+        ss4DocxParagraph([
+          ss4DocxRun(`[${entry.time}] `, { bold: true, color: '10B981' }),
+          ss4DocxRun(entry.sender, { bold: true, color: '111827' }),
+        ], { spacingAfter: 40 }),
+        ...(entry.lines.length ? entry.lines : ['No text content']).map(line => ss4DocxParagraph(line, { spacingAfter: 40 })),
+        ss4DocxParagraph(' ', { spacingAfter: 120 }),
+      ])),
+  ].join('');
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>');
+  zip.folder('_rels')?.file('.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>');
+  zip.folder('docProps')?.file('core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>SupraSpace Thread Report</dc:title><dc:creator>Suprah.AI</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`);
+  zip.folder('docProps')?.file('app.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Suprah.AI</Application></Properties>');
+  zip.folder('word')?.file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>`);
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  downloadBlob(blob, filename);
+}
 
 const avaColors = ['ss4-ava-accent', 'ss4-ava-purple', 'ss4-ava-teal'];
 const getAvaColor = (name: string) => avaColors[(name || 'x').charCodeAt(0) % avaColors.length];
@@ -4247,16 +4671,20 @@ function clipboardAttachmentFiles(data: DataTransfer | null | undefined): File[]
   if (!data) return [];
   const byName = new Set<string>();
   const files: File[] = [];
-  const add = (file: File | null) => {
+  const add = (file: File | null, sourceType?: string | null) => {
     if (!file || file.size <= 0) return;
-    const key = `${file.name}:${file.type}:${file.size}`;
+    const rawKey = `${file.name || ''}:${file.type || ''}:${sourceType || ''}:${file.size}:${file.lastModified || ''}`;
+    if (byName.has(rawKey)) return;
+    const normalized = normalizeSS4ClipboardFile(file, sourceType, files.length);
+    const key = `${normalized.name}:${normalized.type}:${normalized.size}`;
     if (byName.has(key)) return;
+    byName.add(rawKey);
     byName.add(key);
-    files.push(file);
+    files.push(normalized);
   };
-  Array.from(data.files || []).forEach(add);
+  Array.from(data.files || []).forEach(file => add(file, file.type));
   Array.from(data.items || []).forEach(item => {
-    if (item.kind === 'file') add(item.getAsFile());
+    if (item.kind === 'file') add(item.getAsFile(), item.type);
   });
   return files;
 }
@@ -6997,6 +7425,68 @@ function MobileFilePicker({ files, maxFiles, onBrowse, onRemove, onClear, onClos
   );
 }
 
+function ThreadReportModal({
+  conversationName,
+  date,
+  working,
+  onDateChange,
+  onClose,
+  onAction,
+}: {
+  conversationName: string;
+  date: string;
+  working: SS4ThreadReportAction | null;
+  onDateChange: (date: string) => void;
+  onClose: () => void;
+  onAction: (format: SS4ThreadReportAction) => void;
+}) {
+  return (
+    <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ss4-modal w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
+            <FileText className="h-4.5 w-4.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="ss4-display truncate font-bold" style={{ color: 'var(--text-primary)', fontSize: 15 }}>Thread Report</p>
+            <p className="truncate" style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{conversationName}</p>
+          </div>
+          <button type="button" onClick={onClose} className="ss4-icon-btn h-8 w-8 shrink-0" aria-label="Close thread report">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4 p-4">
+          <label className="block">
+            <span className="mb-1.5 block font-semibold" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Date</span>
+            <input
+              type="date"
+              value={date}
+              onChange={e => onDateChange(e.target.value)}
+              className="ss4-search-input h-10 w-full px-3 text-sm"
+            />
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => onAction('pdf')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
+              {working === 'pdf' ? 'Saving...' : 'PDF'}
+            </button>
+            <button type="button" onClick={() => onAction('docx')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
+              {working === 'docx' ? 'Saving...' : 'DOCX'}
+            </button>
+            <button type="button" onClick={() => onAction('copy')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
+              {working === 'copy' ? 'Copying...' : 'Copy Text'}
+            </button>
+          </div>
+          <div className="flex items-center justify-end">
+            <button type="button" onClick={onClose} className="ss4-pill-btn h-9 px-3 font-semibold" style={{ fontSize: 12 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean; inline?: boolean }) {
   const [q, setQ] = React.useState('');
   const [gifs, setGifs] = React.useState<any[]>([]);
@@ -9169,10 +9659,16 @@ export default function SupraSpacePage() {
   const [conversationsOffset, setConversationsOffset] = React.useState(0);
   const [loadingMoreConversations, setLoadingMoreConversations] = React.useState(false);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [threadReportOpen, setThreadReportOpen] = React.useState(false);
+  const [threadReportDate, setThreadReportDate] = React.useState(() => todayStrMDT());
+  const [threadReportWorking, setThreadReportWorking] = React.useState<SS4ThreadReportAction | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   const handledRouteConversationIdRef = React.useRef<string | null>(null);
   const handledRouteUserIdRef = React.useRef<string | null>(null);
   React.useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  React.useEffect(() => {
+    if (!activeId) setThreadReportOpen(false);
+  }, [activeId]);
   React.useEffect(() => {
     if (loading || !activeId) return;
     setStoredSupraSpaceConversationId(activeId, uid);
@@ -9636,6 +10132,7 @@ export default function SupraSpacePage() {
   const composerDockRef = React.useRef<HTMLDivElement>(null);
   const composerCaretOffsetRef = React.useRef<number | null>(null);
   const composerSelectionRangeRef = React.useRef<Range | null>(null);
+  const handleUploadFilesRef = React.useRef<((selected: File[]) => Promise<void>) | null>(null);
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerMetricsTimerRef = React.useRef<number | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
@@ -9919,6 +10416,33 @@ export default function SupraSpacePage() {
   const showMessageLimitNotice = React.useCallback(() => {
     showUploadNotice('error', SS4_MESSAGE_LIMIT_ERROR);
   }, [showUploadNotice]);
+  const handleThreadReportAction = React.useCallback(async (format: SS4ThreadReportAction) => {
+    if (!activeConv || !token) return;
+    setThreadReportWorking(format);
+    try {
+      const res = await apiClient.get(`/api/supraspace/conversations/${activeConv._id}/thread-report`, {
+        params: { date: threadReportDate },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = res.data?.data || {};
+      const messages = Array.isArray(data.messages) ? data.messages as SSMessage[] : [];
+      const report = buildSS4ThreadReportDocument(activeConv, uid, data.date || threadReportDate, messages, Boolean(data.truncated));
+      const baseFilename = getSS4ThreadReportBaseFilename(activeConv, uid, data.date || threadReportDate);
+      if (format === 'pdf') await downloadSS4ThreadReportPdf(report, `${baseFilename}.pdf`);
+      else if (format === 'docx') await downloadSS4ThreadReportDocx(report, `${baseFilename}.docx`);
+      else {
+        if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(buildSS4ThreadReportText(report));
+      }
+      setThreadReportOpen(false);
+      const action = format === 'copy' ? 'copied' : 'downloaded';
+      toast.success(messages.length === 1 ? `Thread report ${action} with 1 message.` : `Thread report ${action} with ${messages.length} messages.`);
+    } catch (error) {
+      showUploadNotice('error', getErrorMessage(error, format === 'copy' ? 'Could not copy thread report.' : 'Could not download thread report.'));
+    } finally {
+      setThreadReportWorking(null);
+    }
+  }, [activeConv, threadReportDate, token, uid, showUploadNotice]);
   const me = myProfile;
 
   React.useEffect(() => {
@@ -11293,6 +11817,7 @@ export default function SupraSpacePage() {
     setPendingFiles(prev => [...prev, ...uniqueSelected]);
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
   }, [activeId, pendingFiles, showUploadNotice]);
+  handleUploadFilesRef.current = handleUploadFiles;
 
   const handleUpload = async (files: FileList | null) => {
     if (!files) return;
@@ -12894,6 +13419,14 @@ export default function SupraSpacePage() {
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = event.nativeEvent as InputEvent;
+    if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
+      const pastedAttachments = clipboardAttachmentFiles(inputEvent.dataTransfer);
+      if (pastedAttachments.length > 0 && handleUploadFilesRef.current) {
+        event.preventDefault();
+        void handleUploadFilesRef.current(pastedAttachments);
+        return;
+      }
+    }
     if (
       inputEvent.inputType === 'insertParagraph'
       || inputEvent.inputType === 'insertLineBreak'
@@ -14247,6 +14780,9 @@ export default function SupraSpacePage() {
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setMeetingOpen(true)}><CalendarPlus className="h-3.5 w-3.5" /> Create Meeting</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      <button onClick={() => setThreadReportOpen(true)} className="ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8" title="Download thread report">
+                        <FileText className="h-5 w-5 lg:h-4 lg:w-4" />
+                      </button>
                       <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-5 w-5 lg:h-4 lg:w-4" /></button>
                     </div>
                   </div>
@@ -15526,6 +16062,16 @@ export default function SupraSpacePage() {
               viewerQuickReactions: settings.quickReactions,
               members: c.members.map(m => m._id === uid ? { ...m, displayNickname: settings.nickname || undefined } : m),
             }))}
+          />
+        )}
+        {threadReportOpen && activeConv && (
+          <ThreadReportModal
+            conversationName={getConvName(activeConv, uid)}
+            date={threadReportDate}
+            working={threadReportWorking}
+            onDateChange={setThreadReportDate}
+            onClose={() => setThreadReportOpen(false)}
+            onAction={handleThreadReportAction}
           />
         )}
         {showMobileInstallGate && (

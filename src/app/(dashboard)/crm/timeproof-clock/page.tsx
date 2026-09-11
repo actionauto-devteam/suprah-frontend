@@ -82,6 +82,7 @@ interface CrmUserData {
   role: string
   department?: string
   locationRequiredForTimeproof?: boolean
+  isMobileMonitoringDept?: boolean
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -334,6 +335,7 @@ export default function TimeprofClockPage() {
 
   const authModeRef = React.useRef<'crm' | 'main'>('crm')
   const [user, setUser] = React.useState<CrmUserData | null>(null)
+  const mobileMonitoringUser = user?.isMobileMonitoringDept ?? isMobileMonitoringDept(user?.department)
   const [token, setToken] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(true)
   const [todayLogs, setTodayLogs] = React.useState<CrmUserData["todayTimeLogs"]>([])
@@ -624,7 +626,7 @@ export default function TimeprofClockPage() {
         try {
           const mainRes = await apiClient.get("/api/timeclock/me")
           const mainData = mainRes.data?.data || mainRes.data
-          if (isMobileMonitoringDept(mainData?.department)) {
+          if (mainData?.isMobileMonitoringDept ?? isMobileMonitoringDept(mainData?.department)) {
             authModeRef.current = 'main'
             setUser(mainData)
             setToken('__main__')
@@ -710,7 +712,7 @@ export default function TimeprofClockPage() {
       ? { _skipAuthRefresh: true } as RequestConfigWithSkipRefresh
       : { headers: { Authorization: `Bearer ${freshToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh
     try {
-      const res = await apiClient.post(clockEndpoint, { type, ...(note && { note }) }, clockOptions)
+      const res = await apiClient.post(clockEndpoint, { type, ...(note && { note }), ...(type === "time-in" && { deviceHint: getDeviceHint() }) }, clockOptions)
       const data = res.data?.data || res.data
       setTodayLogs(data.todayLogs || [])
       if (type === "time-out") {
@@ -816,7 +818,7 @@ export default function TimeprofClockPage() {
   }, [token])
 
   const checkTrayAndStartShift = React.useCallback(async () => {
-    const isLotTech = isMobileMonitoringDept(user?.department)
+    const isLotTech = mobileMonitoringUser
     const isMain = authModeRef.current === 'main'
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (isGenuineMobileDevice || isLotTech || isMain) {
@@ -837,7 +839,7 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [user?.department, checkResumableAndStart])
+  }, [mobileMonitoringUser, checkResumableAndStart])
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
@@ -893,7 +895,7 @@ export default function TimeprofClockPage() {
         fetchActivityState()
       }
     } else {
-      const isLotTech = isMobileMonitoringDept(user?.department)
+      const isLotTech = mobileMonitoringUser
       const isMain = authModeRef.current === 'main'
       const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
       if (!(isGenuineMobileDevice || isLotTech || isMain)) {
@@ -926,7 +928,7 @@ export default function TimeprofClockPage() {
   }
 
   const handleResumePausedShift = async () => {
-    const isLotTech = isMobileMonitoringDept(user?.department)
+    const isLotTech = mobileMonitoringUser
     const isMain = authModeRef.current === 'main'
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (!(isGenuineMobileDevice || isLotTech || isMain)) {
@@ -1348,7 +1350,7 @@ export default function TimeprofClockPage() {
                 </div>
 
                 {!isActive && (
-                  (isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main') ? (
+                  (isMobile && !mobileMonitoringUser && authModeRef.current !== 'main') ? (
                     <div className="h-12 w-full rounded-xl border border-zinc-700/40 bg-zinc-800/30 flex items-center justify-center gap-2 px-4">
                       <MonitorDot className="h-4 w-4 text-zinc-400 shrink-0" />
                       <p className="text-[13px] text-zinc-400 font-bold text-center">Shift tracking requires the desktop app</p>
@@ -1365,7 +1367,7 @@ export default function TimeprofClockPage() {
                 )}
                 {isActive && (() => {
                   const isPausedOnShift = !isOnBreak && activityStartAt === null
-                  const showMobileEndShiftHint = isMobile && !isMobileMonitoringDept(user?.department) && authModeRef.current !== 'main'
+                  const showMobileEndShiftHint = isMobile && !mobileMonitoringUser && authModeRef.current !== 'main'
                   return (
                     <div className="grid grid-cols-2 gap-2">
                       {showMobileEndShiftHint && (

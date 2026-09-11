@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api-client"
-import { DEPT_COLOR_PALETTE, DEPT_COLOR_HEX, DepartmentEntry } from "@/lib/departments"
+import { DEPT_COLOR_PALETTE, DEPT_COLOR_HEX, DepartmentEntry, MobileMonitoringMode } from "@/lib/departments"
 
 interface DepartmentFormModalProps {
   token: string
@@ -33,23 +34,25 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
 
   const [label, setLabel] = React.useState("")
   const [color, setColor] = React.useState<string>(DEPT_COLOR_PALETTE[0])
-  const [isMobileMonitoringDept, setIsMobileMonitoringDept] = React.useState(false)
+  const [mobileMonitoringMode, setMobileMonitoringMode] = React.useState<MobileMonitoringMode>("off")
   const [isTimeEditExempt, setIsTimeEditExempt] = React.useState(false)
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(false)
   const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(true)
+  const [detectIdle, setDetectIdle] = React.useState(true)
   const [isSaving, setIsSaving] = React.useState(false)
 
   React.useEffect(() => {
     if (!open) return
     setLabel(department?.label ?? "")
     setColor(department?.color ?? DEPT_COLOR_PALETTE[0])
-    setIsMobileMonitoringDept(!!department?.isMobileMonitoringDept)
+    setMobileMonitoringMode((department?.mobileMonitoringMode ?? (department?.isMobileMonitoringDept ? "always" : "off")) as MobileMonitoringMode)
     setIsTimeEditExempt(!!department?.isTimeEditExempt)
     setIsMandatoryLocationDept(!!department?.isMandatoryLocationDept)
     // Defaults ON for a brand-new department (isEdit false, department null) —
     // matches the feature's existing behavior for everyone unless an admin
     // explicitly exempts this department.
     setLocationRequiredForTimeproof(department ? department.locationRequiredForTimeproof !== false : true)
+    setDetectIdle(department ? department.detectIdle !== false : true)
   }, [open, department])
 
   const handleSubmit = async () => {
@@ -62,10 +65,11 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
       const payload = {
         label: label.trim(),
         color,
-        isMobileMonitoringDept,
+        mobileMonitoringMode,
         isTimeEditExempt,
         isMandatoryLocationDept,
         locationRequiredForTimeproof,
+        detectIdle,
       }
       if (isEdit) {
         await apiClient.patch(`/api/crm/departments/${department!._id}`, payload, {
@@ -142,10 +146,19 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
             </p>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold">Mobile Monitoring</p>
-                <p className="text-[11px] text-muted-foreground/60">Uses GPS/stationary tracking instead of desktop screenshots</p>
+                <p className="text-xs font-semibold">Monitoring Mode</p>
+                <p className="text-[11px] text-muted-foreground/60">Screenshots = desktop capture. Mobile only = GPS tracking, no screenshots. Switching = both by device.</p>
               </div>
-              <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
+              <Select value={mobileMonitoringMode} onValueChange={(v) => setMobileMonitoringMode(v as MobileMonitoringMode)}>
+                <SelectTrigger className="h-9 w-[140px] rounded-lg text-xs shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="off" className="rounded-lg text-sm">Screenshots</SelectItem>
+                  <SelectItem value="always" className="rounded-lg text-sm">Mobile only</SelectItem>
+                  <SelectItem value="switching" className="rounded-lg text-sm">Switching</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {!hideTimeEditToggle && (
               <div className="flex items-center justify-between gap-3">
@@ -169,6 +182,13 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
                 <p className="text-[11px] text-muted-foreground/60">Off = no location alerts, no auto-clockout — TimeProof works normally without location sharing</p>
               </div>
               <Switch checked={locationRequiredForTimeproof} onCheckedChange={setLocationRequiredForTimeproof} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold">Idle Detection</p>
+                <p className="text-[11px] text-muted-foreground/60">Off = no idle tracking or idle alerts — screenshots keep capturing continuously</p>
+              </div>
+              <Switch checked={detectIdle} onCheckedChange={setDetectIdle} />
             </div>
           </div>
         </div>

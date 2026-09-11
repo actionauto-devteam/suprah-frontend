@@ -74,6 +74,7 @@ interface CrmUserRow {
   isOffboarded?: boolean
   screenshotExempt?: boolean
   locationRequiredOverride?: "default" | "required" | "exempt"
+  monitoringModeOverride?: "default" | "off" | "always" | "switching"
   payrollLocation?: "Utah" | "Philippines" | null
   hourlyTrackingExempt?: boolean
 }

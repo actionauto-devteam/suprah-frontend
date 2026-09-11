@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ArrowLeft, Loader2, Trash2, Eye, Users, Save, Star, Smartphone, Clock, MapPin,
-  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck, Radio,
+  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck, Radio, Hourglass,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,10 +14,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { apiClient } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
-import { DEPT_COLOR_PALETTE, DEPT_COLOR_HEX, DepartmentEntry } from "@/lib/departments"
+import { DEPT_COLOR_PALETTE, DEPT_COLOR_HEX, DepartmentEntry, MobileMonitoringMode } from "@/lib/departments"
 
 type DepartmentRow = DepartmentEntry & { _id: string }
 type Member = {
@@ -69,10 +70,12 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
   const [label, setLabel] = React.useState(dept.label)
   const [color, setColor] = React.useState(dept.color)
   const [isDefault, setIsDefault] = React.useState(!!dept.isDefault)
-  const [isMobileMonitoringDept, setIsMobileMonitoringDept] = React.useState(dept.isMobileMonitoringDept)
+  const deptMobileMode = (dept.mobileMonitoringMode ?? (dept.isMobileMonitoringDept ? "always" : "off")) as MobileMonitoringMode
+  const [mobileMonitoringMode, setMobileMonitoringMode] = React.useState<MobileMonitoringMode>(deptMobileMode)
   const [isTimeEditExempt, setIsTimeEditExempt] = React.useState(dept.isTimeEditExempt)
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(dept.isMandatoryLocationDept)
   const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(dept.locationRequiredForTimeproof !== false)
+  const [detectIdle, setDetectIdle] = React.useState(dept.detectIdle !== false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [isBusy, setIsBusy] = React.useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = React.useState(false)
@@ -93,19 +96,21 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     label.trim() !== dept.label ||
     color !== dept.color ||
     isDefault !== !!dept.isDefault ||
-    isMobileMonitoringDept !== dept.isMobileMonitoringDept ||
+    mobileMonitoringMode !== deptMobileMode ||
     isTimeEditExempt !== dept.isTimeEditExempt ||
     isMandatoryLocationDept !== dept.isMandatoryLocationDept ||
-    locationRequiredForTimeproof !== (dept.locationRequiredForTimeproof !== false)
+    locationRequiredForTimeproof !== (dept.locationRequiredForTimeproof !== false) ||
+    detectIdle !== (dept.detectIdle !== false)
 
   React.useEffect(() => {
     setLabel(dept.label)
     setColor(dept.color)
     setIsDefault(!!dept.isDefault)
-    setIsMobileMonitoringDept(dept.isMobileMonitoringDept)
+    setMobileMonitoringMode((dept.mobileMonitoringMode ?? (dept.isMobileMonitoringDept ? "always" : "off")) as MobileMonitoringMode)
     setIsTimeEditExempt(dept.isTimeEditExempt)
     setIsMandatoryLocationDept(dept.isMandatoryLocationDept)
     setLocationRequiredForTimeproof(dept.locationRequiredForTimeproof !== false)
+    setDetectIdle(dept.detectIdle !== false)
     setMembers(null)
     setMemberFilter("")
     setConfirmRemoveId(null)
@@ -163,10 +168,11 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
         label: label.trim(),
         color,
         isDefault,
-        isMobileMonitoringDept,
+        mobileMonitoringMode,
         isTimeEditExempt,
         isMandatoryLocationDept,
         locationRequiredForTimeproof,
+        detectIdle,
       }, { headers: { Authorization: `Bearer ${token}` } })
       toast.success("Department updated")
       onSaved()
@@ -279,7 +285,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
   const viewerIsWebDev = currentAdminDepartment === 'WebDevTeam'
   const hideTimeEditToggle = isWebDev && !viewerIsWebDev
   const visibleToggleCount = hideTimeEditToggle ? 2 : 3
-  const permissionCount = [isMobileMonitoringDept, !hideTimeEditToggle && isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
+  const permissionCount = [mobileMonitoringMode !== "off", !hideTimeEditToggle && isTimeEditExempt, isMandatoryLocationDept].filter(Boolean).length
 
   return (
     <div className="flex flex-col h-full">
@@ -446,10 +452,19 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
                 <Smartphone className="h-4 w-4 text-blue-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold">Mobile Monitoring</p>
-                <p className="text-[11px] text-muted-foreground/60">Uses GPS/stationary tracking instead of desktop screenshots</p>
+                <p className="text-xs font-semibold">Monitoring Mode</p>
+                <p className="text-[11px] text-muted-foreground/60">Screenshots = desktop capture. Mobile only = GPS/stationary tracking, no screenshots. Switching = screenshots on desktop, GPS when on mobile.</p>
               </div>
-              <Switch checked={isMobileMonitoringDept} onCheckedChange={setIsMobileMonitoringDept} />
+              <Select value={mobileMonitoringMode} onValueChange={(v) => setMobileMonitoringMode(v as MobileMonitoringMode)}>
+                <SelectTrigger className="h-9 w-[150px] rounded-lg text-xs shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="off" className="rounded-lg text-sm">Screenshots</SelectItem>
+                  <SelectItem value="always" className="rounded-lg text-sm">Mobile only</SelectItem>
+                  <SelectItem value="switching" className="rounded-lg text-sm">Switching</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {!hideTimeEditToggle && (
@@ -485,6 +500,17 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
                 <p className="text-[11px] text-muted-foreground/60">Off = no location alerts, no auto-clockout — TimeProof works normally without location sharing</p>
               </div>
               <Switch checked={locationRequiredForTimeproof} onCheckedChange={setLocationRequiredForTimeproof} />
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
+              <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                <Hourglass className="h-4 w-4 text-violet-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold">Idle Detection</p>
+                <p className="text-[11px] text-muted-foreground/60">Off = no idle tracking or idle alerts — screenshots keep capturing continuously</p>
+              </div>
+              <Switch checked={detectIdle} onCheckedChange={setDetectIdle} />
             </div>
           </div>
         </TabsContent>

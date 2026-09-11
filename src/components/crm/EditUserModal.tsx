@@ -37,6 +37,7 @@ interface EditUserForm {
   department: string
   screenshotExempt: boolean
   locationRequiredOverride: "default" | "required" | "exempt"
+  monitoringModeOverride: "default" | "off" | "always" | "switching"
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
   otWarningExempt: boolean
@@ -65,6 +66,7 @@ interface EditUserModalProps {
     department?: string | null
     screenshotExempt?: boolean
     locationRequiredOverride?: "default" | "required" | "exempt"
+    monitoringModeOverride?: "default" | "off" | "always" | "switching"
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
     otWarningExempt?: boolean
@@ -103,6 +105,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     department: "",
     screenshotExempt: false,
     locationRequiredOverride: "default",
+    monitoringModeOverride: "default",
     payrollLocation: "",
     hourlyTrackingExempt: false,
     otWarningExempt: false,
@@ -121,6 +124,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         department: user.department ?? "",
         screenshotExempt: !!user.screenshotExempt,
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
+        monitoringModeOverride: user.monitoringModeOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
         otWarningExempt: !!user.otWarningExempt,
@@ -170,6 +174,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           department: form.department,
           screenshotExempt: form.screenshotExempt,
           locationRequiredOverride: form.locationRequiredOverride,
+          monitoringModeOverride: form.monitoringModeOverride,
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
           otWarningExempt: form.otWarningExempt,
@@ -403,6 +408,30 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 <SelectItem value="default" className="rounded-lg text-sm">Follow Department Default</SelectItem>
                 <SelectItem value="required" className="rounded-lg text-sm">Always Required</SelectItem>
                 <SelectItem value="exempt" className="rounded-lg text-sm">Always Exempt</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Monitoring Mode Override */}
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Monitoring Mode</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Overrides this account&apos;s department monitoring mode. Switching = screenshots on desktop, GPS location on mobile.
+              </p>
+            </div>
+            <Select
+              value={form.monitoringModeOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, monitoringModeOverride: v as EditUserForm["monitoringModeOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Department Default</SelectItem>
+                <SelectItem value="off" className="rounded-lg text-sm">Screenshots Only</SelectItem>
+                <SelectItem value="always" className="rounded-lg text-sm">Mobile / GPS Only</SelectItem>
+                <SelectItem value="switching" className="rounded-lg text-sm">Switching (Desktop + Mobile)</SelectItem>
               </SelectContent>
             </Select>
           </div>
