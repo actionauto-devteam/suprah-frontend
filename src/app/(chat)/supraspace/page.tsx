@@ -4642,6 +4642,78 @@ async function mediaUrlToBlob(url: string): Promise<Blob> {
   return res.blob();
 }
 
+type SS4PastedMediaReference = { url: string; local: boolean };
+
+function cleanSS4PastedUrlCandidate(value: string): string {
+  return value
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .replace(/^<+|>+$/g, '')
+    .replace(/[)\].,;]+$/g, '');
+}
+
+function isSS4MediaUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'file:') return false;
+    const extension = getMediaExtension(parsed.pathname);
+    return Boolean(extension && SS4_MEDIA_EXTENSION_MIME[extension] && (SS4_IMAGE_EXTENSIONS.has(extension) || SS4_VIDEO_EXTENSIONS.has(extension)));
+  } catch {
+    return false;
+  }
+}
+
+function getSS4PastedMediaReference(text: string, html: string): SS4PastedMediaReference | null {
+  const candidates: string[] = [];
+  const add = (value?: string | null) => {
+    if (!value) return;
+    const cleaned = cleanSS4PastedUrlCandidate(value);
+    if (cleaned) candidates.push(cleaned);
+  };
+
+  if (html) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('[src], [href]').forEach(node => {
+        add(node.getAttribute('src'));
+        add(node.getAttribute('href'));
+      });
+      add(doc.body?.textContent || '');
+    } catch {
+    }
+  }
+
+  const rawText = text || '';
+  const directMatches = rawText.match(/(?:https?:\/\/|file:\/\/)[^\s<>"']+/gi) || [];
+  directMatches.forEach(add);
+  const compactText = rawText.replace(/\s+/g, '');
+  if (/^(?:https?:\/\/|file:\/\/)/i.test(compactText)) add(compactText);
+  add(rawText);
+
+  for (const candidate of candidates) {
+    if (!isSS4MediaUrl(candidate)) continue;
+    return { url: candidate, local: candidate.toLowerCase().startsWith('file://') };
+  }
+  return null;
+}
+
+function isOnlySS4PastedMediaReference(text: string, reference: SS4PastedMediaReference | null): boolean {
+  if (!reference) return false;
+  const compactText = (text || '').replace(/\s+/g, '');
+  return compactText === reference.url.replace(/\s+/g, '');
+}
+
+async function ss4PastedMediaUrlToFile(url: string): Promise<File> {
+  const blob = await mediaUrlToBlob(url);
+  const parsed = new URL(url);
+  const rawName = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '');
+  const extension = getMediaExtension(rawName) || getSS4PreferredExtensionForMime(blob.type);
+  const baseName = sanitizeSS4PastedFileBaseName(rawName, blob.type.startsWith('video/') ? 'pasted-video' : 'pasted-media');
+  const mimeType = normalizeSS4ClipboardMimeType(blob.type) || SS4_MEDIA_EXTENSION_MIME[extension] || 'application/octet-stream';
+  const fileName = getMediaExtension(baseName) ? baseName : `${baseName}${extension || ''}`;
+  return normalizeSS4ClipboardFile(new File([blob], fileName, { type: mimeType, lastModified: Date.now() }), mimeType);
+}
+
 async function copyAttachmentToClipboard(attachment: SSAttachment): Promise<'file' | 'link'> {
   const mimeType = getAttachmentMimeType(attachment).split(';')[0].trim() || 'application/octet-stream';
   if (isImageAttachment(attachment)) {
@@ -10350,11 +10422,6 @@ export default function SupraSpacePage() {
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
-  // #channel-mention state
-  const [channelMentionQuery, setChannelMentionQuery] = React.useState<string | null>(null);
-  const [channelMentionAnchor, setChannelMentionAnchor] = React.useState<number>(-1);
-  const [channelMentionIdx, setChannelMentionIdx] = React.useState(0);
-
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceSocket(token || null);
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
@@ -11633,6 +11700,15 @@ export default function SupraSpacePage() {
         ),
       ),
     );
+    const pastedMediaReference = getSS4PastedMediaReference(content, '');
+    if (hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
+      if (pastedMediaReference?.local) {
+        showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+      } else if (pastedMediaReference) {
+        showUploadNotice('error', 'Paste the copied video again so SupraSpace can attach it as media.');
+      }
+      return;
+    }
     const replyMessageId = replyTo?._id;
     const isScheduledSend = Boolean(scheduledAt);
     if (content.length > SS4_MAX_MESSAGE_CHARS) {
@@ -11863,6 +11939,29 @@ export default function SupraSpacePage() {
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
   }, [activeId, pendingFiles, showUploadNotice]);
   handleUploadFilesRef.current = handleUploadFiles;
+
+  const handlePastedMediaReference = React.useCallback(async (reference: SS4PastedMediaReference) => {
+    if (reference.local) {
+      try {
+        const files = await readSS4ClipboardMediaFiles();
+        if (files.length > 0) {
+          await handleUploadFiles(files);
+          return;
+        }
+      } catch {
+      }
+      showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+      return;
+    }
+
+    try {
+      showUploadNotice('info', 'Preparing copied media...');
+      const file = await ss4PastedMediaUrlToFile(reference.url);
+      await handleUploadFiles([file]);
+    } catch {
+      showUploadNotice('error', 'Could not read the copied video. Use Photos & Videos instead.');
+    }
+  }, [handleUploadFiles, showUploadNotice]);
 
   React.useEffect(() => {
     const handleDocumentPaste = (event: ClipboardEvent) => {
@@ -12254,26 +12353,6 @@ export default function SupraSpacePage() {
       }
     }
 
-    const shouldInspectChannelMention =
-      channelMentionAnchor >= 0 ||
-      inputEvent.data === '#';
-
-    if (shouldInspectChannelMention) {
-      const cursor = cursorAfterInput ?? getCaretOffset(el);
-      composerCaretOffsetRef.current = cursor === 0 && val.length > 0 ? val.length : cursor;
-      if (channelMentionAnchor >= 0) {
-        if (cursor <= channelMentionAnchor || val[channelMentionAnchor] !== '#') {
-          setChannelMentionQuery(null); setChannelMentionAnchor(-1);
-        } else {
-          const q = val.slice(channelMentionAnchor + 1, cursor);
-          if (q.includes('  ')) { setChannelMentionQuery(null); setChannelMentionAnchor(-1); }
-          else { setChannelMentionQuery(q); setChannelMentionIdx(0); }
-        }
-      } else {
-        const match = val.slice(0, cursor).match(/#(\w*)$/);
-        if (match) { setChannelMentionQuery(match[1]); setChannelMentionAnchor(cursor - match[0].length); setChannelMentionIdx(0); }
-      }
-    }
     const shouldRefreshMentionChips =
       inputEvent.inputType === 'insertFromPaste' ||
       inputEvent.inputType.startsWith('deleteContent');
@@ -12464,32 +12543,6 @@ export default function SupraSpacePage() {
     saveComposerSelection();
     requestAnimationFrame(refreshActiveFormats);
   }, [getComposerTextBeforeCaret, mentionAnchor, mentionCandidateFromTextBeforeCaret, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
-
-  const insertChannelMention = React.useCallback((name: string) => {
-    const el = textareaRef.current;
-    if (!el || channelMentionAnchor < 0) return;
-    const selection = window.getSelection();
-    const range = rangeFromTextOffset(el, channelMentionAnchor);
-    const endRange = rangeFromTextOffset(el, channelMentionAnchor + 1 + (channelMentionQuery?.length ?? 0));
-    const currentText = el.innerText.replace(/\n$/, '');
-    const replacingLength = 1 + (channelMentionQuery?.length ?? 0);
-    if (currentText.length - replacingLength + name.length + 2 > SS4_MAX_MESSAGE_CHARS) {
-      showMessageLimitNotice();
-      return;
-    }
-    range.setEnd(endRange.startContainer, endRange.startOffset);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-    document.execCommand('insertText', false, `#${name} `);
-    const next = el.innerText.replace(/\n$/, '');
-    const caretOffset = channelMentionAnchor + name.length + 2;
-    syncComposerText(next, true);
-    setChannelMentionQuery(null);
-    setChannelMentionAnchor(-1);
-    composerCaretOffsetRef.current = caretOffset;
-    saveComposerSelection();
-    requestAnimationFrame(refreshActiveFormats);
-  }, [channelMentionAnchor, channelMentionQuery, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const startRecording = async () => {
     try {
@@ -13824,15 +13877,6 @@ export default function SupraSpacePage() {
       .map(entry => entry.option);
   }, [mentionQuery, activeConv, uid]);
 
-  const channelMentionOptions = React.useMemo(() => {
-    if (channelMentionQuery === null) return [];
-    const q = channelMentionQuery.toLowerCase();
-    const opts = convos
-      .filter(c => c.type === 'group' && c._id !== activeId && c.name)
-      .map(c => ({ id: c._id, name: (c.name as string).replace(/\s+/g, ''), label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}` }));
-    if (!q) return opts;
-    return opts.filter(o => o.name.toLowerCase().startsWith(q) || o.label.toLowerCase().includes(q));
-  }, [channelMentionQuery, convos, activeId]);
   const wallpaper = activeConv?.theme?.wallpaper || undefined;
 
   const matchesConversationFilter = React.useCallback((conv: SSConversation) => {
@@ -15106,22 +15150,6 @@ export default function SupraSpacePage() {
                             ))}
                           </div>
                         )}
-                        {channelMentionQuery !== null && channelMentionOptions.length > 0 && (
-                          <div className="px-2 pt-1.5 pb-1" style={{ borderBottom: '1px solid var(--border-1)' }}>
-                            {channelMentionOptions.map((opt, idx) => (
-                              <button key={opt.id}
-                                onMouseDown={e => { e.preventDefault(); insertChannelMention(opt.name); }}
-                                className={cn('w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left transition-colors',
-                                  idx === channelMentionIdx ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)'
-                                )}>
-                                <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}>
-                                  <Hash className="h-3 w-3" style={{ color: 'var(--accent)' }} />
-                                </div>
-                                <span className="font-semibold truncate" style={{ fontSize: 12, color: 'var(--accent-text)' }}>{opt.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                         {showFormatBar && (
                           <div className="hidden md:flex items-center gap-1 px-3 pt-2.5 pb-1.5 flex-wrap" style={{ borderBottom: '1px solid var(--border-1)' }}>
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={formatButtonClass('bold')} title="Bold" aria-pressed={activeFormats.bold}>
@@ -15384,40 +15412,6 @@ export default function SupraSpacePage() {
                                   }
                                 }
 
-                                if (
-                                  channelMentionQuery !== null
-                                  && channelMentionOptions.length > 0
-                                ) {
-                                  if (e.key === 'ArrowDown') {
-                                    e.preventDefault();
-                                    setChannelMentionIdx(index => Math.min(
-                                      index + 1,
-                                      channelMentionOptions.length - 1,
-                                    ));
-                                    return;
-                                  }
-                                  if (e.key === 'ArrowUp') {
-                                    e.preventDefault();
-                                    setChannelMentionIdx(index => Math.max(index - 1, 0));
-                                    return;
-                                  }
-                                  if (
-                                    e.key === 'Enter'
-                                    || e.key === 'Tab'
-                                  ) {
-                                    e.preventDefault();
-                                    insertChannelMention(
-                                      channelMentionOptions[channelMentionIdx].name,
-                                    );
-                                    return;
-                                  }
-                                  if (e.key === 'Escape') {
-                                    setChannelMentionQuery(null);
-                                    setChannelMentionAnchor(-1);
-                                    return;
-                                  }
-                                }
-
                                 const selection = window.getSelection();
                                 const anchorNode = selection?.anchorNode;
                                 const anchorElement = anchorNode instanceof HTMLElement
@@ -15503,8 +15497,6 @@ export default function SupraSpacePage() {
                                 if (e.key === 'Escape') {
                                   setMentionQuery(null);
                                   setMentionAnchor(-1);
-                                  setChannelMentionQuery(null);
-                                  setChannelMentionAnchor(-1);
                                   setTextColorPickerOpen(false);
                                   return;
                                 }
@@ -15573,6 +15565,12 @@ export default function SupraSpacePage() {
 
                                 const text = e.clipboardData?.getData('text/plain') || '';
                                 const html = e.clipboardData?.getData('text/html') || '';
+                                const pastedMediaReference = getSS4PastedMediaReference(text, html);
+                                if (pastedMediaReference) {
+                                  e.preventDefault();
+                                  void handlePastedMediaReference(pastedMediaReference);
+                                  return;
+                                }
                                 const shortcutPlainText = pastePlainTextShortcutRef.current;
                                 pastePlainTextShortcutRef.current = false;
 
