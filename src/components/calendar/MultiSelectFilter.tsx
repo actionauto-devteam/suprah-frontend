@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon, ChevronDown, type LucideIcon } from "lucide-react";
+import { CheckIcon, ChevronDown, ChevronUp, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -53,14 +53,62 @@ export function MultiSelectFilter({
   emptyLabel?: string;
   clearLabel?: string;
 }) {
+  const [open, setOpen] = React.useState(false);
   const selected = new Set(value);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const [scrollDirection, setScrollDirection] = React.useState<"down" | "up" | null>(null);
   const labelOf = (v: string) => options.find((o) => o.value === v)?.label ?? "Unknown";
+
+  const updateScrollDirection = React.useCallback(() => {
+    const list = listRef.current;
+    if (!list || list.scrollHeight <= list.clientHeight + 1) {
+      setScrollDirection(null);
+      return;
+    }
+
+    setScrollDirection(
+      list.scrollTop + list.clientHeight >= list.scrollHeight - 1 ? "up" : "down",
+    );
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) {
+      setScrollDirection(null);
+      return;
+    }
+
+    const list = listRef.current;
+    if (!list) return;
+
+    const frame = requestAnimationFrame(updateScrollDirection);
+    const resizeObserver = new ResizeObserver(updateScrollDirection);
+    const mutationObserver = new MutationObserver(updateScrollDirection);
+
+    resizeObserver.observe(list);
+    mutationObserver.observe(list, { attributes: true, childList: true, subtree: true });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [open, updateScrollDirection]);
 
   const toggle = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     onChange(Array.from(next));
+  };
+
+  const scrollList = () => {
+    const list = listRef.current;
+    if (!list || !scrollDirection) return;
+
+    list.scrollBy({
+      top: (list.clientHeight - 24) * (scrollDirection === "down" ? 1 : -1),
+      behavior: "smooth",
+    });
   };
 
   const currentSelectionLabel =
@@ -71,7 +119,7 @@ export function MultiSelectFilter({
         : `${selected.size} selected`;
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -101,7 +149,7 @@ export function MultiSelectFilter({
       <PopoverContent className="w-[min(92vw,220px)] p-0" align="end">
         <Command>
           {searchable && <CommandInput placeholder={searchPlaceholder} />}
-          <CommandList>
+          <CommandList ref={listRef} onScroll={updateScrollDirection}>
             <CommandEmpty>{emptyLabel}</CommandEmpty>
             <CommandGroup>
               {options.map((o) => {
@@ -137,6 +185,24 @@ export function MultiSelectFilter({
               </>
             )}
           </CommandList>
+          {scrollDirection && (
+            <button
+              type="button"
+              onClick={scrollList}
+              aria-label={`${scrollDirection === "down" ? "Show more" : "Show previous"} ${filterLabel.toLowerCase()} options`}
+              className="flex h-8 w-full shrink-0 items-center justify-center gap-1 border-t border-border bg-muted/95 text-[11px] font-semibold text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              {scrollDirection === "down" ? (
+                <>
+                  More options <ChevronDown className="size-4 stroke-[2.5]" aria-hidden />
+                </>
+              ) : (
+                <>
+                  Previous options <ChevronUp className="size-4 stroke-[2.5]" aria-hidden />
+                </>
+              )}
+            </button>
+          )}
         </Command>
       </PopoverContent>
     </Popover>

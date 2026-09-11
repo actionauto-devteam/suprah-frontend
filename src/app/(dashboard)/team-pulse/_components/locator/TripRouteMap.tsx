@@ -6,13 +6,7 @@ import type { Map as LeafletMap, Layer } from "leaflet";
 import { Loader2, MapPinOff } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useDrivingSessionDetail, type LocationHistoryPoint } from "@/hooks/useLocator";
-
-const TILE_URL = {
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-};
-const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+import { getLocatorTileUrl, hasLocatorMapTiles, LOCATOR_TILE_ATTRIBUTION } from "./locator-map-tiles";
 
 // See getDomTheme() in LocatorLiveMapSection.tsx — same reasoning: ThemeContext's React
 // state deliberately starts as 'dark' on every load and only self-corrects a moment later,
@@ -27,6 +21,7 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
   const { theme } = useTheme();
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<LeafletMap | null>(null);
+  const canRenderMap = hasLocatorMapTiles;
   // The map is already initialized with the correct (DOM-read) theme below — this ref lets
   // the theme-sync effect skip its first run, which otherwise fires with the still-stale
   // 'dark' context value and would immediately swap the correctly-initialized tiles to the
@@ -35,18 +30,20 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
   const skippedFirstThemeSyncRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current || route.length === 0) return;
+    if (!mapRef.current || mapInstanceRef.current || route.length === 0 || !canRenderMap) return;
     let cancelled = false;
 
     (async () => {
       const L = (await import("leaflet")).default;
       if (cancelled || !mapRef.current) return;
+      const tileUrl = getLocatorTileUrl(getDomTheme());
+      if (!tileUrl) return;
 
       const coords = route.map((p) => [p.coords.lat, p.coords.lng] as [number, number]);
 
       const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true });
       mapInstanceRef.current = map;
-      L.tileLayer(TILE_URL[getDomTheme()], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
+      L.tileLayer(tileUrl, { maxZoom: 20, attribution: LOCATOR_TILE_ATTRIBUTION }).addTo(map);
 
       L.polyline(coords, { color: "#3b82f6", weight: 4, opacity: 0.9 }).addTo(map);
 
@@ -71,7 +68,7 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
     // Route changes just re-mount the map fresh — this is a short-lived dialog view, not worth
     // the complexity of in-place updates like the live map has.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.length]);
+  }, [route.length, canRenderMap]);
 
   React.useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -83,10 +80,12 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
       const L = (await import("leaflet")).default;
       const map = mapInstanceRef.current;
       if (!map) return;
+      const tileUrl = getLocatorTileUrl(theme);
+      if (!tileUrl) return;
       map.eachLayer((layer: Layer) => {
         if (layer instanceof L.TileLayer) map.removeLayer(layer);
       });
-      L.tileLayer(TILE_URL[theme], { subdomains: "abcd", maxZoom: 20, attribution: TILE_ATTRIBUTION }).addTo(map);
+      L.tileLayer(tileUrl, { maxZoom: 20, attribution: LOCATOR_TILE_ATTRIBUTION }).addTo(map);
     })();
   }, [theme]);
 
@@ -95,6 +94,15 @@ export function RouteReplayMap({ route }: { route: LocationHistoryPoint[] }) {
       <div className="h-72 flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/40 text-muted-foreground/50">
         <MapPinOff className="size-6" />
         <p className="text-xs">No route points recorded for this range</p>
+      </div>
+    );
+  }
+
+  if (!canRenderMap) {
+    return (
+      <div className="h-72 flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/40 text-muted-foreground/50">
+        <MapPinOff className="size-6" />
+        <p className="text-xs">Map configuration is unavailable</p>
       </div>
     );
   }

@@ -62,7 +62,7 @@ function StatusDot({ status }: { status?: string }) {
   const config = status ? (STATUS_CONFIG as any)[status] : null;
   if (!config) return null;
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-px text-[10px] font-medium text-slate-500 dark:border-emerald-400/15 dark:bg-[#143122] dark:text-slate-400">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-px text-[11px] font-medium text-slate-500 dark:border-emerald-400/15 dark:bg-[#143122] dark:text-slate-400">
       <span className={cn("h-1.5 w-1.5 rounded-full", config.dot)} />
       {config.label}
     </span>
@@ -102,15 +102,15 @@ export const LeadsList = React.memo(
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-800 dark:text-slate-100">
+                <h2 className="truncate text-[14px] font-semibold uppercase tracking-[0.08em] text-slate-800 dark:text-slate-100">
                   {title}
                 </h2>
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-px text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-px text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
                   {total}
                 </span>
               </div>
               {subtitle && (
-                <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
+                <p className="mt-0.5 truncate text-[12px] text-slate-400 dark:text-slate-500">
                   {subtitle}
                 </p>
               )}
@@ -125,7 +125,7 @@ export const LeadsList = React.memo(
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search name, email, vehicle…"
-              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[14px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500/50 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
             />
           </div>
 
@@ -211,32 +211,32 @@ export const LeadsList = React.memo(
                         <div className="flex items-baseline justify-between gap-2">
                           <p
                             className={cn(
-                              "truncate text-[13px] text-slate-800 dark:text-slate-100",
+                              "truncate text-[14px] text-slate-800 dark:text-slate-100",
                               unread ? "font-semibold" : "font-medium",
                             )}
                           >
                             {leadName(lead)}
                           </p>
-                          <time className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                          <time className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
                             {listTime(lead?.createdAt)}
                           </time>
                         </div>
 
                         {lead?.phone && (
-                          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                          <p className="truncate text-[12px] text-slate-500 dark:text-slate-400">
                             {lead.phone}
                           </p>
                         )}
 
                         {lead?.subject && (
-                          <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
+                          <p className="mt-0.5 truncate text-[12px] text-slate-400 dark:text-slate-500">
                             {lead.subject}
                           </p>
                         )}
 
                         <div className="mt-1.5 flex items-center gap-1.5">
                           {lead?.channel && (
-                            <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               {lead.channel}
                             </span>
                           )}
@@ -264,17 +264,17 @@ export const LeadsList = React.memo(
               type="button"
               onClick={() => onPageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage <= 1}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:bg-emerald-400/10"
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[13px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:bg-emerald-400/10"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
               Prev
             </button>
 
             <div className="text-center">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+              <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
                 {currentPage} / {pages}
               </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
                 {rangeStart}–{rangeEnd} of {total}
               </p>
             </div>
@@ -283,7 +283,7 @@ export const LeadsList = React.memo(
               type="button"
               onClick={() => onPageChange(Math.min(pages, currentPage + 1))}
               disabled={currentPage >= pages}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:bg-emerald-400/10"
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[13px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:bg-emerald-400/10"
             >
               Next
               <ChevronRight className="h-3.5 w-3.5" />

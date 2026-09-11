@@ -1415,7 +1415,7 @@ export function LeadsTab({
               <div className="flex min-w-0 items-center gap-2">
                 <h1
                   className="ss4-display truncate font-bold leading-tight tracking-tight"
-                  style={{ fontSize: 15, color: "var(--text-primary)" }}
+                  style={{ fontSize: 17, color: "var(--text-primary)" }}
                 >
                   Lead Inbox
                 </h1>
@@ -1449,7 +1449,7 @@ export function LeadsTab({
                   }}
                 />
                 <span
-                  className="truncate text-[10px] font-medium"
+                  className="truncate text-[11px] font-medium"
                   style={{
                     color: centralConnected
                       ? "var(--accent-text)"
@@ -1484,7 +1484,7 @@ export function LeadsTab({
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             <button
               onClick={toggleSelectMode}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[11px] font-medium transition-all sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
               style={
                 selectMode
                   ? { color: "var(--accent)", borderColor: "var(--accent)" }
@@ -1505,7 +1505,7 @@ export function LeadsTab({
             <button
               onClick={syncAndRefresh}
               disabled={!centralConnected || isWorkerSyncing || localIsSyncing}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
               title="Refresh leads"
             >
               <RefreshCw
@@ -1638,7 +1638,7 @@ export function LeadsTab({
                             setCurrentPage(1);
                             setSelectedLead(null);
                           }}
-                          className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                          className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
                           style={{
                             background: "var(--input-bg)",
                             border: "1px solid var(--input-border)",
@@ -1669,7 +1669,7 @@ export function LeadsTab({
                             setSortBy(event.target.value as LeadSortOption);
                             setCurrentPage(1);
                           }}
-                          className="h-8 w-full appearance-none rounded-lg pl-8 pr-7 text-[11px] font-medium outline-none sm:h-9 sm:pl-9 sm:pr-8 sm:text-xs"
+                          className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
                           style={{
                             background: "var(--input-bg)",
                             border: "1px solid var(--input-border)",
@@ -1690,7 +1690,7 @@ export function LeadsTab({
 
                     {isFetching && !isLoading ? (
                       <div
-                        className="shrink-0 px-3 py-1 text-[10px]"
+                        className="shrink-0 px-3 py-1 text-[11px]"
                         style={{ color: "var(--text-tertiary)" }}
                       >
                         Updating…
@@ -1825,7 +1825,7 @@ export function LeadsTab({
                         <p className="mt-1 max-w-xl leading-relaxed" style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                           Pick a lead from the inbox to view the full inquiry, reply, schedule an appointment, or ask Autrix for follow-up help.
                         </p>
-                        <p className="ss4-mono mt-2" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{LEADS_SOURCE_EMAIL}</p>
+                        <p className="ss4-mono mt-2" style={{ fontSize: 11, color: 'var(--text-disabled)' }}>{LEADS_SOURCE_EMAIL}</p>
                       </div>
                     </div>
 
@@ -1837,8 +1837,8 @@ export function LeadsTab({
                         style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
                       >
                         <Inbox className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Review new leads</p>
-                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Jump to fresh inquiries that need attention.</p>
+                        <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Review new leads</p>
+                        <p className="mt-1" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Jump to fresh inquiries that need attention.</p>
                       </button>
                       <button
                         type="button"
@@ -1847,8 +1847,8 @@ export function LeadsTab({
                         style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
                       >
                         <Search className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Search all leads</p>
-                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Clear filters and browse the complete inbox.</p>
+                        <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Search all leads</p>
+                        <p className="mt-1" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Clear filters and browse the complete inbox.</p>
                       </button>
                       <button
                         type="button"
@@ -1857,16 +1857,16 @@ export function LeadsTab({
                         style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}
                       >
                         <RefreshCw className="mb-3 h-4 w-4" style={{ color: 'var(--accent)' }} />
-                        <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Refresh inbox</p>
-                        <p className="mt-1" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Pull the latest synced lead activity.</p>
+                        <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Refresh inbox</p>
+                        <p className="mt-1" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Pull the latest synced lead activity.</p>
                       </button>
                     </div>
 
                     {leads.length > 0 && (
                       <div className="rounded-2xl border p-4" style={{ background: 'var(--surface-1)', borderColor: 'var(--border-1)' }}>
                         <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="font-semibold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recent conversations</p>
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Select one to open</span>
+                          <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Recent conversations</p>
+                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Select one to open</span>
                         </div>
                         <div className="grid gap-2">
                           {leads.slice(0, 3).map((lead) => (
@@ -1877,18 +1877,18 @@ export function LeadsTab({
                               className="flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition hover:bg-black/5 dark:hover:bg-white/5"
                               style={{ borderColor: 'var(--border-1)' }}
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-white" style={{ background: 'var(--accent)', fontSize: 11 }}>
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-white" style={{ background: 'var(--accent)', fontSize: 12 }}>
                                 {`${lead.firstName?.[0] || ''}${lead.lastName?.[0] || ''}` || 'L'}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="truncate font-semibold" style={{ fontSize: 12.5, color: 'var(--text-primary)' }}>
+                                <p className="truncate font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
                                   {[lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email || 'Unknown lead'}
                                 </p>
-                                <p className="truncate" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                <p className="truncate" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                                   {lead.email || lead.phone || lead.status}
                                 </p>
                               </div>
-                              <span className="rounded-full px-2 py-1 font-semibold" style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-muted)' }}>{lead.status}</span>
+                              <span className="rounded-full px-2 py-1 font-semibold" style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--accent-muted)' }}>{lead.status}</span>
                               <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
                             </button>
                           ))}
@@ -1897,8 +1897,8 @@ export function LeadsTab({
                     )}
 
                     <div className="rounded-2xl border px-4 py-3" style={{ background: 'var(--accent-muted)', borderColor: 'rgba(91,124,246,0.18)' }}>
-                      <p className="font-semibold" style={{ fontSize: 12, color: 'var(--accent-text)' }}>Autrix is standing by</p>
-                      <p className="mt-1" style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                      <p className="font-semibold" style={{ fontSize: 13, color: 'var(--accent-text)' }}>Autrix is standing by</p>
+                      <p className="mt-1" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
                         Select a lead to give Autrix the right customer context for summaries, reply drafts, and follow-up suggestions.
                       </p>
                     </div>

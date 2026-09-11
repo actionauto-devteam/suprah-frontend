@@ -27,6 +27,7 @@ import { LocatorMap } from "./LocatorMap";
 import { PLACE_ICON_PRESETS } from "./placeIcons";
 import { deptLabel } from "@/lib/departments";
 import { haversineMi, formatDistanceMi } from "@/lib/geo";
+import { getLocatorTileUrl, hasLocatorMapTiles, LOCATOR_TILE_ATTRIBUTION } from "./locator-map-tiles";
 
 // Real Lucide SVG icon (same set the admin picker uses) instead of an emoji glyph — emoji
 // renders inconsistently (font, color, even presence) across OS/browsers, an actual SVG
@@ -51,13 +52,6 @@ function getDomTheme(): "light" | "dark" {
   if (typeof document === "undefined") return "dark";
   return document.documentElement.classList.contains("light") ? "light" : "dark";
 }
-
-const TILE_URL = {
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-};
-const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 function popupSharingDuration(sinceIso?: string) {
   if (!sinceIso) return "";
@@ -358,8 +352,18 @@ export function LocatorLiveMapSection({
     lastPopupKey: string | null;
     isSelf: boolean;
   }>>(new Map());
-  const placeMarkersRef = React.useRef<Map<string, { marker: LeafletMarker; layerGroup: LeafletLayerGroup; haloCircle: LeafletCircle; mainCircle: LeafletCircle; warningCircle: LeafletCircle | null; badgeEl: HTMLDivElement; popup: LeafletPopup }>>(new Map());
+  const placeMarkersRef = React.useRef<Map<string, {
+    marker: LeafletMarker;
+    layerGroup: LeafletLayerGroup;
+    haloCircle: LeafletCircle;
+    mainCircle: LeafletCircle;
+    warningCircle: LeafletCircle | null;
+    badgeEl: HTMLDivElement;
+    labelEl: HTMLDivElement;
+    popup: LeafletPopup;
+  }>>(new Map());
   const trailLayerRef = React.useRef<LeafletLayerGroup | null>(null);
+  const labelLayoutFrameRef = React.useRef<number | null>(null);
   const locationsRef = React.useRef(locations);
   locationsRef.current = locations;
 
@@ -367,15 +371,16 @@ export function LocatorLiveMapSection({
   // hung `import("leaflet")`/tile fetch (flaky connection, blocked CDN, etc.) can't leave the
   // user staring at a loading placeholder forever — it always resolves to either "ready" or a
   // dismissible, retryable failure within MAP_INIT_TIMEOUT_MS.
-  const [mapStatus, setMapStatus] = React.useState<"loading" | "ready" | "error" | "timeout" | "tilesFailed">("loading");
+  const [mapStatus, setMapStatus] = React.useState<"loading" | "ready" | "error" | "timeout" | "tilesFailed" | "configuration">("loading");
   const [retryKey, setRetryKey] = React.useState(0);
   const retryMap = React.useCallback(() => setRetryKey((k) => k + 1), []);
 
-  const MAP_NOTICE_TEXT: Record<"loading" | "error" | "timeout" | "tilesFailed", string> = {
+  const MAP_NOTICE_TEXT: Record<"loading" | "error" | "timeout" | "tilesFailed" | "configuration", string> = {
     loading: "Loading map…",
     error: "Couldn't initialize the map.",
     timeout: "The map is taking longer than expected to load.",
-    tilesFailed: "Map tiles failed to load — check your connection.",
+    tilesFailed: "Map tiles failed to load. Check your connection or Mapbox configuration.",
+    configuration: "Map configuration is unavailable. Contact your administrator.",
   };
   const mapNotice = mapStatus === "ready" ? null : MAP_NOTICE_TEXT[mapStatus];
 
@@ -393,6 +398,66 @@ export function LocatorLiveMapSection({
   );
   const overlayPlacesRef = React.useRef(overlayPlaces);
   overlayPlacesRef.current = overlayPlaces;
+
+  const schedulePlaceLabelLayout = React.useCallback(() => {
+    if (labelLayoutFrameRef.current !== null) {
+      window.cancelAnimationFrame(labelLayoutFrameRef.current);
+    }
+
+    labelLayoutFrameRef.current = window.requestAnimationFrame(() => {
+      labelLayoutFrameRef.current = null;
+      const map = mapInstanceRef.current;
+      if (!map) return;
+
+      const mapBounds = map.getContainer().getBoundingClientRect();
+      const entries = [...placeMarkersRef.current.entries()]
+        .sort(([aId], [bId]) => aId.localeCompare(bId));
+      const badgeBounds = new Map(entries.map(([id, entry]) => [id, entry.badgeEl.getBoundingClientRect()]));
+      const locationBounds = [...markersRef.current.values()]
+        .flatMap((entry) => [entry.marker.getElement(), entry.popup.getElement()])
+        .filter((element): element is HTMLElement => !!element)
+        .map((element) => element.getBoundingClientRect());
+      const placedLabels: DOMRect[] = [];
+      const intersects = (a: DOMRect, b: DOMRect) =>
+        a.left < b.right + 4 && a.right + 4 > b.left && a.top < b.bottom + 4 && a.bottom + 4 > b.top;
+      const isInMap = (rect: DOMRect) =>
+        rect.right > mapBounds.left && rect.left < mapBounds.right && rect.bottom > mapBounds.top && rect.top < mapBounds.bottom;
+
+      entries.forEach(([, entry]) => {
+        entry.labelEl.style.visibility = "visible";
+        entry.labelEl.style.transform = "none";
+        entry.labelEl.removeAttribute("aria-hidden");
+      });
+
+      entries.forEach(([id, entry]) => {
+        const label = entry.labelEl;
+        const initialBounds = label.getBoundingClientRect();
+        const offsetX = (30 - initialBounds.width) / 2;
+        const offsetY = 33;
+        const positions = [
+          "none",
+          `translate(${34 - offsetX}px, ${(30 - initialBounds.height) / 2 - offsetY}px)`,
+          `translate(${-initialBounds.width - 4 - offsetX}px, ${(30 - initialBounds.height) / 2 - offsetY}px)`,
+          `translate(0, ${-initialBounds.height - 37}px)`,
+        ];
+        const hasSpace = positions.some((transform) => {
+          label.style.transform = transform;
+          const bounds = label.getBoundingClientRect();
+          const overlapsBadge = [...badgeBounds.entries()].some(([badgeId, badge]) => badgeId !== id && intersects(bounds, badge));
+          const overlapsLocation = locationBounds.some((location) => intersects(bounds, location));
+          const overlapsLabel = placedLabels.some((placed) => intersects(bounds, placed));
+          if (!isInMap(bounds) || overlapsBadge || overlapsLocation || overlapsLabel) return false;
+          placedLabels.push(bounds);
+          return true;
+        });
+
+        if (!hasSpace) {
+          label.style.visibility = "hidden";
+          label.setAttribute("aria-hidden", "true");
+        }
+      });
+    });
+  }, []);
 
   const placePickModeRef = React.useRef(placePickMode);
   placePickModeRef.current = placePickMode;
@@ -445,7 +510,8 @@ export function LocatorLiveMapSection({
   const TILE_LOAD_GRACE_MS = 8000;
 
   React.useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    const mapContainer = mapRef.current;
+    if (!mapContainer || mapInstanceRef.current) return;
     let cancelled = false;
     setMapStatus("loading");
 
@@ -455,10 +521,21 @@ export function LocatorLiveMapSection({
 
     const initMap = async () => {
       try {
+        if (!hasLocatorMapTiles) {
+          clearTimeout(timeoutId);
+          setMapStatus("configuration");
+          return;
+        }
         const L = (await import("leaflet")).default;
-        if (cancelled || !mapRef.current) return;
+        if (cancelled) return;
+        const tileUrl = getLocatorTileUrl(getDomTheme());
+        if (!tileUrl) {
+          clearTimeout(timeoutId);
+          setMapStatus("configuration");
+          return;
+        }
 
-        const map = L.map(mapRef.current, {
+        const map = L.map(mapContainer, {
           center: [DEFAULT_MAP_VIEW.lat, DEFAULT_MAP_VIEW.lng],
           zoom: DEFAULT_MAP_VIEW.zoom,
           minZoom: MIN_ZOOM,
@@ -471,10 +548,9 @@ export function LocatorLiveMapSection({
         });
         mapInstanceRef.current = map;
 
-        const tileLayer = L.tileLayer(TILE_URL[getDomTheme()], {
-          subdomains: "abcd",
+        const tileLayer = L.tileLayer(tileUrl, {
           maxZoom: MAX_ZOOM,
-          attribution: TILE_ATTRIBUTION,
+          attribution: LOCATOR_TILE_ATTRIBUTION,
           // Raster tiles always show a brief blank/white flash while a new tile image loads —
           // normal for any slippy map (Google Maps/OSM do the same), not specific to this app.
           // These options trade a little extra network/memory for noticeably less of it: keep a
@@ -494,14 +570,15 @@ export function LocatorLiveMapSection({
         setMapStatus("ready");
         map.on("zoom", () => setZoom(map.getZoom()));
         map.on("movestart zoomstart", () => {
-          mapRef.current?.classList.add("locator-map-moving");
+          mapContainer.classList.add("locator-map-moving");
           setIsMapMoving(true);
         });
         map.on("moveend zoomend", () => {
-          mapRef.current?.classList.remove("locator-map-moving");
+          mapContainer.classList.remove("locator-map-moving");
           setIsMapMoving(false);
           window.requestAnimationFrame(() => {
             map.invalidateSize({ pan: false, debounceMoveend: true });
+            schedulePlaceLabelLayout();
           });
         });
 
@@ -520,7 +597,7 @@ export function LocatorLiveMapSection({
         // Container size can change without the window resizing (maximize toggle, device
         // rotation, sidebar collapse) — Leaflet doesn't auto-detect that, so without this the
         // canvas keeps rendering at its old size until something else triggers a recalculation.
-        if (typeof ResizeObserver !== "undefined" && mapRef.current) {
+        if (typeof ResizeObserver !== "undefined") {
           const observer = new ResizeObserver(() => {
             if (resizeFrameRef.current !== null) {
               window.cancelAnimationFrame(resizeFrameRef.current);
@@ -530,7 +607,7 @@ export function LocatorLiveMapSection({
               map.invalidateSize({ pan: false, debounceMoveend: true });
             });
           });
-          observer.observe(mapRef.current);
+          observer.observe(mapContainer);
           resizeObserverRef.current = observer;
         }
 
@@ -545,7 +622,7 @@ export function LocatorLiveMapSection({
         if (focusRef) {
           focusRef.current = (lat: number, lng: number) => {
             map.flyTo([lat, lng], 15);
-            mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            mapContainer.scrollIntoView({ behavior: "smooth", block: "center" });
           };
         }
       } catch {
@@ -566,14 +643,18 @@ export function LocatorLiveMapSection({
         window.cancelAnimationFrame(resizeFrameRef.current);
         resizeFrameRef.current = null;
       }
-      mapRef.current?.classList.remove("locator-map-moving");
+      if (labelLayoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(labelLayoutFrameRef.current);
+        labelLayoutFrameRef.current = null;
+      }
+      mapContainer.classList.remove("locator-map-moving");
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryKey]);
+  }, [retryKey, schedulePlaceLabelLayout]);
 
   React.useEffect(() => {
     document.body.style.overflow = isMaximized ? "hidden" : "";
@@ -585,7 +666,8 @@ export function LocatorLiveMapSection({
       skippedFirstThemeSyncRef.current = true;
       return;
     }
-    tileLayerRef.current?.setUrl(TILE_URL[theme]);
+    const tileUrl = getLocatorTileUrl(theme);
+    if (tileUrl) tileLayerRef.current?.setUrl(tileUrl);
   }, [theme]);
 
   React.useEffect(() => {
@@ -845,12 +927,13 @@ export function LocatorLiveMapSection({
         if (userId === selectedUserId) entry.popup.addTo(map);
         else map.removeLayer(entry.popup);
       });
+      schedulePlaceLabelLayout();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [locations, places, selectedUserId, myUserId, myLocation, theme, mapReady, isMapMoving]);
+  }, [locations, places, selectedUserId, myUserId, myLocation, theme, mapReady, isMapMoving, schedulePlaceLabelLayout]);
 
   // Identifies WHICH trail is currently on screen (who + what span of time) — not the specific
   // array reference, which changes on every background refetch of the exact same trail (React
@@ -951,8 +1034,7 @@ export function LocatorLiveMapSection({
           existing.badgeEl.style.boxShadow = `0 2px 8px ${color}80, 0 0 0 3px ${color}33`;
           existing.badgeEl.innerHTML = placeIconSvg(p.icon);
           existing.popup.setLatLng(latLng);
-          const labelEl = existing.badgeEl.nextElementSibling as HTMLDivElement | null;
-          if (labelEl) labelEl.textContent = p.name;
+          existing.labelEl.textContent = p.name;
           // Radius/color previously only applied at first render — editing an existing
           // place's geofence (or live-previewing a draft's radius slider) never moved
           // these circles, so the map kept showing the OLD size until a full reload.
@@ -991,6 +1073,8 @@ export function LocatorLiveMapSection({
         wrapper.style.gap = "3px";
         wrapper.style.cursor = "pointer";
         wrapper.style.pointerEvents = "auto";
+        wrapper.title = `${p.name}. Hover for details or click to expand.`;
+        wrapper.setAttribute("aria-label", `${p.name}. Hover for details or click to expand.`);
 
         const badgeEl = document.createElement("div");
         badgeEl.style.width = "30px";
@@ -1030,6 +1114,8 @@ export function LocatorLiveMapSection({
 
         wrapper.addEventListener("click", (e) => {
           e.stopPropagation();
+          popup.setContent(buildPlacePopupHtml(overlayPlacesRef.current.find((op) => op._id === p._id) ?? p, hereNowFor(p._id), theme));
+          popup.addTo(map);
           map.flyTo(latLng, 16);
         });
 
@@ -1037,14 +1123,15 @@ export function LocatorLiveMapSection({
           icon: L.divIcon({ html: wrapper, className: "locator-marker-icon", iconSize: [30, 49], iconAnchor: [15, 49] }),
         }).addTo(map);
 
-        placeMarkers.set(p._id, { marker, layerGroup: geofence, haloCircle, mainCircle, warningCircle, badgeEl, popup });
+        placeMarkers.set(p._id, { marker, layerGroup: geofence, haloCircle, mainCircle, warningCircle, badgeEl, labelEl, popup });
       });
+      schedulePlaceLabelLayout();
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [overlayPlaces, theme, mapReady]);
+  }, [overlayPlaces, theme, mapReady, schedulePlaceLabelLayout]);
 
   const zoomMap = (delta: number) => {
     const map = mapInstanceRef.current;
@@ -1092,7 +1179,7 @@ export function LocatorLiveMapSection({
         onCenter={centerOnMe}
         mapNotice={mapNotice}
         mapNoticeLoading={mapStatus === "loading"}
-        onRetryMap={mapStatus !== "loading" && mapStatus !== "ready" ? retryMap : undefined}
+        onRetryMap={mapStatus !== "loading" && mapStatus !== "ready" && mapStatus !== "configuration" ? retryMap : undefined}
         activeCount={sharingCount}
         stateCounts={stateCounts}
         zoomInDisabled={zoom >= MAX_ZOOM}

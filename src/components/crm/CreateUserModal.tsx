@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { PasteDateInput } from "@/components/ui/paste-date-input";
 import {
   Dialog,
@@ -89,7 +90,6 @@ export function CreateUserModal({
   token,
   onCreated,
 }: CreateUserModalProps) {
-  const [showPassword, setShowPassword] = React.useState(false);
   const [employeeId, setEmployeeId] = React.useState("");
   const [loadingId, setLoadingId] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -142,7 +142,6 @@ export function CreateUserModal({
     });
 
     setErrors({});
-    setShowPassword(false);
     setEmployeeId("");
     setEmailTouched(false);
     setPasswordTouched(false);
@@ -222,9 +221,14 @@ export function CreateUserModal({
       toast.success(`Account created — Employee ID: ${employeeId}`);
       onCreated?.();
       handleClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const response = err as {
+        response?: { data?: { message?: unknown } };
+      };
       const msg =
-        err?.response?.data?.message || "Failed to create user. Try again.";
+        typeof response.response?.data?.message === "string"
+          ? response.response.data.message
+          : "Failed to create user. Try again.";
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -328,26 +332,13 @@ export function CreateUserModal({
                 Auto
               </span>
             </Label>
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Min. 8 characters"
-                value={form.password}
-                onChange={handlePasswordChange}
-                className={`h-10 rounded-xl text-sm border-border/50 focus-visible:ring-emerald-500/30 pr-10 ${errors.password ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((p) => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
+            <PasswordInput
+              autoComplete="new-password"
+              placeholder="Min. 8 characters"
+              value={form.password}
+              onChange={handlePasswordChange}
+              className={`h-10 rounded-xl text-sm border-border/50 pr-10 focus-visible:ring-emerald-500/30 [&::-ms-clear]:hidden [&::-ms-reveal]:hidden ${errors.password ? "border-red-400 focus-visible:ring-red-400/30" : ""}`}
+            />
             {errors.password && (
               <p className="text-[11px] text-red-500">{errors.password}</p>
             )}

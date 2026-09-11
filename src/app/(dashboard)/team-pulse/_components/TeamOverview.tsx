@@ -130,11 +130,11 @@ export function TeamOverview({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/30">
-          {metrics.map((m, i) => (
+      <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border/45">
+          {metrics.map((m) => (
             <div key={m.label} className="flex flex-col gap-1 px-4 sm:px-5 py-4">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">{m.label}</p>
               <p className={cn("text-3xl sm:text-4xl font-black tabular-nums leading-none mt-1", m.accent)}>{m.value}</p>
@@ -144,7 +144,7 @@ export function TeamOverview({
         </div>
 
         {total > 0 && (
-          <div className="border-t border-border/30">
+          <div className="border-t border-border/45">
             <div className="flex gap-0 h-1.5">
               {online > 0 && (
                 <div
@@ -176,8 +176,8 @@ export function TeamOverview({
       </div>
 
       {total > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-          <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2 border-b border-border/30">
+        <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2 border-b border-border/45">
             <span className="size-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">Team Members</span>
             <div className="flex items-center gap-1.5 ml-auto">
@@ -241,7 +241,7 @@ export function TeamOverview({
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{m.name}</p>
                         {m.customStatus
-                          ? <p className="text-[10px] italic text-muted-foreground/60 truncate">"{m.customStatus}"</p>
+                          ? <p className="text-[10px] italic text-muted-foreground/60 truncate">&ldquo;{m.customStatus}&rdquo;</p>
                           : <p className="text-[10px] text-muted-foreground/50">{S.label[st]}</p>
                         }
                       </div>
@@ -272,12 +272,12 @@ export function TeamOverview({
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex items-center gap-2">
           <LayoutGrid className="size-3 text-muted-foreground/60 shrink-0" />
           <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">By Department</span>
         </div>
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden divide-y divide-border/30">
+        <div className="rounded-xl border border-border/60 bg-muted/30 p-1.5 sm:p-2 space-y-1.5 shadow-sm">
           {deptGroups.map(({ key, label, members: dm }) => {
             const dOnline = dm.filter((m) => m.onlineStatus === "online").length;
             const dBusy = dm.filter((m) => m.onlineStatus === "busy" || m.onlineStatus === "do_not_disturb").length;
@@ -296,9 +296,9 @@ export function TeamOverview({
               <div
                 key={key}
                 className={cn(
-                  "flex items-center gap-3 sm:gap-4 px-4 py-3 transition-colors",
-                  !isEmpty && !isNone && "hover:bg-muted/20",
-                  (isEmpty || isNone) && "opacity-50",
+                  "flex items-center gap-3 sm:gap-4 rounded-lg border border-border/45 bg-card/95 px-3 sm:px-4 py-2.5 transition-colors",
+                  !isEmpty && !isNone && "hover:bg-muted/50",
+                  (isEmpty || isNone) && "opacity-60",
                 )}
               >
                 <div className={cn("w-1 h-6 rounded-full shrink-0", accentCls)} />
@@ -310,7 +310,7 @@ export function TeamOverview({
                   )}>
                     {label}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/65 leading-tight tabular-nums">{dm.length} member{dm.length !== 1 ? "s" : ""}</p>
+                  <p className="text-[10px] text-muted-foreground/80 leading-tight tabular-nums">{dm.length} member{dm.length !== 1 ? "s" : ""}</p>
                 </div>
 
                 {!isEmpty ? (
@@ -366,7 +366,7 @@ export function TeamOverview({
                             <span className="size-1.5 rounded-full bg-amber-400" />{dAway}
                           </span>
                         )}
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/75">
                           <span className="size-1.5 rounded-full bg-muted-foreground/45" />{dOffline}
                         </span>
                       </div>

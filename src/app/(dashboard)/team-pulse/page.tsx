@@ -124,7 +124,7 @@ export default function TeamPulsePage() {
       setDraftCustom(myCustomStatus);
       setDraftExpiry(0);
     }
-  }, [popoverOpen]);
+  }, [popoverOpen, myCustomStatus, myStatus]);
 
   async function applyStatus() {
     const prev = myStatus;
@@ -195,8 +195,8 @@ export default function TeamPulsePage() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="team-pulse-scope min-h-screen animate-in fade-in duration-400">
-        <div className="border-b border-border/50 bg-background">
+      <div className="team-pulse-scope min-h-screen bg-muted/20 animate-in fade-in duration-400">
+        <div className="border-b border-border/60 bg-background/90">
           <div className="container mx-auto px-4 sm:px-8">
             <div className="flex items-center justify-between gap-4 py-4 sm:py-5">
               <div className="flex items-center gap-3 min-w-0">
@@ -418,10 +418,10 @@ export default function TeamPulsePage() {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 sm:px-8 pt-6 pb-[calc(5rem+var(--mobile-bottom-nav-offset,0px))] md:pb-8">
+        <div className="container mx-auto px-4 sm:px-8 pt-4 sm:pt-5 pb-[calc(5rem+var(--mobile-bottom-nav-offset,0px))] md:pb-8">
           <div className="animate-in fade-in duration-200">
             {tab === "overview" && (
-              <div className="space-y-6">
+              <div className="max-w-6xl mx-auto space-y-4 sm:space-y-5">
                 <TeamOverview
                   members={members}
                   todayAbsences={todayAbsences}

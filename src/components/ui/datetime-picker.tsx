@@ -20,6 +20,7 @@ interface DateTimePickerProps {
   placeholder?: string;
   minDate?: Date;
   className?: string;
+  popoverClassName?: string;
   id?: string;
 }
 
@@ -104,6 +105,7 @@ export function DateTimePicker({
   placeholder = "Pick a date & time",
   minDate,
   className,
+  popoverClassName,
   id,
 }: DateTimePickerProps) {
   const [datePart, timePart] = value ? value.split("T") : ["", ""];
@@ -145,7 +147,10 @@ export function DateTimePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="z-300 w-[min(22rem,calc(100vw-1.5rem))] max-h-[calc(var(--radix-popover-content-available-height)-0.75rem)] overflow-y-auto p-0 md:w-auto"
+        className={cn(
+          "z-300 w-[min(22rem,calc(100vw-1.5rem))] max-h-[calc(var(--radix-popover-content-available-height)-0.75rem)] overflow-y-auto p-0 md:w-auto",
+          popoverClassName,
+        )}
         align="start"
       >
         <div className="flex flex-col md:flex-row">

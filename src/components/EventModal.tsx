@@ -40,12 +40,23 @@ async function fetchCrmUsers(): Promise<CrmUserLite[]> {
   try {
     const res = await apiClient.getTeamMembers();
     const raw = res.data?.members ?? res.data?.data ?? res.data ?? [];
-    const mapped = (Array.isArray(raw) ? raw : []).map((u: any) => ({
-      _id: String(u._id ?? u.id),
-      fullName: u.fullName ?? u.name,
-      username: u.username,
-      email: u.email,
-    }));
+    const mapped = (Array.isArray(raw) ? raw : []).flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+
+      const user = value as Record<string, unknown>;
+      const id = user._id ?? user.id;
+      if (typeof id !== "string" && typeof id !== "number") return [];
+
+      const text = (field: unknown) =>
+        typeof field === "string" ? field : undefined;
+
+      return [{
+        _id: String(id),
+        fullName: text(user.fullName) ?? text(user.name),
+        username: text(user.username),
+        email: text(user.email),
+      }];
+    });
     return Array.from(new Map(mapped.map((u) => [u._id, u])).values());
   } catch {
     return [];
@@ -236,8 +247,10 @@ export function EventModal({
   };
 
   const field =
-    "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-50";
-  const label = "mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
+    "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition [color-scheme:dark] placeholder:text-slate-400 focus:border-emerald-400/70 focus:ring-1 focus:ring-emerald-400/30 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/70 disabled:text-slate-300 disabled:opacity-100";
+  const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-300";
+  const dateTimePopover =
+    "border-slate-700 bg-slate-950 text-slate-100 [--accent:#1e293b] [--accent-foreground:#f8fafc] [--background:#0f172a] [--border:#334155] [--input:#334155] [--muted:#1e293b] [--muted-foreground:#94a3b8] [--popover:#020617] [--popover-foreground:#f8fafc]";
 
   const modalTitle = editing ? (readOnly ? "Schedule details" : "Edit item") : "New item";
   const modalDescription = editing
@@ -247,14 +260,14 @@ export function EventModal({
   const bodyContent = (
     <div className="relative">
       {isAppointment && (
-        <p className="mb-4 rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-xs text-teal-700 dark:text-teal-200">
+        <p className="mb-4 rounded-lg border border-teal-400/35 bg-teal-400/10 p-3 text-xs text-teal-100">
           This is an appointment from the Appointment Page. Edit it there to
           change customer details — title and time shown here are read-only.
         </p>
       )}
 
       {readOnly && !isAppointment && (
-        <p className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-700 dark:text-cyan-200">
+        <p className="mb-4 rounded-lg border border-cyan-400/35 bg-cyan-400/10 p-3 text-xs text-cyan-100">
           View only — {creatorName} created this {draft.type} and is the
           only one who can change it. You&apos;re tagged as a participant.
         </p>
@@ -271,9 +284,9 @@ export function EventModal({
             aria-pressed={draft.type === t.value}
             className={`min-h-11 rounded-lg border px-3.5 py-2 text-xs transition sm:min-h-9 sm:py-1.5 ${
               draft.type === t.value
-                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                : "border-border text-muted-foreground hover:bg-accent"
-            } disabled:opacity-40`}
+                ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
+                : "border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+            } disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/40 disabled:text-slate-400 disabled:opacity-100`}
           >
             {t.label}
           </button>
@@ -292,9 +305,9 @@ export function EventModal({
               aria-pressed={draft.status === s.value}
               className={`min-h-11 rounded-lg border px-3.5 py-2 text-xs transition sm:min-h-9 sm:py-1.5 ${
                 draft.status === s.value
-                  ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300"
-                  : "border-border text-muted-foreground hover:bg-accent"
-              } disabled:opacity-40`}
+                  ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-100"
+                  : "border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+              } disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/40 disabled:text-slate-400 disabled:opacity-100`}
             >
               {s.label}
             </button>
@@ -336,6 +349,7 @@ export function EventModal({
             onChange={handleStartChange}
             disabled={readOnly}
             className={`${field} font-mono tabular-nums`}
+            popoverClassName={dateTimePopover}
           />
         </div>
         <div>
@@ -346,11 +360,12 @@ export function EventModal({
             onChange={(v) => set("end", v)}
             disabled={readOnly}
             className={`${field} font-mono tabular-nums`}
+            popoverClassName={dateTimePopover}
           />
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-4 text-sm text-foreground">
+      <div className="mb-4 flex flex-wrap gap-4 text-sm text-slate-200">
         <label className="flex min-h-9 items-center gap-2">
           <input
             type="checkbox"
@@ -374,7 +389,7 @@ export function EventModal({
       </div>
 
       {draft.repeatsDailyWindow && (
-        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 dark:border-emerald-400/25 dark:bg-emerald-400/10 sm:grid-cols-2">
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-emerald-400/25 bg-emerald-400/10 p-3 sm:grid-cols-2">
           <div>
             <label className={label} htmlFor="sc-dstart">Daily start</label>
             <input
@@ -396,11 +411,11 @@ export function EventModal({
             />
           </div>
           <div className="col-span-1 sm:col-span-2">
-            <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-emerald-700/80 dark:text-emerald-200/70">
+            <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-emerald-200">
               Runs on these days
             </span>
             {rangeDays.length === 0 ? (
-              <p className="text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
+              <p className="text-[11px] text-emerald-200/80">
                 Set valid start and end dates to pick days.
               </p>
             ) : (
@@ -416,8 +431,8 @@ export function EventModal({
                       aria-pressed={active}
                       className={`min-h-9 rounded-md border px-2.5 py-1.5 font-mono text-[10px] tabular-nums transition ${
                         active
-                          ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200"
-                          : "border-border text-muted-foreground hover:bg-accent"
+                          ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-100"
+                          : "border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                       }`}
                     >
                       {fmtDayLabel(day)}
@@ -426,7 +441,7 @@ export function EventModal({
                 })}
               </div>
             )}
-            <p className="mt-1.5 text-[11px] text-emerald-700/70 dark:text-emerald-200/60">
+            <p className="mt-1.5 text-[11px] text-emerald-200/80">
               Highlighted days run during the time window above — tap to
               include or skip a day.
             </p>
@@ -437,9 +452,9 @@ export function EventModal({
       {/* Assignees */}
       <div className="mb-4">
         <span className={label}>Tag participants</span>
-        <div className="rounded-lg border border-border bg-muted/30">
+        <div className="rounded-lg border border-slate-700 bg-slate-900/70 shadow-inner shadow-black/10">
           {/* Search + select all */}
-          <div className="flex items-center gap-2 border-b border-border p-2">
+          <div className="flex items-center gap-2 border-b border-slate-700 p-2">
             <input
               type="search"
               aria-label="Search participants"
@@ -447,9 +462,9 @@ export function EventModal({
               disabled={readOnly}
               value={participantQuery}
               onChange={(e) => setParticipantQuery(e.target.value)}
-              className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-2 text-xs text-foreground outline-none transition placeholder:text-muted-foreground focus:border-cyan-500/50 disabled:opacity-40"
+              className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-slate-100 outline-none transition placeholder:text-slate-400 focus:border-cyan-400/70 focus:ring-1 focus:ring-cyan-400/25 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-950/70 disabled:text-slate-300 disabled:opacity-100"
             />
-            <label className="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition hover:bg-accent">
+            <label className="flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 transition hover:bg-slate-800">
               <input
                 type="checkbox"
                 disabled={readOnly || users.length === 0}
@@ -464,10 +479,10 @@ export function EventModal({
           {/* Checkable list */}
           <div className="max-h-48 overflow-auto p-1">
             {users.length === 0 && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">Loading users…</p>
+              <p className="px-2 py-1.5 text-xs text-slate-400">Loading users…</p>
             )}
             {users.length > 0 && filteredUsers.length === 0 && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              <p className="px-2 py-1.5 text-xs text-slate-400">
                 No one matches “{participantQuery}”.
               </p>
             )}
@@ -478,9 +493,9 @@ export function EventModal({
                   key={u._id}
                   className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs transition ${
                     active
-                      ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
-                      : "text-foreground hover:bg-accent"
-                  } ${readOnly ? "cursor-not-allowed opacity-40" : ""}`}
+                      ? "bg-cyan-400/15 text-cyan-100"
+                      : "text-slate-200 hover:bg-slate-800"
+                  } ${readOnly ? "cursor-not-allowed bg-slate-900/40 text-slate-400" : ""}`}
                 >
                   <input
                     type="checkbox"
@@ -491,7 +506,7 @@ export function EventModal({
                   />
                   <span className="truncate">{displayName(u)}</span>
                   {u.email && u.fullName && (
-                    <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
+                    <span className="ml-auto truncate font-mono text-[10px] text-slate-400">
                       {u.email}
                     </span>
                   )}
@@ -500,9 +515,9 @@ export function EventModal({
             })}
           </div>
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-[11px] text-slate-400">
           {draft.assignees.length > 0 && (
-            <span className="mr-1 font-mono tabular-nums text-cyan-600 dark:text-cyan-300">
+            <span className="mr-1 font-mono tabular-nums text-cyan-300">
               {draft.assignees.length} tagged ·
             </span>
           )}
@@ -514,19 +529,19 @@ export function EventModal({
       {draft.type === "meeting" && (editing?.meetingLink || !readOnly) && (
         <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-3">
           {editing?.meetingLink ? (
-            <div className="text-xs text-cyan-700 dark:text-cyan-200">
+            <div className="text-xs text-cyan-100">
               <span className="mb-1 block font-medium">Supra-Space meeting</span>
               <a
                 href={editing.meetingLink}
                 target="_blank"
                 rel="noreferrer"
-                className="break-all font-mono text-cyan-700 underline decoration-cyan-500/40 underline-offset-2 hover:text-cyan-600 dark:text-cyan-300 dark:hover:text-cyan-200"
+                className="break-all font-mono text-cyan-200 underline decoration-cyan-400/50 underline-offset-2 hover:text-cyan-100"
               >
                 {editing.meetingLink}
               </a>
             </div>
           ) : (
-            <label className="flex min-h-9 items-center gap-2 text-sm text-cyan-700 dark:text-cyan-200">
+            <label className="flex min-h-9 items-center gap-2 text-sm text-cyan-100">
               <input
                 type="checkbox"
                 checked={draft.generateMeetingLink}
@@ -539,7 +554,7 @@ export function EventModal({
         </div>
       )}
 
-      {error && <p className="text-xs text-rose-600 dark:text-rose-300">{error}</p>}
+      {error && <p className="text-xs text-rose-300">{error}</p>}
     </div>
   );
 
@@ -548,14 +563,14 @@ export function EventModal({
       {onDelete && !readOnly && (
         <button
           onClick={() => void onDelete()}
-          className="min-h-11 rounded-lg border border-rose-500/30 px-3.5 text-xs text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-300 sm:min-h-9 sm:px-3"
+          className="min-h-11 rounded-lg border border-rose-400/35 px-3.5 text-xs text-rose-200 transition hover:bg-rose-400/10 sm:min-h-9 sm:px-3"
         >
           Delete
         </button>
       )}
       <button
         onClick={onClose}
-        className="ml-auto min-h-11 rounded-lg border border-border px-4 text-xs text-foreground transition hover:bg-accent sm:min-h-9"
+        className="ml-auto min-h-11 rounded-lg border border-slate-700 bg-slate-900 px-4 text-xs text-slate-100 transition hover:bg-slate-800 sm:min-h-9"
       >
         Cancel
       </button>
@@ -576,16 +591,16 @@ export function EventModal({
       <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
         <SheetContent
           side="bottom"
-          className="flex max-h-[92dvh] flex-col gap-0 rounded-t-2xl border-border p-0 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+          className="flex max-h-[92dvh] flex-col gap-0 rounded-t-2xl border-slate-700 bg-slate-950 p-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] text-slate-100 shadow-2xl [&_[data-slot=sheet-close]]:text-slate-300 [&_[data-slot=sheet-close]]:hover:bg-slate-800"
         >
-          <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
-            <SheetTitle className="text-base font-semibold">{modalTitle}</SheetTitle>
+          <SheetHeader className="shrink-0 border-b border-slate-700 px-4 py-3 text-left">
+            <SheetTitle className="text-base font-semibold text-slate-50">{modalTitle}</SheetTitle>
             <SheetDescription className="sr-only">{modalDescription}</SheetDescription>
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{bodyContent}</div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border bg-background px-4 py-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-700 bg-slate-900/80 px-4 py-3">
             {footerActions}
           </div>
         </SheetContent>
@@ -595,15 +610,15 @@ export function EventModal({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="flex max-h-[90dvh] max-w-lg flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 text-left">
-          <DialogTitle className="text-base font-semibold">{modalTitle}</DialogTitle>
+      <DialogContent className="flex max-h-[90dvh] max-w-lg flex-col gap-0 overflow-hidden border-slate-700 bg-slate-950 p-0 text-slate-100 shadow-2xl [&_[data-slot=dialog-close]]:text-slate-300 [&_[data-slot=dialog-close]]:hover:bg-slate-800">
+        <DialogHeader className="shrink-0 border-b border-slate-700 px-6 py-4 text-left">
+          <DialogTitle className="text-base font-semibold text-slate-50">{modalTitle}</DialogTitle>
           <DialogDescription className="sr-only">{modalDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{bodyContent}</div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-6 py-4">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-700 bg-slate-900/80 px-6 py-4">
           {footerActions}
         </div>
       </DialogContent>
