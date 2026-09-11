@@ -1061,6 +1061,8 @@ const SS4_MIME_EXTENSION_PREFERENCE: Record<string, string> = {
   'video/mpeg': '.mpeg',
   'video/ogg': '.ogv',
 };
+const SS4_MEDIA_INPUT_ACCEPT = 'image/*,video/*';
+const SS4_VIDEO_INPUT_ACCEPT = 'video/*';
 const SS4_REACTIONS = [
   '\u{1f44d}', '\u{2764}\u{fe0f}', '\u{1f602}', '\u{1f62e}', '\u{1f622}', '\u{1f64f}',
   '\u{1f525}', '\u{1f389}', '\u{1f44f}', '\u{1f60d}', '\u{1f914}', '\u{1f440}',
@@ -4686,6 +4688,29 @@ function clipboardAttachmentFiles(data: DataTransfer | null | undefined): File[]
   Array.from(data.items || []).forEach(item => {
     if (item.kind === 'file') add(item.getAsFile(), item.type);
   });
+  return files;
+}
+async function readSS4ClipboardMediaFiles(): Promise<File[]> {
+  const clipboard = navigator.clipboard as Clipboard & { read?: () => Promise<ClipboardItem[]> };
+  if (!clipboard?.read) throw new Error('clipboard media read unavailable');
+  const items = await clipboard.read();
+  const files: File[] = [];
+  const keys = new Set<string>();
+  for (const item of items) {
+    for (const type of item.types || []) {
+      const mimeType = normalizeSS4ClipboardMimeType(type);
+      if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) continue;
+      const blob = await item.getType(type);
+      if (!blob || blob.size <= 0) continue;
+      const extension = getSS4PreferredExtensionForMime(mimeType);
+      const base = mimeType.startsWith('video/') ? `pasted-video-${files.length + 1}` : `pasted-image-${files.length + 1}`;
+      const file = normalizeSS4ClipboardFile(new File([blob], `${base}${extension || ''}`, { type: mimeType || blob.type, lastModified: Date.now() }), type, files.length);
+      const key = attachmentFileKey(file);
+      if (keys.has(key)) continue;
+      keys.add(key);
+      files.push(file);
+    }
+  }
   return files;
 }
 
@@ -9648,6 +9673,8 @@ export default function SupraSpacePage() {
   const [uid, setUid] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [initSlow, setInitSlow] = React.useState(false);
+  const [initialConversationsLoading, setInitialConversationsLoading] = React.useState(true);
+  const [initialConversationsReady, setInitialConversationsReady] = React.useState(false);
   React.useEffect(() => {
     if (!loading) { setInitSlow(false); return; }
     const t = setTimeout(() => setInitSlow(true), 10000);
@@ -9781,6 +9808,7 @@ export default function SupraSpacePage() {
   // sizing below — that native-app-feel lock should NOT apply to a normal
   // browser tab.
   const [isIOSDevice, setIsIOSDevice] = React.useState(false);
+  const conversationPageSize = React.useMemo(() => (isMobileViewport ? 50 : SS4_CONVERSATION_PAGE_SIZE), [isMobileViewport]);
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
     setIsStandaloneApp(standalone);
@@ -10124,9 +10152,11 @@ export default function SupraSpacePage() {
   const emptyHistoryRetryRef = React.useRef<Record<string, number>>({});
   const fileRef = React.useRef<HTMLInputElement>(null);
   const imageFileRef = React.useRef<HTMLInputElement>(null);
+  const videoFileRef = React.useRef<HTMLInputElement>(null);
   const cameraFileRef = React.useRef<HTMLInputElement>(null);
   const fileInputId = React.useId();
   const imageInputId = React.useId();
+  const videoInputId = React.useId();
   const cameraInputId = React.useId();
   const textareaRef = React.useRef<HTMLDivElement>(null);
   const composerDockRef = React.useRef<HTMLDivElement>(null);
@@ -10700,7 +10730,7 @@ export default function SupraSpacePage() {
     apiClient
       .get('/api/supraspace/conversations', {
         headers: { Authorization: `Bearer ${t}` },
-        params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset: 0 },
+        params: { limit: conversationPageSize, offset: 0 },
       })
       .then(r => {
         const parsed = readSupraSpaceConversationPayload(r.data?.data);
@@ -10717,7 +10747,7 @@ export default function SupraSpacePage() {
       })
       .catch(() => { })
       .finally(() => { convosFetchInFlightRef.current = false; });
-  }, []);
+  }, [conversationPageSize]);
 
   const loadMoreConversations = React.useCallback(async () => {
     const t = tokenRef.current;
@@ -10728,7 +10758,7 @@ export default function SupraSpacePage() {
     try {
       const r = await apiClient.get('/api/supraspace/conversations', {
         headers: { Authorization: `Bearer ${t}` },
-        params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset },
+        params: { limit: conversationPageSize, offset },
       });
       const parsed = readSupraSpaceConversationPayload(r.data?.data);
       setHasMoreConversations(parsed.hasMore);
@@ -10741,7 +10771,7 @@ export default function SupraSpacePage() {
       convosLoadMoreInFlightRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, []);
+  }, [conversationPageSize]);
 
   const handleConversationListScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
     if (q.trim().length >= 2 || loadingMoreConversations || !hasMoreConversationsRef.current) return;
@@ -10808,6 +10838,7 @@ export default function SupraSpacePage() {
     conversationsOffsetRef.current = cached.conversations.length;
     setMsgFetchState(cachedStatuses);
     if (cachedUsers.length) setAllUsers(cachedUsers);
+    setInitialConversationsLoading(false);
     if (restoreActiveConversation && cachedActiveId) {
       activeIdRef.current = cachedActiveId;
       forceScrollToBottomRef.current = cachedActiveId;
@@ -10857,6 +10888,8 @@ export default function SupraSpacePage() {
       }
       tokenRef.current = t;
       setToken(t);
+      setInitialConversationsReady(false);
+      setInitialConversationsLoading(true);
       const cachedUserId = getSupraSpaceCacheUserIdFromToken(t);
       const initialUrlParams = new URLSearchParams(window.location.search);
       const hasInitialConversationTarget = Boolean(
@@ -10867,18 +10900,29 @@ export default function SupraSpacePage() {
       );
       const allowSavedConversationRestore = !isRunningAsSupraSpaceStandalone() || hasInitialConversationTarget;
       const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
+      const releaseInitialShell = () => {
+        if (initDoneRef.current) return;
+        setLoading(false);
+        initDoneRef.current = true;
+      };
 
       try {
-        const [me, cv] = await Promise.all([
-          apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } }),
-          apiClient.get('/api/supraspace/conversations', {
-            headers: { Authorization: `Bearer ${t}` },
-            params: { limit: SS4_CONVERSATION_PAGE_SIZE, offset: 0 },
-          }),
-        ]);
+        const me = await apiClient.get('/api/crm/me', { headers: { Authorization: `Bearer ${t}` } });
         const myData = (me.data?.data || me.data) as CrmUser;
         setUid(myData._id);
         setMyProfile(myData);
+        apiClient
+          .get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } })
+          .then(us => setAllUsers(us.data?.data || []))
+          .catch(() => setAllUsers([]));
+
+        if (!hasInitialConversationTarget && !hydratedFromCache) releaseInitialShell();
+
+        convosFetchInFlightRef.current = true;
+        const cv = await apiClient.get('/api/supraspace/conversations', {
+          headers: { Authorization: `Bearer ${t}` },
+          params: { limit: conversationPageSize, offset: 0 },
+        });
         const parsedConvos = readSupraSpaceConversationPayload(cv.data?.data);
         const fetchedConvos = parsedConvos.conversations;
         const availableConvos = mergeSupraSpaceConversations(fetchedConvos, convosRef.current);
@@ -10888,10 +10932,6 @@ export default function SupraSpacePage() {
         setConversationsOffset(parsedConvos.nextOffset);
         hasMoreConversationsRef.current = parsedConvos.hasMore;
         conversationsOffsetRef.current = parsedConvos.nextOffset;
-        apiClient
-          .get('/api/supraspace/users', { headers: { Authorization: `Bearer ${t}` } })
-          .then(us => setAllUsers(us.data?.data || []))
-          .catch(() => setAllUsers([]));
 
         const urlParams = new URLSearchParams(window.location.search);
         let openedInitialConversation = false;
@@ -10983,7 +11023,12 @@ export default function SupraSpacePage() {
           router.replace('/crm');
         }
       }
-      finally { setLoading(false); initDoneRef.current = true; }
+      finally {
+        convosFetchInFlightRef.current = false;
+        setInitialConversationsLoading(false);
+        setInitialConversationsReady(true);
+        releaseInitialShell();
+      }
     })();
   }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -11022,7 +11067,7 @@ export default function SupraSpacePage() {
   const routeConversationId = searchParams.get('convId');
   React.useEffect(() => {
     const id = (routeConversationId || '').trim();
-    if (loading || !id || handledRouteConversationIdRef.current === id) return;
+    if (loading || !initialConversationsReady || !id || handledRouteConversationIdRef.current === id) return;
     if (!convos.some(c => c._id === id)) {
       handledRouteConversationIdRef.current = id;
       clearSupraSpaceConversationParam();
@@ -11032,7 +11077,7 @@ export default function SupraSpacePage() {
     handledRouteConversationIdRef.current = id;
     openConversation(id);
     clearSupraSpaceConversationParam();
-  }, [loading, routeConversationId, convos, openConversation, uid]);
+  }, [loading, initialConversationsReady, routeConversationId, convos, openConversation, uid]);
 
   React.useEffect(() => {
     const target = pendingNotificationTargetRef.current;
@@ -11063,7 +11108,7 @@ export default function SupraSpacePage() {
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
     const id = (targetUserId || '').trim();
-    if (loading || !token || !id || handledRouteUserIdRef.current === id) return;
+    if (loading || !initialConversationsReady || !token || !id || handledRouteUserIdRef.current === id) return;
     handledRouteUserIdRef.current = id;
     apiClient
       .post('/api/supraspace/conversations/direct', { targetUserId: id }, { headers: { Authorization: `Bearer ${token}` } })
@@ -11078,7 +11123,7 @@ export default function SupraSpacePage() {
         console.error('[SupraSpace] Auto-open DM failed:', err);
         toast.error('Could not open conversation');
       });
-  }, [loading, token, targetUserId, router]);
+  }, [loading, initialConversationsReady, token, targetUserId, router]);
 
   React.useEffect(() => {
     if (!socket) return;
@@ -11818,6 +11863,27 @@ export default function SupraSpacePage() {
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
   }, [activeId, pendingFiles, showUploadNotice]);
   handleUploadFilesRef.current = handleUploadFiles;
+
+  React.useEffect(() => {
+    const handleDocumentPaste = (event: ClipboardEvent) => {
+      if (!activeId) return;
+      const pastedAttachments = clipboardAttachmentFiles(event.clipboardData);
+      if (pastedAttachments.length === 0) return;
+      const target = event.target instanceof Node ? event.target : null;
+      const activeElement = document.activeElement;
+      const targetElement = target instanceof HTMLElement ? target : target?.parentElement || null;
+      const targetInComposer = Boolean(target && (textareaRef.current?.contains(target) || composerDockRef.current?.contains(target)));
+      const activeInComposer = Boolean(activeElement && (textareaRef.current?.contains(activeElement) || composerDockRef.current?.contains(activeElement)));
+      const targetEditable = targetElement?.closest('input, textarea, [contenteditable="true"]');
+      if (!targetInComposer && !activeInComposer && targetEditable) return;
+      if (!targetInComposer && !activeInComposer && activeElement && activeElement !== document.body) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void handleUploadFilesRef.current?.(pastedAttachments);
+    };
+    document.addEventListener('paste', handleDocumentPaste, true);
+    return () => document.removeEventListener('paste', handleDocumentPaste, true);
+  }, [activeId]);
 
   const handleUpload = async (files: FileList | null) => {
     if (!files) return;
@@ -13524,6 +13590,13 @@ export default function SupraSpacePage() {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, [applyTextColor]);
 
+  const restoreComposerAfterMobilePicker = React.useCallback(() => {
+    if (!isStandaloneApp && !isMobileViewport) return;
+    window.setTimeout(() => {
+      focusComposerAtSavedCaret();
+    }, 120);
+  }, [focusComposerAtSavedCaret, isMobileViewport, isStandaloneApp]);
+
   const prepareMobileMediaPicker = React.useCallback(() => {
     saveComposerSelection();
     setEmojiOpen(false);
@@ -13538,12 +13611,28 @@ export default function SupraSpacePage() {
     imageFileRef.current?.click();
   }, [prepareMobileMediaPicker]);
 
-  const restoreComposerAfterMobilePicker = React.useCallback(() => {
-    if (!isStandaloneApp && !isMobileViewport) return;
-    window.setTimeout(() => {
-      focusComposerAtSavedCaret();
-    }, 120);
-  }, [focusComposerAtSavedCaret, isMobileViewport, isStandaloneApp]);
+  const openMobileVideoPicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    videoFileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
+  const pasteMediaFromClipboard = React.useCallback(async () => {
+    if (!activeId) return;
+    try {
+      const files = await readSS4ClipboardMediaFiles();
+      if (!files.length) {
+        showUploadNotice('error', 'No image or video found on clipboard. Use Photos & Videos instead.');
+        return;
+      }
+      await handleUploadFilesRef.current?.(files);
+      setMobileAttachSheetOpen(false);
+      setGifOpen(false);
+      setMobileFilePickerOpen(false);
+      restoreComposerAfterMobilePicker();
+    } catch (error) {
+      showUploadNotice('error', getErrorMessage(error, 'This browser cannot paste copied media here. Use Photos & Videos instead.'));
+    }
+  }, [activeId, restoreComposerAfterMobilePicker, showUploadNotice]);
 
   const formatButtonClass = React.useCallback((format: RichTextFormat) => cn(
     'h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)',
@@ -14194,6 +14283,19 @@ export default function SupraSpacePage() {
             <div className="mx-4 ss4-divider" />
 
             <div className={cn('flex-1 min-h-0 overflow-y-auto ss4-scroll', isStandaloneApp ? 'pb-28' : 'pb-2')} onScroll={handleConversationListScroll}>
+              {initialConversationsLoading && convos.length === 0 && q.trim().length < 2 && (
+                <div className="px-3 py-3 space-y-3">
+                  {[0, 1, 2, 3, 4].map(index => (
+                    <div key={index} className="flex items-center gap-2.5">
+                      <div className="h-10 w-10 shrink-0 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-3 w-32 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                        <div className="h-2.5 w-44 rounded-full animate-pulse" style={{ background: 'var(--bg-hover)' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {isStandaloneApp && q.trim().length >= 2 && archivedList.length > 0 && (
                 <div className="pt-1">
                   <div className="px-3 pt-2 pb-1.5 flex items-center gap-2">
@@ -14360,7 +14462,7 @@ export default function SupraSpacePage() {
                 </div>
               )}
 
-              {normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
+              {!initialConversationsLoading && normalList.length === 0 && pinnedList.length === 0 && q.trim().length < 2 && (
                 <div className="flex flex-col items-center justify-center h-40 gap-3 px-3">
                   <div className="h-10 w-10 rounded-xl ss4-empty-icon flex items-center justify-center"><MessageSquare className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
                   <p className="text-center" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
@@ -15590,7 +15692,7 @@ export default function SupraSpacePage() {
                             </div>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Image"><ImageIcon className="h-6 w-6" /></button>
+                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Photo or video"><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 onPointerDown={() => startSendPress()}
@@ -15682,8 +15784,9 @@ export default function SupraSpacePage() {
                           </div>
                         )}
                         <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
-                        <input id={imageInputId} ref={imageFileRef} type="file" accept="image/*" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
-                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={imageInputId} ref={imageFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={videoInputId} ref={videoFileRef} type="file" accept={SS4_VIDEO_INPUT_ACCEPT} multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
+                        <input id={cameraInputId} ref={cameraFileRef} type="file" accept={SS4_MEDIA_INPUT_ACCEPT} capture="environment" className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
                         <div className="ss4-desktop-toolbar hidden md:flex items-center justify-between px-2.5 pb-2 pt-0.5 sm:px-3 sm:pb-2.5 sm:pt-1">
                           <div className="flex items-center gap-0.5">
                             <button onClick={() => fileRef.current?.click()} className="ss4-icon-btn h-7 w-7 sm:h-8 sm:w-8" title="Attach files"><Paperclip className="h-4 w-4" /></button>
@@ -16157,28 +16260,30 @@ export default function SupraSpacePage() {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {!isIOSStandaloneApp && (
-                    <>
-                      <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span className="font-semibold" style={{ fontSize: 14 }}>Photos</span>
-                      </label>
-                      <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                        <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
-                      </label>
-                    </>
-                  )}
+                  <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Photos & Videos</span>
+                  </label>
+                  <label htmlFor={videoInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Video className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Videos</span>
+                  </label>
+                  <label htmlFor={cameraInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
+                  </label>
+                  <button type="button" onClick={pasteMediaFromClipboard} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Copy className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Paste Media</span>
+                  </button>
                   <button type="button" onClick={() => { setMobileFilePickerOpen(false); setGifOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <Film className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>GIF</span>
                   </button>
-                  {!isIOSStandaloneApp && (
-                    <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
-                      <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                      <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
-                    </button>
-                  )}
+                  <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                    <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                    <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
+                  </button>
                   <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <CalendarPlus className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>Calendar</span>
