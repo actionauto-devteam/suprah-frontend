@@ -13,8 +13,10 @@ interface Screenshot {
   url: string
 }
 
+const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
+const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })
+  toMDTDate(new Date(iso)).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" })
 
 const fmtDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600)
