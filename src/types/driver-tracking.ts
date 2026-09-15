@@ -90,6 +90,8 @@ export interface LoadReleaseRequestSummary {
 }
 
 export interface DriverTrackingItem {
+    locationRecordedAt?: string | null;
+    accuracy?: number | null;
   id: string;
   status: DriverStatus;
   organizationId?: string;

@@ -6,8 +6,8 @@ import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
 
-const HEARTBEAT_INTERVAL_MS = 30_000;
-const POSITION_SEND_THROTTLE_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 15_000;
+const POSITION_SEND_THROTTLE_MS = 5_000;
 const LOAD_STATE_POLL_MS = 15_000;
 
 const STATUS_KEY_PREFIX = "driver-gps-sharing-status";
@@ -34,7 +34,7 @@ interface DriverLocationSharingContextValue {
   shareStatus: DriverStatus;
   setShareStatus: (status: DriverStatus) => void;
   lastShareAt: string | null;
-  lastCoords: { lat: number; lng: number } | null;
+  lastCoords: { lat: number; lng: number; recordedAt?: number; accuracy?: number } | null;
   shareError: string | null;
   hasActiveLoad: boolean;
   isLocationRequired: boolean;
@@ -105,7 +105,7 @@ export function DriverLocationSharingProvider({
 
   const watchIdRef = React.useRef<number | null>(null);
   const heartbeatTimerRef = React.useRef<number | null>(null);
-  const lastCoordsRef = React.useRef<{ lat: number; lng: number } | null>(null);
+  const lastCoordsRef = React.useRef<{ lat: number; lng: number; recordedAt?: number; accuracy?: number } | null>(null);
   const lastPositionSendRef = React.useRef(0);
   const statusRef = React.useRef<DriverStatus>(shareStatus);
   const manualSharingEnabledRef = React.useRef(false);
@@ -181,19 +181,24 @@ export function DriverLocationSharingProvider({
 
   const postLocation = React.useCallback(
     async (
-      coords: { lat: number; lng: number },
+      coords: { lat: number; lng: number; recordedAt?: number; accuracy?: number },
       status: DriverStatus,
     ) => {
       if (!isSignedIn) return;
+      if (!coords.recordedAt || Date.now() - coords.recordedAt > 60_000) {
+        throw new Error("Waiting for a fresh GPS reading. Keep the driver page visible and location enabled.");
+      }
 
       const token = await getToken();
       if (!token) throw new Error("Authentication token is unavailable");
 
-      await apiClient.post(
+      const response = await apiClient.post(
         "/api/driver-tracking/heartbeat",
         {
           lat: coords.lat,
           lng: coords.lng,
+          locationRecordedAt: new Date(coords.recordedAt).toISOString(),
+          accuracy: coords.accuracy,
           status,
           // Distinguish explicit no-load Manual GPS from automatic tracking
           // required by an Accepted/Picked Up/In-Transit relationship.
@@ -201,13 +206,16 @@ export function DriverLocationSharingProvider({
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
+      if (response.data?.data?.locationAccepted === false) {
+        throw new Error("Location was not accepted. Refresh the page to check your tracking requirements.");
+      }
     },
     [getToken, isSignedIn],
   );
 
   const sendHeartbeat = React.useCallback(
     async (
-      coords: { lat: number; lng: number },
+      coords: { lat: number; lng: number; recordedAt?: number; accuracy?: number },
       statusOverride?: DriverStatus,
     ) => {
       const nextStatus = statusOverride ?? statusRef.current;
@@ -661,6 +669,8 @@ export function DriverLocationSharingProvider({
         const coords = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          recordedAt: position.timestamp,
+          accuracy: position.coords.accuracy,
         };
 
         lastCoordsRef.current = coords;
@@ -791,6 +801,8 @@ export function DriverLocationSharingProvider({
       const coords = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
+          recordedAt: position.timestamp,
+          accuracy: position.coords.accuracy,
       };
       lastCoordsRef.current = coords;
       locationOfflineSignaledRef.current = false;
@@ -856,7 +868,7 @@ export function DriverLocationSharingProvider({
     };
 
     const refreshWhenVisible = () => {
-      if (document.visibilityState !== "visible") return;
+      if (cancelled || document.visibilityState !== "visible" || !navigator.onLine) return;
 
       navigator.geolocation.getCurrentPosition(
         (position) => reportPosition(position, true),
@@ -890,35 +902,15 @@ export function DriverLocationSharingProvider({
         },
       );
 
-    heartbeatTimerRef.current = window.setInterval(() => {
-      if (
-        locationPermissionStateRef.current === "denied" ||
-        locationOfflineSignaledRef.current
-      ) {
-        return;
-      }
-
-      const coords = lastCoordsRef.current;
-      if (!coords) return;
-
-      void sendHeartbeat(coords).catch((error: any) => {
-        if (!cancelled && mountedRef.current) {
-          setIsSharing(false);
-          setIsStarting(true);
-          setShareError(
-            error?.response?.data?.message ||
-              error?.message ||
-              "Driver location heartbeat failed",
-          );
-        }
-      });
-    }, HEARTBEAT_INTERVAL_MS);
+    // A heartbeat must acquire GPS; replaying lastCoords would falsely refresh map presence.
+    heartbeatTimerRef.current = window.setInterval(refreshWhenVisible, HEARTBEAT_INTERVAL_MS);
 
     document.addEventListener(
       "visibilitychange",
       refreshWhenVisible,
     );
     window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenVisible);
 
     let permissionStatus: PermissionStatus | null = null;
     const handlePermissionChange = () => {
@@ -984,6 +976,7 @@ export function DriverLocationSharingProvider({
         refreshWhenVisible,
       );
       window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("online", refreshWhenVisible);
       permissionStatus?.removeEventListener(
         "change",
         handlePermissionChange,
