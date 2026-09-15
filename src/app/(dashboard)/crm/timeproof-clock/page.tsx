@@ -806,9 +806,17 @@ export default function TimeprofClockPage() {
       if (token) {
         const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
         const d = resumeRes.data?.data
-        if (d?.resumable && d?.originalClockIn) {
+        // Only prompt when the shift was genuinely auto-ended (canSeamlessResume) — a normal,
+        // deliberate "End Shift" click also leaves resumable=true (there's an open time-out
+        // today with nothing clocked back in since), which previously showed this same modal
+        // for every ordinary end-of-day clock-out. Worse, "Yes, Resume Shift" silently fell
+        // back to a plain new time-in whenever canSeamlessResume was false (see
+        // handleResumeShiftClick's `if (!canSeamlessResume)` branch) — identical to what "No"
+        // already does — so the "Yes" button's promise to continue the original clock-in
+        // never actually matched its behavior outside the real auto-clockout case.
+        if (d?.resumable && d?.originalClockIn && d?.canSeamlessResume) {
           setResumeOriginalClockIn(d.originalClockIn)
-          setCanSeamlessResume(!!d.canSeamlessResume)
+          setCanSeamlessResume(true)
           setResumeModal(true)
           return
         }

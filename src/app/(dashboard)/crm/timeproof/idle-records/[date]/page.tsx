@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, AlertTriangle, ArrowRight, ImageOff, Download } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ImageOff, Download, VideoOff } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import type { IdlePeriod } from "@/components/crm/timeproof/shared"
 
@@ -10,12 +10,14 @@ interface Screenshot {
   _id: string
   capturedAt: string
   idleDetected: boolean
+  idleStage: number | null
   url: string
 }
 
 interface IdleRecording {
   _id: string
   idleStartMs: number
+  chunkIndex: number
   status: "partial" | "confirmed"
   url: string
   downloadUrl: string
@@ -34,16 +36,17 @@ const fmtDuration = (seconds: number) => {
 }
 
 /**
- * Pairs each idle period with the most recent regular screenshot taken
- * BEFORE it started, and the idle-confirmation screenshot (idleDetected=true,
- * captureAndUploadOnce in the tray) taken somewhere within the period —
- * purely a client-side match against the two existing endpoints (idle-log,
- * screenshots), no new backend aggregation. Only reliable for periods after
- * the tray started actually taking the confirmation shot — older idle
- * periods (or a tray still on an older build) simply won't have an "after"
- * shot, and that's shown honestly rather than a broken image.
+ * Pairs each idle period with the most recent regular screenshot taken BEFORE it started,
+ * plus up to 3 staged-evidence entries (10/20/30 min) — one screenshot + one video chunk
+ * per stage the idle period actually reached, matched by the explicit idleStage/chunkIndex
+ * identifiers the tray now sends rather than inferring purely from timestamp proximity
+ * (more robust than the old single time-window-only match). Purely client-side against the
+ * three existing endpoints (idle-log, screenshots, idle-recordings) — no new backend
+ * aggregation. A period from an older tray build (or one that never reached a given stage)
+ * simply has fewer/no entries for it, shown honestly rather than a broken image.
  */
 const RECORDING_MATCH_TOLERANCE_MS = 5 * 60_000
+const STAGE_MINUTES = [10, 20, 30] as const
 
 function pairIdlePeriod(period: IdlePeriod, screenshots: Screenshot[], recordings: IdleRecording[]) {
   const startMs = new Date(period.idleStart).getTime()
@@ -55,14 +58,21 @@ function pairIdlePeriod(period: IdlePeriod, screenshots: Screenshot[], recording
     if (t <= startMs && (!before || t > new Date(before.capturedAt).getTime())) before = s
   }
 
-  const after = screenshots.find((s) => {
-    const t = new Date(s.capturedAt).getTime()
-    return s.idleDetected && t >= startMs && t <= endMs
-  }) ?? null
+  const stages = STAGE_MINUTES.map((minutes, idx) => {
+    const chunkIndex = idx + 1
+    const screenshot = screenshots.find((s) => {
+      const t = new Date(s.capturedAt).getTime()
+      return s.idleStage === minutes && t >= startMs && t <= endMs
+    }) ?? null
+    const video = recordings.find((r) =>
+      r.chunkIndex === chunkIndex &&
+      r.idleStartMs >= startMs - RECORDING_MATCH_TOLERANCE_MS &&
+      r.idleStartMs <= endMs
+    ) ?? null
+    return { minutes, screenshot, video }
+  }).filter((s) => s.screenshot || s.video)
 
-  const video = recordings.find((r) => r.idleStartMs >= startMs - RECORDING_MATCH_TOLERANCE_MS && r.idleStartMs <= endMs) ?? null
-
-  return { before, after, video }
+  return { before, stages }
 }
 
 export default function IdleRecordScreenshotsPage() {
@@ -153,7 +163,7 @@ export default function IdleRecordScreenshotsPage() {
           </div>
         ) : (
           idlePeriods.map((period, i) => {
-            const { before, after, video } = pairIdlePeriod(period, screenshots, recordings)
+            const { before, stages } = pairIdlePeriod(period, screenshots, recordings)
             return (
               <div key={i} className="rounded-2xl border border-border/40 bg-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-rose-50/30 dark:bg-rose-950/10">
@@ -167,60 +177,80 @@ export default function IdleRecordScreenshotsPage() {
                     {fmtDuration(period.durationSeconds)}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-px bg-border/30">
-                  <div className="bg-card p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">Before idle</p>
-                    {before ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={before.url} alt="Before idle" className="w-full aspect-video object-cover rounded-lg" />
-                        <p className="text-[10px] text-muted-foreground/40 font-mono">{fmtTime(before.capturedAt)}</p>
-                      </>
-                    ) : (
-                      <div className="w-full aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
-                        <ImageOff className="h-4 w-4 text-muted-foreground/25" />
-                        <p className="text-[9px] text-muted-foreground/35">No earlier screenshot</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-card p-3 space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">Confirmed idle (10 min)</p>
-                    {video ? (
-                      <>
-                        <video src={video.url} controls muted className="w-full aspect-video object-cover rounded-lg bg-black" />
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] text-muted-foreground/40 font-mono">
-                            {fmtTime(new Date(video.idleStartMs).toISOString())} {video.status === "partial" ? "(partial clip)" : ""}
-                          </p>
-                          <a
-                            href={video.downloadUrl}
-                            download={`idle-proof-${video.idleStartMs}.webm`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
-                          >
-                            <Download className="h-3 w-3" /> Download
-                          </a>
-                        </div>
-                      </>
-                    ) : after ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={after.url} alt="Confirmed idle" className="w-full aspect-video object-cover rounded-lg" />
-                        <p className="text-[10px] text-muted-foreground/40 font-mono">{fmtTime(after.capturedAt)}</p>
-                      </>
-                    ) : (
-                      <div className="w-full aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
-                        <ImageOff className="h-4 w-4 text-muted-foreground/25" />
-                        <p className="text-[9px] text-muted-foreground/35">No evidence shot for this period</p>
-                      </div>
-                    )}
-                  </div>
+
+                <div className="p-3 space-y-2 border-b border-border/20">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">Before idle</p>
+                  {before ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={before.url} alt="Before idle" className="w-full max-w-sm aspect-video object-cover rounded-lg" />
+                      <p className="text-[10px] text-muted-foreground/40 font-mono">{fmtTime(before.capturedAt)}</p>
+                    </>
+                  ) : (
+                    <div className="w-full max-w-sm aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
+                      <ImageOff className="h-4 w-4 text-muted-foreground/25" />
+                      <p className="text-[9px] text-muted-foreground/35">No earlier screenshot</p>
+                    </div>
+                  )}
                 </div>
-                {before && after && (
-                  <div className="flex items-center justify-center gap-1.5 py-2 text-[9px] font-bold text-muted-foreground/35 uppercase tracking-wider border-t border-border/20">
-                    Compare <ArrowRight className="h-2.5 w-2.5" /> same screen, {fmtDuration(period.durationSeconds)} apart
+
+                {stages.length === 0 ? (
+                  <div className="p-3">
+                    <div className="w-full aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
+                      <VideoOff className="h-4 w-4 text-muted-foreground/25" />
+                      <p className="text-[9px] text-muted-foreground/35">No staged evidence for this period</p>
+                    </div>
                   </div>
+                ) : (
+                  stages.map(({ minutes, screenshot, video }) => (
+                    <div key={minutes} className="grid grid-cols-2 gap-px bg-border/30 border-t border-border/20">
+                      <div className="bg-card p-3 space-y-2 col-span-2">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">
+                          {minutes === 30 ? `Auto-end (${minutes} min idle)` : `Confirmed idle (${minutes} min)`}
+                        </p>
+                      </div>
+                      <div className="bg-card p-3 pt-0 space-y-2">
+                        {screenshot ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={screenshot.url} alt={`Idle ${minutes} min screenshot`} className="w-full aspect-video object-cover rounded-lg" />
+                            <p className="text-[10px] text-muted-foreground/40 font-mono">{fmtTime(screenshot.capturedAt)}</p>
+                          </>
+                        ) : (
+                          <div className="w-full aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
+                            <ImageOff className="h-4 w-4 text-muted-foreground/25" />
+                            <p className="text-[9px] text-muted-foreground/35">No screenshot</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="bg-card p-3 pt-0 space-y-2">
+                        {video ? (
+                          <>
+                            <video src={video.url} controls muted className="w-full aspect-video object-cover rounded-lg bg-black" />
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[10px] text-muted-foreground/40 font-mono">
+                                {video.status === "partial" ? "(partial clip)" : "confirmed"}
+                              </p>
+                              <a
+                                href={video.downloadUrl}
+                                download={`idle-proof-${video.idleStartMs}-chunk${video.chunkIndex}.webm`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full aspect-video rounded-lg bg-muted/30 flex flex-col items-center justify-center gap-1">
+                            <VideoOff className="h-4 w-4 text-muted-foreground/25" />
+                            <p className="text-[9px] text-muted-foreground/35">No video</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             )

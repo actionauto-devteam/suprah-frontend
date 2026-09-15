@@ -35,7 +35,7 @@ export const CRM_TYPE_GROUPS: CrmTypeGroup[] = [
 // here always targets an admin/manager watching another agent (see
 // TYPE_CATEGORY_MAP in notification.service.ts), never the agent's own feed.
 export const ADMIN_STAFF_ACTIVITY_TYPE_GROUPS: CrmTypeGroup[] = [
-  { key: 'staff_idle', label: 'Idle Alerts', description: 'Agent idle and prolonged-idle escalation alerts', icon: Fingerprint, color: 'text-violet-600 dark:text-violet-400', types: ['agent_idle', 'agent_idle_escalation'] },
+  { key: 'staff_idle', label: 'Idle Alerts', description: 'Agent idle and prolonged-idle escalation alerts', icon: Fingerprint, color: 'text-violet-600 dark:text-violet-400', types: ['agent_idle', 'agent_idle_escalation', 'agent_idle_stage2', 'agent_idle_stage3'] },
   { key: 'staff_shift', label: 'Shift & Clock Alerts', description: 'Connection loss, stale clock-out, and location-sharing alerts', icon: Radar, color: 'text-blue-600 dark:text-blue-400', types: ['admin_staff_activity'] },
   { key: 'staff_screen_recording', label: 'Screen Recording Alerts', description: 'Mac screen-recording permission revoked', icon: ShieldAlert, color: 'text-red-600 dark:text-red-400', types: ['agent_screen_recording_missing'] },
 ];
