@@ -378,27 +378,13 @@ function getDayPulseFormatState(value: string, start: number, end: number): DayP
 function renderFormattedDayPulseText(text: string) {
   const lines = text.split("\n")
   return lines.map((line, lineIndex) => {
-    const parts = line.split(/(\*\*[^*\n]+\*\*|_[^_\n]+_|`[^`\n]+`)/g)
-    const rendered = parts.map((part, partIndex) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={partIndex}>{part.slice(2, -2)}</strong>
-      }
-      if (part.startsWith("_") && part.endsWith("_")) {
-        return <em key={partIndex}>{part.slice(1, -1)}</em>
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={partIndex} className="rounded bg-muted/60 px-1 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>
-      }
-      return <React.Fragment key={partIndex}>{part}</React.Fragment>
-    })
-
     if (line.trimStart().startsWith("- ")) {
       return <div key={lineIndex} className="flex gap-2"><span className="shrink-0">•</span><span>{renderFormattedDayPulseText(line.replace(/^\s*-\s*/, ""))}</span></div>
     }
     if (line.trimStart().startsWith("> ")) {
       return <blockquote key={lineIndex} className="my-1 border-l-2 border-emerald-500/40 pl-3 text-muted-foreground/90">{renderFormattedDayPulseText(line.replace(/^\s*>\s*/, ""))}</blockquote>
     }
-    return <React.Fragment key={lineIndex}>{rendered}{lineIndex < lines.length - 1 ? <br /> : null}</React.Fragment>
+    return <React.Fragment key={lineIndex}>{renderDayPulseInlineMarkdown(line, `line-${lineIndex}`)}{lineIndex < lines.length - 1 ? <br /> : null}</React.Fragment>
   })
 }
 
@@ -410,11 +396,154 @@ function escapeHtml(text: string) {
     .replace(/"/g, "&quot;")
 }
 
+function stripDayPulseCopiedTextArtifacts(value: string) {
+  return value
+    .replace(/\u00a0/g, " ")
+    .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .replace(/\r\n?/g, "\n")
+}
+
+function isEscapedMarker(value: string, index: number) {
+  let count = 0
+  for (let i = index - 1; i >= 0 && value[i] === "\\"; i -= 1) count += 1
+  return count % 2 === 1
+}
+
+function findUnescapedMarker(value: string, marker: string, start: number) {
+  let index = value.indexOf(marker, start)
+  while (index !== -1) {
+    if (!isEscapedMarker(value, index)) return index
+    index = value.indexOf(marker, index + marker.length)
+  }
+  return -1
+}
+
+function escapeDayPulseMarkdownText(value: string) {
+  return stripDayPulseCopiedTextArtifacts(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\*/g, "\\*")
+    .replace(/_/g, "\\_")
+    .replace(/`/g, "\\`")
+}
+
+function escapeDayPulseMarkdownLine(value: string) {
+  const escaped = escapeDayPulseMarkdownText(value)
+  if (/^\s*-\s/.test(escaped)) return escaped.replace(/^(\s*)-/, "$1\\-")
+  if (/^\s*>\s/.test(escaped)) return escaped.replace(/^(\s*)>/, "$1\\>")
+  return escaped
+}
+
+function renderDayPulseInlineMarkdownToHtml(value: string): string {
+  let html = ""
+  let buffer = ""
+  const flush = () => {
+    if (!buffer) return
+    html += escapeHtml(buffer)
+    buffer = ""
+  }
+
+  for (let i = 0; i < value.length;) {
+    if (value[i] === "\\" && i + 1 < value.length && /[\\*_`>-]/.test(value[i + 1])) {
+      buffer += value[i + 1]
+      i += 2
+      continue
+    }
+
+    if (value.startsWith("**", i) && !isEscapedMarker(value, i)) {
+      const end = findUnescapedMarker(value, "**", i + 2)
+      if (end !== -1) {
+        flush()
+        html += `<strong>${renderDayPulseInlineMarkdownToHtml(value.slice(i + 2, end))}</strong>`
+        i = end + 2
+        continue
+      }
+    }
+
+    if (value[i] === "_" && !isEscapedMarker(value, i)) {
+      const end = findUnescapedMarker(value, "_", i + 1)
+      if (end !== -1) {
+        flush()
+        html += `<em>${renderDayPulseInlineMarkdownToHtml(value.slice(i + 1, end))}</em>`
+        i = end + 1
+        continue
+      }
+    }
+
+    if (value[i] === "`" && !isEscapedMarker(value, i)) {
+      const end = findUnescapedMarker(value, "`", i + 1)
+      if (end !== -1) {
+        flush()
+        html += `<code>${escapeHtml(value.slice(i + 1, end).replace(/\\([\\*_`>-])/g, "$1"))}</code>`
+        i = end + 1
+        continue
+      }
+    }
+
+    buffer += value[i]
+    i += 1
+  }
+
+  flush()
+  return html
+}
+
+function renderDayPulseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = []
+  let buffer = ""
+  let index = 0
+  const flush = () => {
+    if (!buffer) return
+    nodes.push(<React.Fragment key={`${keyPrefix}-text-${index++}`}>{buffer}</React.Fragment>)
+    buffer = ""
+  }
+
+  for (let i = 0; i < text.length;) {
+    if (text[i] === "\\" && i + 1 < text.length && /[\\*_`>-]/.test(text[i + 1])) {
+      buffer += text[i + 1]
+      i += 2
+      continue
+    }
+
+    if (text.startsWith("**", i) && !isEscapedMarker(text, i)) {
+      const end = findUnescapedMarker(text, "**", i + 2)
+      if (end !== -1) {
+        flush()
+        nodes.push(<strong key={`${keyPrefix}-strong-${index++}`}>{renderDayPulseInlineMarkdown(text.slice(i + 2, end), `${keyPrefix}-strong-${index}`)}</strong>)
+        i = end + 2
+        continue
+      }
+    }
+
+    if (text[i] === "_" && !isEscapedMarker(text, i)) {
+      const end = findUnescapedMarker(text, "_", i + 1)
+      if (end !== -1) {
+        flush()
+        nodes.push(<em key={`${keyPrefix}-em-${index++}`}>{renderDayPulseInlineMarkdown(text.slice(i + 1, end), `${keyPrefix}-em-${index}`)}</em>)
+        i = end + 1
+        continue
+      }
+    }
+
+    if (text[i] === "`" && !isEscapedMarker(text, i)) {
+      const end = findUnescapedMarker(text, "`", i + 1)
+      if (end !== -1) {
+        flush()
+        nodes.push(<code key={`${keyPrefix}-code-${index++}`} className="rounded bg-muted/60 px-1 py-0.5 text-[0.9em]">{text.slice(i + 1, end).replace(/\\([\\*_`>-])/g, "$1")}</code>)
+        i = end + 1
+        continue
+      }
+    }
+
+    buffer += text[i]
+    i += 1
+  }
+
+  flush()
+  return nodes
+}
+
 function markdownToDayPulseHtml(text: string) {
-  const inline = (line: string) => escapeHtml(line)
-    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/_([^_\n]+)_/g, "<em>$1</em>")
-    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+  const inline = (line: string) => renderDayPulseInlineMarkdownToHtml(line)
 
   const html: string[] = []
   let listItems: string[] = []
@@ -443,18 +572,25 @@ function markdownToDayPulseHtml(text: string) {
 
 function dayPulseHtmlToMarkdown(root: HTMLElement) {
   const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ""
+    if (node.nodeType === Node.TEXT_NODE) return escapeDayPulseMarkdownText(node.textContent || "")
     if (node.nodeType !== Node.ELEMENT_NODE) return ""
 
     const el = node as HTMLElement
     const tag = el.tagName.toLowerCase()
-    const inner = Array.from(el.childNodes).map(walk).join("")
+    let inner = Array.from(el.childNodes).map(walk).join("")
+    const fontWeight = el.style?.fontWeight || ""
+    const fontStyle = el.style?.fontStyle || ""
+    const isStyledBold = tag === "span" && (fontWeight === "bold" || Number(fontWeight) >= 600)
+    const isStyledItalic = tag === "span" && fontStyle === "italic"
 
     if (tag === "br") return "\n"
-    if (tag === "strong" || tag === "b") return `**${inner}**`
-    if (tag === "em" || tag === "i") return `_${inner}_`
+    if (tag === "strong" || tag === "b" || isStyledBold) return `**${inner}**`
+    if (tag === "em" || tag === "i" || isStyledItalic) return `_${inner}_`
     if (tag === "code") return `\`${inner}\``
-    if (tag === "li") return `- ${inner.trim()}\n`
+    if (tag === "li") {
+      inner = inner.replace(/^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u, "")
+      return `- ${inner.trim()}\n`
+    }
     if (tag === "ul" || tag === "ol") return `${inner}\n`
     if (tag === "blockquote") {
       return `${inner.split("\n").filter(Boolean).map((line) => `> ${line}`).join("\n")}\n`
@@ -469,6 +605,60 @@ function dayPulseHtmlToMarkdown(root: HTMLElement) {
     .replace(/\u00a0/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd()
+}
+
+function plainTextToDayPulseMarkdown(value: string) {
+  return stripDayPulseCopiedTextArtifacts(value)
+    .split("\n")
+    .map((line) => {
+      const bullet = line.match(/^(\s*)(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+(.+)$/u)
+      if (bullet) return `${bullet[1]}- ${escapeDayPulseMarkdownText(bullet[2])}`
+      const quote = line.match(/^(\s*)>\s*(.*)$/)
+      if (quote) return `${quote[1]}> ${escapeDayPulseMarkdownText(quote[2])}`
+      return escapeDayPulseMarkdownLine(line)
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd()
+}
+
+function clipboardHtmlToDayPulseMarkdown(html: string, plainText: string) {
+  if (typeof DOMParser === "undefined") return plainTextToDayPulseMarkdown(plainText)
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  const container = document.createElement("div")
+  container.append(...Array.from(doc.body.childNodes).map((node) => node.cloneNode(true)))
+  const markdown = dayPulseHtmlToMarkdown(container)
+  return markdown.trim() ? markdown : plainTextToDayPulseMarkdown(plainText)
+}
+
+function insertDayPulseHtmlAtSelection(root: HTMLElement, html: string) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) {
+    root.insertAdjacentHTML("beforeend", html)
+    return
+  }
+
+  const range = selection.getRangeAt(0)
+  const container = range.commonAncestorContainer
+  const insideRoot = container === root || root.contains(container.nodeType === Node.ELEMENT_NODE ? container as Element : container.parentElement)
+  if (!insideRoot) {
+    root.insertAdjacentHTML("beforeend", html)
+    return
+  }
+
+  range.deleteContents()
+  const template = document.createElement("template")
+  template.innerHTML = html
+  const fragment = template.content
+  const lastNode = fragment.lastChild
+  range.insertNode(fragment)
+  if (lastNode) {
+    const nextRange = document.createRange()
+    nextRange.setStartAfter(lastNode)
+    nextRange.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+  }
 }
 
 function AttachmentPreviewModal({
@@ -601,13 +791,28 @@ function ExpandableTextarea({
   const syncMarkdownFromEditor = React.useCallback(() => {
     const el = ref.current
     if (!el) return
-    const next = dayPulseHtmlToMarkdown(el).slice(0, maxLength)
+    const raw = dayPulseHtmlToMarkdown(el)
+    const next = raw.slice(0, maxLength)
+    if (raw !== next) el.innerHTML = markdownToDayPulseHtml(next)
     updateValue(next)
     requestAnimationFrame(() => {
       resizeToContent()
       refreshActiveFormats()
     })
   }, [maxLength, refreshActiveFormats, resizeToContent, updateValue])
+
+  const handlePaste = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    const el = ref.current
+    if (!el) return
+    event.preventDefault()
+    const clipboard = event.clipboardData
+    const html = clipboard.getData("text/html")
+    const plain = clipboard.getData("text/plain")
+    const markdown = html ? clipboardHtmlToDayPulseMarkdown(html, plain) : plainTextToDayPulseMarkdown(plain)
+    if (!markdown) return
+    insertDayPulseHtmlAtSelection(el, markdownToDayPulseHtml(markdown))
+    syncMarkdownFromEditor()
+  }, [syncMarkdownFromEditor])
 
   const applyFormat = (format: DayPulseTextFormat) => {
     const el = ref.current
@@ -732,6 +937,7 @@ function ExpandableTextarea({
           contentEditable
           suppressContentEditableWarning
           onInput={syncMarkdownFromEditor}
+          onPaste={handlePaste}
           onFocus={refreshActiveFormats}
           onClick={refreshActiveFormats}
           onKeyUp={refreshActiveFormats}

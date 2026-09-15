@@ -14,7 +14,7 @@ import {
   Link as LinkIcon, RefreshCw,
 } from "lucide-react"
 import { Appointment } from "@/types/appointment"
-import { fmtLongDateMDT, fmtTimeMDT, fmtLongDateTimeMDT } from "@/lib/timezone"
+import { fmtLongDateMDT, fmtTimeMDT, fmtLongDateTimeMDT, mdtCalendarDate, mdtTimePickerSeed, mdtWallTimeToUtc } from "@/lib/timezone"
 import { useUser } from "@/providers/AuthProvider"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
@@ -202,10 +202,10 @@ export function AppointmentDetailsModal({
     setEditData({
       title:           appointment.title,
       description:     appointment.description || "",
-      startDate:       new Date(appointment.startTime),
-      startTime:       appointment.startTime,
-      endDate:         new Date(appointment.endTime),
-      endTime:         appointment.endTime,
+      startDate:       mdtCalendarDate(appointment.startTime),
+      startTime:       mdtTimePickerSeed(appointment.startTime),
+      endDate:         mdtCalendarDate(appointment.endTime),
+      endTime:         mdtTimePickerSeed(appointment.endTime),
       location:        appointment.location || "",
       type:            appointment.type,
       // senior dev: custom type label for "other"
@@ -249,13 +249,17 @@ export function AppointmentDetailsModal({
     setIsSubmitting(true)
     setError(null)
     try {
-      const startDateTime = new Date(editData.startDate)
-      const startTime     = new Date(editData.startTime)
-      startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0)
+      const startTime = new Date(editData.startTime)
+      const startDateTime = mdtWallTimeToUtc(
+        editData.startDate.getFullYear(), editData.startDate.getMonth() + 1, editData.startDate.getDate(),
+        startTime.getHours(), startTime.getMinutes(),
+      )
 
-      const endDateTime = new Date(editData.endDate)
-      const endTime     = new Date(editData.endTime)
-      endDateTime.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0)
+      const endTime = new Date(editData.endTime)
+      const endDateTime = mdtWallTimeToUtc(
+        editData.endDate.getFullYear(), editData.endDate.getMonth() + 1, editData.endDate.getDate(),
+        endTime.getHours(), endTime.getMinutes(),
+      )
 
       if (endDateTime <= startDateTime) {
         setError("End time must be after start time")

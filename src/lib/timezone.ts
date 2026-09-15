@@ -113,6 +113,27 @@ export function todayStrMDT(offsetDays = 0): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: MDT_TZ })
 }
 
+export function mdtDateKey(v: Date | string): string {
+  return d(v).toLocaleDateString('en-CA', { timeZone: MDT_TZ })
+}
+
+export function mdtMonthKey(v: Date | string): string {
+  return mdtDateKey(v).slice(0, 7)
+}
+
+export function mdtCalendarDate(v: Date | string): Date {
+  const [y, m, day] = mdtDateKey(v).split('-').map(Number)
+  return new Date(y, m - 1, day)
+}
+
+export function mdtTimePickerSeed(v: Date | string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MDT_TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d(v))
+  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? 0)
+  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? 0)
+  return new Date(2000, 0, 1, hour, minute).toISOString()
+}
 
 /**
  * Convert a calendar date (YYYY-MM-DD) in America/Denver into the exact UTC
@@ -160,9 +181,11 @@ const mountainPartsFormatter = new Intl.DateTimeFormat('en-US', {
   hourCycle: 'h23',
 })
 
-/** Resolve Mountain Time midnight to UTC without a fixed offset. */
-function mountainWallTimeToUtcMs(year: number, month: number, day: number): number {
-  const desiredWallClockAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0, 0)
+function mountainWallTimeToUtcMs(
+  year: number, month: number, day: number,
+  hour = 0, minute = 0, second = 0,
+): number {
+  const desiredWallClockAsUtc = Date.UTC(year, month - 1, day, hour, minute, second, 0)
   let guess = desiredWallClockAsUtc
 
   // Two/three iterations are enough because timezone offsets are piecewise
@@ -191,4 +214,11 @@ function mountainWallTimeToUtcMs(year: number, month: number, day: number): numb
   }
 
   return guess
+}
+
+export function mdtWallTimeToUtc(
+  year: number, month: number, day: number,
+  hour = 0, minute = 0, second = 0,
+): Date {
+  return new Date(mountainWallTimeToUtcMs(year, month, day, hour, minute, second))
 }

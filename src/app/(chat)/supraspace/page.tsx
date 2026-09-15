@@ -1206,7 +1206,7 @@ if (typeof document !== 'undefined') {
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
     .ss4[data-theme="light"] .ss4-bubble-other .ss4-readable-light-color { color:var(--text-primary)!important; }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
-    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.55; }
+    .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.66; }
     .ss4-rich-edit { white-space:pre-wrap; }
     .ss4-rich-edit,
     .ss4-composer-editor {
@@ -1256,10 +1256,13 @@ if (typeof document !== 'undefined') {
       background:rgba(0,0,0,.2);
       font-family:'Geist Mono',monospace!important;
     }
-    .ss4-list { display:flex; flex-direction:column; gap:3px; margin:.12em 0 .24em; padding:0; list-style:none; }
+    .ss4-list { display:flex; flex-direction:column; gap:5px; margin:.18em 0 .32em; padding:0; list-style:none; }
     .ss4-list-item { display:flex; align-items:flex-start; gap:7px; margin:0; padding:0; list-style:none; }
-    .ss4-list-marker { width:1em; flex:0 0 1em; text-align:center; line-height:1.55; }
+    .ss4-list-marker { width:1em; flex:0 0 1em; text-align:center; line-height:1.66; }
     .ss4-list-marker-num { width:auto; min-width:1.35em; flex-basis:auto; text-align:right; }
+    .ss4-blockquote { display:block; margin:.5em 0; padding:.46em .72em; border-left:3px solid rgba(255,255,255,.72); border-radius:0 8px 8px 0; background:rgba(0,0,0,.14); line-height:1.66; font-style:italic; }
+    .ss4-codeblock { display:block; margin:.5em 0; padding:.62em .74em; border-radius:8px; background:rgba(0,0,0,.18); overflow-x:auto; line-height:1.58; }
+    .ss4-codeblock code { font-family:'Geist Mono',monospace!important; font-size:.9em; }
     .ss4-input-wrap { background:var(--input-bg); border:1.5px solid var(--input-border); border-radius:14px; transition:border-color .18s ease,box-shadow .18s ease; flex-shrink:0; }
     .ss4-input-wrap:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--input-focus); }
     .ss4-composer-main { display:flex!important; flex-direction:column; width:100%; max-width:100%; min-width:0; }
@@ -1366,7 +1369,7 @@ if (typeof document !== 'undefined') {
     .ss4-badge { background:var(--accent); color:#fff; font-size:9px; font-weight:700; border-radius:10px; min-width:16px; height:16px; line-height:16px; padding:0 4px; text-align:center; }
     @keyframes ss4-fade-up { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
     .ss4-msg-enter { animation:ss4-fade-up .2s ease forwards; -webkit-touch-callout:default; -webkit-user-select:text; user-select:text; }
-    .ss4-copyable-text { -webkit-user-select:text; user-select:text; cursor:text; }
+    .ss4-copyable-text { -webkit-user-select:text; user-select:text; cursor:text; line-height:inherit; }
     .ss4-empty-icon { background:var(--accent-muted); border:1px dashed rgba(22,163,74,0.25); border-radius:16px; }
     .ss4-divider { height:1px; background:var(--border-1); }
     .ss4-reaction-chip { display:inline-flex; align-items:center; gap:3px; padding:1px 7px; border-radius:999px; border:1px solid var(--border-2); background:var(--bg-hover); font-size:11px; cursor:pointer; transition:all .12s ease; }
@@ -1383,7 +1386,7 @@ if (typeof document !== 'undefined') {
     @media (max-width:767px) {
       .ss4 input, .ss4 textarea { font-size: 16px !important; }
       .ss4-msg-column { max-width:min(82%,22rem); }
-      .ss4-msg-bubble { font-size:18px !important; line-height:1.55 !important; }
+      .ss4-msg-bubble { font-size:18px !important; line-height:1.66 !important; }
       .ss4-msg-sender { font-size:14px !important; }
       .ss4-msg-actions { border-radius:18px!important; padding:5px!important; gap:3px!important; box-shadow:0 10px 30px rgba(0,0,0,.48)!important; }
       .ss4-msg-actions .ss4-action-emoji,
@@ -3614,7 +3617,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         <span
           key={`gap-${blockIdx++}`}
           aria-hidden="true"
-          style={{ display: 'block', height: '0.5em' }}
+          style={{ display: 'block', height: '0.62em' }}
         />
       );
     } else if (kind === 'line') {
@@ -3624,7 +3627,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         <span
           key={`block-gap-${blockIdx++}`}
           aria-hidden="true"
-          style={{ display: 'block', height: '0.16em' }}
+          style={{ display: 'block', height: '0.24em' }}
         />
       );
     }
@@ -6024,7 +6027,7 @@ const Bubble = React.memo(function Bubble({
           {editMode ? (
             <>
             <div
-              className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
+              className={cn('ss4-msg-bubble px-3 py-2.5 text-[13px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
               style={{
                 width: editWidth ? `${editWidth}px` : 'min(34rem, calc(100vw - 3rem))',
                 minWidth: 0,
@@ -6464,7 +6467,7 @@ const Bubble = React.memo(function Bubble({
           ) : message.content ? (
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
-              className={cn('ss4-msg-bubble px-3 py-2 text-[13px] leading-relaxed sm:px-4 sm:py-2.5 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+              className={cn('ss4-msg-bubble px-3 py-2.5 text-[13px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
               <div className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderedContent}</div>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
@@ -7803,25 +7806,35 @@ function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: 
   const [location, setLocation] = React.useState('');
   const [startTime, setStartTime] = React.useState('');
   const [endTime, setEndTime] = React.useState('');
+  const isMobilePicker = useIsMobile();
   const valid = title.trim() && startTime;
+  const dateInputClass = 'w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1';
   return (
     <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
+      <div className="ss4-modal flex max-h-[calc(var(--ss4-vvh,100dvh)-2rem)] w-full max-w-sm flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className="flex items-center gap-2"><CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Event</h2></div>
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
-        <div className="px-4 py-4 space-y-2.5">
+        <div className="min-h-0 overflow-y-auto px-4 py-4 space-y-2.5 ss4-scroll">
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
           <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location (optional)" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
           <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Starts</label>
-            <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Pick start date & time" className="h-9 text-sm mt-1" />
+            {isMobilePicker ? (
+              <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className={dateInputClass} />
+            ) : (
+              <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Pick start date & time" className="h-9 text-sm mt-1" />
+            )}
           </div>
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
-            <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Pick end date & time" className="h-9 text-sm mt-1" />
+            {isMobilePicker ? (
+              <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} className={dateInputClass} />
+            ) : (
+              <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Pick end date & time" className="h-9 text-sm mt-1" />
+            )}
           </div>
           <button disabled={!valid} onClick={() => valid && onCreate({ title: title.trim(), description, location, startTime, endTime })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-1" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Event</button>
         </div>
@@ -13686,6 +13699,11 @@ export default function SupraSpacePage() {
         event.preventDefault();
         return;
       }
+      if (isMobileViewport || isStandaloneApp) {
+        event.preventDefault();
+        insertComposerSoftLineBreak();
+        return;
+      }
     }
     const incomingText = [
       'insertText',
@@ -13752,6 +13770,9 @@ export default function SupraSpacePage() {
     });
   }, [
     handleFormattedLineBreak,
+    insertComposerSoftLineBreak,
+    isMobileViewport,
+    isStandaloneApp,
     refreshActiveFormats,
     saveComposerSelection,
     showMessageLimitNotice,
@@ -13789,6 +13810,24 @@ export default function SupraSpacePage() {
     setGifOpen(false);
     setMobileAttachSheetOpen(false);
     setMobileFilePickerOpen(false);
+  }, [saveComposerSelection]);
+
+  const openMobileAttachSheet = React.useCallback((event?: React.SyntheticEvent<HTMLElement>) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    saveComposerSelection();
+    setEmojiOpen(false);
+    setTextColorPickerOpen(false);
+    setGifOpen(false);
+    setMobileFilePickerOpen(false);
+    textareaRef.current?.blur();
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && composerDockRef.current?.contains(activeElement)) {
+      activeElement.blur();
+    }
+    window.getSelection()?.removeAllRanges();
+    window.setTimeout(() => window.getSelection()?.removeAllRanges(), 0);
+    setMobileAttachSheetOpen(true);
   }, [saveComposerSelection]);
 
   const openMobileImagePicker = React.useCallback(() => {
@@ -15098,7 +15137,7 @@ export default function SupraSpacePage() {
                       onTouchMove={markUserScrollGesture}
                       onMouseDown={markUserScrollGesture}
                       data-supraspace-message-scroll="true"
-                      className="ss4-chat-messages h-full overflow-y-auto py-2 space-y-1 ss4-scroll sm:py-3 sm:space-y-1.5"
+                      className="ss4-chat-messages h-full overflow-y-auto py-2 space-y-2 ss4-scroll sm:py-3 sm:space-y-2.5"
                       style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
                       onLoadCapture={() => {
                         if (activeId && forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
@@ -15425,7 +15464,7 @@ export default function SupraSpacePage() {
                         )}
                         <div className="ss4-composer-main flex flex-col max-md:grid max-md:grid-cols-[44px_minmax(0,1fr)_auto] max-md:items-end max-md:gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
                           <div className="ss4-mobile-leading flex md:hidden">
-                            <button type="button" onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); setMobileAttachSheetOpen(true); }} className="ss4-mobile-round-action" title="Add">
+                            <button type="button" onPointerDown={openMobileAttachSheet} onClick={e => { if (e.detail === 0) openMobileAttachSheet(e); }} className="ss4-mobile-round-action" title="Add">
                               <Plus className="h-6 w-6" />
                             </button>
                           </div>
@@ -15508,7 +15547,11 @@ export default function SupraSpacePage() {
                                   && (e.ctrlKey || e.metaKey)
                                 ) {
                                   e.preventDefault();
-                                  handleSend();
+                                  if (isMobileViewport || isStandaloneApp) {
+                                    insertComposerSoftLineBreak();
+                                  } else {
+                                    handleSend();
+                                  }
                                   return;
                                 }
 
@@ -15583,6 +15626,10 @@ export default function SupraSpacePage() {
                                   }
 
                                   e.preventDefault();
+                                  if (isMobileViewport || isStandaloneApp) {
+                                    insertComposerSoftLineBreak();
+                                    return;
+                                  }
                                   handleSend();
                                   return;
                                 }
@@ -16365,7 +16412,7 @@ export default function SupraSpacePage() {
           <div className="ss4-overlay fixed inset-0 z-200 flex items-end md:hidden" onClick={() => { setMobileAttachSheetOpen(false); setGifOpen(false); setMobileFilePickerOpen(false); }}>
             <div
               ref={mobileAttachSheetRef}
-              className="flex w-full flex-col rounded-t-[28px] px-5 pt-4"
+              className="flex w-full select-none flex-col rounded-t-[28px] px-5 pt-4"
               onClick={e => e.stopPropagation()}
               style={{
                 background: 'var(--bg-elevated)',

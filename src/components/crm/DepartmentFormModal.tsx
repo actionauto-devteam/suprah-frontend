@@ -39,6 +39,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(false)
   const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(true)
   const [detectIdle, setDetectIdle] = React.useState(true)
+  const [idleVideoProofEnabled, setIdleVideoProofEnabled] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
   React.useEffect(() => {
@@ -53,6 +54,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
     // explicitly exempts this department.
     setLocationRequiredForTimeproof(department ? department.locationRequiredForTimeproof !== false : true)
     setDetectIdle(department ? department.detectIdle !== false : true)
+    setIdleVideoProofEnabled(!!department?.idleVideoProofEnabled)
   }, [open, department])
 
   const handleSubmit = async () => {
@@ -70,6 +72,7 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
         isMandatoryLocationDept,
         locationRequiredForTimeproof,
         detectIdle,
+        idleVideoProofEnabled,
       }
       if (isEdit) {
         await apiClient.patch(`/api/crm/departments/${department!._id}`, payload, {
@@ -189,6 +192,13 @@ export function DepartmentFormModal({ token, department, open, onOpenChange, onS
                 <p className="text-[11px] text-muted-foreground/60">Off = no idle tracking or idle alerts — screenshots keep capturing continuously</p>
               </div>
               <Switch checked={detectIdle} onCheckedChange={setDetectIdle} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold">Idle Video Proof</p>
+                <p className="text-[11px] text-muted-foreground/60">Auto-records a short, silent screen clip starting 1 minute into an idle period as stronger proof</p>
+              </div>
+              <Switch checked={idleVideoProofEnabled} onCheckedChange={setIdleVideoProofEnabled} />
             </div>
           </div>
         </div>

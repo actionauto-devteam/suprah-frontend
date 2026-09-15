@@ -41,7 +41,7 @@ import {
 } from "@/components/MultiPaneLayout";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ } from "@/lib/timezone";
+import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ, mdtDayRangeUtc, todayStrMDT } from "@/lib/timezone";
 
 
 const TAB_OPTIONS: TabOption[] = [
@@ -654,10 +654,8 @@ function AppointmentsPageInner() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const stats = React.useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = new Date(mdtDayRangeUtc(todayStrMDT()).start);
+    const tomorrow = new Date(mdtDayRangeUtc(todayStrMDT(1)).start);
     return {
       total: globalAppointments.length,
       upcoming: globalAppointments.filter((apt: any) => {
@@ -691,8 +689,7 @@ function AppointmentsPageInner() {
   }, [globalAppointments]);
 
   const upcomingAppointments = React.useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(mdtDayRangeUtc(todayStrMDT()).start);
     return globalAppointments
       .filter((apt: any) => {
         const start = new Date(apt.startTime);

@@ -47,11 +47,11 @@ const MORE_TEXT_COLORS = [
 ];
 
 const POPUP_RICH_EDIT_CSS = `
-  .ss-popup-rich-edit { white-space: pre-wrap; }
+  .ss-popup-rich-edit { white-space: pre-wrap; line-height: 1.66; }
   .ss-popup-rich-edit ul,
   .ss-popup-rich-edit ol {
     display: block !important;
-    margin: .42rem 0 !important;
+    margin: .5rem 0 !important;
     padding-left: 1.45rem !important;
     list-style-position: outside !important;
     white-space: normal;
@@ -62,14 +62,14 @@ const POPUP_RICH_EDIT_CSS = `
   .ss-popup-rich-edit ul ul ul { list-style-type: square !important; }
   .ss-popup-rich-edit li {
     display: list-item !important;
-    margin: .16rem 0 !important;
+    margin: .22rem 0 !important;
     padding-left: .08rem;
     white-space: pre-wrap;
   }
   .ss-popup-rich-edit blockquote {
     display: block;
-    margin: .42rem 0 !important;
-    padding: .42rem .62rem !important;
+    margin: .5rem 0 !important;
+    padding: .5rem .66rem !important;
     border-left: 3px solid rgba(255,255,255,.74);
     border-radius: 0 7px 7px 0;
     background: rgba(0,0,0,.16);
@@ -1142,16 +1142,16 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   };
 
   return (
-    <span className="block">
+    <span className="block" style={{ lineHeight: 1.66 }}>
       {lines.map((line, index) => {
         if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return null;
-        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: 8 }} aria-hidden="true" />;
+        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: 10 }} aria-hidden="true" />;
 
         const bullet = line.match(bulletRe);
         if (bullet) {
           const depth = depthFrom(bullet[1], bullet[2]);
           return (
-            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 6, marginTop: index > 0 ? 2 : 0 }}>
+            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
               <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
               <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`)}</span>
             </span>
@@ -1162,7 +1162,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (numbered) {
           const depth = depthFrom(numbered[1]);
           return (
-            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 6, marginTop: index > 0 ? 2 : 0 }}>
+            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
               <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
               <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`)}</span>
             </span>
@@ -1171,7 +1171,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 
         if (/^\s*>\s?/.test(line)) {
           return (
-            <span key={`quote-${index}`} className="block" style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, marginTop: index > 0 ? 3 : 0, opacity: 0.88 }}>
+            <span key={`quote-${index}`} className="block" style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, marginTop: index > 0 ? 5 : 0, opacity: 0.88 }}>
               {renderInlineMd(line.replace(/^\s*>\s?/, ''), isOwn, `quote-${index}`)}
             </span>
           );
@@ -1184,7 +1184,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         })();
 
         return (
-          <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 2 : 0 }}>
+          <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 4 : 0 }}>
             {renderInlineMd(renderLine, isOwn, `line-${index}`)}
           </span>
         );
@@ -5988,7 +5988,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         {/* Body */}
         {!isMinimized && (
           <>
-            <div data-popup-chat-body="true" className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-1">
+            <div data-popup-chat-body="true" className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 bg-background min-h-0 space-y-2">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -6043,7 +6043,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
                     <div key={msg._id}
-                      className={cn('flex gap-2', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end', showName && 'mt-1.5')}
+                      className={cn('flex gap-2', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end', showName && 'mt-2')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
                     >
@@ -6082,7 +6082,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         {/* Bubble */}
                         {editingMsgId === msg._id ? (
                           <div
-                            className="min-w-0 rounded-2xl rounded-br-sm px-3 py-1.5 text-[15px] leading-relaxed text-white"
+                            className="min-w-0 rounded-2xl rounded-br-sm px-3 py-2 text-[15px] leading-[1.66] text-white"
                             style={{
                               background: accentColor,
                               width: editWidth ? `${editWidth}px` : '100%',
@@ -6336,7 +6336,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   rememberEditSelection();
                                 });
                               }}
-                              className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-relaxed text-white"
+                              className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-[1.66] text-white"
                               style={{ minWidth: 0, display: 'block', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', caretColor: 'var(--foreground)' }}
                             />
                             {(editableAttachmentCount > 0 || editReplacementFiles.length > 0) && (
@@ -6451,8 +6451,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           </div>
                         ) : (
                           <div className={cn(
-                            'text-[15px] leading-relaxed min-w-0',
-                            bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-1.5 rounded-2xl',
+                            'text-[15px] leading-[1.66] min-w-0',
+                            bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-2 rounded-2xl',
                             !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
                           )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}

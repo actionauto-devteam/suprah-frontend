@@ -10,6 +10,7 @@ export type DepartmentEntry = {
   isMandatoryLocationDept: boolean;
   locationRequiredForTimeproof: boolean;
   detectIdle: boolean;
+  idleVideoProofEnabled: boolean;
   isActive?: boolean;
   isDefault?: boolean;
   sortOrder?: number;
@@ -24,19 +25,19 @@ export type DepartmentEntry = {
 // DEPARTMENTS directly (via .map()) or call the helper functions below always see the
 // latest admin-managed list without needing to consume a hook themselves.
 export const DEPARTMENTS: DepartmentEntry[] = [
-  { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "Accounting", label: "Accounting", color: "sky", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "Recon", label: "Recon", color: "amber", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "Marketing", label: "Marketing", color: "pink", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "OnlineTeam", label: "Online Team", color: "violet", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "WebDevTeam", label: "Web Dev", color: "blue", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: true, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "WholesaleTeam", label: "Wholesale", color: "orange", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "BuyingTeam", label: "Buying", color: "teal", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "OperationsTeam", label: "Operations", color: "rose", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "LotTechTeam", label: "Lot Tech", color: "indigo", isMobileMonitoringDept: true, mobileMonitoringMode: "always", isTimeEditExempt: false, isMandatoryLocationDept: true, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "FundingTeam", label: "Funding", color: "lime", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "ProspectsTeam", label: "Prospects", color: "cyan", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
-  { key: "PriceCheckTeam", label: "Price Check", color: "fuchsia", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true },
+  { key: "SalesAndFinance", label: "Sales & Finance", color: "emerald", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "Accounting", label: "Accounting", color: "sky", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "Recon", label: "Recon", color: "amber", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "Marketing", label: "Marketing", color: "pink", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "OnlineTeam", label: "Online Team", color: "violet", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "WebDevTeam", label: "Web Dev", color: "blue", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: true, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "WholesaleTeam", label: "Wholesale", color: "orange", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "BuyingTeam", label: "Buying", color: "teal", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "OperationsTeam", label: "Operations", color: "rose", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "LotTechTeam", label: "Lot Tech", color: "indigo", isMobileMonitoringDept: true, mobileMonitoringMode: "always", isTimeEditExempt: false, isMandatoryLocationDept: true, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "FundingTeam", label: "Funding", color: "lime", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "ProspectsTeam", label: "Prospects", color: "cyan", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
+  { key: "PriceCheckTeam", label: "Price Check", color: "fuchsia", isMobileMonitoringDept: false, mobileMonitoringMode: "off", isTimeEditExempt: false, isMandatoryLocationDept: false, locationRequiredForTimeproof: true, detectIdle: true, idleVideoProofEnabled: false },
 ];
 
 export const DEPT_COLORS: Record<string, string> = Object.fromEntries(
@@ -116,4 +117,10 @@ export function isMandatoryLocationDept(dept?: string | null): boolean {
   if (!dept) return false;
   const entry = DEPARTMENTS.find((d) => d.key === dept || d.label === dept);
   return !!entry?.isMandatoryLocationDept;
+}
+
+export function isIdleVideoProofEnabled(dept?: string | null): boolean {
+  if (!dept) return false;
+  const entry = DEPARTMENTS.find((d) => d.key === dept || d.label === dept);
+  return !!entry?.idleVideoProofEnabled;
 }

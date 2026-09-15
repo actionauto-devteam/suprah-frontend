@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ArrowLeft, Loader2, Trash2, Eye, Users, Save, Star, Smartphone, Clock, MapPin,
-  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck, Radio, Hourglass,
+  CalendarDays, History, Hash, UserPlus, Search, X, ShieldCheck, Radio, Hourglass, Video,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -76,6 +76,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
   const [isMandatoryLocationDept, setIsMandatoryLocationDept] = React.useState(dept.isMandatoryLocationDept)
   const [locationRequiredForTimeproof, setLocationRequiredForTimeproof] = React.useState(dept.locationRequiredForTimeproof !== false)
   const [detectIdle, setDetectIdle] = React.useState(dept.detectIdle !== false)
+  const [idleVideoProofEnabled, setIdleVideoProofEnabled] = React.useState(!!dept.idleVideoProofEnabled)
   const [isSaving, setIsSaving] = React.useState(false)
   const [isBusy, setIsBusy] = React.useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = React.useState(false)
@@ -100,7 +101,8 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     isTimeEditExempt !== dept.isTimeEditExempt ||
     isMandatoryLocationDept !== dept.isMandatoryLocationDept ||
     locationRequiredForTimeproof !== (dept.locationRequiredForTimeproof !== false) ||
-    detectIdle !== (dept.detectIdle !== false)
+    detectIdle !== (dept.detectIdle !== false) ||
+    idleVideoProofEnabled !== !!dept.idleVideoProofEnabled
 
   React.useEffect(() => {
     setLabel(dept.label)
@@ -111,6 +113,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
     setIsMandatoryLocationDept(dept.isMandatoryLocationDept)
     setLocationRequiredForTimeproof(dept.locationRequiredForTimeproof !== false)
     setDetectIdle(dept.detectIdle !== false)
+    setIdleVideoProofEnabled(!!dept.idleVideoProofEnabled)
     setMembers(null)
     setMemberFilter("")
     setConfirmRemoveId(null)
@@ -173,6 +176,7 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
         isMandatoryLocationDept,
         locationRequiredForTimeproof,
         detectIdle,
+        idleVideoProofEnabled,
       }, { headers: { Authorization: `Bearer ${token}` } })
       toast.success("Department updated")
       onSaved()
@@ -511,6 +515,17 @@ export function DepartmentDetailPanel({ token, dept, allDepartments, onSaved, on
                 <p className="text-[11px] text-muted-foreground/60">Off = no idle tracking or idle alerts — screenshots keep capturing continuously</p>
               </div>
               <Switch checked={detectIdle} onCheckedChange={setDetectIdle} />
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl border border-border/50 p-3.5 hover:border-border transition-colors">
+              <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
+                <Video className="h-4 w-4 text-rose-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold">Idle Video Proof</p>
+                <p className="text-[11px] text-muted-foreground/60">Auto-records a short, silent screen clip starting 1 minute into an idle period as stronger proof</p>
+              </div>
+              <Switch checked={idleVideoProofEnabled} onCheckedChange={setIdleVideoProofEnabled} />
             </div>
           </div>
         </TabsContent>

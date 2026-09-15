@@ -11,8 +11,9 @@ import {
 } from "lucide-react"
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth,
-  addMonths, subMonths, startOfWeek, endOfWeek, isToday,
+  addMonths, subMonths, startOfWeek, endOfWeek,
 } from "date-fns"
+import { fmtTimeMDT, fmtMonthYearMDT, mdtDateKey, mdtMonthKey, mdtCalendarDate, todayStrMDT } from "@/lib/timezone"
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -35,34 +36,35 @@ function safeDate(value: unknown): Date | null {
 function appointmentIsOnDay(apt: Appointment, day: Date): boolean {
   const start = safeDate(apt.startTime)
   if (!start) return false
-  return (
-    start.getFullYear() === day.getFullYear() &&
-    start.getMonth() === day.getMonth() &&
-    start.getDate() === day.getDate()
-  )
+  return mdtDateKey(start) === format(day, "yyyy-MM-dd")
 }
 
 function countInMonth(appointments: Appointment[], month: Date): number {
+  const key = format(month, "yyyy-MM")
   return appointments.filter((apt) => {
     const d = safeDate(apt.startTime)
-    return d !== null && isSameMonth(d, month)
+    return d !== null && mdtMonthKey(d) === key
   }).length
 }
 
 function deriveTargetMonth(appointments: Appointment[], todayDate: Date): Date | null {
   if (appointments.length === 0) return null
-  const thisMonth = startOfMonth(todayDate)
-  if (countInMonth(appointments, thisMonth) > 0) return null
+  const thisMonthKey = mdtMonthKey(todayDate)
+  const hasThisMonth = appointments.some((apt) => {
+    const d = safeDate(apt.startTime)
+    return d !== null && mdtMonthKey(d) === thisMonthKey
+  })
+  if (hasThisMonth) return null
 
   const validDates = appointments
     .map((apt) => safeDate(apt.startTime))
     .filter((d): d is Date => d !== null)
 
   const futureDates = validDates.filter((d) => d >= todayDate).sort((a, b) => a.getTime() - b.getTime())
-  if (futureDates.length > 0) return startOfMonth(futureDates[0])
+  if (futureDates.length > 0) return startOfMonth(mdtCalendarDate(futureDates[0]))
 
   const pastDates = validDates.sort((a, b) => b.getTime() - a.getTime())
-  if (pastDates.length > 0) return startOfMonth(pastDates[0])
+  if (pastDates.length > 0) return startOfMonth(mdtCalendarDate(pastDates[0]))
 
   return null
 }
@@ -117,7 +119,7 @@ function EventChip({ apt, onClick }: { apt: Appointment; onClick: () => void }) 
       onClick={(e) => { e.stopPropagation(); onClick() }}
       title={apt.title}
     >
-      {start && <span className="font-bold mr-0.5 sm:mr-1 opacity-80 hidden sm:inline">{format(start, "h:mma")}</span>}
+      {start && <span className="font-bold mr-0.5 sm:mr-1 opacity-80 hidden sm:inline">{fmtTimeMDT(start)}</span>}
       <span className="truncate block font-medium">{apt.title}</span>
     </button>
   )
@@ -131,10 +133,11 @@ interface DayCellProps {
   dayAppointments: Appointment[]
   onAddAppointment: (day: Date) => void
   onSelectAppointment: (apt: Appointment) => void
+  todayKeyMDT: string
 }
 
-function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSelectAppointment }: DayCellProps) {
-  const todayFlag = isToday(day)
+function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSelectAppointment, todayKeyMDT }: DayCellProps) {
+  const todayFlag = format(day, "yyyy-MM-dd") === todayKeyMDT
   const visible = dayAppointments.slice(0, 3)
   const overflow = dayAppointments.length - visible.length
 
@@ -218,8 +221,8 @@ function DayCell({ day, inCurrentMonth, dayAppointments, onAddAppointment, onSel
                         <div>
                           <div className="flex items-center gap-1 text-[10px] font-bold opacity-60 mb-0.5">
                             <Clock className="size-3" />
-                            {start ? format(start, "h:mm a") : ""}
-                            {end && ` – ${format(end, "h:mm a")}`}
+                            {start ? fmtTimeMDT(start) : ""}
+                            {end && ` – ${fmtTimeMDT(end)}`}
                           </div>
                           <span className="font-bold text-sm leading-tight line-clamp-2">{apt.title}</span>
                         </div>
@@ -321,7 +324,7 @@ function JumpToNearestButton({
       size="sm"
       onClick={() => onNavigate(startOfMonth(nearest.date))}
     >
-      {nearest.label} ({format(nearest.date, "MMM yyyy")})
+      {nearest.label} ({fmtMonthYearMDT(nearest.date)})
     </Button>
   )
 }
@@ -336,6 +339,7 @@ export function AppointmentCalendar({
   onSelectAppointment,
 }: AppointmentCalendarProps) {
   const [todayDate] = React.useState(() => new Date())
+  const todayKeyMDT = todayStrMDT()
   const lastAutoNavCountRef = React.useRef<number>(-1)
 
   React.useEffect(() => {
@@ -434,6 +438,7 @@ export function AppointmentCalendar({
                 dayAppointments={getAppointmentsForDay(day)}
                 onAddAppointment={onCreateAppointment}
                 onSelectAppointment={onSelectAppointment}
+                todayKeyMDT={todayKeyMDT}
               />
             ))}
           </div>

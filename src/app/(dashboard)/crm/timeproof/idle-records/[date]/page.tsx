@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, AlertTriangle, ArrowRight, ImageOff } from "lucide-react"
+import { ArrowLeft, AlertTriangle, ArrowRight, ImageOff, Download } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import type { IdlePeriod } from "@/components/crm/timeproof/shared"
 
@@ -11,6 +11,14 @@ interface Screenshot {
   capturedAt: string
   idleDetected: boolean
   url: string
+}
+
+interface IdleRecording {
+  _id: string
+  idleStartMs: number
+  status: "partial" | "confirmed"
+  url: string
+  downloadUrl: string
 }
 
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
@@ -35,7 +43,9 @@ const fmtDuration = (seconds: number) => {
  * periods (or a tray still on an older build) simply won't have an "after"
  * shot, and that's shown honestly rather than a broken image.
  */
-function pairIdlePeriod(period: IdlePeriod, screenshots: Screenshot[]) {
+const RECORDING_MATCH_TOLERANCE_MS = 5 * 60_000
+
+function pairIdlePeriod(period: IdlePeriod, screenshots: Screenshot[], recordings: IdleRecording[]) {
   const startMs = new Date(period.idleStart).getTime()
   const endMs = period.idleEnd ? new Date(period.idleEnd).getTime() : Date.now()
 
@@ -50,7 +60,9 @@ function pairIdlePeriod(period: IdlePeriod, screenshots: Screenshot[]) {
     return s.idleDetected && t >= startMs && t <= endMs
   }) ?? null
 
-  return { before, after }
+  const video = recordings.find((r) => r.idleStartMs >= startMs - RECORDING_MATCH_TOLERANCE_MS && r.idleStartMs <= endMs) ?? null
+
+  return { before, after, video }
 }
 
 export default function IdleRecordScreenshotsPage() {
@@ -63,6 +75,7 @@ export default function IdleRecordScreenshotsPage() {
 
   const [idlePeriods, setIdlePeriods] = React.useState<IdlePeriod[]>([])
   const [screenshots, setScreenshots] = React.useState<Screenshot[]>([])
+  const [recordings, setRecordings] = React.useState<IdleRecording[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
 
@@ -86,13 +99,16 @@ export default function IdleRecordScreenshotsPage() {
     Promise.all([
       apiClient.get(idleLogEndpoint, { headers: { Authorization: `Bearer ${token}` } }),
       apiClient.get(`/api/crm/timeproof/screenshots?${screenshotsQs.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
+      apiClient.get(`/api/crm/timeproof/idle-recordings?${screenshotsQs.toString()}`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
-      .then(([idleRes, ssRes]) => {
+      .then(([idleRes, ssRes, recRes]) => {
         const periods: IdlePeriod[] = idleRes.data?.data?.idleLog ?? []
         const list: Screenshot[] = ssRes.data?.data?.screenshots ?? []
+        const recs: IdleRecording[] = recRes.data?.data?.recordings ?? []
         list.sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime())
         setIdlePeriods(periods)
         setScreenshots(list)
+        setRecordings(recs)
         setError("")
       })
       .catch((e: any) => setError(e?.response?.data?.message || "Failed to load idle records."))
@@ -137,7 +153,7 @@ export default function IdleRecordScreenshotsPage() {
           </div>
         ) : (
           idlePeriods.map((period, i) => {
-            const { before, after } = pairIdlePeriod(period, screenshots)
+            const { before, after, video } = pairIdlePeriod(period, screenshots, recordings)
             return (
               <div key={i} className="rounded-2xl border border-border/40 bg-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-rose-50/30 dark:bg-rose-950/10">
@@ -169,7 +185,25 @@ export default function IdleRecordScreenshotsPage() {
                   </div>
                   <div className="bg-card p-3 space-y-2">
                     <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40">Confirmed idle (10 min)</p>
-                    {after ? (
+                    {video ? (
+                      <>
+                        <video src={video.url} controls muted className="w-full aspect-video object-cover rounded-lg bg-black" />
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground/40 font-mono">
+                            {fmtTime(new Date(video.idleStartMs).toISOString())} {video.status === "partial" ? "(partial clip)" : ""}
+                          </p>
+                          <a
+                            href={video.downloadUrl}
+                            download={`idle-proof-${video.idleStartMs}.webm`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+                          >
+                            <Download className="h-3 w-3" /> Download
+                          </a>
+                        </div>
+                      </>
+                    ) : after ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={after.url} alt="Confirmed idle" className="w-full aspect-video object-cover rounded-lg" />

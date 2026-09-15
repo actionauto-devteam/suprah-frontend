@@ -22,6 +22,7 @@ import { VehiclePickerModal } from "@/components/VehiclePickerModal"
 import type { Vehicle } from "@/types/inventory"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/providers/AuthProvider"
+import { mdtWallTimeToUtc } from "@/lib/timezone"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -360,10 +361,11 @@ export function CreateAppointmentModal({
 
   const combineDateTime = (date: Date, timeString: string): string => {
     if (!timeString) return date.toISOString()
-    const combined = new Date(date)
     const time = new Date(timeString)
-    combined.setHours(time.getHours(), time.getMinutes(), 0, 0)
-    return combined.toISOString()
+    return mdtWallTimeToUtc(
+      date.getFullYear(), date.getMonth() + 1, date.getDate(),
+      time.getHours(), time.getMinutes(),
+    ).toISOString()
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
