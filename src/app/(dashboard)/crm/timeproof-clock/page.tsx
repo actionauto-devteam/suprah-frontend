@@ -776,7 +776,6 @@ export default function TimeprofClockPage() {
 
   const handleResumeShiftClick = async () => {
     setResumeModal(false)
-    if (!canSeamlessResume) { handleClock("time-in"); return }
     setResumingShift(true)
     const isMain = authModeRef.current === 'main'
     const resumeEndpoint = isMain ? "/api/timeclock/resume-shift" : "/api/crm/timeproof/resume-shift"
@@ -806,15 +805,12 @@ export default function TimeprofClockPage() {
       if (token) {
         const resumeRes = await apiClient.get(resumableEndpoint, getResumeHeaders())
         const d = resumeRes.data?.data
-        // Only prompt when the shift was genuinely auto-ended (canSeamlessResume) — a normal,
-        // deliberate "End Shift" click also leaves resumable=true (there's an open time-out
-        // today with nothing clocked back in since), which previously showed this same modal
-        // for every ordinary end-of-day clock-out. Worse, "Yes, Resume Shift" silently fell
-        // back to a plain new time-in whenever canSeamlessResume was false (see
-        // handleResumeShiftClick's `if (!canSeamlessResume)` branch) — identical to what "No"
-        // already does — so the "Yes" button's promise to continue the original clock-in
-        // never actually matched its behavior outside the real auto-clockout case.
-        if (d?.resumable && d?.originalClockIn && d?.canSeamlessResume) {
+        // Prompt whenever there's an open time-out today with nothing clocked back in since —
+        // "Yes, Resume Shift" always actually resumes the original clock-in now (backend
+        // deletes the closing time-out regardless of whether it was an auto-clockout or a
+        // deliberate manual "End Shift"), and "No, Start a New Shift" always starts fresh — so
+        // both options are genuinely meaningful choices in every case this modal can appear.
+        if (d?.resumable && d?.originalClockIn) {
           setResumeOriginalClockIn(d.originalClockIn)
           setCanSeamlessResume(true)
           setResumeModal(true)
@@ -903,6 +899,20 @@ export default function TimeprofClockPage() {
         fetchActivityState()
       }
     } else {
+      // The Break/Resume button occupies the exact same spot before and after starting a
+      // break — a stray second click right after (bumping the mouse/trackpad while standing up
+      // to actually go on break, for instance) silently ends it seconds later instead of the
+      // intended duration. This has caused real auto-clockouts during genuine breaks (confirmed
+      // via diagnostics: break-in and break-out logged 11 seconds apart, then a 30-min-idle
+      // auto-clockout while the employee was legitimately away). A short confirmation catches
+      // an accidental immediate re-click without adding friction to a normal-length break.
+      const BREAK_END_CONFIRM_WINDOW_MS = 60_000
+      if (currentBreakStartAt && Date.now() - currentBreakStartAt < BREAK_END_CONFIRM_WINDOW_MS) {
+        const secondsIn = Math.max(1, Math.round((Date.now() - currentBreakStartAt) / 1000))
+        const confirmed = window.confirm(`You started your break only ${secondsIn}s ago — end it already?`)
+        if (!confirmed) return
+      }
+
       const isLotTech = mobileMonitoringUser
       const isMain = authModeRef.current === 'main'
       const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
