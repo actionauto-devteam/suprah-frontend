@@ -470,12 +470,12 @@ export function DriverTrackerListCard({
                       </Badge>
                       <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[10px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
                         {driver.isSharing ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
-                        {driver.isSharing ? "Sharing" : "Not Sharing"}
+                        {driver.isSharing ? "Live GPS" : driver.coords ? "Last known GPS" : "Not Sharing"}
                       </Badge>
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">
                         <Clock className="size-3" />
-                        {driver.lastSeenAt
-                          ? new Date(driver.lastSeenAt).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })
+                        {(driver.locationRecordedAt ?? driver.lastSeenAt)
+                          ? new Date((driver.locationRecordedAt ?? driver.lastSeenAt)!).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })
                           : "Never"}
                       </span>
                     </div>
@@ -597,6 +597,13 @@ export function DriverTrackerListCard({
                       </div>
                     )}
 
+                    {driver.coords && (
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground" aria-live="polite">
+                        {driver.locationRecordedAt ? "GPS measured" : "Last server contact (GPS age unverified)"}: {new Date(driver.locationRecordedAt ?? driver.lastSeenAt ?? 0).toLocaleString()}
+                        {driver.accuracy != null && Number.isFinite(driver.accuracy) ? ` · Accuracy ±${Math.round(driver.accuracy)} m` : ""}
+                        {!driver.isSharing && " · Location may have changed. Ask the driver to reopen the app."}
+                      </p>
+                    )}
                     {eq?.trailerType && (
                       <div className="mt-1.5 hidden flex-wrap gap-1 md:flex">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/10 px-2.5 py-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400">

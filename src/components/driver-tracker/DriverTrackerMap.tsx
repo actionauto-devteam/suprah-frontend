@@ -40,7 +40,7 @@ const MAP_STATUS_ITEMS: MapStatusItem[] = [
   { color: "bg-amber-500", pulse: false, label: "Idle", shape: "circle" },
   { color: "bg-blue-500", pulse: false, label: "Waiting", shape: "circle" },
   { color: "bg-slate-500", pulse: false, label: "On Break", shape: "circle" },
-  { color: "bg-slate-400", pulse: false, label: "Offline", shape: "circle" },
+  { color: "bg-slate-400", pulse: false, label: "Offline / last known", shape: "circle" },
   {
     color: "bg-orange-500",
     pulse: false,

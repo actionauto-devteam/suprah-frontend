@@ -453,23 +453,32 @@ export default function DriverTrackerPage() {
   }, [pathname, router, searchParams]);
 
   const initialLoadDone = React.useRef(false);
+  const directoryRequestRunning = React.useRef(false);
+  const locationEventVersion = React.useRef(0);
 
   const fetchDrivers = React.useCallback(async () => {
     if (!isSignedIn) return;
+    if (directoryRequestRunning.current) return;
+    directoryRequestRunning.current = true;
+    const requestVersion = locationEventVersion.current;
     if (!initialLoadDone.current) setIsLoading(true);
     setError(null);
     try {
       const token = await getToken();
       const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+        timeout: 15000,
         headers: { Authorization: `Bearer ${token}` },
       });
       const directory = response.data?.data?.drivers || [];
+      if (requestVersion !== locationEventVersion.current) return;
       setDrivers(
         directory.map((item: any): DriverTrackingItem => ({
           id: item.id,
           status: item.presence?.status ?? "offline",
           coords: item.presence?.coords ?? null,
           lastSeenAt: item.presence?.lastSeenAt ?? null,
+          locationRecordedAt: item.presence?.locationRecordedAt ?? null,
+          accuracy: item.presence?.accuracy ?? null,
           isSharing: Boolean(item.presence?.isSharing),
           assignable: Boolean(item.assignable),
           warnings: Array.isArray(item.warnings) ? item.warnings : [],
@@ -539,6 +548,7 @@ export default function DriverTrackerPage() {
         err.response?.data?.message || err.message || "Failed to load drivers",
       );
     } finally {
+      directoryRequestRunning.current = false;
       initialLoadDone.current = true;
       setIsLoading(false);
     }
@@ -1246,8 +1256,26 @@ export default function DriverTrackerPage() {
 
   React.useEffect(() => {
     fetchDrivers();
-    const interval = setInterval(fetchDrivers, LOCATION_INTERVAL_MS);
-    return () => clearInterval(interval);
+    const refreshVisible = () => { if (document.visibilityState === "visible") void fetchDrivers(); };
+    const interval = setInterval(refreshVisible, LOCATION_INTERVAL_MS);
+    window.addEventListener("online", refreshVisible);
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    const ageTimer = window.setInterval(() => setDrivers(previous => {
+      let changed = false;
+      const next = previous.map(driver => {
+        const stamp = new Date(driver.locationRecordedAt ?? driver.lastSeenAt ?? 0).getTime();
+        if (!driver.isSharing || (Number.isFinite(stamp) && Date.now() - stamp <= 90_000)) return driver;
+        changed = true;
+        return { ...driver, isSharing: false, status: driver.equipment?.operationalStatus === "maintenance" ? "waiting" as DriverStatus : "offline" as DriverStatus };
+      });
+      return changed ? next : previous;
+    }), 5000);
+    return () => {
+      clearInterval(interval); clearInterval(ageTimer);
+      window.removeEventListener("online", refreshVisible); window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, [fetchDrivers]);
 
   React.useEffect(() => {
@@ -1279,6 +1307,7 @@ export default function DriverTrackerPage() {
     if (!isSignedIn) return;
     let cancelled = false;
     let cleanupLoadListeners: (() => void) | undefined;
+    const driverListenerCleanups: Array<() => void> = [];
     const refreshAvailableLoads = () => {
       if (!cancelled) void fetchAvailableLoads();
     };
@@ -1289,8 +1318,14 @@ export default function DriverTrackerPage() {
         if (cancelled || !token) return;
         const sock = initializeSocket(token);
         socketRef.current = sock;
+        const listen: typeof sock.on = ((event: any, handler: any) => {
+          sock.on(event, handler);
+          driverListenerCleanups.push(() => sock.off(event, handler));
+          return sock;
+        }) as typeof sock.on;
+        listen("connect", () => { void fetchDrivers(); });
 
-        sock.on(
+        listen(
           "driver:location",
           (data: {
             driverId: string;
@@ -1298,16 +1333,22 @@ export default function DriverTrackerPage() {
             status: DriverStatus;
             isSharing?: boolean;
             lastSeenAt: string;
+            locationRecordedAt?: string | null;
+            accuracy?: number | null;
           }) => {
+            locationEventVersion.current += 1;
             setDrivers((prev) => {
               const idx = prev.findIndex((d) => d.driver?.id === data.driverId);
               if (idx === -1) return prev;
+              if (new Date(data.lastSeenAt).getTime() < new Date(prev[idx].lastSeenAt ?? 0).getTime()) return prev;
               const updated = [...prev];
               updated[idx] = {
                 ...updated[idx],
-                coords: data.coords ?? updated[idx].coords,
+                coords: data.coords === undefined ? updated[idx].coords : data.coords,
                 status: data.status,
                 lastSeenAt: data.lastSeenAt,
+                locationRecordedAt: data.locationRecordedAt === undefined ? updated[idx].locationRecordedAt : data.locationRecordedAt,
+                accuracy: data.accuracy === undefined ? updated[idx].accuracy : data.accuracy,
                 // GPS sharing is independent from Live Status. This matters
                 // for On Leave (Live: Offline + GPS: Sharing) and In Shop
                 // (Live: Waiting + GPS: Not Sharing/Sharing).
@@ -1321,39 +1362,39 @@ export default function DriverTrackerPage() {
           },
         );
 
-        sock.on("driver:status_request_updated", () => {
+        listen("driver:status_request_updated", () => {
           fetchDrivers();
         });
 
-        sock.on("driver:operational_status_updated", () => {
+        listen("driver:operational_status_updated", () => {
           fetchDrivers();
         });
 
-        sock.on("driver:loads_updated", () => {
+        listen("driver:loads_updated", () => {
           fetchDrivers();
           fetchAvailableLoads();
           fetchLoadRequests();
         });
 
-        sock.on("driver:load_requested", () => {
+        listen("driver:load_requested", () => {
           fetchLoadRequests();
           fetchAvailableLoads();
         });
 
-        sock.on("driver:load_request_updated", () => {
+        listen("driver:load_request_updated", () => {
           fetchLoadRequests();
           fetchDrivers();
           fetchAvailableLoads();
         });
 
-        sock.on("load:change", refreshAvailableLoads);
-        sock.on("connect", refreshAvailableLoads);
+        listen("load:change", refreshAvailableLoads);
+        listen("connect", refreshAvailableLoads);
         cleanupLoadListeners = () => {
           sock.off("load:change", refreshAvailableLoads);
           sock.off("connect", refreshAvailableLoads);
         };
 
-        sock.on(
+        listen(
           "dispatch-chat:message",
           (message: {
             id?: string;
@@ -1441,7 +1482,7 @@ export default function DriverTrackerPage() {
           },
         );
 
-        sock.on(
+        listen(
           "driver:dispatch_alert_acknowledged",
           (payload: { driverName?: string; response?: string; destinationName?: string }) => {
             const label = payload.response === "on_my_way"
@@ -1461,15 +1502,8 @@ export default function DriverTrackerPage() {
 
     return () => {
       cancelled = true;
-      socketRef.current?.off("driver:location");
-      socketRef.current?.off("driver:status_request_updated");
-      socketRef.current?.off("driver:operational_status_updated");
-      socketRef.current?.off("driver:loads_updated");
-      socketRef.current?.off("driver:load_requested");
-      socketRef.current?.off("driver:load_request_updated");
+      driverListenerCleanups.forEach(cleanup => cleanup());
       cleanupLoadListeners?.();
-      socketRef.current?.off("dispatch-chat:message");
-      socketRef.current?.off("driver:dispatch_alert_acknowledged");
       socketRef.current = null;
     };
   }, [
