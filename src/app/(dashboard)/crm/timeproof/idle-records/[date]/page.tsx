@@ -20,7 +20,6 @@ interface IdleRecording {
   chunkIndex: number
   status: "partial" | "confirmed"
   url: string
-  downloadUrl: string
 }
 
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
@@ -88,6 +87,29 @@ export default function IdleRecordScreenshotsPage() {
   const [recordings, setRecordings] = React.useState<IdleRecording[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
+  const [downloadingId, setDownloadingId] = React.useState<string | null>(null)
+
+  // The listing's embedded downloadUrl is signed for 15 minutes — fine for an immediate click,
+  // but stale by the time someone reviews a few videos on this page before downloading one, and
+  // the browser then shows a raw R2 "ExpiredRequest" XML error. Minting a fresh signature at
+  // click-time instead means the link never goes stale no matter how long the page's been open.
+  const handleDownloadVideo = async (video: IdleRecording) => {
+    const token = localStorage.getItem("crm_token")
+    if (!token || downloadingId) return
+    setDownloadingId(video._id)
+    try {
+      const res = await apiClient.get(
+        `/api/crm/timeproof/idle-recordings/download-url?key=${encodeURIComponent(video._id)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const freshUrl = res.data?.data?.downloadUrl
+      if (freshUrl) window.open(freshUrl, "_blank", "noopener,noreferrer")
+    } catch {
+      // Best-effort — the video is still viewable inline either way.
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const formattedDate = React.useMemo(() => {
     return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
@@ -231,15 +253,13 @@ export default function IdleRecordScreenshotsPage() {
                               <p className="text-[10px] text-muted-foreground/40 font-mono">
                                 {video.status === "partial" ? "(partial clip)" : "confirmed"}
                               </p>
-                              <a
-                                href={video.downloadUrl}
-                                download={`idle-proof-${video.idleStartMs}-chunk${video.chunkIndex}.webm`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+                              <button
+                                onClick={() => handleDownloadVideo(video)}
+                                disabled={downloadingId === video._id}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0 disabled:opacity-50"
                               >
-                                <Download className="h-3 w-3" /> Download
-                              </a>
+                                <Download className="h-3 w-3" /> {downloadingId === video._id ? "Preparing…" : "Download"}
+                              </button>
                             </div>
                           </>
                         ) : (
