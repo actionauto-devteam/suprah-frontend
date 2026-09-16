@@ -42,11 +42,13 @@ function Action({
   const brand = variant === "brand";
   return (
     <button
+      className="spy-wallet-action"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         flex: 1,
+        minWidth: 0,
         display: "flex",
         alignItems: "center",
         gap: 11,
@@ -73,6 +75,7 @@ function Action({
       }}
     >
       <span
+        className="spy-wallet-action-icon"
         style={{
           width: 34,
           height: 34,
@@ -86,14 +89,14 @@ function Action({
       >
         <Icon style={{ width: 16, height: 16, color: brand ? "#06130C" : T.text }} />
       </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{
+      <span className="spy-wallet-action-copy" style={{ minWidth: 0 }}>
+        <span className="spy-wallet-action-label" style={{
           display: "block", fontSize: 14, fontWeight: 700,
           color: brand ? "#06130C" : T.text, lineHeight: 1.1,
         }}>
           {label}
         </span>
-        <span style={{
+        <span className="spy-wallet-action-sub" style={{
           display: "block", fontSize: 11, marginTop: 3,
           color: brand ? "rgba(3,18,10,0.7)" : T.textSub,
         }}>
@@ -321,6 +324,33 @@ export function BalanceCard({
           </span>
         </div>
       </div>
+      <style>{`
+        @media (max-width: 560px) {
+          .spy-wallet-action {
+            align-items: flex-start !important;
+            flex-direction: column;
+            gap: 8px !important;
+            padding: 10px !important;
+          }
+
+          .spy-wallet-action-icon {
+            width: 30px !important;
+            height: 30px !important;
+          }
+
+          .spy-wallet-action-copy {
+            align-self: stretch;
+          }
+
+          .spy-wallet-action-label {
+            font-size: 12px !important;
+          }
+
+          .spy-wallet-action-sub {
+            font-size: 10px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

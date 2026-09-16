@@ -58,6 +58,35 @@ const leadName = (lead: any) =>
   lead?.email ||
   "Unknown";
 
+type LeadListIdentity = {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  senderName?: string;
+  email?: string;
+  vehicle?: {
+    year?: string;
+    make?: string;
+    model?: string;
+  };
+};
+
+const leadNameKey = (lead: LeadListIdentity) =>
+  leadName(lead).trim().toLocaleLowerCase();
+
+const leadVehicle = (lead: LeadListIdentity) =>
+  [lead?.vehicle?.year, lead?.vehicle?.make, lead?.vehicle?.model]
+    .filter(Boolean)
+    .join(" ");
+
+const inquiryIdentifier = (lead: LeadListIdentity) => {
+  const details = [lead?.email, leadVehicle(lead)].filter(Boolean);
+  const id = typeof lead?._id === "string" ? lead._id.slice(-6) : "";
+
+  if (id) details.push(`Inquiry #${id}`);
+  return details.join(" · ");
+};
+
 function StatusDot({ status }: { status?: string }) {
   const config = status ? (STATUS_CONFIG as any)[status] : null;
   if (!config) return null;
@@ -94,6 +123,20 @@ export const LeadsList = React.memo(
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
+    const repeatedNames = React.useMemo(() => {
+      const counts = new Map<string, number>();
+
+      for (const lead of leads) {
+        const key = leadNameKey(lead);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+
+      return new Set(
+        Array.from(counts.entries())
+          .filter(([, count]) => count > 1)
+          .map(([key]) => key),
+      );
+    }, [leads]);
 
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-white dark:bg-[#0a1410]">
@@ -160,6 +203,8 @@ export const LeadsList = React.memo(
                 const highlighted = highlightedLeadIds?.has(lead._id);
                 const checked = selectedIds?.has(lead._id);
                 const unread = lead?.isRead === false;
+                const identifier = inquiryIdentifier(lead);
+                const hasRepeatedName = repeatedNames.has(leadNameKey(lead));
 
                 return (
                   <li key={lead._id}>
@@ -225,6 +270,15 @@ export const LeadsList = React.memo(
                         {lead?.phone && (
                           <p className="truncate text-[12px] text-slate-500 dark:text-slate-400">
                             {lead.phone}
+                          </p>
+                        )}
+
+                        {hasRepeatedName && identifier && (
+                          <p
+                            className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500"
+                            title={identifier}
+                          >
+                            {identifier}
                           </p>
                         )}
 

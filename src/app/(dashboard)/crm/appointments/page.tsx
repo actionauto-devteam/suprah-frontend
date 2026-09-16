@@ -282,15 +282,19 @@ function CustomTabBar({
   ];
 
   return (
-    <div className="overflow-x-auto touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="flex min-w-max gap-0.5 rounded-xl border bg-muted/50 p-1 backdrop-blur-sm">
+    <div
+      role="navigation"
+      aria-label="Appointment views"
+      className="-mx-1 overflow-x-auto overscroll-x-contain px-1 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex min-w-max snap-x snap-proximity gap-0.5 rounded-xl border bg-muted/50 p-1 pr-3 backdrop-blur-sm sm:pr-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 whitespace-nowrap",
+              "relative flex snap-start items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap sm:gap-2 sm:px-3.5 sm:text-sm",
               value === tab.id
                 ? "bg-card text-foreground shadow-sm ring-1 ring-border/50"
                 : "text-muted-foreground hover:text-foreground hover:bg-card/50"
@@ -1032,7 +1036,7 @@ function AppointmentsPageInner() {
           className={
             isFullscreen
               ? "flex flex-col h-full overflow-hidden"
-              : "w-full px-4 sm:px-6 py-6 space-y-6"
+              : "w-full space-y-6 px-4 pb-[calc(var(--mobile-bottom-nav-offset,6.25rem)+3.5rem)] pt-6 sm:px-6 md:py-6 md:pb-6"
           }
         >
           {isFullscreen ? fullscreenHeader : normalHeader}

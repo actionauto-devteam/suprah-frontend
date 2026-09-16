@@ -724,7 +724,7 @@ export function ConversationView({
                             size="sm"
                           />
                           <div className="flex min-w-0 max-w-[78%] flex-col items-start sm:max-w-[62%]">
-                            <div className="whitespace-pre-wrap wrap-break-word rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100">
+                            <div className="min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] leading-relaxed text-slate-800 shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100">
                               {inquiryText}
                             </div>
                             <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -776,7 +776,7 @@ export function ConversationView({
                       >
                         <div
                           className={cn(
-                            "whitespace-pre-wrap wrap-break-word rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
+                            "min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed shadow-[0_1px_2px_rgba(16,24,40,0.05)]",
                             outbound
                               ? "rounded-br-md bg-gradient-to-br from-emerald-600 to-emerald-500 text-white shadow-emerald-500/20 dark:from-emerald-500 dark:to-cyan-600"
                               : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-emerald-400/15 dark:bg-[#0f1f19] dark:text-slate-100",

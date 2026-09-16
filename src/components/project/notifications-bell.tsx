@@ -45,12 +45,19 @@ type Notification = {
   | "task_deadline";
   title: string;
   message: string;
+  groupId: string;
   taskId?: string | null;
   commentId?: string | null;
   actorName: string;
   readAt?: string | null;
   createdAt: string;
 };
+
+type NotificationEvent = Notification | { notification?: Notification };
+
+const isNotificationEnvelope = (
+  payload: NotificationEvent,
+): payload is { notification?: Notification } => "notification" in payload;
 
 const TYPE_ICON: Record<Notification["type"], React.ElementType> = {
   task_assigned: UserPlus,
@@ -84,41 +91,58 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function NotificationsBell({ meId, socket }: { meId: string; socket?: Socket | null }) {
+export function NotificationsBell({
+  meId,
+  groupId,
+  socket,
+}: {
+  meId: string;
+  groupId: string | null;
+  socket?: Socket | null;
+}) {
   const { unreadCount, refresh } = useProjectNotifications();
   const [open, setOpen] = React.useState(false);
   const [items, setItems] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [openTask, setOpenTask] = React.useState<{ taskId: string; commentId?: string | null } | null>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
+  const loadVersionRef = React.useRef(0);
 
   const load = React.useCallback(async () => {
+    const loadVersion = ++loadVersionRef.current;
     setLoading(true);
+    setItems([]);
     try {
       const res = await apiClient.get("/api/crm/projects/notifications", {
-        params: { limit: 30 },
+        params: { limit: 30, ...(groupId ? { groupId } : {}) },
       });
-      setItems(res.data?.data?.notifications || []);
+      if (loadVersion === loadVersionRef.current) {
+        setItems(res.data?.data?.notifications || []);
+      }
     } catch {
-      /* panel just stays empty */
+      if (loadVersion === loadVersionRef.current) setItems([]);
     } finally {
-      setLoading(false);
+      if (loadVersion === loadVersionRef.current) setLoading(false);
     }
-  }, []);
+  }, [groupId]);
 
   React.useEffect(() => {
     if (open) load();
   }, [open, load]);
 
-  // Live: a new notification while the panel is open drops straight into the list.
   React.useEffect(() => {
     if (!socket) return;
-    const onNotification = (n: Notification) => setItems((prev) => [n, ...prev]);
+    const onNotification = (payload: NotificationEvent) => {
+      const n = isNotificationEnvelope(payload) ? payload.notification : payload;
+      if (!n) return;
+      if (groupId && String(n.groupId) !== groupId) return;
+      setItems((prev) => [n, ...prev.filter((item) => item._id !== n._id)]);
+    };
     socket.on("pm:notification", onNotification);
     return () => {
       socket.off("pm:notification", onNotification);
     };
-  }, [socket]);
+  }, [groupId, socket]);
 
   // Close on outside click.
   React.useEffect(() => {
@@ -131,6 +155,8 @@ export function NotificationsBell({ meId, socket }: { meId: string; socket?: Soc
   }, [open]);
 
   const markRead = async (ids?: string[]) => {
+    if (ids && ids.length === 0) return;
+
     try {
       await apiClient.post("/api/crm/projects/notifications/read", ids ? { ids } : {});
       setItems((prev) =>
@@ -177,7 +203,8 @@ export function NotificationsBell({ meId, socket }: { meId: string; socket?: Soc
           <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
             <p className="text-xs font-bold tracking-tight">Notifications</p>
             <button
-              onClick={() => markRead()}
+              onClick={() => markRead(items.filter((item) => !item.readAt).map((item) => item._id))}
+              disabled={!items.some((item) => !item.readAt)}
               className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-700"
             >
               <Check className="h-3 w-3" /> Mark all read
@@ -191,7 +218,7 @@ export function NotificationsBell({ meId, socket }: { meId: string; socket?: Soc
               </div>
             ) : items.length === 0 ? (
               <p className="px-6 py-10 text-center text-xs text-muted-foreground/50">
-                You're all caught up — no notifications.
+                You&apos;re all caught up — no notifications.
               </p>
             ) : (
               items.map((n) => {

@@ -35,6 +35,7 @@ import {
   Keyboard,
   Headphones,
   Megaphone,
+  UserCheck,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, resolveImageUrl } from "@/lib/utils";
@@ -266,9 +267,15 @@ export default function YapLinePage() {
   const [loading, setLoading] = React.useState(() => convsCache === null);
   const [query, setQuery] = React.useState("");
   const [inviteConv, setInviteConv] = React.useState<Conv | null>(null);
+  const stageRef = React.useRef<HTMLElement | null>(null);
 
   const cur = s.current;
+  const currentConversationId = cur?.conversationId;
   const session = cur ? s.sessions[cur.conversationId] : null;
+  const selectedConv = cur ? convs.find((c) => c._id === cur.conversationId) : null;
+  const inactiveMembers = selectedConv && session
+    ? selectedConv.members.filter((member) => !session.participants.some((participant) => participant.userId === member._id))
+    : [];
   const sharer =
     session?.screenSharerId
       ? session.participants.find((p) => p.userId === session.screenSharerId)
@@ -304,6 +311,11 @@ export default function YapLinePage() {
     window.history.replaceState(null, "", url.pathname + url.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (!currentConversationId || !window.matchMedia("(max-width: 1023px)").matches) return;
+    stageRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+  }, [currentConversationId]);
 
   const filtered = React.useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -349,12 +361,12 @@ export default function YapLinePage() {
   }, []);
 
   return (
-    <div className="yapline-scope flex h-full w-full flex-col gap-4 overflow-hidden p-3 sm:p-6 lg:flex-row animate-in fade-in duration-500">
+    <div className="yapline-scope flex min-h-full w-full flex-col gap-4 overflow-visible p-3 pb-[calc(var(--mobile-bottom-nav-offset,6.25rem)+0.75rem)] sm:p-6 lg:h-full lg:min-h-0 lg:flex-row lg:overflow-hidden lg:pb-6 animate-in fade-in duration-500">
       {/* Ambient glow */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(700px_circle_at_15%_-5%,rgba(16,185,129,0.05),transparent_55%),radial-gradient(600px_circle_at_85%_0%,rgba(34,211,238,0.04),transparent_55%)]" />
 
       {/* ── Channel rail ── */}
-      <aside className="flex w-full shrink-0 flex-col rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl lg:w-80">
+      <aside className="flex w-full shrink-0 flex-col rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl lg:h-full lg:min-h-0 lg:w-80">
         <div className="border-b border-border/30 p-4">
           <div className="flex items-center gap-2.5">
             {/* Solid green app tile — same branding treatment as Suprah Space. */}
@@ -445,7 +457,14 @@ export default function YapLinePage() {
       </aside>
 
       {/* ── Stage ── */}
-      <main className="flex min-h-96 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl">
+      <main
+        ref={stageRef}
+        tabIndex={-1}
+        className={cn(
+          "flex min-h-96 shrink-0 flex-1 flex-col overflow-visible rounded-3xl border border-white/10 bg-card/40 backdrop-blur-xl outline-none lg:min-h-0 lg:overflow-hidden",
+          cur && "order-first lg:order-none"
+        )}
+      >
         {Object.values(s.monitors).length > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-cyan-500/20 bg-cyan-500/5 px-4 py-2">
             <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-cyan-400">
@@ -483,7 +502,7 @@ export default function YapLinePage() {
             })}
           </div>
         )}
-        {!cur || !session ? (
+        {!cur ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
             <span className="flex size-16 items-center justify-center rounded-3xl bg-emerald-500/10">
               <RadioTower className="size-8 text-emerald-500/70" />
@@ -494,6 +513,17 @@ export default function YapLinePage() {
               conversation can tune in instantly — unmute to talk for as long as you like.
               Share your screen mid-session for demos and troubleshooting.
             </p>
+            {s.error && <p className="text-[11px] font-medium text-rose-500">{s.error}</p>}
+          </div>
+        ) : !session ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+            <Loader2 className="size-7 animate-spin text-emerald-500" />
+            <div>
+              <h2 className="text-lg font-black tracking-tight">Joining {cur.conversationName || "YapLine"}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground/60">
+                Loading the line and its member availability.
+              </p>
+            </div>
             {s.error && <p className="text-[11px] font-medium text-rose-500">{s.error}</p>}
           </div>
         ) : (
@@ -523,8 +553,20 @@ export default function YapLinePage() {
               </button>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/20 bg-emerald-500/5 px-5 py-2.5">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Line availability</p>
+                <p className="text-[11px] text-muted-foreground/60">
+                  {session.participants.length} on the line{selectedConv?.members.length ? ` of ${selectedConv.members.length} members` : ""}
+                </p>
+              </div>
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                <UserCheck className="size-3" /> You&apos;re on this line
+              </span>
+            </div>
+
             {/* Screen / participant stage */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-visible p-4 lg:overflow-y-auto">
               {remoteSharer && (
                 <div className="relative mb-4 h-72 sm:h-96">
                   <StageScreen userId={remoteSharer.userId} version={cur.screenVersion} />
@@ -537,7 +579,7 @@ export default function YapLinePage() {
                 <div className="mb-4 flex items-center gap-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/6 px-4 py-3">
                   <MonitorUp className="size-4 text-cyan-400" />
                   <p className="flex-1 text-xs font-medium text-foreground/80">
-                    You're sharing your screen with everyone on this line.
+                    You&apos;re sharing your screen with everyone on this line.
                   </p>
                   <button
                     onClick={() => yapline.stopScreenShare()}
@@ -552,12 +594,12 @@ export default function YapLinePage() {
                   stops adding columns past lg regardless of how wide the stage actually gets
                   on larger monitors, leaving the grid visibly short of the available width.
                   This keeps adding 150px-min columns for as long as the container has room. */}
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
                 {session.participants.map((p) => (
                   <div
                     key={p.userId}
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-2xl border bg-background/40 p-4 transition-all",
+                      "flex min-w-0 flex-col items-center gap-2 rounded-2xl border bg-background/40 p-3 sm:p-4 transition-all",
                       p.speaking
                         ? "border-emerald-400/60 shadow-md shadow-emerald-500/20"
                         : "border-zinc-300/80 shadow-sm dark:border-border/30 dark:shadow-none"
@@ -592,13 +634,28 @@ export default function YapLinePage() {
                     </p>
                   </div>
                 ))}
+                {inactiveMembers.map((member) => (
+                  <div
+                    key={member._id}
+                    className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-dashed border-border/40 bg-background/20 p-3 sm:p-4"
+                  >
+                    <Avatar className="size-14 ring-2 ring-border/30">
+                      <AvatarImage src={member.avatar || undefined} />
+                      <AvatarFallback className="bg-muted text-sm font-bold text-muted-foreground">
+                        {ini(member.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p className="max-w-full truncate text-sm font-bold">{member.fullName || "Team member"}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">Not on line</p>
+                  </div>
+                ))}
                 <YapLineSummonMenu
                   conversationId={cur.conversationId}
                   members={convs.find((c) => c._id === cur.conversationId)?.members || []}
                   activeParticipantIds={(session?.participants || []).map((p) => p.userId)}
                   myUserId={s.myUserId}
                   trigger={
-                    <button className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/40 p-4 text-muted-foreground/60 transition-colors hover:border-emerald-500/40 hover:text-emerald-500">
+                    <button className="flex min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/40 p-3 text-muted-foreground/60 transition-colors hover:border-emerald-500/40 hover:text-emerald-500 sm:p-4">
                       <span className="flex size-14 items-center justify-center rounded-full border border-dashed border-current">
                         <Megaphone className="size-5" />
                       </span>
@@ -612,7 +669,7 @@ export default function YapLinePage() {
                   return (
                     <button
                       onClick={() => setInviteConv(liveConv)}
-                      className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/40 p-4 text-muted-foreground/60 transition-colors hover:border-emerald-500/40 hover:text-emerald-500"
+                      className="flex min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border/40 p-3 text-muted-foreground/60 transition-colors hover:border-emerald-500/40 hover:text-emerald-500 sm:p-4"
                     >
                       <span className="flex size-14 items-center justify-center rounded-full border border-dashed border-current">
                         <UserPlus className="size-5" />

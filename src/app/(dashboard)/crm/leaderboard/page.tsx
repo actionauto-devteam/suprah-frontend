@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 interface KpiSnapshot {
   leadsCreated: number;
@@ -644,6 +645,7 @@ export default function LeaderboardPage() {
   const [selectedEntry, setSelectedEntry] =
     React.useState<LeaderboardEntry | null>(null);
   const [isFetching, setIsFetching] = React.useState(false);
+  const [isExporting, setIsExporting] = React.useState(false);
   const [lastRefresh, setLastRefresh] = React.useState<Date>(new Date());
 
   // ── Auth ─────────────────────────────────────────────────────────────────
@@ -780,6 +782,9 @@ export default function LeaderboardPage() {
   }, [fetchLeaderboard, fetchActivityFeed, activeTab]);
 
   const handleExport = async () => {
+    if (!token || isExporting) return;
+
+    setIsExporting(true);
     try {
       const url = `/api/analytics/export?type=leaderboard&periodType=${periodType}`;
       const res = await apiClient.get(url, {
@@ -787,12 +792,42 @@ export default function LeaderboardPage() {
         responseType: "blob",
       });
       const blob = new Blob([res.data], { type: "text/csv" });
+      const contentDisposition = String(res.headers["content-disposition"] || "");
+      const responseFilename = contentDisposition.match(/filename="?([^";\r\n]+)"?/i)?.[1];
+      const filename = (responseFilename || `leaderboard_${periodType}_${new Date().toISOString().slice(0, 10)}.csv`)
+        .replace(/[^a-zA-Z0-9._-]/g, "_");
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `leaderboard_${periodType}_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
       link.click();
-    } catch {
-      console.error("Export failed");
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      toast.success("Analytics report ready", {
+        description: "Check your browser downloads to open the CSV report.",
+      });
+    } catch (error) {
+      const responseData = (error as { response?: { data?: unknown } })?.response?.data;
+      let message = "Unable to export analytics right now. Please try again.";
+
+      if (responseData instanceof Blob) {
+        try {
+          const body = JSON.parse(await responseData.text());
+          if (typeof body?.message === "string") message = body.message;
+        } catch {}
+      } else if (
+        responseData &&
+        typeof responseData === "object" &&
+        typeof (responseData as { message?: unknown }).message === "string"
+      ) {
+        message = (responseData as { message: string }).message;
+      }
+
+      toast.error("Analytics export failed", { description: message });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -869,10 +904,18 @@ export default function LeaderboardPage() {
               <Button
                 variant="outline"
                 size="sm"
+                type="button"
                 className="h-9 gap-1.5 text-xs rounded-xl border-border/40 px-2.5 sm:px-3"
                 onClick={handleExport}
+                disabled={isExporting}
+                aria-label={isExporting ? "Preparing analytics report" : "Export analytics report"}
+                title={isExporting ? "Preparing report" : "Export analytics report"}
               >
-                <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Export</span>
+                {isExporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )} <span className="hidden sm:inline">{isExporting ? "Preparing" : "Export"}</span>
               </Button>
             )}
           </div>
@@ -932,8 +975,8 @@ export default function LeaderboardPage() {
             if (v === "activity") fetchActivityFeed();
           }}
         >
-          <div className="overflow-x-auto scrollbar-hide">
-            <TabsList className="w-full min-w-max rounded-2xl border border-border/40 bg-muted/20 p-1.5 h-auto gap-1.5">
+          <div className="overflow-x-auto overscroll-x-contain scrollbar-hide">
+            <TabsList className="w-full min-w-max rounded-2xl border border-border/40 bg-muted/20 p-1 h-auto gap-1.5">
               {[
                 {
                   value: "leaderboard",
@@ -962,7 +1005,7 @@ export default function LeaderboardPage() {
                   <TabsTrigger
                     key={t.value}
                     value={t.value}
-                    className="flex-1 rounded-xl text-xs font-semibold gap-2 px-5 py-2.5 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60 transition-all"
+                    className="min-h-11 min-w-[6.5rem] flex-1 rounded-xl gap-1.5 px-2.5 py-2 text-[11px] font-semibold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60 transition-all sm:gap-2 sm:px-5 sm:text-xs"
                   >
                     {t.icon}
                     {t.label}

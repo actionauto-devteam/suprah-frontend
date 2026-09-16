@@ -138,8 +138,12 @@ export const initials = (name?: string | null) =>
     .slice(0, 2)
     .toUpperCase() || "?";
 
-export const errMsg = (err: any, fallback: string) =>
-  err?.response?.data?.message || err?.response?.data?.data?.message || fallback;
+export const errMsg = (err: unknown, fallback: string) => {
+  if (!err || typeof err !== "object") return fallback;
+  const response = (err as { response?: { data?: { message?: unknown; data?: { message?: unknown } } } }).response;
+  const message = response?.data?.message ?? response?.data?.data?.message;
+  return typeof message === "string" && message.trim() ? message : fallback;
+};
 
 /** Safe visible name — populated users can arrive without fullName. */
 export const displayName = (m?: Partial<Member> | null) =>
@@ -464,7 +468,7 @@ export function EditTaskDialog({
         deadline: deadline || null,
       });
       onSaved(res.data?.data?.task);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to update the task."));
     } finally {
       setSaving(false);
@@ -650,7 +654,7 @@ export function TaskDetailDialog({
       });
       setTask(res.data?.data?.task);
       onChanged();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to upload attachment(s)."));
     } finally {
       setAttachUploading(false);
@@ -667,7 +671,7 @@ export function TaskDetailDialog({
       );
       setTask(res.data?.data?.task);
       onChanged();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to remove the attachment."));
     } finally {
       setRemovingAttachmentId(null);
@@ -681,7 +685,7 @@ export function TaskDetailDialog({
     try {
       const res = await apiClient.get(`/api/crm/projects/tasks/${taskId}`);
       setTask(res.data?.data?.task);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to load task."));
     } finally {
       setLoading(false);
@@ -813,7 +817,7 @@ export function TaskDetailDialog({
     try {
       await apiClient.patch(`/api/crm/projects/tasks/${task._id}/status`, { status: next });
       onChanged();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setTask((t) => (t ? { ...t, status: previous } : t)); // rollback
       setError(errMsg(err, "Failed to change the status."));
     } finally {
@@ -831,7 +835,7 @@ export function TaskDetailDialog({
       const res = await apiClient.patch(`/api/crm/projects/tasks/${task._id}`, { priority: next ?? "" });
       setTask(res.data?.data?.task);
       onChanged();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setTask((t) => (t ? { ...t, priority: previous } : t)); // rollback
       setError(errMsg(err, "Failed to change the priority."));
     } finally {
@@ -853,7 +857,7 @@ export function TaskDetailDialog({
       const res = await apiClient.get(`/api/crm/projects/groups/${task.groupId}/tree`);
       setEditMembers(res.data?.data?.members || []);
       setEditOpen(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to load group members."));
     } finally {
       setEditLoading(false);
@@ -881,7 +885,7 @@ export function TaskDetailDialog({
       setDeleteOpen(false);
       (onDeleted ?? onChanged)();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDeleteOpen(false);
       setError(errMsg(err, "Failed to delete the task."));
     } finally {
@@ -904,12 +908,16 @@ export function TaskDetailDialog({
         { headers: { "Content-Type": "multipart/form-data" } },
       );
       const created: Comment | undefined = res.data?.data?.comment;
-      if (created) setComments((prev) => [...prev, created]);
+      if (created) {
+        setComments((prev) =>
+          prev.some((comment) => comment._id === created._id) ? prev : [...prev, created],
+        );
+      }
       setMessage("");
       setMentionIds([]);
       setCommentFiles([]);
       onChanged();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to send the comment."));
     } finally {
       setSending(false);
@@ -942,7 +950,7 @@ export function TaskDetailDialog({
         setComments((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
       }
       cancelEditComment();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to update the comment."));
     } finally {
       setEditSaving(false);
@@ -958,7 +966,7 @@ export function TaskDetailDialog({
       setComments((prev) => prev.filter((c) => c._id !== deletingCommentId));
       setTask((t) => (t ? { ...t, commentCount: Math.max(0, t.commentCount - 1) } : t));
       setDeletingCommentId(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to delete the comment."));
       setDeletingCommentId(null);
     } finally {

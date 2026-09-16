@@ -707,9 +707,11 @@ export const UPDATED_PANEL_CSS = `
 
 /* ── Assistant Tab ── */
 .axp-assist-scroll {
-  overflow-y: auto; flex: 1;
+  overflow-y: auto; flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   padding: 12px 15px; gap: 9px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .axp-assist-scroll::-webkit-scrollbar { width: 3px; }
 .axp-assist-scroll::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }

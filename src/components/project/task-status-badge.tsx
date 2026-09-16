@@ -6,6 +6,7 @@ import {
   Timer,
   Archive,
   Rocket,
+  CircleCheckBig,
   CheckCircle2,
   ChevronDown,
   Lock,
@@ -25,6 +26,7 @@ export type ProjectTaskStatus =
   | "in-progress"
   | "backlog"
   | "to-deploy"
+  | "deployed"
   | "completed";
 
 export const PROJECT_TASK_STATUSES: ProjectTaskStatus[] = [
@@ -33,6 +35,7 @@ export const PROJECT_TASK_STATUSES: ProjectTaskStatus[] = [
   "in-progress",
   "backlog",
   "to-deploy",
+  "deployed",
   "completed",
 ];
 
@@ -73,6 +76,12 @@ export const STATUS_CONFIG: Record<ProjectTaskStatus, StatusConfig> = {
     icon: Rocket,
     chip: "bg-purple-500/10 text-purple-700 border-purple-500/25 dark:text-purple-400",
     dot: "bg-purple-500",
+  },
+  deployed: {
+    label: "Deployed",
+    icon: CircleCheckBig,
+    chip: "bg-cyan-500/10 text-cyan-700 border-cyan-500/25 dark:text-cyan-400",
+    dot: "bg-cyan-500",
   },
   completed: {
     label: "Completed",

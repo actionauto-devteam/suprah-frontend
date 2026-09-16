@@ -62,6 +62,10 @@ export function LocatorMap({
   onViewElsewhere,
   onGoHome,
 }: LocatorMapProps) {
+  const bottomControlOffset = isMaximized
+    ? "max(var(--mobile-bottom-nav-offset, 0px), calc(env(safe-area-inset-bottom) + 1rem))"
+    : undefined;
+
   return (
     <Card className={cn("border-border/50 shadow-sm overflow-hidden bg-card p-0 gap-0", isMaximized && "fixed inset-0 z-50 rounded-none border-0")}>
       <CardContent className="p-0">
@@ -176,19 +180,59 @@ export function LocatorMap({
             </div>
           </TooltipProvider>
 
-          <LocatorMapLegend activeCount={activeCount} stateCounts={stateCounts} />
+          <div className="hidden md:block">
+            <LocatorMapLegend activeCount={activeCount} stateCounts={stateCounts} />
+          </div>
+
+          {isMaximized && (
+            <div className="md:hidden">
+              <LocatorMapLegend
+                activeCount={activeCount}
+                stateCounts={stateCounts}
+                bottomOffset={bottomControlOffset}
+              />
+            </div>
+          )}
 
           {elsewhereCount > 0 && onViewElsewhere && (
             <button
               type="button"
               onClick={onViewElsewhere}
-              className="absolute bottom-2.5 sm:bottom-4 right-2.5 sm:right-4 z-1000 flex items-center gap-1.5 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2 text-xs font-bold hover:bg-background transition-colors"
+              className="absolute bottom-2.5 sm:bottom-4 right-2.5 sm:right-4 z-1000 hidden md:flex items-center gap-1.5 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2 text-xs font-bold hover:bg-background transition-colors"
+            >
+              <Globe2 className="size-3.5 text-primary shrink-0" />
+              {elsewhereCount} elsewhere
+            </button>
+          )}
+
+          {isMaximized && elsewhereCount > 0 && onViewElsewhere && (
+            <button
+              type="button"
+              onClick={onViewElsewhere}
+              className="absolute bottom-2.5 right-2.5 z-1000 flex md:hidden items-center gap-1.5 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2 text-xs font-bold hover:bg-background transition-colors"
+              style={{ bottom: bottomControlOffset }}
             >
               <Globe2 className="size-3.5 text-primary shrink-0" />
               {elsewhereCount} elsewhere
             </button>
           )}
         </div>
+
+        {!isMaximized && (
+          <div className="space-y-2 border-t border-border/50 bg-card p-2.5 md:hidden">
+            <LocatorMapLegend activeCount={activeCount} stateCounts={stateCounts} docked />
+            {elsewhereCount > 0 && onViewElsewhere && (
+              <button
+                type="button"
+                onClick={onViewElsewhere}
+                className="ml-auto flex items-center gap-1.5 rounded-xl bg-muted/50 border border-border/50 px-3 py-2 text-xs font-bold hover:bg-muted transition-colors"
+              >
+                <Globe2 className="size-3.5 text-primary shrink-0" />
+                {elsewhereCount} elsewhere
+              </button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

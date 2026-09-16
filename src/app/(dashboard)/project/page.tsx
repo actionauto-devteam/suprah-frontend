@@ -180,7 +180,7 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
       setSelectedGroupId((prev) =>
         prev && list.some((g) => g._id === prev) ? prev : list[0]?._id ?? null,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPageError(errMsg(err, "Failed to load project groups."));
     } finally {
       setGroupsLoading(false);
@@ -319,7 +319,7 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
       await apiClient.delete(`/api/crm/projects/groups/${groupToDelete._id}`);
       setGroupToDelete(null);
       loadGroups();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setGroupToDelete(null);
       setPageError(errMsg(err, "Failed to delete the project group."));
     } finally {
@@ -345,7 +345,7 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <NotificationsBell meId={meId} socket={socket} />
+            <NotificationsBell meId={meId} groupId={selectedGroupId} socket={socket} />
             {tab === "workspace" && (
               <Button
                 onClick={() => {
@@ -665,7 +665,7 @@ function GroupDialog({
         ? await apiClient.patch(`/api/crm/projects/groups/${group!._id}`, body)
         : await apiClient.post("/api/crm/projects/groups", body);
       onSaved(res.data?.data?.group, !isEdit);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, isEdit ? "Failed to update the project group." : "Failed to create the project group."));
     } finally {
       setSaving(false);
@@ -873,7 +873,7 @@ function GroupWorkspace({
       setSections(data.sections || []);
       setFolders(data.folders || []);
       setTasks(data.tasks || []); // already newest first from the backend
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to load this project group."));
     } finally {
       setLoading(false);
@@ -1039,7 +1039,7 @@ function GroupWorkspace({
       await apiClient.delete(`/api/crm/projects/sections/${sectionToDelete._id}`);
       setSectionToDelete(null);
       loadTree();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSectionToDelete(null);
       setError(errMsg(err, "Failed to delete the section."));
     } finally {
@@ -1055,7 +1055,7 @@ function GroupWorkspace({
       await apiClient.delete(`/api/crm/projects/folders/${folderToDelete._id}`);
       setFolderToDelete(null);
       loadTree();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFolderToDelete(null);
       setError(errMsg(err, "Failed to delete the folder group."));
     } finally {
@@ -1504,7 +1504,7 @@ function NameDialog({
     setError("");
     try {
       await onSubmit(name.trim());
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to save."));
     } finally {
       setSaving(false);
@@ -1670,7 +1670,7 @@ function CreateTaskDialog({
         headers: { "Content-Type": "multipart/form-data" },
       });
       onCreated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(errMsg(err, "Failed to create the task."));
     } finally {
       setSaving(false);

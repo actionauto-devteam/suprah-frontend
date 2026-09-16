@@ -169,11 +169,23 @@ export function DeviceBadge({ deviceType }: { deviceType?: "mobile" | "desktop" 
 interface LocatorMapLegendProps {
   activeCount?: number;
   stateCounts?: Partial<Record<SharingState, number>>;
+  bottomOffset?: string;
+  docked?: boolean;
 }
 
-export function LocatorMapLegend({ activeCount = 0, stateCounts }: LocatorMapLegendProps) {
+export function LocatorMapLegend({
+  activeCount = 0,
+  stateCounts,
+  bottomOffset,
+  docked = false,
+}: LocatorMapLegendProps) {
   return (
-    <details className="absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 z-1000 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg w-52 sm:w-64 group">
+    <details
+      className={docked
+        ? "w-full rounded-xl bg-background/90 border border-border/50 shadow-sm group"
+        : "absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 z-1000 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg w-52 sm:w-64 group"}
+      style={!docked && bottomOffset ? { bottom: bottomOffset } : undefined}
+    >
       <summary className="flex items-center justify-between p-2.5 sm:p-3 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Sharing Status

@@ -666,23 +666,28 @@ export function ShippingQuoteModal({
                 <QuoteFieldLabel htmlFor="fromState" importance="required">
                   State
                 </QuoteFieldLabel>
-                <select
-                  id="fromState"
+                <Select
                   value={formData.fromState}
-                  onChange={(e) => updateRouteState("from", e.target.value)}
-                  className={`w-full h-10 px-3 py-2 text-sm rounded-md border bg-background ${
-                    errors.fromState
-                      ? "border-destructive"
-                      : "border-input"
-                  }`}
+                  onValueChange={(value) => updateRouteState("from", value)}
                 >
-                  <option value="">Select…</option>
-                  {US_STATES.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id="fromState"
+                    aria-invalid={Boolean(errors.fromState)}
+                    className="h-10 w-full"
+                  >
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent
+                    position="popper"
+                    className="!z-[2147483002] max-h-[min(16rem,calc(100dvh-2rem))] max-w-[calc(100vw-2rem)]"
+                  >
+                    {US_STATES.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.fromState && (
                   <p className="text-xs text-destructive">{errors.fromState}</p>
                 )}
@@ -807,21 +812,28 @@ export function ShippingQuoteModal({
                 <QuoteFieldLabel htmlFor="toState" importance="required">
                   State
                 </QuoteFieldLabel>
-                <select
-                  id="toState"
+                <Select
                   value={formData.toState}
-                  onChange={(e) => updateRouteState("to", e.target.value)}
-                  className={`w-full h-10 px-3 py-2 text-sm rounded-md border bg-background ${
-                    errors.toState ? "border-destructive" : "border-input"
-                  }`}
+                  onValueChange={(value) => updateRouteState("to", value)}
                 >
-                  <option value="">Select…</option>
-                  {US_STATES.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id="toState"
+                    aria-invalid={Boolean(errors.toState)}
+                    className="h-10 w-full"
+                  >
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent
+                    position="popper"
+                    className="!z-[2147483002] max-h-[min(16rem,calc(100dvh-2rem))] max-w-[calc(100vw-2rem)]"
+                  >
+                    {US_STATES.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.toState && (
                   <p className="text-xs text-destructive">{errors.toState}</p>
                 )}

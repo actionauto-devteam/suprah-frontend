@@ -105,6 +105,28 @@ async function fetchTeamMembers(): Promise<CrmUserLite[]> {
   }
 }
 
+function matchesCalendarSearch(item: CalendarItem, query: string): boolean {
+  const searchableText = [
+    item.title,
+    item.description,
+    item.type,
+    item.status,
+    item.createdBy?.fullName,
+    item.createdBy?.username,
+    item.createdBy?.email,
+    ...((item.assignees ?? []).flatMap((assignee) => [
+      assignee.fullName,
+      assignee.username,
+      assignee.email,
+    ])),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLocaleLowerCase();
+
+  return searchableText.includes(query);
+}
+
 /**
  * Suprah Calendar — Day / Week / Month / Agenda views + the My Schedule
  * personal panel. Flat, solid-color event chips (one color per type,
@@ -427,19 +449,10 @@ export default function SuprahCalendar() {
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [query, setQuery] = useState("");
-  // The input itself stays bound to `query` for zero-lag typing; filtering
-  // reacts to this debounced copy instead, so a large item list isn't
-  // re-filtered on every single keystroke.
-  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
     void fetchTeamMembers().then(setTeamMembers);
   }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 200);
-    return () => clearTimeout(t);
-  }, [query]);
 
   /** Shared by the toolbar's team filter and the bulk-reassign picker below. */
   const teamMemberOptions = useMemo(
@@ -498,9 +511,11 @@ export default function SuprahCalendar() {
     });
   }, [searchParams, loading, allItems, router, pathname]);
 
-  /** Combined toolbar filters: team, type, status, and a free-text title search. Each empty = no restriction. */
+  const searchQuery = query.trim().toLocaleLowerCase();
+  const hasSearchQuery = searchQuery.length > 0;
+
+  /** Combined toolbar filters: team, type, status, and free-text calendar content search. Each empty = no restriction. */
   const items = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
     return allItems.filter((item) => {
       if (
         teamFilter.length > 0 &&
@@ -513,10 +528,10 @@ export default function SuprahCalendar() {
       }
       if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
       if (statusFilter.length > 0 && !statusFilter.includes(item.status)) return false;
-      if (q && !item.title.toLowerCase().includes(q)) return false;
+      if (hasSearchQuery && !matchesCalendarSearch(item, searchQuery)) return false;
       return true;
     });
-  }, [allItems, teamFilter, typeFilter, statusFilter, debouncedQuery]);
+  }, [allItems, teamFilter, typeFilter, statusFilter, hasSearchQuery, searchQuery]);
 
   // Bulk actions — Agenda view only. Real calendar products (and this app's
   // own sibling bulk-select in the timeproof screenshots page) restrict
@@ -790,9 +805,13 @@ export default function SuprahCalendar() {
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search titles…"
+              placeholder="Search calendar…"
+              autoComplete="off"
+              enterKeyHint="search"
+              aria-describedby="calendar-search-status"
               className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
             />
             {query && (
@@ -876,9 +895,13 @@ export default function SuprahCalendar() {
           <div className="relative min-w-0 flex-1 sm:max-w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search titles…"
+              placeholder="Search calendar…"
+              autoComplete="off"
+              enterKeyHint="search"
+              aria-describedby="calendar-search-status"
               className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-7 text-xs text-foreground outline-none transition focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30"
             />
             {query && (
@@ -931,15 +954,40 @@ export default function SuprahCalendar() {
         </div>
       )}
 
+      <p id="calendar-search-status" className="sr-only" aria-live="polite">
+        {hasSearchQuery
+          ? `${items.length} calendar ${items.length === 1 ? "item" : "items"} match “${query.trim()}”.`
+          : ""}
+      </p>
+
       {/* Body */}
-      <div className="relative z-10 flex flex-1 print:h-auto print:flex-none md:min-h-0">
-        <div className="flex-1 overflow-visible print:h-auto print:overflow-visible md:min-h-0 md:overflow-auto">
+      <div className="relative z-10 flex min-w-0 flex-1 print:h-auto print:flex-none md:min-h-0">
+        <div className="min-w-0 flex-1 overflow-visible print:h-auto print:overflow-visible md:min-h-0 md:overflow-auto">
           {error && (
             <p className="p-6 text-sm font-medium text-rose-700 dark:text-rose-300">
               Couldn’t load the calendar — {error}. Check your connection and
               try again.
             </p>
           )}
+          {hasSearchQuery && !loading && !error && items.length === 0 ? (
+            <div className="flex min-h-90 items-center justify-center px-6 py-12">
+              <CalendarEmptyState
+                icon={Search}
+                title="No matching calendar items"
+                subtitle={`No titles, descriptions, or people match “${query.trim()}” in this calendar view.`}
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-accent"
+                  >
+                    Clear search
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            <>
           {view === "month" && (
             isMobile ? (
               <MonthViewMobile
@@ -1037,6 +1085,8 @@ export default function SuprahCalendar() {
               <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
               Syncing…
             </div>
+          )}
+            </>
           )}
         </div>
 
@@ -1435,11 +1485,15 @@ function TimeGridView({
   // and scrolls — no separate total-width class needed, and it scales
   // correctly whether this is a 1-day, 3-day, or 7-day view.
   const dayColMinPx = isMobile ? 116 : 140;
+  const gridMinWidth = hourColPx + days * dayColMinPx;
   const gridTemplateColumns = `${hourColPx}px repeat(${days}, minmax(${dayColMinPx}px, 1fr))`;
 
   return (
-    <div className="overflow-x-auto print:overflow-visible">
-    <div className="time-grid-inner relative bg-background text-foreground">
+    <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible">
+    <div
+      className="time-grid-inner relative bg-background text-foreground"
+      style={{ minWidth: gridMinWidth }}
+    >
       <style jsx global>{`
         .time-grid-scrollbar {
           scrollbar-width: thin;
