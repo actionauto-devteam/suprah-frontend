@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { DriverTrackerSelectedDriver } from "./DriverTrackerSelectedDriver";
+import type { DriverTrackingItem, DriverStatus } from "@/types/driver-tracking";
 import {
   Plus,
   Minus,
@@ -23,7 +25,7 @@ type MapFilter = "all" | "sharing" | "on-route" | "with-loads";
 
 const MAP_FILTERS: { key: MapFilter; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "sharing", label: "Sharing" },
+  { key: "sharing", label: "Fresh GPS" },
   { key: "on-route", label: "On Route" },
   { key: "with-loads", label: "With Loads" },
 ];
@@ -36,11 +38,11 @@ type MapStatusItem = {
 };
 
 const MAP_STATUS_ITEMS: MapStatusItem[] = [
-  { color: "bg-emerald-500", pulse: true, label: "On Route", shape: "circle" },
+  { color: "bg-emerald-500", pulse: false, label: "On Route", shape: "circle" },
   { color: "bg-amber-500", pulse: false, label: "Idle", shape: "circle" },
   { color: "bg-blue-500", pulse: false, label: "Waiting", shape: "circle" },
   { color: "bg-slate-500", pulse: false, label: "On Break", shape: "circle" },
-  { color: "bg-slate-400", pulse: false, label: "Offline / last known", shape: "circle" },
+  { color: "bg-slate-400", pulse: false, label: "Outdated / unavailable", shape: "circle" },
   {
     color: "bg-orange-500",
     pulse: false,
@@ -50,6 +52,14 @@ const MAP_STATUS_ITEMS: MapStatusItem[] = [
 ];
 
 interface DriverTrackerMapProps {
+  selectedDriver?: DriverTrackingItem | null;
+  trackingNow?: number;
+  following?: boolean;
+  onFollow?: () => void;
+  onClearSelection?: () => void;
+  onDetails?: () => void;
+  onChat?: () => void;
+  activityLabels?: Record<DriverStatus, string>;
   mapboxToken?: string;
   mapRef: React.RefObject<HTMLDivElement | null>;
   onZoomIn: () => void;
@@ -74,6 +84,7 @@ interface DriverTrackerMapProps {
 }
 
 export function DriverTrackerMap({
+  selectedDriver, trackingNow = Date.now(), following = false, onFollow, onClearSelection, onDetails, onChat, activityLabels,
   mapboxToken,
   mapRef,
   onZoomIn,
@@ -123,7 +134,7 @@ export function DriverTrackerMap({
   return (
     <Card
       data-driver-tracker-map-shell
-      className="gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:h-120 md:rounded-2xl md:border-x lg:h-150"
+      className="[&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:border [&_.mapboxgl-popup-content]:border-border [&_.mapboxgl-popup-content]:bg-card [&_.mapboxgl-popup-content]:text-card-foreground [&_.mapboxgl-popup-close-button]:size-8 gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:min-h-120 md:rounded-2xl md:border-x lg:min-h-150"
     >
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4 md:min-h-20 md:shrink-0 md:gap-4 md:px-5 md:py-4">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -132,11 +143,11 @@ export function DriverTrackerMap({
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-primary/80">
-              Suprah Live Fleet
+              Suprah Fleet
             </p>
             <p className="mt-0.5 break-words text-xs font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-sm md:text-lg">
-              <span className="md:hidden">Live Driver Map</span>
-              <span className="hidden md:inline">Live Fleet Map</span>
+              <span className="md:hidden">Driver Map</span>
+              <span className="hidden md:inline">Fleet Map</span>
             </p>
           </div>
         </div>
@@ -153,7 +164,7 @@ export function DriverTrackerMap({
               activeCount > 0 ? "bg-emerald-500 animate-pulse motion-reduce:animate-none" : "bg-slate-400"
             }`}
           />
-          {activeCount > 0 ? `${activeCount} GPS Sharing` : "No GPS Sharing"}
+          {activeCount > 0 ? `${activeCount} Fresh GPS` : "No fresh GPS"}
         </div>
       </div>
 
@@ -162,7 +173,7 @@ export function DriverTrackerMap({
           className={`
             relative h-[36dvh] min-h-[17rem] max-h-[23rem] touch-none overflow-hidden
             bg-background text-foreground transition-colors duration-300
-            sm:h-[40dvh] sm:max-h-[29rem] md:h-full md:min-h-0 md:max-h-none
+            sm:h-[40dvh] sm:max-h-[29rem] md:h-[26rem] md:min-h-0 md:max-h-none lg:h-[32rem]
             md:rounded-xl md:border md:border-border/50
             ${showThemeTransition ? "[&_.map-ui-control]:opacity-75" : ""}
           `}
@@ -238,7 +249,7 @@ export function DriverTrackerMap({
 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-foreground">
-                      Preparing live map
+                      Preparing map
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground/80">
                       Loading driver locations…
@@ -367,7 +378,7 @@ export function DriverTrackerMap({
           {/* Status legend */}
           {isMapReady && (
             <details
-              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-4 sm:left-4 sm:w-48"
+              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-8 sm:left-4 sm:w-48"
               open={legendOpen}
               onToggle={(event) => setLegendOpen(event.currentTarget.open)}
             >
@@ -420,6 +431,12 @@ export function DriverTrackerMap({
             </details>
           )}
         </div>
+        {selectedDriver ? (
+          <div className="p-3 md:p-0 md:pt-3">
+            <DriverTrackerSelectedDriver driver={selectedDriver} now={trackingNow} following={following} mapReady={isMapReady}
+              activityLabels={activityLabels} onFollow={onFollow} onClear={onClearSelection} onDetails={onDetails} onChat={onChat} />
+          </div>
+        ) : <p className="px-3 py-2 text-xs text-muted-foreground">Select a driver card or map marker. Numbered circles group nearby drivers.</p>}
       </CardContent>
     </Card>
   );

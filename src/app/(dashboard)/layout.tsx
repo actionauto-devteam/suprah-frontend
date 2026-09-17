@@ -271,12 +271,41 @@ function DashboardLayoutContent({
     authIndeterminate
   ) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground animate-pulse">
-            Loading...
-          </p>
+      <div
+        className="min-h-screen bg-background px-4 py-8"
+        role="status"
+        aria-live="polite"
+        aria-label={
+          authIndeterminate
+            ? "Reconnecting to your workspace"
+            : "Preparing your workspace"
+        }
+      >
+        <div className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center">
+          <div className="w-full rounded-2xl border border-border/40 bg-card/80 px-6 py-10 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/8">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+            </div>
+
+            <div className="mt-5">
+              <p className="text-sm font-black text-foreground">
+                {authIndeterminate
+                  ? "Reconnecting to your workspace"
+                  : "Preparing your workspace"}
+              </p>
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                {authIndeterminate
+                  ? "Your session is still being verified. We’ll keep trying without signing you out."
+                  : "Loading your account and organization access before opening the dashboard."}
+              </p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-3 gap-2" aria-hidden="true">
+              <div className="h-2 animate-pulse rounded-full bg-primary/30" />
+              <div className="h-2 animate-pulse rounded-full bg-muted" />
+              <div className="h-2 animate-pulse rounded-full bg-muted/60" />
+            </div>
+          </div>
         </div>
       </div>
     );

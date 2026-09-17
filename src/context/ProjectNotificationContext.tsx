@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/providers/AuthProvider";
 
 type ProjectNotificationContextValue = {
   unreadCount: number;
@@ -50,39 +51,83 @@ export function ProjectNotificationProvider({
   const [unreadCount, setUnreadCount] = React.useState(0);
   const mountedRef = React.useRef(false);
   const seenRealtimeIdsRef = React.useRef<Set<string>>(new Set());
+  const { isLoaded, isSignedIn, authIndeterminate, userId, orgId } = useAuth();
+  const ready = isLoaded && isSignedIn && !authIndeterminate;
+  const generationRef = React.useRef(0);
+  const requestRef = React.useRef<{ generation: number; rerun: boolean; promise: Promise<void> } | null>(null);
 
-  const refresh = React.useCallback(async () => {
-    try {
-      const res = await apiClient.get("/api/crm/projects/notifications/count");
-      const count = res.data?.data?.count;
-      if (mountedRef.current && typeof count === "number") {
-        setUnreadCount(count);
-      }
-    } catch {
-      // REST is the reconciliation fallback. If the user is temporarily
-      // offline or unauthenticated, preserve the last known badge count.
+  React.useEffect(() => {
+    setUnreadCount(0);
+    seenRealtimeIdsRef.current.clear();
+  }, [userId, orgId]);
+
+  const refresh = React.useCallback(async (reconcile = false) => {
+    if (!ready) return;
+    const generation = generationRef.current;
+    const existing = requestRef.current;
+    if (existing?.generation === generation) {
+      if (reconcile) existing.rerun = true;
+      return existing.promise;
     }
-  }, []);
+    const task = { generation, rerun: false, promise: Promise.resolve() };
+    task.promise = (async () => {
+      do {
+        task.rerun = false;
+        try {
+          const res = await apiClient.get("/api/crm/projects/notifications/count");
+          const count = res.data?.data?.count;
+          if (mountedRef.current && generation === generationRef.current && typeof count === "number") {
+            setUnreadCount(count);
+          }
+        } catch {
+          // REST is the reconciliation fallback. If the user is temporarily
+          // offline or unauthenticated, preserve the last known badge count.
+        }
+      } while (task.rerun && generation === generationRef.current);
+    })().finally(() => {
+      if (requestRef.current === task) requestRef.current = null;
+    });
+    requestRef.current = task;
+    return task.promise;
+  }, [ready, userId, orgId]);
 
   const markAllRead = React.useCallback(async () => {
+    if (!ready) return;
+    const generation = generationRef.current;
     try {
       await apiClient.post("/api/crm/projects/notifications/read", {});
-      if (mountedRef.current) {
+      if (mountedRef.current && generation === generationRef.current) {
+        // A pre-write count response must not restore the old unread badge.
+        ++generationRef.current;
+        requestRef.current = null;
         setUnreadCount(0);
         seenRealtimeIdsRef.current.clear();
       }
     } catch {
       // Best-effort. The next socket reconnect / poll will reconcile state.
     }
-  }, []);
+  }, [ready, userId, orgId]);
 
   React.useEffect(() => {
+    ++generationRef.current;
+    if (!ready) return;
     mountedRef.current = true;
     void refresh();
 
     const interval = window.setInterval(() => {
       void refresh();
     }, POLL_INTERVAL_MS);
+
+    return () => {
+      ++generationRef.current;
+      requestRef.current = null;
+      mountedRef.current = false;
+      window.clearInterval(interval);
+    };
+  }, [ready, refresh]);
+
+  React.useEffect(() => {
+    if (!ready) return;
 
     const onNotification = (payload?: ProjectNotificationSocketPayload) => {
       const notificationId = String(payload?._id ?? "").trim();
@@ -99,26 +144,24 @@ export function ProjectNotificationProvider({
 
       // Reconcile against MongoDB after the instant local bump. This protects
       // against missed events and keeps multiple tabs/devices authoritative.
-      void refresh();
+      void refresh(true);
     };
 
     const onConnect = () => {
       // Socket.IO reconnects automatically. Any notifications created while
       // disconnected are recovered immediately rather than waiting 60 seconds.
       seenRealtimeIdsRef.current.clear();
-      void refresh();
+      void refresh(true);
     };
 
     socket?.on("pm:notification", onNotification);
     socket?.on("connect", onConnect);
 
     return () => {
-      mountedRef.current = false;
-      window.clearInterval(interval);
       socket?.off("pm:notification", onNotification);
       socket?.off("connect", onConnect);
     };
-  }, [refresh, socket]);
+  }, [ready, refresh, socket]);
 
   const value = React.useMemo(
     () => ({ unreadCount, refresh, markAllRead }),

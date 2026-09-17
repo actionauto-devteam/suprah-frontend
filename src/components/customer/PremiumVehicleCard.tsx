@@ -13,12 +13,14 @@ import {
   CheckCircle2,
   Clock3,
   CalendarClock,
+  Loader2,
 } from "lucide-react";
 import { Vehicle } from "@/types/inventory";
 import { resolveImageUrl, cn } from "@/lib/utils";
 import { VehiclePriceHistoryDialog } from "@/components/VehiclePriceHistoryDialog";
 
 const FALLBACK_IMAGE = "/vehicle-placeholder.jpg";
+const IMAGE_LOAD_TIMEOUT_MS = 7_000;
 
 function normalizeImageSrc(raw?: string): string | undefined {
   if (!raw || typeof raw !== "string") return undefined;
@@ -47,6 +49,11 @@ interface PremiumVehicleCardProps {
   onCreateLoad?: (vehicle: Vehicle) => void;
   /** Show internal All Inventory metadata without changing customer-facing card uses. */
   showInventoryMeta?: boolean;
+  /**
+   * Preserve the existing eager/high-priority behavior by default for callers
+   * outside All Inventory. Inventory can opt lower rows into lazy loading.
+   */
+  imagePriority?: boolean;
 }
 
 function PremiumVehicleCardComponent({
@@ -60,6 +67,7 @@ function PremiumVehicleCardComponent({
   onVehicleClick,
   onCreateLoad,
   showInventoryMeta = false,
+  imagePriority = true,
 }: PremiumVehicleCardProps) {
   const imageSignature = rawImageSignature(vehicle);
 
@@ -75,22 +83,103 @@ function PremiumVehicleCardComponent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageSignature]);
 
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
   const [imageIndex, setImageIndex] = React.useState(0);
   const [imgError, setImgError] = React.useState(false);
+  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imageVisible, setImageVisible] = React.useState(imagePriority);
+  const [showImageLoadingHint, setShowImageLoadingHint] = React.useState(false);
   const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     setImageIndex(0);
     setImgError(false);
-  }, [imageSignature]);
+    const image = imgRef.current;
+    setImgLoaded(Boolean(
+      image?.getAttribute("src") === imageCandidates[0] &&
+      image.complete && image.naturalWidth > 0,
+    ));
+    setShowImageLoadingHint(false);
+  }, [imageCandidates]);
 
-  const handleImageError = () => {
-    if (imageIndex < imageCandidates.length - 1) {
-      setImageIndex((prev) => prev + 1);
+  React.useLayoutEffect(() => {
+    const image = imgRef.current;
+    if (image?.complete && image.naturalWidth > 0) {
+      setImgLoaded(true);
+      setShowImageLoadingHint(false);
+    }
+  }, [activeImageSrc]);
+
+  React.useEffect(() => {
+    const image = imgRef.current;
+    if (!image) return;
+
+    if (imagePriority || !("IntersectionObserver" in window)) {
+      setImageVisible(true);
       return;
     }
 
+    setImageVisible(false);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setImageVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "250px" },
+    );
+
+    observer.observe(image);
+    return () => observer.disconnect();
+  }, [activeImageSrc, imagePriority]);
+
+  const advanceImageCandidate = React.useCallback(() => {
+    if (imageIndex < imageCandidates.length - 1) {
+      setShowImageLoadingHint(false);
+      // An error event and the deadline can fire before React commits either.
+      // Advance this attempt only once, so the next usable photo is not skipped.
+      setImageIndex((prev) => prev === imageIndex ? prev + 1 : prev);
+      setImgLoaded(false);
+      return;
+    }
+
+    setShowImageLoadingHint(false);
     setImgError(true);
+    setImgLoaded(true);
+  }, [imageCandidates.length, imageIndex]);
+
+  React.useEffect(() => {
+    if (!activeImageSrc || !imageVisible || imgLoaded || imgError) {
+      setShowImageLoadingHint(false);
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => setShowImageLoadingHint(true),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [activeImageSrc, imageVisible, imgError, imgLoaded]);
+
+  React.useEffect(() => {
+    if (!activeImageSrc || !imageVisible || imgLoaded || imgError) return;
+
+    const timeout = window.setTimeout(
+      advanceImageCandidate,
+      IMAGE_LOAD_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [
+    activeImageSrc,
+    advanceImageCandidate,
+    imageVisible,
+    imgError,
+    imgLoaded,
+  ]);
+
+  const handleImageLoad = () => {
+    setShowImageLoadingHint(false);
+    setImgLoaded(true);
   };
 
   const safeEngine = vehicle.engine?.trim() || "Unknown";
@@ -177,14 +266,29 @@ function PremiumVehicleCardComponent({
           </div>
         ) : (
           <>
+            {!imgLoaded && showImageLoadingHint && (
+              <div
+                className="absolute inset-0 z-[5] flex items-center justify-center bg-zinc-950/72 text-white"
+                role="status"
+                aria-label="Loading vehicle photo"
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/75 backdrop-blur-sm">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  Loading photo
+                </span>
+              </div>
+            )}
+
             <img
+              ref={imgRef}
               key={`${vehicle.id}-${imageIndex}`}
               src={activeImageSrc}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-              loading="eager"
-              fetchPriority="high"
+              loading={imagePriority ? "eager" : "lazy"}
+              fetchPriority={imagePriority ? "high" : "auto"}
               decoding="async"
-              onError={handleImageError}
+              onLoad={handleImageLoad}
+              onError={advanceImageCandidate}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
 
@@ -399,6 +503,7 @@ export const PremiumVehicleCard = React.memo(
       a.daysOnLot === b.daysOnLot &&
       a.priceUpdatedAt === b.priceUpdatedAt &&
       prev.showInventoryMeta === next.showInventoryMeta &&
+      prev.imagePriority === next.imagePriority &&
       prev.shippingPrice === next.shippingPrice &&
       prev.onCheckAvailability === next.onCheckAvailability &&
       prev.onApplyNow === next.onApplyNow &&

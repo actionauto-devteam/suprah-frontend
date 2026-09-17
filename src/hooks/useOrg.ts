@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Organization } from '@/types/organization';
 
 export function useOrg() {
-    const { isLoaded, isSignedIn, getToken } = useAuth();
+    const { isLoaded, isSignedIn, getToken, bootstrapProfile } = useAuth();
     const { user } = useUser();
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -32,6 +32,16 @@ export function useOrg() {
         error: orgContextError
     } = useQuery({
         queryKey: ['org-context', user?.id],
+        // AuthProvider just fetched this same profile during session bootstrap.
+        // Seed a new query only from that verified response. Existing cached
+        // queries and explicit invalidation (organization switching) still use
+        // the queryFn below; an old or missing snapshot does not skip the fetch.
+        initialData: () => bootstrapProfile &&
+            bootstrapProfile.user._id === user?.id &&
+            Date.now() - bootstrapProfile.updatedAt < 1000 * 60 * 5
+            ? { data: bootstrapProfile.user }
+            : undefined,
+        initialDataUpdatedAt: bootstrapProfile?.updatedAt,
         queryFn: async () => {
             const headers = await getAuthHeaders();
             const response = await apiClient.get('/api/users/me', headers);

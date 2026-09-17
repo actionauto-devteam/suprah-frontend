@@ -59,6 +59,10 @@ const trailerLabel = (val?: string) =>
 
 interface DriverTrackerLoadsCardProps {
   drivers: DriverTrackingItem[];
+  allDrivers?: DriverTrackingItem[];
+  emptyTitle?: string;
+  emptyDescription?: string;
+  onRetry?: () => void;
   isLoading: boolean;
   error: string | null;
   activeDrivers?: DriverTrackingItem[];
@@ -69,6 +73,10 @@ interface DriverTrackerLoadsCardProps {
 
 export function DriverTrackerLoadsCard({
   drivers,
+  allDrivers,
+  emptyTitle = "No assigned loads",
+  emptyDescription = "Assign loads to drivers from the Available tab.",
+  onRetry,
   isLoading,
   error,
   activeDrivers = [],
@@ -79,14 +87,20 @@ export function DriverTrackerLoadsCard({
   const router = useRouter();
   const [viewDriver, setViewDriver] = React.useState<DriverTrackingItem | null>(null);
   const currentViewDriver = React.useMemo(
-    () => (viewDriver ? (drivers.find((d) => d.id === viewDriver.id) ?? null) : null),
-    [drivers, viewDriver],
+    () => (viewDriver ? ((allDrivers ?? drivers).find((d) => d.id === viewDriver.id) ?? null) : null),
+    [allDrivers, drivers, viewDriver],
   );
   const [removing, setRemoving] = React.useState<string | null>(null);
   const [reassigning, setReassigning] = React.useState<string | null>(null);
   const [keepingAssigned, setKeepingAssigned] = React.useState<string | null>(null);
   const [reassignShipmentId, setReassignShipmentId] = React.useState<string | null>(null);
   const [driverSearch, setDriverSearch] = React.useState("");
+  React.useEffect(() => {
+    if (isLoading || error || !viewDriver) return;
+    if (!currentViewDriver || drivers.length === 0) {
+      setViewDriver(null); setReassignShipmentId(null); setDriverSearch("");
+    }
+  }, [isLoading, error, viewDriver, currentViewDriver, drivers.length]);
 
   const handleRemove = async (shipmentId: string) => {
     if (!onRemoveLoad) return;
@@ -192,7 +206,7 @@ export function DriverTrackerLoadsCard({
     compatibilityByDriverId,
   ]);
 
-  if (isLoading) {
+  if (isLoading && drivers.length === 0) {
     return (
       <div className="space-y-3 p-4">
         {[1, 2].map((i) => (
@@ -208,11 +222,12 @@ export function DriverTrackerLoadsCard({
     );
   }
 
-  if (error) {
+  if (error && drivers.length === 0) {
     return (
       <div className="p-4">
         <div className="rounded-lg border border-destructive/10 bg-destructive/5 px-4 py-3">
           <p className="break-words text-xs font-medium text-destructive [overflow-wrap:anywhere]">{error}</p>
+          {onRetry && <Button type="button" variant="outline" size="sm" className="mt-2" disabled={isLoading} onClick={onRetry}>Retry</Button>}
         </div>
       </div>
     );
@@ -224,9 +239,9 @@ export function DriverTrackerLoadsCard({
         <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/40">
           <Package className="size-7 text-muted-foreground/40" />
         </div>
-        <p className="text-sm font-medium text-muted-foreground">No assigned loads</p>
+        <p className="text-sm font-medium text-muted-foreground">{emptyTitle}</p>
         <p className="break-words text-xs leading-relaxed text-muted-foreground/70 [overflow-wrap:anywhere]">
-          Assign loads to drivers from the Available tab
+          {emptyDescription}
         </p>
       </div>
     );
@@ -234,6 +249,10 @@ export function DriverTrackerLoadsCard({
 
   return (
     <>
+      {error && <div role="alert" className="m-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+        <p>{error} Showing the last loaded assignments.</p>
+        {onRetry && <Button type="button" variant="outline" size="sm" className="mt-2" disabled={isLoading} onClick={onRetry}>Retry</Button>}
+      </div>}
       <div className="divide-y divide-border/30">
         {drivers.map((item) => {
           const shipments = item.shipments ?? [];
@@ -511,7 +530,8 @@ export function DriverTrackerLoadsCard({
             <div className="space-y-1.5">
               {reassignCandidates.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-                  <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">No other drivers available</p>
+                  <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{driverSearch.trim() ? "No drivers match your search" : "No other eligible drivers available"}</p>
+                  {driverSearch.trim() && <Button type="button" variant="outline" size="sm" onClick={() => setDriverSearch("")}>Clear search</Button>}
                 </div>
               )}
 

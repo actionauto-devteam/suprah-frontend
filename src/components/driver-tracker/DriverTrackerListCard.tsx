@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { driverAttentionReasons, relativeLocationTime } from "@/lib/driver-tracker-mobile";
+import { trackingState, formatTrackingTime } from "@/lib/driver-tracking-view";
 import {
   Package,
   Clock,
@@ -27,14 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LayoutGrid } from "lucide-react";
 import { DriverTrackingItem, DriverStatus, DriverOperationalStatus } from "@/types/driver-tracking";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 
 type OperationalFilter = "all" | "active" | "on_leave" | "maintenance";
 type ActiveSubFilter = "all" | DriverStatus;
@@ -42,8 +37,14 @@ type GpsFilter = "all" | "sharing" | "not-sharing";
 
 interface DriverTrackerListCardProps {
   drivers: DriverTrackingItem[];
+  attentionOnly?: boolean;
+  onAttentionOnlyChange?: (value: boolean) => void;
+  pendingRequestDriverIds?: string[];
+  selectedDriverId?: string | null;
+  trackingNow?: number;
   isLoading: boolean;
   error: string | null;
+  onRetry?: () => void;
   statusLabel: Record<DriverStatus, string>;
   statusStyles: Record<DriverStatus, string>;
   statusText: Record<DriverStatus, string>;
@@ -80,8 +81,14 @@ const workAvailabilityLabelOf = (driver: DriverTrackingItem) =>
 
 export function DriverTrackerListCard({
   drivers,
+  attentionOnly = false,
+  onAttentionOnlyChange,
+  pendingRequestDriverIds = [],
+  selectedDriverId,
+  trackingNow = Date.now(),
   isLoading,
   error,
+  onRetry,
   statusLabel,
   statusStyles,
   statusText,
@@ -94,6 +101,7 @@ export function DriverTrackerListCard({
   onViewStatusRequest,
   unreadMessageCounts = {},
 }: DriverTrackerListCardProps) {
+  const activeFiltersId = React.useId();
   const [operationalFilter, setOperationalFilter] = React.useState<OperationalFilter>("all");
   const [activeSubFilter, setActiveSubFilter] = React.useState<ActiveSubFilter>("all");
   const [gpsFilter, setGpsFilter] = React.useState<GpsFilter>("all");
@@ -101,6 +109,16 @@ export function DriverTrackerListCard({
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = React.useState<Record<string, string>>({});
   const listScrollRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!selectedDriverId) return;
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+    const frame = requestAnimationFrame(() => {
+      const list = listScrollRef.current;
+      const card = Array.from(list?.querySelectorAll<HTMLElement>("[data-driver-card]") ?? []).find(el => el.dataset.driverCard === selectedDriverId);
+      if (list && card) list.scrollTop += card.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedDriverId]);
 
   React.useEffect(() => {
     if (!expandedId) return;
@@ -123,6 +141,7 @@ export function DriverTrackerListCard({
 
     return drivers
       .filter((d) => {
+        if (attentionOnly && driverAttentionReasons(d, trackingNow, pendingRequestDriverIds).length === 0) return false;
         const opStatus = opStatusOf(d);
         if (operationalFilter === "active" && !isWorkAvailable(d)) return false;
         if (
@@ -135,8 +154,8 @@ export function DriverTrackerListCard({
           activeSubFilter !== "all" &&
           d.status !== activeSubFilter
         ) return false;
-        if (gpsFilter === "sharing" && !d.isSharing) return false;
-        if (gpsFilter === "not-sharing" && d.isSharing) return false;
+        if (gpsFilter === "sharing" && trackingState(d, trackingNow).kind !== "live") return false;
+        if (gpsFilter === "not-sharing" && trackingState(d, trackingNow).kind === "live") return false;
         if (!q) return true;
 
         const name = d.driver?.name?.toLowerCase() || "";
@@ -160,13 +179,13 @@ export function DriverTrackerListCard({
         if (aAttention !== bAttention) return aAttention - bAttention;
 
         if (a.assignable !== b.assignable) return a.assignable ? -1 : 1;
-        const aSharing = a.isSharing ? 0 : 1;
-        const bSharing = b.isSharing ? 0 : 1;
+        const aSharing = trackingState(a, trackingNow).kind === "live" ? 0 : 1;
+        const bSharing = trackingState(b, trackingNow).kind === "live" ? 0 : 1;
         if (aSharing !== bSharing) return aSharing - bSharing;
         return (originalOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
           (originalOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER);
       });
-  }, [drivers, operationalFilter, activeSubFilter, gpsFilter, query, expandedId]);
+  }, [drivers, operationalFilter, activeSubFilter, gpsFilter, query, expandedId, trackingNow, attentionOnly, pendingRequestDriverIds]);
 
   const counts = React.useMemo(() => {
     const activeDrivers = drivers.filter(isWorkAvailable);
@@ -175,8 +194,8 @@ export function DriverTrackerListCard({
       active: activeDrivers.length,
       on_leave: drivers.filter((driver) => opStatusOf(driver) === "on_leave").length,
       maintenance: drivers.filter((driver) => opStatusOf(driver) === "maintenance").length,
-      sharing: drivers.filter((driver) => driver.isSharing).length,
-      notSharing: drivers.filter((driver) => !driver.isSharing).length,
+      sharing: drivers.filter((driver) => trackingState(driver, trackingNow).kind === "live").length,
+      notSharing: drivers.filter((driver) => trackingState(driver, trackingNow).kind !== "live").length,
       activeStatus: {
         "on-route": activeDrivers.filter((driver) => driver.status === "on-route").length,
         idle: activeDrivers.filter((driver) => driver.status === "idle").length,
@@ -185,10 +204,10 @@ export function DriverTrackerListCard({
         offline: activeDrivers.filter((driver) => driver.status === "offline").length,
       } as Record<DriverStatus, number>,
     };
-  }, [drivers]);
+  }, [drivers, trackingNow]);
 
   return (
-    <Card className="flex h-[calc(56dvh+6.25rem-var(--mobile-bottom-nav-offset))] min-h-[22rem] max-h-[calc(34rem+6.25rem-var(--mobile-bottom-nav-offset))] w-full min-w-0 flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm sm:h-[calc(58dvh+6.25rem-var(--mobile-bottom-nav-offset))] sm:min-h-[24rem] sm:max-h-[calc(36rem+6.25rem-var(--mobile-bottom-nav-offset))] md:h-120 md:min-h-80 md:max-h-120 md:rounded-xl md:border-x lg:h-150 lg:max-h-none">
+    <Card className="flex h-auto min-h-0 max-h-none w-full min-w-0 flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-120 md:min-h-80 md:max-h-120 md:rounded-xl md:border-x lg:h-150 lg:max-h-none xl:absolute xl:inset-0 xl:h-full xl:min-h-0 xl:max-h-none">
       <CardHeader className="border-b border-border/30 px-3 py-3 shrink-0 space-y-2.5 sm:px-5 sm:py-4 sm:space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -206,10 +225,11 @@ export function DriverTrackerListCard({
             className="h-6 gap-1 px-2 text-[10px] font-bold bg-blue-500/10 text-blue-600 sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-xs"
           >
             <Wifi className="size-3.5" />
-            {counts.sharing} GPS Sharing
+            {counts.sharing} Fresh GPS
           </Badge>
         </div>
 
+        {onAttentionOnlyChange && <Button type="button" variant="outline" aria-pressed={attentionOnly} className="min-h-11 justify-between text-sm" onClick={() => onAttentionOnlyChange(!attentionOnly)}><span>{attentionOnly ? "Showing drivers needing attention" : "Needs attention"}</span><span>{drivers.filter(driver => driverAttentionReasons(driver, trackingNow, pendingRequestDriverIds).length > 0).length}</span></Button>}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40" />
           <Input
@@ -222,50 +242,62 @@ export function DriverTrackerListCard({
 
         <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
           <button
+            type="button"
+            aria-pressed={operationalFilter === "all"}
             onClick={() => { setOperationalFilter("all"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >All ({counts.all})</button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all flex items-center justify-center gap-1 sm:px-2 sm:text-xs ${operationalFilter === "active" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
-              >
-                Active ({counts.active}) <ChevronDown className="size-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-52">
-              <DropdownMenuLabel className="text-xs uppercase tracking-wider">Work Availability: Active</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setOperationalFilter("active"); setActiveSubFilter("all"); }}>All Active ({counts.active})</DropdownMenuItem>
-              {(["on-route", "idle", "waiting", "on-break", "offline"] as DriverStatus[]).map((status) => (
-                <DropdownMenuItem key={status} onClick={() => { setOperationalFilter("active"); setActiveSubFilter(status); }}>
-                  {statusLabel[status]} ({counts.activeStatus[status]})
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            type="button"
+            aria-expanded={operationalFilter === "active"}
+            aria-controls={activeFiltersId}
+            aria-pressed={operationalFilter === "active"}
+            onClick={() => setOperationalFilter("active")}
+            className={"min-h-11 rounded-md border px-1.5 py-2 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs md:min-h-0 " + (operationalFilter === "active" ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60")}
+          >Active ({counts.active})</button>
 
           <button
+            type="button"
+            aria-pressed={operationalFilter === "on_leave"}
             onClick={() => { setOperationalFilter("on_leave"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >On Leave ({counts.on_leave})</button>
           <button
+            type="button"
+            aria-pressed={operationalFilter === "maintenance"}
             onClick={() => { setOperationalFilter("maintenance"); setActiveSubFilter("all"); }}
-            className={`rounded-md px-1.5 py-2 text-[10px] font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >In Shop ({counts.maintenance})</button>
+        </div>
+
+        <div id={activeFiltersId} hidden={operationalFilter !== "active"}>
+          <div role="group" aria-label="Active driver activity" className="flex flex-wrap gap-2">
+            {(["all", "on-route", "idle", "waiting", "on-break", "offline"] as const).map(status => (
+              <button
+                key={status}
+                type="button"
+                aria-pressed={activeSubFilter === status}
+                onClick={() => setActiveSubFilter(status)}
+                className={"inline-flex min-h-11 max-w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring " + (activeSubFilter === status ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/70")}
+              >
+                <span>{status === "all" ? "All Active" : statusLabel[status]}</span>
+                <span>({status === "all" ? counts.active : counts.activeStatus[status]})</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-1">
           {([
             ["all", `All GPS (${drivers.length})`],
-            ["sharing", `Sharing (${counts.sharing})`],
-            ["not-sharing", `Not Sharing (${counts.notSharing})`],
+            ["sharing", `Fresh GPS (${counts.sharing})`],
+            ["not-sharing", `Not fresh (${counts.notSharing})`],
           ] as const).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setGpsFilter(key)}
-              className={`flex-1 rounded-md border px-1.5 py-1.5 text-[10px] font-semibold transition-colors sm:px-2 sm:text-xs ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
+              className={`min-h-11 flex-1 rounded-md border px-1.5 py-1.5 md:min-h-0 text-[10px] font-semibold transition-colors sm:px-2 sm:text-xs ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
             >{label}</button>
           ))}
         </div>
@@ -273,15 +305,16 @@ export function DriverTrackerListCard({
 
       <CardContent
         ref={listScrollRef}
-        className="p-2 min-h-0 flex-1 overflow-y-scroll overscroll-contain space-y-1.5 [scrollbar-gutter:stable]"
+        className="p-2 min-h-0 flex-1 overflow-visible md:overflow-y-scroll md:overscroll-contain space-y-1.5 [scrollbar-gutter:stable]"
       >
         {error && (
           <div className="rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2">
-            <p className="text-xs text-destructive font-medium">{error}</p>
+            <p role="alert" className="text-xs text-destructive font-medium">{error}</p>
+            {onRetry && <Button type="button" variant="outline" size="sm" className="mt-2" disabled={isLoading} onClick={onRetry}>Retry</Button>}
           </div>
         )}
 
-        {isLoading && !error && (
+        {isLoading && drivers.length === 0 && !error && (
           <div className="space-y-2 p-1">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
@@ -301,12 +334,14 @@ export function DriverTrackerListCard({
               <Users className="size-6 text-muted-foreground/40" />
             </div>
             <p className="text-sm text-muted-foreground font-medium">
-              {query ? "No drivers match your search" : "No drivers found"}
+              {drivers.length === 0 ? "No drivers available" : "No drivers match these filters"}
             </p>
+            {drivers.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => { setQuery(""); setOperationalFilter("all"); setActiveSubFilter("all"); setGpsFilter("all"); onAttentionOnlyChange?.(false); }}>Clear filters</Button>}
           </div>
         )}
 
         {filtered.map((driver) => {
+          const reasons = driverAttentionReasons(driver, trackingNow, pendingRequestDriverIds);
           const shipments = driver.shipments ?? [];
           // Keep the same load selected when realtime updates reorder the list.
           // If it is released or removed, display the first remaining assignment.
@@ -332,20 +367,23 @@ export function DriverTrackerListCard({
           const operationalStatus = opStatusOf(driver);
           const availabilityLabel = workAvailabilityLabelOf(driver);
           const statusRequest = driver.statusRequest;
+          const tracking = trackingState(driver, trackingNow);
 
           return (
             <div
               key={driver.id}
+              data-driver-card={driver.id}
+              style={selectedDriverId === driver.id ? { outline: "2px solid var(--primary)", outlineOffset: "-2px" } : undefined}
               className="group/driver relative overflow-hidden rounded-xl border border-border/40 bg-card/45 transition-all duration-200 hover:border-primary/25 hover:bg-card/70 hover:shadow-sm"
             >
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-primary/70 via-emerald-400/35 to-transparent opacity-70" />
               <div
-                className={`p-3 ${onDriverClick && driver.coords ? "cursor-pointer" : ""}`}
+                className={`p-3 ${onDriverClick ? "cursor-pointer" : ""}`}
                 onClick={() => {
                   // The server only exposes authorized driver coordinates to this
                   // directory. A card tap therefore focuses the live map when a
                   // dispatcher has a usable/authorized location projection.
-                  if (onDriverClick && driver.coords) {
+                  if (onDriverClick) {
                     onDriverClick(driver);
                   }
                 }}
@@ -366,9 +404,11 @@ export function DriverTrackerListCard({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 break-words text-sm font-bold leading-tight text-foreground [overflow-wrap:anywhere] sm:text-base">
+                      <button type="button" disabled={!onDriverClick} aria-pressed={selectedDriverId === driver.id}
+                        onClick={event => { event.stopPropagation(); onDriverClick?.(driver); }}
+                        className="min-w-0 rounded break-words text-left text-sm font-bold leading-tight text-foreground outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary [overflow-wrap:anywhere] sm:text-base">
                         {driver.driver?.name || "Unknown Driver"}
-                      </p>
+                      </button>
                       <div className="flex items-center gap-1 shrink-0">
                         {shipments.length > 0 && (
                           <Badge
@@ -384,7 +424,7 @@ export function DriverTrackerListCard({
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className={`relative size-8 p-0 md:hidden ${
+                            className={`relative size-11 p-0 md:hidden ${
                               unreadMessageCount > 0
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "text-muted-foreground"
@@ -409,7 +449,7 @@ export function DriverTrackerListCard({
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="size-8 p-0 text-amber-600 md:hidden dark:text-amber-400"
+                            className="size-11 p-0 text-amber-600 md:hidden dark:text-amber-400"
                             aria-label={`Alert ${driver.driver?.name || "driver"}`}
                             onClick={(event) => {
                               event.stopPropagation();
@@ -425,7 +465,7 @@ export function DriverTrackerListCard({
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="size-8 p-0 md:hidden"
+                            className="size-11 p-0 md:hidden"
                             aria-label={`Open ${driver.driver?.name || "driver"} workspace`}
                             onClick={(event) => {
                               event.stopPropagation();
@@ -455,7 +495,7 @@ export function DriverTrackerListCard({
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Badge
                         variant="outline"
-                        className={`h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${
+                        className={`${operationalStatus === "active" ? "hidden md:inline-flex" : "inline-flex"} h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${
                           operationalStatus === "active"
                             ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
                             : operationalStatus === "on_leave"
@@ -468,17 +508,16 @@ export function DriverTrackerListCard({
                       <Badge variant="outline" className={`h-auto px-2 py-1 text-[10px] sm:h-7 sm:px-2.5 sm:text-[11px] ${statusText[driver.status]}`}>
                         Activity: {statusLabel[driver.status]}
                       </Badge>
-                      <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[10px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${driver.isSharing ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
-                        {driver.isSharing ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
-                        {driver.isSharing ? "Live GPS" : driver.coords ? "Last known GPS" : "Not Sharing"}
+                      <Badge variant="outline" className={`h-auto gap-1 px-2 py-1 text-[10px] sm:h-7 sm:gap-1.5 sm:px-2.5 sm:text-[11px] ${tracking.kind === "live" ? "border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-slate-500/30 text-slate-500"}`}>
+                        {tracking.kind === "live" ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
+                        {tracking.label}
                       </Badge>
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">
                         <Clock className="size-3" />
-                        {(driver.locationRecordedAt ?? driver.lastSeenAt)
-                          ? new Date((driver.locationRecordedAt ?? driver.lastSeenAt)!).toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit", timeZone: "America/Denver" })
-                          : "Never"}
+                        <span className="md:hidden">{relativeLocationTime(driver.locationRecordedAt, trackingNow)}</span><span className="hidden md:inline">{formatTrackingTime(driver.locationRecordedAt)}</span>
                       </span>
                     </div>
+                    {reasons.length > 0 && <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">Needs attention: {reasons.join(" · ")}</p>}
                     {statusRequest && (
                       <button
                         type="button"
@@ -542,7 +581,7 @@ export function DriverTrackerListCard({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="size-7 shrink-0 rounded-md"
+                                className="size-11 shrink-0 rounded-md md:size-7"
                                 aria-label={`Previous load for ${driver.driver?.name || "driver"}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -558,7 +597,7 @@ export function DriverTrackerListCard({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="size-7 shrink-0 rounded-md"
+                                className="size-11 shrink-0 rounded-md md:size-7"
                                 aria-label={`Next load for ${driver.driver?.name || "driver"}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -598,10 +637,10 @@ export function DriverTrackerListCard({
                     )}
 
                     {driver.coords && (
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground" aria-live="polite">
-                        {driver.locationRecordedAt ? "GPS measured" : "Last server contact (GPS age unverified)"}: {new Date(driver.locationRecordedAt ?? driver.lastSeenAt ?? 0).toLocaleString()}
+                      <p className="mt-1.5 hidden text-[11px] leading-relaxed text-muted-foreground md:block">
+                        GPS measured: {formatTrackingTime(driver.locationRecordedAt)} · Server confirmed: {formatTrackingTime(driver.lastSeenAt)}
                         {driver.accuracy != null && Number.isFinite(driver.accuracy) ? ` · Accuracy ±${Math.round(driver.accuracy)} m` : ""}
-                        {!driver.isSharing && " · Location may have changed. Ask the driver to reopen the app."}
+                        {tracking.kind !== "live" && " · Last known position; location may have changed."}
                       </p>
                     )}
                     {eq?.trailerType && (

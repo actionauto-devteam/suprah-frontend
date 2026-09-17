@@ -1,189 +1,200 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import {
+  AnimatePresence,
+  motion,
+  type Variants,
+} from "framer-motion";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+const SPLASH_SESSION_KEY = "suprah:splash-seen:v2";
+const FIRST_SESSION_VISIBLE_MS = 600;
 
-// SupraSpace is meant to feel like its own dedicated, focused messaging app —
-// this "SUPRAH." branded splash (with its own ~1.35s forced duration) is
-// Suprah AI's, and showing it first made every SupraSpace load look like two
-// stacked loading screens back to back. SupraSpace's own loading state (its
-// logo + "Suprah Space" text, in supraspace/page.tsx) already covers this
-// route on its own. Path-only check (no hostname) so the server-rendered
-// initial value matches the client's — safe for every surface reached by
-// pathname (/supraspace, /crm/supra-space, /crm/conversations). The
-// subdomain needs an extra client-only check below since its middleware
-// rewrite is invisible to the browser (usePathname() there still reads "/").
 function isSupraSpacePathname(pathname: string | null): boolean {
-    return !!pathname && (
-        pathname.startsWith("/supraspace") ||
-        pathname.startsWith("/crm/supra-space") ||
-        pathname.startsWith("/crm/conversations")
-    );
+  return (
+    !!pathname &&
+    (pathname.startsWith("/supraspace") ||
+      pathname.startsWith("/crm/supra-space") ||
+      pathname.startsWith("/crm/conversations"))
+  );
 }
 
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.035,
+    },
+  },
+};
+
+const letterVariants: Variants = {
+  hidden: { y: 18, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      duration: 0.24,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
 export const SplashScreen = () => {
-    const pathname = usePathname();
-    const skipForSupraSpace = isSupraSpacePathname(pathname);
+  const pathname = usePathname();
+  const skipForSupraSpace = isSupraSpacePathname(pathname);
 
-    const [isVisible, setIsVisible] = useState(!skipForSupraSpace);
-    const [count, setCount] = useState(0);
-    const [status, setStatus] = useState("Initializing Core...");
+  // Keep the pathname-based value SSR/hydration-safe. Client-only checks for
+  // the dedicated SupraSpace subdomain and same-tab repeat visits happen in
+  // useLayoutEffect before the browser paints the next frame.
+  const [isVisible, setIsVisible] = useState(!skipForSupraSpace);
+  const hideTimerRef = useRef<number | null>(null);
 
-    // Catches the SupraSpace subdomain specifically — hostname is only known
-    // client-side, so this can't be part of the SSR-safe initial state above.
-    useEffect(() => {
-        if (window.location.hostname === SUPRASPACE_SUBDOMAIN) setIsVisible(false);
-    }, []);
+  useLayoutEffect(() => {
+    if (skipForSupraSpace) {
+      setIsVisible(false);
+      return;
+    }
 
-    useEffect(() => {
-        if (skipForSupraSpace) return;
-        // Force scroll lock on initial load so user can't scroll past the splash
-        document.body.style.overflow = "hidden";
+    // Middleware rewrites make the SupraSpace subdomain pathname look like "/"
+    // in the browser, so preserve the original hostname-specific bypass.
+    if (window.location.hostname === SUPRASPACE_SUBDOMAIN) {
+      setIsVisible(false);
+      return;
+    }
 
-        const duration = 1000;
-        const steps = 100;
-        const intervalTime = duration / steps;
+    // Do not replay a fake startup sequence on every hard refresh in the same
+    // browser tab. A fresh browser/tab session still gets the short brand intro.
+    try {
+      if (window.sessionStorage.getItem(SPLASH_SESSION_KEY) === "1") {
+        setIsVisible(false);
+        return;
+      }
 
-        const statusMessages = [
-            "Booting...",
-            "Checking Access...",
-            "Loading Assets...",
-            "Locked In."
-        ];
+      window.sessionStorage.setItem(SPLASH_SESSION_KEY, "1");
+    } catch {
+      // sessionStorage can be unavailable in hardened/private contexts.
+      // In that case, keep the short first-load splash rather than blocking.
+    }
+  }, [skipForSupraSpace]);
 
-        const interval = setInterval(() => {
-            setCount((prev) => {
-                if (prev < 100) {
-                    const newCount = prev + 1;
-                    if (newCount > 30 && newCount < 70) setStatus(statusMessages[1]);
-                    if (newCount >= 70 && newCount < 100) setStatus(statusMessages[2]);
-                    if (newCount === 100) setStatus(statusMessages[3]);
-                    return newCount;
-                }
-                clearInterval(interval);
-                return 100;
-            });
-        }, intervalTime);
+  useEffect(() => {
+    if (!isVisible || skipForSupraSpace) return;
 
-        const timeout = setTimeout(() => {
-            setIsVisible(false);
-            setTimeout(() => document.body.style.overflow = "auto", 350);
-        }, duration + 350);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-        return () => {
-            clearInterval(interval);
-            clearTimeout(timeout);
-            document.body.style.overflow = "auto";
-        };
-    }, []);
+    hideTimerRef.current = window.setTimeout(() => {
+      setIsVisible(false);
+    }, FIRST_SESSION_VISIBLE_MS);
 
-    // Staggered letters
-    const letters = "SUPRAH.".split("");
+    return () => {
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1,
-                delayChildren: 0.2
-            }
-        }
+      // Restore exactly what the surrounding app shell had before the splash.
+      document.body.style.overflow = previousOverflow;
     };
+  }, [isVisible, skipForSupraSpace]);
 
-    const letterVariants = {
-        hidden: { y: 100, opacity: 0 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            transition: {
-                type: "spring",
-                damping: 12,
-                stiffness: 100
-            }
-        }
-    };
+  const letters = "SUPRAH.".split("");
 
-    return (
-        <AnimatePresence>
-            {isVisible && (
-                <motion.div
-                    key="splash-screen"
-                    className="fixed inset-0 z-9999 flex flex-col items-center justify-center bg-[#050505] overflow-hidden"
-                    initial={{ y: 0 }}
-                    exit={{
-                        y: "-100%",
-                        transition: { duration: 0.35, ease: [0.76, 0, 0.24, 1] },
-                    }}
+  return (
+    <AnimatePresence>
+      {isVisible && !skipForSupraSpace && (
+        <motion.div
+          key="splash-screen"
+          className="fixed inset-0 z-9999 flex flex-col items-center justify-center overflow-hidden bg-[#050505]"
+          initial={{ opacity: 1 }}
+          exit={{
+            opacity: 0,
+            transition: { duration: 0.2, ease: "easeOut" },
+          }}
+        >
+          <div className="absolute inset-0 z-0" aria-hidden="true">
+            <svg
+              className="h-full w-full opacity-5"
+              width="100%"
+              height="100%"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <pattern
+                id="suprah-splash-grid"
+                width="40"
+                height="40"
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d="M 40 0 L 0 0 0 40"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="1"
+                />
+              </pattern>
+              <rect
+                width="100%"
+                height="100%"
+                fill="url(#suprah-splash-grid)"
+              />
+            </svg>
+            <div className="absolute inset-0 bg-linear-to-t from-black to-transparent" />
+          </div>
+
+          <div className="z-10 flex flex-col items-center px-6 text-center">
+            <motion.div
+              className="flex overflow-hidden"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {letters.map((letter, index) => (
+                <motion.span
+                  key={`${letter}-${index}`}
+                  className={`font-mono text-5xl font-black tracking-tighter sm:text-6xl md:text-8xl ${
+                    letter === "." ? "text-green-500" : "text-white"
+                  }`}
+                  variants={letterVariants}
                 >
-                    {/* Animated Background Grid */}
-                    <div className="absolute inset-0 z-0">
-                        <svg className="w-full h-full opacity-5" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1" />
-                            </pattern>
-                            <rect width="100%" height="100%" fill="url(#grid)" />
-                        </svg>
-                        <motion.div
-                            className="absolute inset-0 bg-linear-to-t from-[#000000] to-transparent bg-opacity-80"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                        />
-                    </div>
+                  {letter}
+                </motion.span>
+              ))}
+            </motion.div>
 
-                    {/* Main Content */}
-                    <div className="z-10 flex flex-col items-center">
+            <div className="mt-6 w-72 max-w-[75vw]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-white/55">
+                  Starting Suprah
+                </span>
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              </div>
 
-                        {/* Staggered Text Reveal */}
-                        <div className="overflow-hidden mb-8">
-                            <motion.div
-                                className="flex"
-                                variants={containerVariants}
-                                initial="hidden"
-                                animate="visible"
-                            >
-                                {letters.map((letter, index) => (
-                                    <motion.span
-                                        key={index}
-                                        className={`text-6xl md:text-9xl font-black font-mono tracking-tighter ${letter === '.' ? 'text-green-500' : 'text-white'
-                                            }`}
-                                    >
-                                        {letter}
-                                    </motion.span>
-                                ))}
-                            </motion.div>
-                        </div>
+              {/* Indeterminate progress is intentional: this splash is branding,
+                  not a real measurement of auth/network progress. */}
+              <div className="relative mt-2 h-0.5 overflow-hidden rounded-full bg-white/10">
+                <motion.div
+                  className="absolute inset-y-0 w-1/3 rounded-full bg-linear-to-r from-emerald-500 to-green-400"
+                  initial={{ x: "-110%" }}
+                  animate={{ x: "310%" }}
+                  transition={{
+                    duration: 0.7,
+                    ease: "easeInOut",
+                    repeat: Infinity,
+                  }}
+                />
+              </div>
 
-                        {/* Dynamic Status Text & Counter */}
-                        <div className="w-75 flex flex-col gap-2">
-                            <div className="flex justify-between items-end mb-1">
-                                <motion.span
-                                    key={status} // Key changing triggers animation
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="text-white/60 text-xs font-mono uppercase tracking-widest"
-                                >
-                                    {status}
-                                </motion.span>
-                                <span className="text-white text-lg font-bold font-mono">{count}%</span>
-                            </div>
-
-                            {/* Progress Bar */}
-                            <div className="w-full h-0.5 bg-white/10 rounded-full overflow-hidden">
-                                <motion.div
-                                    className="h-full bg-linear-to-r from-emerald-500 to-green-400"
-                                    initial={{ width: "0%" }}
-                                    animate={{ width: `${count}%` }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
+              <p className="mt-2 text-[10px] font-mono uppercase tracking-[0.12em] text-white/35">
+                Preparing your workspace
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 };

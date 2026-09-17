@@ -29,16 +29,18 @@ interface VehicleDetailsModalProps {
   mobilePresentation?: "fullscreen" | "inspector";
 }
 
-const MOBILE_DRAWER_MIN_VISIBLE_PAGE = 44;
+const MOBILE_DRAWER_EDGE_GAP = 8;
 const MOBILE_DRAWER_MIN_CONTENT_WIDTH = 300;
-const MOBILE_DRAWER_DEFAULT_RATIO = 0.78;
-const MOBILE_DRAWER_COMPACT_RATIO = 0.7;
-const MOBILE_DRAWER_WIDE_RATIO = 0.9;
+const MOBILE_DRAWER_COMPACT_RATIO = 0.72;
 
 function clampDrawerWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(240, viewportWidth - MOBILE_DRAWER_MIN_VISIBLE_PAGE);
+  const maxWidth = Math.max(240, viewportWidth - MOBILE_DRAWER_EDGE_GAP);
   const minWidth = Math.min(MOBILE_DRAWER_MIN_CONTENT_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
+function getMaximumDrawerWidth(viewportWidth: number) {
+  return clampDrawerWidth(viewportWidth, viewportWidth);
 }
 
 export function VehicleDetailsModal({
@@ -67,9 +69,11 @@ export function VehicleDetailsModal({
 
   const resetDrawerWidth = React.useCallback(() => {
     const viewportWidth = getViewportWidth();
-    setDrawerWidth(
-      clampDrawerWidth(viewportWidth * MOBILE_DRAWER_DEFAULT_RATIO, viewportWidth),
-    );
+
+    // Fresh-open behavior: match the Transportation mobile details drawer.
+    // Use the maximum available mobile viewport while keeping only a small
+    // edge reveal/gap so the Inspector remains visually anchored to Inventory.
+    setDrawerWidth(getMaximumDrawerWidth(viewportWidth));
   }, [getViewportWidth]);
 
   React.useEffect(() => {
@@ -115,7 +119,7 @@ export function VehicleDetailsModal({
       const viewportWidth = getViewportWidth();
       setDrawerWidth((current) =>
         clampDrawerWidth(
-          current ?? viewportWidth * MOBILE_DRAWER_DEFAULT_RATIO,
+          current ?? getMaximumDrawerWidth(viewportWidth),
           viewportWidth,
         ),
       );
@@ -159,7 +163,7 @@ export function VehicleDetailsModal({
       event.preventDefault();
       const viewportWidth = getViewportWidth();
       const currentWidth = clampDrawerWidth(
-        drawerWidth ?? viewportWidth * MOBILE_DRAWER_DEFAULT_RATIO,
+        drawerWidth ?? getMaximumDrawerWidth(viewportWidth),
         viewportWidth,
       );
       resizeRef.current = {
@@ -173,14 +177,21 @@ export function VehicleDetailsModal({
 
   const toggleDrawerWidth = React.useCallback(() => {
     const viewportWidth = getViewportWidth();
+    const maximumWidth = getMaximumDrawerWidth(viewportWidth);
     const currentWidth = clampDrawerWidth(
-      drawerWidth ?? viewportWidth * MOBILE_DRAWER_DEFAULT_RATIO,
+      drawerWidth ?? maximumWidth,
       viewportWidth,
     );
-    const currentRatio = currentWidth / viewportWidth;
-    const nextRatio =
-      currentRatio > 0.8 ? MOBILE_DRAWER_COMPACT_RATIO : MOBILE_DRAWER_WIDE_RATIO;
-    setDrawerWidth(clampDrawerWidth(viewportWidth * nextRatio, viewportWidth));
+
+    const isAtMaximum = Math.abs(currentWidth - maximumWidth) <= 1;
+    setDrawerWidth(
+      isAtMaximum
+        ? clampDrawerWidth(
+            viewportWidth * MOBILE_DRAWER_COMPACT_RATIO,
+            viewportWidth,
+          )
+        : maximumWidth,
+    );
   }, [drawerWidth, getViewportWidth]);
 
   if (!vehicle || !isOpen) return null;
@@ -192,10 +203,10 @@ export function VehicleDetailsModal({
   ) {
     const viewportWidth = getViewportWidth();
     const resolvedWidth = clampDrawerWidth(
-      drawerWidth ?? viewportWidth * MOBILE_DRAWER_DEFAULT_RATIO,
+      drawerWidth ?? getMaximumDrawerWidth(viewportWidth),
       viewportWidth,
     );
-    const isWide = resolvedWidth / viewportWidth > 0.8;
+    const isWide = Math.abs(resolvedWidth - getMaximumDrawerWidth(viewportWidth)) <= 1;
 
     return createPortal(
       <section
@@ -212,7 +223,7 @@ export function VehicleDetailsModal({
           top: "4rem",
           bottom: "var(--mobile-bottom-nav-offset, 6.25rem)",
           width: `${resolvedWidth}px`,
-          maxWidth: `calc(100vw - ${MOBILE_DRAWER_MIN_VISIBLE_PAGE}px)`,
+          maxWidth: `calc(100vw - ${MOBILE_DRAWER_EDGE_GAP}px)`,
         }}
       >
         <button
@@ -272,6 +283,7 @@ export function VehicleDetailsModal({
             onQuoteClick={onQuoteClick}
             shippingQuote={shippingQuote}
             compactHeader
+            mobileInspector
             onBookTestDrive={onBookTestDrive}
             isComparing={isComparing}
             onToggleCompare={onToggleCompare}

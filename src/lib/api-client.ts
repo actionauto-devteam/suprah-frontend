@@ -330,6 +330,7 @@ function isExpectedAppointmentPollingNotFound(
 
 class ApiClient {
   private client: AxiosInstance;
+  private refreshRequest: Promise<AxiosResponse> | null = null;
   private onAuthFailure?: () => void;
 
   constructor() {
@@ -442,11 +443,7 @@ class ApiClient {
           isRefreshing = true;
 
           try {
-            const refreshResponse = await axios.post(
-              `${API_URL}/api/auth/refresh-tokens`,
-              {},
-              { withCredentials: true, timeout: 15000 }
-            );
+            const refreshResponse = await this.refreshTokens();
 
             const newToken =
               refreshResponse.data?.data?.accessToken ||
@@ -454,8 +451,6 @@ class ApiClient {
 
             if (!newToken) throw new Error("No token in refresh response");
 
-            (window as any).__AUTH_TOKEN__ = newToken;
-            broadcastToken(newToken);
             processQueue(null, newToken);
 
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -602,6 +597,27 @@ class ApiClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  // Bootstrap and 401 recovery share one in-flight request. Use bare axios so
+  // a rejected refresh cannot recursively enter this client's interceptor.
+  refreshTokens(): Promise<AxiosResponse> {
+    if (this.refreshRequest) return this.refreshRequest;
+    this.refreshRequest = axios.post(
+      `${API_URL}/api/auth/refresh-tokens`,
+      {},
+      { withCredentials: true, timeout: 15000 },
+    ).then((response) => {
+      const token = response.data?.data?.accessToken || response.data?.accessToken;
+      if (token && typeof window !== "undefined") {
+        (window as any).__AUTH_TOKEN__ = token;
+        broadcastToken(token);
+      }
+      return response;
+    }).finally(() => {
+      this.refreshRequest = null;
+    });
+    return this.refreshRequest;
   }
 
   async get<T = any>(

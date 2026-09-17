@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { trackingState, formatTrackingTime } from "@/lib/driver-tracking-view";
 import {
   AlertTriangle,
   Bell,
@@ -78,6 +80,7 @@ function formatMountainTime(value: string | Date | null | undefined) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZoneName: "short",
   }).format(date);
 }
 
@@ -143,6 +146,15 @@ export function DriverTrackerMobileDrawer({
   onUnreadRefresh,
   onReviewLoadRequest,
 }: DriverTrackerMobileDrawerProps) {
+  const [trackingNow, setTrackingNow] = React.useState(() => Date.now());
+  const isMobile = useIsMobile();
+  React.useEffect(() => {
+    if (!open) return;
+    setTrackingNow(Date.now());
+    const timer = window.setInterval(() => setTrackingNow(Date.now()), 5000);
+    return () => window.clearInterval(timer);
+  }, [open]);
+  const tracking = driver ? trackingState(driver, trackingNow) : null;
   const operationalStatus =
     driver?.equipment?.operationalStatus ?? ("active" as DriverOperationalStatus);
   const shipments = driver?.shipments ?? [];
@@ -178,19 +190,90 @@ export function DriverTrackerMobileDrawer({
     return onUnreadRefresh?.(driverId);
   }, [driverId, onUnreadRefresh]);
 
+  const workspaceActions = driver ? (
+            <div className="shrink-0 border-b border-border/50 px-2.5 py-2">
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button
+                  type="button"
+                  variant={driver.assignable ? "default" : "outline"}
+                  className={`h-auto min-h-11 min-w-0 justify-start gap-1.5 px-3 py-2 text-xs font-black ${
+                    driver.assignable
+                      ? "shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                  disabled={!driver.assignable}
+                  onClick={() => driver.assignable && onAssignLoad?.(driver)}
+                >
+                  <UserPlus className="size-4 shrink-0" />
+                  <span className="min-w-0 break-words text-left leading-tight [overflow-wrap:anywhere]">
+                    {driver.assignable ? "Assign Load" : "Unavailable for Assignment"}
+                  </span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`h-auto min-h-11 min-w-0 justify-start gap-1.5 px-3 py-2 text-xs font-bold ${
+                    driver.equipment?.isComplianceExpired
+                      ? "border-red-500/35 bg-red-500/[0.05] text-red-700 hover:bg-red-500/10 dark:text-red-300"
+                      : "border-border/60 hover:border-primary/25 hover:bg-primary/[0.04]"
+                  }`}
+                  onClick={() => onViewCompliance?.(driver)}
+                >
+                  <FileCheck2 className="size-4 shrink-0" />
+                  <span className="min-w-0 break-words text-left leading-tight [overflow-wrap:anywhere]">
+                    Driver Review Center
+                  </span>
+                </Button>
+              </div>
+
+              {requestNeedsAttention && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`mt-1.5 h-auto min-h-11 w-full justify-between gap-2 whitespace-normal px-3 py-2 text-left ${
+                    requestIsEmergency
+                      ? "border-red-500/35 bg-red-500/[0.06] text-red-700 hover:bg-red-500/10 dark:text-red-300"
+                      : "border-amber-500/35 bg-amber-500/[0.06] text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                  }`}
+                  onClick={() => onViewStatusRequest?.(driver)}
+                >
+                  <span className="flex min-w-0 items-start gap-2">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <span className="min-w-0 break-words text-xs font-bold [overflow-wrap:anywhere]">
+                      {requestIsEmergency
+                        ? "Emergency work availability request"
+                        : request?.status === "approved_awaiting_reassignment"
+                          ? "Approved — awaiting reassignment"
+                          : "Work availability request pending"}
+                    </span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0" />
+                </Button>
+              )}
+            </div>
+  ) : null;
+  const contentScroll = React.useRef<Record<string, number>>({});
+  const contentNode = React.useRef<HTMLDivElement | null>(null);
+  const restoreContentScroll = React.useCallback((node: HTMLDivElement | null) => {
+    contentNode.current = node;
+    if (node) node.scrollTop = contentScroll.current[activeTab] ?? 0;
+  }, [activeTab, driverId]);
+  React.useEffect(() => { contentScroll.current = {}; if (contentNode.current) contentNode.current.scrollTop = 0; }, [driverId]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
+        side={isMobile ? "bottom" : "right"}
         showCloseButton={false}
-        className="@container z-[70] h-dvh w-full max-w-none gap-0 overflow-hidden border-l border-border/70 p-0 pb-[env(safe-area-inset-bottom)] md:w-[94vw] md:max-w-[28rem] md:pb-0"
+        className="@container z-[70] !top-auto !bottom-0 !h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] w-full max-w-none gap-0 overflow-hidden rounded-t-2xl border border-border/70 p-0 pb-[max(env(safe-area-inset-bottom),var(--mobile-bottom-nav-offset,0px))] sm:max-w-none md:!top-0 md:!h-dvh md:w-[94vw] md:max-w-[38rem] md:rounded-none md:pb-0"
       >
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-background px-2">
           <SheetClose asChild>
             <Button
               type="button"
               variant="ghost"
-              className="h-8 gap-1.5 px-2 text-xs font-bold"
+              className="min-h-11 gap-1.5 px-2 text-sm font-bold"
               aria-label="Back to Driver Tracker"
             >
               <ChevronLeft className="size-4" />
@@ -203,7 +286,7 @@ export function DriverTrackerMobileDrawer({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-8 shrink-0"
+              className="size-11 shrink-0"
               aria-label="Close driver workspace"
             >
               <X className="size-4" />
@@ -212,7 +295,7 @@ export function DriverTrackerMobileDrawer({
         </div>
 
         {driver && (
-          <>
+          <div className="shrink-0">
             <SheetHeader className="relative shrink-0 border-b border-border/60 bg-linear-to-b from-primary/[0.07] via-primary/[0.025] to-background px-3 pb-2.5 pt-3 text-left">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
@@ -272,17 +355,17 @@ export function DriverTrackerMobileDrawer({
                     <Badge
                       variant="outline"
                       className={`h-auto gap-1 whitespace-normal px-2 py-1 text-[10px] font-bold ${
-                        driver.isSharing
+                        tracking?.kind === "live"
                           ? "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
                           : "border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400"
                       }`}
                     >
-                      {driver.isSharing ? (
+                      {tracking?.kind === "live" ? (
                         <Wifi className="size-3" />
                       ) : (
                         <WifiOff className="size-3" />
                       )}
-                      {driver.isSharing ? "GPS Sharing" : "GPS Not Sharing"}
+                      {tracking?.label}
                     </Badge>
                   </div>
                 </div>
@@ -301,68 +384,8 @@ export function DriverTrackerMobileDrawer({
               </div>
             </SheetHeader>
 
-            <div className="shrink-0 border-b border-border/50 px-2.5 py-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                <Button
-                  type="button"
-                  variant={driver.assignable ? "default" : "outline"}
-                  className={`h-auto min-h-10 min-w-0 justify-start gap-1.5 px-3 py-2 text-xs font-black ${
-                    driver.assignable
-                      ? "shadow-sm"
-                      : "text-muted-foreground"
-                  }`}
-                  disabled={!driver.assignable}
-                  onClick={() => driver.assignable && onAssignLoad?.(driver)}
-                >
-                  <UserPlus className="size-4 shrink-0" />
-                  <span className="min-w-0 break-words text-left leading-tight [overflow-wrap:anywhere]">
-                    {driver.assignable ? "Assign Load" : "Unavailable for Assignment"}
-                  </span>
-                </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={`h-auto min-h-10 min-w-0 justify-start gap-1.5 px-3 py-2 text-xs font-bold ${
-                    driver.equipment?.isComplianceExpired
-                      ? "border-red-500/35 bg-red-500/[0.05] text-red-700 hover:bg-red-500/10 dark:text-red-300"
-                      : "border-border/60 hover:border-primary/25 hover:bg-primary/[0.04]"
-                  }`}
-                  onClick={() => onViewCompliance?.(driver)}
-                >
-                  <FileCheck2 className="size-4 shrink-0" />
-                  <span className="min-w-0 break-words text-left leading-tight [overflow-wrap:anywhere]">
-                    Driver Review Center
-                  </span>
-                </Button>
-              </div>
-
-              {requestNeedsAttention && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={`mt-1.5 h-auto min-h-10 w-full justify-between gap-2 whitespace-normal px-3 py-2 text-left ${
-                    requestIsEmergency
-                      ? "border-red-500/35 bg-red-500/[0.06] text-red-700 hover:bg-red-500/10 dark:text-red-300"
-                      : "border-amber-500/35 bg-amber-500/[0.06] text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
-                  }`}
-                  onClick={() => onViewStatusRequest?.(driver)}
-                >
-                  <span className="flex min-w-0 items-start gap-2">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                    <span className="min-w-0 break-words text-xs font-bold [overflow-wrap:anywhere]">
-                      {requestIsEmergency
-                        ? "Emergency work availability request"
-                        : request?.status === "approved_awaiting_reassignment"
-                          ? "Approved — awaiting reassignment"
-                          : "Work availability request pending"}
-                    </span>
-                  </span>
-                  <ChevronRight className="size-4 shrink-0" />
-                </Button>
-              )}
-            </div>
-          </>
+          </div>
         )}
 
         <div className="shrink-0 border-b border-border/50 bg-background px-2.5 py-1.5">
@@ -469,7 +492,8 @@ export function DriverTrackerMobileDrawer({
               onReviewLoadRequest={onReviewLoadRequest}
             />
           ) : activeTab === "loads" ? (
-            <div className="modal-scrollbar flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 py-2.5">
+            <div key={activeTab} ref={restoreContentScroll} onScroll={event => { contentScroll.current[activeTab] = event.currentTarget.scrollTop; }} className="modal-scrollbar flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 py-2.5">
+              {workspaceActions}
               <div className="sticky top-0 z-10 -mx-2.5 mb-2 flex items-center justify-between gap-2 border-b border-border/45 bg-background/95 px-2.5 pb-2 backdrop-blur">
                 <div className="min-w-0">
                   <p className="text-sm font-black">Assigned Loads</p>
@@ -608,7 +632,8 @@ export function DriverTrackerMobileDrawer({
               )}
             </div>
           ) : (
-            <div className="modal-scrollbar flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 py-2.5">
+            <div key={activeTab} ref={restoreContentScroll} onScroll={event => { contentScroll.current[activeTab] = event.currentTarget.scrollTop; }} className="modal-scrollbar flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain px-2.5 py-2.5">
+              {workspaceActions}
               <div className="grid grid-cols-2 gap-1.5">
                 <InfoTile
                   label="Work Availability"
@@ -620,12 +645,14 @@ export function DriverTrackerMobileDrawer({
                 />
                 <InfoTile
                   label="GPS"
-                  value={driver.isSharing ? "Sharing" : "Not Sharing"}
+                  value={tracking?.label ?? "Location unavailable"}
                 />
                 <InfoTile
-                  label="Last Seen"
-                  value={formatMountainTime(driver.lastSeenAt)}
+                  label="GPS measured"
+                  value={formatTrackingTime(driver.locationRecordedAt)}
                 />
+                <InfoTile label="Server confirmed" value={formatTrackingTime(driver.lastSeenAt)} />
+                <InfoTile label="GPS accuracy" value={driver.accuracy != null && Number.isFinite(driver.accuracy) ? `±${Math.round(driver.accuracy)} m` : "Not available"} />
               </div>
 
               {(driver.coords && onLocateDriver) || onOpenLoadManagement ? (

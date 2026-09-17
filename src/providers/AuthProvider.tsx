@@ -35,6 +35,7 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  bootstrapProfile: { user: AuthUser; updatedAt: number } | null;
   accessToken: string | null;
   isLoaded: boolean;
   isSignedIn: boolean;
@@ -115,6 +116,12 @@ const BACKGROUND_RETRY_MS = 20_000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  // Share only a successfully verified /users/me response with organization
+  // bootstrap. A login, logout, or impersonation that replaces `user` makes
+  // this snapshot ineligible until the new profile is verified again.
+  const [bootstrapProfile, setBootstrapProfile] = useState<
+    { user: AuthUser; updatedAt: number } | null
+  >(null);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   // True when we could not CONFIRM the session either way (rate limited,
@@ -169,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         globalRefreshPromise = (async () => {
           try {
-            const tokenRes = await apiClient.post("/api/auth/refresh-tokens");
+            const tokenRes = await apiClient.refreshTokens();
             const token =
               tokenRes.data?.data?.accessToken || tokenRes.data?.accessToken;
             return token || null;
@@ -231,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (devRoleOverride) userData = { ...userData, role: devRoleOverride };
           }
           setUser(userData);
+          setBootstrapProfile({ user: userData, updatedAt: Date.now() });
           setAuthIndeterminate(false);
 
           const token =
@@ -412,7 +420,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       globalRefreshPromise = (async () => {
         try {
-          const response = await apiClient.post("/api/auth/refresh-tokens");
+          const response = await apiClient.refreshTokens();
           const token =
             response.data?.data?.accessToken || response.data?.accessToken;
           if (token) {
@@ -458,6 +466,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       user,
+      bootstrapProfile: !authIndeterminate && bootstrapProfile?.user === user
+        ? bootstrapProfile
+        : null,
       accessToken,
       isLoaded,
       isSignedIn: !!user,
@@ -474,6 +485,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       user,
+      bootstrapProfile,
       accessToken,
       isLoaded,
       authIndeterminate,
@@ -515,6 +527,7 @@ export function useAuth() {
     isLoaded: context.isLoaded,
     isSignedIn: context.isSignedIn,
     authIndeterminate: context.authIndeterminate,
+    bootstrapProfile: context.bootstrapProfile,
     userId: context.user?._id || null,
     orgId: context.organizationId,
     orgRole: context.organizationRole,

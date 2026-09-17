@@ -2,12 +2,9 @@
 
 import * as React from "react";
 import { Archive, Car, Loader2, Package, RefreshCw } from "lucide-react";
-import { CarInventoryCard } from "@/components/car-inventory-card";
+import { CarInventoryCard, preloadInventoryVehicleImages } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
-import { ShippingQuoteModal } from "@/components/shipping-quote-modal";
-import { VehicleDetailsModal } from "@/components/vehicle-details-modal";
-import { VehicleInquiryModal } from "@/components/vehicle-inquiry-modal";
-import { FinanceApplicationModal } from "@/components/finance-application-modal";
+import { DeferredInventoryModal } from "@/components/inventory/DeferredInventoryModal";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
@@ -22,6 +19,11 @@ import { useOrg } from "@/hooks/useOrg";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventoryViewPreference } from "@/hooks/useInventoryViewPreference";
+
+const ShippingQuoteModal = React.lazy(() => import("@/components/shipping-quote-modal").then((m) => ({ default: m.ShippingQuoteModal })));
+const VehicleDetailsModal = React.lazy(() => import("@/components/vehicle-details-modal").then((m) => ({ default: m.VehicleDetailsModal })));
+const VehicleInquiryModal = React.lazy(() => import("@/components/vehicle-inquiry-modal").then((m) => ({ default: m.VehicleInquiryModal })));
+const FinanceApplicationModal = React.lazy(() => import("@/components/finance-application-modal").then((m) => ({ default: m.FinanceApplicationModal })));
 
 type InventoryView = "active" | "archived";
 
@@ -73,6 +75,20 @@ const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "demand-desc", label: "Most Inquiries" },
   { value: "low-performing-desc", label: "Low Performing" },
 ];
+
+const DESKTOP_SORT_IMAGE_WARM_MS = 300;
+const MOBILE_SORT_IMAGE_WARM_MS = 450;
+
+function getVisibleGridColumnCount() {
+  if (typeof window === "undefined") return 4;
+
+  const width = window.innerWidth;
+  if (width >= 1280) return 4;
+  if (width >= 1024) return 3;
+  if (width >= 768) return 2;
+  return 1;
+}
+
 
 function compareText(a?: string, b?: string) {
   const left = a?.trim();
@@ -226,6 +242,87 @@ function sortInventoryVehicles(
   });
 }
 
+
+function InventoryInitialLoadingState() {
+  const [takingLonger, setTakingLonger] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setTakingLonger(true), 3500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div
+      className="space-y-3 sm:space-y-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading inventory"
+    >
+      <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-3 sm:px-4">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-background/70">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-black text-foreground">
+            {takingLonger ? "Still preparing inventory" : "Preparing inventory"}
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {takingLonger
+              ? "The latest vehicle sync is taking a little longer than usual. Results will appear automatically when ready."
+              : "Fetching the latest vehicle records. Vehicle details will appear as soon as they are ready."}
+          </p>
+        </div>
+      </div>
+
+      {/* Mobile: use compact result-shaped placeholders so loading does not
+          consume an entire screen with one oversized empty card. */}
+      <div className="space-y-2 md:hidden" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div
+            key={index}
+            className="flex min-h-25 overflow-hidden rounded-2xl border border-border/50 bg-card"
+          >
+            <div className="w-28 shrink-0 animate-pulse bg-muted/70 dark:bg-zinc-900" />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 px-3 py-3">
+              <div className="h-3.5 w-3/4 animate-pulse rounded-md bg-muted" />
+              <div className="h-3 w-1/2 animate-pulse rounded-md bg-muted/70" />
+              <div className="flex gap-2 pt-1">
+                <div className="h-7 w-20 animate-pulse rounded-lg bg-muted/55" />
+                <div className="h-7 w-16 animate-pulse rounded-lg bg-muted/55" />
+              </div>
+            </div>
+            <div className="flex w-20 shrink-0 items-center justify-center px-2">
+              <div className="h-4 w-14 animate-pulse rounded-md bg-muted/70" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop/tablet: preserve the card-shaped first-row preview. */}
+      <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6" aria-hidden="true">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div
+            key={index}
+            className="overflow-hidden rounded-2xl border border-border/50 bg-card"
+          >
+            <div className="aspect-16/10 animate-pulse bg-muted/70 dark:bg-zinc-900" />
+            <div className="space-y-3 p-4">
+              <div className="h-4 w-2/3 animate-pulse rounded-md bg-muted" />
+              <div className="h-3 w-1/2 animate-pulse rounded-md bg-muted/70" />
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="h-9 animate-pulse rounded-xl bg-muted/55" />
+                <div className="h-9 animate-pulse rounded-xl bg-muted/55" />
+                <div className="h-9 animate-pulse rounded-xl bg-muted/55" />
+              </div>
+              <div className="h-12 animate-pulse rounded-xl bg-muted/65" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function InventoryContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -305,7 +402,12 @@ function InventoryContent() {
 
   const [debouncedSearch, setDebouncedSearch] = React.useState(filters.search);
   const [metricsReady, setMetricsReady] = React.useState(false);
-  const metricsRequestRef = React.useRef<Promise<void> | null>(null);
+  const metricsRequestRef = React.useRef<
+    Promise<Map<string, number> | null> | null
+  >(null);
+  const sortRequestRef = React.useRef(0);
+  const [pendingSortValue, setPendingSortValue] =
+    React.useState<SortOption | null>(null);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(filters.search), 250);
@@ -422,10 +524,10 @@ function InventoryContent() {
   // objects. This keeps the first render and every normal filter/sort action
   // independent from that lookup.
   const fetchDemandMetrics = React.useCallback(async () => {
-    if (metricsReady) return;
+    if (metricsReady) return null;
     if (metricsRequestRef.current) return metricsRequestRef.current;
 
-    const task = (async () => {
+    const task = (async (): Promise<Map<string, number> | null> => {
       try {
         const token = await getToken();
         const response = await apiClient.get("/api/vehicles", {
@@ -459,8 +561,10 @@ function InventoryContent() {
           }),
         );
         setMetricsReady(true);
+        return counts;
       } catch (err) {
         console.warn("[Inventory] Demand metrics prefetch failed:", err);
+        return null;
       } finally {
         metricsRequestRef.current = null;
       }
@@ -685,6 +789,53 @@ function InventoryContent() {
 
   const total = sortedVehicles.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const hasActiveResultFilters = React.useMemo(
+    () =>
+      Boolean(
+        debouncedSearch.trim() ||
+          filters.make ||
+          filters.model ||
+          (filters.status && filters.status !== "all") ||
+          filters.year ||
+          filters.minPrice !== undefined ||
+          filters.maxPrice !== undefined ||
+          filters.minMileage !== undefined ||
+          filters.maxMileage !== undefined ||
+          filters.bodyStyle ||
+          filters.location ||
+          (filters.priceUpdated && filters.priceUpdated !== "all") ||
+          filters.highDemand ||
+          filters.lowPerforming,
+      ),
+    [
+      debouncedSearch,
+      filters.make,
+      filters.model,
+      filters.status,
+      filters.year,
+      filters.minPrice,
+      filters.maxPrice,
+      filters.minMileage,
+      filters.maxMileage,
+      filters.bodyStyle,
+      filters.location,
+      filters.priceUpdated,
+      filters.highDemand,
+      filters.lowPerforming,
+    ],
+  );
+
+  const noResultsDueToFilters =
+    allVehicles.length > 0 && filteredVehicles.length === 0;
+
+  const inventoryCountLabel = isInitialLoading
+    ? "Loading inventory…"
+    : hasActiveResultFilters
+      ? `${total.toLocaleString()} ${total === 1 ? "match" : "matches"}`
+      : inventoryView === "archived"
+        ? `${total.toLocaleString()} archived`
+        : `${total.toLocaleString()} ${total === 1 ? "vehicle" : "vehicles"}`;
   const visibleVehicles = React.useMemo(() => {
     const start = (page - 1) * limit;
     return sortedVehicles.slice(start, start + limit);
@@ -819,9 +970,10 @@ function InventoryContent() {
   );
 
   const handleSortChange = React.useCallback(
-    (value: string) => {
+    async (value: string) => {
       let sortBy = "createdAt";
       let sortOrder = "desc";
+      let requiresMetrics = false;
 
       switch (value as SortOption) {
         case "price-asc": sortBy = "price"; sortOrder = "asc"; break;
@@ -854,19 +1006,71 @@ function InventoryContent() {
         case "demand-desc":
           sortBy = "demand";
           sortOrder = "desc";
-          if (!metricsReady) void fetchDemandMetrics();
+          requiresMetrics = true;
           break;
         case "low-performing-desc":
           sortBy = "low-performing";
           sortOrder = "desc";
-          if (!metricsReady) void fetchDemandMetrics();
+          requiresMetrics = true;
           break;
       }
 
-      setFilters((prev: any) => ({ ...prev, sortBy, sortOrder }));
-      setPage(1);
+      const requestId = ++sortRequestRef.current;
+      setPendingSortValue(value as SortOption);
+
+      try {
+        let sortSource = filteredVehicles;
+
+        // Demand-based sorts must not render once with zero/incomplete counts
+        // and then reorder a second time when the metrics request finishes.
+        if (requiresMetrics && !metricsReady) {
+          const counts = await fetchDemandMetrics();
+          if (requestId !== sortRequestRef.current) return;
+
+          if (counts) {
+            sortSource = filteredVehicles.map((vehicle) => ({
+              ...vehicle,
+              leadCount: counts.get(vehicle.id) ?? vehicle.leadCount ?? 0,
+            }));
+          }
+        }
+
+        const nextSortedVehicles = sortInventoryVehicles(
+          sortSource,
+          sortBy,
+          sortOrder,
+        );
+        const firstVisibleRow = nextSortedVehicles.slice(
+          0,
+          Math.min(limit, getVisibleGridColumnCount()),
+        );
+
+        // Sorting itself is local and immediate. Only warm the photos that can
+        // appear in the first visible row, and use a short soft deadline so a
+        // slow CDN image can never make the sort feel blocked.
+        await preloadInventoryVehicleImages(
+          firstVisibleRow,
+          isMobile ? MOBILE_SORT_IMAGE_WARM_MS : DESKTOP_SORT_IMAGE_WARM_MS,
+        );
+        if (requestId !== sortRequestRef.current) return;
+
+        React.startTransition(() => {
+          setFilters((prev: any) => ({ ...prev, sortBy, sortOrder }));
+          setPage(1);
+        });
+      } finally {
+        if (requestId === sortRequestRef.current) {
+          setPendingSortValue(null);
+        }
+      }
     },
-    [fetchDemandMetrics, metricsReady],
+    [
+      fetchDemandMetrics,
+      filteredVehicles,
+      isMobile,
+      limit,
+      metricsReady,
+    ],
   );
 
   const currentSortValue = React.useMemo(() => {
@@ -875,6 +1079,8 @@ function InventoryContent() {
       ? (value as SortOption)
       : "make-asc";
   }, [filters.sortBy, filters.sortOrder]);
+
+  const displayedSortValue = pendingSortValue ?? currentSortValue;
 
   const handleCalculateQuote = async (formData: ShippingQuoteFormData) => {
     try {
@@ -993,9 +1199,7 @@ function InventoryContent() {
 
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-bold text-foreground tabular-nums">
-                    {isInitialLoading ? "Loading…" : total}
-                    {" "}
-                    {inventoryView === "archived" ? "archived" : "vehicles"}
+                    {inventoryCountLabel}
                   </span>
                 </div>
               </div>
@@ -1048,7 +1252,7 @@ function InventoryContent() {
                   )}
                 >
                   <RefreshCw className={cn("h-3.5 w-3.5", (isInitialLoading || isRefreshing) && "animate-spin")} />
-                  <span className="hidden sm:inline">Refresh</span>
+                  <span className="hidden sm:inline">{isRefreshing ? "Refreshing…" : "Refresh"}</span>
                 </button>
               </div>
             </div>
@@ -1069,10 +1273,11 @@ function InventoryContent() {
             apiPath="/api/vehicles/filters"
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-            currentSortValue={currentSortValue}
+            currentSortValue={displayedSortValue}
             onSortChange={handleSortChange}
             sortOptions={INVENTORY_SORT_OPTIONS}
             resultCount={total}
+            isSorting={pendingSortValue !== null}
           />
         </div>
       </div>
@@ -1080,21 +1285,9 @@ function InventoryContent() {
       {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
       <div className="flex-1 min-h-0">
         {isInitialLoading ? (
-          <div className="flex min-h-56 items-center justify-center rounded-2xl border border-border/50 bg-card/30 px-6 py-12 text-center">
-            <div className="flex max-w-sm flex-col items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">Loading inventory</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Fetching the latest vehicle records. Results will appear here when ready.
-                </p>
-              </div>
-            </div>
-          </div>
+          <InventoryInitialLoadingState />
         ) : visibleVehicles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+          <div className="flex flex-col items-center justify-center py-20 sm:py-24 gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
               {inventoryView === "archived" ? (
                 <Archive className="h-7 w-7 text-muted-foreground/30" />
@@ -1104,19 +1297,36 @@ function InventoryContent() {
             </div>
             <div className="space-y-1">
               <h2 className="text-base font-bold text-foreground">
-                {inventoryView === "archived"
-                  ? "No archived vehicles"
-                  : "No vehicles found"}
+                {noResultsDueToFilters
+                  ? inventoryView === "archived"
+                    ? "No archived vehicles match these filters"
+                    : "No vehicles match these filters"
+                  : inventoryView === "archived"
+                    ? "No archived vehicles yet"
+                    : "No vehicles available"}
               </h2>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                {inventoryView === "archived"
-                  ? "Vehicles removed from the latest FTP upload will appear here automatically."
-                  : "Try adjusting your filters or clearing them to see more results."}
+              <p className="text-sm text-muted-foreground max-w-sm">
+                {noResultsDueToFilters
+                  ? `${allVehicles.length.toLocaleString()} ${
+                      inventoryView === "archived" ? "archived" : "active"
+                    } ${
+                      allVehicles.length === 1 ? "vehicle is" : "vehicles are"
+                    } available in this view. Adjust or clear the filters to see more results.`
+                  : inventoryView === "archived"
+                    ? "Vehicles removed from the latest FTP upload will appear here automatically."
+                    : "No active inventory records are available right now."}
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleClearFilters} className="gap-1.5 rounded-xl">
-              Clear Filters
-            </Button>
+            {noResultsDueToFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="gap-1.5 rounded-xl"
+              >
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-6 sm:space-y-8">
@@ -1128,7 +1338,7 @@ function InventoryContent() {
                   : "flex flex-col gap-2.5",
               )}
             >
-              {visibleVehicles.map((vehicle) => {
+              {visibleVehicles.map((vehicle, vehicleIndex) => {
                 if (viewMode === "grid") {
                   if (isMobile) {
                     return (
@@ -1163,6 +1373,7 @@ function InventoryContent() {
                       onVideo={handleVideo}
                       onCreateLoad={!isCustomer ? handleCreateLoad : undefined}
                       showInventoryMeta
+                      imagePriority={vehicleIndex < 4}
                     />
                   );
                 }
@@ -1198,39 +1409,47 @@ function InventoryContent() {
         )}
       </div>
 
-      <ShippingQuoteModal
-        open={openModals.shipping}
-        onOpenChange={setShippingOpen}
-        vehicles={visibleVehicles}
-        defaultVehicle={selectedVehicle}
-        onCalculate={handleCalculateQuote}
-      />
+      <DeferredInventoryModal open={openModals.shipping} onClose={() => setShippingOpen(false)}>
+        <ShippingQuoteModal
+          open={openModals.shipping}
+          onOpenChange={setShippingOpen}
+          vehicles={visibleVehicles}
+          defaultVehicle={selectedVehicle}
+          onCalculate={handleCalculateQuote}
+        />
+      </DeferredInventoryModal>
 
-      <VehicleDetailsModal
-        isOpen={openModals.details}
-        onClose={() => setDetailsOpen(false)}
-        vehicle={selectedVehicle}
-        onQuoteClick={() => setShippingOpen(true)}
-        onInquiryClick={handleCheckAvailability}
-        onApplyNow={handleApplyNow}
-        onCreateLoad={handleCreateLoad}
-        shippingQuote={
-          selectedVehicle ? shippingRates[selectedVehicle.id] : null
-        }
-        mobilePresentation="inspector"
-      />
+      <DeferredInventoryModal open={openModals.details} onClose={() => setDetailsOpen(false)}>
+        <VehicleDetailsModal
+          isOpen={openModals.details}
+          onClose={() => setDetailsOpen(false)}
+          vehicle={selectedVehicle}
+          onQuoteClick={() => setShippingOpen(true)}
+          onInquiryClick={handleCheckAvailability}
+          onApplyNow={handleApplyNow}
+          onCreateLoad={handleCreateLoad}
+          shippingQuote={
+            selectedVehicle ? shippingRates[selectedVehicle.id] : null
+          }
+          mobilePresentation="inspector"
+        />
+      </DeferredInventoryModal>
 
-      <VehicleInquiryModal
-        isOpen={openModals.inquiry}
-        onClose={() => setInquiryOpen(false)}
-        vehicle={selectedVehicle}
-      />
+      <DeferredInventoryModal open={openModals.inquiry} onClose={() => setInquiryOpen(false)}>
+        <VehicleInquiryModal
+          isOpen={openModals.inquiry}
+          onClose={() => setInquiryOpen(false)}
+          vehicle={selectedVehicle}
+        />
+      </DeferredInventoryModal>
 
-      <FinanceApplicationModal
-        isOpen={openModals.finance}
-        onClose={() => setFinanceOpen(false)}
-        vehicle={selectedVehicle}
-      />
+      <DeferredInventoryModal open={openModals.finance} onClose={() => setFinanceOpen(false)}>
+        <FinanceApplicationModal
+          isOpen={openModals.finance}
+          onClose={() => setFinanceOpen(false)}
+          vehicle={selectedVehicle}
+        />
+      </DeferredInventoryModal>
     </div>
   );
 }

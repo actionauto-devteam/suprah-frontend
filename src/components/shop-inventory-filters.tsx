@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, X, LayoutGrid, List, SlidersHorizontal, ArrowUpDown, ChevronUp } from "lucide-react";
+import { Search, X, LayoutGrid, List, SlidersHorizontal, ArrowUpDown, ChevronUp, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -26,6 +26,8 @@ interface ShopInventoryFiltersProps {
   onSortChange: (value: string) => void;
   sortOptions: Array<{ value: string; label: string }>;
   resultCount?: number;
+  /** Optional local-sort feedback; existing callers remain unchanged. */
+  isSorting?: boolean;
 }
 
 
@@ -175,6 +177,7 @@ export function ShopInventoryFilters({
   onSortChange,
   sortOptions,
   resultCount,
+  isSorting = false,
 }: ShopInventoryFiltersProps) {
   const { getToken } = useAuth();
   const [filterOptions, setFilterOptions] = React.useState<FilterOptions | null>(null);
@@ -229,11 +232,14 @@ export function ShopInventoryFilters({
 
   React.useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const seq = ++fetchSeqRef.current;
     (async () => {
       try {
         const token = await getToken();
+        if (cancelled) return;
         const res = await apiClient.get(apiPath, {
+          signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000,
           params: {
@@ -260,7 +266,7 @@ export function ShopInventoryFilters({
         setFilterOptions(res.data?.data ?? null);
       } catch { }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [apiPath, getToken, filters.make, filters.model, filters.status, filters.year, filters.location, filters.bodyStyle]);
 
   const chipEntries = Object.entries(filters).filter(([k, v]) => {
@@ -402,15 +408,27 @@ export function ShopInventoryFilters({
           )}
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <PillSelect
             value={currentSortValue}
             onValueChange={onSortChange}
             active={!!currentSortValue}
             ariaLabel="Sort inventory"
-            className="h-9 w-full min-w-0 justify-between rounded-xl px-3 shadow-sm"
+            className={cn(
+              "h-9 w-full min-w-0 justify-between rounded-xl px-3 shadow-sm",
+              isSorting && "pr-10",
+            )}
             options={sortOptions}
           />
+          {isSorting && (
+            <span
+              className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-primary"
+              role="status"
+              aria-label="Sorting inventory"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            </span>
+          )}
         </div>
       </div>
 
@@ -664,14 +682,25 @@ export function ShopInventoryFilters({
             </button>
           </div>
 
-          <PillSelect
-            value={currentSortValue}
-            onValueChange={onSortChange}
-            active={!!currentSortValue}
-            ariaLabel="Sort by"
-            className="min-w-37"
-            options={sortOptions}
-          />
+          <div className="relative shrink-0">
+            <PillSelect
+              value={currentSortValue}
+              onValueChange={onSortChange}
+              active={!!currentSortValue}
+              ariaLabel="Sort by"
+              className={cn("min-w-37", isSorting && "pr-10")}
+              options={sortOptions}
+            />
+            {isSorting && (
+              <span
+                className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-primary"
+                role="status"
+                aria-label="Sorting inventory"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              </span>
+            )}
+          </div>
         </div>
 
         {showRanges && (

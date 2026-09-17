@@ -90,6 +90,8 @@ export interface LoadReleaseRequestSummary {
 }
 
 export interface DriverTrackingItem {
+  /** Explicit server authorization; missing on legacy responses. */
+  canViewExactGps?: boolean;
     locationRecordedAt?: string | null;
     accuracy?: number | null;
   id: string;

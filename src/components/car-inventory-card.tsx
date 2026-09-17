@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const CARD_FALLBACK = "/vehicle-placeholder.jpg";
-const IMAGE_LOAD_TIMEOUT_MS = 12_000;
+const IMAGE_LOAD_TIMEOUT_MS = 7_000;
 
 // Set to false in production to silence per-image console logging.
 const DEBUG_IMAGES = false;
@@ -55,6 +55,88 @@ function normalizeImageSrc(raw?: string): string | undefined {
   if (!trimmed) return undefined;
   if (/^https?:\/\//i.test(trimmed)) return trimmed; // already a full URL
   return resolveImageUrl(trimmed)?.trim() || undefined;
+}
+
+const loadedInventoryImageSources = new Set<string>();
+
+function getVehicleImageSources(vehicle: Vehicle): string[] {
+  return Array.from(
+    new Set(
+      [vehicle.image, ...(vehicle.images || [])]
+        .map((source) => normalizeImageSrc(source))
+        .filter((source): source is string => Boolean(source)),
+    ),
+  );
+}
+
+function preloadImageSource(src: string, timeoutMs: number): Promise<void> {
+  if (typeof window === "undefined" || loadedInventoryImageSources.has(src)) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve();
+    };
+
+    const markLoaded = async () => {
+      try {
+        if (typeof image.decode === "function") {
+          await image.decode();
+        }
+      } catch {
+        // The load event is authoritative; decode can reject for otherwise
+        // usable images in some browsers.
+      }
+
+      loadedInventoryImageSources.add(src);
+      finish();
+    };
+
+    image.onload = () => {
+      void markLoaded();
+    };
+    image.onerror = finish;
+    image.decoding = "async";
+    image.referrerPolicy = "no-referrer";
+
+    const timeoutId = window.setTimeout(finish, timeoutMs);
+    image.src = src;
+
+    if (image.complete && image.naturalWidth > 0) {
+      void markLoaded();
+    }
+  });
+}
+
+/**
+ * Warm the primary photo for vehicles that are about to become visible after
+ * a local Inventory sort. Sorting itself is synchronous and does not need a
+ * page-level skeleton; warming the next visible photos keeps the existing
+ * cards stable until the reordered view can paint cleanly.
+ */
+export async function preloadInventoryVehicleImages(
+  vehicles: Vehicle[],
+  timeoutMs = 900,
+): Promise<void> {
+  if (typeof window === "undefined" || vehicles.length === 0) return;
+
+  await Promise.all(
+    vehicles.map(async (vehicle) => {
+      const sources = getVehicleImageSources(vehicle);
+      if (sources.length === 0) return;
+
+      // Warm only the first real image. Card-level error handling still owns
+      // fallback/candidate traversal if that source is unavailable.
+      await preloadImageSource(sources[0], timeoutMs);
+    }),
+  );
 }
 
 function getMemberPricing(vehicle: Vehicle) {
@@ -147,11 +229,11 @@ function VehicleImage({
   onToggleCompare,
   canCompareMore,
 }: VehicleImageProps) {
-  // Build the list of REAL image candidates (no fallback yet). The fallback is
-  // only appended when there are zero real images, so a car with photos never
-  // shows the generic placeholder.
+  // Compare photo values, not array identity: a metadata refresh must not restart
+  // a successful fallback or an image request with an identical list of URLs.
+  const imageSourcesKey = JSON.stringify([vehicle.image, ...(vehicle.images || [])]);
   const { realCandidates, hasRealImage } = React.useMemo(() => {
-    const rawFields = [vehicle.image, ...(vehicle.images || [])];
+    const rawFields = JSON.parse(imageSourcesKey) as Array<string | undefined>;
     const resolved = rawFields.map((s) => normalizeImageSrc(s));
     const valid = resolved.filter((s): s is string => Boolean(s));
     const deduped = Array.from(new Set(valid));
@@ -159,10 +241,9 @@ function VehicleImage({
     if (DEBUG_IMAGES) {
       // eslint-disable-next-line no-console
       console.log(
-        `[VehicleImage] ${vehicle.year} ${vehicle.make} ${vehicle.model} (id: ${vehicle.id})`,
+        "[VehicleImage] candidates",
         {
-          "raw vehicle.image": vehicle.image,
-          "raw vehicle.images": vehicle.images,
+          "raw sources": rawFields,
           "normalized output": resolved,
           "real candidates": deduped,
         },
@@ -170,7 +251,7 @@ function VehicleImage({
     }
 
     return { realCandidates: deduped, hasRealImage: deduped.length > 0 };
-  }, [vehicle.id, vehicle.year, vehicle.make, vehicle.model, vehicle.image, vehicle.images]);
+  }, [imageSourcesKey]);
 
   // Full candidate list = real images, then the generic fallback ONLY if there
   // were real images to try (so a broken CDN link still degrades to the
@@ -183,21 +264,36 @@ function VehicleImage({
 
   const imgRef = React.useRef<HTMLImageElement | null>(null);
   const [imgIdx, setImgIdx] = React.useState(0);
-  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imgLoaded, setImgLoaded] = React.useState(() =>
+    Boolean(candidates[0] && loadedInventoryImageSources.has(candidates[0])),
+  );
   const [imgError, setImgError] = React.useState(false);
   const [imageVisible, setImageVisible] = React.useState(false);
-  const candidateKey = candidates.join("\u0001");
-
-  React.useEffect(() => {
+  const [showImageLoadingHint, setShowImageLoadingHint] = React.useState(false);
+  React.useLayoutEffect(() => {
     setImgIdx(0);
-    setImgLoaded(false);
+    const image = imgRef.current;
+    setImgLoaded(
+      Boolean(candidates[0] && (
+        loadedInventoryImageSources.has(candidates[0]) ||
+        (image?.getAttribute("src") === candidates[0] &&
+          image.complete && image.naturalWidth > 0)
+      )),
+    );
     setImgError(false);
-  }, [candidateKey]);
+    setShowImageLoadingHint(false);
+  }, [candidates]);
 
   const activeSrc = candidates[imgIdx];
 
   React.useLayoutEffect(() => {
+    if (activeSrc && loadedInventoryImageSources.has(activeSrc)) {
+      setImgLoaded(true);
+      return;
+    }
+
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      loadedInventoryImageSources.add(activeSrc);
       setImgLoaded(true);
     }
   }, [activeSrc]);
@@ -233,13 +329,28 @@ function VehicleImage({
       );
     }
     if (imgIdx < candidates.length - 1) {
-      setImgIdx((p) => p + 1);
+      setShowImageLoadingHint(false);
+      setImgIdx((p) => p === imgIdx ? p + 1 : p);
       setImgLoaded(false);
     } else {
+      setShowImageLoadingHint(false);
       setImgError(true);
       setImgLoaded(true);
     }
   }, [activeSrc, candidates.length, imgIdx, vehicle.id, vehicle.make, vehicle.model, vehicle.year]);
+
+  React.useEffect(() => {
+    if (!activeSrc || !imageVisible || imgLoaded || imgError) {
+      setShowImageLoadingHint(false);
+      return;
+    }
+
+    const hintTimer = window.setTimeout(
+      () => setShowImageLoadingHint(true),
+      250,
+    );
+    return () => window.clearTimeout(hintTimer);
+  }, [activeSrc, imageVisible, imgError, imgLoaded]);
 
   React.useEffect(() => {
     if (!activeSrc || !imageVisible || imgLoaded || imgError) return;
@@ -249,7 +360,11 @@ function VehicleImage({
 
   const handleImgError = advanceCandidate;
 
-  const handleImgLoad = () => setImgLoaded(true);
+  const handleImgLoad = () => {
+    if (activeSrc) loadedInventoryImageSources.add(activeSrc);
+    setShowImageLoadingHint(false);
+    setImgLoaded(true);
+  };
 
   // "No image" empty state: shown when a car has zero real photos, OR when every
   // real photo AND the fallback failed to load.
@@ -263,10 +378,14 @@ function VehicleImage({
         className,
       )}
     >
-      {!showEmptyState && !imgLoaded && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted dark:bg-zinc-800">
-          <Loader2 className="h-5 w-5 animate-spin text-primary/70" />
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+      {!showEmptyState && !imgLoaded && showImageLoadingHint && (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-muted/95 dark:bg-zinc-900/95"
+          role="status"
+          aria-label="Loading vehicle photo"
+        >
+          <Loader2 className="h-4 w-4 animate-spin text-primary/60" />
+          <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/65">
             Loading photo
           </span>
         </div>

@@ -315,7 +315,8 @@ export function DriverTrackerAvailableLoadsCard({
             <div className="space-y-1.5">
               {filteredDrivers.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-                  <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">No drivers found</p>
+                  <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{driverSearch.trim() ? "No drivers match your search" : "No eligible drivers available"}</p>
+                  {driverSearch.trim() && <Button type="button" variant="outline" size="sm" onClick={() => setDriverSearch("")}>Clear search</Button>}
                 </div>
               )}
 

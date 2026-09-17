@@ -19,6 +19,7 @@
 
 import * as React from "react";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/providers/AuthProvider";
 
 export type CalendarSummaryItem = {
   id: string;
@@ -98,35 +99,69 @@ export function CalendarNotificationProvider({
   socket?: CalendarSocketLike | null;
 }) {
   const [summary, setSummary] = React.useState<CalendarSummary | null>(null);
+  const { isLoaded, isSignedIn, authIndeterminate, userId, orgId } = useAuth();
+  const ready = isLoaded && isSignedIn && !authIndeterminate;
+  const generationRef = React.useRef(0);
+  const requestRef = React.useRef<{ generation: number; rerun: boolean; promise: Promise<void> } | null>(null);
 
-  const refresh = React.useCallback(async () => {
-    try {
-      const res = await apiClient.get("/api/calendar/notifications-summary");
-      const data = res.data;
-      setSummary({
-        todayItems: data?.todayItems || [],
-        upcoming24h: data?.upcoming24h || [],
-        overdueTasks: data?.overdueTasks || [],
-        approachingTasks: data?.approachingTasks || [],
-        badgeCount: data?.badgeCount || 0,
-      });
-    } catch {
-      /* keep the last known summary; polling self-heals */
+  React.useEffect(() => { setSummary(null); }, [userId, orgId]);
+
+  const refresh = React.useCallback(async (reconcile = false) => {
+    if (!ready) return;
+    const generation = generationRef.current;
+    const existing = requestRef.current;
+    if (existing?.generation === generation) {
+      // Real events during a read require one follow-up to avoid losing updates.
+      if (reconcile) existing.rerun = true;
+      return existing.promise;
     }
-  }, []);
+    const task = { generation, rerun: false, promise: Promise.resolve() };
+    task.promise = (async () => {
+      do {
+        task.rerun = false;
+        try {
+          const res = await apiClient.get("/api/calendar/notifications-summary");
+          if (generation !== generationRef.current) return;
+          const data = res.data;
+          setSummary({
+            todayItems: data?.todayItems || [],
+            upcoming24h: data?.upcoming24h || [],
+            overdueTasks: data?.overdueTasks || [],
+            approachingTasks: data?.approachingTasks || [],
+            badgeCount: data?.badgeCount || 0,
+          });
+        } catch {
+          /* keep the last known summary; polling self-heals */
+        }
+      } while (task.rerun && generation === generationRef.current);
+    })().finally(() => {
+      if (requestRef.current === task) requestRef.current = null;
+    });
+    requestRef.current = task;
+    return task.promise;
+  }, [ready, userId, orgId]);
 
   React.useEffect(() => {
+    ++generationRef.current;
+    if (!ready) return;
     refresh();
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
 
-    const onEvent = () => refresh();
-    REFRESH_EVENTS.forEach((e) => socket?.on(e, onEvent));
-
     return () => {
+      ++generationRef.current;
+      requestRef.current = null;
       clearInterval(interval);
+    };
+  }, [ready, refresh]);
+
+  React.useEffect(() => {
+    if (!ready) return;
+    const onEvent = () => { void refresh(true); };
+    REFRESH_EVENTS.forEach((e) => socket?.on(e, onEvent));
+    return () => {
       REFRESH_EVENTS.forEach((e) => socket?.off(e, onEvent));
     };
-  }, [refresh, socket]);
+  }, [ready, refresh, socket]);
 
   const value = React.useMemo<Ctx>(
     () => ({

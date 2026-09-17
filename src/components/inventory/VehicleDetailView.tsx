@@ -53,6 +53,8 @@ interface VehicleDetailViewProps {
   shippingQuote?: number | null;
   isPublic?: boolean;
   compactHeader?: boolean;
+  /** Opt-in layout used only by the non-blocking mobile Inventory inspector. */
+  mobileInspector?: boolean;
   onBookTestDrive?: () => void;
   isComparing?: boolean;
   onToggleCompare?: (vehicleId: string) => void;
@@ -315,11 +317,13 @@ function Gallery({
   onOpenLightbox,
   vehicle,
   compact,
+  inspector,
 }: {
   images: string[];
   onOpenLightbox: (i: number) => void;
   vehicle: Vehicle;
   compact?: boolean;
+  inspector?: boolean;
 }) {
   const [idx, setIdx] = React.useState(0);
   const [loadedIdx, setLoadedIdx] = React.useState<Set<number>>(new Set());
@@ -397,9 +401,11 @@ function Gallery({
       <div
         className={cn(
           "relative overflow-hidden",
-          compact
-            ? "h-[42vw] max-h-82 min-h-44 sm:h-[34vw]"
-            : "h-[56vw] max-h-115 min-h-55",
+          inspector
+            ? "h-36 xs:h-40 sm:h-44"
+            : compact
+              ? "h-[42vw] max-h-82 min-h-44 sm:h-[34vw]"
+              : "h-[56vw] max-h-115 min-h-55",
           spinMode && "cursor-grab active:cursor-grabbing",
         )}
         onTouchStart={onTouchStart}
@@ -578,6 +584,7 @@ export function VehicleDetailView({
   onQuoteClick,
   shippingQuote,
   compactHeader,
+  mobileInspector = false,
   onBookTestDrive,
   isComparing,
   onToggleCompare,
@@ -733,9 +740,23 @@ export function VehicleDetailView({
         />
       )}
 
-      <div className="group flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain lg:flex-row lg:overflow-hidden">
+      <div
+        className={cn(
+          "group flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden",
+          mobileInspector
+            ? "overflow-hidden"
+            : "overflow-y-auto overscroll-contain",
+          "lg:flex-row lg:overflow-hidden",
+        )}
+      >
         {/* ══ LEFT / MAIN ══════════════════════════════════════════ */}
-        <div className="flex min-h-0 min-w-0 flex-col overflow-x-hidden lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col overflow-x-hidden",
+            mobileInspector && "flex-1 overflow-y-auto overscroll-contain",
+            "lg:flex-1 lg:overflow-y-auto lg:overscroll-contain",
+          )}
+        >
           <Gallery
             images={allImages}
             onOpenLightbox={(i) => {
@@ -744,6 +765,7 @@ export function VehicleDetailView({
             }}
             vehicle={vehicle}
             compact={compactHeader}
+            inspector={mobileInspector}
           />
 
           {/* Identity bar — sm+ */}
@@ -914,12 +936,14 @@ export function VehicleDetailView({
             </div>
           )}
 
-          {/* Mobile/tablet vehicle actions — in normal flow, never overlays tab content. */}
+          {/* Mobile/tablet actions stay in normal flow for the existing detail
+              surface. Inspector mode moves its three primary actions into a
+              pinned footer while keeping every secondary action available here. */}
           <section className="border-b border-border/50 bg-background px-3 py-3 lg:hidden">
             <p className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground/70">
               Vehicle Actions
             </p>
-            {onApplyNow && (
+            {!mobileInspector && onApplyNow && (
               <Button
                 className="mb-2 min-h-11 h-auto w-full gap-2 whitespace-normal bg-primary py-2 text-sm font-black text-primary-foreground shadow-md shadow-primary/20"
                 onClick={() => onApplyNow(vehicle)}
@@ -928,7 +952,7 @@ export function VehicleDetailView({
               </Button>
             )}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(132px,1fr))] gap-2">
-              {onInquiryClick && (
+              {!mobileInspector && onInquiryClick && (
                 <Button
                   variant="outline"
                   className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-xs font-semibold"
@@ -938,16 +962,18 @@ export function VehicleDetailView({
                   Check Availability
                 </Button>
               )}
-              <Button
-                variant="outline"
-                className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-xs font-semibold"
-                asChild
-              >
-                <a href="tel:8017666137">
-                  <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  Call (801) 766-6137
-                </a>
-              </Button>
+              {!mobileInspector && (
+                <Button
+                  variant="outline"
+                  className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-xs font-semibold"
+                  asChild
+                >
+                  <a href="tel:8017666137">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    Call (801) 766-6137
+                  </a>
+                </Button>
+              )}
               {onCreateLoad && (
                 <Button
                   className="min-h-10 h-auto gap-1.5 whitespace-normal px-2 py-2 text-xs font-semibold"
@@ -1439,6 +1465,44 @@ export function VehicleDetailView({
 
           {/* Mobile actions live above the tabs so they never cover content. */}
         </div>
+
+        {mobileInspector && (
+          <section className="shrink-0 border-t border-border/60 bg-background/96 px-3 py-2.5 shadow-[0_-10px_28px_rgba(0,0,0,0.10)] backdrop-blur-xl lg:hidden">
+            {onApplyNow && (
+              <Button
+                className="mb-2 min-h-10 h-auto w-full gap-2 whitespace-normal bg-primary py-2 text-xs font-black text-primary-foreground shadow-sm shadow-primary/20"
+                onClick={() => onApplyNow(vehicle)}
+              >
+                <DollarSign className="h-3.5 w-3.5 shrink-0" /> Apply for Financing
+              </Button>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              {onInquiryClick && (
+                <Button
+                  variant="outline"
+                  className="min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-[11px] font-semibold"
+                  onClick={() => onInquiryClick(vehicle)}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  Availability
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className={cn(
+                  "min-h-10 h-auto gap-1.5 whitespace-normal border-border/60 px-2 py-2 text-[11px] font-semibold",
+                  !onInquiryClick && "col-span-2",
+                )}
+                asChild
+              >
+                <a href="tel:8017666137">
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  Call (801) 766-6137
+                </a>
+              </Button>
+            </div>
+          </section>
+        )}
 
         {/* ══ RIGHT SIDEBAR (desktop) ══════════════════════════════ */}
         <div className="hidden min-h-0 border-l border-border/50 bg-background lg:flex lg:w-80 lg:flex-col xl:w-96">
