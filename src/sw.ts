@@ -1,6 +1,6 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
-import { NetworkFirst, Serwist, setCacheNameDetails } from "serwist";
+import { NetworkFirst, NetworkOnly, Serwist, setCacheNameDetails } from "serwist";
 
 declare global {
   interface ServiceWorkerGlobalScope extends SerwistGlobalConfig {
@@ -42,6 +42,47 @@ const navigationFix: RuntimeCaching[] = [
   },
 ];
 
+// SupraSpace conversations, search results, attachment metadata and auth
+// responses are user-specific. Serwist's default Next.js cache includes a
+// NetworkFirst `/api/*` route, whose offline fallback can otherwise replay a
+// prior account's data after logout or an account switch. The page keeps a
+// deliberately user-keyed, bounded conversation snapshot in IndexedDB for its
+// own offline shell; the service worker must never cache authenticated APIs.
+function isPrivateMediaUrl(url: URL, depth = 0): boolean {
+  const hasSignedParameter = ["X-Amz-Signature", "X-Amz-Algorithm", "X-Amz-Credential", "signature", "token", "expires"]
+    .some((key) => url.searchParams.has(key));
+  if (hasSignedParameter || url.hostname.endsWith(".r2.cloudflarestorage.com")) return true;
+  const optimizedSource = url.searchParams.get("url");
+  if (!optimizedSource || depth >= 1) return false;
+  try {
+    return isPrivateMediaUrl(new URL(optimizedSource), depth + 1);
+  } catch {
+    return false;
+  }
+}
+
+const privateDataBypass: RuntimeCaching[] = [
+  {
+    matcher: ({ sameOrigin, url: { pathname } }) => sameOrigin && pathname.startsWith("/api/"),
+    handler: new NetworkOnly(),
+  },
+  {
+    matcher: ({ request, sameOrigin, url: { pathname } }) => (
+      sameOrigin
+      && request.headers.get("RSC") === "1"
+      && (pathname.startsWith("/supraspace") || pathname.startsWith("/crm/supra-space"))
+    ),
+    handler: new NetworkOnly(),
+  },
+  {
+    matcher: ({ request, url }) => {
+      if (request.method !== "GET") return false;
+      return isPrivateMediaUrl(url);
+    },
+    handler: new NetworkOnly(),
+  },
+];
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   // Was `true` (new SW takes over the instant it finishes installing), which
@@ -56,7 +97,7 @@ const serwist = new Serwist({
   // navigations; defaultCache's (broken) pages route becomes unreachable
   // dead code, harmlessly, and everything else in defaultCache (fonts,
   // images, RSC, JS/CSS chunks, API routes, etc.) is untouched.
-  runtimeCaching: [...navigationFix, ...defaultCache],
+  runtimeCaching: [...privateDataBypass, ...navigationFix, ...defaultCache],
   fallbacks: {
     entries: [
       {
@@ -72,9 +113,41 @@ const serwist = new Serwist({
 const SS4_SHARE_TARGET_PATHS = new Set(["/share-target", "/supraspace/share-target", "/crm/supra-space/share-target"]);
 const SS4_SHARE_TARGET_CACHE = "ss4-share-target";
 const SS4_SHARE_TARGET_PREFIX = "/__ss4-share-target";
+const SS4_SHARE_TARGET_MAX_AGE_MS = 30 * 60 * 1000;
+const SS4_CLEAR_PRIVATE_DATA_MESSAGE = "SUPRASPACE_CLEAR_PRIVATE_DATA";
 
 function ss4ShareTargetCacheUrl(path: string): string {
   return new URL(path, self.location.origin).href;
+}
+
+async function deleteSS4ShareTarget(cache: Cache, id: string): Promise<void> {
+  if (!id) return;
+  const prefix = ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${id}/`);
+  const keys = await cache.keys();
+  await Promise.all(keys.map((key) => key.url.startsWith(prefix) ? cache.delete(key) : Promise.resolve(false)));
+}
+
+async function clearSupraSpacePrivateData(): Promise<void> {
+  const cacheNames = await caches.keys();
+  // These are the only default Serwist caches that could have contained
+  // authenticated API or signed media before the bypass above. Leave the
+  // application shell, fonts and static chunks intact.
+  await Promise.all(cacheNames.map((name) => (
+    /(?:^|-)(?:apis|next-image|static-image-assets|static-video-assets|cross-origin)(?:-|$)/.test(name)
+      || name === SS4_SHARE_TARGET_CACHE
+      ? caches.delete(name)
+      : Promise.resolve(false)
+  )));
+  await new Promise<void>((resolve) => {
+    try {
+      const request = indexedDB.deleteDatabase("suprah-space-cache");
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      request.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
 }
 
 async function handleSS4ShareTargetPost(request: Request): Promise<Response> {
@@ -93,6 +166,22 @@ async function handleSS4ShareTargetPost(request: Request): Promise<Response> {
   try {
     const formData = await request.formData();
     const cache = await caches.open(SS4_SHARE_TARGET_CACHE);
+    const existingKeys = await cache.keys();
+    const existingIds = new Set(existingKeys
+      .map((key) => new URL(key.url).pathname.match(/^\/__ss4-share-target\/([^/]+)\/manifest$/)?.[1])
+      .filter((id): id is string => Boolean(id)));
+    await Promise.all(Array.from(existingIds).map(async (id) => {
+      const manifestResponse = await cache.match(ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${id}/manifest`));
+      if (!manifestResponse) return deleteSS4ShareTarget(cache, id);
+      try {
+        const previous = await manifestResponse.clone().json() as { createdAt?: number };
+        if (!previous.createdAt || Date.now() - previous.createdAt > SS4_SHARE_TARGET_MAX_AGE_MS) {
+          await deleteSS4ShareTarget(cache, id);
+        }
+      } catch {
+        await deleteSS4ShareTarget(cache, id);
+      }
+    }));
     const files: File[] = [];
 
     formData.forEach((value, key) => {
@@ -144,12 +233,23 @@ async function handleSS4ShareTargetCacheRequest(request: Request, url: URL): Pro
   const cache = await caches.open(SS4_SHARE_TARGET_CACHE);
   if (request.method === "DELETE") {
     const id = url.pathname.split("/")[2] || "";
-    if (id) {
-      const prefix = ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${id}/`);
-      const keys = await cache.keys();
-      await Promise.all(keys.map(key => key.url.startsWith(prefix) ? cache.delete(key) : Promise.resolve(false)));
-    }
+    await deleteSS4ShareTarget(cache, id);
     return new Response(null, { status: 204 });
+  }
+  const id = url.pathname.split("/")[2] || "";
+  if (id) {
+    const manifestResponse = await cache.match(ss4ShareTargetCacheUrl(`${SS4_SHARE_TARGET_PREFIX}/${id}/manifest`));
+    if (!manifestResponse) return new Response("Not found", { status: 404 });
+    try {
+      const manifest = await manifestResponse.clone().json() as { createdAt?: number };
+      if (!manifest.createdAt || Date.now() - manifest.createdAt > SS4_SHARE_TARGET_MAX_AGE_MS) {
+        await deleteSS4ShareTarget(cache, id);
+        return new Response("Not found", { status: 404 });
+      }
+    } catch {
+      await deleteSS4ShareTarget(cache, id);
+      return new Response("Not found", { status: 404 });
+    }
   }
   const cached = await cache.match(request);
   return cached || new Response("Not found", { status: 404 });
@@ -168,6 +268,14 @@ self.addEventListener("fetch", (event: any) => {
 });
 
 serwist.addEventListeners();
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === SS4_CLEAR_PRIVATE_DATA_MESSAGE) {
+    const extendableEvent = event as MessageEvent & { waitUntil?: (promise: Promise<unknown>) => void };
+    const cleanup = clearSupraSpacePrivateData();
+    if (extendableEvent.waitUntil) extendableEvent.waitUntil(cleanup);
+  }
+});
 
 // --- CUSTOM WEB PUSH LISTENERS ---
 // (unchanged from your original — carried over verbatim)
@@ -727,8 +835,6 @@ async function handleSupraSpaceBackgroundAction(action: "mark_read" | "reply", d
  * "open the conversation" click behavior).
  */
 async function handleBackgroundAction(action: string, data: any, replyText?: string): Promise<boolean> {
-  console.log(`[SW] Handling action: ${action}`, data);
-
   if (action === "mark_read" || action === "reply") {
     return handleSupraSpaceBackgroundAction(action, data, replyText);
   }

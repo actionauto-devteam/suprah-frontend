@@ -11,7 +11,8 @@ export type NotificationPlatform = "ios" | "android" | "desktop";
  * needs its own (very different) enablement path from Android/desktop. */
 export function getNotificationPlatform(): NotificationPlatform {
   if (typeof navigator === "undefined") return "desktop";
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isIPadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) || isIPadDesktopMode) && !(window as any).MSStream;
   if (isIOS) return "ios";
   if (/Android/i.test(navigator.userAgent)) return "android";
   return "desktop";

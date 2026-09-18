@@ -2,7 +2,9 @@
 
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
+import { isAxiosError } from 'axios';
+import type { Socket } from 'socket.io-client';
+import { useSupraSpaceSocket } from '@/hooks/useSupraSpaceSocket';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
@@ -112,6 +114,13 @@ interface MessengerCtxValue {
   deleteConversation: (convId: string) => Promise<{ permanent: boolean }>;
   refreshConversations: () => void;
   refreshSpaces: () => void;
+}
+
+const RealtimeContext = React.createContext<ReturnType<typeof useSupraSpaceSocket> | null>(null);
+export function useSupraSpaceRealtime() {
+  const realtime = React.useContext(RealtimeContext);
+  if (!realtime) throw new Error('SupraSpace realtime provider is missing');
+  return realtime;
 }
 
 const MessengerContext = React.createContext<MessengerCtxValue | null>(null);
@@ -265,10 +274,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const conversationsRef                  = React.useRef<SSConv[]>([]);
   const conversationsFetchInFlightRef     = React.useRef(false);
   const tokenRecoveryAttemptedRef         = React.useRef(false);
-  const [socket, setSocket]               = React.useState<Socket | null>(null);
-  const [isConnected, setIsConnected]     = React.useState(false);
+  const realtime = useSupraSpaceSocket(crmToken);
+  const { socket, isConnected } = realtime;
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
+  const openChatPopupRef = React.useRef<(conversationId: string) => void>(() => undefined);
   const [myAvatar, setMyAvatar]           = React.useState<string | undefined>(undefined);
   const [myFullName, setMyFullName]       = React.useState('');
   const [notifPrefs, setNotifPrefs]       = React.useState<Record<string, NotifPref>>({});
@@ -437,35 +447,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   // ── Socket connection ─────────────────────────────────────────────────────────
   React.useEffect(() => {
-    if (!crmToken) return;
-
-    const s = io(process.env.NEXT_PUBLIC_API_URL || '', {
-      path: '/socket/supraspace',
-      auth: { token: crmToken },
-      // Start with polling so the connection survives mobile network transitions;
-      // upgrade to websocket once the connection is stable.
-      transports: ['polling', 'websocket'],
-      upgrade: true,
-      // Never stop retrying — mobile devices can background the app for long
-      // periods and the socket must recover automatically when they return.
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 30000,
-      // Keep the connection alive through brief network gaps (mobile switching).
-      timeout: 20000,
-    });
-
-    s.on('connect', () => {
-      setIsConnected(true);
-      setSocket(s);
-    });
-
-    s.on('disconnect', () => {
-      setIsConnected(false);
-    });
-
+    if (!socket || !crmUserId) return;
+    const subscriptions: Array<[string, Parameters<Socket['on']>[1]]> = [];
+    const listen = (event: string, handler: Parameters<Socket['on']>[1]) => {
+      subscriptions.push([event, handler]);
+      socket.on(event, handler);
+    };
+    const seenMessages = new Set<string>();
     // New message → update conversation lastMessage + re-sort + sound
-    s.on('message:new', ({ conversationId, message }: { conversationId: string; message: SSLastMessage }) => {
+    listen('message:new', ({ conversationId, message }: { conversationId: string; message: SSLastMessage }) => {
+      if (seenMessages.has(message._id)) return;
+      seenMessages.add(message._id);
+      if (seenMessages.size > 1000) seenMessages.delete(seenMessages.values().next().value!);
       setConversations((prev) => {
         const updated = prev.map((conv) => {
           if (conv._id !== conversationId) return conv;
@@ -506,7 +499,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
               conversationId,
               messageId: message._id,
             });
-          } else if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/crm/supra-space')) {
+          } else if (typeof window !== 'undefined' && !['/crm/supra-space', '/supraspace', '/'].includes(window.location.pathname)) {
             // Tab is focused but the user is on a different dashboard page —
             // the OS notification path above never fires here, so this is
             // the only signal they'd otherwise get until they happen to open
@@ -519,19 +512,19 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
               title: isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message'),
               body: isGroup ? `${message.sender?.fullName}: ${preview}` : preview,
               avatar: isGroup ? (conv?.avatar || undefined) : message.sender?.avatar,
-              onOpen: openChatPopup,
+              onOpen: (conversationId) => openChatPopupRef.current(conversationId),
             });
           }
         }
       }
     });
 
-    s.on('message:reaction', (payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null }) => {
+    listen('message:reaction', (payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null }) => {
       setConversations(prev => applyReactionActivityToConversations(prev, payload));
     });
 
     // New conversation was created → prepend if not already in list
-    s.on('conversation:new', (conv: SSConv) => {
+    listen('conversation:new', (conv: SSConv) => {
       if (conv.notificationPreference) {
         setNotifPrefs(prev => ({ ...prev, [conv._id]: conv.notificationPreference! }));
       }
@@ -540,13 +533,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       );
     });
 
-    s.on('conversation:manual-unread', ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
+    listen('conversation:manual-unread', ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
       setConversations(prev => prev.map(conv =>
         conv._id === conversationId ? { ...conv, manualUnread: unread, unreadCount: unread ? Math.max(conv.unreadCount || 0, 1) : conv.unreadCount } : conv
       ));
     });
 
-    s.on('conversation:notification-preference', ({ conversationId, preference }: { conversationId: string; preference: NotifPref }) => {
+    listen('conversation:notification-preference', ({ conversationId, preference }: { conversationId: string; preference: NotifPref }) => {
       setNotifPrefs(prev => ({ ...prev, [conversationId]: preference }));
       setConversations(prev => prev.map(conv =>
         conv._id === conversationId ? { ...conv, notificationPreference: preference } : conv
@@ -554,24 +547,24 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
 
     // Conversation moved to/from a space
-    s.on('conversation:moved', ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) => {
+    listen('conversation:moved', ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) => {
       setConversations((prev) =>
         prev.map((c) => c._id === conversationId ? { ...c, spaceId: spaceId || null } : c)
       );
     });
 
     // New space created
-    s.on('space:new', ({ space }: { space: SSSpace }) => {
+    listen('space:new', ({ space }: { space: SSSpace }) => {
       setSpaces((prev) => prev.find(sp => sp._id === space._id) ? prev : [...prev, space]);
     });
 
     // Space updated
-    s.on('space:updated', ({ space }: { space: SSSpace }) => {
+    listen('space:updated', ({ space }: { space: SSSpace }) => {
       setSpaces((prev) => prev.map(sp => sp._id === space._id ? space : sp));
     });
 
     // Space deleted → remove from list, unlink conversations
-    s.on('space:deleted', ({ spaceId }: { spaceId: string }) => {
+    listen('space:deleted', ({ spaceId }: { spaceId: string }) => {
       setSpaces((prev) => prev.filter(sp => sp._id !== spaceId));
       setConversations((prev) =>
         prev.map((c) => c.spaceId === spaceId ? { ...c, spaceId: null } : c)
@@ -579,7 +572,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
 
     // All conversations marked read (bulk) → zero every unread badge locally
-    s.on('conversations:all-read', ({ conversationIds }: { conversationIds: string[] }) => {
+    listen('conversations:all-read', ({ conversationIds }: { conversationIds: string[] }) => {
       if (!crmUserId) return;
       const idSet = new Set(conversationIds);
       setConversations((prev) =>
@@ -597,7 +590,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
 
     // Profile updated → patch member avatars in all conversations
-    s.on('user:profile:updated', ({ userId, avatar, fullName }: { userId: string; avatar?: string; fullName?: string }) => {
+    listen('user:profile:updated', ({ userId, avatar, fullName }: { userId: string; avatar?: string; fullName?: string }) => {
       if (userId === crmUserId && avatar) setMyAvatar(avatar);
       setConversations((prev) =>
         prev.map((conv) => ({
@@ -611,24 +604,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       );
     });
 
-    // Reconnect immediately when the PWA/tab comes back to the foreground.
-    // On mobile the OS can suspend socket I/O while backgrounded; this ensures
-    // the socket is live again before the user sees the chat UI.
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !s.connected) {
-        s.connect();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      s.removeAllListeners();
-      s.disconnect();
-      setSocket(null);
-      setIsConnected(false);
-    };
-  }, [crmToken]);
+    return () => { subscriptions.forEach(([event, handler]) => socket.off(event, handler)); };
+  }, [socket, crmUserId, resolveNotifPref]);
 
   // ── Derived unread count ──────────────────────────────────────────────────────
   const totalUnread = React.useMemo(() => {
@@ -658,7 +635,12 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // setAppBadge() on every dashboard page, with the SupraSpace-only count
   // sometimes winning and stomping the general one.
   React.useEffect(() => {
-    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    if (typeof navigator === 'undefined') return;
+    const appBadgeNavigator = navigator as Navigator & {
+      setAppBadge?: (contents?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (!appBadgeNavigator.setAppBadge || !appBadgeNavigator.clearAppBadge) return;
     // Standalone SupraSpace app only (/supraspace) — the /crm/supra-space
     // dashboard-embedded page has NotificationProvider mounted above it and
     // already owns the badge for all notification types there; this only
@@ -666,9 +648,9 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     if (!pathname?.startsWith('/supraspace')) return;
     try {
       if (totalUnread > 0) {
-        (navigator as any).setAppBadge(totalUnread).catch(() => {});
+        appBadgeNavigator.setAppBadge(totalUnread).catch(() => {});
       } else {
-        (navigator as any).clearAppBadge().catch(() => {});
+        appBadgeNavigator.clearAppBadge().catch(() => {});
       }
     } catch {
       // Best-effort — App Badge API support is inconsistent across browsers.
@@ -687,6 +669,9 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
     setMinimizedChats((m) => { const n = new Set(m); n.delete(convId); return n; });
   }, []);
+  React.useEffect(() => {
+    openChatPopupRef.current = openChatPopup;
+  }, [openChatPopup]);
 
   const openDirectChat = React.useCallback(async (targetUserId: string): Promise<SSConv> => {
     if (!crmToken) {
@@ -705,11 +690,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         { targetUserId },
         authConfig(crmToken, true),
       );
-    } catch (error: any) {
-      const status = error?.response?.status;
+    } catch (error: unknown) {
+      const status = isAxiosError<{ message?: string }>(error) ? error.response?.status : undefined;
       if (status === 404 || status === 409) {
         const unavailableError = new Error(
-          error?.response?.data?.message ||
+          (isAxiosError<{ message?: string }>(error) ? error.response?.data?.message : undefined) ||
             'This user does not have an active Suprah Space account.',
         ) as Error & { code?: string; status?: number };
         unavailableError.name = 'SupraSpaceUnavailableError';
@@ -750,7 +735,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const toggleMinimize = React.useCallback((convId: string) => {
     setMinimizedChats((prev) => {
       const n = new Set(prev);
-      n.has(convId) ? n.delete(convId) : n.add(convId);
+      if (n.has(convId)) n.delete(convId);
+      else n.add(convId);
       return n;
     });
   }, []);
@@ -840,9 +826,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     }
   }, [crmToken, fetchConversations]);
 
-  return (
-    <MessengerContext.Provider
-      value={{
+  const value = React.useMemo(() => ({
         conversations,
         spaces,
         totalUnread,
@@ -871,9 +855,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         deleteConversation,
         refreshConversations: fetchConversations,
         refreshSpaces: fetchSpaces,
-      }}
-    >
-      {children}
-    </MessengerContext.Provider>
+
+  }), [conversations, spaces, totalUnread, crmUserId, crmToken, myFullName, isLoadingConversations, conversationError, isConnected, openChats, minimizedChats, socket, myAvatar, notifPrefs, setNotifPrefs, prioritySenders, setPrioritySenders, openChatPopup, openDirectChat, closeChatPopup, toggleMinimize, markAsRead, markAllAsRead, markConversationUnread, archiveConversation, deleteConversation, fetchConversations, fetchSpaces]);
+  return (
+    <RealtimeContext.Provider value={realtime}>
+      <MessengerContext.Provider value={value}>
+        {children}
+      </MessengerContext.Provider>
+    </RealtimeContext.Provider>
   );
 }

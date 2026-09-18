@@ -456,6 +456,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // sit in IndexedDB (readable by the service worker) after logout.
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("supraspace:refresh-crm-token"));
+        // A dedicated SupraSpace PWA may hold its own user-keyed offline
+        // snapshot and transient shared media. Ask its worker to remove only
+        // that private data when the account signs out, while preserving the
+        // application shell needed for the next sign-in.
+        window.dispatchEvent(new Event("suprah:clear-private-cache"));
+        if ("serviceWorker" in navigator) {
+          void navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((registration) => {
+              registration.active?.postMessage({ type: "SUPRASPACE_CLEAR_PRIVATE_DATA" });
+            });
+          }).catch(() => {});
+        }
       }
       router.push(options?.redirectUrl || "/sign-in");
       void apiClient.post("/api/auth/logout").catch(() => {});

@@ -1,22 +1,32 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
-export function GET() {
-    const isProd = process.env.NODE_ENV === 'production';
+export function GET(request: Request) {
+    const requestUrl = new URL(request.url);
+    const requestHost = (request.headers.get('x-forwarded-host') || request.headers.get('host') || requestUrl.host)
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+    const isSupraSpaceHost = requestHost.split(':')[0] === 'space.suprah-app.com';
+    const startUrl = isSupraSpaceHost ? '/' : '/supraspace/';
+    const scope = isSupraSpaceHost ? '/' : '/supraspace/';
+    const shareTargetAction = isSupraSpaceHost ? '/share-target' : '/supraspace/share-target';
     return NextResponse.json(
         {
             id: 'suprah-space',
             name: 'SupraSpace',
             short_name: 'SupraSpace',
             description: 'Team messaging, calls, and status for Suprah.AI',
-            start_url: isProd ? 'https://space.suprah-app.com/' : '/',
-            scope: isProd ? 'https://space.suprah-app.com/' : '/',
+            // Relative values always resolve to the origin that served this
+            // manifest, including a reverse-proxied SupraSpace subdomain.
+            start_url: startUrl,
+            scope,
             display: 'standalone',
             background_color: '#0e0f11',
             theme_color: '#16a34a',
             share_target: {
-                action: '/share-target',
+                action: shareTargetAction,
                 method: 'POST',
                 enctype: 'multipart/form-data',
                 params: {
@@ -53,6 +63,6 @@ export function GET() {
                 { src: '/supra-space/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
             ],
         },
-        { headers: { 'Content-Type': 'application/manifest+json' } }
+        { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-store' } }
     );
 }

@@ -101,6 +101,8 @@ export interface SSPresenceEntry {
 }
 export interface PresenceMap { [userId: string]: SSPresenceEntry }
 export interface TypingMap { [conversationId: string]: Array<{ userId: string; fullName: string }> }
+type TypingStartEvent = { conversationId: string; userId: string; fullName: string };
+type TypingStopEvent = { conversationId: string; userId: string };
 
 function resolveSupraSpaceSocketUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -162,6 +164,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     });
 
     socketRef.current = socket;
+    setSocketState(socket);
 
     const emitPresenceHeartbeat = (activeOverride?: boolean) => {
       if (!socket.connected) return;
@@ -171,7 +174,6 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     };
 
     socket.on('connect', () => {
-      console.log('[SupraSpace] ? Connected via', socket.io.engine.transport.name, '| id:', socket.id);
       setIsConnected(true);
       setSocketState(socket);
       presenceActivityRef.current = true;
@@ -179,13 +181,11 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       socket.emit('presence:status_request'); // ask for the whole org's real online/away/busy/DND status
     });
 
-    socket.io.engine.on('upgrade', (transport: any) => {
-      console.log('[SupraSpace] ?? Upgraded transport to:', transport.name);
-    });
-
-    socket.on('disconnect', (reason) => {
-      console.log('[SupraSpace] ? Disconnected:', reason);
+    socket.on('disconnect', () => {
       setIsConnected(false);
+      setTyping({});
+      Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
+      typingExpiryTimersRef.current = {};
     });
 
     socket.on('connect_error', (err) => {
@@ -199,21 +199,36 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       (entries || []).forEach(({ userId, onlineStatus, customStatus, lastDeviceType }) => {
         next[userId] = { onlineStatus, customStatus, lastDeviceType };
       });
-      setPresence(next);
+      setPresence((previous) => {
+        const previousIds = Object.keys(previous);
+        const nextIds = Object.keys(next);
+        if (previousIds.length === nextIds.length && nextIds.every((userId) => {
+          const current = previous[userId];
+          const updated = next[userId];
+          return current?.onlineStatus === updated.onlineStatus
+            && current?.customStatus === updated.customStatus
+            && current?.lastDeviceType === updated.lastDeviceType;
+        })) return previous;
+        return next;
+      });
     });
 
     const applyPresenceUpdate = ({ userId, onlineStatus, customStatus, lastDeviceType }: {
       userId: string; onlineStatus?: SSOnlineStatus; customStatus?: string | null; lastDeviceType?: 'mobile' | 'desktop' | null;
     }) => {
       if (!onlineStatus) return;
-      setPresence((prev) => ({
-        ...prev,
-        [userId]: {
+      setPresence((prev) => {
+        const nextEntry = {
           onlineStatus,
           customStatus: customStatus ?? prev[userId]?.customStatus ?? null,
           lastDeviceType: lastDeviceType ?? prev[userId]?.lastDeviceType ?? null,
-        },
-      }));
+        };
+        const current = prev[userId];
+        if (current?.onlineStatus === nextEntry.onlineStatus
+          && current?.customStatus === nextEntry.customStatus
+          && current?.lastDeviceType === nextEntry.lastDeviceType) return prev;
+        return { ...prev, [userId]: nextEntry };
+      });
     };
 
     // Live relay of the same system-wide presence_update TeamPulse/profile use, translated
@@ -233,7 +248,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       }
     };
 
-    socket.on('typing:start', ({ conversationId, userId, fullName }: any) => {
+    socket.on('typing:start', ({ conversationId, userId, fullName }: TypingStartEvent) => {
       setTyping((prev) => {
         const existing = prev[conversationId] || [];
         if (existing.find((t) => t.userId === userId)) return prev;
@@ -244,19 +259,29 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       clearTypingWatchdog(key);
       typingExpiryTimersRef.current[key] = setTimeout(() => {
         delete typingExpiryTimersRef.current[key];
-        setTyping((prev) => ({
-          ...prev,
-          [conversationId]: (prev[conversationId] || []).filter((t) => t.userId !== userId),
-        }));
+        setTyping((prev) => {
+          const existing = prev[conversationId] || [];
+          const updated = existing.filter((t) => t.userId !== userId);
+          if (updated.length === existing.length) return prev;
+          if (updated.length) return { ...prev, [conversationId]: updated };
+          const next = { ...prev };
+          delete next[conversationId];
+          return next;
+        });
       }, 6000);
     });
 
-    socket.on('typing:stop', ({ conversationId, userId }: any) => {
+    socket.on('typing:stop', ({ conversationId, userId }: TypingStopEvent) => {
       clearTypingWatchdog(`${conversationId}:${userId}`);
-      setTyping((prev) => ({
-        ...prev,
-        [conversationId]: (prev[conversationId] || []).filter((t) => t.userId !== userId),
-      }));
+      setTyping((prev) => {
+        const existing = prev[conversationId] || [];
+        const updated = existing.filter((t) => t.userId !== userId);
+        if (updated.length === existing.length) return prev;
+        if (updated.length) return { ...prev, [conversationId]: updated };
+        const next = { ...prev };
+        delete next[conversationId];
+        return next;
+      });
     });
 
     const onVisibilityChange = () => {
@@ -285,6 +310,9 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
+      typingStartLastSentRef.current = {};
+      setPresence({});
+      setTyping({});
       setSocketState(null);
       setIsConnected(false);
       Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
@@ -299,15 +327,18 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socketRef.current?.emit('leave:conversation', { conversationId });
   }, []);
   const sendTypingStart = React.useCallback((conversationId: string) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) return;
     const now = Date.now();
     const lastSentAt = typingStartLastSentRef.current[conversationId] || 0;
     if (now - lastSentAt < 1200) return;
     typingStartLastSentRef.current[conversationId] = now;
-    socketRef.current?.emit('typing:start', { conversationId });
+    socket.emit('typing:start', { conversationId });
   }, []);
   const sendTypingStop = React.useCallback((conversationId: string) => {
     delete typingStartLastSentRef.current[conversationId];
-    socketRef.current?.emit('typing:stop', { conversationId });
+    const socket = socketRef.current;
+    if (socket?.connected) socket.emit('typing:stop', { conversationId });
   }, []);
   const markRead = React.useCallback((conversationId: string) => {
     socketRef.current?.emit('mark:read', { conversationId });
@@ -316,5 +347,5 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socketRef.current?.emit('mark:all:read');
   }, []);
 
-  return { socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead };
+  return React.useMemo(() => ({ socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead }), [socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead]);
 }

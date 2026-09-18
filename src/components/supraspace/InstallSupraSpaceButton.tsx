@@ -11,12 +11,14 @@ type Platform = 'ios' | 'android' | 'desktop';
 function detectPlatform(): Platform {
   if (typeof navigator === 'undefined') return 'desktop';
   const ua = navigator.userAgent || '';
-  if (/iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream) return 'ios';
+  const isIPadDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  if ((/iPad|iPhone|iPod/.test(ua) || isIPadDesktopMode) && !(window as Window & { MSStream?: unknown }).MSStream) return 'ios';
   if (/Android/i.test(ua)) return 'android';
   return 'desktop';
 }
 
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
+const SUPRASPACE_INSTALL_PROMPT_DISABLED_KEY = 'supraspace-install-prompt-disabled';
 
 // There's no cross-browser API to ask "was I launched from the SupraSpace
 // install or the main app install" — both share an origin (main app) or,
@@ -47,6 +49,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   // through "Add to Home Screen" again would be confusing. Point back at the
   // existing icon instead.
   const [alreadyInstalledElsewhere, setAlreadyInstalledElsewhere] = React.useState(false);
+  const [autoInstallPromptDisabled, setAutoInstallPromptDisabled] = React.useState(false);
   // Same tier as InstallPrompt/IOSInstallHint (2) — this shows near-identical
   // "Add to Home Screen" instructions and can otherwise land on SupraSpace's
   // page stacked on top of (or underneath) those, or PushPrompt/CrmPushPrompt,
@@ -65,6 +68,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     // offer "open" instead of "install" there.
     if (standalone) markSupraSpaceInstalled();
     setPlatform(detectPlatform());
+    setAutoInstallPromptDisabled(localStorage.getItem(SUPRASPACE_INSTALL_PROMPT_DISABLED_KEY) === '1');
     const onBip = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
     const onInstalled = () => { setInstalled(true); setDeferredPrompt(null); markSupraSpaceInstalled(); };
     window.addEventListener('beforeinstallprompt', onBip);
@@ -86,6 +90,13 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     slot.request();
   };
 
+  const disableAutomaticInstallPrompt = React.useCallback(() => {
+    localStorage.setItem(SUPRASPACE_INSTALL_PROMPT_DISABLED_KEY, '1');
+    setAutoInstallPromptDisabled(true);
+    setShowHint(false);
+    slot.release();
+  }, [slot.release]);
+
   // "Get SupraSpace" links on the main Suprah AI domain append ?install=1
   // before sending the user here (a real install can only be triggered from
   // SupraSpace's own origin — see the comment on those links). This is what
@@ -96,7 +107,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const autoInstallRequested = new URLSearchParams(window.location.search).get('install') === '1';
-    if (!autoInstallRequested || autoTriggeredRef.current || installed || alreadyInstalledElsewhere) return;
+    if (!autoInstallRequested || autoTriggeredRef.current || installed || alreadyInstalledElsewhere || autoInstallPromptDisabled) return;
 
     // Drop the param so a later refresh of this tab doesn't re-trigger.
     const cleanUrl = new URL(window.location.href);
@@ -122,7 +133,7 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
     }, 2000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deferredPrompt, installed, alreadyInstalledElsewhere, slot.request]);
+  }, [deferredPrompt, installed, alreadyInstalledElsewhere, autoInstallPromptDisabled, slot.request]);
 
   React.useEffect(() => {
     if (installed) slot.release();
@@ -251,6 +262,15 @@ export function InstallSupraSpaceButton({ variant = 'icon' }: { variant?: 'icon'
                 </div>
                 )}
               </div>
+              {!alreadyInstalledElsewhere && (
+                <button
+                  type="button"
+                  onClick={disableAutomaticInstallPrompt}
+                  className="mx-auto block pb-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
+                >
+                  Don&apos;t ask again
+                </button>
+              )}
             </div>
           </motion.div>
         )}

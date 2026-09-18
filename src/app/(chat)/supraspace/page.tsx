@@ -1,6 +1,19 @@
 'use client';
 
 import * as React from 'react';
+import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
+import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounter';
+import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
+import { useSupraSpaceViewport } from '@/components/supraspace/hooks/useSupraSpaceViewport';
+import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
+import { MessageTimeline } from '@/components/supraspace/messages/MessageTimeline';
+import { EventModal, MeetingJoinInfoModal, MeetingModal, PollModal, ScheduleMeetingModal } from '@/components/supraspace/ConversationCreationModals';
+import { ThreadReportModal, type ThreadReportAction } from '@/components/supraspace/ThreadReportModal';
+import { ManageMembersModal } from '@/components/supraspace/ManageMembersModal';
+import { ConversationSettingsModal } from '@/components/supraspace/ConversationSettingsModal';
+import { NotificationSettingsModal } from '@/components/supraspace/NotificationSettingsModal';
+import { ActiveUsersModal } from '@/components/supraspace/ActiveUsersModal';
+import { NewConversationModal } from '@/components/supraspace/NewConversationModal';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -25,18 +38,16 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 
 } from '@/components/ui/dropdown-menu';
-import { DateTimePicker } from '@/components/ui/datetime-picker';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSupraSpaceSocket, SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
+import { SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
-import { useSupraSpaceMessenger, SSSpace, type SSConv } from '@/context/SupraSpaceMessengerContext';
+import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } from '@/context/SupraSpaceMessengerContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
-import { DEPARTMENTS, deptLabel } from '@/lib/departments';
 import nextDynamic from 'next/dynamic';
 import { useCall, CallSession } from '@/hooks/useCall';
 import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
@@ -118,37 +129,10 @@ const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
 const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
 
-type SS4ViewportState = {
-  height: number;
-  top: number;
-  keyboardOpen: boolean;
-};
-
-function isTextEntryElement(element: Element | null): boolean {
-  if (!(element instanceof HTMLElement)) return false;
-  const target = element.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null;
-  if (!target) return false;
-  const style = window.getComputedStyle(target);
-  if (style.display === 'none' || style.visibility === 'hidden') return false;
-  const rect = target.getBoundingClientRect();
-  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
-  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < viewportHeight;
-}
-
 function isIOSLikeDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function readSafeAreaInsetBottom(): number {
-  if (typeof document === 'undefined' || !document.body) return 0;
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:fixed;left:0;bottom:0;height:env(safe-area-inset-bottom,0px);width:1px;visibility:hidden;pointer-events:none;';
-  document.body.appendChild(probe);
-  const value = Math.round(probe.getBoundingClientRect().height || 0);
-  probe.remove();
-  return Number.isFinite(value) ? Math.max(0, Math.min(value, 40)) : 0;
 }
 
 function getUnreadDotColor(): string {
@@ -1095,18 +1079,6 @@ const SS4_MOBILE_TEXT_COLORS = [
 ];
 
 
-const SS4_THEME_PRESETS: { name: string; accent: string | null; wallpaper: string | null }[] = [
-  { name: 'Default', accent: null, wallpaper: null },
-  { name: 'Ocean', accent: '#2e7fff', wallpaper: 'linear-gradient(160deg, rgba(46,127,255,0.14) 0%, rgba(46,127,255,0.05) 100%)' },
-  { name: 'Sunset', accent: '#f0683c', wallpaper: 'linear-gradient(160deg, rgba(240,104,60,0.16) 0%, rgba(240,104,60,0.06) 100%)' },
-  { name: 'Forest', accent: '#22b060', wallpaper: 'linear-gradient(160deg, rgba(34,176,96,0.16) 0%, rgba(34,176,96,0.06) 100%)' },
-  { name: 'Berry', accent: '#a855f7', wallpaper: 'linear-gradient(160deg, rgba(168,85,247,0.16) 0%, rgba(168,85,247,0.06) 100%)' },
-  { name: 'Rose', accent: '#f0568a', wallpaper: 'linear-gradient(160deg, rgba(240,86,138,0.16) 0%, rgba(240,86,138,0.06) 100%)' },
-  { name: 'Gold', accent: '#e0a13a', wallpaper: 'linear-gradient(160deg, rgba(224,161,58,0.16) 0%, rgba(224,161,58,0.06) 100%)' },
-  { name: 'Slate', accent: '#64748b', wallpaper: 'linear-gradient(160deg, rgba(100,116,139,0.16) 0%, rgba(100,116,139,0.06) 100%)' },
-  { name: 'Ice', accent: '#22d3ee', wallpaper: 'linear-gradient(160deg, rgba(34,211,238,0.14) 0%, rgba(34,211,238,0.05) 100%)' },
-];
-
 if (typeof document !== 'undefined') {
   let link = document.getElementById('ss4-fonts') as HTMLLinkElement | null;
   if (!link) {
@@ -1384,10 +1356,11 @@ if (typeof document !== 'undefined') {
     .ss4-poll-fill { position:absolute; left:0; top:0; bottom:0; background:var(--accent-muted); transition:width .35s ease; }
     .ss4-voice-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:14px; }
     @media (max-width:767px) {
-      .ss4 input, .ss4 textarea { font-size: 16px !important; }
-      .ss4-msg-column { max-width:min(82%,22rem); }
-      .ss4-msg-bubble { font-size:18px !important; line-height:1.66 !important; }
-      .ss4-msg-sender { font-size:14px !important; }
+      .ss4 input, .ss4 textarea { font-size:16px !important; }
+      .ss4-chat-header { min-height:60px; gap:8px!important; padding:10px 12px!important; }
+      .ss4-msg-column { max-width:min(80%,22rem); }
+      .ss4-msg-bubble { font-size:16px !important; line-height:1.5 !important; }
+      .ss4-msg-sender { font-size:12px !important; }
       .ss4-msg-actions { border-radius:18px!important; padding:5px!important; gap:3px!important; box-shadow:0 10px 30px rgba(0,0,0,.48)!important; }
       .ss4-msg-actions .ss4-action-emoji,
       .ss4-msg-actions .ss4-action-btn { height:36px!important; width:36px!important; font-size:20px!important; border-radius:13px!important; }
@@ -1406,7 +1379,8 @@ if (typeof document !== 'undefined') {
       .ss4-input-wrap { border:0; background:transparent; box-shadow:none; }
       .ss4-input-wrap:focus-within { box-shadow:none; }
       .ss4-mobile-composer-shell { display:flex; align-items:center; gap:10px; padding:4px 0; }
-      .ss4-mobile-round-action { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--bubble-other-bg); color:var(--text-primary); display:flex; align-items:center; justify-content:center; }
+      .ss4-mobile-round-action { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--bubble-other-bg); color:var(--text-primary); display:flex; align-items:center; justify-content:center; transition:transform .12s ease,background-color .12s ease; }
+      .ss4-mobile-round-action:active, .ss4-mobile-send:active { transform:scale(.94); }
       .ss4-composer-main { display:grid!important; grid-template-columns:44px minmax(0,1fr) auto; align-items:end; gap:8px; width:100%; max-width:100%; min-width:0; padding:4px 0; }
       .ss4-mobile-leading,.ss4-mobile-trailing,.ss4-mobile-emoji { display:flex!important; align-items:center; justify-content:center; }
       .ss4-mobile-leading { position:relative; }
@@ -1432,7 +1406,7 @@ if (typeof document !== 'undefined') {
         --epr-search-border-color:var(--accent); --epr-dark-picker-border-color:transparent;
         --epr-picker-border-color:transparent;
       }
-      .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; }
+      .ss4-mobile-send { height:44px; width:44px; border-radius:999px; flex-shrink:0; background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; transition:transform .12s ease,background-color .12s ease; }
       .ss4-mobile-format-toolbar { display:flex; align-items:center; gap:8px; height:50px; margin:0 -1px; padding:0 8px; background:var(--bg-elevated); border-top:1px solid var(--border-1); border-bottom:1px solid var(--border-1); overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
       .ss4-mobile-format-toolbar::-webkit-scrollbar { display:none; }
       .ss4-mobile-format-btn { height:42px; min-width:36px; border-radius:10px; color:var(--text-secondary); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -1454,6 +1428,8 @@ if (typeof document !== 'undefined') {
       html.ss4-ios-keyboard-open .ss4-chat-messages {
         padding-bottom:calc(var(--ss4-composer-height, 76px) + var(--ss4-ios-keyboard-accessory-height, 0px)) !important;
       }
+      .ss4-chat-messages { overscroll-behavior-y:contain; scroll-padding-bottom:calc(var(--ss4-composer-height, 76px) + 12px); }
+      .ss4-chat-composer-dock { background:var(--bg-base); border-top:1px solid var(--border-1); }
       .ss4-desktop-toolbar { display:none!important; }
       .ss4-conv { gap:12px; padding-top:10px; padding-bottom:10px; }
       .ss4-section-label { font-size:11px; letter-spacing:.08em; }
@@ -1461,9 +1437,9 @@ if (typeof document !== 'undefined') {
       .ss4-sidebar .ss4-search-field .ss4-search-input { height:44px; font-size:16px !important; }
     }
     @media (max-width:767px) and (hover:none) and (pointer:coarse) {
-      .ss4-conv-name { font-size:18px !important; line-height:1.25 !important; }
-      .ss4-conv-preview { font-size:17px !important; line-height:1.35 !important; }
-      .ss4-conv-time { font-size:12.5px !important; }
+      .ss4-conv-name { font-size:16px !important; line-height:1.25 !important; }
+      .ss4-conv-preview { font-size:14px !important; line-height:1.35 !important; }
+      .ss4-conv-time { font-size:12px !important; }
     }
     @media (min-width:768px) {
       .ss4-mobile-composer-shell { display:none; }
@@ -3402,9 +3378,15 @@ function reactionActivityPreviewText(conv: SSConversation, uid: string, message?
   const reaction = conv.lastReaction;
   const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
   const messageAt = message?.createdAt ? new Date(message.createdAt).getTime() : 0;
-  if (!reaction?.emoji || !Number.isFinite(reactionAt) || reactionAt <= 0 || reactionAt < messageAt) return null;
-  const actor = reaction.userId === uid ? 'You' : shortReactionName(reaction.userName);
-  return `${actor} reacted ${reaction.emoji}`;
+  if (
+    !reaction?.emoji
+    || reaction.userId === uid
+    || message?.sender?._id !== uid
+    || !Number.isFinite(reactionAt)
+    || reactionAt <= 0
+    || reactionAt < messageAt
+  ) return null;
+  return `${shortReactionName(reaction.userName)} reacted ${reaction.emoji} to your message`;
 }
 
 function isNearWhiteHexColor(color?: string): boolean {
@@ -3984,8 +3966,6 @@ type SS4ThreadReportDocument = {
   entries: SS4ThreadReportEntry[];
 };
 
-type SS4ThreadReportAction = 'pdf' | 'docx' | 'copy';
-
 function formatSS4ThreadReportGeneratedAt(): string {
   return new Date().toLocaleString('en-US', {
     month: 'long',
@@ -4374,6 +4354,11 @@ const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   );
 });
 
+function supportedVoiceMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined') return undefined;
+  return ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
+}
+
 function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
   const { getToken } = useAuth();
   const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -4409,9 +4394,11 @@ function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: 
   return (
     <div className={cn('ss4-voice-bar', own ? 'ss4-file-own' : 'ss4-file-other')} style={{ minWidth: 200, maxWidth: 280 }}>
       <button
+        type="button"
         onClick={handlePlay}
-        disabled={audioErr}
-        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40"
+        className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+        title={audioErr ? 'Retry audio playback' : playing ? 'Pause voice message' : 'Play voice message'}
+        aria-label={audioErr ? 'Retry audio playback' : playing ? 'Pause voice message' : 'Play voice message'}
         style={{ background: own ? 'rgba(255,255,255,0.18)' : 'var(--accent-muted)', color: own ? '#fff' : 'var(--accent)' }}>
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
@@ -6188,6 +6175,7 @@ const Bubble = React.memo(function Bubble({
                 onMouseUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyUp={() => { rememberEditSelection(); refreshEditActiveFormats(); }}
                 onKeyDown={e => {
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
                     editPastePlainTextShortcutRef.current = true;
                     window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
@@ -6752,7 +6740,7 @@ const Bubble = React.memo(function Bubble({
               if (images.length === 1) return (
                 <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(images[0]), type: 'image', name: images[0].originalName }); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0]} alt={images[0].originalName} className="h-full w-full rounded-xl object-contain" style={{ display: 'block' }} />
+                  <SS4AttachmentImage attachment={images[0]} alt={images[0].originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
                 </button>
               );
               const gallery = images.map(im => ({ src: getAttachmentMediaUrl(im), type: 'image' as const, name: im.originalName }));
@@ -6761,7 +6749,7 @@ const Bubble = React.memo(function Bubble({
                   {images.map((att, i) => (
                     <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(att), type: 'image', name: att.originalName, gallery, index: i }); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <SS4AttachmentImage attachment={att} alt={att.originalName} className="w-full h-full object-contain rounded-xl" style={{ display: 'block' }} />
+                      <SS4AttachmentImage attachment={att} alt={att.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
                     </button>
                   ))}
                 </div>
@@ -7086,136 +7074,6 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   );
 }
 
-function NewConvModal({ users, theme, onClose, onStartDM, onCreateGroup, onCreateSpace, defaultTab = 'dm' }: {
-  users: CrmUser[];
-  theme: 'dark' | 'light';
-  onClose: () => void; onStartDM: (id: string) => void;
-  onCreateGroup: (name: string, ids: string[], emoji?: string) => void;
-  onCreateSpace: (name: string, convIds: string[], emoji?: string) => void;
-  defaultTab?: 'dm' | 'group' | 'space';
-}) {
-  const [tab, setTab] = React.useState<'dm' | 'group' | 'space'>(defaultTab);
-  const [q, setQ] = React.useState('');
-  const [groupName, setGroupName] = React.useState('');
-  const [groupEmoji, setGroupEmoji] = React.useState('');
-  const [sel, setSel] = React.useState<string[]>([]);
-  const list = users.filter(u => u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
-  const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const selectedUsers = users.filter(u => sel.includes(u._id));
-  const autoGroupName = selectedUsers.length > 0
-    ? `${selectedUsers.slice(0, 3).map(u => u.fullName.split(' ')[0] || u.fullName).join(', ')}${selectedUsers.length > 3 ? ` +${selectedUsers.length - 3}` : ''}`
-    : 'New Group';
-  const startSmartMessage = () => {
-    if (sel.length === 1) {
-      onStartDM(sel[0]);
-      return;
-    }
-    if (sel.length > 1) onCreateGroup(autoGroupName, sel);
-  };
-  const TABS: { key: 'dm' | 'group' | 'space'; label: string }[] = [
-    { key: 'dm', label: 'Direct Message' },
-    { key: 'group', label: 'Channel' },
-    { key: 'space', label: 'Space' },
-  ];
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ background: 'var(--bg-elevated)', maxHeight: 'min(85dvh, 640px)' }}>
-        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>New Conversation</h2>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll">
-        <div className="px-4 pt-4 pb-3">
-          <div className="ss4-tab-bar flex gap-1">
-            {TABS.map(t => (
-              <button key={t.key} onClick={() => { setTab(t.key); setQ(''); }} className={cn('flex-1 h-7 ss4-tab', t.key === tab && 'ss4-tab-active')}
-                style={{ fontSize: 11, color: t.key === tab ? '#fff' : (theme === 'light' ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.52)') }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="px-4 pb-4 space-y-3">
-          {tab === 'group' && (
-            <div className="flex gap-2">
-              <input value={groupEmoji} onChange={e => setGroupEmoji(e.target.value)} placeholder="#" className="w-12 h-9 rounded-lg px-2 text-center ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif', fontSize: 18 }} maxLength={4} />
-              <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Channel name..." className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
-            </div>
-          )}
-          {tab === 'space' && (
-            <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Space name..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
-          )}
-          {tab === 'dm' && selectedUsers.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
-              {selectedUsers.map(u => (
-                <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(22,163,74,0.2)' }}>
-                  <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
-                  <button onClick={() => toggle(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }} title={`Remove ${u.fullName}`}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {tab !== 'space' && (
-            <>
-              <div className="relative">
-                <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-                <input value={q} onChange={e => setQ(e.target.value)}
-                  placeholder="Search people..."
-                  className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input"
-                  style={{ fontFamily: 'var(--font-geist-sans), sans-serif', color: 'var(--text-primary)', fontWeight: 500 }} />
-              </div>
-              <div className="space-y-0.5 max-h-52 overflow-y-auto ss4-scroll -mx-1 px-1">
-                {list.map(u => {
-                  const active = sel.includes(u._id);
-                  return (
-                    <button key={u._id} onClick={() => toggle(u._id)}
-                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
-                      style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}>
-                      <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                        {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-                        <p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p>
-                      </div>
-                      {active && <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          {tab === 'dm' && sel.length > 0 && (
-            <button onClick={startSmartMessage}
-              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
-              {sel.length === 1 ? <MessageSquare className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-              {sel.length === 1 ? 'Send Message' : `Send Message · Create Channel (${sel.length})`}
-            </button>
-          )}
-          {tab === 'group' && sel.length > 0 && (
-            <button onClick={() => groupName.trim() && onCreateGroup(groupName, sel, groupEmoji || undefined)} disabled={!groupName.trim()}
-              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
-              <Users className="h-3.5 w-3.5" /> Create Channel · {sel.length} {sel.length === 1 ? 'member' : 'members'}
-            </button>
-          )}
-          {tab === 'space' && (
-            <button onClick={() => groupName.trim() && onCreateSpace(groupName, [], undefined)} disabled={!groupName.trim()}
-              className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: !groupName.trim() ? 0.4 : 1 }}>
-              <Sparkles className="h-3.5 w-3.5" /> Create Space
-            </button>
-          )}
-        </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPosition }: {
   src: string; type: 'image' | 'video'; name: string; onClose: () => void;
   onPrev?: () => void; onNext?: () => void;
@@ -7469,7 +7327,7 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
   }, [file, isImg, isVid]);
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 180, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} />
+      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} />
         : preview && isVid ? <video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted playsInline preload="metadata" />
           : <div className="flex items-center justify-center" style={{ height: 128, background: 'var(--accent-muted)' }}><FileText className="h-8 w-8" style={{ color: 'var(--accent)' }} /></div>}
       <div className="px-2 py-1.5">
@@ -7554,68 +7412,6 @@ function MobileFilePicker({ files, maxFiles, onBrowse, onRemove, onClear, onClos
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function ThreadReportModal({
-  conversationName,
-  date,
-  working,
-  onDateChange,
-  onClose,
-  onAction,
-}: {
-  conversationName: string;
-  date: string;
-  working: SS4ThreadReportAction | null;
-  onDateChange: (date: string) => void;
-  onClose: () => void;
-  onAction: (format: SS4ThreadReportAction) => void;
-}) {
-  return (
-    <div className="ss4-overlay fixed inset-0 z-210 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="ss4-modal w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}>
-            <FileText className="h-4.5 w-4.5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="ss4-display truncate font-bold" style={{ color: 'var(--text-primary)', fontSize: 15 }}>Thread Report</p>
-            <p className="truncate" style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{conversationName}</p>
-          </div>
-          <button type="button" onClick={onClose} className="ss4-icon-btn h-8 w-8 shrink-0" aria-label="Close thread report">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="space-y-4 p-4">
-          <label className="block">
-            <span className="mb-1.5 block font-semibold" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Date</span>
-            <input
-              type="date"
-              value={date}
-              onChange={e => onDateChange(e.target.value)}
-              className="ss4-search-input h-10 w-full px-3 text-sm"
-            />
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button type="button" onClick={() => onAction('pdf')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
-              {working === 'pdf' ? 'Saving...' : 'PDF'}
-            </button>
-            <button type="button" onClick={() => onAction('docx')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
-              {working === 'docx' ? 'Saving...' : 'DOCX'}
-            </button>
-            <button type="button" onClick={() => onAction('copy')} disabled={!!working || !date} className="ss4-send-btn h-10 px-2 font-semibold disabled:opacity-50" style={{ fontSize: 12 }}>
-              {working === 'copy' ? 'Copying...' : 'Copy Text'}
-            </button>
-          </div>
-          <div className="flex items-center justify-end">
-            <button type="button" onClick={onClose} className="ss4-pill-btn h-9 px-3 font-semibold" style={{ fontSize: 12 }}>
-              Cancel
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -7762,454 +7558,6 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function PollModal({ onClose, onCreate }: { onClose: () => void; onCreate: (q: string, opts: string[], multi: boolean) => void }) {
-  const [question, setQuestion] = React.useState('');
-  const [opts, setOpts] = React.useState(['', '']);
-  const [multi, setMulti] = React.useState(false);
-  const valid = question.trim() && opts.filter(o => o.trim()).length >= 2;
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Poll</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-4 py-4 space-y-3">
-          <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a question..." className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          <div className="space-y-2">
-            {opts.map((o, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input value={o} onChange={e => setOpts(p => p.map((x, idx) => idx === i ? e.target.value : x))} placeholder={`Option ${i + 1}`} className="flex-1 h-9 rounded-lg px-3 text-sm ss4-search-input" />
-                {opts.length > 2 && <button onClick={() => setOpts(p => p.filter((_, idx) => idx !== i))} className="ss4-icon-btn h-7 w-7"><X className="h-3.5 w-3.5" /></button>}
-              </div>
-            ))}
-            {opts.length < 6 && <button onClick={() => setOpts(p => [...p, ''])} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 w-full justify-center" style={{ fontSize: 12 }}><Plus className="h-3.5 w-3.5" /> Add option</button>}
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            <input type="checkbox" checked={multi} onChange={e => setMulti(e.target.checked)} /> Allow multiple answers
-          </label>
-          <button disabled={!valid} onClick={() => valid && onCreate(question.trim(), opts.map(o => o.trim()).filter(Boolean), multi)} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Poll</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EventModal({ onClose, onCreate }: { onClose: () => void; onCreate: (e: { title: string; description: string; location: string; startTime: string; endTime: string }) => void }) {
-  const [title, setTitle] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [location, setLocation] = React.useState('');
-  const [startTime, setStartTime] = React.useState('');
-  const [endTime, setEndTime] = React.useState('');
-  const isMobilePicker = useIsMobile();
-  const valid = title.trim() && startTime;
-  const dateInputClass = 'w-full h-9 rounded-lg px-3 text-sm ss4-search-input mt-1';
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal flex max-h-[calc(var(--ss4-vvh,100dvh)-2rem)] w-full max-w-sm flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Event</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="min-h-0 overflow-y-auto px-4 py-4 space-y-2.5 ss4-scroll">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location (optional)" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" rows={2} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Starts</label>
-            {isMobilePicker ? (
-              <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className={dateInputClass} />
-            ) : (
-              <DateTimePicker value={startTime} onChange={setStartTime} placeholder="Pick start date & time" className="h-9 text-sm mt-1" />
-            )}
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
-            {isMobilePicker ? (
-              <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} className={dateInputClass} />
-            ) : (
-              <DateTimePicker value={endTime} onChange={setEndTime} placeholder="Pick end date & time" className="h-9 text-sm mt-1" />
-            )}
-          </div>
-          <button disabled={!valid} onClick={() => valid && onCreate({ title: title.trim(), description, location, startTime, endTime })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-1" style={{ fontSize: 13, opacity: valid ? 1 : 0.4 }}>Create Event</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MeetingModal({
-  onClose,
-  onCreate,
-  onCreateLink,
-  canAddToMessage,
-}: {
-  onClose: () => void;
-  onCreate: (m: PendingMeetingDraft) => void;
-  onCreateLink: (m: PendingMeetingDraft) => Promise<string>;
-  canAddToMessage: boolean;
-}) {
-  const [title, setTitle] = React.useState('Video meeting');
-  const [scheduledAt, setScheduledAt] = React.useState('');
-  const [generatedLink, setGeneratedLink] = React.useState('');
-  const [creatingLink, setCreatingLink] = React.useState(false);
-  const meetingDraft = React.useMemo(
-    () => ({ title: title.trim() || 'Video meeting', scheduledAt }),
-    [title, scheduledAt]
-  );
-  const handleCreateLink = async () => {
-    setCreatingLink(true);
-    try {
-      const link = await onCreateLink(meetingDraft);
-      setGeneratedLink(link);
-    } finally {
-      setCreatingLink(false);
-    }
-  };
-  const handleCopyLink = async () => {
-    if (!generatedLink) return;
-    try {
-      await navigator.clipboard.writeText(generatedLink);
-      toast.success('Meeting link copied');
-    } catch {
-      toast.error('Could not copy meeting link');
-    }
-  };
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><Video className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Create Meeting</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-4 py-4 space-y-2.5">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Date and time (optional)</label>
-          <input value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} type="datetime-local" className="w-full h-9 rounded-lg px-3 text-sm ss4-search-input" />
-          {generatedLink && (
-            <div className="rounded-xl p-2.5 space-y-2" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-1)' }}>
-              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Meeting link</label>
-              <div className="flex items-center gap-2">
-                <input readOnly value={generatedLink} className="min-w-0 flex-1 h-9 rounded-lg px-3 text-xs ss4-search-input" />
-                <button onClick={handleCopyLink} className="ss4-icon-btn h-9 w-9 shrink-0" title="Copy meeting link">
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
-          {canAddToMessage && (
-            <button onClick={() => onCreate(meetingDraft)} className="w-full h-9 rounded-lg ss4-pill-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}>
-              <Video className="h-3.5 w-3.5" /> Add to Message
-            </button>
-          )}
-          <button disabled={creatingLink} onClick={handleCreateLink} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: creatingLink ? 0.7 : 1 }}>
-            {creatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-            {creatingLink ? 'Creating link...' : 'Create Link'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MeetingJoinInfoModal({
-  link,
-  onClose,
-}: {
-  link: string;
-  onClose: () => void;
-}) {
-  const [copied, setCopied] = React.useState(false);
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      toast.success('Meeting link copied');
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      toast.error('Could not copy meeting link');
-    }
-  };
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
-        <div className="flex items-start justify-between gap-3 px-5 py-4">
-          <div>
-            <h2 className="ss4-display font-bold" style={{ fontSize: 22, color: 'var(--text-primary)' }}>Here&apos;s your joining info</h2>
-            <p className="mt-3 leading-relaxed" style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-              Send this to people you want to meet with. Be sure to save it so you can use it later.
-            </p>
-          </div>
-          <button onClick={onClose} className="ss4-icon-btn h-8 w-8 shrink-0" title="Close"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-5 pb-5">
-          <div className="rounded-2xl p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-1)' }}>
-            <div className="flex items-center gap-3">
-              <span className="min-w-0 flex-1 truncate ss4-mono" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{link}</span>
-              <button onClick={copyLink} className="ss4-icon-btn h-10 w-10 shrink-0" title="Copy link">
-                {copied ? <CheckIcon className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </button>
-            </div>
-            <button onClick={copyLink} className="mt-4 h-9 px-3 rounded-lg ss4-pill-btn font-semibold flex items-center gap-2" style={{ fontSize: 13 }}>
-              <Link2 className="h-4 w-4" /> {copied ? 'Copied' : 'Copy meeting link'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ScheduleMeetingModal({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void;
-  onSubmit: (data: { title: string; description: string; scheduledAt: string; endTime: string; department: string }) => Promise<void>;
-}) {
-  const [title, setTitle] = React.useState('Video meeting');
-  const [description, setDescription] = React.useState('');
-  const [scheduledAt, setScheduledAt] = React.useState('');
-  const [endTime, setEndTime] = React.useState('');
-  const [department, setDepartment] = React.useState('all');
-  const [saving, setSaving] = React.useState(false);
-  const valid = title.trim() && scheduledAt;
-  const submit = async () => {
-    if (!valid || saving) return;
-    setSaving(true);
-    try {
-      await onSubmit({ title: title.trim(), description: description.trim(), scheduledAt, endTime, department });
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="ss4-modal w-full max-w-md overflow-hidden rounded-t-2xl sm:rounded-2xl">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2">
-            <CalendarPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} />
-            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Schedule in Suprah Calendar</h2>
-          </div>
-          <button onClick={onClose} className="ss4-icon-btn h-8 w-8" title="Close"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-4 py-4 space-y-3">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" className="w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
-          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Agenda or notes (optional)" rows={3} className="w-full rounded-lg px-3 py-2 text-sm ss4-search-input resize-none" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Date and time</label>
-              <input value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} type="datetime-local" className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Ends (optional)</label>
-              <input value={endTime} onChange={e => setEndTime(e.target.value)} type="datetime-local" className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input" />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Notify department</label>
-            <select value={department} onChange={e => setDepartment(e.target.value)} className="mt-1 w-full h-10 rounded-lg px-3 text-sm ss4-search-input">
-              <option value="all">All departments</option>
-              {DEPARTMENTS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-            </select>
-            <p className="mt-1.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-              {department === 'all' ? 'Everyone in CRM will be added to the calendar event.' : `${deptLabel(department)} members will be added and notified.`}
-            </p>
-          </div>
-          <button disabled={!valid || saving} onClick={submit} className="w-full h-10 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13, opacity: valid && !saving ? 1 : 0.5 }}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
-            {saving ? 'Scheduling...' : 'Schedule meeting'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const CHANNEL_QUICK_REACTION_CHOICES = ['❤️', '😂', '😮', '😢', '👌', '👍', '🔥', '🎉', '👏', '🙏', '💯', '😍', '🤔', '😅', '🙌', '✅'];
-
-function ThemeModal({ current, conv, uid, token, onClose, onApply, onMemberSettingsSaved, initialTab }: {
-  current?: SSConversation['theme'];
-  conv?: SSConversation;
-  uid?: string;
-  token?: string;
-  onClose: () => void;
-  onApply: (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => void;
-  onMemberSettingsSaved?: (settings: { nickname: string | null; quickReactions: string[] }) => void;
-  initialTab?: 'theme' | 'nickname' | 'reactions';
-}) {
-  const [accent, setAccent] = React.useState<string | null>(current?.accent || null);
-  const [wallpaper, setWallpaper] = React.useState<string | null>(current?.wallpaper || null);
-  const [emoji, setEmoji] = React.useState<string | null>(current?.emoji || null);
-  const [pickerOpen, setPickerOpen] = React.useState(false);
-  const emojiBtnRef = React.useRef<HTMLButtonElement>(null);
-  const [tab, setTab] = React.useState<'theme' | 'nickname' | 'reactions'>(initialTab || 'theme');
-  const me = conv?.members?.find(m => m._id === uid);
-  const [nickname, setNickname] = React.useState(me?.displayNickname || '');
-  const [reactions, setReactions] = React.useState<string[]>(conv?.viewerQuickReactions?.length ? conv.viewerQuickReactions : SS4_REACTIONS.slice(0, 6));
-  const [savingSettings, setSavingSettings] = React.useState(false);
-
-  const toggleReaction = (e: string) => setReactions(prev => {
-    if (prev.includes(e)) return prev.filter(x => x !== e);
-    if (prev.length >= 8) return prev;
-    return [...prev, e];
-  });
-
-  const saveMemberSettings = async () => {
-    if (!conv || !token || savingSettings) return;
-    setSavingSettings(true);
-    try {
-      await apiClient.patch(`/api/supraspace/conversations/${conv._id}/member-settings`,
-        { nickname: nickname.trim() || null, quickReactions: reactions },
-        { headers: { Authorization: `Bearer ${token}` } });
-      onMemberSettingsSaved?.({ nickname: nickname.trim() || null, quickReactions: reactions });
-      onClose();
-    } catch { } finally { setSavingSettings(false); }
-  };
-
-  if (conv) {
-    return (
-      <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="ss4-modal w-full max-w-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-            <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Channel settings</h2>
-            <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="flex" style={{ borderBottom: '1px solid var(--border-1)' }}>
-            {(['theme', 'nickname', 'reactions'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} className="flex-1 py-2 text-xs font-semibold capitalize"
-                style={{ color: tab === t ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent' }}>
-                {t}
-              </button>
-            ))}
-          </div>
-          <div className="px-4 py-4 space-y-4 max-h-[50vh] overflow-y-auto">
-            {tab === 'theme' && (
-              <>
-                <div>
-                  <p className="ss4-section-label mb-2">Presets</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {SS4_THEME_PRESETS.map(p => (
-                      <button key={p.name} onClick={() => { setAccent(p.accent); setWallpaper(p.wallpaper); }}
-                        className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
-                        style={{ border: `1px solid ${accent === p.accent ? 'var(--accent)' : 'var(--border-2)'}`, background: accent === p.accent ? 'var(--accent-muted)' : 'transparent' }}>
-                        <span className="h-7 w-7 rounded-full" style={{ background: p.accent || 'linear-gradient(140deg,#15803d,#16a34a)' }} />
-                        <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{p.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="ss4-section-label mb-2">Custom color</p>
-                  <div className="flex items-center gap-3">
-                    <input type="color" value={accent || '#16a34a'} onChange={e => setAccent(e.target.value)} className="h-9 w-12 rounded-lg cursor-pointer" style={{ background: 'transparent', border: '1px solid var(--border-2)' }} />
-                    <span className="ss4-mono" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{accent || 'default'}</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="ss4-section-label mb-2">Default reaction (double-click a message)</p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {SS4_REACTIONS.slice(0, 8).map(e => (
-                      <button key={e} onClick={() => setEmoji(e)}
-                        className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all hover:scale-110"
-                        style={{ border: `1px solid ${emoji === e ? 'var(--accent)' : 'var(--border-2)'}`, background: emoji === e ? 'var(--accent-muted)' : 'transparent' }}>
-                        {e}
-                      </button>
-                    ))}
-                    <button ref={emojiBtnRef} onClick={() => setPickerOpen(v => !v)}
-                      className="h-9 w-9 flex items-center justify-center rounded-lg transition-all hover:scale-110"
-                      style={{ border: '1px solid var(--border-2)' }}
-                      title="More emojis">
-                      <SmilePlus className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                    </button>
-                    {pickerOpen && (
-                      <EmojiReactionPicker
-                        onSelect={e => setEmoji(e)}
-                        onClose={() => setPickerOpen(false)}
-                        position={emojiBtnRef.current ? { top: emojiBtnRef.current.getBoundingClientRect().bottom + 6, left: emojiBtnRef.current.getBoundingClientRect().left } : { top: 200, left: 200 }}
-                      />
-                    )}
-                  </div>
-                </div>
-                <button onClick={() => onApply({ accent, wallpaper, emoji })} className="w-full h-9 rounded-lg ss4-send-btn font-semibold" style={{ fontSize: 13 }}>Apply Theme</button>
-              </>
-            )}
-            {tab === 'nickname' && (
-              <div>
-                <p className="ss4-section-label mb-2">Display name others see for you in {conv.name || 'this channel'}</p>
-                <input value={nickname} onChange={e => setNickname(e.target.value.slice(0, 32))} placeholder="Your real name"
-                  className="w-full h-9 px-3 rounded-lg text-sm outline-none" style={{ border: '1px solid var(--border-2)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
-                <button onClick={saveMemberSettings} disabled={savingSettings} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-3" style={{ fontSize: 13 }}>Save</button>
-              </div>
-            )}
-            {tab === 'reactions' && (
-              <div>
-                <p className="ss4-section-label mb-2">Pick up to 8 emoji for your quick-react bar</p>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {CHANNEL_QUICK_REACTION_CHOICES.map(e => {
-                    const active = reactions.includes(e);
-                    return (
-                      <button key={e} onClick={() => toggleReaction(e)}
-                        className="h-9 w-9 flex items-center justify-center rounded-lg text-lg transition-all"
-                        style={{ border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`, background: active ? 'var(--accent-muted)' : 'transparent' }}>
-                        {e}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button onClick={saveMemberSettings} disabled={savingSettings} className="w-full h-9 rounded-lg ss4-send-btn font-semibold mt-3" style={{ fontSize: 13 }}>Save</button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-function ManageMembersModal({ users, existingIds, onClose, onAdd }: {
-  users: CrmUser[]; existingIds: string[]; onClose: () => void; onAdd: (ids: string[]) => void;
-}) {
-  const [q, setQ] = React.useState('');
-  const [sel, setSel] = React.useState<string[]>([]);
-  const list = users.filter(u => !existingIds.includes(u._id) && (u.fullName.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase())));
-  const toggle = (id: string) => setSel(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><UserPlus className="h-4 w-4" style={{ color: 'var(--accent)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Add Members</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="px-4 py-4 space-y-3">
-          <div className="relative">
-            <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search people..." className="w-full h-9 rounded-lg pl-9 pr-3 text-sm ss4-search-input" />
-          </div>
-          <div className="space-y-0.5 max-h-56 overflow-y-auto ss4-scroll -mx-1 px-1">
-            {list.length === 0 && <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Everyone is already a member</p>}
-            {list.map(u => {
-              const active = sel.includes(u._id);
-              return (
-                <button key={u._id} onClick={() => toggle(u._id)} className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')} style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}>
-                  <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
-                  </div>
-                  <div className="min-w-0 flex-1"><p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p><p className="truncate mt-0.5" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>@{u.username} · {u.role}</p></div>
-                  {active && <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--accent)' }}><CheckIcon className="h-3 w-3" style={{ color: '#fff' }} /></div>}
-                </button>
-              );
-            })}
-          </div>
-          {sel.length > 0 && <button onClick={() => onAdd(sel)} className="w-full h-9 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-2" style={{ fontSize: 13 }}><UserPlus className="h-3.5 w-3.5" /> Add {sel.length} {sel.length === 1 ? 'member' : 'members'}</button>}
-        </div>
       </div>
     </div>
   );
@@ -8372,152 +7720,6 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
               {sending ? 'Forwarding...' : `Forward to ${selected.length} ${selected.length === 1 ? 'chat' : 'chats'}`}
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const NOTIF_MUTE_DURATIONS: { label: string; ms: number | null }[] = [
-  { label: '15 minutes', ms: 15 * 60 * 1000 },
-  { label: '1 hour', ms: 60 * 60 * 1000 },
-  { label: '8 hours', ms: 8 * 60 * 60 * 1000 },
-  { label: '24 hours', ms: 24 * 60 * 60 * 1000 },
-  { label: '1 week', ms: 7 * 24 * 60 * 60 * 1000 },
-  { label: 'Until I turn it back on', ms: null },
-];
-
-function NotificationSettingsModal({ conv, convName, prefs, onSave, onClose }: {
-  conv: SSConversation;
-  convName: string;
-  prefs: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null };
-  onSave: (p: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil: string | null }) => void;
-  onClose: () => void;
-}) {
-  const [type, setType] = React.useState<'all' | 'main' | 'foryou' | 'none'>(prefs.type);
-  const [muted, setMuted] = React.useState(prefs.muted);
-  const [muteDurationLabel, setMuteDurationLabel] = React.useState(prefs.muteUntil ? '' : 'Until I turn it back on');
-  const [muteUntil, setMuteUntil] = React.useState<string | null>(prefs.muteUntil ?? null);
-  const isDM = conv.type === 'direct';
-
-  const options = isDM
-    ? [
-      { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
-      { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
-      { value: 'none' as const, label: 'None', desc: 'No notifications' },
-    ]
-    : [
-      { value: 'all' as const, label: 'All', desc: 'All new messages and threads' },
-      { value: 'main' as const, label: 'Main conversations', desc: 'New messages from main conversations, and replies to threads you follow' },
-      { value: 'foryou' as const, label: 'For you', desc: 'Only @mentions and replies to threads you follow' },
-      { value: 'none' as const, label: 'None', desc: 'No notifications' },
-    ];
-
-  return (
-    <div className="ss4-overlay fixed inset-0 z-200 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#2a2b2f', borderRadius: 12, width: '100%', maxWidth: 480, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', padding: '24px 24px 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e3e5e8', marginBottom: 4 }}>{convName}</h2>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>Notifications</p>
-
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {options.map(opt => (
-            <label key={opt.value} onClick={() => setType(opt.value)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '10px 0', cursor: 'pointer' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${type === opt.value ? '#16a34a' : 'rgba(255,255,255,0.3)'}`, background: type === opt.value ? '#16a34a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
-                {type === opt.value && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
-              </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#e3e5e8', lineHeight: 1.3 }}>{opt.label}</p>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4, marginTop: 2 }}>{opt.desc}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-
-        <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '8px 0 14px' }} />
-
-        <label onClick={() => setMuted(m => !m)} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer' }}>
-          <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${muted ? '#16a34a' : 'rgba(255,255,255,0.3)'}`, background: muted ? '#16a34a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, transition: 'all 0.15s' }}>
-            {muted && <CheckIcon className="h-2.5 w-2.5 text-white" />}
-          </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#e3e5e8', lineHeight: 1.3 }}>Mute conversation</p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4, marginTop: 2 }}>Muted conversations are italicized and appear at the bottom of your conversation list, and will not appear in Home</p>
-          </div>
-        </label>
-
-        {muted && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, paddingLeft: 32 }}>
-            {NOTIF_MUTE_DURATIONS.map(opt => {
-              const active = muteDurationLabel === opt.label;
-              return (
-                <button
-                  key={opt.label}
-                  onClick={() => {
-                    setMuteDurationLabel(opt.label);
-                    setMuteUntil(opt.ms ? new Date(Date.now() + opt.ms).toISOString() : null);
-                  }}
-                  style={{
-                    padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                    border: `1px solid ${active ? '#16a34a' : 'rgba(255,255,255,0.15)'}`,
-                    background: active ? 'rgba(88,101,242,0.2)' : 'transparent',
-                    color: active ? '#c7cdff' : 'rgba(255,255,255,0.6)',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-          <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
-            Cancel
-          </button>
-          <button onClick={() => { onSave({ type, muted, muteUntil: muted ? muteUntil : null }); onClose(); }} style={{ padding: '8px 20px', borderRadius: 8, background: '#16a34a', border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActiveUsersModal({ users, presence, uid, onClose }: {
-  users: CrmUser[]; presence: PresenceMap; uid: string; onClose: () => void;
-}) {
-  const online = users.filter(u => u._id !== uid && presence[u._id]?.onlineStatus && presence[u._id]?.onlineStatus !== 'offline');
-  const offline = users.filter(u => u._id !== uid && (!presence[u._id]?.onlineStatus || presence[u._id]?.onlineStatus === 'offline'));
-  const Row = (u: CrmUser, isOn: boolean) => {
-    const status = presence[u._id]?.onlineStatus ?? 'offline';
-    return (
-      <div key={u._id} className="w-full flex items-center gap-3 px-4 py-2.5">
-        <div className="relative shrink-0">
-          <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
-            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
-          </div>
-          {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
-          <p style={{ fontSize: 10, color: isOn ? 'var(--positive)' : 'var(--text-tertiary)' }}>{isOn ? S.label[status] : u.role || 'Offline'}</p>
-        </div>
-        <span className={cn('shrink-0 h-2.5 w-2.5 rounded-full', S.dot[status])} />
-      </div>
-    );
-  };
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4-modal w-full max-w-sm overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
-        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border-1)' }}>
-          <div className="flex items-center gap-2"><Wifi className="h-4 w-4" style={{ color: 'var(--positive)' }} /><h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Active Now · {online.length}</h2></div>
-          <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto ss4-scroll">
-          {online.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label" style={{ color: 'var(--positive)' }}>{'\u{1f7e2}'} Online</span></div>}
-          {online.map(u => Row(u, true))}
-          {offline.length > 0 && <div className="px-4 pt-3 pb-1"><span className="ss4-section-label">Offline</span></div>}
-          {offline.map(u => Row(u, false))}
         </div>
       </div>
     </div>
@@ -9807,7 +9009,7 @@ export default function SupraSpacePage() {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [threadReportOpen, setThreadReportOpen] = React.useState(false);
   const [threadReportDate, setThreadReportDate] = React.useState(() => todayStrMDT());
-  const [threadReportWorking, setThreadReportWorking] = React.useState<SS4ThreadReportAction | null>(null);
+  const [threadReportWorking, setThreadReportWorking] = React.useState<ThreadReportAction | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
   const handledRouteConversationIdRef = React.useRef<string | null>(null);
   const handledRouteUserIdRef = React.useRef<string | null>(null);
@@ -9854,12 +9056,13 @@ export default function SupraSpacePage() {
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
-  const [composerCharCount, setComposerCharCount] = React.useState(0);
+  const [composerMetrics] = React.useState(createComposerMetrics);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [sharedTargetFiles, setSharedTargetFiles] = React.useState<File[]>([]);
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = React.useState(false);
   const handledShareTargetIdRef = React.useRef<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const dragCounterRef = React.useRef(0);
@@ -9867,9 +9070,10 @@ export default function SupraSpacePage() {
   const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
   const [scheduleOpen, setScheduleOpen] = React.useState(false);
   const [customScheduleAt, setCustomScheduleAt] = React.useState('');
-  const sendLongPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sendLongPressTriggeredRef = React.useRef(false);
   const sendInFlightRef = React.useRef(false);
+  const [failedSends, setFailedSends] = React.useState<FailedSend[]>([]);
+  const restoredFailedSendRef = React.useRef<FailedSend | null>(null);
+  const composerExtrasRef = React.useRef<Record<string, Omit<ComposerDraft, "content">>>({});
   const [uploadNotice, setUploadNotice] = React.useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = React.useState(false);
   const [messageScrollActive, setMessageScrollActive] = React.useState(false);
@@ -9938,6 +9142,11 @@ export default function SupraSpacePage() {
     setIsIOSDevice(iosLike);
   }, []);
   React.useEffect(() => {
+    const onUpdateAvailable = () => setPwaUpdateAvailable(true);
+    window.addEventListener('supraspace:pwa-update-available', onUpdateAvailable);
+    return () => window.removeEventListener('supraspace:pwa-update-available', onUpdateAvailable);
+  }, []);
+  React.useEffect(() => {
     const restored = new Map<HTMLStyleElement, string | null>();
     const syncStyles = () => {
       const legacy = document.getElementById('ss4-styles') as HTMLStyleElement | null;
@@ -9979,116 +9188,7 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
   }, [isMobileViewport, isStandaloneApp]);
-  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
-  const wasKeyboardOpenRef = React.useRef(false);
-  React.useEffect(() => {
-    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
-    const viewport = window.visualViewport;
-    let raf = 0;
-    const timers = new Set<ReturnType<typeof setTimeout>>();
-    const nudgeViewportUnits = () => {
-      const meta = document.querySelector('meta[name="viewport"]');
-      if (!meta) return;
-      const content = meta.getAttribute('content') || '';
-      meta.setAttribute('content', `${content},`);
-      requestAnimationFrame(() => meta.setAttribute('content', content));
-    };
-    const update = () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
-        const top = Math.max(0, Math.round(viewport.offsetTop || 0));
-        // window.screen.height is the raw physical display resolution, not the
-        // usable web-content viewport — it can read larger than the real
-        // layout height (notably right after a cold standalone launch or on
-        // rotation), which used to always win the Math.max below and get
-        // baked into the app shell's fixed pixel height, pushing the bottom
-        // nav/compose FAB below the real visible screen (looked like a blank
-        // void under the conversation list). Only fall back to it if the real
-        // measurements are unavailable (all read 0), never to override them.
-        const screenHeight = window.screen?.height || 0;
-        const measuredHeight = Math.max(
-          window.innerHeight || 0,
-          document.documentElement.clientHeight || 0,
-          visualHeight,
-        );
-        const layoutHeight = measuredHeight > 0 ? measuredHeight : screenHeight;
-        // A changing offset can also be caused by ordinary iOS list scrolling;
-        // only treat it as a keyboard when a text control is actually focused.
-        const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
-        const focusedTextEntry = isTextEntryElement(document.activeElement);
-        const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
-        // visualViewport is the usable display area in both states. This avoids
-        // expanding the fixed app shell to window.screen.height on cold launches.
-        const height = visualHeight;
-        const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        const keyboardAccessoryHeight = keyboardOpen ? 10 : 0;
-        if (keyboardOpen) {
-          document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
-        } else {
-          document.documentElement.style.removeProperty('--ss4-vvh');
-        }
-        document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
-        document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
-        document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
-        if (wasKeyboardOpenRef.current && !keyboardOpen) {
-          setTimeout(nudgeViewportUnits, 350);
-        }
-        wasKeyboardOpenRef.current = keyboardOpen;
-        setVv(prev => (
-          prev?.height === height && prev.top === top && prev.keyboardOpen === keyboardOpen
-            ? prev
-            : { height, top, keyboardOpen }
-        ));
-      });
-    };
-    const scheduleUpdate = (delay = 0) => {
-      if (delay <= 0) {
-        update();
-        return;
-      }
-      const timer = setTimeout(() => {
-        timers.delete(timer);
-        update();
-      }, delay);
-      timers.add(timer);
-    };
-    update();
-    const settleAfterKeyboard = () => {
-      scheduleUpdate();
-      scheduleUpdate(80);
-      scheduleUpdate(250);
-      scheduleUpdate(600);
-    };
-    viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-    window.addEventListener('resize', settleAfterKeyboard);
-    window.addEventListener('orientationchange', settleAfterKeyboard);
-    window.addEventListener('pageshow', settleAfterKeyboard);
-    document.addEventListener('touchend', settleAfterKeyboard, true);
-    document.addEventListener('pointerup', settleAfterKeyboard, true);
-    document.addEventListener('visibilitychange', settleAfterKeyboard);
-    document.addEventListener('focusin', settleAfterKeyboard);
-    document.addEventListener('focusout', settleAfterKeyboard);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      timers.forEach(timer => clearTimeout(timer));
-      viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-      window.removeEventListener('resize', settleAfterKeyboard);
-      window.removeEventListener('orientationchange', settleAfterKeyboard);
-      window.removeEventListener('pageshow', settleAfterKeyboard);
-      document.removeEventListener('touchend', settleAfterKeyboard, true);
-      document.removeEventListener('pointerup', settleAfterKeyboard, true);
-      document.removeEventListener('visibilitychange', settleAfterKeyboard);
-      document.removeEventListener('focusin', settleAfterKeyboard);
-      document.removeEventListener('focusout', settleAfterKeyboard);
-      document.documentElement.style.removeProperty('--ss4-vvh');
-      document.documentElement.style.removeProperty('--ss4-safe-bottom');
-      document.documentElement.style.removeProperty('--ss4-ios-keyboard-accessory-height');
-      document.documentElement.classList.remove('ss4-ios-keyboard-open');
-    };
-  }, [isIOSDevice]);
+  const keyboardOpen = useSupraSpaceViewport(isMobileViewport || isIOSDevice);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
@@ -10102,7 +9202,7 @@ export default function SupraSpacePage() {
     const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.backgroundColor = bg;
     document.documentElement.style.backgroundColor = bg;
-    const restHeight = isIOSDevice ? `${window.screen.height}px` : '100dvh';
+    const restHeight = '100dvh';
     document.body.style.height = `var(--ss4-vvh, ${restHeight})`;
     document.documentElement.style.height = `var(--ss4-vvh, ${restHeight})`;
     document.body.style.overflow = 'hidden';
@@ -10304,7 +9404,7 @@ export default function SupraSpacePage() {
         window.clearTimeout(composerMetricsTimerRef.current);
         composerMetricsTimerRef.current = null;
       }
-      setComposerCharCount(prev => prev === value.length ? prev : value.length);
+      composerMetrics.update(value);
       setInput(value);
       return;
     }
@@ -10314,7 +9414,7 @@ export default function SupraSpacePage() {
     composerMetricsTimerRef.current = window.setTimeout(() => {
       composerMetricsTimerRef.current = null;
       const latest = inputTextRef.current;
-      setComposerCharCount(prev => prev === latest.length ? prev : latest.length);
+      composerMetrics.update(latest);
       const latestHasText = Boolean(latest.trim());
       setComposerHasText(prev => prev === latestHasText ? prev : latestHasText);
     }, 300);
@@ -10352,21 +9452,8 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     inputTextRef.current = input;
     setComposerHasText(Boolean(input.trim()));
-    setComposerCharCount(input.length);
+    composerMetrics.update(input);
   }, [input]);
-
-  const composerAtLimit = composerCharCount >= SS4_MAX_MESSAGE_CHARS;
-  const composerNearLimit = composerCharCount >= SS4_MESSAGE_LIMIT_WARNING_CHARS;
-  const composerCounterColor = composerAtLimit
-    ? 'var(--danger)'
-    : composerNearLimit
-      ? '#f59e0b'
-      : 'var(--text-tertiary)';
-  const composerLimitLabel = composerAtLimit
-    ? 'Limit reached'
-    : composerNearLimit
-      ? 'Near limit'
-      : '';
 
   const setConversationDraft = React.useCallback((conversationId: string, value: string) => {
     const nextValue = clampSupraSpaceMessageText(value);
@@ -10471,7 +9558,7 @@ export default function SupraSpacePage() {
   const [mentionAnchor, setMentionAnchor] = React.useState<number>(-1);
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
-  const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceSocket(token || null);
+  const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceRealtime();
   const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
@@ -10562,7 +9649,7 @@ export default function SupraSpacePage() {
   const showMessageLimitNotice = React.useCallback(() => {
     showUploadNotice('error', SS4_MESSAGE_LIMIT_ERROR);
   }, [showUploadNotice]);
-  const handleThreadReportAction = React.useCallback(async (format: SS4ThreadReportAction) => {
+  const handleThreadReportAction = React.useCallback(async (format: ThreadReportAction) => {
     if (!activeConv || !token) return;
     setThreadReportWorking(format);
     try {
@@ -10632,14 +9719,8 @@ export default function SupraSpacePage() {
       setMsgs(p => {
         const ex = p[conversationId] || [];
         if (ex.find(m => m._id === message._id)) return p;
-        const withoutMatchingOptimistic = ex.filter(m => !(
-          m._id.startsWith('optimistic-') &&
-          m.sender?._id === message.sender?._id &&
-          m.content === message.content &&
-          m.type === message.type &&
-          Math.abs(new Date(message.createdAt).getTime() - new Date(m.createdAt).getTime()) < 30000
-        ));
-        return { ...p, [conversationId]: [...withoutMatchingOptimistic, message] };
+        const next = reconcileMessage(ex, message);
+        return next === ex ? p : { ...p, [conversationId]: next };
       });
       setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
     }
@@ -10780,7 +9861,7 @@ export default function SupraSpacePage() {
 
       setMsgs(p => {
         if (rejectSuspiciousEmpty) return p;
-        return { ...p, [conversationId]: d };
+        return { ...p, [conversationId]: mergeMessages(p[conversationId] || [], d) };
       });
       setHasMore(p => ({ ...p, [conversationId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
       setMsgFetchState(p => ({
@@ -11713,16 +10794,18 @@ export default function SupraSpacePage() {
     if (previousId) {
       const currentDraft = textareaRef.current ? htmlToMarkdown(textareaRef.current) : inputTextRef.current || '';
       setConversationDraft(previousId, currentDraft);
+      composerExtrasRef.current[previousId] = { files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting };
     }
 
     const nextDraftRaw = activeId ? composerDraftsRef.current[activeId] || '' : '';
     const nextDraft = clampSupraSpaceMessageText(nextDraftRaw);
     if (activeId && nextDraftRaw !== nextDraft) setConversationDraft(activeId, nextDraft);
     syncComposerText(nextDraft, true);
-    setReplyTo(null);
-    setPendingFiles([]);
-    setPendingMeeting(null);
-    setPendingGif(null);
+    const extras = activeId ? composerExtrasRef.current[activeId] : undefined;
+    setReplyTo(extras?.reply || null);
+    setPendingFiles(extras?.files || []);
+    setPendingMeeting(extras?.meeting || null);
+    setPendingGif(extras?.gif || null);
     setUploadNotice(null);
     setShowInfo(false);
     setMentionQuery(null);
@@ -11814,6 +10897,19 @@ export default function SupraSpacePage() {
       return;
     }
     const replyMessageId = replyTo?._id;
+    const restoredFailedSend = restoredFailedSendRef.current;
+    const canRetryDelivery = !!restoredFailedSend
+      && !pendingMeeting
+      && restoredFailedSend.conversationId === conversationId
+      && restoredFailedSend.content === content
+      && restoredFailedSend.scheduledAt === scheduledAt
+      && restoredFailedSend.reply?._id === replyMessageId
+      && restoredFailedSend.gif?.url === pendingGif?.url
+      && restoredFailedSend.files.length === pendingFiles.length
+      && restoredFailedSend.files.every((file, index) => file === pendingFiles[index]);
+    const deliveryId = canRetryDelivery ? restoredFailedSend.id : createMessageId();
+    if (!canRetryDelivery) restoredFailedSendRef.current = null;
+    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting, scheduledAt };
     const isScheduledSend = Boolean(scheduledAt);
     if (content.length > SS4_MAX_MESSAGE_CHARS) {
       showUploadNotice('error', `Message is ${content.length.toLocaleString()} characters. Limit is 10,000.`);
@@ -11823,6 +10919,23 @@ export default function SupraSpacePage() {
       showUploadNotice('error', 'Schedule send currently supports text and GIF messages only.');
       return;
     }
+    if (hasPendingMeeting && (hasPendingFiles || hasPendingGif)) {
+      showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
+      return;
+    }
+    if (hasPendingFiles && hasPendingGif) {
+      showUploadNotice('error', 'Send GIFs separately from file attachments.');
+      return;
+    }
+    setConversationDraft(conversationId, '');
+    delete composerExtrasRef.current[conversationId];
+    syncComposerText('', true);
+    if (textareaRef.current) textareaRef.current.innerHTML = '';
+    pastedPlainTextRef.current = '';
+    setReplyTo(null);
+    setPendingFiles([]);
+    setPendingGif(null);
+    setPendingMeeting(null);
     setSending(true);
     sendInFlightRef.current = true;
     sendTypingStop(conversationId);
@@ -11842,7 +10955,6 @@ export default function SupraSpacePage() {
           optionalMessage: content,
         }, { headers: { Authorization: `Bearer ${token}` } });
         if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        setPendingMeeting(null); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (r.data?.data?.meetingLink) {
           try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
           catch { toast.success('Meeting sent'); }
@@ -11853,7 +10965,7 @@ export default function SupraSpacePage() {
           return;
         }
         const filesToUpload = pendingFiles;
-        const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const tempId = `optimistic-${deliveryId}`;
         optimisticAttachmentId = tempId;
         const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
           const url = URL.createObjectURL(f);
@@ -11896,30 +11008,24 @@ export default function SupraSpacePage() {
         filesToUpload.forEach(f => fd.append('files', f));
         if (content) fd.append('content', content);
         if (replyMessageId) fd.append('replyTo', replyMessageId);
-        setPendingFiles([]); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        fd.append('clientMessageId', deliveryId);
         setSending(false);
         await appendSS4VideoThumbnails(fd, filesToUpload);
         const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
-        if (r.data?.data) replaceMessageLocal(conversationId, tempId, mergeLocalAttachmentPreviews(r.data.data, optimisticAttachmentUrls));
-        else {
-          removeMessageLocal(conversationId, tempId);
-          optimisticAttachmentUrls.forEach(u => {
-            URL.revokeObjectURL(u);
-            localAttachmentPreviewUrlsRef.current.delete(u);
-          });
-        }
+        if (!r.data?.data) throw new Error('Attachment delivery was not confirmed.');
+        replaceMessageLocal(conversationId, tempId, mergeLocalAttachmentPreviews(r.data.data, optimisticAttachmentUrls));
         showUploadNotice('success', filesToUpload.length === 1 ? 'Attachment sent.' : `${filesToUpload.length} attachments sent.`);
       } else if (hasPendingGif) {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
-          { content, gif: pendingGif, replyTo: replyMessageId, scheduledAt },
+          { content, gif: pendingGif, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
-        setPendingGif(null); pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
+        else throw new Error('GIF delivery was not confirmed.');
       } else {
-        const tempId = scheduledAt ? null : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const tempId = scheduledAt ? null : `optimistic-${deliveryId}`;
         if (tempId) {
           optimisticTextId = tempId;
           const member = activeConv?.members.find(m => m._id === uid);
@@ -11943,20 +11049,21 @@ export default function SupraSpacePage() {
             createdAt: new Date().toISOString(),
           });
         }
-        pastedPlainTextRef.current = ''; if (conversationId) setConversationDraft(conversationId, ''); syncComposerText('', true); if (textareaRef.current) textareaRef.current.innerHTML = ''; setReplyTo(null);
         if (tempId) setSending(false);
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
-          { content, replyTo: replyMessageId, scheduledAt },
+          { content, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
           { headers: { Authorization: `Bearer ${token}` }, _skipAuthRefresh: true } as any
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) {
           if (tempId) replaceMessageLocal(conversationId, tempId, r.data.data);
           else appendMessageLocal(conversationId, r.data.data);
-        }
+        } else throw new Error('Message delivery was not confirmed.');
       }
+      if (restoredFailedSendRef.current?.id === deliveryId) restoredFailedSendRef.current = null;
     } catch (error) {
+      setFailedSends(previous => previous.some(item => item.id === deliveryId) ? previous : [...previous, failedDraft]);
       if (hasPendingFiles) {
         if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
         optimisticAttachmentUrls.forEach(u => {
@@ -11969,8 +11076,6 @@ export default function SupraSpacePage() {
       else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
       else {
         if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
-        const currentDraft = textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
-        if (!currentDraft.trim()) syncComposerText(content, true);
         showUploadNotice('error', getErrorMessage(error, 'Message failed to send.'));
       }
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
@@ -11996,26 +11101,6 @@ export default function SupraSpacePage() {
     if (!canScheduleSend) return;
     setScheduleOpen(true);
   }, [canScheduleSend]);
-
-  const startSendPress = React.useCallback(() => {
-    sendLongPressTriggeredRef.current = false;
-    if (sendLongPressRef.current) clearTimeout(sendLongPressRef.current);
-    sendLongPressRef.current = setTimeout(() => {
-      sendLongPressTriggeredRef.current = true;
-      openScheduleSheet();
-    }, 520);
-  }, [openScheduleSheet]);
-
-  const finishSendPress = React.useCallback(() => {
-    if (sendLongPressRef.current) {
-      clearTimeout(sendLongPressRef.current);
-      sendLongPressRef.current = null;
-    }
-  }, []);
-
-  React.useEffect(() => () => {
-    if (sendLongPressRef.current) clearTimeout(sendLongPressRef.current);
-  }, []);
 
   const scheduleSendFor = React.useCallback((date: Date) => {
     setScheduleOpen(false);
@@ -12693,15 +11778,18 @@ export default function SupraSpacePage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
-      const mr = new MediaRecorder(stream);
+      const voiceMimeType = supportedVoiceMimeType();
+      const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
       recChunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
       mr.onstop = async () => {
-        const blob = new Blob(recChunksRef.current, { type: 'audio/webm' });
+        const mimeType = mr.mimeType || supportedVoiceMimeType() || 'audio/webm';
+        const blob = new Blob(recChunksRef.current, { type: mimeType });
         const seconds = recSecondsRef.current;
         recStreamRef.current?.getTracks().forEach(t => t.stop());
         if (blob.size > 0 && activeId) {
-          const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+          const extension = mimeType.includes('mp4') ? 'm4a' : 'webm';
+          const file = new File([blob], `voice-note-${Date.now()}.${extension}`, { type: mimeType });
           const fd = new FormData(); fd.append('files', file); fd.append('duration', String(seconds));
           try {
             const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
@@ -13941,14 +13029,40 @@ export default function SupraSpacePage() {
     setLoadingMsgs(true);
     setLoadingOlderMessages(true);
     try {
-      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, limit: SS4_MESSAGE_PAGE_SIZE } });
+      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, beforeId: activeMsgs[0]?._id, limit: SS4_MESSAGE_PAGE_SIZE } });
       const d = r.data?.data || [];
-      setMsgs(p => ({ ...p, [activeId]: [...d, ...(p[activeId] || [])] }));
+      setMsgs(p => ({ ...p, [activeId]: mergeMessages(p[activeId] || [], d) }));
       setHasMore(p => ({ ...p, [activeId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
     } catch {
       pendingScrollRestoreRef.current = null;
     } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
   }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
+
+  const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
+  const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
+    <Bubble
+      message={message}
+      isOwn={message.sender?._id === uid}
+      showAvatar={showAvatar}
+      uid={uid}
+      onReply={setReplyTo}
+      onDelete={handleDelete}
+      onPin={handlePinToggle}
+      isPinned={pinnedMsgIds.has(message._id)}
+      onOpenMedia={setLightbox}
+      onReact={handleReact}
+      onVotePoll={handleVotePoll}
+      onRsvp={handleRsvp}
+      onJoinMeeting={handleJoinCall}
+      nameFor={nameFor}
+      members={msgSeenByMembers[message._id] || EMPTY_MEMBERS_ARRAY}
+      hideTime={hideTime}
+      onEditSave={handleEdit}
+      onForward={setForwardMsg}
+      suppressActionsDuringScroll={messageScrollActive}
+      defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
+    />
+  ), [activeConv?.theme?.emoji, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -14244,24 +13358,9 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  const standaloneShellStyle: React.CSSProperties = isStandaloneApp
-    ? (isIOSStandaloneApp
-      ? (vv?.keyboardOpen
-        ? {
-          position: 'fixed',
-          top: vv.top,
-          right: 0,
-          bottom: 'auto',
-          left: 0,
-          height: `${vv.height}px`,
-          maxHeight: `${vv.height}px`,
-          minHeight: 0,
-          overflow: 'hidden',
-          boxSizing: 'border-box',
-        }
-        : { height: typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh', boxSizing: 'border-box' })
-      : { height: '100dvh', boxSizing: 'border-box' })
-    : {};
+  const standaloneShellStyle: React.CSSProperties = keyboardOpen
+    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+    : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
     <>
@@ -14296,6 +13395,39 @@ export default function SupraSpacePage() {
           ...standaloneShellStyle,
         }}
       >
+        {pwaUpdateAvailable && (
+          <div
+            role="status"
+            className="fixed left-3 right-3 z-100 mx-auto flex max-w-md items-center gap-3 rounded-xl px-3 py-2.5 shadow-lg sm:left-auto sm:right-4"
+            style={{
+              bottom: activeId
+                ? 'calc(var(--ss4-composer-height, 76px) + env(safe-area-inset-bottom, 0px) + 12px)'
+                : 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-2)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <p className="min-w-0 flex-1 text-xs font-medium">An update is ready.</p>
+            <button
+              type="button"
+              className="ss4-pill-btn h-9 shrink-0 px-3 text-xs font-semibold"
+              onClick={() => {
+                const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || Boolean(pendingMeeting) || sharedTargetFiles.length > 0 || sending || uploading;
+                if (hasUnsentComposerWork) {
+                  showUploadNotice('info', 'Send or clear the current draft before updating.');
+                  return;
+                }
+                window.dispatchEvent(new Event('supraspace:pwa-apply-update'));
+              }}
+            >
+              Reload
+            </button>
+            <button type="button" aria-label="Dismiss update notice" className="ss4-icon-btn h-9 w-9 shrink-0" onClick={() => setPwaUpdateAvailable(false)}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         { }
         <header className={cn('ss4-topbar shrink-0 z-40', activeId ? 'hidden lg:block' : '')} style={{ minHeight: 52 }}>
           <div className="flex items-center justify-between h-full px-3 sm:px-4 py-2.5">
@@ -15097,7 +14229,7 @@ export default function SupraSpacePage() {
                           <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setMeetingOpen(true)}><CalendarPlus className="h-3.5 w-3.5" /> Create Meeting</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <button onClick={() => setThreadReportOpen(true)} className="ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8" title="Download thread report">
+                      <button onClick={() => setThreadReportOpen(true)} className="hidden lg:flex ss4-icon-btn h-8 w-8" title="Download thread report">
                         <FileText className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-5 w-5 lg:h-4 lg:w-4" /></button>
@@ -15176,38 +14308,13 @@ export default function SupraSpacePage() {
                           </p>
                         </div>
                       )}
-                      {activeMsgs.map((msg, i) => {
-                        const prevMsg = activeMsgs[i - 1] || null;
-                        const nextMsg = activeMsgs[i + 1] || null;
-                        const showDate = !prevMsg || fmtDate(msg.createdAt) !== fmtDate(prevMsg.createdAt);
-                        const showAvatar = !prevMsg || prevMsg.sender?._id !== msg.sender?._id || showDate;
-                        const hideTime = !!(nextMsg
-                          && nextMsg.sender?._id === msg.sender?._id
-                          && fmtDate(nextMsg.createdAt) === fmtDate(msg.createdAt)
-                          && new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000
-                        );
-                        return (
-                          <React.Fragment key={msg._id}>
-                            {showDate && <DateSep date={msg.createdAt} />}
-                            <div id={`ss4-msg-${msg._id}`}>
-                              <Bubble message={msg} isOwn={msg.sender?._id === uid} showAvatar={showAvatar} uid={uid} onReply={setReplyTo} onDelete={handleDelete} onPin={handlePinToggle} isPinned={pinnedMsgIds.has(msg._id)} onOpenMedia={setLightbox} onReact={handleReact} onVotePoll={handleVotePoll} onRsvp={handleRsvp} onJoinMeeting={handleJoinCall} nameFor={nameFor} members={msgSeenByMembers[msg._id] || EMPTY_MEMBERS_ARRAY} hideTime={hideTime} onEditSave={handleEdit} onForward={setForwardMsg} suppressActionsDuringScroll={messageScrollActive} defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]} />
-                            </div>
-                            {pinEvents.find(e => e.msgId === msg._id) && (() => {
-                              const ev = pinEvents.find(e => e.msgId === msg._id)!;
-                              return (
-                                <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
-                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
-                                    <span style={{ fontSize: 14 }}>{'\u{1f4cc}'}</span>
-                                    <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{ev.pinnerName}</span>{' pinned a message to the board'}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </React.Fragment>
-                        );
-                      })}
+                      <MessageTimeline
+                        messages={activeMsgs}
+                        pinEvents={pinEvents}
+                        dateLabel={fmtDate}
+                        renderDateSeparator={renderTimelineDateSeparator}
+                        renderMessage={renderTimelineMessage}
+                      />
                       {typers.length > 0 && (
                         <div className="flex gap-2 px-4 py-1 sm:gap-2.5 sm:px-5">
                           <div className="w-7 sm:w-8" />
@@ -15241,6 +14348,32 @@ export default function SupraSpacePage() {
                       ? { paddingBottom: 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.25rem)' }
                       : undefined}
                   >
+                    {failedSends.filter(item => item.conversationId === activeId).map(item => (
+                      <div key={item.id} role="status" className="rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--danger)', color: 'var(--text-primary)' }}>
+                        <p>Delivery could not be confirmed. Your message and files are kept here.</p>
+                        <p className="truncate mt-1">{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</p>
+                        <div className="flex gap-2 mt-2">
+                          <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
+                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif || pendingMeeting) {
+                              showUploadNotice('info', 'Send or save your current draft before restoring this message.');
+                              return;
+                            }
+                            syncComposerText(item.content, true);
+                            if (textareaRef.current) textareaRef.current.innerHTML = markdownTextToEditorHtml(item.content);
+                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif); setPendingMeeting(item.meeting);
+                            restoredFailedSendRef.current = item.meeting ? null : item;
+                            setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
+                            showUploadNotice('info', item.meeting ? 'Draft restored. Check the conversation before resending.' : 'Draft restored. It can safely retry its original delivery.');
+                          }}>Restore draft</button>
+                          <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
+                            if (window.confirm('Discard this unsent message and its files?')) {
+                              if (restoredFailedSendRef.current?.id === item.id) restoredFailedSendRef.current = null;
+                              setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
+                            }
+                          }}>Discard</button>
+                        </div>
+                      </div>
+                    ))}
                     {replyTo && (
                       <div className="ss4-reply-bar flex items-center gap-2 px-3 py-2.5">
                         <Reply className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -15464,7 +14597,16 @@ export default function SupraSpacePage() {
                         )}
                         <div className="ss4-composer-main flex flex-col max-md:grid max-md:grid-cols-[44px_minmax(0,1fr)_auto] max-md:items-end max-md:gap-2 px-3 pt-2.5 pb-1.5 sm:px-3.5 sm:pt-3 sm:pb-2">
                           <div className="ss4-mobile-leading flex md:hidden">
-                            <button type="button" onPointerDown={openMobileAttachSheet} onClick={e => { if (e.detail === 0) openMobileAttachSheet(e); }} className="ss4-mobile-round-action" title="Add">
+                            <button
+                              type="button"
+                              onPointerDown={e => e.stopPropagation()}
+                              onClick={openMobileAttachSheet}
+                              className="ss4-mobile-round-action"
+                              title="Add to message"
+                              aria-label="Add to message"
+                              aria-haspopup="dialog"
+                              aria-expanded={mobileAttachSheetOpen}
+                            >
                               <Plus className="h-6 w-6" />
                             </button>
                           </div>
@@ -15480,6 +14622,9 @@ export default function SupraSpacePage() {
                             <div
                               ref={textareaRef}
                               contentEditable
+                              role="textbox"
+                              aria-label="Message"
+                              aria-multiline="true"
                               suppressContentEditableWarning
                               onBeforeInput={handleComposerTypographyBeforeInput}
                               onInput={event => {
@@ -15498,10 +14643,6 @@ export default function SupraSpacePage() {
                               onFocus={() => {
                                 saveComposerSelection();
                                 scheduleRefreshActiveFormats();
-                                if (isIOSStandaloneApp) {
-                                  setTimeout(() => composerDockRef.current?.scrollIntoView({ block: 'end' }), 80);
-                                  setTimeout(() => composerDockRef.current?.scrollIntoView({ block: 'end' }), 300);
-                                }
                               }}
                               onSelect={() => {
                                 saveComposerSelection();
@@ -15519,6 +14660,7 @@ export default function SupraSpacePage() {
                                 }
                               }}
                               onKeyDown={e => {
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                                 if (
                                   (e.ctrlKey || e.metaKey)
                                   && e.shiftKey
@@ -15818,13 +14960,16 @@ export default function SupraSpacePage() {
                                 >
                                   <div
                                     ref={mobileEmojiSheetRef}
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-label="Choose an emoji"
                                     className="ss4-mobile-emoji-sheet flex w-full flex-col rounded-t-[28px]"
                                     onClick={e => e.stopPropagation()}
                                     style={{
                                       background: 'var(--bg-elevated)',
                                       boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
-                                      height: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
-                                      maxHeight: `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)`,
+                                      height: `calc(var(--ss4-vvh, 100dvh) - 72px)`,
+                                      maxHeight: `calc(var(--ss4-vvh, 100dvh) - 72px)`,
                                       minHeight: 0,
                                       overflow: 'hidden',
                                       paddingBottom: isIOSStandaloneApp
@@ -15872,15 +15017,8 @@ export default function SupraSpacePage() {
                             <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Photo or video"><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
-                                onPointerDown={() => startSendPress()}
-                                onPointerUp={finishSendPress}
-                                onPointerCancel={finishSendPress}
-                                onPointerLeave={finishSendPress}
-                                onContextMenu={e => e.preventDefault()}
-                                onClick={() => {
-                                  if (sendLongPressTriggeredRef.current) return;
-                                  handleSend();
-                                }}
+                                type="button"
+                                onClick={() => handleSend()}
                                 disabled={sending}
                                 className="ss4-mobile-send"
                                 title="Send"
@@ -15952,12 +15090,7 @@ export default function SupraSpacePage() {
                         )}
                         {composerHasText && (
                           <div className="flex items-center justify-end px-3 pb-1 sm:px-3.5">
-                            <span
-                              className="font-semibold"
-                              style={{ fontSize: 10.5, color: composerCounterColor }}
-                            >
-                              {composerLimitLabel ? `${composerLimitLabel} - ` : ''}{composerCharCount.toLocaleString()} / 10,000
-                            </span>
+                            <ComposerCounter metrics={composerMetrics} />
                           </div>
                         )}
                         <input id={fileInputId} ref={fileRef} type="file" multiple className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none" tabIndex={-1} onChange={e => { handleUpload(e.target.files); if (e.target.files?.length && !mobileFilePickerOpen) setMobileAttachSheetOpen(false); if (e.target.files?.length) restoreComposerAfterMobilePicker(); e.target.value = ''; }} />
@@ -16123,8 +15256,10 @@ export default function SupraSpacePage() {
 
                       {activeConv.type === 'group' && editingGcName ? (
                         <div className="flex items-center gap-2 w-full max-w-xs">
-                          <input value={gcEmojiInput} onChange={e => setGcEmojiInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} placeholder="#" className="w-11 h-8 rounded-lg px-2 text-sm ss4-search-input text-center" maxLength={4} />
-                          <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
+                          <input value={gcEmojiInput} onChange={e => setGcEmojiInput(e.target.value)} onKeyDown={e => {
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} placeholder="#" className="w-11 h-8 rounded-lg px-2 text-sm ss4-search-input text-center" maxLength={4} />
+                          <input autoFocus value={gcNameInput} onChange={e => setGcNameInput(e.target.value)} onKeyDown={e => {
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} className="flex-1 h-8 rounded-lg px-3 text-sm ss4-search-input text-center" />
                           <button onClick={() => { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); }} className="ss4-send-btn h-8 w-8 flex items-center justify-center"><CheckIcon className="h-3.5 w-3.5" /></button>
                         </div>
                       ) : (
@@ -16145,6 +15280,9 @@ export default function SupraSpacePage() {
                       {activeConv.type === 'direct' && (
                         <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
                       )}
+                      <button onClick={() => setThreadReportOpen(true)} className="ss4-pill-btn h-10 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}>
+                        <FileText className="h-3.5 w-3.5" /> Thread report
+                      </button>
                     </div>
 
                     { }
@@ -16196,7 +15334,14 @@ export default function SupraSpacePage() {
                             {ssMediaItems.map(({ messageId, attachment: a }, i) => {
                               const isVid = isVideoAttachment(a);
                               return (
-                                <button key={`${messageId}-${i}`} onClick={() => setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName })} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
+                                <button key={`${messageId}-${i}`} onClick={() => {
+                                  const gallery = ssMediaItems.map(({ attachment }) => ({
+                                    src: getAttachmentMediaUrl(attachment),
+                                    type: isVideoAttachment(attachment) ? 'video' as const : 'image' as const,
+                                    name: attachment.originalName,
+                                  }));
+                                  setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, gallery, index: i });
+                                }} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
                                   {isVid ? <><video src={getAttachmentMediaUrl(a)} className="w-full h-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
                               );
@@ -16277,7 +15422,7 @@ export default function SupraSpacePage() {
                     {(activeConv.type === 'direct' || isAdmin) && (
                       <div className="px-4 pb-8 pt-2">
                         <div className="mx-1 mb-3 ss4-divider" />
-                        <p className="ss4-section-label mb-2" style={{ color: 'var(--danger)' }}>Danger Zone</p>
+                        <p className="ss4-section-label mb-2" style={{ color: 'var(--danger)' }}>Conversation management</p>
                         {!confirmDelete ? (
                           <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13, border: '1px solid var(--danger-muted)' }}><Trash2 className="h-4 w-4" /> Delete conversation</button>
                         ) : (
@@ -16300,7 +15445,17 @@ export default function SupraSpacePage() {
 
         { }
         {showModal.open && (
-          <NewConvModal users={allUsers.filter(u => u._id !== uid)} theme={theme} defaultTab={showModal.tab} onClose={() => setShowModal({ open: false, tab: 'dm' })} onStartDM={handleDM} onCreateGroup={handleGroup} onCreateSpace={handleCreateSpace} />
+          <NewConversationModal
+            users={allUsers.filter(user => user._id !== uid)}
+            theme={theme}
+            defaultTab={showModal.tab}
+            onClose={() => setShowModal({ open: false, tab: 'dm' })}
+            onStartDM={handleDM}
+            onCreateGroup={handleGroup}
+            onCreateSpace={handleCreateSpace}
+            getAvatarClass={getAvaColor}
+            getInitials={ini}
+          />
         )}
 
         { }
@@ -16327,24 +15482,31 @@ export default function SupraSpacePage() {
         )}
 
         {manageOpen && activeConv && (
-          <ManageMembersModal users={allUsers} existingIds={safeMembers(activeConv).map(m => m._id)} onClose={() => setManageOpen(false)} onAdd={addMembers} />
-        )}
-        {themeOpen && activeConv && (
-          <ThemeModal
-            current={activeConv.theme}
-            conv={activeConv}
-            uid={uid}
-            token={token}
-            onClose={() => setThemeOpen(false)}
-            onApply={applyTheme}
-            onMemberSettingsSaved={(settings) => patchConv(activeConv._id, (c) => ({
-              ...c,
-              viewerQuickReactions: settings.quickReactions,
-              members: c.members.map(m => m._id === uid ? { ...m, displayNickname: settings.nickname || undefined } : m),
-            }))}
+          <ManageMembersModal
+            users={allUsers}
+            existingIds={safeMembers(activeConv).map(m => m._id)}
+            onClose={() => setManageOpen(false)}
+            onAdd={addMembers}
+            getAvatarClass={getAvaColor}
+            getInitials={ini}
           />
         )}
-        {threadReportOpen && activeConv && (
+        {themeOpen && activeConv && (
+          <ConversationSettingsModal
+            current={activeConv.theme}
+            conversation={activeConv}
+            userId={uid}
+            token={token}
+            reactionChoices={SS4_REACTIONS}
+            onClose={() => setThemeOpen(false)}
+            onApply={applyTheme}
+            onMemberSettingsSaved={(settings) => patchConv(activeConv._id, (conversation) => ({
+              ...conversation,
+              viewerQuickReactions: settings.quickReactions,
+              members: conversation.members.map(member => member._id === uid ? { ...member, displayNickname: settings.nickname || undefined } : member),
+            }))}
+          />
+        )}        {threadReportOpen && activeConv && (
           <ThreadReportModal
             conversationName={getConvName(activeConv, uid)}
             date={threadReportDate}
@@ -16412,13 +15574,16 @@ export default function SupraSpacePage() {
           <div className="ss4-overlay fixed inset-0 z-200 flex items-end md:hidden" onClick={() => { setMobileAttachSheetOpen(false); setGifOpen(false); setMobileFilePickerOpen(false); }}>
             <div
               ref={mobileAttachSheetRef}
-              className="flex w-full select-none flex-col rounded-t-[28px] px-5 pt-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label={gifOpen ? 'Choose a GIF' : mobileFilePickerOpen ? 'Manage attachments' : 'Add to message'}
+              className="flex w-full select-none flex-col rounded-t-[28px] px-5 pt-3"
               onClick={e => e.stopPropagation()}
               style={{
                 background: 'var(--bg-elevated)',
                 boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
-                height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
-                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, ${isIOSStandaloneApp && typeof window !== 'undefined' ? `${window.screen.height}px` : '100dvh'}) - 72px)` : undefined,
+                height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
+                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
                 minHeight: 0,
                 overflow: 'hidden',
                 overscrollBehavior: 'contain',
@@ -16427,6 +15592,22 @@ export default function SupraSpacePage() {
                   : 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
               }}
             >
+              <div className="flex items-center justify-between pb-2 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-1 w-9 rounded-full" style={{ background: 'var(--border-3)' }} />
+                  <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>
+                    {gifOpen ? 'Choose a GIF' : mobileFilePickerOpen ? 'Attachments' : 'Add to message'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ss4-icon-btn h-10 w-10"
+                  aria-label="Close attachment menu"
+                  onClick={() => { setMobileAttachSheetOpen(false); setGifOpen(false); setMobileFilePickerOpen(false); }}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
               {gifOpen ? (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <GifPicker inline mobile onPick={(gif) => { selectGif(gif); setMobileAttachSheetOpen(false); }} onClose={() => { setGifOpen(false); setMobileAttachSheetOpen(false); }} />
@@ -16467,6 +15648,12 @@ export default function SupraSpacePage() {
                       <span className="font-semibold" style={{ fontSize: 14 }}>Files</span>
                     </button>
                   )}
+                  {canScheduleSend && (
+                    <button type="button" onClick={() => { setMobileAttachSheetOpen(false); openScheduleSheet(); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                      <Clock className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                      <span className="font-semibold" style={{ fontSize: 14 }}>Schedule message</span>
+                    </button>
+                  )}
                   <button type="button" onClick={() => { setMobileAttachSheetOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
                     <CalendarPlus className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                     <span className="font-semibold" style={{ fontSize: 14 }}>Calendar</span>
@@ -16497,7 +15684,14 @@ export default function SupraSpacePage() {
           <ScheduleMeetingModal onClose={() => setScheduleMeetingOpen(false)} onSubmit={handleScheduleSuprahMeeting} />
         )}
         {activeUsersOpen && (
-          <ActiveUsersModal users={allUsers} presence={presence} uid={uid} onClose={() => setActiveUsersOpen(false)} />
+          <ActiveUsersModal
+            users={allUsers}
+            presence={presence}
+            userId={uid}
+            onClose={() => setActiveUsersOpen(false)}
+            getAvatarClass={getAvaColor}
+            getInitials={ini}
+          />
         )}
         {summarizeOpen && activeId && (
           <SummarizeModal token={token} conversationId={activeId} onClose={() => setSummarizeOpen(false)} />
@@ -16577,10 +15771,10 @@ export default function SupraSpacePage() {
         )}
         {notifModalConv && (
           <NotificationSettingsModal
-            conv={notifModalConv}
-            convName={getConvName(notifModalConv, uid)}
-            prefs={notifPrefs[notifModalConv._id] ?? notifModalConv.notificationPreference ?? { type: 'all', muted: false }}
-            onSave={p => saveNotificationPref(notifModalConv._id, p)}
+            conversation={notifModalConv}
+            conversationName={getConvName(notifModalConv, uid)}
+            preferences={notifPrefs[notifModalConv._id] ?? notifModalConv.notificationPreference ?? { type: 'all', muted: false }}
+            onSave={preferences => saveNotificationPref(notifModalConv._id, preferences)}
             onClose={() => setNotifModalConv(null)}
           />
         )}
@@ -16670,8 +15864,8 @@ export default function SupraSpacePage() {
           ];
           return (
             <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setConvMobileSheet(null)}>
-              <div className="w-full rounded-t-2xl pb-safe" onClick={e => e.stopPropagation()}
-                style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
+              <div role="dialog" aria-modal="true" aria-label={`${cName} actions`} className="w-full max-h-[calc(var(--ss4-vvh,100dvh)-1rem)] overflow-y-auto rounded-t-2xl pb-safe" onClick={e => e.stopPropagation()}
+                style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)', overscrollBehavior: 'contain' }}>
                 <div className="flex justify-center pt-3 pb-1">
                   <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
                 </div>
@@ -16704,7 +15898,7 @@ export default function SupraSpacePage() {
           const currentSpaceId = (conv as any).spaceId as string | null | undefined;
           return (
             <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setMoveSpaceSheetConv(null)}>
-              <div className="w-full max-h-[75vh] flex flex-col rounded-t-2xl" onClick={e => e.stopPropagation()}
+              <div role="dialog" aria-modal="true" aria-label="Move conversation to Space" className="w-full max-h-[calc(var(--ss4-vvh,100dvh)-1rem)] flex flex-col rounded-t-2xl" onClick={e => e.stopPropagation()}
                 style={{ background: 'var(--surface-2,#1c1d20)', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}>
                 <div className="flex justify-center pt-3 pb-1 shrink-0">
                   <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border-2,rgba(255,255,255,0.15))' }} />
