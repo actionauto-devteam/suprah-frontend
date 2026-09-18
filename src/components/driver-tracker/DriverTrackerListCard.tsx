@@ -240,12 +240,12 @@ export function DriverTrackerListCard({
           />
         </div>
 
-        <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
+        <div className="grid grid-cols-2 gap-2 p-1 md:grid-cols-4 md:gap-1 rounded-lg bg-muted/30 border border-border/40">
           <button
             type="button"
             aria-pressed={operationalFilter === "all"}
             onClick={() => { setOperationalFilter("all"); setActiveSubFilter("all"); }}
-            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-xs md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "all" ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-700 dark:text-indigo-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >All ({counts.all})</button>
 
           <button
@@ -254,20 +254,20 @@ export function DriverTrackerListCard({
             aria-controls={activeFiltersId}
             aria-pressed={operationalFilter === "active"}
             onClick={() => setOperationalFilter("active")}
-            className={"min-h-11 rounded-md border px-1.5 py-2 text-[10px] font-bold transition-colors sm:px-2 sm:text-xs md:min-h-0 " + (operationalFilter === "active" ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60")}
+            className={"min-h-11 rounded-md border px-2 py-2 text-xs font-bold transition-colors sm:px-2 sm:text-xs md:min-h-0 " + (operationalFilter === "active" ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "border-transparent text-muted-foreground hover:bg-muted/60")}
           >Active ({counts.active})</button>
 
           <button
             type="button"
             aria-pressed={operationalFilter === "on_leave"}
             onClick={() => { setOperationalFilter("on_leave"); setActiveSubFilter("all"); }}
-            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-xs md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "on_leave" ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >On Leave ({counts.on_leave})</button>
           <button
             type="button"
             aria-pressed={operationalFilter === "maintenance"}
             onClick={() => { setOperationalFilter("maintenance"); setActiveSubFilter("all"); }}
-            className={`min-h-11 rounded-md px-1.5 py-2 text-[10px] md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
+            className={`min-h-11 rounded-md px-1.5 py-2 text-xs md:min-h-0 font-bold border transition-all sm:px-2 sm:text-xs ${operationalFilter === "maintenance" ? "bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300" : "border-transparent text-muted-foreground hover:bg-muted/60"}`}
           >In Shop ({counts.maintenance})</button>
         </div>
 
@@ -288,7 +288,7 @@ export function DriverTrackerListCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="grid grid-cols-1 gap-2 min-[375px]:grid-cols-3 md:flex md:gap-1">
           {([
             ["all", `All GPS (${drivers.length})`],
             ["sharing", `Fresh GPS (${counts.sharing})`],
@@ -296,8 +296,10 @@ export function DriverTrackerListCard({
           ] as const).map(([key, label]) => (
             <button
               key={key}
+              type="button"
+              aria-pressed={gpsFilter === key}
               onClick={() => setGpsFilter(key)}
-              className={`min-h-11 flex-1 rounded-md border px-1.5 py-1.5 md:min-h-0 text-[10px] font-semibold transition-colors sm:px-2 sm:text-xs ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
+              className={`min-h-11 flex-1 rounded-md border px-1.5 py-1.5 md:min-h-0 text-xs font-semibold transition-colors sm:px-2 sm:text-xs ${gpsFilter === key ? "border-primary/30 bg-primary/5 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/40"}`}
             >{label}</button>
           ))}
         </div>
@@ -305,7 +307,7 @@ export function DriverTrackerListCard({
 
       <CardContent
         ref={listScrollRef}
-        className="p-2 min-h-0 flex-1 overflow-visible md:overflow-y-scroll md:overscroll-contain space-y-1.5 [scrollbar-gutter:stable]"
+        className="p-3 min-h-0 flex-1 overflow-visible space-y-3 md:p-2 md:overflow-y-scroll md:overscroll-contain md:space-y-1.5 md:[scrollbar-gutter:stable]"
       >
         {error && (
           <div className="rounded-lg bg-destructive/5 border border-destructive/10 px-3 py-2">
@@ -389,7 +391,7 @@ export function DriverTrackerListCard({
                 }}
               >
                 <div className="flex items-start gap-3">
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <Avatar className="size-9 border-2 border-background shadow-sm">
                       {driver.driver?.avatar && (
                         <AvatarImage src={driver.driver.avatar} />
@@ -403,7 +405,7 @@ export function DriverTrackerListCard({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2 md:flex-nowrap md:items-center">
                       <button type="button" disabled={!onDriverClick} aria-pressed={selectedDriverId === driver.id}
                         onClick={event => { event.stopPropagation(); onDriverClick?.(driver); }}
                         className="min-w-0 rounded break-words text-left text-sm font-bold leading-tight text-foreground outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary [overflow-wrap:anywhere] sm:text-base">
@@ -419,62 +421,6 @@ export function DriverTrackerListCard({
                           </Badge>
                         )}
 
-                        {onOpenDriver && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className={`relative size-11 p-0 md:hidden ${
-                              unreadMessageCount > 0
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : "text-muted-foreground"
-                            }`}
-                            aria-label={`Message ${driver.driver?.name || "driver"}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenDriver(driver, "chat");
-                            }}
-                          >
-                            <MessageSquare className="size-4" />
-                            {unreadMessageCount > 0 && (
-                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[8px] font-black leading-4 text-white">
-                                {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
-                              </span>
-                            )}
-                          </Button>
-                        )}
-
-                        {onAlertDriver && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="size-11 p-0 text-amber-600 md:hidden dark:text-amber-400"
-                            aria-label={`Alert ${driver.driver?.name || "driver"}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onAlertDriver(driver);
-                            }}
-                          >
-                            <Bell className="size-4" />
-                          </Button>
-                        )}
-
-                        {onOpenDriver && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="size-11 p-0 md:hidden"
-                            aria-label={`Open ${driver.driver?.name || "driver"} workspace`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenDriver(driver, "overview");
-                            }}
-                          >
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          </Button>
-                        )}
                         <Button
                           size="sm"
                           variant="ghost"
@@ -570,13 +516,13 @@ export function DriverTrackerListCard({
                     </div>
 
                     {selectedAssignment && (
-                      <div className="mt-2 rounded-xl border border-border/45 bg-muted/[0.10] p-2.5 md:hidden">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                      <div className="mt-3 rounded-xl border border-border/45 bg-muted/[0.10] p-3 md:hidden">
+                        <div className="mb-3 flex flex-col items-stretch gap-2">
+                          <p className="text-xs font-bold text-muted-foreground">
                             Current Assignment
                           </p>
                           {shipments.length > 1 && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-between gap-2">
                               <Button
                                 type="button"
                                 variant="outline"
@@ -590,7 +536,7 @@ export function DriverTrackerListCard({
                               >
                                 <ChevronLeft className="size-4" />
                               </Button>
-                              <span className="min-w-14 text-center text-[10px] font-bold tabular-nums text-muted-foreground" aria-live="polite" aria-atomic="true">
+                              <span className="min-w-14 text-center text-xs font-bold tabular-nums text-muted-foreground" aria-live="polite" aria-atomic="true">
                                 Load {selectedAssignmentIndex + 1} of {shipments.length}
                               </span>
                               <Button
@@ -621,7 +567,7 @@ export function DriverTrackerListCard({
                           )}
                         </div>
                         {(selectedAssignment.origin || selectedAssignment.destination) && (
-                          <div className="mt-2 grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px] leading-relaxed">
+                          <div className="mt-2 grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 gap-y-2 text-xs leading-relaxed">
                             <span className="font-bold text-muted-foreground">Pickup</span>
                             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                               {selectedAssignment.origin || "Not provided"}
@@ -666,6 +612,69 @@ export function DriverTrackerListCard({
                     )}
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 border-t border-border/40 p-3 md:hidden" role="group" aria-label={"Actions for " + (driver.driver?.name || "driver")}>
+                        {onOpenDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className={`relative min-h-11 h-auto w-full gap-2 px-2 py-2 text-xs ${
+                              unreadMessageCount > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-muted-foreground"
+                            }`}
+                            aria-label={`Message ${driver.driver?.name || "driver"}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenDriver(driver, "chat");
+                            }}
+                          >
+                            <MessageSquare className="size-4 shrink-0" />
+                            <span>Message</span>
+                            {unreadMessageCount > 0 && (
+                              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[8px] font-black leading-4 text-white">
+                                {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                              </span>
+                            )}
+                          </Button>
+                        )}
+
+                        {onAlertDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="min-h-11 h-auto w-full gap-2 px-2 py-2 text-xs text-amber-600 dark:text-amber-400"
+                            aria-label={`Alert ${driver.driver?.name || "driver"}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onAlertDriver(driver);
+                            }}
+                          >
+                            <Bell className="size-4 shrink-0" />
+                            <span>Alert</span>
+                          </Button>
+                        )}
+
+                        {onOpenDriver && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="min-h-11 h-auto w-full gap-2 px-2 py-2 text-xs"
+                            aria-label={`Open ${driver.driver?.name || "driver"} workspace`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenDriver(driver, "overview");
+                            }}
+                          >
+                            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                            <span>Details</span>
+                          </Button>
+                        )}
+
               </div>
 
               {isExpanded && (

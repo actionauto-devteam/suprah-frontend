@@ -602,17 +602,27 @@ self.addEventListener("push", (event: any) => {
       // conversationId is the one thing every SupraSpace push always carries
       // that nothing else does.
       const isSupraSpaceMessage = !!data.data?.conversationId;
+      const isDirectDispatchMessage =
+        data.data?.pushPresentation === "direct_message";
       const appActive = await isAppActive();
       const legacySoundProfile = data.data?.playSound ? "urgent" : "none";
       const soundProfile = String(data.data?.soundProfile || legacySoundProfile);
       const priority = String(data.data?.priority || "");
       const needsImmediateAttention =
-        soundProfile === "attention" || soundProfile === "urgent";
+        soundProfile === "message" ||
+        soundProfile === "attention" ||
+        soundProfile === "urgent";
 
-      // Quick Attention and urgent alerts must never disappear inside the
-      // background burst summary. Normal operational alerts retain the existing
-      // summary behavior so reconnecting users are not flooded by stale pushes.
-      if (!needsImmediateAttention && !isSupraSpaceMessage && !appActive) {
+      // Quick Attention, urgent alerts, SupraSpace messages, and exact private
+      // Driver ↔ Dispatcher messages must remain individually visible. All
+      // other ordinary notification traffic keeps the existing background
+      // burst summary so reconnecting users are not flooded.
+      if (
+        !needsImmediateAttention &&
+        !isSupraSpaceMessage &&
+        !isDirectDispatchMessage &&
+        !appActive
+      ) {
         await showBurstSummary(data);
         return;
       }
@@ -623,9 +633,11 @@ self.addEventListener("push", (event: any) => {
           ? [250, 100, 250, 100, 350]
           : soundProfile === "attention"
             ? [180, 80, 180]
-            : priority === "normal"
-              ? undefined
-              : [100, 50, 100];
+            : soundProfile === "message"
+              ? [90, 50, 90]
+              : priority === "normal"
+                ? undefined
+                : [100, 50, 100];
 
       const options = {
         body: data.body,
@@ -637,6 +649,10 @@ self.addEventListener("push", (event: any) => {
           url: data.data?.url || "/",
           conversationId: data.data?.conversationId,
           messageId: data.data?.messageId,
+          threadId: data.data?.threadId,
+          driverId: data.data?.driverId,
+          dispatcherId: data.data?.dispatcherId,
+          pushPresentation: data.data?.pushPresentation,
           notificationId: data.data?.notificationId,
           driverRequestId: data.data?.driverRequestId,
           alertId: data.data?.alertId,
@@ -646,7 +662,12 @@ self.addEventListener("push", (event: any) => {
         },
         actions: data.actions || [],
         ...(vibrationPattern ? { vibrate: vibrationPattern } : {}),
-        ...(priority === "normal" ? { silent: true } : {}),
+        ...(
+          priority === "normal" ||
+          (isDirectDispatchMessage && appActive)
+            ? { silent: true }
+            : {}
+        ),
         // Without this, a second push sharing the same tag (e.g. another
         // message in the same conversation — see pushToConversationMembers'
         // tag: conv._id) silently replaces the prior notification on
@@ -667,7 +688,7 @@ self.addEventListener("push", (event: any) => {
             .matchAll({ type: "window", includeUncontrolled: true })
             .then((clientList: any[]) => {
               const messageType =
-                soundProfile === "attention"
+                soundProfile === "attention" || soundProfile === "message"
                   ? "PLAY_ATTENTION_ALERT_SOUND"
                   : "PLAY_SHIFT_ALERT_SOUND";
               clientList.forEach((client) =>

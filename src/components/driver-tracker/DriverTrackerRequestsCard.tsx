@@ -104,7 +104,7 @@ export function DriverTrackerRequestsCard({
   }
 
   return (
-    <div className="divide-y divide-border/30">
+    <div className="space-y-3 p-3 sm:space-y-0 sm:divide-y sm:divide-border/30 sm:p-0">
       {requests.map((req) => {
         const key = `${req.loadId || req.shipmentId}-${req.driverId}`;
         const isApproving = approvingId === key;
@@ -137,7 +137,7 @@ export function DriverTrackerRequestsCard({
               else requestRefs.current.delete(key);
             }}
             tabIndex={-1}
-            className={`p-3 sm:p-4 transition-all outline-none hover:bg-accent/30 ${
+            className={`min-w-0 rounded-xl border border-border/50 bg-card p-3 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-4 transition-all outline-none hover:bg-accent/30 ${
               focusedRequestKey === key
                 ? "bg-amber-500/[0.07] ring-2 ring-inset ring-amber-500/55"
                 : ""
@@ -147,37 +147,37 @@ export function DriverTrackerRequestsCard({
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-bold">{req.driverName}</p>
+                    <p className="min-w-0 break-words text-sm font-bold [overflow-wrap:anywhere]">{req.driverName}</p>
                     {req.equipment?.truckMake && (
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs sm:text-[10px] text-muted-foreground">
                         {req.equipment.truckMake} {req.equipment.truckModel || ""}
                       </span>
                     )}
                     {req.equipment?.trailerType && (
-                      <Badge className="text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 h-5">
+                      <Badge className="text-xs sm:text-[9px] px-1.5 py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal">
                         {trailerLabel(req.equipment.trailerType)}
                       </Badge>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
+                  <span className="text-xs sm:text-[10px] text-muted-foreground shrink-0 flex items-center gap-1">
                     <Clock className="size-2.5" />{timeAgo(req.requestedAt)}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                  <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
+                <div className="flex items-center gap-2 text-xs sm:text-[11px] flex-wrap">
+                  <Badge variant="outline" className="max-w-full whitespace-normal break-all text-xs sm:text-[10px] font-semibold">
                     {req.trackingNumber || (req.loadId || req.shipmentId || "").slice(-8)}
                   </Badge>
-                  <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
-                    <MapPin className="size-3 shrink-0" />
+                  <div className="grid w-full min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-2 gap-y-2 text-xs text-muted-foreground sm:flex sm:w-auto sm:items-center sm:gap-1.5">
+                    <span className="font-semibold sm:hidden">Pickup</span><MapPin className="hidden size-3 shrink-0 sm:block" />
                     <span className="min-w-0 break-words [overflow-wrap:anywhere]">{req.origin}</span>
-                    <ArrowRight className="size-3 shrink-0" />
+                    <span className="font-semibold sm:hidden">Delivery</span><ArrowRight className="hidden size-3 shrink-0 sm:block" />
                     <span className="min-w-0 break-words [overflow-wrap:anywhere]">{req.destination}</span>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge className={`text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${availabilityMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : availabilityMatch === "off_schedule" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25" : "bg-muted text-muted-foreground border-border/50"}`}>
+                  <Badge className={`text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${availabilityMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : availabilityMatch === "off_schedule" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25" : "bg-muted text-muted-foreground border-border/50"}`}>
                     {availabilityMatch === "match" ? <CheckCircle2 className="size-2.5 shrink-0" /> : availabilityMatch === "off_schedule" ? <AlertTriangle className="size-2.5 shrink-0" /> : <Calendar className="size-2.5 shrink-0" />}
                     {availabilityMatch === "match"
                       ? `Available ${titleCaseDay(compatibility?.availability.pickupDay) || ""}`.trim()
@@ -186,18 +186,18 @@ export function DriverTrackerRequestsCard({
                         : "Schedule Unknown"}
                   </Badge>
                   {trailerMatch !== "unknown" && (
-                    <Badge className={`text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${trailerMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"}`}>
+                    <Badge className={`text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal ${trailerMatch === "match" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"}`}>
                       {trailerMatch === "match" ? <CheckCircle2 className="size-2.5 shrink-0" /> : <AlertTriangle className="size-2.5 shrink-0" />}
                       Trailer {trailerMatch === "match" ? "Match" : "Mismatch"}
                     </Badge>
                   )}
                   {capacityMatch === "match" ? (
-                    <Badge className="text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                       <CheckCircle2 className="size-2.5 shrink-0" />
                       Capacity {compatibility?.capacity.requiredVehicles ?? req.vehicleCount ?? "?"}/{compatibility?.capacity.maxVehicles ?? req.equipment?.maxVehicleCapacity ?? "?"}
                     </Badge>
                   ) : (
-                    <Badge className="text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 min-h-5 h-auto gap-0.5 whitespace-normal bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       {capacityMatch === "exceeded" ? <XCircle className="size-2.5 shrink-0" /> : <AlertTriangle className="size-2.5 shrink-0" />}
                       {capacityMatch === "exceeded"
                         ? `Capacity ${compatibility?.capacity.requiredVehicles ?? req.vehicleCount ?? "?"}/${compatibility?.capacity.maxVehicles ?? req.equipment?.maxVehicleCapacity ?? "?"} · Exceeded`
@@ -205,22 +205,22 @@ export function DriverTrackerRequestsCard({
                     </Badge>
                   )}
                   {req.workEligible === false && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25">
                       <AlertTriangle className="size-2.5" />Unavailable for New Work
                     </Badge>
                   )}
                   {req.equipment?.isComplianceExpired && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30">
                       <AlertTriangle className="size-2.5" />Compliance Expired
                     </Badge>
                   )}
                   {req.equipment?.profileCompletionScore != null && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-muted text-muted-foreground border-border/50">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-muted text-muted-foreground border-border/50">
                       Profile: {req.equipment.profileCompletionScore}%
                     </Badge>
                   )}
                   {req.carrierPayAmount != null && req.carrierPayAmount > 0 && (
-                    <Badge className="text-[9px] px-1.5 py-0 h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
+                    <Badge className="text-xs sm:text-[9px] px-1.5 py-0 h-auto min-h-6 sm:h-5 sm:min-h-0 whitespace-normal gap-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30">
                       <DollarSign className="size-2.5" />{req.carrierPayAmount.toLocaleString()}
                     </Badge>
                   )}
@@ -232,10 +232,10 @@ export function DriverTrackerRequestsCard({
                 />
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="grid grid-cols-1 gap-2 min-[375px]:grid-cols-2 sm:flex sm:items-center sm:shrink-0">
                 <Button
                   size="sm"
-                  className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 flex-1 sm:flex-initial"
+                  className="min-h-11 h-auto whitespace-normal sm:min-h-0 sm:h-8 px-3 text-xs font-bold gap-1.5 flex-1 sm:flex-initial"
                   onClick={() => onApprove(req.loadId!, req.driverId)}
                   disabled={isApproving || isRejecting || req.workEligible === false}
                   title={req.workEligible === false ? (req.workEligibilityReason || "Driver is unavailable for new work") : undefined}
@@ -246,7 +246,7 @@ export function DriverTrackerRequestsCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 sm:h-8 px-3 text-xs font-bold gap-1.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-500/10 dark:hover:text-red-400 dark:hover:border-red-500/30 flex-1 sm:flex-initial"
+                  className="min-h-11 h-auto whitespace-normal sm:min-h-0 sm:h-8 px-3 text-xs font-bold gap-1.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-500/10 dark:hover:text-red-400 dark:hover:border-red-500/30 flex-1 sm:flex-initial"
                   onClick={() => onReject(req.loadId!, req.driverId)}
                   disabled={isApproving || isRejecting}
                 >

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
@@ -1465,6 +1465,55 @@ export default function DriverDashboardPage() {
   ];
 
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const dispatchChatDeepLinkHandledRef = React.useRef<string | null>(null);
+  const requestedDispatchThreadId =
+    String(searchParams.get("threadId") ?? "").trim() || null;
+  const shouldOpenDispatchChatFromNotification =
+    searchParams.get("openDispatchChat") === "1" &&
+    Boolean(requestedDispatchThreadId);
+
+  React.useEffect(() => {
+    if (!shouldOpenDispatchChatFromNotification || !requestedDispatchThreadId) {
+      dispatchChatDeepLinkHandledRef.current = null;
+      return;
+    }
+
+    const deepLinkKey = `dispatch-chat:${requestedDispatchThreadId}`;
+    if (dispatchChatDeepLinkHandledRef.current === deepLinkKey) return;
+
+    dispatchChatDeepLinkHandledRef.current = deepLinkKey;
+    setEmergencyChatOpen(true);
+  }, [
+    requestedDispatchThreadId,
+    shouldOpenDispatchChatFromNotification,
+  ]);
+
+  const handleDispatchChatOpenChange = React.useCallback(
+    (open: boolean) => {
+      setEmergencyChatOpen(open);
+      if (open) return;
+
+      if (
+        searchParams.get("openDispatchChat") !== "1" &&
+        !searchParams.get("threadId")
+      ) {
+        return;
+      }
+
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.delete("openDispatchChat");
+      nextParams.delete("threadId");
+
+      const cleanedUrl = nextParams.toString()
+        ? `${pathname}?${nextParams.toString()}`
+        : pathname;
+
+      router.replace(cleanedUrl, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   const { mountain, mountainZone, utc } = formatDualTime(currentTime);
   const displayedDispatchLabel =
@@ -2748,10 +2797,11 @@ export default function DriverDashboardPage() {
 
       <DispatchChatDialog
         open={emergencyChatOpen}
-        onOpenChange={setEmergencyChatOpen}
+        onOpenChange={handleDispatchChatOpenChange}
         driverId={user?.id ?? null}
         participantName="Dispatch Team"
         onUnreadChange={ignoreEmergencyChatUnread}
+        initialThreadId={requestedDispatchThreadId}
       />
 
       <ConfirmationModal

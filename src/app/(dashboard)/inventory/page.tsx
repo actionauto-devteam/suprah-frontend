@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePreparedInventoryPhotos } from "@/hooks/usePreparedInventoryPhotos";
 import { Archive, Car, Loader2, Package, RefreshCw } from "lucide-react";
 import { CarInventoryCard, preloadInventoryVehicleImages } from "@/components/car-inventory-card";
 import { PremiumVehicleCard } from "@/components/customer/PremiumVehicleCard";
@@ -24,6 +25,117 @@ const ShippingQuoteModal = React.lazy(() => import("@/components/shipping-quote-
 const VehicleDetailsModal = React.lazy(() => import("@/components/vehicle-details-modal").then((m) => ({ default: m.VehicleDetailsModal })));
 const VehicleInquiryModal = React.lazy(() => import("@/components/vehicle-inquiry-modal").then((m) => ({ default: m.VehicleInquiryModal })));
 const FinanceApplicationModal = React.lazy(() => import("@/components/finance-application-modal").then((m) => ({ default: m.FinanceApplicationModal })));
+
+function filterInventoryVehicles(allVehicles: Vehicle[], filters: any, debouncedSearch: string, metricsReady: boolean) {
+    const search = debouncedSearch.trim().toLowerCase();
+
+    return allVehicles.filter((vehicle) => {
+      if (search) {
+        const haystack = [
+          vehicle.make,
+          vehicle.model,
+          vehicle.vin,
+          vehicle.stockNumber,
+          vehicle.year?.toString(),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        // A single .includes(search) check requires the whole typed phrase to appear as one
+        // exact, adjacent substring — so "2024 acura" would never match a vehicle whose
+        // haystack has make before year ("acura ... 2024"), even though it's a real match.
+        // Matching each typed word independently (any order) is what users actually expect.
+        const searchTerms = search.split(/\s+/).filter(Boolean);
+        if (!searchTerms.every((term: string) => haystack.includes(term))) return false;
+      }
+
+      if (
+        filters.make &&
+        vehicle.make?.toLowerCase() !== String(filters.make).toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (
+        filters.model &&
+        vehicle.model?.toLowerCase() !== String(filters.model).toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (
+        filters.status &&
+        filters.status !== "all" &&
+        vehicle.status !== filters.status
+      ) {
+        return false;
+      }
+
+      if (filters.year && vehicle.year !== Number(filters.year)) return false;
+
+      if (
+        filters.bodyStyle &&
+        vehicle.bodyStyle?.toLowerCase() !==
+          String(filters.bodyStyle).toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (filters.location) {
+        const location = vehicle.location?.toLowerCase() ?? "";
+        if (!location.includes(String(filters.location).toLowerCase())) {
+          return false;
+        }
+      }
+
+      if (
+        filters.minPrice !== undefined &&
+        (vehicle.price ?? 0) < Number(filters.minPrice)
+      ) {
+        return false;
+      }
+
+      if (
+        filters.maxPrice !== undefined &&
+        (vehicle.price ?? 0) > Number(filters.maxPrice)
+      ) {
+        return false;
+      }
+
+      if (
+        filters.minMileage !== undefined &&
+        (vehicle.mileage ?? 0) < Number(filters.minMileage)
+      ) {
+        return false;
+      }
+
+      if (
+        filters.maxMileage !== undefined &&
+        (vehicle.mileage ?? 0) > Number(filters.maxMileage)
+      ) {
+        return false;
+      }
+
+      if (!matchesPriceUpdatedFilter(vehicle, filters.priceUpdated)) {
+        return false;
+      }
+
+      if (filters.highDemand && metricsReady && (vehicle.leadCount ?? 0) < 1) {
+        return false;
+      }
+
+      if (
+        filters.lowPerforming &&
+        metricsReady &&
+        !((vehicle.leadCount ?? 0) === 0 && (vehicle.daysOnLot ?? 0) >= 30)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+}
 
 type InventoryView = "active" | "archived";
 
@@ -75,20 +187,6 @@ const INVENTORY_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "demand-desc", label: "Most Inquiries" },
   { value: "low-performing-desc", label: "Low Performing" },
 ];
-
-const DESKTOP_SORT_IMAGE_WARM_MS = 300;
-const MOBILE_SORT_IMAGE_WARM_MS = 450;
-
-function getVisibleGridColumnCount() {
-  if (typeof window === "undefined") return 4;
-
-  const width = window.innerWidth;
-  if (width >= 1280) return 4;
-  if (width >= 1024) return 3;
-  if (width >= 768) return 2;
-  return 1;
-}
-
 
 function compareText(a?: string, b?: string) {
   const left = a?.trim();
@@ -339,6 +437,8 @@ function InventoryContent() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [pendingInventoryView, setPendingInventoryView] = React.useState<InventoryView | null>(null);
   const requestSequenceRef = React.useRef(0);
+  const viewSwitchSequenceRef = React.useRef(0);
+  React.useEffect(() => () => { viewSwitchSequenceRef.current += 1; }, []);
   const requestControllerRef = React.useRef<AbortController | null>(null);
   const hasLoadedOnceRef = React.useRef(false);
   // Preserve each dataset independently. This prevents the Active ↔ Archive/Sold
@@ -417,6 +517,7 @@ function InventoryContent() {
   const fetchVehicleDataset = React.useCallback(
     async (view: InventoryView, signal?: AbortSignal): Promise<Vehicle[]> => {
       const token = await getToken();
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const response = await apiClient.get("/api/vehicles", {
         headers: { Authorization: `Bearer ${token}` },
         params: {
@@ -650,114 +751,7 @@ function InventoryContent() {
   }, [allVehicles.length, fetchDemandMetrics, metricsReady, inventoryView]);
 
   const filteredVehicles = React.useMemo(() => {
-    const search = debouncedSearch.trim().toLowerCase();
-
-    return allVehicles.filter((vehicle) => {
-      if (search) {
-        const haystack = [
-          vehicle.make,
-          vehicle.model,
-          vehicle.vin,
-          vehicle.stockNumber,
-          vehicle.year?.toString(),
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        // A single .includes(search) check requires the whole typed phrase to appear as one
-        // exact, adjacent substring — so "2024 acura" would never match a vehicle whose
-        // haystack has make before year ("acura ... 2024"), even though it's a real match.
-        // Matching each typed word independently (any order) is what users actually expect.
-        const searchTerms = search.split(/\s+/).filter(Boolean);
-        if (!searchTerms.every((term: string) => haystack.includes(term))) return false;
-      }
-
-      if (
-        filters.make &&
-        vehicle.make?.toLowerCase() !== String(filters.make).toLowerCase()
-      ) {
-        return false;
-      }
-
-      if (
-        filters.model &&
-        vehicle.model?.toLowerCase() !== String(filters.model).toLowerCase()
-      ) {
-        return false;
-      }
-
-      if (
-        filters.status &&
-        filters.status !== "all" &&
-        vehicle.status !== filters.status
-      ) {
-        return false;
-      }
-
-      if (filters.year && vehicle.year !== Number(filters.year)) return false;
-
-      if (
-        filters.bodyStyle &&
-        vehicle.bodyStyle?.toLowerCase() !==
-          String(filters.bodyStyle).toLowerCase()
-      ) {
-        return false;
-      }
-
-      if (filters.location) {
-        const location = vehicle.location?.toLowerCase() ?? "";
-        if (!location.includes(String(filters.location).toLowerCase())) {
-          return false;
-        }
-      }
-
-      if (
-        filters.minPrice !== undefined &&
-        (vehicle.price ?? 0) < Number(filters.minPrice)
-      ) {
-        return false;
-      }
-
-      if (
-        filters.maxPrice !== undefined &&
-        (vehicle.price ?? 0) > Number(filters.maxPrice)
-      ) {
-        return false;
-      }
-
-      if (
-        filters.minMileage !== undefined &&
-        (vehicle.mileage ?? 0) < Number(filters.minMileage)
-      ) {
-        return false;
-      }
-
-      if (
-        filters.maxMileage !== undefined &&
-        (vehicle.mileage ?? 0) > Number(filters.maxMileage)
-      ) {
-        return false;
-      }
-
-      if (!matchesPriceUpdatedFilter(vehicle, filters.priceUpdated)) {
-        return false;
-      }
-
-      if (filters.highDemand && metricsReady && (vehicle.leadCount ?? 0) < 1) {
-        return false;
-      }
-
-      if (
-        filters.lowPerforming &&
-        metricsReady &&
-        !((vehicle.leadCount ?? 0) === 0 && (vehicle.daysOnLot ?? 0) >= 30)
-      ) {
-        return false;
-      }
-
-      return true;
-    });
+    return filterInventoryVehicles(allVehicles, filters, debouncedSearch, metricsReady);
   }, [
     allVehicles,
     debouncedSearch,
@@ -841,6 +835,8 @@ function InventoryContent() {
     return sortedVehicles.slice(start, start + limit);
   }, [sortedVehicles, page, limit]);
 
+  const preparedPhotos = usePreparedInventoryPhotos(visibleVehicles, `${inventoryView}:${viewMode}`);
+
   React.useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
@@ -886,6 +882,8 @@ function InventoryContent() {
 
   const handleFilterChange = React.useCallback(
     (key: string, value: any) => {
+      sortRequestRef.current += 1;
+      setPendingSortValue(null);
       if (
         (key === "highDemand" || key === "lowPerforming") &&
         value &&
@@ -901,6 +899,8 @@ function InventoryContent() {
   );
 
   const handleClearFilters = React.useCallback(() => {
+    sortRequestRef.current += 1;
+    setPendingSortValue(null);
     setFilters({
       search: "",
       make: undefined,
@@ -925,48 +925,40 @@ function InventoryContent() {
   const handleViewChange = React.useCallback(
     (view: InventoryView) => {
       if (view === inventoryView || pendingInventoryView) return;
-
-      setPage(1);
-      // Demand metrics belong to the selected dataset; active metrics can be
-      // warmed again after the view swap without blocking visible vehicles.
-      setMetricsReady(false);
-
-      const cached = inventoryViewCacheRef.current[view];
-      if (cached) {
-        skipNextInventoryViewFetchRef.current = view;
-        setAllVehicles(cached);
-        hasLoadedOnceRef.current = true;
-        setInventoryView(view);
-        return;
-      }
-
-      // If prewarming has not finished yet, keep the current view and cards
-      // intact until the target dataset is ready, then swap heading + records
-      // atomically. This avoids both a blank loader and stale records under the
-      // wrong Active/Archive heading.
+      const sequence = ++viewSwitchSequenceRef.current;
+      sortRequestRef.current += 1;
+      setPendingSortValue(null);
+      // A refresh of the old view must not overwrite the destination dataset.
+      requestSequenceRef.current += 1;
+      requestControllerRef.current?.abort();
+      setIsRefreshing(false);
       setPendingInventoryView(view);
       setError(null);
 
       void requestVehicleDataset(view)
-        .then((vehicles) => {
-          inventoryViewCacheRef.current[view] = vehicles;
+        .then(async (vehicles) => {
+          const matching = filterInventoryVehicles(vehicles, filters, debouncedSearch, false);
+          const sorted = sortInventoryVehicles(matching, filters.sortBy, filters.sortOrder);
+          await preloadInventoryVehicleImages(sorted.slice(0, Math.min(limit, 4)), 220);
+          if (sequence !== viewSwitchSequenceRef.current) return;
           skipNextInventoryViewFetchRef.current = view;
           setAllVehicles(vehicles);
           hasLoadedOnceRef.current = true;
+          // Commit page, heading and data together, never reset the old list first.
+          setPage(1);
+          setMetricsReady(false);
+          setIsInitialLoading(false);
           setInventoryView(view);
         })
-        .catch((err) => {
-          const axiosError = err as AxiosError;
-          console.error(`[Inventory] Error switching to ${view}:`, err);
-          setError(
-            (axiosError.response?.data as any)?.message ||
-              axiosError.message ||
-              "Failed to switch inventory view",
-          );
+        .catch(() => {
+          if (sequence !== viewSwitchSequenceRef.current) return;
+          setError("Failed to switch inventory view. Please try again.");
         })
-        .finally(() => setPendingInventoryView(null));
+        .finally(() => {
+          if (sequence === viewSwitchSequenceRef.current) setPendingInventoryView(null);
+        });
     },
-    [inventoryView, pendingInventoryView, requestVehicleDataset],
+    [inventoryView, pendingInventoryView, requestVehicleDataset, filters, debouncedSearch, limit],
   );
 
   const handleSortChange = React.useCallback(
@@ -1019,39 +1011,15 @@ function InventoryContent() {
       setPendingSortValue(value as SortOption);
 
       try {
-        let sortSource = filteredVehicles;
-
         // Demand-based sorts must not render once with zero/incomplete counts
         // and then reorder a second time when the metrics request finishes.
         if (requiresMetrics && !metricsReady) {
-          const counts = await fetchDemandMetrics();
+          await fetchDemandMetrics();
           if (requestId !== sortRequestRef.current) return;
 
-          if (counts) {
-            sortSource = filteredVehicles.map((vehicle) => ({
-              ...vehicle,
-              leadCount: counts.get(vehicle.id) ?? vehicle.leadCount ?? 0,
-            }));
-          }
         }
 
-        const nextSortedVehicles = sortInventoryVehicles(
-          sortSource,
-          sortBy,
-          sortOrder,
-        );
-        const firstVisibleRow = nextSortedVehicles.slice(
-          0,
-          Math.min(limit, getVisibleGridColumnCount()),
-        );
-
-        // Sorting itself is local and immediate. Only warm the photos that can
-        // appear in the first visible row, and use a short soft deadline so a
-        // slow CDN image can never make the sort feel blocked.
-        await preloadInventoryVehicleImages(
-          firstVisibleRow,
-          isMobile ? MOBILE_SORT_IMAGE_WARM_MS : DESKTOP_SORT_IMAGE_WARM_MS,
-        );
+        // The shared result hook prepares photos once, for filters and sorts alike.
         if (requestId !== sortRequestRef.current) return;
 
         React.startTransition(() => {
@@ -1066,9 +1034,6 @@ function InventoryContent() {
     },
     [
       fetchDemandMetrics,
-      filteredVehicles,
-      isMobile,
-      limit,
       metricsReady,
     ],
   );
@@ -1282,8 +1247,14 @@ function InventoryContent() {
         </div>
       </div>
 
+      <div className="min-h-5 text-xs text-muted-foreground" role="status" aria-live="polite">
+        {error && !isInitialLoading ? error : pendingInventoryView
+          ? "Loading selected inventory; current vehicles remain visible…"
+          : preparedPhotos.pending ? "Updating vehicles; showing previous results…" : null}
+      </div>
+
       {/* ─── Vehicle Grid / List ──────────────────────────────────── */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0" aria-busy={preparedPhotos.pending || pendingInventoryView !== null} inert={preparedPhotos.pending || undefined}>
         {isInitialLoading ? (
           <InventoryInitialLoadingState />
         ) : visibleVehicles.length === 0 ? (
@@ -1338,11 +1309,12 @@ function InventoryContent() {
                   : "flex flex-col gap-2.5",
               )}
             >
-              {visibleVehicles.map((vehicle, vehicleIndex) => {
+              {preparedPhotos.vehicles.map((vehicle, vehicleIndex) => {
                 if (viewMode === "grid") {
                   if (isMobile) {
                     return (
                       <CarInventoryCard
+                        imagePriority={vehicleIndex < 4}
                         key={vehicle.id}
                         vehicle={vehicle}
                         viewMode="grid"
@@ -1380,6 +1352,7 @@ function InventoryContent() {
 
                 return (
                   <CarInventoryCard
+                    imagePriority={vehicleIndex < 4}
                     key={vehicle.id}
                     vehicle={vehicle}
                     viewMode="list"

@@ -1695,6 +1695,19 @@ export default function DriverTrackerPage() {
   };
 
   React.useEffect(() => {
+    const container = mapRef.current;
+    if (!container || !isMapReady) return;
+    let frame = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width === 0 || entry.contentRect.height === 0) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => mapInstanceRef.current?.resize());
+    });
+    observer.observe(container);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [isMapReady]);
+
+  React.useEffect(() => {
     // The live map remains mounted in the mobile operations workspace.
     // Reconcile Mapbox dimensions after Drivers/Loads transitions so responsive
     // layout changes never leave a stale canvas size.
@@ -1922,7 +1935,7 @@ export default function DriverTrackerPage() {
 
       <div className="grid w-full min-w-0 grid-cols-1 items-start gap-0 md:gap-4 xl:items-stretch xl:grid-cols-[minmax(0,1fr)_400px]">
 
-        <div id="tracker-map-view" className={`${mobileWorkspace === "map" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block xl:col-start-1 xl:row-start-1`}>
+        <div id="tracker-map-view" className={`${mobileWorkspace === "map" ? "block" : "hidden"} w-full min-w-0 md:block xl:col-start-1 xl:row-start-1`}>
           <DriverTrackerMap
             mapboxToken={normalizedToken}
             mapRef={mapRef}
@@ -1951,7 +1964,7 @@ export default function DriverTrackerPage() {
           />
         </div>
 
-        <div id="tracker-drivers-view" className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block md:[&>div]:rounded-2xl xl:relative xl:min-h-0 xl:self-stretch xl:col-start-2 xl:row-start-1`}>
+        <div id="tracker-drivers-view" className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} w-full min-w-0 md:block md:[&>div]:rounded-2xl xl:relative xl:min-h-0 xl:self-stretch xl:col-start-2 xl:row-start-1`}>
         <DriverTrackerListCard
           attentionOnly={attentionOnly}
           onAttentionOnlyChange={setAttentionOnly}
@@ -1996,7 +2009,7 @@ export default function DriverTrackerPage() {
         tabIndex={-1}
         id="tracker-loads-view"
         aria-label="Load Management"
-        className={`${mobileWorkspace === "loads" ? "block" : "hidden"} -mx-2 scroll-mt-56 md:scroll-mt-4 md:mx-0 md:block`}
+        className={`${mobileWorkspace === "loads" ? "block" : "hidden"} w-full min-w-0 scroll-mt-56 md:scroll-mt-4 md:block`}
       >
       <Card className="flex h-auto min-h-0 max-h-none flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-auto md:min-h-0 md:max-h-none md:rounded-2xl md:border-x">
         <CardHeader className="shrink-0 space-y-3 border-b border-border/30 px-3 py-3 sm:px-5 md:bg-muted/[0.12] md:py-4">
@@ -2004,7 +2017,7 @@ export default function DriverTrackerPage() {
             <LayoutGrid className="size-4.5 text-primary shrink-0" />
             <span>Load Management</span>
           </CardTitle>
-          <div className="flex gap-1 p-1 rounded-lg bg-muted/30 border border-border/40">
+          <div className="grid grid-cols-3 gap-2 p-1 rounded-lg bg-muted/30 border border-border/40 sm:flex sm:gap-1">
             {(
               [
                 {
@@ -2039,14 +2052,14 @@ export default function DriverTrackerPage() {
                   setLoadsTab(tab.key);
                   if (tab.key !== "requests") setFocusedRequestKey(null);
                 }}
-                className={`flex items-center justify-center gap-1.5 px-1.5 sm:px-2.5 py-2 sm:py-1.5 rounded-md flex-1 min-h-11 transition-colors ${loadsTab === tab.key
+                className={`flex min-w-0 flex-col items-center justify-center gap-1.5 px-1.5 sm:flex-row sm:px-2.5 py-2 sm:py-1.5 rounded-md flex-1 min-h-11 transition-colors ${loadsTab === tab.key
                     ? `${tab.activeClass} border shadow-sm`
                     : "border border-transparent hover:bg-muted/50"
                   }`}
               >
                 {tab.icon}
                 <span
-                  className={`text-xs font-bold flex-1 text-center sm:text-left truncate ${loadsTab === tab.key
+                  className={`text-xs font-bold text-center whitespace-normal sm:flex-1 sm:text-left ${loadsTab === tab.key
                       ? "text-foreground"
                       : "text-muted-foreground"
                     }`}

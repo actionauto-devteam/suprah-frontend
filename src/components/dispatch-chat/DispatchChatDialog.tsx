@@ -154,6 +154,9 @@ interface DispatchChatDialogProps {
   // Optional server-authorized thread seed used by contextual entry points
   // such as Available Loads → Message Creator. Existing callers can omit it.
   initialThread?: DispatchChatThreadSummary | null;
+  // Optional exact-thread selector used by phone notification deep links.
+  // Additive only: existing callers and dispatcher-side behavior are unchanged.
+  initialThreadId?: string | null;
   // Optional Driver Tracker navigation hook. It is intentionally scoped to
   // the exact load + driver carried by the persisted request system event.
   onReviewLoadRequest?: (loadId: string, driverId: string) => void;
@@ -1446,6 +1449,7 @@ export function DispatchChatDialog({
   participantName,
   onUnreadChange,
   initialThread,
+  initialThreadId,
   onReviewLoadRequest,
 }: DispatchChatDialogProps) {
   const { getToken, isSignedIn } = useAuth();
@@ -1639,6 +1643,15 @@ export function DispatchChatDialog({
         return nextThreads;
       });
       setSelectedThreadId((current) => {
+        const requestedThreadId = String(initialThreadId ?? "").trim();
+        if (
+          requestedThreadId &&
+          nextThreads.some((thread) => String(thread.id) === requestedThreadId)
+        ) {
+          selectedThreadIdRef.current = requestedThreadId;
+          return requestedThreadId;
+        }
+
         if (current) return current;
         const nextId = nextThreads[0]?.id ?? null;
         selectedThreadIdRef.current = nextId;
@@ -1653,7 +1666,7 @@ export function DispatchChatDialog({
     } finally {
       setThreadsLoading(false);
     }
-  }, [currentUserIsDriver, getToken, isSignedIn]);
+  }, [currentUserIsDriver, getToken, initialThreadId, isSignedIn]);
 
   const markRead = React.useCallback(async () => {
     if (!driverId || !isSignedIn) return;

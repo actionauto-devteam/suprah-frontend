@@ -1,5 +1,9 @@
 "use client";
 
+import { VehiclePhotoPlaceholder } from "@/components/inventory/VehiclePhotoPlaceholder";
+
+import { rememberedPhotoIndex, rememberPhoto } from "@/lib/vehicle-photo-cache";
+
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +17,6 @@ import {
   CheckCircle2,
   Clock3,
   CalendarClock,
-  Loader2,
 } from "lucide-react";
 import { Vehicle } from "@/types/inventory";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -84,31 +87,29 @@ function PremiumVehicleCardComponent({
   }, [imageSignature]);
 
   const imgRef = React.useRef<HTMLImageElement | null>(null);
-  const [imageIndex, setImageIndex] = React.useState(0);
+  const [imageIndex, setImageIndex] = React.useState(() => rememberedPhotoIndex(imageCandidates));
   const [imgError, setImgError] = React.useState(false);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imageVisible, setImageVisible] = React.useState(imagePriority);
-  const [showImageLoadingHint, setShowImageLoadingHint] = React.useState(false);
   const activeImageSrc = imageCandidates[imageIndex] || FALLBACK_IMAGE;
 
-  React.useLayoutEffect(() => {
-    setImageIndex(0);
+  // Reset before committing a new list; an old fallback index belongs to the old list.
+  const [previousCandidates, setPreviousCandidates] = React.useState(imageCandidates);
+  if (previousCandidates !== imageCandidates) {
+    setPreviousCandidates(imageCandidates);
+    setImageIndex(rememberedPhotoIndex(imageCandidates));
     setImgError(false);
-    const image = imgRef.current;
-    setImgLoaded(Boolean(
-      image?.getAttribute("src") === imageCandidates[0] &&
-      image.complete && image.naturalWidth > 0,
-    ));
-    setShowImageLoadingHint(false);
-  }, [imageCandidates]);
+    setImgLoaded(false);
+  }
 
   React.useLayoutEffect(() => {
     const image = imgRef.current;
-    if (image?.complete && image.naturalWidth > 0) {
-      setImgLoaded(true);
-      setShowImageLoadingHint(false);
+    const ready = Boolean(image?.complete && image.naturalWidth > 0);
+    setImgLoaded(ready);
+    if (ready) {
+      rememberPhoto(imageCandidates, activeImageSrc);
     }
-  }, [activeImageSrc]);
+  }, [activeImageSrc, imageCandidates]);
 
   React.useEffect(() => {
     const image = imgRef.current;
@@ -135,7 +136,6 @@ function PremiumVehicleCardComponent({
 
   const advanceImageCandidate = React.useCallback(() => {
     if (imageIndex < imageCandidates.length - 1) {
-      setShowImageLoadingHint(false);
       // An error event and the deadline can fire before React commits either.
       // Advance this attempt only once, so the next usable photo is not skipped.
       setImageIndex((prev) => prev === imageIndex ? prev + 1 : prev);
@@ -143,23 +143,11 @@ function PremiumVehicleCardComponent({
       return;
     }
 
-    setShowImageLoadingHint(false);
     setImgError(true);
     setImgLoaded(true);
   }, [imageCandidates.length, imageIndex]);
 
-  React.useEffect(() => {
-    if (!activeImageSrc || !imageVisible || imgLoaded || imgError) {
-      setShowImageLoadingHint(false);
-      return;
-    }
 
-    const timer = window.setTimeout(
-      () => setShowImageLoadingHint(true),
-      250,
-    );
-    return () => window.clearTimeout(timer);
-  }, [activeImageSrc, imageVisible, imgError, imgLoaded]);
 
   React.useEffect(() => {
     if (!activeImageSrc || !imageVisible || imgLoaded || imgError) return;
@@ -178,7 +166,7 @@ function PremiumVehicleCardComponent({
   ]);
 
   const handleImageLoad = () => {
-    setShowImageLoadingHint(false);
+    rememberPhoto(imageCandidates, activeImageSrc);
     setImgLoaded(true);
   };
 
@@ -266,30 +254,19 @@ function PremiumVehicleCardComponent({
           </div>
         ) : (
           <>
-            {!imgLoaded && showImageLoadingHint && (
-              <div
-                className="absolute inset-0 z-[5] flex items-center justify-center bg-zinc-950/72 text-white"
-                role="status"
-                aria-label="Loading vehicle photo"
-              >
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/75 backdrop-blur-sm">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  Loading photo
-                </span>
-              </div>
-            )}
+            <VehiclePhotoPlaceholder loading={!imgLoaded} />
 
             <img
               ref={imgRef}
-              key={`${vehicle.id}-${imageIndex}`}
+              key={`${vehicle.id}-${activeImageSrc}`}
               src={activeImageSrc}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               loading={imagePriority ? "eager" : "lazy"}
               fetchPriority={imagePriority ? "high" : "auto"}
-              decoding="async"
+              decoding={imagePriority ? "sync" : "async"}
               onLoad={handleImageLoad}
               onError={advanceImageCandidate}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className={cn("relative h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none group-hover:scale-105", imgLoaded ? "opacity-100" : "opacity-0")}
             />
 
             {/* Sleek Overlay Gradient */}

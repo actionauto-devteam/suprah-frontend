@@ -278,6 +278,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     } else if (isVisible && (soundProfile === 'urgent' || !soundProfile)) {
                         playShiftAlertSound(notification.metadata?.soundFile);
                     }
+                } else if (notification.type === 'driver_dispatch_message') {
+                    // Messenger-style chat cue while Suprah is already visible.
+                    // The service worker/OS owns background and lock-screen sound.
+                    const isVisible =
+                        typeof document === 'undefined' ||
+                        document.visibilityState === 'visible';
+                    if (isVisible) {
+                        playPingSound(notification.metadata?.soundFile);
+                    }
                 } else if (notification.type === 'ping') {
                     playPingSound();
                 }

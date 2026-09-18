@@ -91,6 +91,7 @@ export type NotificationType =
   | 'driver_tracker_offline_alert'
   | 'driver_tracker_place_visit'
   | 'driver_dispatch_alert'
+  | 'driver_dispatch_message'
   | 'wallet_low_balance'
   | 'wallet_payout_failed'
   | 'admin_broadcast'
@@ -124,7 +125,7 @@ export type DriverDispatchAlertResponse =
 
 export type DriverDispatchAlertPriority = 'normal' | 'important' | 'urgent';
 export type DriverDispatchAlertMode = 'quick_attention' | 'operational' | 'critical';
-export type DriverDispatchAlertSoundProfile = 'none' | 'attention' | 'urgent';
+export type DriverDispatchAlertSoundProfile = 'none' | 'message' | 'attention' | 'urgent';
 export type DriverDispatchQuickPreset =
   | 'check_dispatch_chat'
   | 'please_respond'

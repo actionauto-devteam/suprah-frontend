@@ -1,5 +1,9 @@
 "use client";
 
+import { VehiclePhotoPlaceholder } from "@/components/inventory/VehiclePhotoPlaceholder";
+
+import { rememberedPhotoIndex, rememberPhoto } from "@/lib/vehicle-photo-cache";
+
 import * as React from "react";
 import { Vehicle } from "@/types/inventory";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +29,6 @@ import {
   MoreHorizontal,
   Phone,
   Play,
-  Loader2,
 } from "lucide-react";
 import { resolveImageUrl, cn } from "@/lib/utils";
 import { VehiclePriceHistoryDialog } from "@/components/VehiclePriceHistoryDialog";
@@ -57,7 +60,6 @@ function normalizeImageSrc(raw?: string): string | undefined {
   return resolveImageUrl(trimmed)?.trim() || undefined;
 }
 
-const loadedInventoryImageSources = new Set<string>();
 
 function getVehicleImageSources(vehicle: Vehicle): string[] {
   return Array.from(
@@ -70,7 +72,7 @@ function getVehicleImageSources(vehicle: Vehicle): string[] {
 }
 
 function preloadImageSource(src: string, timeoutMs: number): Promise<void> {
-  if (typeof window === "undefined" || loadedInventoryImageSources.has(src)) {
+  if (typeof window === "undefined") {
     return Promise.resolve();
   }
 
@@ -94,8 +96,6 @@ function preloadImageSource(src: string, timeoutMs: number): Promise<void> {
         // The load event is authoritative; decode can reject for otherwise
         // usable images in some browsers.
       }
-
-      loadedInventoryImageSources.add(src);
       finish();
     };
 
@@ -132,9 +132,10 @@ export async function preloadInventoryVehicleImages(
       const sources = getVehicleImageSources(vehicle);
       if (sources.length === 0) return;
 
-      // Warm only the first real image. Card-level error handling still owns
-      // fallback/candidate traversal if that source is unavailable.
-      await preloadImageSource(sources[0], timeoutMs);
+      // Warm the same successful source the card will choose, including a
+      // remembered fallback. Do not retry a known-broken primary on every filter.
+      const candidates = [...sources, CARD_FALLBACK];
+      await preloadImageSource(candidates[rememberedPhotoIndex(candidates)], timeoutMs);
     }),
   );
 }
@@ -168,6 +169,7 @@ interface CarInventoryCardProps {
   showInventoryMeta?: boolean;
   /** Compact mobile presentation used only when an Inventory/Shop page opts in. */
   mobileOptimized?: boolean;
+  imagePriority?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -201,6 +203,7 @@ const STATUS_CONFIG: Record<
 };
 
 interface VehicleImageProps {
+  imagePriority?: boolean;
   vehicle: Vehicle;
   className?: string;
   onClick?: () => void;
@@ -216,6 +219,7 @@ interface VehicleImageProps {
 }
 
 function VehicleImage({
+  imagePriority = false,
   vehicle,
   className,
   onClick,
@@ -263,45 +267,34 @@ function VehicleImage({
   );
 
   const imgRef = React.useRef<HTMLImageElement | null>(null);
-  const [imgIdx, setImgIdx] = React.useState(0);
-  const [imgLoaded, setImgLoaded] = React.useState(() =>
-    Boolean(candidates[0] && loadedInventoryImageSources.has(candidates[0])),
-  );
+  const [imgIdx, setImgIdx] = React.useState(() => rememberedPhotoIndex(candidates));
+  const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
   const [imageVisible, setImageVisible] = React.useState(false);
-  const [showImageLoadingHint, setShowImageLoadingHint] = React.useState(false);
-  React.useLayoutEffect(() => {
-    setImgIdx(0);
-    const image = imgRef.current;
-    setImgLoaded(
-      Boolean(candidates[0] && (
-        loadedInventoryImageSources.has(candidates[0]) ||
-        (image?.getAttribute("src") === candidates[0] &&
-          image.complete && image.naturalWidth > 0)
-      )),
-    );
+  // Reset before committing a changed source list, so its old fallback index
+  // cannot briefly select (or remember) an unrelated replacement photo.
+  const [previousCandidates, setPreviousCandidates] = React.useState(candidates);
+  if (previousCandidates !== candidates) {
+    setPreviousCandidates(candidates);
+    setImgIdx(rememberedPhotoIndex(candidates));
+    setImgLoaded(false);
     setImgError(false);
-    setShowImageLoadingHint(false);
-  }, [candidates]);
+  }
 
   const activeSrc = candidates[imgIdx];
 
   React.useLayoutEffect(() => {
-    if (activeSrc && loadedInventoryImageSources.has(activeSrc)) {
-      setImgLoaded(true);
-      return;
+    const ready = Boolean(imgRef.current?.complete && imgRef.current.naturalWidth > 0);
+    setImgLoaded(ready);
+    if (ready && activeSrc) {
+      rememberPhoto(candidates, activeSrc);
     }
-
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      loadedInventoryImageSources.add(activeSrc);
-      setImgLoaded(true);
-    }
-  }, [activeSrc]);
+  }, [activeSrc, candidates]);
 
   React.useEffect(() => {
     const image = imgRef.current;
     if (!image || !activeSrc) return;
-    if (!("IntersectionObserver" in window)) {
+    if (imagePriority || !("IntersectionObserver" in window)) {
       setImageVisible(true);
       return;
     }
@@ -317,7 +310,7 @@ function VehicleImage({
     );
     observer.observe(image);
     return () => observer.disconnect();
-  }, [activeSrc]);
+  }, [activeSrc, imagePriority]);
 
   const StatusIcon = statusCfg?.icon ?? Clock;
 
@@ -329,28 +322,15 @@ function VehicleImage({
       );
     }
     if (imgIdx < candidates.length - 1) {
-      setShowImageLoadingHint(false);
       setImgIdx((p) => p === imgIdx ? p + 1 : p);
       setImgLoaded(false);
     } else {
-      setShowImageLoadingHint(false);
       setImgError(true);
       setImgLoaded(true);
     }
   }, [activeSrc, candidates.length, imgIdx, vehicle.id, vehicle.make, vehicle.model, vehicle.year]);
 
-  React.useEffect(() => {
-    if (!activeSrc || !imageVisible || imgLoaded || imgError) {
-      setShowImageLoadingHint(false);
-      return;
-    }
 
-    const hintTimer = window.setTimeout(
-      () => setShowImageLoadingHint(true),
-      250,
-    );
-    return () => window.clearTimeout(hintTimer);
-  }, [activeSrc, imageVisible, imgError, imgLoaded]);
 
   React.useEffect(() => {
     if (!activeSrc || !imageVisible || imgLoaded || imgError) return;
@@ -361,8 +341,9 @@ function VehicleImage({
   const handleImgError = advanceCandidate;
 
   const handleImgLoad = () => {
-    if (activeSrc) loadedInventoryImageSources.add(activeSrc);
-    setShowImageLoadingHint(false);
+    if (activeSrc) {
+      rememberPhoto(candidates, activeSrc);
+    }
     setImgLoaded(true);
   };
 
@@ -378,32 +359,22 @@ function VehicleImage({
         className,
       )}
     >
-      {!showEmptyState && !imgLoaded && showImageLoadingHint && (
-        <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 bg-muted/95 dark:bg-zinc-900/95"
-          role="status"
-          aria-label="Loading vehicle photo"
-        >
-          <Loader2 className="h-4 w-4 animate-spin text-primary/60" />
-          <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/65">
-            Loading photo
-          </span>
-        </div>
-      )}
+      {!showEmptyState && <VehiclePhotoPlaceholder loading={!imgLoaded} />}
 
       {!showEmptyState ? (
         <img
           ref={imgRef}
-          key={`${vehicle.id}-${imgIdx}`}
+          key={`${vehicle.id}-${activeSrc}`}
           src={activeSrc}
           alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-          loading="lazy"
-          decoding="async"
+          loading={imagePriority ? "eager" : "lazy"}
+          fetchPriority={imagePriority ? "high" : "auto"}
+          decoding={imagePriority ? "sync" : "async"}
           referrerPolicy="no-referrer"
           onLoad={handleImgLoad}
           onError={handleImgError}
           className={cn(
-            "absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-105",
+            "absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none group-hover/img:scale-105",
             imgLoaded ? "opacity-100" : "opacity-0",
           )}
         />
@@ -501,6 +472,7 @@ export function CarInventoryCard({
   canCompareMore,
   showInventoryMeta = false,
   mobileOptimized = false,
+  imagePriority = false,
 }: CarInventoryCardProps) {
   const statusCfg = vehicle.status
     ? (STATUS_CONFIG[vehicle.status] ?? null)
@@ -534,6 +506,7 @@ export function CarInventoryCard({
         )}
       >
         <VehicleImage
+          imagePriority={imagePriority}
           vehicle={vehicle}
           statusCfg={statusCfg}
           showStatusDot
@@ -710,6 +683,7 @@ export function CarInventoryCard({
       )}
     >
       <VehicleImage
+        imagePriority={imagePriority}
         vehicle={vehicle}
         statusCfg={statusCfg}
         showStatusBadge

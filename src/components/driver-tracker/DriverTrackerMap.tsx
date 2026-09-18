@@ -102,6 +102,47 @@ export function DriverTrackerMap({
   const informationalNotice =
     mapNotice && !isInitialLoading && !showThemeTransition ? mapNotice : null;
 
+  const frameRef = React.useRef<HTMLDivElement | null>(null);
+  const footerRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const mobile = window.matchMedia("(max-width: 767px)");
+    let animationFrame = 0;
+    const measure = () => {
+      if (!mobile.matches || !frame.getClientRects().length) return;
+      const viewport = window.visualViewport;
+      const bottom = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0);
+      const top = Math.max(0, frame.getBoundingClientRect().top);
+      const footerHeight = footerRef.current?.getBoundingClientRect().height ?? 44;
+      const navigationOffset = parseFloat(getComputedStyle(frame).getPropertyValue("--mobile-bottom-nav-offset")) || 0;
+      // Reserve space for floating navigation; on short screens allow normal
+      // page scrolling instead of squeezing the map into an unusable strip.
+      const height = Math.round(Math.max(320, bottom - top - footerHeight - Math.max(80, navigationOffset) - 12));
+      frame.style.setProperty("--driver-map-height", height + "px");
+    };
+    const schedule = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(measure);
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(frame);
+    if (frame.parentElement) observer.observe(frame.parentElement);
+    if (footerRef.current) observer.observe(footerRef.current);
+    window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
+    mobile.addEventListener("change", schedule);
+    measure();
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      mobile.removeEventListener("change", schedule);
+    };
+  }, []);
+
   const [legendOpen, setLegendOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -131,10 +172,39 @@ export function DriverTrackerMap({
     },
   ];
 
+  const filterControls = (<>{MAP_FILTERS.map((filter) => (
+                <Button
+                  key={filter.key}
+                  size="sm"
+                  variant={mapFilter === filter.key ? "default" : "ghost"}
+                  className={`
+                    min-h-11 h-auto md:min-h-0 md:h-7
+                    min-w-0 whitespace-normal
+                    rounded-lg
+                    px-2
+                    text-xs
+                    font-bold
+                    transition-all
+                    duration-200
+
+                    md:px-2.5
+                    ${
+                      mapFilter === filter.key
+                        ? "shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }
+                  `}
+                  aria-pressed={mapFilter === filter.key}
+                  onClick={() => onMapFilterChange?.(filter.key)}
+                >
+                  {filter.label}
+                </Button>
+              ))}</>);
+
   return (
     <Card
       data-driver-tracker-map-shell
-      className="[&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:border [&_.mapboxgl-popup-content]:border-border [&_.mapboxgl-popup-content]:bg-card [&_.mapboxgl-popup-content]:text-card-foreground [&_.mapboxgl-popup-close-button]:size-8 gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:min-h-120 md:rounded-2xl md:border-x lg:min-h-150"
+      className="w-full min-w-0 max-w-full [&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:border [&_.mapboxgl-popup-content]:border-border [&_.mapboxgl-popup-content]:bg-card [&_.mapboxgl-popup-content]:text-card-foreground [&_.mapboxgl-popup-close-button]:size-8 gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:min-h-120 md:rounded-2xl md:border-x lg:min-h-150"
     >
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4 md:min-h-20 md:shrink-0 md:gap-4 md:px-5 md:py-4">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -168,12 +238,19 @@ export function DriverTrackerMap({
         </div>
       </div>
 
-      <CardContent className="p-0 md:min-h-0 md:flex-1 md:bg-muted/[0.12] md:p-3">
+      <CardContent className="min-w-0 p-0 md:min-h-0 md:flex-1 md:bg-muted/[0.12] md:p-3">
+        {onMapFilterChange && isMapReady && (
+          <div role="group" aria-label="Map driver filters" className="grid grid-cols-2 gap-2 border-b border-border/45 bg-card p-2 min-[375px]:grid-cols-4 md:hidden">
+            {filterControls}
+          </div>
+        )}
         <div
+          ref={frameRef}
+          data-driver-map-viewport
           className={`
-            relative h-[36dvh] min-h-[17rem] max-h-[23rem] touch-none overflow-hidden
+            relative w-full min-w-0 h-[var(--driver-map-height,24rem)] min-h-80 touch-none overflow-hidden
             bg-background text-foreground transition-colors duration-300
-            sm:h-[40dvh] sm:max-h-[29rem] md:h-[26rem] md:min-h-0 md:max-h-none lg:h-[32rem]
+            md:h-[26rem] md:min-h-0 md:max-h-none lg:h-[32rem]
             md:rounded-xl md:border md:border-border/50
             ${showThemeTransition ? "[&_.map-ui-control]:opacity-75" : ""}
           `}
@@ -313,52 +390,25 @@ export function DriverTrackerMap({
             </div>
           )}
 
-          {/* Map filters */}
+          {/* Desktop filters overlay; mobile filters have their own row. */}
           {onMapFilterChange && isMapReady && (
-            <div className="map-ui-control no-scrollbar absolute top-2.5 right-2.5 left-2.5 z-10 flex animate-map-controls-in items-center gap-1 overflow-x-auto rounded-xl border border-border/50 bg-background/90 p-1.5 shadow-lg backdrop-blur-sm transition-colors duration-300 sm:top-4 sm:right-auto sm:left-4">
-              <Filter className="ml-1 mr-0.5 size-3.5 shrink-0 text-muted-foreground" />
-
-              {MAP_FILTERS.map((filter) => (
-                <Button
-                  key={filter.key}
-                  size="sm"
-                  variant={mapFilter === filter.key ? "default" : "ghost"}
-                  className={`
-                    h-8
-                    shrink-0
-                    rounded-lg
-                    px-2
-                    text-xs
-                    font-bold
-                    transition-all
-                    duration-200
-                    sm:h-7
-                    sm:px-2.5
-                    ${
-                      mapFilter === filter.key
-                        ? "shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }
-                  `}
-                  onClick={() => onMapFilterChange(filter.key)}
-                >
-                  {filter.label}
-                </Button>
-              ))}
+            <div className="map-ui-control absolute top-4 left-4 z-10 hidden items-center gap-1 rounded-xl border border-border/50 bg-background/90 p-1.5 shadow-lg backdrop-blur-sm md:flex">
+              <Filter className="mx-1 size-3.5 shrink-0 text-muted-foreground" />
+              {filterControls}
             </div>
           )}
 
           {/* Zoom and center controls */}
           {isMapReady && (
             <TooltipProvider>
-              <div className="map-ui-control absolute top-14 right-2.5 z-10 flex animate-map-controls-in flex-col gap-1.5 sm:top-4 sm:right-4">
+              <div className="map-ui-control absolute top-3 right-3 z-10 flex animate-map-controls-in flex-col gap-1.5 sm:top-4 sm:right-4">
                 {mapControls.map((button) => (
                   <Tooltip key={button.label}>
                     <TooltipTrigger asChild>
                       <Button
                         size="icon"
                         variant="secondary"
-                        className="size-10 border border-border/50 bg-background/90 text-foreground shadow-md backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-background hover:shadow-lg active:translate-y-0 sm:size-9"
+                        className="size-11 border border-border/50 bg-background/90 text-foreground shadow-md backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-background hover:shadow-lg active:translate-y-0 sm:size-9"
                         onClick={button.action}
                         aria-label={button.label}
                       >
@@ -378,7 +428,7 @@ export function DriverTrackerMap({
           {/* Status legend */}
           {isMapReady && (
             <details
-              className="map-ui-control group absolute bottom-2.5 left-2.5 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-8 sm:left-4 sm:w-48"
+              className="map-ui-control group absolute bottom-9 left-3 z-10 w-40 animate-map-controls-in rounded-xl border border-border/50 bg-background/90 text-foreground shadow-lg backdrop-blur-sm transition-colors duration-300 sm:bottom-8 sm:left-4 sm:w-48"
               open={legendOpen}
               onToggle={(event) => setLegendOpen(event.currentTarget.open)}
             >
@@ -431,12 +481,14 @@ export function DriverTrackerMap({
             </details>
           )}
         </div>
+        <div ref={footerRef}>
         {selectedDriver ? (
           <div className="p-3 md:p-0 md:pt-3">
             <DriverTrackerSelectedDriver driver={selectedDriver} now={trackingNow} following={following} mapReady={isMapReady}
               activityLabels={activityLabels} onFollow={onFollow} onClear={onClearSelection} onDetails={onDetails} onChat={onChat} />
           </div>
         ) : <p className="px-3 py-2 text-xs text-muted-foreground">Select a driver card or map marker. Numbered circles group nearby drivers.</p>}
+        </div>
       </CardContent>
     </Card>
   );
