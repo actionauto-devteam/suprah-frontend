@@ -546,7 +546,7 @@ export default function TimeprofClockPage() {
         setServerIsShiftFromToday(!!s.isShiftFromToday)
         setServerShiftStartedAt(s.shiftStartedAt ?? null)
         setTodayTotalActiveMs((s.todayTotalActiveSeconds ?? 0) * 1000)
-        setWallClockBaseMs((s.wallClockRenderedSeconds ?? 0) * 1000)
+        setWallClockBaseMs((s.currentSessionSeconds ?? 0) * 1000)
         setWallClockBaseAt(s.isOnShift && !s.isOnBreak ? requestSentAt : null)
         const SHIFT_AUTO_RESUME_MS = 5 * 60 * 1000
         const shiftStartedMs = s.shiftStartedAt ? new Date(s.shiftStartedAt).getTime() : 0

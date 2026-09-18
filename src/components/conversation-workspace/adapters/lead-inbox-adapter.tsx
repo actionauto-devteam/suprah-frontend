@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Lead } from "@/hooks/useLeads";
 import { resolveCustomerEmail } from "../customer-email";
+import { AssigneePicker } from "@/components/leads/atomic/AssigneePicker";
 import type {
   WorkspaceActivityItem,
   WorkspaceContact,
@@ -45,6 +46,7 @@ export function leadToWorkspaceContact(lead: Lead): WorkspaceContact {
 export function leadDetailSections(
   lead: Lead,
   sourceEmail: string,
+  onAssign?: (userId: string | null) => void | Promise<void>,
 ): WorkspaceDetailSection[] {
   const customerEmail = resolveCustomerEmail(lead);
   const leadName =
@@ -62,6 +64,22 @@ export function leadDetailSections(
     .join(" ") || "Vehicle not specified";
 
   return [
+    {
+      id: "team",
+      title: "Assignment",
+      rows: [
+        {
+          id: "assignee",
+          label: "Assigned to",
+          value: onAssign ? (
+            <AssigneePicker currentAssignedTo={lead.assignedTo} onAssign={onAssign} />
+          ) : (
+            "Unassigned"
+          ),
+          icon: <UserRound size={15} />,
+        },
+      ],
+    },
     {
       id: "contact",
       title: "Contact information",

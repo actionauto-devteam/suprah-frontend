@@ -141,11 +141,12 @@ export const commActions = {
 
     // per-customer history
     let callsByCustomer = state.callsByCustomer;
-    if (call.customerId) {
-      const list = callsByCustomer[call.customerId] || [];
+    const key = call.customerId || call.leadId;
+    if (key) {
+      const list = callsByCustomer[key] || [];
       const idx = list.findIndex((c) => c._id === call._id);
       const next = idx >= 0 ? [...list.slice(0, idx), call, ...list.slice(idx + 1)] : [call, ...list];
-      callsByCustomer = { ...callsByCustomer, [call.customerId]: next };
+      callsByCustomer = { ...callsByCustomer, [key]: next };
     }
 
     setState({ incomingCalls: incoming, callsByCustomer });

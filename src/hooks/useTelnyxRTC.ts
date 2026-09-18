@@ -129,7 +129,7 @@ export function useTelnyxRTC() {
 
   /** Outbound call from the customer profile. */
   const dial = useCallback(
-    async (phoneNumber: string, opts?: { customerId?: string; displayName?: string }) => {
+    async (phoneNumber: string, opts?: { customerId?: string; leadId?: string; displayName?: string }) => {
       const c = await ensureClient();
       const clientCallId = newClientCallId();
 
@@ -147,6 +147,7 @@ export function useTelnyxRTC() {
         event: "start",
         toPhone: phoneNumber,
         customerId: opts?.customerId,
+        leadId: opts?.leadId,
       });
 
       const call = c.newCall({

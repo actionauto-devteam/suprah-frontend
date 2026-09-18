@@ -9,7 +9,6 @@ import {
   CircleDollarSign,
   ChevronDown,
   CreditCard,
-  Filter,
   Inbox,
   Mail,
   MessageSquare,
@@ -22,7 +21,7 @@ import {
   Sun,
   X,
 } from "lucide-react"
-import { useLeads, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
@@ -44,6 +43,7 @@ import {
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus";
 import { ToastStack, Toast } from "./leads/atomic/ToastStack";
+import { StatusFilterPills } from "./leads/atomic/StatusFilterPills";
 import { LeadsList } from "./leads/LeadsList";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
@@ -118,7 +118,7 @@ export function LeadsTab({
   pendingNav?: LeadsTabPendingNav | null;
   onNavConsumed?: () => void;
 } = {}) {
-  const { getToken } = useAuth();
+  const { getToken, userId: currentUserId } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // Load the base styles first, then the Leads workspace overrides.
@@ -171,6 +171,8 @@ export function LeadsTab({
     }
   }, [viewportMode]);
 
+  const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
+
   const {
     leads,
     isLoading,
@@ -178,6 +180,7 @@ export function LeadsTab({
     total,
     pages,
     updateLeadStatus,
+    assignLead,
     markAsRead,
     addLeadNote,
     isAddingNote,
@@ -192,7 +195,10 @@ export function LeadsTab({
     search: searchQuery,
     status: statusFilter,
     sortBy,
+    assignedTo: assignmentFilter === "mine" ? currentUserId : null,
   });
+
+  const { counts: leadStatusCounts } = useLeadStatusCounts();
 
   // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
   const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null);
@@ -1619,44 +1625,53 @@ export function LeadsTab({
                 topContent={
                   <>
                     <div
-                      className="grid shrink-0 grid-cols-2 gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
+                      className="flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-3"
                       style={{
                         borderColor: "var(--border-1)",
                         background: "var(--bg-elevated)",
                       }}
                     >
-                      <label className="relative min-w-0">
-                        <Filter
-                          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                          style={{ color: "var(--text-tertiary)" }}
-                        />
-                        <select
-                          value={statusFilter ?? ""}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setStatusFilter(value === "" ? null : value);
-                            setCurrentPage(1);
-                            setSelectedLead(null);
-                          }}
-                          className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
-                          style={{
-                            background: "var(--input-bg)",
-                            border: "1px solid var(--input-border)",
-                            color: "var(--text-primary)",
-                          }}
-                          aria-label="Filter conversations by status"
+                      {currentUserId ? (
+                        <div
+                          role="tablist"
+                          aria-label="Assignment filter"
+                          className="grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1"
+                          style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)" }}
                         >
-                          {TABS.map((tab) => (
-                            <option key={tab.label} value={tab.key ?? ""}>
-                              {tab.key === null ? "All statuses" : tab.label}
-                            </option>
+                          {(["mine", "all"] as const).map((key) => (
+                            <button
+                              key={key}
+                              type="button"
+                              role="tab"
+                              aria-selected={assignmentFilter === key}
+                              onClick={() => {
+                                setAssignmentFilter(key);
+                                setCurrentPage(1);
+                                setSelectedLead(null);
+                              }}
+                              className="rounded-md px-2 py-1 text-[11px] font-semibold transition-colors"
+                              style={
+                                assignmentFilter === key
+                                  ? { background: "var(--accent-muted)", color: "var(--accent-text)" }
+                                  : { color: "var(--text-tertiary)" }
+                              }
+                            >
+                              {key === "mine" ? "My Leads" : "All Leads"}
+                            </button>
                           ))}
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                          style={{ color: "var(--text-tertiary)" }}
-                        />
-                      </label>
+                        </div>
+                      ) : null}
+
+                      <StatusFilterPills
+                        tabs={TABS}
+                        active={statusFilter}
+                        counts={leadStatusCounts}
+                        onChange={(key) => {
+                          setStatusFilter(key);
+                          setCurrentPage(1);
+                          setSelectedLead(null);
+                        }}
+                      />
 
                       <label className="relative min-w-0">
                         <ArrowUpDown
@@ -1806,6 +1821,17 @@ export function LeadsTab({
                       handleStatus("Pending", reason)
                     }
                     selectedLeadStatus={selectedLead.status}
+                    leadContext={{
+                      firstName: selectedLead.firstName,
+                      lastName: selectedLead.lastName,
+                      vehicle: [
+                        selectedLead.vehicle?.year,
+                        selectedLead.vehicle?.make,
+                        selectedLead.vehicle?.model,
+                      ]
+                        .filter(Boolean)
+                        .join(" "),
+                    }}
                   />
                 </>
               ) : (
@@ -1942,6 +1968,12 @@ export function LeadsTab({
                   });
                 }}
                 onUpdateDetails={handleUpdateSelectedLeadDetails}
+                onAssign={async (userId) => {
+                  if (!selectedLead?._id) {
+                    throw new Error("No lead selected");
+                  }
+                  await assignLead({ id: selectedLead._id, assignedTo: userId });
+                }}
               />
             </div>
           )}

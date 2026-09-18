@@ -10,6 +10,7 @@ import { ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Vehicle } from "@/types/inventory"
 import { ContextualShell } from "@/components/layout/ContextualShell"
+import { BookTestDriveModal } from "@/components/customer/BookTestDriveModal"
 
 export default function VehiclePage() {
     const { id } = useParams() as { id: string }
@@ -19,6 +20,7 @@ export default function VehiclePage() {
     const [vehicle, setVehicle] = useState<Vehicle | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [bookingOpen, setBookingOpen] = useState(false)
 
     useEffect(() => {
         if (!authLoaded) return
@@ -103,13 +105,20 @@ export default function VehiclePage() {
                     </div>
                 </div>
 
-                <VehicleDetailView 
+                <VehicleDetailView
                     vehicle={vehicle}
                     onInquiryClick={() => {}}
                     onApplyNow={() => {}}
+                    onBookTestDrive={() => setBookingOpen(true)}
                     isPublic={!isSignedIn}
                 />
             </div>
+
+            <BookTestDriveModal
+                isOpen={bookingOpen}
+                onOpenChange={setBookingOpen}
+                vehicle={vehicle}
+            />
         </ContextualShell>
     )
 }

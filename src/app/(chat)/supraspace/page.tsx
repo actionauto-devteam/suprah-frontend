@@ -4,7 +4,6 @@ import * as React from 'react';
 import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
 import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounter';
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
-import { useSupraSpaceViewport } from '@/components/supraspace/hooks/useSupraSpaceViewport';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
 import { MessageTimeline } from '@/components/supraspace/messages/MessageTimeline';
 import { EventModal, MeetingJoinInfoModal, MeetingModal, PollModal, ScheduleMeetingModal } from '@/components/supraspace/ConversationCreationModals';
@@ -129,10 +128,37 @@ const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
 const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
 
+type SS4ViewportState = {
+  height: number;
+  top: number;
+  keyboardOpen: boolean;
+};
+
+function isTextEntryElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  const target = element.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null;
+  if (!target) return false;
+  const style = window.getComputedStyle(target);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = target.getBoundingClientRect();
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < viewportHeight;
+}
+
 function isIOSLikeDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function readSafeAreaInsetBottom(): number {
+  if (typeof document === 'undefined' || !document.body) return 0;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:0;bottom:0;height:env(safe-area-inset-bottom,0px);width:1px;visibility:hidden;pointer-events:none;';
+  document.body.appendChild(probe);
+  const value = Math.round(probe.getBoundingClientRect().height || 0);
+  probe.remove();
+  return Number.isFinite(value) ? Math.max(0, Math.min(value, 40)) : 0;
 }
 
 function getUnreadDotColor(): string {
@@ -1416,7 +1442,7 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-color-swatch { position:relative; height:24px; width:24px; min-width:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; border:0; box-shadow:0 0 0 1px rgba(255,255,255,0.28); }
       .ss4-mobile-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--bg-elevated),0 0 0 4px rgba(255,255,255,0.72); }
       .ss4-mobile-color-swatch svg { height:16px; width:16px; }
-      .ss4-chat-composer-dock { transform:translateZ(0); }
+      .ss4-chat-composer-dock { transform:translateZ(0); will-change:transform; backface-visibility:hidden; }
       html.ss4-ios-keyboard-open .ss4-chat-composer-dock {
         position:fixed;
         left:0;
@@ -9188,7 +9214,132 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
   }, [isMobileViewport, isStandaloneApp]);
-  const keyboardOpen = useSupraSpaceViewport(isMobileViewport || isIOSDevice);
+  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
+  const wasKeyboardOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    let raf = 0;
+    let lastViewportCss: { height: number; safeBottom: number; keyboardAccessoryHeight: number; keyboardOpen: boolean } | null = null;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const nudgeViewportUnits = () => {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const content = meta.getAttribute('content') || '';
+      meta.setAttribute('content', `${content},`);
+      requestAnimationFrame(() => meta.setAttribute('content', content));
+    };
+    const update = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const visualHeight = Math.max(320, Math.round(viewport.height || window.innerHeight));
+        const top = Math.max(0, Math.round(viewport.offsetTop || 0));
+        // window.screen.height is the raw physical display resolution, not the
+        // usable web-content viewport — it can read larger than the real
+        // layout height (notably right after a cold standalone launch or on
+        // rotation), which used to always win the Math.max below and get
+        // baked into the app shell's fixed pixel height, pushing the bottom
+        // nav/compose FAB below the real visible screen (looked like a blank
+        // void under the conversation list). Only fall back to it if the real
+        // measurements are unavailable (all read 0), never to override them.
+        const screenHeight = window.screen?.height || 0;
+        const measuredHeight = Math.max(
+          window.innerHeight || 0,
+          document.documentElement.clientHeight || 0,
+          visualHeight,
+        );
+        const layoutHeight = measuredHeight > 0 ? measuredHeight : screenHeight;
+        // A changing offset can also be caused by ordinary iOS list scrolling;
+        // only treat it as a keyboard when a text control is actually focused.
+        const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
+        const focusedTextEntry = isTextEntryElement(document.activeElement);
+        const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
+        // visualViewport is the usable display area in both states. This avoids
+        // expanding the fixed app shell to window.screen.height on cold launches.
+        const height = visualHeight;
+        const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
+        const keyboardAccessoryHeight = keyboardOpen ? 5 : 0;
+        if (
+          !lastViewportCss
+          || lastViewportCss.keyboardOpen !== keyboardOpen
+          || Math.abs(lastViewportCss.height - height) >= 3
+          || lastViewportCss.safeBottom !== safeBottom
+          || lastViewportCss.keyboardAccessoryHeight !== keyboardAccessoryHeight
+        ) {
+          if (keyboardOpen) {
+            document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+          } else {
+            document.documentElement.style.removeProperty('--ss4-vvh');
+          }
+          document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
+          document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
+          document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
+          lastViewportCss = { height, safeBottom, keyboardAccessoryHeight, keyboardOpen };
+        }
+        if (wasKeyboardOpenRef.current && !keyboardOpen) {
+          setTimeout(nudgeViewportUnits, 350);
+        }
+        wasKeyboardOpenRef.current = keyboardOpen;
+        setVv(prev => {
+          if (
+            prev
+            && prev.keyboardOpen === keyboardOpen
+            && Math.abs(prev.height - height) < 3
+            && Math.abs(prev.top - top) < 3
+          ) {
+            return prev;
+          }
+          return { height, top, keyboardOpen };
+        });
+      });
+    };
+    const scheduleUpdate = (delay = 0) => {
+      if (delay <= 0) {
+        update();
+        return;
+      }
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        update();
+      }, delay);
+      timers.add(timer);
+    };
+    update();
+    const settleAfterKeyboard = () => {
+      scheduleUpdate();
+      scheduleUpdate(80);
+      scheduleUpdate(250);
+      scheduleUpdate(600);
+    };
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    window.addEventListener('resize', settleAfterKeyboard);
+    window.addEventListener('orientationchange', settleAfterKeyboard);
+    window.addEventListener('pageshow', settleAfterKeyboard);
+    document.addEventListener('touchend', settleAfterKeyboard, true);
+    document.addEventListener('pointerup', settleAfterKeyboard, true);
+    document.addEventListener('visibilitychange', settleAfterKeyboard);
+    document.addEventListener('focusin', settleAfterKeyboard);
+    document.addEventListener('focusout', settleAfterKeyboard);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      timers.forEach(timer => clearTimeout(timer));
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', settleAfterKeyboard);
+      window.removeEventListener('orientationchange', settleAfterKeyboard);
+      window.removeEventListener('pageshow', settleAfterKeyboard);
+      document.removeEventListener('touchend', settleAfterKeyboard, true);
+      document.removeEventListener('pointerup', settleAfterKeyboard, true);
+      document.removeEventListener('visibilitychange', settleAfterKeyboard);
+      document.removeEventListener('focusin', settleAfterKeyboard);
+      document.removeEventListener('focusout', settleAfterKeyboard);
+      document.documentElement.style.removeProperty('--ss4-vvh');
+      document.documentElement.style.removeProperty('--ss4-safe-bottom');
+      document.documentElement.style.removeProperty('--ss4-ios-keyboard-accessory-height');
+      document.documentElement.classList.remove('ss4-ios-keyboard-open');
+    };
+  }, [isIOSDevice]);
   React.useEffect(() => {
     if (!isStandaloneApp || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
@@ -9434,15 +9585,24 @@ export default function SupraSpacePage() {
     // falling back to the CSS default (76px), which under-pads whenever the
     // composer is taller (reply preview, format bar, attached files).
     if (!isIOSDevice || typeof document === 'undefined') return;
+    let raf = 0;
+    let lastHeight = 0;
     const update = () => {
-      const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
-      document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
+        if (Math.abs(height - lastHeight) < 2) return;
+        lastHeight = height;
+        document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+      });
     };
     update();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
     if (composerDockRef.current) observer?.observe(composerDockRef.current);
     window.addEventListener('resize', update);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       observer?.disconnect();
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
@@ -13358,7 +13518,7 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  const standaloneShellStyle: React.CSSProperties = keyboardOpen
+  const standaloneShellStyle: React.CSSProperties = vv?.keyboardOpen
     ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 

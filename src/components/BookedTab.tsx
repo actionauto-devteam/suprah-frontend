@@ -5,13 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -39,35 +32,16 @@ import { useCustomerBookings } from "@/hooks/useCustomerBookings";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { usePaneContentMetrics } from "@/components/MultiPaneLayout";
+import { getAppointmentStatusStyle as getStatusStyle } from "@/lib/appointmentStatus";
+import { AppointmentStatusPills, AppointmentStatusPillTab } from "@/components/appointments/atomic/AppointmentStatusPills";
 
-// ─── Status helpers ───────────────────────────────────────────────────────────
-
-const STATUS_STYLES: Record<string, { bar: string; pill: string }> = {
-  confirmed: {
-    bar: "bg-emerald-500",
-    pill: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
-  },
-  scheduled: {
-    bar: "bg-blue-500",
-    pill: "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
-  },
-  completed: {
-    bar: "bg-gray-400",
-    pill: "bg-gray-500/10 text-gray-700 border-gray-400/30 dark:text-gray-400",
-  },
-  cancelled: {
-    bar: "bg-red-500",
-    pill: "bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-400",
-  },
-  "no-show": {
-    bar: "bg-amber-500",
-    pill: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
-  },
-};
-
-function getStatusStyle(status: string) {
-  return STATUS_STYLES[status] ?? STATUS_STYLES.scheduled;
-}
+const BOOKED_STATUS_TABS: AppointmentStatusPillTab[] = [
+  { key: "all", label: "All Statuses" },
+  { key: "scheduled", label: "Scheduled" },
+  { key: "confirmed", label: "Confirmed" },
+  { key: "cancelled", label: "Cancelled" },
+  { key: "completed", label: "Completed" },
+];
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
@@ -655,6 +629,15 @@ export function BookedTab() {
         "gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm",
         compactPane ? "grid grid-cols-1 items-stretch" : "flex flex-wrap items-end",
       )}>
+        {/* Status */}
+        <div className="w-full order-first">
+          <AppointmentStatusPills
+            tabs={BOOKED_STATUS_TABS}
+            active={statusFilter}
+            onChange={setStatusFilter}
+          />
+        </div>
+
         {/* Search */}
         <div className={cn("relative flex-1", compactPane ? "min-w-0 w-full" : "min-w-48")}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -665,20 +648,6 @@ export function BookedTab() {
             className="pl-8 h-8 text-sm bg-muted/40"
           />
         </div>
-
-        {/* Status */}
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className={cn("h-8 text-sm bg-muted/40", compactPane ? "w-full" : "w-40")}>
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
 
         {/* Date */}
         <input

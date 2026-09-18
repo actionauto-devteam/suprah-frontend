@@ -47,6 +47,14 @@ export interface Lead {
     changedBy?: string;
     reason?: string;
   }[];
+  assignedTo?: string | null;
+  assignedAt?: string | null;
+  assignmentHistory?: {
+    from?: string;
+    to?: string;
+    changedAt: string;
+    changedBy?: string;
+  }[];
   notes?: {
     _id?: string;
     text: string;
@@ -70,6 +78,7 @@ interface UseLeadsOptions {
   search?: string
   status?: string | null
   sortBy?: "newest" | "oldest" | "waiting_longest"
+  assignedTo?: string | null
 }
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -86,6 +95,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   search = '',
   status = null,
   sortBy = 'newest',
+  assignedTo = null,
   } = options
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
@@ -115,6 +125,7 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       search,
       status,
       sortBy,
+      assignedTo,
     ],
 
     queryFn: async ({ signal }) => {
@@ -137,6 +148,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       }
 
       params.append("sortBy", sortBy);
+
+      if (assignedTo) {
+        params.append("assignedTo", assignedTo);
+      }
 
       const response = await apiClient.get(
         `/api/leads?${params.toString()}`,
@@ -246,6 +261,25 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     onSuccess: () => invalidateAndRefetch(300),
   });
 
+  const assignLeadMutation = useMutation({
+    mutationFn: async ({
+      id,
+      assignedTo,
+    }: {
+      id: string;
+      assignedTo: string | null;
+    }) => {
+      const headers = await getAuthHeaders();
+      const response = await apiClient.patch(
+        `/api/leads/${id}/assign`,
+        { assignedTo },
+        headers,
+      );
+      return response.data;
+    },
+    onSuccess: () => invalidateAndRefetch(0),
+  });
+
   // ── Add internal note ──────────────────────────────────────────────────────
   const addNoteMutation = useMutation({
     mutationFn: async ({
@@ -350,6 +384,9 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     updateLeadStatus:
       updateLeadMutation.mutateAsync,
 
+    assignLead:
+      assignLeadMutation.mutateAsync,
+
     markAsRead:
       markAsReadMutation.mutateAsync,
 
@@ -377,6 +414,31 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
     isSyncing:
       syncMutation.isPending,
-      
+
   };
+};
+
+export const useLeadStatusCounts = () => {
+  const { getToken } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["leads", "status-counts"],
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+
+      const response = await apiClient.get("/api/leads/status-counts", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+
+      const resData = response.data?.data || response.data;
+      return (resData?.counts || {}) as Record<string, number>;
+    },
+
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  return { counts: data || {}, isLoading };
 };

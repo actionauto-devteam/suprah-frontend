@@ -25,6 +25,11 @@ import { useAppointmentPolling } from "@/hooks/useAppointmentPolling"
 import { useNotifications } from "@/context/NotificationContext"
 import { cn } from "@/lib/utils"
 import { useAlert } from "@/components/AlertDialog"
+import {
+  getAppointmentStatusStyle,
+  getEntryTypeStyle,
+  GUEST_STATUS_CONFIG,
+} from "@/lib/appointmentStatus"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,33 +45,18 @@ interface AppointmentDetailsModalProps {
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, string> = {
-  confirmed:  "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
-  scheduled:  "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
-  cancelled:  "bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-400",
-  completed:  "bg-gray-500/10 text-gray-700 border-gray-400/30 dark:text-gray-400",
-  "no-show":  "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
-}
-
-const ENTRY_BADGE: Record<string, string> = {
-  appointment: "bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-400",
-  event:       "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
-  task:        "bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-400",
-  reminder:    "bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-400",
-}
-
 const GUEST_STATUS_STYLE: Record<string, string> = {
-  accepted: "border-emerald-500 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400",
-  declined: "border-red-500 text-red-700 bg-red-50 dark:bg-red-950/30 dark:text-red-400",
-  pending:  "border-border text-muted-foreground",
+  accepted: GUEST_STATUS_CONFIG.accepted.badge,
+  declined: GUEST_STATUS_CONFIG.declined.badge,
+  pending: GUEST_STATUS_CONFIG.pending.badge,
 }
 
 function getStatusBadge(status: string) {
-  return STATUS_BADGE[status] ?? "bg-muted text-muted-foreground border-border"
+  return getAppointmentStatusStyle(status).badge
 }
 
 function getEntryBadge(type: string) {
-  return ENTRY_BADGE[type] ?? "bg-muted text-muted-foreground border-border"
+  return getEntryTypeStyle(type).badge
 }
 
 function capitalize(s: string) {
@@ -745,6 +735,11 @@ export function AppointmentDetailsModal({
             {appointment.updatedAt !== appointment.createdAt && (
               <p>Last updated: {fmtLongDateTimeMDT(appointment.updatedAt)}</p>
             )}
+            <p>
+              {appointment.reminderSent
+                ? `Reminder sent: ${fmtLongDateTimeMDT(appointment.reminderSentAt || appointment.updatedAt)}`
+                : "Reminder not yet sent"}
+            </p>
           </div>
         </div>
 

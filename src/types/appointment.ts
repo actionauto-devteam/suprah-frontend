@@ -51,6 +51,7 @@ export interface Appointment {
 
   reminderSent: boolean;
   reminderTime?: string;
+  reminderSentAt?: string;
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;
