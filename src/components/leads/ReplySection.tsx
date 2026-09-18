@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { STATUS_CONFIG } from "./atomic/StatusPill";
 import { StatusReasonModal } from "./StatusReasonModal";
+import { CannedReplyPicker } from "./CannedReplyPicker";
 
 interface ReplySectionProps {
   isClosed: boolean;
@@ -36,6 +37,7 @@ interface ReplySectionProps {
   onReopen: (reason?: string) => void;
   onQuoteShipping: () => void;
   selectedLeadStatus: string;
+  leadContext?: { firstName?: string; lastName?: string; vehicle?: string };
 }
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -110,6 +112,7 @@ export const ReplySection = React.memo(
     onReopen,
     onQuoteShipping,
     selectedLeadStatus,
+    leadContext,
   }: ReplySectionProps) => {
     const [reasonModal, setReasonModal] = React.useState<
       null | "close" | "reopen"
@@ -206,12 +209,11 @@ export const ReplySection = React.memo(
       return () => document.removeEventListener("mousedown", closeEmojiMenu);
     }, [emojiOpen]);
 
-    const insertEmoji = (emoji: string) => {
+    const insertTextAtCursor = (text: string) => {
       const textarea = textareaRef.current;
 
       if (!textarea) {
-        setReplyMessage(`${replyMessage}${emoji}`);
-        setEmojiOpen(false);
+        setReplyMessage(`${replyMessage}${text}`);
         return;
       }
 
@@ -220,17 +222,21 @@ export const ReplySection = React.memo(
 
       const nextValue =
         replyMessage.slice(0, start) +
-        emoji +
+        text +
         replyMessage.slice(end);
 
       setReplyMessage(nextValue);
-      setEmojiOpen(false);
 
       window.setTimeout(() => {
         textarea.focus();
-        const nextCursor = start + emoji.length;
+        const nextCursor = start + text.length;
         textarea.setSelectionRange(nextCursor, nextCursor);
       }, 0);
+    };
+
+    const insertEmoji = (emoji: string) => {
+      insertTextAtCursor(emoji);
+      setEmojiOpen(false);
     };
 
     const handleFileSelection = (
@@ -476,6 +482,12 @@ export const ReplySection = React.memo(
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-1 self-stretch sm:ml-auto sm:self-auto">
+              <CannedReplyPicker
+                onInsert={insertTextAtCursor}
+                leadContext={leadContext}
+                disabled={isSending}
+              />
+
               <div ref={emojiMenuRef} className="relative">
                 <button
                   type="button"

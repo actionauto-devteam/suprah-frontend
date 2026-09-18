@@ -21,6 +21,8 @@ const activityIcon = (kind: WorkspaceActivityItem["kind"]) => {
       return StickyNote;
     case "call":
       return Phone;
+    case "sms":
+      return MessageSquare;
     case "status":
       return Check;
     case "email":
@@ -44,6 +46,13 @@ const activityTone = (kind: WorkspaceActivityItem["kind"]) => {
     return {
       icon: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
       dot: "bg-sky-500",
+    };
+  }
+
+  if (kind === "sms") {
+    return {
+      icon: "bg-teal-500/15 text-teal-700 dark:text-teal-300",
+      dot: "bg-teal-500",
     };
   }
 

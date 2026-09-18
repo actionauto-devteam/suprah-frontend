@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "./atomic/Avatar";
 import { STATUS_CONFIG } from "./atomic/StatusPill";
 import { SupraLeoReadButton } from "@/components/supra-leo-ai/SupraLeoReadButton";
+import { useTeamMembers } from "@/hooks/useTeamPulse";
 
 interface LeadsListProps {
   leads: any[];
@@ -87,6 +88,36 @@ const inquiryIdentifier = (lead: LeadListIdentity) => {
   return details.join(" · ");
 };
 
+function AssigneeChip({
+  assignedTo,
+  members,
+}: {
+  assignedTo?: string | null;
+  members: Array<{ _id: string; name: string }>;
+}) {
+  if (!assignedTo) return null;
+  const member = members.find((candidate) => candidate._id === assignedTo);
+  if (!member) return null;
+
+  const initials =
+    member.name
+      .split(" ")
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
+
+  return (
+    <span
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-[9px] font-bold text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-400"
+      title={`Assigned to ${member.name}`}
+    >
+      {initials}
+    </span>
+  );
+}
+
 function StatusDot({ status }: { status?: string }) {
   const config = status ? (STATUS_CONFIG as any)[status] : null;
   if (!config) return null;
@@ -123,6 +154,7 @@ export const LeadsList = React.memo(
   }: LeadsListProps) => {
     const rangeStart = total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
     const rangeEnd = Math.min(currentPage * itemsPerPage, total);
+    const { data: teamMembers = [] } = useTeamMembers();
     const repeatedNames = React.useMemo(() => {
       const counts = new Map<string, number>();
 
@@ -295,6 +327,7 @@ export const LeadsList = React.memo(
                             </span>
                           )}
                           <StatusDot status={lead?.status} />
+                          <AssigneeChip assignedTo={lead?.assignedTo} members={teamMembers} />
                           <span
                             className="ml-auto opacity-0 transition group-hover:opacity-100"
                             onClick={(event) => event.stopPropagation()}

@@ -26,6 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  SERVICE_HUB_STATUS_TONE as STATUS_TONE,
+  SERVICE_HUB_TYPE_BADGE as TYPE_BADGE,
+  SERVICE_HUB_SOURCE_BADGE as SOURCE_BADGE,
+  getServiceHubBadgeClass as getBadgeClass,
+} from "@/lib/appointmentStatus";
 
 
 interface CustomerBooking {
@@ -92,61 +98,12 @@ const PANEL_HEADER =
   "backdrop-blur supports-[backdrop-filter]:bg-card/50";
 
 
-const STATUS_TONE: Record<
-  string,
-  { dot: string; bar: string; badge: string }
-> = {
-  scheduled: {
-    dot: "bg-sky-500",
-    bar: "bg-gradient-to-b from-sky-400 to-sky-500",
-    badge: "bg-sky-500/10 text-sky-700 border-sky-500/25 dark:text-sky-400",
-  },
-  confirmed: {
-    dot: "bg-teal-500",
-    bar: "bg-gradient-to-b from-teal-400 to-teal-500",
-    badge: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-  },
-  completed: {
-    dot: "bg-emerald-500",
-    bar: "bg-gradient-to-b from-emerald-400 to-emerald-500",
-    badge: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-  },
-  cancelled: {
-    dot: "bg-rose-500",
-    bar: "bg-gradient-to-b from-rose-400 to-rose-500",
-    badge: "bg-rose-500/10 text-rose-700 border-rose-500/25 dark:text-rose-400",
-  },
-};
-
-const TYPE_BADGE: Record<string, string> = {
-  appointment: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
-  "test-drive": "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
-  "phone-call": "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  meeting: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-  event: "bg-pink-500/10 text-pink-700 border-pink-500/25 dark:text-pink-400",
-  task: "bg-orange-500/10 text-orange-700 border-orange-500/25 dark:text-orange-400",
-  reminder: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-};
-
-const SOURCE_BADGE: Record<string, string> = {
-  sms: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-  phone: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-  email: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
-  lead: "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
-  booking: "bg-teal-500/10 text-teal-700 border-teal-500/25 dark:text-teal-400",
-  manual: "bg-gray-500/10 text-gray-700 border-gray-400/25 dark:text-gray-400",
-};
-
 const POST_TYPE_BADGE: Record<DashboardPost["type"], string> = {
   event: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
   news: "bg-violet-500/10 text-violet-700 border-violet-500/25 dark:text-violet-400",
   announcement: "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
   update: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
 };
-
-function getBadgeClass(map: Record<string, string>, key: string) {
-  return map[key.toLowerCase()] ?? "bg-muted text-muted-foreground border-border";
-}
 
 function statusBadgeClass(status: string) {
   return STATUS_TONE[status.toLowerCase()]?.badge ?? "bg-muted text-muted-foreground border-border";

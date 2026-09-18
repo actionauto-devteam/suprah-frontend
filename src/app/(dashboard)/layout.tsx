@@ -31,6 +31,9 @@ import { Pulse360Bell } from "@/components/crm/pulse360/Pulse360Bell";
 // Pulse360Popup) so incoming voice broadcasts are received on EVERY route.
 // Module-level singleton store — no provider needed.
 import { YapLineDock } from "@/components/yapline/YapLineDock";
+import IncomingCallCenter from "@/components/communications/IncomingCallCenter";
+import { useCommunicationSocket } from "@/hooks/useCommunicationSocket";
+import { connectCommunicationSocket } from "@/lib/communicationStore";
 import { ProfileProvider, useProfileContext } from "@/context/ProfileContext";
 import { ProfileToastProvider } from "@/components/ProfileToast";
 import { resolveImageUrl, cn } from "@/lib/utils";
@@ -446,6 +449,8 @@ function DashboardLayoutContent({
            WebRTC peers alive across the whole dashboard shell. */}
       <YapLineDock />
 
+      {isCrmRoute && <IncomingCallCenter />}
+
       {showCrmPushPrompt && <CrmPushPrompt role={userRole || "employee"} />}
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
@@ -480,6 +485,23 @@ function CalendarNotificationsGate({ children }: { children: React.ReactNode }) 
       {children}
     </CalendarNotificationProvider>
   );
+}
+
+function CommunicationSocketGate({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: React.ReactNode;
+}) {
+  const socket = useCommunicationSocket(enabled);
+  const { orgId } = useAuth();
+
+  React.useEffect(() => {
+    if (enabled && socket && orgId) connectCommunicationSocket(socket, orgId);
+  }, [enabled, socket, orgId]);
+
+  return <>{children}</>;
 }
 
 /**
@@ -529,7 +551,9 @@ export default function DashboardLayout({
               crm_token it remains idle and exposes an empty CRM feed. */}
           <CrmNotificationProvider>
             <ProjectNotificationsGate>
-              <CalendarNotificationsGate>{content}</CalendarNotificationsGate>
+              <CalendarNotificationsGate>
+                <CommunicationSocketGate enabled={isCrmRoute}>{content}</CommunicationSocketGate>
+              </CalendarNotificationsGate>
             </ProjectNotificationsGate>
           </CrmNotificationProvider>
         </NotificationProvider>

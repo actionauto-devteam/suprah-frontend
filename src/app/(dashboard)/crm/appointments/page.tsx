@@ -18,7 +18,7 @@ import {
   ChevronRight,
   History,
 } from "lucide-react";
-import { AppointmentCalendar } from "@/components/AppointmentCalendar";
+import { AppointmentCalendar, CalendarViewMode } from "@/components/AppointmentCalendar";
 import { BookedTab } from "@/components/BookedTab";
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal";
 import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
@@ -42,7 +42,11 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { fmtWeekdayDateMDT, fmtTimeMDT, MDT_TZ, mdtDayRangeUtc, todayStrMDT } from "@/lib/timezone";
+import { getAppointmentStatusStyle as getStatusStyle } from "@/lib/appointmentStatus";
+import { AppointmentStatusPills, AppointmentStatusPillTab } from "@/components/appointments/atomic/AppointmentStatusPills";
 
+
+const CALENDAR_VIEW_MODE_STORAGE_KEY = "crm-appointments-calendar-view-mode";
 
 const TAB_OPTIONS: TabOption[] = [
   { id: "calendar",  label: "Calendar View",        icon: <Calendar className="h-3.5 w-3.5" /> },
@@ -51,39 +55,6 @@ const TAB_OPTIONS: TabOption[] = [
   { id: "booked",    label: "Booked",               icon: <Users    className="h-3.5 w-3.5" /> },
   { id: "customers", label: "Customer Credentials", icon: <Contact  className="h-3.5 w-3.5" /> },
 ];
-
-
-const STATUS_STYLES: Record<string, { pill: string; bar: string; dot: string }> = {
-  confirmed: {
-    pill: "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:text-emerald-400",
-    bar: "bg-emerald-500",
-    dot: "bg-emerald-500",
-  },
-  scheduled: {
-    pill: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-400",
-    bar: "bg-blue-500",
-    dot: "bg-blue-500",
-  },
-  cancelled: {
-    pill: "bg-red-500/10 text-red-700 border-red-500/25 dark:text-red-400",
-    bar: "bg-red-500",
-    dot: "bg-red-500",
-  },
-  completed: {
-    pill: "bg-gray-500/10 text-gray-700 border-gray-400/25 dark:text-gray-400",
-    bar: "bg-gray-400",
-    dot: "bg-gray-400",
-  },
-  "no-show": {
-    pill: "bg-amber-500/10 text-amber-700 border-amber-500/25 dark:text-amber-400",
-    bar: "bg-amber-500",
-    dot: "bg-amber-500",
-  },
-};
-
-function getStatusStyle(status: string) {
-  return STATUS_STYLES[status] ?? STATUS_STYLES.scheduled;
-}
 
 function formatDateLabel(date: Date) {
   const dateStr = date.toLocaleDateString('en-US', { timeZone: MDT_TZ });
@@ -329,6 +300,46 @@ function CustomTabBar({
 }
 
 
+const CALENDAR_VIEW_OPTIONS: Array<{ id: CalendarViewMode; label: string }> = [
+  { id: "month", label: "Month" },
+  { id: "week", label: "Week" },
+  { id: "day", label: "Day" },
+  { id: "agenda", label: "Agenda" },
+];
+
+function CalendarViewSwitcher({
+  value, onChange,
+}: {
+  value: CalendarViewMode;
+  onChange: (mode: CalendarViewMode) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Calendar view"
+      className="flex shrink-0 gap-0.5 rounded-lg border bg-muted/40 p-0.5"
+    >
+      {CALENDAR_VIEW_OPTIONS.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="tab"
+          aria-selected={value === option.id}
+          onClick={() => onChange(option.id)}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+            value === option.id
+              ? "bg-card text-foreground shadow-sm ring-1 ring-border/50"
+              : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AppointmentSkeleton() {
   return (
     <div className="space-y-3">
@@ -414,11 +425,11 @@ function HistoryPanel({
   counts: { all: number; cancelled: number; completed: number; noShow: number };
   onAppointmentClick: (appointment: any) => void;
 }) {
-  const filters: Array<{ id: HistoryFilter; label: string; count: number }> = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "cancelled", label: "Cancelled", count: counts.cancelled },
-    { id: "completed", label: "Completed", count: counts.completed },
-    { id: "no-show", label: "No-show", count: counts.noShow },
+  const filters: AppointmentStatusPillTab[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "cancelled", label: "Cancelled", count: counts.cancelled },
+    { key: "completed", label: "Completed", count: counts.completed },
+    { key: "no-show", label: "No-show", count: counts.noShow },
   ];
 
   return (
@@ -429,31 +440,11 @@ function HistoryPanel({
         count={appointments.length}
       />
 
-      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex min-w-max gap-1 rounded-xl border bg-muted/40 p-1">
-          {filters.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onFilterChange(item.id)}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                filter === item.id
-                  ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
-                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
-              )}
-            >
-              {item.label}
-              <span className={cn(
-                "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
-                filter === item.id ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-              )}>
-                {item.count > 99 ? "99+" : item.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <AppointmentStatusPills
+        tabs={filters}
+        active={filter}
+        onChange={(key) => onFilterChange(key as HistoryFilter)}
+      />
 
       {loading ? (
         <AppointmentSkeleton />
@@ -491,11 +482,21 @@ function AppointmentsPageInner() {
 
   const [activeTab, setActiveTab] = React.useState("upcoming");
   const [historyFilter, setHistoryFilter] = React.useState<HistoryFilter>("all");
+  const [upcomingStatusFilter, setUpcomingStatusFilter] = React.useState<"all" | "scheduled" | "confirmed">("all");
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
   const [selectedAppointment, setSelectedAppointment] = React.useState<any>(null);
   const [preselectedDate, setPreselectedDate] = React.useState<Date | undefined>();
   const [currentMonth, setCurrentMonth] = React.useState(new Date());
+  const [calendarViewMode, setCalendarViewMode] = React.useState<CalendarViewMode>(() => {
+    if (typeof window === "undefined") return "month";
+    const stored = window.localStorage.getItem(CALENDAR_VIEW_MODE_STORAGE_KEY);
+    return stored === "week" || stored === "day" || stored === "agenda" || stored === "month" ? stored : "month";
+  });
+
+  React.useEffect(() => {
+    window.localStorage.setItem(CALENDAR_VIEW_MODE_STORAGE_KEY, calendarViewMode);
+  }, [calendarViewMode]);
 
   const handleLeadNavigate = React.useCallback(
     (params: LeadNavParams) => {
@@ -754,6 +755,23 @@ function AppointmentsPageInner() {
     return historyAppointments.filter((apt: any) => apt.status === historyFilter);
   }, [historyAppointments, historyFilter]);
 
+  const upcomingStatusCounts = React.useMemo(() => ({
+    all: upcomingAppointments.length,
+    scheduled: upcomingAppointments.filter((apt: any) => apt.status === "scheduled").length,
+    confirmed: upcomingAppointments.filter((apt: any) => apt.status === "confirmed").length,
+  }), [upcomingAppointments]);
+
+  const filteredUpcomingAppointments = React.useMemo(() => {
+    if (upcomingStatusFilter === "all") return upcomingAppointments;
+    return upcomingAppointments.filter((apt: any) => apt.status === upcomingStatusFilter);
+  }, [upcomingAppointments, upcomingStatusFilter]);
+
+  const upcomingStatusTabs: AppointmentStatusPillTab[] = React.useMemo(() => [
+    { key: "all", label: "All", count: upcomingStatusCounts.all },
+    { key: "scheduled", label: "Scheduled", count: upcomingStatusCounts.scheduled },
+    { key: "confirmed", label: "Confirmed", count: upcomingStatusCounts.confirmed },
+  ], [upcomingStatusCounts]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleCreateAppointment = React.useCallback(() => {
@@ -859,7 +877,10 @@ function AppointmentsPageInner() {
       switch (tabId) {
         case "calendar":
           return (
-            <div className="p-4">
+            <div className="p-4 space-y-3">
+              <div className="flex justify-end">
+                <CalendarViewSwitcher value={calendarViewMode} onChange={setCalendarViewMode} />
+              </div>
               {!isCalendarLoading ? (
                 <AppointmentCalendar
                   appointments={calendarAppointments}
@@ -867,6 +888,7 @@ function AppointmentsPageInner() {
                   onViewDateChange={setCurrentMonth}
                   onCreateAppointment={handleDateClick}
                   onSelectAppointment={handleAppointmentClick}
+                  viewMode={calendarViewMode}
                 />
               ) : (
                 <div className="flex items-center justify-center py-8">
@@ -879,12 +901,17 @@ function AppointmentsPageInner() {
         case "upcoming":
           return (
             <div className="p-4 space-y-3">
+              <AppointmentStatusPills
+                tabs={upcomingStatusTabs}
+                active={upcomingStatusFilter}
+                onChange={(key) => setUpcomingStatusFilter(key as typeof upcomingStatusFilter)}
+              />
               {isGlobalLoading ? (
                 <AppointmentSkeleton />
-              ) : upcomingAppointments.length === 0 ? (
+              ) : filteredUpcomingAppointments.length === 0 ? (
                 <UpcomingEmpty onCreateAppointment={handleCreateAppointment} />
               ) : (
-                upcomingAppointments.map((apt: any) => (
+                filteredUpcomingAppointments.map((apt: any) => (
                   <UpcomingAppointmentCard
                     key={apt._id}
                     appointment={apt}
@@ -934,7 +961,10 @@ function AppointmentsPageInner() {
     [
       calendarAppointments,
       isCalendarLoading,
-      upcomingAppointments,
+      calendarViewMode,
+      filteredUpcomingAppointments,
+      upcomingStatusTabs,
+      upcomingStatusFilter,
       filteredHistoryAppointments,
       historyFilter,
       historyCounts,
@@ -1122,6 +1152,9 @@ function AppointmentsPageInner() {
               <div className="min-h-0">
                 {activeTab === "calendar" && (
                   <>
+                    <div className="mb-3 flex justify-end">
+                      <CalendarViewSwitcher value={calendarViewMode} onChange={setCalendarViewMode} />
+                    </div>
                     {!isCalendarLoading ? (
                       <AppointmentCalendar
                         appointments={calendarAppointments}
@@ -1129,6 +1162,7 @@ function AppointmentsPageInner() {
                         onViewDateChange={setCurrentMonth}
                         onCreateAppointment={handleDateClick}
                         onSelectAppointment={handleAppointmentClick}
+                        viewMode={calendarViewMode}
                       />
                     ) : (
                       <div className="flex items-center justify-center py-16">
@@ -1148,12 +1182,17 @@ function AppointmentsPageInner() {
                       subtitle="Sorted by earliest date"
                       count={stats.upcoming}
                     />
+                    <AppointmentStatusPills
+                      tabs={upcomingStatusTabs}
+                      active={upcomingStatusFilter}
+                      onChange={(key) => setUpcomingStatusFilter(key as typeof upcomingStatusFilter)}
+                    />
                     {isGlobalLoading ? (
                       <AppointmentSkeleton />
-                    ) : upcomingAppointments.length === 0 ? (
+                    ) : filteredUpcomingAppointments.length === 0 ? (
                       <UpcomingEmpty onCreateAppointment={handleCreateAppointment} />
                     ) : (
-                      upcomingAppointments.map((apt: any) => (
+                      filteredUpcomingAppointments.map((apt: any) => (
                         <UpcomingAppointmentCard
                           key={apt._id}
                           appointment={apt}

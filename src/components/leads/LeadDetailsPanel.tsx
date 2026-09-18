@@ -10,6 +10,8 @@ import {
   leadQuickActions,
   leadToWorkspaceContact,
 } from "@/components/conversation-workspace/adapters/lead-inbox-adapter";
+import { useLeadCommunicationActivity } from "@/hooks/useLeadCommunicationActivity";
+import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
 
 interface LeadDetailsUpdate {
   firstName?: string;
@@ -37,6 +39,7 @@ interface LeadDetailsPanelProps {
   onCalculateQuote: () => void;
   onAddNote: (note: string) => void | Promise<void>;
   onUpdateDetails: (changes: LeadDetailsUpdate) => void | Promise<void>;
+  onAssign?: (userId: string | null) => void | Promise<void>;
 }
 
 const STATUS_OPTIONS = [
@@ -59,6 +62,7 @@ export function LeadDetailsPanel({
   onCalculateQuote,
   onAddNote,
   onUpdateDetails,
+  onAssign,
 }: LeadDetailsPanelProps) {
   const [noteIntent, setNoteIntent] = React.useState(0);
   const [editingContact, setEditingContact] = React.useState(false);
@@ -106,16 +110,26 @@ export function LeadDetailsPanel({
   const dialablePhone = phone.replace(/[^\d+]/g, "");
   const contact = React.useMemo(() => leadToWorkspaceContact(lead), [lead]);
   const details = React.useMemo(
-    () => leadDetailSections(lead, sourceEmail),
-    [lead, sourceEmail],
+    () => leadDetailSections(lead, sourceEmail, onAssign),
+    [lead, sourceEmail, onAssign],
   );
-  const activities = React.useMemo(() => leadActivityItems(lead), [lead]);
+
+  const leadName = [lead?.firstName, lead?.lastName].filter(Boolean).join(" ").trim() || undefined;
+  const { items: commActivityItems } = useLeadCommunicationActivity(lead?._id, dialablePhone || undefined);
+  const { dial } = useTelnyxRTC();
+
+  const activities = React.useMemo(() => {
+    const merged = [...leadActivityItems(lead), ...commActivityItems];
+    return merged.sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+    );
+  }, [lead, commActivityItems]);
 
   const actions = React.useMemo(
     () =>
       leadQuickActions({
         onCall: () => {
-          if (dialablePhone) window.location.href = `tel:${dialablePhone}`;
+          if (dialablePhone) dial(dialablePhone, { leadId: lead?._id, displayName: leadName });
         },
         onPayment: onRequestPayment,
         onAppointment,
@@ -123,7 +137,7 @@ export function LeadDetailsPanel({
         onNote: () => setNoteIntent((value) => value + 1),
         hasPhone: Boolean(dialablePhone),
       }),
-    [dialablePhone, onAppointment, onCalculateQuote, onRequestPayment],
+    [dialablePhone, dial, lead?._id, leadName, onAppointment, onCalculateQuote, onRequestPayment],
   );
 
   const saveContact = async () => {

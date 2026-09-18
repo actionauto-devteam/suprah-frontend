@@ -1442,7 +1442,7 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-color-swatch { position:relative; height:24px; width:24px; min-width:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; border:0; box-shadow:0 0 0 1px rgba(255,255,255,0.28); }
       .ss4-mobile-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--bg-elevated),0 0 0 4px rgba(255,255,255,0.72); }
       .ss4-mobile-color-swatch svg { height:16px; width:16px; }
-      .ss4-chat-composer-dock { transform:translateZ(0); }
+      .ss4-chat-composer-dock { transform:translateZ(0); will-change:transform; backface-visibility:hidden; }
       html.ss4-ios-keyboard-open .ss4-chat-composer-dock {
         position:fixed;
         left:0;
@@ -9985,6 +9985,7 @@ export default function SupraSpacePage() {
     if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
+    let lastViewportCss: { height: number; safeBottom: number; keyboardAccessoryHeight: number; keyboardOpen: boolean } | null = null;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const nudgeViewportUnits = () => {
       const meta = document.querySelector('meta[name="viewport"]');
@@ -10022,24 +10023,39 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        const keyboardAccessoryHeight = keyboardOpen ? 10 : 0;
-        if (keyboardOpen) {
-          document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
-        } else {
-          document.documentElement.style.removeProperty('--ss4-vvh');
+        const keyboardAccessoryHeight = keyboardOpen ? 5 : 0;
+        if (
+          !lastViewportCss
+          || lastViewportCss.keyboardOpen !== keyboardOpen
+          || Math.abs(lastViewportCss.height - height) >= 3
+          || lastViewportCss.safeBottom !== safeBottom
+          || lastViewportCss.keyboardAccessoryHeight !== keyboardAccessoryHeight
+        ) {
+          if (keyboardOpen) {
+            document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
+          } else {
+            document.documentElement.style.removeProperty('--ss4-vvh');
+          }
+          document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
+          document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
+          document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
+          lastViewportCss = { height, safeBottom, keyboardAccessoryHeight, keyboardOpen };
         }
-        document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
-        document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
-        document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
         if (wasKeyboardOpenRef.current && !keyboardOpen) {
           setTimeout(nudgeViewportUnits, 350);
         }
         wasKeyboardOpenRef.current = keyboardOpen;
-        setVv(prev => (
-          prev?.height === height && prev.top === top && prev.keyboardOpen === keyboardOpen
-            ? prev
-            : { height, top, keyboardOpen }
-        ));
+        setVv(prev => {
+          if (
+            prev
+            && prev.keyboardOpen === keyboardOpen
+            && Math.abs(prev.height - height) < 3
+            && Math.abs(prev.top - top) < 3
+          ) {
+            return prev;
+          }
+          return { height, top, keyboardOpen };
+        });
       });
     };
     const scheduleUpdate = (delay = 0) => {
@@ -10334,15 +10350,24 @@ export default function SupraSpacePage() {
     // falling back to the CSS default (76px), which under-pads whenever the
     // composer is taller (reply preview, format bar, attached files).
     if (!isIOSDevice || typeof document === 'undefined') return;
+    let raf = 0;
+    let lastHeight = 0;
     const update = () => {
-      const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
-      document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
+        if (Math.abs(height - lastHeight) < 2) return;
+        lastHeight = height;
+        document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+      });
     };
     update();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
     if (composerDockRef.current) observer?.observe(composerDockRef.current);
     window.addEventListener('resize', update);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       observer?.disconnect();
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');

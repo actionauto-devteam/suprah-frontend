@@ -1,160 +1,211 @@
-"use client";
+"use client"
 
-import * as React from "react";
+import * as React from "react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DatePicker } from "@/components/ui/date-picker";
-import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
-import type { Vehicle } from "@/types/inventory";
-import { Car } from "lucide-react";
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { useUser } from "@/providers/AuthProvider"
+import { submitTestDriveBooking } from "@/lib/api/publicBooking"
+import { Calendar, Clock, CheckCircle2, Loader2 } from "lucide-react"
+import type { Vehicle } from "@/types/inventory"
 
 interface BookTestDriveModalProps {
-  vehicle: Vehicle | null;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  vehicle: Vehicle | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-const TIME_SLOTS = [
-  { value: "09:00", label: "Morning — 9:00 AM" },
-  { value: "11:00", label: "Late Morning — 11:00 AM" },
-  { value: "13:00", label: "Afternoon — 1:00 PM" },
-  { value: "15:00", label: "Late Afternoon — 3:00 PM" },
-  { value: "17:00", label: "Evening — 5:00 PM" },
-];
+function getTomorrowISO(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split("T")[0]
+}
 
-export function BookTestDriveModal({ vehicle, isOpen, onOpenChange }: BookTestDriveModalProps) {
-  const [preferredDate, setPreferredDate] = React.useState<Date | undefined>(undefined);
-  const [timeSlot, setTimeSlot] = React.useState("10:00");
-  const [notes, setNotes] = React.useState("");
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+export function BookTestDriveModal({
+  vehicle,
+  isOpen,
+  onOpenChange,
+}: BookTestDriveModalProps) {
+  const { user } = useUser()
 
-  const vehicleName = vehicle
-    ? `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? ` ${vehicle.trim}` : ""}`
-    : "";
+  const [firstName, setFirstName] = React.useState("")
+  const [lastName, setLastName] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [phone, setPhone] = React.useState("")
+  const [date, setDate] = React.useState(getTomorrowISO())
+  const [time, setTime] = React.useState("10:00")
+  const [notes, setNotes] = React.useState("")
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [submitted, setSubmitted] = React.useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vehicle || !preferredDate) return;
-
-    const [hours, minutes] = timeSlot.split(":").map(Number);
-    const startTime = new Date(preferredDate);
-    startTime.setHours(hours, minutes, 0, 0);
-    const endTime = new Date(startTime);
-    endTime.setHours(endTime.getHours() + 1);
-
-    setIsSubmitting(true);
-    try {
-      await apiClient.post("/api/appointments", {
-        title: `Test Drive — ${vehicleName}`,
-        type: "test-drive",
-        entryType: "appointment",
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        notes,
-        participants: [],
-        guestEmails: [],
-      });
-      toast.success("Test drive booked! We'll confirm your appointment shortly.");
-      onOpenChange(false);
-      setPreferredDate(undefined);
-      setTimeSlot("10:00");
-      setNotes("");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to book test drive. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+  React.useEffect(() => {
+    if (isOpen && user) {
+      setFirstName((prev) => prev || user.firstName || user.fullName?.split(" ")[0] || "")
+      setLastName((prev) => prev || user.lastName || user.fullName?.split(" ").slice(1).join(" ") || "")
+      setEmail((prev) => prev || user.primaryEmailAddress?.emailAddress || "")
     }
-  };
+  }, [isOpen, user])
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setTimeout(() => {
+        setFirstName("")
+        setLastName("")
+        setEmail("")
+        setPhone("")
+        setDate(getTomorrowISO())
+        setTime("10:00")
+        setNotes("")
+        setIsSubmitting(false)
+        setSubmitted(false)
+      }, 300)
+    }
+  }, [isOpen])
+
+  if (!vehicle) return null
+
+  const vehicleLabel = `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+  const isValid = firstName.trim() && lastName.trim() && email.trim() && phone.trim() && date && time
+
+  const handleSubmit = async () => {
+    if (!isValid || isSubmitting) return
+    setIsSubmitting(true)
+
+    try {
+      const startTime = new Date(`${date}T${time}:00`)
+      await submitTestDriveBooking({
+        vehicleId: vehicle.id,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        startTime: startTime.toISOString(),
+        notes: notes.trim() || undefined,
+      })
+      setSubmitted(true)
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Something went wrong. Please try again."
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Car className="h-4 w-4 text-primary" />
-            </div>
-            <DialogTitle className="text-lg font-bold">Book a Test Drive</DialogTitle>
-          </div>
-          <DialogDescription className="text-sm">
-            {vehicleName && (
-              <span className="font-medium text-foreground">{vehicleName}</span>
-            )}
+          <DialogTitle className="text-lg font-extrabold">
+            {submitted ? "You're all set!" : "Book a Test Drive"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+            {vehicleLabel}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label>Preferred Date</Label>
-            <DatePicker
-              value={preferredDate}
-              onChange={setPreferredDate}
-              placeholder="Select a date"
-              disablePastDates
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Preferred Time</Label>
-            <Select value={timeSlot} onValueChange={setTimeSlot}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a time" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_SLOTS.map((slot) => (
-                  <SelectItem key={slot.value} value={slot.value}>
-                    {slot.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Notes (optional)</Label>
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any special requests or questions..."
-              className="resize-none h-20"
-            />
-          </div>
-
-          <div className="flex gap-3 pt-1">
+        {submitted ? (
+          <div className="flex flex-col items-center text-center py-4 gap-4">
+            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <CheckCircle2 className="w-9 h-9 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm mt-1">
+                Your test drive request has been submitted. Our team will reach out to confirm your time.
+              </p>
+            </div>
             <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
               onClick={() => onOpenChange(false)}
+              className="w-full h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold"
             >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={!preferredDate || isSubmitting}
-            >
-              {isSubmitting ? "Booking..." : "Book Test Drive"}
+              Done
             </Button>
           </div>
-        </form>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input value={firstName} onChange={e => setFirstName(e.target.value)} className="h-11" />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input value={lastName} onChange={e => setLastName(e.target.value)} className="h-11" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} className="h-11" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input
+                type="tel"
+                placeholder="+1 (555) 000-0000"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" /> Preferred Date
+                </Label>
+                <Input
+                  type="date"
+                  value={date}
+                  min={getTomorrowISO()}
+                  onChange={e => setDate(e.target.value)}
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Preferred Time
+                </Label>
+                <Input
+                  type="time"
+                  value={time}
+                  onChange={e => setTime(e.target.value)}
+                  className="h-11"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Notes (optional)</Label>
+              <Textarea
+                placeholder="Anything you'd like us to know…"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="min-h-20 resize-none"
+              />
+            </div>
+
+            <Button
+              onClick={handleSubmit}
+              disabled={!isValid || isSubmitting}
+              className="w-full h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold mt-2"
+            >
+              {isSubmitting
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
+                : "Request Test Drive"}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
