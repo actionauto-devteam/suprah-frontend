@@ -128,12 +128,6 @@ const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
 const SS4_UNREAD_DOT_COLOR = '#3b82f6';
 const SS4_UNREAD_COLOR_PRESETS = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#ec4899', '#ffffff'];
 
-type SS4ViewportState = {
-  height: number;
-  top: number;
-  keyboardOpen: boolean;
-};
-
 function isTextEntryElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
   const target = element.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null;
@@ -9203,21 +9197,12 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
   }, [isMobileViewport, isStandaloneApp]);
-  const [vv, setVv] = React.useState<SS4ViewportState | null>(null);
-  const wasKeyboardOpenRef = React.useRef(false);
   React.useEffect(() => {
     if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
-    let lastViewportCss: { height: number; safeBottom: number; keyboardAccessoryHeight: number; keyboardOpen: boolean } | null = null;
+    let lastViewportCss: { height: number; top: number; safeBottom: number; keyboardOpen: boolean } | null = null;
     const timers = new Set<ReturnType<typeof setTimeout>>();
-    const nudgeViewportUnits = () => {
-      const meta = document.querySelector('meta[name="viewport"]');
-      if (!meta) return;
-      const content = meta.getAttribute('content') || '';
-      meta.setAttribute('content', `${content},`);
-      requestAnimationFrame(() => meta.setAttribute('content', content));
-    };
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
@@ -9247,39 +9232,22 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        const keyboardAccessoryHeight = keyboardOpen ? 5 : 0;
         if (
           !lastViewportCss
           || lastViewportCss.keyboardOpen !== keyboardOpen
           || Math.abs(lastViewportCss.height - height) >= 3
+          || Math.abs(lastViewportCss.top - top) >= 3
           || lastViewportCss.safeBottom !== safeBottom
-          || lastViewportCss.keyboardAccessoryHeight !== keyboardAccessoryHeight
         ) {
           if (keyboardOpen) {
             document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
           } else {
             document.documentElement.style.removeProperty('--ss4-vvh');
           }
+          document.documentElement.style.setProperty('--ss4-vv-top', `${top}px`);
           document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
-          document.documentElement.style.setProperty('--ss4-ios-keyboard-accessory-height', `${keyboardAccessoryHeight}px`);
-          document.documentElement.classList.toggle('ss4-ios-keyboard-open', keyboardOpen);
-          lastViewportCss = { height, safeBottom, keyboardAccessoryHeight, keyboardOpen };
+          lastViewportCss = { height, top, safeBottom, keyboardOpen };
         }
-        if (wasKeyboardOpenRef.current && !keyboardOpen) {
-          setTimeout(nudgeViewportUnits, 350);
-        }
-        wasKeyboardOpenRef.current = keyboardOpen;
-        setVv(prev => {
-          if (
-            prev
-            && prev.keyboardOpen === keyboardOpen
-            && Math.abs(prev.height - height) < 3
-            && Math.abs(prev.top - top) < 3
-          ) {
-            return prev;
-          }
-          return { height, top, keyboardOpen };
-        });
       });
     };
     const scheduleUpdate = (delay = 0) => {
@@ -9294,39 +9262,32 @@ export default function SupraSpacePage() {
       timers.add(timer);
     };
     update();
-    const settleAfterKeyboard = () => {
+    const settleAfterResize = () => {
       scheduleUpdate();
       scheduleUpdate(80);
       scheduleUpdate(250);
       scheduleUpdate(600);
     };
     viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-    window.addEventListener('resize', settleAfterKeyboard);
-    window.addEventListener('orientationchange', settleAfterKeyboard);
-    window.addEventListener('pageshow', settleAfterKeyboard);
-    document.addEventListener('touchend', settleAfterKeyboard, true);
-    document.addEventListener('pointerup', settleAfterKeyboard, true);
-    document.addEventListener('visibilitychange', settleAfterKeyboard);
-    document.addEventListener('focusin', settleAfterKeyboard);
-    document.addEventListener('focusout', settleAfterKeyboard);
+    window.addEventListener('resize', settleAfterResize);
+    window.addEventListener('orientationchange', settleAfterResize);
+    window.addEventListener('pageshow', settleAfterResize);
+    document.addEventListener('visibilitychange', settleAfterResize);
+    document.addEventListener('focusin', settleAfterResize);
+    document.addEventListener('focusout', settleAfterResize);
     return () => {
       if (raf) cancelAnimationFrame(raf);
       timers.forEach(timer => clearTimeout(timer));
       viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-      window.removeEventListener('resize', settleAfterKeyboard);
-      window.removeEventListener('orientationchange', settleAfterKeyboard);
-      window.removeEventListener('pageshow', settleAfterKeyboard);
-      document.removeEventListener('touchend', settleAfterKeyboard, true);
-      document.removeEventListener('pointerup', settleAfterKeyboard, true);
-      document.removeEventListener('visibilitychange', settleAfterKeyboard);
-      document.removeEventListener('focusin', settleAfterKeyboard);
-      document.removeEventListener('focusout', settleAfterKeyboard);
+      window.removeEventListener('resize', settleAfterResize);
+      window.removeEventListener('orientationchange', settleAfterResize);
+      window.removeEventListener('pageshow', settleAfterResize);
+      document.removeEventListener('visibilitychange', settleAfterResize);
+      document.removeEventListener('focusin', settleAfterResize);
+      document.removeEventListener('focusout', settleAfterResize);
       document.documentElement.style.removeProperty('--ss4-vvh');
+      document.documentElement.style.removeProperty('--ss4-vv-top');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
-      document.documentElement.style.removeProperty('--ss4-ios-keyboard-accessory-height');
-      document.documentElement.classList.remove('ss4-ios-keyboard-open');
     };
   }, [isIOSDevice]);
   React.useEffect(() => {
@@ -13507,7 +13468,7 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  const standaloneShellStyle: React.CSSProperties = vv?.keyboardOpen
+  const standaloneShellStyle: React.CSSProperties = isIOSDevice
     ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
