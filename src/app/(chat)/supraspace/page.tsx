@@ -1443,17 +1443,6 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--bg-elevated),0 0 0 4px rgba(255,255,255,0.72); }
       .ss4-mobile-color-swatch svg { height:16px; width:16px; }
       .ss4-chat-composer-dock { transform:translateZ(0); will-change:transform; backface-visibility:hidden; }
-      html.ss4-ios-keyboard-open .ss4-chat-composer-dock {
-        position:fixed;
-        left:0;
-        right:0;
-        bottom:var(--ss4-ios-keyboard-accessory-height, 0px);
-        z-index:80;
-        background:var(--bg-base);
-      }
-      html.ss4-ios-keyboard-open .ss4-chat-messages {
-        padding-bottom:calc(var(--ss4-composer-height, 76px) + var(--ss4-ios-keyboard-accessory-height, 0px)) !important;
-      }
       .ss4-chat-messages { overscroll-behavior-y:contain; scroll-padding-bottom:calc(var(--ss4-composer-height, 76px) + 12px); }
       .ss4-chat-composer-dock { background:var(--bg-base); border-top:1px solid var(--border-1); }
       .ss4-desktop-toolbar { display:none!important; }
