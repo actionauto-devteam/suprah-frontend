@@ -1409,6 +1409,8 @@ if (typeof document !== 'undefined') {
       .ss4-composer-pill .ss4-composer-placeholder { left:16px; top:50%; transform:translateY(-50%); }
       .ss4-composer-pill .ss4-composer-editor { flex:1 1 0%; min-width:0; min-height:24px; max-height:88px; padding:0 !important; }
       .ss4-mobile-emoji { flex:0 0 32px; width:32px; min-width:32px; }
+      .ss4-mobile-format-trigger { flex:0 0 28px; width:28px; min-width:28px; height:28px; border-radius:999px; color:var(--text-secondary); display:flex; align-items:center; justify-content:center; }
+      .ss4-mobile-format-trigger[aria-pressed="true"] { background:var(--bg-hover); color:var(--accent); }
       .ss4-mobile-media-action { height:40px; width:34px; flex-shrink:0; border-radius:999px; }
       .ss4-mobile-emoji-sheet .EmojiPickerReact {
         width:100% !important; height:100% !important; max-width:100% !important; border:none !important; border-radius:0 !important;
@@ -15122,6 +15124,22 @@ export default function SupraSpacePage() {
                                 </div>
                               )}
                             </div>
+                            <button
+                              type="button"
+                              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); saveComposerSelection(); }}
+                              onClick={() => {
+                                setTextColorPickerOpen(false);
+                                setShowFormatBar(value => !value);
+                                setTimeout(() => textareaRef.current?.focus(), 0);
+                              }}
+                              className="ss4-mobile-format-trigger md:hidden"
+                              title="Formatting options"
+                              aria-label="Formatting options"
+                              aria-controls={showFormatBar ? 'ss4-mobile-format-toolbar' : undefined}
+                              aria-pressed={showFormatBar}
+                            >
+                              <span className="text-xs font-semibold leading-none">Aa</span>
+                            </button>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
                             <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Photo or video"><ImageIcon className="h-6 w-6" /></button>
@@ -15163,7 +15181,7 @@ export default function SupraSpacePage() {
                                 })}
                               </div>
                             )}
-                            <div className="ss4-mobile-format-toolbar md:hidden">
+                            <div id="ss4-mobile-format-toolbar" className="ss4-mobile-format-toolbar md:hidden">
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={cn('ss4-mobile-format-btn', activeFormats.bold && 'ss4-video-btn')} title="Bold" aria-pressed={activeFormats.bold}>
                               <Bold style={formatIconStyle('bold')} />
                             </button>
@@ -15192,7 +15210,7 @@ export default function SupraSpacePage() {
                               <TextQuote style={formatIconStyle('quote')} />
                             </button>
                             <div className="ss4-mobile-format-divider" />
-                            <button type="button" onMouseDown={e => { e.preventDefault(); setTextColorPickerOpen(false); setShowFormatBar(false); setTimeout(() => textareaRef.current?.focus(), 0); }} className="ss4-mobile-format-btn ml-auto" title="Close formatting">
+                            <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => { setTextColorPickerOpen(false); setShowFormatBar(false); setTimeout(() => textareaRef.current?.focus(), 0); }} className="ss4-mobile-format-btn ml-auto" title="Close formatting" aria-label="Close formatting">
                               <X style={{ color: 'var(--text-secondary)' }} />
                             </button>
                             </div>
