@@ -5144,6 +5144,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [socket, conv._id, isMinimized, markAsRead]);
   React.useEffect(() => {
     if (!socket) return;
+    const handler = ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
+      if (conversationId !== conv._id) return;
+      setMessages(prev => prev.map(message => message._id === messageId
+        ? { ...message, isDeleted: true, content: '', attachments: [] }
+        : message
+      ));
+    };
+    socket.on('message:deleted', handler);
+    return () => { socket.off('message:deleted', handler); };
+  }, [socket, conv._id]);
+  React.useEffect(() => {
+    if (!socket) return;
     const handler = ({ conversationId, messageId, content, attachments, type }: {
       conversationId: string;
       messageId: string;

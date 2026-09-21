@@ -523,6 +523,19 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       setConversations(prev => applyReactionActivityToConversations(prev, payload));
     });
 
+    listen('message:deleted', ({ conversationId, unreadUserIds = [] }: { conversationId: string; unreadUserIds?: string[] }) => {
+      if (!unreadUserIds.includes(crmUserId)) return;
+      setConversations(prev => prev.map(conv =>
+        conv._id === conversationId ? { ...conv, unreadCount: Math.max(0, (conv.unreadCount || 0) - 1) } : conv
+      ));
+    });
+
+    listen('conversation:updated', (update: Partial<SSConv> & { _id: string }) => {
+      setConversations(prev => sortByLastMessage(prev.map(conv =>
+        conv._id === update._id ? { ...conv, ...update } : conv
+      )));
+    });
+
     // New conversation was created → prepend if not already in list
     listen('conversation:new', (conv: SSConv) => {
       if (conv.notificationPreference) {

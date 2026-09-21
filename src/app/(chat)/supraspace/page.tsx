@@ -10503,22 +10503,28 @@ export default function SupraSpacePage() {
         }));
       }
     };
-    const onDel = ({ conversationId, messageId }: { conversationId: string; messageId: string }) => {
+    const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
       setConvos(p => p.map(c => {
-        if (c._id !== conversationId || c.lastMessage?._id !== messageId) return c;
+        if (c._id !== conversationId) return c;
         const cached = msgsRef.current[conversationId] || [];
         const prev = [...cached].filter(m => m._id !== messageId && !m.isDeleted).slice(-1)[0];
-        return { ...c, lastMessage: (prev || null) as any, lastMessageAt: prev?.createdAt || c.lastMessageAt };
-      }));
+        return {
+          ...c,
+          ...(c.lastMessage?._id === messageId ? { lastMessage: (prev || null) as any, lastMessageAt: prev?.createdAt } : {}),
+          ...(unreadUserIds.includes(uid) ? { unreadCount: Math.max(0, (c.unreadCount || 0) - 1) } : {}),
+        };
+      }).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
     };
     const onNew = (c: SSConversation) => {
       setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
     };
     const onConvUpdated = (c: any) => {
-      if (c?.members) setConvos(p => p.map(x => x._id === c._id ? { ...x, ...c } : x));
-      else if (c?._id) patchConv(c._id, c);
+      if (!c?._id) return;
+      setConvos(p => p
+        .map(x => x._id === c._id ? { ...x, ...c } : x)
+        .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
     };
     const onConvDeleted = ({ conversationId }: { conversationId: string }) => {
       setConvos(p => p.filter(x => x._id !== conversationId));
