@@ -9206,6 +9206,8 @@ export default function SupraSpacePage() {
     let shellTopFrame = 0;
     let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
     let keyboardViewportTop = 0;
+    let baselineVisualHeight = Math.round(viewport.height || window.innerHeight);
+    let baselineWidth = window.innerWidth;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
@@ -9220,18 +9222,16 @@ export default function SupraSpacePage() {
         // nav/compose FAB below the real visible screen (looked like a blank
         // void under the conversation list). Only fall back to it if the real
         // measurements are unavailable (all read 0), never to override them.
-        const screenHeight = window.screen?.height || 0;
-        const measuredHeight = Math.max(
-          window.innerHeight || 0,
-          document.documentElement.clientHeight || 0,
-          visualHeight,
-        );
-        const layoutHeight = measuredHeight > 0 ? measuredHeight : screenHeight;
-        // A changing offset can also be caused by ordinary iOS list scrolling;
-        // only treat it as a keyboard when a text control is actually focused.
-        const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
         const focusedTextEntry = isTextEntryElement(document.activeElement);
-        const keyboardOpen = focusedTextEntry && visualKeyboardGap > 120;
+        if (Math.abs(window.innerWidth - baselineWidth) > 80) {
+          baselineWidth = window.innerWidth;
+          baselineVisualHeight = visualHeight;
+        }
+        if (!focusedTextEntry) baselineVisualHeight = visualHeight;
+        // `innerHeight` and document height can both shrink after the outer
+        // page lock, so compare against the last unfocused visual viewport.
+        const visualKeyboardGap = Math.max(0, baselineVisualHeight - visualHeight);
+        const keyboardOpen = focusedTextEntry && (viewport.scale || 1) === 1 && visualKeyboardGap > 100;
         // visualViewport is the usable display area in both states. This avoids
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
