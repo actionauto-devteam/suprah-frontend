@@ -9293,7 +9293,10 @@ export default function SupraSpacePage() {
     };
   }, [isIOSDevice]);
   React.useEffect(() => {
-    if (!isStandaloneApp || typeof document === 'undefined') return;
+    // Safari can still pan the document when SupraSpace was opened from the
+    // main app rather than its own standalone start URL. Lock the outer page
+    // for every iOS chat session so only the message timeline can scroll.
+    if ((!isStandaloneApp && !isIOSDevice) || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
     const prevBody = document.body.style.backgroundColor;
     const prevHtml = document.documentElement.style.backgroundColor;
@@ -9322,7 +9325,7 @@ export default function SupraSpacePage() {
       document.body.style.overscrollBehavior = prevBodyOverscroll;
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
-  }, [isStandaloneApp, theme]);
+  }, [isIOSDevice, isStandaloneApp, theme]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
