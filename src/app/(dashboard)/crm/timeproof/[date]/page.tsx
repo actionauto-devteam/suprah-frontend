@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
+import { ActivityLogCard } from "@/components/crm/timeproof/ActivityLogCard"
 
 interface Screenshot {
   _id: string
@@ -1064,6 +1065,8 @@ export default function ScreenshotGalleryPage() {
                 <p className="text-[10px] text-muted-foreground/40 leading-none">Flagged as idle</p>
               </div>
             </div>
+
+            {userId && <ActivityLogCard userId={userId} dateStr={dateStr} />}
 
             {/* ── Timeline ── */}
             {screenshots.length > 0 && (
