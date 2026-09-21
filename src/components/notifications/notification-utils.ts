@@ -41,6 +41,9 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   appointment_cancelled: { icon: Calendar, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   appointment_reminder: { icon: Clock, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   guest_response: { icon: Users, gradient: 'from-teal-500 to-emerald-500', bg: 'bg-teal-500' },
+  appointment_confirmed_via_sms: { icon: CheckCircle2, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
+  appointment_reschedule_requested: { icon: Calendar, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
+  sms_opt_out: { icon: MessageSquare, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   new_lead: { icon: UserPlus, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   lead_assigned: { icon: User, gradient: 'from-indigo-500 to-purple-500', bg: 'bg-indigo-500' },
   lead_status_changed: { icon: TrendingUp, gradient: 'from-teal-500 to-green-500', bg: 'bg-teal-500' },
@@ -155,6 +158,9 @@ const TYPE_LABELS: Record<string, string> = {
   appointment_cancelled: 'Appointment Cancelled',
   appointment_reminder: 'Appointment Reminder',
   guest_response: 'Guest Response',
+  appointment_confirmed_via_sms: 'Confirmed by Text',
+  appointment_reschedule_requested: 'Reschedule Requested',
+  sms_opt_out: 'Text Opt-Out',
   new_lead: 'New Lead',
   lead_assigned: 'Lead Assigned',
   lead_status_changed: 'Lead Status Changed',
@@ -258,7 +264,8 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type.startsWith('vehicle_') || type.startsWith('inventory_') || type === 'new_inventory_alert') return 'inventory';
   if (type.startsWith('appointment_') || type === 'guest_response') return 'appointments';
   if (type.startsWith('new_lead') || type.startsWith('lead_') || type.startsWith('crm_')
-    || type === 'reminder' || type === 'location_share_requested' || type.startsWith('aftermarket_')) return 'crm';
+    || type === 'reminder' || type === 'location_share_requested' || type === 'sms_opt_out'
+    || type.startsWith('aftermarket_')) return 'crm';
   if (type.startsWith('feed_')) return 'feeds';
   if (type.startsWith('pm_')) return 'projectManagement';
   if (type.startsWith('calendar_')) return 'calendar';
@@ -326,6 +333,8 @@ const ROUTE_MAP: Record<string, string> = {
   vehicle_status_changed: '/inventory', inventory_sync: '/inventory', new_inventory_alert: '/inventory',
   appointment_created: '/crm/appointments', appointment_updated: '/crm/appointments',
   appointment_cancelled: '/crm/appointments', appointment_reminder: '/crm/appointments', guest_response: '/crm/appointments',
+  appointment_confirmed_via_sms: '/crm/appointments', appointment_reschedule_requested: '/crm/appointments',
+  sms_opt_out: '/crm/leads',
   new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm',
   reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',

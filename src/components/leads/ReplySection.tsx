@@ -15,6 +15,8 @@ import {
   FileText,
   Image as ImageIcon,
   X,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -25,6 +27,7 @@ import {
 import { STATUS_CONFIG } from "./atomic/StatusPill";
 import { StatusReasonModal } from "./StatusReasonModal";
 import { CannedReplyPicker } from "./CannedReplyPicker";
+import { apiClient } from "@/lib/api-client";
 
 interface ReplySectionProps {
   isClosed: boolean;
@@ -38,6 +41,9 @@ interface ReplySectionProps {
   onQuoteShipping: () => void;
   selectedLeadStatus: string;
   leadContext?: { firstName?: string; lastName?: string; vehicle?: string };
+  leadId?: string;
+  replyChannel?: "email" | "sms";
+  threadContext?: Array<{ direction: "inbound" | "outbound"; text: string }>;
 }
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -100,6 +106,19 @@ const isImageFile = (file: File) =>
     getFileExtension(file.name),
   );
 
+const getDraftErrorMessage = (error: unknown) => {
+  const apiError = error as {
+    response?: { data?: { message?: string } };
+    message?: string;
+  };
+
+  return (
+    apiError?.response?.data?.message ||
+    apiError?.message ||
+    "Autrix could not write a draft. Please try again."
+  );
+};
+
 export const ReplySection = React.memo(
   ({
     isClosed,
@@ -113,6 +132,9 @@ export const ReplySection = React.memo(
     onQuoteShipping,
     selectedLeadStatus,
     leadContext,
+    leadId,
+    replyChannel = "email",
+    threadContext,
   }: ReplySectionProps) => {
     const [reasonModal, setReasonModal] = React.useState<
       null | "close" | "reopen"
@@ -125,6 +147,70 @@ export const ReplySection = React.memo(
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
     const emojiMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+    const [drafting, setDrafting] = React.useState(false);
+    const [draftFailure, setDraftFailure] = React.useState<{
+      leadId?: string;
+      message: string;
+    } | null>(null);
+    const [draftedLeadId, setDraftedLeadId] = React.useState<string | null>(null);
+    const latestRef = React.useRef({ leadId, replyMessage });
+
+    React.useEffect(() => {
+      latestRef.current = { leadId, replyMessage };
+    }, [leadId, replyMessage]);
+
+    const draftError =
+      draftFailure && draftFailure.leadId === leadId ? draftFailure.message : "";
+    const aiDrafted =
+      Boolean(leadId) && draftedLeadId === leadId && replyMessage.trim().length > 0;
+    const showDraftChip =
+      Boolean(leadId) && !isSending && (drafting || !replyMessage.trim());
+
+    const handleAutrixDraft = async () => {
+      const requestedLeadId = leadId;
+      if (!requestedLeadId || drafting || isSending) return;
+
+      setDrafting(true);
+      setDraftFailure(null);
+
+      try {
+        const response = await apiClient.post("/api/supraleo/draft-lead-reply", {
+          leadId: requestedLeadId,
+          channel: replyChannel,
+          recentMessages: threadContext,
+        });
+        const payload = response.data?.data || response.data;
+        const draft = String(payload?.draft || "").trim();
+        const latest = latestRef.current;
+
+        if (latest.leadId !== requestedLeadId) return;
+
+        if (!draft) {
+          setDraftFailure({
+            leadId: requestedLeadId,
+            message: "Autrix could not write a draft. Please try again.",
+          });
+          return;
+        }
+
+        setReplyMessage(
+          latest.replyMessage.trim()
+            ? `${latest.replyMessage.trimEnd()}\n\n${draft}`
+            : draft,
+        );
+        setDraftedLeadId(requestedLeadId);
+      } catch (error) {
+        if (latestRef.current.leadId === requestedLeadId) {
+          setDraftFailure({
+            leadId: requestedLeadId,
+            message: getDraftErrorMessage(error),
+          });
+        }
+      } finally {
+        setDrafting(false);
+      }
+    };
 
     const resizeTextarea = React.useCallback(() => {
       const textarea = textareaRef.current;
@@ -297,6 +383,7 @@ export const ReplySection = React.memo(
 
       try {
         await onSend(attachments);
+        setDraftedLeadId(null);
         setAttachments([]);
         setAttachmentError("");
         setEmojiOpen(false);
@@ -341,11 +428,32 @@ export const ReplySection = React.memo(
     return (
       <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2.5 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4">
         <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
+          {showDraftChip && (
+            <div className="flex items-center border-b border-slate-100 px-3 pb-2 pt-2.5 dark:border-emerald-400/10">
+              <button
+                type="button"
+                onClick={() => void handleAutrixDraft()}
+                disabled={drafting}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06] px-3.5 text-[12px] font-medium text-emerald-700 transition hover:bg-emerald-500/10 disabled:cursor-wait disabled:opacity-70 dark:text-emerald-300 sm:h-7"
+                title="Let Autrix write a first draft of your reply"
+                aria-busy={drafting}
+              >
+                {drafting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {drafting ? "Writing a draft…" : "Draft with Autrix"}
+              </button>
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={replyMessage}
             onChange={(event) => {
               setReplyMessage(event.target.value);
+              if (!event.target.value.trim()) setDraftedLeadId(null);
               window.requestAnimationFrame(resizeTextarea);
             }}
             placeholder="Write a reply…"
@@ -407,6 +515,19 @@ export const ReplySection = React.memo(
           {attachmentError && (
             <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
               {attachmentError}
+            </p>
+          )}
+
+          {draftError && (
+            <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
+              {draftError}
+            </p>
+          )}
+
+          {aiDrafted && !draftError && (
+            <p className="flex items-center gap-1.5 border-t border-slate-100 px-3 py-1.5 text-[11px] text-emerald-700 dark:border-emerald-400/10 dark:text-emerald-300">
+              <Sparkles className="h-3 w-3 shrink-0" />
+              Drafted by Autrix — review and edit before sending.
             </p>
           )}
 

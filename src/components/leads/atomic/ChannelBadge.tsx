@@ -3,6 +3,7 @@ import {
   FileText,
   Globe,
   Mail,
+  MessageCircle,
   MessageSquare,
   Phone,
 } from "lucide-react";
@@ -37,6 +38,12 @@ export const CHANNEL_CONFIG: Record<string, ChannelConfig> = {
     icon: <Phone className="h-2.5 w-2.5" />,
     className:
       "bg-violet-500/12 text-violet-800 border-violet-600/30 dark:bg-violet-500/16 dark:text-violet-300 dark:border-violet-400/30",
+  },
+  webchat: {
+    label: "Web Chat",
+    icon: <MessageCircle className="h-2.5 w-2.5" />,
+    className:
+      "bg-teal-500/12 text-teal-800 border-teal-600/30 dark:bg-teal-500/16 dark:text-teal-300 dark:border-teal-400/30",
   },
   web: {
     label: "Web",

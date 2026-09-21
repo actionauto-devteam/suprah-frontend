@@ -11,12 +11,16 @@ import { Button } from "@/components/ui/button"
 import type { Vehicle } from "@/types/inventory"
 import { ContextualShell } from "@/components/layout/ContextualShell"
 import { BookTestDriveModal } from "@/components/customer/BookTestDriveModal"
+import { WebChatWidget } from "@/components/webchat/WebChatWidget"
+import { useOrg } from "@/hooks/useOrg"
 
 export default function VehiclePage() {
     const { id } = useParams() as { id: string }
     const router = useRouter()
     const { isSignedIn, isLoaded: authLoaded } = useAuth()
-    
+    const { userRole, isSuperAdmin } = useOrg()
+    const isStaff = isSignedIn && (userRole === 'admin' || userRole === 'employee' || userRole === 'super_admin' || isSuperAdmin)
+
     const [vehicle, setVehicle] = useState<Vehicle | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -119,6 +123,13 @@ export default function VehiclePage() {
                 onOpenChange={setBookingOpen}
                 vehicle={vehicle}
             />
+
+            {!isStaff && (
+                <WebChatWidget
+                    vehicleId={id}
+                    contextLabel={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                />
+            )}
         </ContextualShell>
     )
 }

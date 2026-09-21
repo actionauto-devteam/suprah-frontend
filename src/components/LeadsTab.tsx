@@ -81,6 +81,37 @@ const isSmsLead = (lead: Lead | null | undefined): boolean => {
   return Boolean(lead.phone && !lead.email && !lead.threadId);
 };
 
+const isWebchatLead = (lead: Lead | null | undefined): boolean =>
+  String(lead?.channel || "").toLowerCase() === "webchat";
+
+const buildDraftThreadContext = (
+  messages: Array<Record<string, unknown>>,
+): Array<{ direction: "inbound" | "outbound"; text: string }> =>
+  messages
+    .filter((message) => message.isLeadFallback !== true)
+    .slice(-8)
+    .map((message) => {
+      const text = [
+        message.body,
+        message.text,
+        message.message,
+        message.content,
+        message.snippet,
+      ].find(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      );
+
+      return {
+        direction:
+          message.direction === "outbound" || message.isOwn === true
+            ? ("outbound" as const)
+            : ("inbound" as const),
+        text: (text || "").trim(),
+      };
+    })
+    .filter((message) => message.text.length > 0);
+
 const TABS = [
   { key: null, label: "All" },
   { key: "New", label: "New" },
@@ -531,6 +562,23 @@ export function LeadsTab({
         });
       });
 
+      socket.on(
+        "webchat:message",
+        (data: { leadId?: string; message?: { _id?: string; leadId?: string } }) => {
+          const message = data?.message;
+          const leadId = data?.leadId || message?.leadId;
+          if (!message || !leadId) return;
+          setThreads((previous) => {
+            const existing = previous[leadId];
+            if (!existing) return previous;
+            if (existing.some((m: { _id?: string }) => m?._id === message._id)) {
+              return previous;
+            }
+            return { ...previous, [leadId]: [...existing, message] };
+          });
+        },
+      );
+
       socket.on("comm:message:status", (data: any) => {
         const { messageId, status } = data || {};
         if (!messageId) return;
@@ -563,6 +611,7 @@ export function LeadsTab({
         socket.off("lead:update");
         socket.off("comm:message:new");
         socket.off("comm:message:status");
+        socket.off("webchat:message");
         socket.off("lead:delete");
       }
     };
@@ -698,6 +747,23 @@ export function LeadsTab({
           [lead._id]: fallbackMessages,
         };
       });
+
+      if (isWebchatLead(lead)) {
+        try {
+          const chatResponse = await apiClient.get(
+            `/api/crm/webchat/leads/${lead._id}/messages`,
+          );
+          const chatMessages = chatResponse.data?.data?.messages || [];
+          loadedThreadIdsRef.current.add(lead._id);
+          setThreads((previous) => ({
+            ...previous,
+            [lead._id]: chatMessages,
+          }));
+        } catch (error) {
+          console.error("Failed to load web chat thread:", error);
+        }
+        return;
+      }
 
       /*
        * SMS/phone leads: load the shared communications thread by phone
@@ -957,6 +1023,51 @@ export function LeadsTab({
       if (!token) {
         addToast("error", "Auth required");
         throw new Error("Authentication required");
+      }
+
+      if (isWebchatLead(selectedLead)) {
+        if (attachments.length > 0) {
+          addToast(
+            "error",
+            "Attachments aren't supported for web chat replies yet",
+          );
+          throw new Error("Attachments unsupported for web chat");
+        }
+
+        const chatResponse = await apiClient.post(
+          `/api/crm/webchat/leads/${selectedLead._id}/messages`,
+          { body: replyMessage.trim() },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        const sentChatMessage = chatResponse.data?.data?.message;
+        if (sentChatMessage) {
+          setThreads((previous) => {
+            const existing = previous[selectedLead._id] || [];
+            if (existing.some((m: { _id?: string }) => m?._id === sentChatMessage._id)) {
+              return previous;
+            }
+            return {
+              ...previous,
+              [selectedLead._id]: [...existing, sentChatMessage],
+            };
+          });
+        }
+
+        setReplyMessage("");
+        addToast("success", "Chat message sent");
+
+        await updateLeadStatus({
+          id: selectedLead._id,
+          status: "Contacted",
+        });
+
+        await refetch();
+        return;
       }
 
       /*
@@ -1821,6 +1932,15 @@ export function LeadsTab({
                       handleStatus("Pending", reason)
                     }
                     selectedLeadStatus={selectedLead.status}
+                    leadId={selectedLead._id}
+                    replyChannel={
+                      isSmsLead(selectedLead) || isWebchatLead(selectedLead)
+                        ? "sms"
+                        : "email"
+                    }
+                    threadContext={buildDraftThreadContext(
+                      threads[selectedLead._id] || [],
+                    )}
                     leadContext={{
                       firstName: selectedLead.firstName,
                       lastName: selectedLead.lastName,
