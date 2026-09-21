@@ -9203,7 +9203,7 @@ export default function SupraSpacePage() {
     if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
-    let lastViewportCss: { height: number; top: number; safeBottom: number; keyboardOpen: boolean } | null = null;
+    let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
@@ -9229,7 +9229,7 @@ export default function SupraSpacePage() {
         // only treat it as a keyboard when a text control is actually focused.
         const visualKeyboardGap = Math.max(0, layoutHeight - visualHeight - top);
         const focusedTextEntry = isTextEntryElement(document.activeElement);
-        const keyboardOpen = focusedTextEntry && (visualKeyboardGap > 120 || top > 40);
+        const keyboardOpen = focusedTextEntry && visualKeyboardGap > 120;
         // visualViewport is the usable display area in both states. This avoids
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
@@ -9238,7 +9238,6 @@ export default function SupraSpacePage() {
           !lastViewportCss
           || lastViewportCss.keyboardOpen !== keyboardOpen
           || Math.abs(lastViewportCss.height - height) >= 3
-          || Math.abs(lastViewportCss.top - top) >= 3
           || lastViewportCss.safeBottom !== safeBottom
         ) {
           if (keyboardOpen) {
@@ -9246,9 +9245,8 @@ export default function SupraSpacePage() {
           } else {
             document.documentElement.style.removeProperty('--ss4-vvh');
           }
-          document.documentElement.style.setProperty('--ss4-vv-top', `${top}px`);
           document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
-          lastViewportCss = { height, top, safeBottom, keyboardOpen };
+          lastViewportCss = { height, safeBottom, keyboardOpen };
         }
       });
     };
@@ -9288,7 +9286,6 @@ export default function SupraSpacePage() {
       document.removeEventListener('focusin', settleAfterResize);
       document.removeEventListener('focusout', settleAfterResize);
       document.documentElement.style.removeProperty('--ss4-vvh');
-      document.documentElement.style.removeProperty('--ss4-vv-top');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
     };
   }, [isIOSDevice]);
@@ -13488,7 +13485,7 @@ export default function SupraSpacePage() {
   );
 
   const standaloneShellStyle: React.CSSProperties = isIOSDevice
-    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
