@@ -9574,12 +9574,17 @@ export default function SupraSpacePage() {
   }, []);
 
   React.useLayoutEffect(() => {
-    // Update before paint when the mobile toolbar closes so the timeline does
-    // not retain the removed toolbar's height above the keyboard.
+    // Update before paint when the mobile toolbar or conversation changes so
+    // the timeline never retains a former composer's height above the keyboard.
     if (!isIOSDevice || typeof document === 'undefined') return;
-    const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
+    const dock = composerDockRef.current;
+    if (!dock) {
+      document.documentElement.style.removeProperty('--ss4-composer-height');
+      return;
+    }
+    const height = Math.ceil(dock.getBoundingClientRect().height || 76);
     document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
-  }, [isIOSDevice, showFormatBar]);
+  }, [isIOSDevice, activeId, showFormatBar]);
 
   React.useEffect(() => {
     // Companion to the --ss4-vvh/ss4-ios-keyboard-open effect above — same
