@@ -9204,6 +9204,7 @@ export default function SupraSpacePage() {
     const viewport = window.visualViewport;
     let raf = 0;
     let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
+    let keyboardViewportTop = 0;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const update = () => {
       if (raf) cancelAnimationFrame(raf);
@@ -9234,6 +9235,14 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
+        if (!lastViewportCss || lastViewportCss.keyboardOpen !== keyboardOpen) {
+          // WebKit positions fixed elements in the layout viewport while the
+          // keyboard uses the visual viewport. Capture that offset once when
+          // the keyboard opens; following later swipe offsets moves the whole
+          // chat instead of just its message timeline.
+          keyboardViewportTop = keyboardOpen ? top : 0;
+          document.documentElement.style.setProperty('--ss4-vv-top', `${keyboardViewportTop}px`);
+        }
         if (
           !lastViewportCss
           || lastViewportCss.keyboardOpen !== keyboardOpen
@@ -9286,14 +9295,15 @@ export default function SupraSpacePage() {
       document.removeEventListener('focusin', settleAfterResize);
       document.removeEventListener('focusout', settleAfterResize);
       document.documentElement.style.removeProperty('--ss4-vvh');
+      document.documentElement.style.removeProperty('--ss4-vv-top');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
     };
   }, [isIOSDevice]);
   React.useEffect(() => {
     // Safari can still pan the document when SupraSpace was opened from the
     // main app rather than its own standalone start URL. Lock the outer page
-    // for every iOS chat session so only the message timeline can scroll.
-    if ((!isStandaloneApp && !isIOSDevice) || typeof document === 'undefined') return;
+    // for every mobile chat session so only the message timeline can scroll.
+    if ((!isStandaloneApp && !isIOSDevice && !isMobileViewport) || typeof document === 'undefined') return;
     const bg = theme === 'dark' ? '#0e0f11' : '#f4f5f7';
     const prevBody = document.body.style.backgroundColor;
     const prevHtml = document.documentElement.style.backgroundColor;
@@ -9322,7 +9332,7 @@ export default function SupraSpacePage() {
       document.body.style.overscrollBehavior = prevBodyOverscroll;
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
-  }, [isIOSDevice, isStandaloneApp, theme]);
+  }, [isIOSDevice, isMobileViewport, isStandaloneApp, theme]);
   const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
@@ -13485,7 +13495,7 @@ export default function SupraSpacePage() {
   );
 
   const standaloneShellStyle: React.CSSProperties = isIOSDevice
-    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
