@@ -21,6 +21,7 @@ export interface Participant {
 
 export interface CustomerBooking {
   isCustomerBooking: boolean;
+  phone?: string;
   customerId?: string;
   customerName?: string;
   customerEmail?: string;
@@ -44,6 +45,7 @@ export interface Appointment {
   participants: Participant[];
   guestEmails: GuestResponse[];
 
+  leadId?: string;
   conversationId?: string;
   vehicleId?: string;
   quoteId?: string;
@@ -52,6 +54,7 @@ export interface Appointment {
   reminderSent: boolean;
   reminderTime?: string;
   reminderSentAt?: string;
+  noShowFollowUpSentAt?: string;
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;
