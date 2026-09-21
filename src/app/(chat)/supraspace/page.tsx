@@ -9203,7 +9203,6 @@ export default function SupraSpacePage() {
     if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
     const viewport = window.visualViewport;
     let raf = 0;
-    let shellTopFrame = 0;
     let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
     let keyboardViewportTop = 0;
     let baselineVisualHeight = Math.round(viewport.height || window.innerHeight);
@@ -9240,7 +9239,7 @@ export default function SupraSpacePage() {
           // WebKit positions fixed elements in the layout viewport while the
           // keyboard uses the visual viewport. Capture that offset once when
           // the keyboard opens; following later swipe offsets moves the whole
-          // chat instead of just its message timeline.
+          // chat instead of just its message timeline, leaving a visible gap.
           keyboardViewportTop = keyboardOpen ? top : 0;
           document.documentElement.style.setProperty('--ss4-vv-top', `${keyboardViewportTop}px`);
         }
@@ -9271,17 +9270,6 @@ export default function SupraSpacePage() {
       }, delay);
       timers.add(timer);
     };
-    const syncKeyboardShellTop = () => {
-      if (shellTopFrame) cancelAnimationFrame(shellTopFrame);
-      shellTopFrame = requestAnimationFrame(() => {
-        shellTopFrame = 0;
-        if (!lastViewportCss?.keyboardOpen) return;
-        const top = Math.max(0, Math.round(viewport.offsetTop || 0));
-        if (top === keyboardViewportTop) return;
-        keyboardViewportTop = top;
-        document.documentElement.style.setProperty('--ss4-vv-top', `${keyboardViewportTop}px`);
-      });
-    };
     update();
     const settleAfterResize = () => {
       scheduleUpdate();
@@ -9290,7 +9278,6 @@ export default function SupraSpacePage() {
       scheduleUpdate(600);
     };
     viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', syncKeyboardShellTop);
     window.addEventListener('resize', settleAfterResize);
     window.addEventListener('orientationchange', settleAfterResize);
     window.addEventListener('pageshow', settleAfterResize);
@@ -9299,10 +9286,8 @@ export default function SupraSpacePage() {
     document.addEventListener('focusout', settleAfterResize);
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      if (shellTopFrame) cancelAnimationFrame(shellTopFrame);
       timers.forEach(timer => clearTimeout(timer));
       viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', syncKeyboardShellTop);
       window.removeEventListener('resize', settleAfterResize);
       window.removeEventListener('orientationchange', settleAfterResize);
       window.removeEventListener('pageshow', settleAfterResize);
