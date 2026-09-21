@@ -1434,7 +1434,7 @@ if (typeof document !== 'undefined') {
       .ss4-mobile-format-btn { height:42px; min-width:36px; border-radius:10px; color:var(--text-secondary); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
       .ss4-mobile-format-btn svg { height:18px; width:18px; }
       .ss4-mobile-format-divider { height:24px; width:1px; flex-shrink:0; background:var(--border-1); }
-      .ss4-mobile-format-color-pop { display:flex; align-items:center; justify-content:center; gap:10px; width:max-content; max-width:calc(100vw - 20px); height:40px; margin:0 auto 4px; border-radius:999px; padding:6px 10px; background:var(--bg-elevated); border:1px solid var(--border-2); box-shadow:var(--shadow-lg); }
+      .ss4-mobile-format-color-pop { display:flex; align-items:center; gap:8px; flex:0 0 auto; height:42px; padding:0 2px; }
       .ss4-mobile-color-swatch { position:relative; height:24px; width:24px; min-width:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; border:0; box-shadow:0 0 0 1px rgba(255,255,255,0.28); }
       .ss4-mobile-color-swatch[aria-pressed="true"] { box-shadow:0 0 0 2px var(--bg-elevated),0 0 0 4px rgba(255,255,255,0.72); }
       .ss4-mobile-color-swatch svg { height:16px; width:16px; }
@@ -9533,6 +9533,14 @@ export default function SupraSpacePage() {
     }
   }, []);
 
+  React.useLayoutEffect(() => {
+    // Update before paint when the mobile toolbar closes so the timeline does
+    // not retain the removed toolbar's height above the keyboard.
+    if (!isIOSDevice || typeof document === 'undefined') return;
+    const height = Math.ceil(composerDockRef.current?.getBoundingClientRect().height || 76);
+    document.documentElement.style.setProperty('--ss4-composer-height', `${height}px`);
+  }, [isIOSDevice, showFormatBar]);
+
   React.useEffect(() => {
     // Companion to the --ss4-vvh/ss4-ios-keyboard-open effect above — same
     // isIOSDevice gating (not just standalone) so a plain iOS Safari tab's
@@ -9562,7 +9570,7 @@ export default function SupraSpacePage() {
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
     };
-  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording, showFormatBar]);
+  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording]);
 
   React.useEffect(() => {
     inputTextRef.current = input;
@@ -15136,10 +15144,10 @@ export default function SupraSpacePage() {
                             <button
                               type="button"
                               onPointerDown={event => { event.preventDefault(); event.stopPropagation(); saveComposerSelection(); }}
-                              onClick={() => {
+                              onClick={event => {
                                 setTextColorPickerOpen(false);
                                 setShowFormatBar(value => !value);
-                                setTimeout(() => textareaRef.current?.focus(), 0);
+                                if (event.detail === 0) setTimeout(() => textareaRef.current?.focus(), 0);
                               }}
                               className="ss4-mobile-format-trigger md:hidden"
                               title="Formatting options"
@@ -15169,8 +15177,26 @@ export default function SupraSpacePage() {
                         </div>
                         {showFormatBar && (
                           <>
+                            <div id="ss4-mobile-format-toolbar" className="ss4-mobile-format-toolbar md:hidden">
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={cn('ss4-mobile-format-btn', activeFormats.bold && 'ss4-video-btn')} title="Bold" aria-pressed={activeFormats.bold}>
+                              <Bold style={formatIconStyle('bold')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={cn('ss4-mobile-format-btn', activeFormats.italic && 'ss4-video-btn')} title="Italic" aria-pressed={activeFormats.italic}>
+                              <Italic style={formatIconStyle('italic')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={cn('ss4-mobile-format-btn', activeFormats.underline && 'ss4-video-btn')} title="Underline" aria-pressed={activeFormats.underline}>
+                              <Underline style={formatIconStyle('underline')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={cn('ss4-mobile-format-btn', activeFormats.strike && 'ss4-video-btn')} title="Strikethrough" aria-pressed={activeFormats.strike}>
+                              <Strikethrough style={formatIconStyle('strike')} />
+                            </button>
+                            <div className="relative flex shrink-0 items-center">
+                              <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); saveComposerSelection(); setTextColorPickerOpen(v => !v); }} className={cn('ss4-mobile-format-btn', activeTextColorChosen && 'ss4-video-btn')} title="Text color" aria-expanded={textColorPickerOpen}>
+                                <span className="font-bold leading-none" style={{ color: activeTextColorChosen ? activeTextColor : 'var(--text-secondary)', fontSize: 18, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 5 }}>A</span>
+                              </button>
+                            </div>
                             {textColorPickerOpen && (
-                              <div className="ss4-mobile-format-color-pop md:hidden">
+                              <div className="ss4-mobile-format-color-pop md:hidden" aria-label="Text colors">
                                 {SS4_MOBILE_TEXT_COLORS.map(({ value, swatch, label }) => {
                                   const selected = activeTextColor.toLowerCase() === value && (activeTextColorChosen || value === '#ffffff');
                                   const checkColor = value === '#facc15' || value === '#ffffff' || value === '#94a3b8' ? '#111827' : '#ffffff';
@@ -15190,24 +15216,6 @@ export default function SupraSpacePage() {
                                 })}
                               </div>
                             )}
-                            <div id="ss4-mobile-format-toolbar" className="ss4-mobile-format-toolbar md:hidden">
-                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }} className={cn('ss4-mobile-format-btn', activeFormats.bold && 'ss4-video-btn')} title="Bold" aria-pressed={activeFormats.bold}>
-                              <Bold style={formatIconStyle('bold')} />
-                            </button>
-                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('italic'); }} className={cn('ss4-mobile-format-btn', activeFormats.italic && 'ss4-video-btn')} title="Italic" aria-pressed={activeFormats.italic}>
-                              <Italic style={formatIconStyle('italic')} />
-                            </button>
-                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('underline'); }} className={cn('ss4-mobile-format-btn', activeFormats.underline && 'ss4-video-btn')} title="Underline" aria-pressed={activeFormats.underline}>
-                              <Underline style={formatIconStyle('underline')} />
-                            </button>
-                            <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('strike'); }} className={cn('ss4-mobile-format-btn', activeFormats.strike && 'ss4-video-btn')} title="Strikethrough" aria-pressed={activeFormats.strike}>
-                              <Strikethrough style={formatIconStyle('strike')} />
-                            </button>
-                            <div className="relative flex shrink-0 items-center">
-                              <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); saveComposerSelection(); setTextColorPickerOpen(v => !v); }} className={cn('ss4-mobile-format-btn', activeTextColorChosen && 'ss4-video-btn')} title="Text color" aria-expanded={textColorPickerOpen}>
-                                <span className="font-bold leading-none" style={{ color: activeTextColorChosen ? activeTextColor : 'var(--text-secondary)', fontSize: 18, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 5 }}>A</span>
-                              </button>
-                            </div>
                             <div className="ss4-mobile-format-divider" />
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('list'); }} className={cn('ss4-mobile-format-btn', activeFormats.list && 'ss4-video-btn')} title="Bullet list" aria-pressed={activeFormats.list}>
                               <List style={formatIconStyle('list')} />
@@ -15219,7 +15227,7 @@ export default function SupraSpacePage() {
                               <TextQuote style={formatIconStyle('quote')} />
                             </button>
                             <div className="ss4-mobile-format-divider" />
-                            <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => { setTextColorPickerOpen(false); setShowFormatBar(false); setTimeout(() => textareaRef.current?.focus(), 0); }} className="ss4-mobile-format-btn ml-auto" title="Close formatting" aria-label="Close formatting">
+                            <button type="button" onPointerDown={e => e.preventDefault()} onClick={event => { setTextColorPickerOpen(false); setShowFormatBar(false); if (event.detail === 0) setTimeout(() => textareaRef.current?.focus(), 0); }} className="ss4-mobile-format-btn ml-auto" title="Close formatting" aria-label="Close formatting">
                               <X style={{ color: 'var(--text-secondary)' }} />
                             </button>
                             </div>
