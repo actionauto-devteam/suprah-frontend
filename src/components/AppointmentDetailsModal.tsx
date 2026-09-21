@@ -25,6 +25,7 @@ import { useAppointmentPolling } from "@/hooks/useAppointmentPolling"
 import { useNotifications } from "@/context/NotificationContext"
 import { cn } from "@/lib/utils"
 import { useAlert } from "@/components/AlertDialog"
+import { AppointmentActivitySection } from "@/components/appointments/AppointmentActivitySection"
 import {
   getAppointmentStatusStyle,
   getEntryTypeStyle,
@@ -92,6 +93,14 @@ function getParticipantEmail(participant: any): string {
 function getParticipantName(participant: any): string {
   if (typeof participant !== "object" || participant == null) return "Participant"
   return participant.fullName || participant.name || participant.email || "Participant"
+}
+
+function getLinkedLeadId(appointment: { leadId?: unknown } | null): string {
+  const raw = appointment?.leadId
+  if (!raw) return ""
+  if (typeof raw === "string") return raw
+  const id = (raw as { _id?: unknown })._id
+  return id ? String(id) : ""
 }
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
@@ -728,6 +737,13 @@ export function AppointmentDetailsModal({
             </div>
           )}
 
+          {appointment.entryType === "appointment" && getLinkedLeadId(appointment) && (
+            <AppointmentActivitySection
+              leadId={getLinkedLeadId(appointment)}
+              phone={appointment.customerBooking?.phone}
+            />
+          )}
+
           {/* ── Metadata ── */}
           <div className="rounded-lg border bg-muted/20 px-3 py-3 text-[11px] text-muted-foreground space-y-1">
             <p>Created by: <span className="font-medium text-foreground/70">{appointment.createdBy.fullName || appointment.createdBy.name}</span> ({appointment.createdBy.email})</p>
@@ -740,6 +756,13 @@ export function AppointmentDetailsModal({
                 ? `Reminder sent: ${fmtLongDateTimeMDT(appointment.reminderSentAt || appointment.updatedAt)}`
                 : "Reminder not yet sent"}
             </p>
+            {appointment.status === "no-show" && appointment.customerBooking?.phone && (
+              <p>
+                {appointment.noShowFollowUpSentAt
+                  ? `Rebooking text sent: ${fmtLongDateTimeMDT(appointment.noShowFollowUpSentAt)}`
+                  : "Rebooking text not yet sent"}
+              </p>
+            )}
           </div>
         </div>
 
