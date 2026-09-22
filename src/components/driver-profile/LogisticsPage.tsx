@@ -97,10 +97,10 @@ export const LogisticsPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+    <div className="driver-page max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
 
-        <motion.div variants={fadeUp} className="flex items-center justify-between">
+        <motion.div variants={fadeUp} className="driver-simple-header flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link href="/driver/profile" className="p-2 rounded-xl hover:bg-muted/50 transition-colors">
               <ArrowLeft className="size-5" />
@@ -117,10 +117,10 @@ export const LogisticsPage: React.FC = () => {
         </motion.div>
 
         <motion.div variants={fadeUp}>
-          <Card className="border-border/50 shadow-md overflow-hidden">
+          <Card className="border-border/50 shadow-sm overflow-hidden gap-3 py-4">
             <CardHeader className="pb-4 border-b border-border/10 bg-gradient-to-br from-emerald-500/5 to-teal-500/5">
               <div className="flex items-center gap-3">
-                <div className="size-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                <div className="size-10 shrink-0 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                   <Zap className="size-6 text-emerald-600" />
                 </div>
                 <div>
@@ -129,7 +129,7 @@ export const LogisticsPage: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-5 sm:p-6">
+            <CardContent className="p-4 sm:p-5">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {operationalStatusOptions.map((opt) => (
                   <motion.button
@@ -139,7 +139,7 @@ export const LogisticsPage: React.FC = () => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     className={cn(
-                      "flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all",
+                      "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
                       opStatus === opt.value
                         ? "border-emerald-500 bg-emerald-500/5 shadow-md ring-2 ring-emerald-500/20"
                         : "border-border/40 hover:border-border"
@@ -156,10 +156,10 @@ export const LogisticsPage: React.FC = () => {
         </motion.div>
 
         <motion.div variants={fadeUp}>
-          <Card className="border-border/50 shadow-md overflow-hidden">
+          <Card className="border-border/50 shadow-sm overflow-hidden gap-3 py-4">
             <CardHeader className="pb-4 border-b border-border/10 bg-gradient-to-br from-blue-500/5 to-indigo-500/5">
               <div className="flex items-center gap-3">
-                <div className="size-12 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                <div className="size-10 shrink-0 rounded-xl bg-blue-500/10 flex items-center justify-center">
                   <MapPin className="size-6 text-blue-600" />
                 </div>
                 <div>
@@ -168,12 +168,12 @@ export const LogisticsPage: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-5 sm:p-6 space-y-4">
+            <CardContent className="p-4 sm:p-5 space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Street Address</Label>
                 <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" className="h-11" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">City</Label>
                   <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Salt Lake City" className="h-11" />
@@ -210,10 +210,10 @@ export const LogisticsPage: React.FC = () => {
         </motion.div>
 
         <motion.div variants={fadeUp}>
-          <Card className="border-border/50 shadow-md overflow-hidden">
+          <Card className="border-border/50 shadow-sm overflow-hidden gap-3 py-4">
             <CardHeader className="pb-4 border-b border-border/10 bg-gradient-to-br from-violet-500/5 to-purple-500/5">
               <div className="flex items-center gap-3">
-                <div className="size-12 rounded-2xl bg-violet-500/10 flex items-center justify-center">
+                <div className="size-10 shrink-0 rounded-xl bg-violet-500/10 flex items-center justify-center">
                   <Calendar className="size-6 text-violet-600" />
                 </div>
                 <div>
@@ -222,7 +222,7 @@ export const LogisticsPage: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-5 sm:p-6 space-y-5">
+            <CardContent className="p-4 sm:p-5 space-y-5">
               <div>
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 block">Available Days</Label>
                 <div className="flex flex-wrap gap-2">

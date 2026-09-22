@@ -1,0 +1,105 @@
+/* Driver-only presentation. Shared Transportation/Inventory components keep
+   their existing styling outside this workspace. */
+.driver-workspace { scroll-padding-block: 1rem; }
+.driver-workspace .driver-page {
+  width: 100%; min-width: 0; margin-inline: auto;
+  padding: 1rem; overflow-wrap: anywhere;
+}
+.driver-workspace h1 { font-size: clamp(1.25rem, 2.2vw, 1.875rem); line-height: 1.25; }
+.driver-workspace h1, .driver-workspace h2, .driver-workspace h3 {
+  min-width: 0; overflow-wrap: anywhere; text-wrap: pretty;
+}
+.driver-workspace [data-slot="badge"] { height: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.driver-workspace .driver-simple-header {
+  border: 1px solid var(--border); border-left: 3px solid #10b981;
+  border-radius: 1rem; padding: .875rem 1rem; background: var(--card);
+}
+.driver-disclosure { border: 1px solid var(--border); border-radius: .875rem; background: var(--card); }
+.driver-disclosure > summary { min-height: 2.75rem; padding: .75rem; cursor: pointer; font-size: .875rem; font-weight: 600; }
+.driver-disclosure > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.driver-workspace .driver-metrics > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.driver-workspace .driver-profile-header > div { margin-bottom: 0; box-shadow: none; border-radius: 1rem; }
+.driver-workspace .driver-profile-header > div > .relative.w-full { padding: 1rem; gap: 1rem; align-items: center; }
+.driver-workspace .driver-profile [data-slot="card"] { gap: .75rem; padding-block: 1rem; }
+.driver-workspace .driver-profile-header [class~="group/avatar"] > .relative { width: 5rem; height: 5rem; }
+.driver-workspace .driver-profile-header .truncate,
+.driver-workspace .driver-profile-header [class~="sm:truncate"] { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+@media (min-width: 640px) {
+  .driver-workspace .driver-page { padding: 1.25rem; }
+  .driver-workspace .driver-metrics > :last-child:nth-child(odd) { grid-column: auto; }
+}
+@media (max-width: 639px) {
+  .driver-workspace .driver-page { padding: .75rem; }
+  .driver-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .driver-workspace textarea, .driver-workspace select { font-size: 1rem; }
+  .driver-workspace .driver-profile-header > div > .relative.w-full { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+  .driver-workspace .driver-profile-header > div > .relative.w-full > .flex-1 { flex: 1 1 8rem; width: auto; text-align: left; }
+  .driver-workspace .driver-profile-header [class~="group/avatar"] > .relative { width: 4rem; height: 4rem; }
+  .driver-workspace .driver-profile-header > div > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  .driver-workspace .driver-equipment h2 { font-size: 1.125rem; }
+  .driver-workspace .driver-equipment button { overflow-wrap: anywhere; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .driver-workspace { scroll-behavior: auto; }
+  .driver-workspace *, .driver-workspace *::before, .driver-workspace *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+/* Driver portal v2: a single gutter, readable hierarchy and independent columns. */
+.driver-workspace { --driver-page-size: clamp(1.375rem, 2.3vw, 2.25rem); --driver-section-size: clamp(1rem, 1.35vw, 1.125rem); }
+.driver-workspace .driver-page { padding: .75rem; }
+.driver-workspace .driver-dashboard { width: 100%; max-width: none; margin: 0; }
+.driver-workspace h1 { font-size: var(--driver-page-size); font-weight: 800; line-height: 1.15; letter-spacing: -.025em; }
+.driver-workspace h2, .driver-workspace [data-slot="card-title"] { font-size: var(--driver-section-size); font-weight: 700; line-height: 1.35; letter-spacing: -.01em; }
+.driver-workspace h3 { font-size: .875rem; font-weight: 650; line-height: 1.4; letter-spacing: 0; }
+.driver-workspace label { line-height: 1.4; }
+.driver-workspace .driver-dashboard-header { border: 1px solid var(--border); border-radius: 1rem; padding: 1rem; background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 8%, var(--card)), var(--card) 70%); }
+.driver-workspace .driver-eyebrow { color: #047857; font-size: .625rem; font-weight: 800; text-transform: uppercase; letter-spacing: .18em; line-height: 1.5; }
+.driver-workspace .driver-page-title > span { color: #047857; }
+.dark .driver-workspace .driver-eyebrow, .dark .driver-workspace .driver-page-title > span { color: #6ee7b7; }
+.driver-workspace .driver-page-title { margin-top: .375rem; text-transform: uppercase; }
+.driver-workspace .driver-page-description { font-size: .8125rem; font-weight: 400; line-height: 1.5; color: var(--muted-foreground); }
+.driver-workspace .driver-metric-value { font-size: clamp(1.375rem, 2vw, 1.875rem); font-weight: 800; line-height: 1.2; letter-spacing: -.025em; }
+.driver-status-summary > div { padding: .625rem .375rem; }
+.driver-status-summary > div > p:first-child { font-size: .6875rem; font-weight: 600; letter-spacing: 0; text-transform: none; overflow-wrap: normal; }
+.driver-empty-load { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .25rem .75rem; padding-block: .75rem; }
+.driver-empty-load > div { grid-row: span 2; }
+.driver-empty-load > a { grid-column: 2; justify-self: start; }
+.driver-operations-grid, .driver-work-column, .driver-context-column { display: grid; min-width: 0; gap: 1rem; align-content: start; }
+.driver-work-column > *, .driver-context-column > * { min-width: 0; }
+.driver-topbar { box-shadow: 0 1px 0 color-mix(in srgb, var(--primary) 8%, transparent); }
+@media (min-width: 640px) {
+  .driver-workspace .driver-page { padding: 1rem; }
+}
+@media (min-width: 1024px) {
+  .driver-operations-grid { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; }
+  .driver-context-column .driver-map-panel { order: -1; }
+}
+/* Desktop: full-width map, then equal-height operations/preferences columns.
+   Mobile: a single selected section; CSS hides panels without unmounting them. */
+.driver-sectioned-dashboard .driver-dashboard-panels { display: grid; gap: 1rem; min-width: 0; }
+.driver-sectioned-dashboard .driver-mobile-sections,
+.driver-sectioned-dashboard .driver-mobile-load-links { display: none; }
+@media (min-width: 1024px) {
+  .driver-sectioned-dashboard .driver-operations-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: stretch; }
+  .driver-sectioned-dashboard .driver-work-column { height: 100%; grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
+  .driver-sectioned-dashboard .driver-loads-panel { height: 100%; }
+  .driver-sectioned-dashboard .driver-preferences-panel { align-self: stretch; }
+}
+@media (max-width: 1023px) {
+  .driver-sectioned-dashboard .driver-mobile-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; position: sticky; top: 0; z-index: 30; padding: .25rem; border: 1px solid var(--border); border-radius: .875rem; background: var(--background); scroll-margin-top: 0; }
+  .driver-sectioned-dashboard .driver-mobile-sections button { min-height: 2.75rem; min-width: 0; padding: .5rem .375rem; border-radius: .625rem; font-size: .75rem; line-height: 1.35; font-weight: 600; color: var(--muted-foreground); cursor: pointer; }
+  .driver-sectioned-dashboard .driver-mobile-sections button[aria-pressed="true"] { color: var(--foreground); background: color-mix(in srgb, var(--primary) 15%, var(--card)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent); }
+  .driver-sectioned-dashboard .driver-mobile-sections button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .driver-sectioned-dashboard .driver-operations-grid,
+  .driver-sectioned-dashboard .driver-work-column { display: contents; }
+  .driver-sectioned-dashboard .driver-status-panel { order: 0; }
+  .driver-sectioned-dashboard .driver-map-panel { order: 1; }
+  .driver-sectioned-dashboard:not([data-mobile-section="status"]) .driver-status-panel,
+  .driver-sectioned-dashboard:not([data-mobile-section="status"]) .driver-map-panel,
+  .driver-sectioned-dashboard:not([data-mobile-section="loads"]) .driver-loads-panel,
+  .driver-sectioned-dashboard:not([data-mobile-section="preferences"]) .driver-preferences-panel { display: none; }
+  .driver-sectioned-dashboard .driver-mobile-load-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; padding: .75rem 1rem 0; }
+  .driver-sectioned-dashboard .driver-mobile-load-links a { display: flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .375rem; padding: .5rem; border: 1px solid var(--border); border-radius: .625rem; font-size: .8125rem; font-weight: 600; }
+}

@@ -238,30 +238,30 @@ function CompatibilityBadges({ compatibility }: { compatibility?: DriverLoadComp
   return (
     <div className="flex min-w-0 flex-wrap gap-1.5">
       {availability === 'match' && (
-        <Badge className="h-auto whitespace-normal border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] leading-tight text-emerald-700 dark:text-emerald-400">
+        <Badge className="h-auto whitespace-normal border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-xs leading-tight text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="mr-1 size-3 shrink-0" />
           Available {titleCaseDay(compatibility.availability.pickupDay) || 'Pickup Day'}
         </Badge>
       )}
       {availability === 'off_schedule' && (
-        <Badge className="h-auto whitespace-normal border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] leading-tight text-amber-800 dark:text-amber-300">
+        <Badge className="h-auto whitespace-normal border-amber-500/25 bg-amber-500/10 px-2 py-1 text-xs leading-tight text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mr-1 size-3 shrink-0" />
           Off Schedule {titleCaseDay(compatibility.availability.pickupDay) || ''}
         </Badge>
       )}
       {availability === 'unknown' && (
-        <Badge variant="outline" className="h-auto whitespace-normal px-2 py-1 text-[10px] leading-tight text-muted-foreground">
+        <Badge variant="outline" className="h-auto whitespace-normal px-2 py-1 text-xs leading-tight text-muted-foreground">
           <Calendar className="mr-1 size-3 shrink-0" />Schedule Unknown
         </Badge>
       )}
 
       {capacity === 'match' ? (
-        <Badge className="h-auto whitespace-normal border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] leading-tight text-emerald-700 dark:text-emerald-400">
+        <Badge className="h-auto whitespace-normal border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-xs leading-tight text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="mr-1 size-3 shrink-0" />
           Capacity {compatibility.capacity.requiredVehicles}/{compatibility.capacity.maxVehicles}
         </Badge>
       ) : (
-        <Badge className="h-auto whitespace-normal border-red-500/25 bg-red-500/10 px-2 py-1 text-[10px] leading-tight text-red-700 dark:text-red-400">
+        <Badge className="h-auto whitespace-normal border-red-500/25 bg-red-500/10 px-2 py-1 text-xs leading-tight text-red-700 dark:text-red-400">
           {capacity === 'exceeded' ? (
             <XCircle className="mr-1 size-3 shrink-0" />
           ) : (
@@ -274,7 +274,7 @@ function CompatibilityBadges({ compatibility }: { compatibility?: DriverLoadComp
       )}
 
       {compatibility.trailer.status === 'mismatch' && (
-        <Badge className="h-auto whitespace-normal border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] leading-tight text-amber-800 dark:text-amber-300">
+        <Badge className="h-auto whitespace-normal border-amber-500/25 bg-amber-500/10 px-2 py-1 text-xs leading-tight text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mr-1 size-3 shrink-0" />Trailer Mismatch
         </Badge>
       )}
@@ -556,7 +556,7 @@ export default function AvailableLoadsPage() {
     requesting || capacityBlocked || !workEligibility.canTakeNewWork;
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
+    <div className="driver-page mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -564,11 +564,11 @@ export default function AvailableLoadsPage() {
         className="space-y-5"
       >
         <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 shadow-lg ring-1 ring-slate-200/50 dark:border-white/15 dark:shadow-2xl dark:ring-white/[0.03]">
-          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-cyan-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="relative p-5 sm:p-7">
+          <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+          <div className="relative p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <Link href="/driver" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background/80 shadow-sm transition-colors hover:bg-muted dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">
+                <Link href="/driver" aria-label="Back to driver dashboard" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-background/80 shadow-sm transition-colors hover:bg-muted dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10">
                   <ArrowLeft className="size-4.5 text-foreground/80" />
                 </Link>
                 <div className="min-w-0">
@@ -582,12 +582,12 @@ export default function AvailableLoadsPage() {
               <div className="flex items-center gap-2">
                 <div className="hidden items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/15 px-2 py-0.5 sm:flex">
                   <Zap className="size-3 text-emerald-500" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Live</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Live</span>
                 </div>
-                <div className="hidden rounded-lg border border-border/80 bg-background/70 p-1 text-[11px] font-semibold sm:block">
-                  <MapIcon className="mr-1 inline size-3.5" />Map <span className="text-[9px] font-bold uppercase text-amber-500">Soon</span>
+                <div className="hidden rounded-lg border border-border/80 bg-background/70 p-1 text-xs font-semibold sm:block">
+                  <MapIcon className="mr-1 inline size-3.5" />Map <span className="text-xs font-bold uppercase text-amber-500">Soon</span>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => { setRefreshing(true); void fetchLoads(1, false); }} disabled={refreshing} className="size-11 border border-border/80">
+                <Button aria-label="Refresh available loads" variant="ghost" size="icon" onClick={() => { setRefreshing(true); void fetchLoads(1, false); }} disabled={refreshing} className="size-11 border border-border/80">
                   <RefreshCw className={cn('size-3.5', refreshing && 'animate-spin')} />
                 </Button>
               </div>
@@ -625,17 +625,17 @@ export default function AvailableLoadsPage() {
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search by city, tracking #, or vehicle..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-11 rounded-xl pl-9" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-11 gap-1.5 rounded-xl">
+                <Button variant="outline" size="sm" className="min-h-11 h-auto py-2 gap-1.5 rounded-xl">
                   <ArrowUpDown className="size-3.5" />
-                  <span className="hidden sm:inline">{sortOptions.find((option) => option.key === sortBy)?.label}</span>
+                  <span className="max-w-44 whitespace-normal break-words [overflow-wrap:anywhere]">{sortOptions.find((option) => option.key === sortBy)?.label}</span>
                   <ChevronDown className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Sort By</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider">Sort By</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {sortOptions.map((option) => (
                   <DropdownMenuItem key={option.key} onClick={() => setSortBy(option.key)} className={sortBy === option.key ? 'bg-accent' : ''}>
@@ -646,14 +646,14 @@ export default function AvailableLoadsPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={cn('h-11 gap-1.5 rounded-xl', trailerFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
+                <Button variant="outline" size="sm" className={cn('min-h-11 h-auto py-2 gap-1.5 rounded-xl', trailerFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
                   <Filter className="size-3.5" />
-                  <span className="hidden sm:inline">{trailerFilter === 'all' ? 'All Trailers' : trailerLabel(trailerFilter)}</span>
+                  <span className="max-w-44 whitespace-normal break-words [overflow-wrap:anywhere]">{trailerFilter === 'all' ? 'All Trailers' : trailerLabel(trailerFilter)}</span>
                   <ChevronDown className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Trailer Filter</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider">Trailer Filter</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setTrailerFilter('all')} className={trailerFilter === 'all' ? 'bg-accent' : ''}>All Trailers</DropdownMenuItem>
                 {uniqueTrailers.map((trailer) => (
@@ -663,14 +663,14 @@ export default function AvailableLoadsPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className={cn('h-11 gap-1.5 rounded-xl', orgFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
+                <Button variant="outline" size="sm" className={cn('min-h-11 h-auto py-2 gap-1.5 rounded-xl', orgFilter !== 'all' && 'border-primary/40 bg-primary/5')}>
                   <Truck className="size-3.5" />
-                  <span className="hidden sm:inline">{orgFilter === 'all' ? 'All Dealerships' : orgs.find((org) => org._id === orgFilter)?.name || 'Dealership'}</span>
+                  <span className="max-w-44 whitespace-normal break-words [overflow-wrap:anywhere]">{orgFilter === 'all' ? 'All Dealerships' : orgs.find((org) => org._id === orgFilter)?.name || 'Dealership'}</span>
                   <ChevronDown className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">Dealership</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider">Dealership</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setOrgFilter('all')} className={orgFilter === 'all' ? 'bg-accent' : ''}>All Dealerships</DropdownMenuItem>
                 {orgs.map((org) => (
@@ -747,7 +747,7 @@ export default function AvailableLoadsPage() {
             {requestTarget && (
               <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                  <Badge variant="outline" className="break-all text-[10px] [overflow-wrap:anywhere]">{requestTarget.trackingNumber || requestTarget._id.slice(-8)}</Badge>
+                  <Badge variant="outline" className="break-all text-xs [overflow-wrap:anywhere]">{requestTarget.trackingNumber || requestTarget._id.slice(-8)}</Badge>
                   {getPay(requestTarget) > 0 && <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">${getPay(requestTarget).toLocaleString()}</span>}
                 </div>
                 <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">{requestTarget.origin} → {requestTarget.destination}</p>
@@ -842,7 +842,7 @@ function Stat({ value, label, className }: { value: string; label: string; class
   return (
     <div className="rounded-xl border border-border/80 bg-background/70 p-3 text-center shadow-sm dark:border-white/15 dark:bg-white/5">
       <p className={cn('break-words text-base font-black tabular-nums [overflow-wrap:anywhere] sm:text-lg', className)}>{value}</p>
-      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -877,8 +877,8 @@ function LoadCard({
   const hasMismatch = hasCompatibilityMismatch(load.compatibility);
 
   return (
-    <Link href={`/driver/available-loads/${load._id}`} className="group block">
-      <Card className={cn('overflow-hidden rounded-2xl border-border/75 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-xl', isRequested && 'border-amber-500/30 bg-amber-500/3', isRejected && 'border-red-500/20 opacity-75')}>
+    <div className="group relative isolate">
+      <Card className={cn('p-0 overflow-hidden rounded-2xl border-border/75 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-xl', isRequested && 'border-amber-500/30 bg-amber-500/3', isRejected && 'border-red-500/20 opacity-75')}>
         <CardContent className="p-0">
           <div className="flex flex-col sm:flex-row">
             <div className="relative h-40 w-full shrink-0 overflow-hidden sm:h-auto sm:w-48">
@@ -899,26 +899,26 @@ function LoadCard({
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="outline" className="break-all text-[10px] font-bold font-mono [overflow-wrap:anywhere]">{load.trackingNumber || load._id.slice(-8)}</Badge>
-                    {load.trailerTypeRequired && <Badge className="h-auto whitespace-normal border-blue-500/20 bg-blue-500/10 text-[10px] text-blue-600 dark:text-blue-300"><Truck className="mr-1 size-2.5" />{trailerLabel(load.trailerTypeRequired)}</Badge>}
-                    {load.vehicleCount != null && <Badge className="h-auto bg-purple-500/10 text-[10px] text-purple-600 dark:text-purple-300">{load.vehicleCount} vehicle{load.vehicleCount === 1 ? '' : 's'}</Badge>}
-                    {isRequested && <Badge className="bg-amber-500/10 text-[9px] text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-2.5" />Pending</Badge>}
+                    <Badge variant="outline" className="break-all text-xs font-bold font-mono [overflow-wrap:anywhere]">{load.trackingNumber || load._id.slice(-8)}</Badge>
+                    {load.trailerTypeRequired && <Badge className="h-auto whitespace-normal border-blue-500/20 bg-blue-500/10 text-xs text-blue-600 dark:text-blue-300"><Truck className="mr-1 size-2.5" />{trailerLabel(load.trailerTypeRequired)}</Badge>}
+                    {load.vehicleCount != null && <Badge className="h-auto bg-purple-500/10 text-xs text-purple-600 dark:text-purple-300">{load.vehicleCount} vehicle{load.vehicleCount === 1 ? '' : 's'}</Badge>}
+                    {isRequested && <Badge className="bg-amber-500/10 text-xs text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-2.5" />Pending</Badge>}
                   </div>
-                  {vehicleName && <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">{vehicleName}</p>}
+                  <Link href={`/driver/available-loads/${load._id}`} className="block break-words text-sm font-bold [overflow-wrap:anywhere] after:absolute after:inset-0 after:z-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring">{vehicleName || "View load details"}</Link>
                 </div>
               </div>
 
               <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs font-semibold sm:flex sm:items-center">
                 <span className="size-2 rounded-full bg-emerald-500" />
-                <span className="break-words [overflow-wrap:anywhere]">{load.origin}</span>
+                <span className="break-words [overflow-wrap:anywhere]"><span className="mr-2 text-muted-foreground">Pickup</span>{load.origin}</span>
                 <Navigation className="size-3 text-muted-foreground/40" />
-                <span className="break-words [overflow-wrap:anywhere]">{load.destination}</span>
+                <span className="break-words [overflow-wrap:anywhere]"><span className="mr-2 text-muted-foreground">Delivery</span>{load.destination}</span>
               </div>
 
               <CompatibilityBadges compatibility={load.compatibility} />
 
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+              <div className="grid grid-cols-1 sm:flex min-w-0 sm:flex-wrap items-center justify-between gap-2">
+                <div className="w-full flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><Calendar className="size-3" />{fmtDate(load.dates?.firstAvailable || load.dates?.pickupDeadline)}</span>
                   {quote?.miles && <span className="flex items-center gap-1"><Navigation className="size-3" />{quote.miles.toLocaleString()} mi</span>}
                   <span className="flex items-center gap-1"><Clock className="size-3" />{timeAgo(load.createdAt)}</span>
@@ -930,7 +930,7 @@ function LoadCard({
                     size="sm"
                     variant="outline"
                     disabled={chatOpening}
-                    className="h-11 gap-1.5 border-emerald-500/30 bg-emerald-500/5 px-3 text-[10px] font-bold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+                    className="relative z-10 h-11 gap-1.5 border-emerald-500/30 bg-emerald-500/5 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -950,7 +950,7 @@ function LoadCard({
                 {!isRequested && !isRejected && (
                   <Button
                     size="sm"
-                    className="h-11 gap-1 px-3 text-[10px] font-bold"
+                    className="relative z-10 h-11 gap-1 px-3 text-xs font-bold"
                     variant={capacityBlocked ? 'outline' : 'default'}
                     disabled={capacityBlocked || !canTakeNewWork}
                     onClick={(event) => {
@@ -963,13 +963,13 @@ function LoadCard({
                     {capacityBlocked ? 'Capacity Mismatch' : offSchedule ? 'Request Anyway' : 'Request'}
                   </Button>
                 )}
-                {isRequested && <Badge variant="outline" className="border-amber-500/30 text-[10px] text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>}
-                <ChevronRight className="size-4 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+                {isRequested && <Badge variant="outline" className="border-amber-500/30 text-xs text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>}
+                <ChevronRight className="hidden sm:block size-4 text-muted-foreground/30 transition-colors group-hover:text-primary" />
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
-    </Link>
+    </div>
   );
 }

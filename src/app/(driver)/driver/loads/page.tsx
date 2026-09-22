@@ -387,7 +387,7 @@ export default function DriverLoadsPage() {
     ];
 
   return (
-    <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+    <div className="driver-page max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -397,17 +397,17 @@ export default function DriverLoadsPage() {
         <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
           <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <DriverHeroGlow />
-          <div className="relative p-5 sm:p-7">
-            <div className="flex items-center justify-between gap-4">
+          <div className="relative p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <Link
                   href="/driver"
-                  className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm"
+                  aria-label="Back to driver dashboard" className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 shadow-sm"
                 >
                   <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                     My Loads
                   </h1>
                   <p className="text-sm text-muted-foreground mt-0.5">
@@ -430,7 +430,7 @@ export default function DriverLoadsPage() {
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/20">
                   <Zap className="size-3 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                     Live
                   </span>
                 </div>
@@ -449,7 +449,7 @@ export default function DriverLoadsPage() {
               </div>
             </div>
 
-            <div className="flex gap-1 mt-5 overflow-x-auto scrollbar-hide bg-background/70 dark:bg-white/5 rounded-xl p-1 border border-border/80 dark:border-white/15 shadow-sm">
+            <div className="flex flex-wrap gap-1 mt-5 bg-background/70 dark:bg-white/5 rounded-xl p-1 border border-border/80 dark:border-white/15 shadow-sm">
               {tabItems.map((t) => (
                 <button
                   key={t.key}
@@ -466,7 +466,7 @@ export default function DriverLoadsPage() {
                   {t.count && t.count > 0 && (
                     <span
                       className={cn(
-                        "inline-flex items-center justify-center min-w-4.5 h-4.5 text-[9px] font-bold rounded-full px-1",
+                        "inline-flex items-center justify-center min-w-4.5 h-4.5 text-xs font-bold rounded-full px-1",
                         t.key === "requests"
                           ? "bg-amber-500 text-white"
                           : "bg-muted text-muted-foreground dark:bg-white/15 dark:text-white/70",
@@ -494,7 +494,7 @@ export default function DriverLoadsPage() {
             placeholder="Search by load #, city, vehicle..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 rounded-xl bg-background border-border/80 shadow-sm focus-visible:border-primary/60"
+            className="pl-9 h-11 rounded-xl bg-background border-border/80 shadow-sm focus-visible:border-primary/60"
           />
         </div>
 
@@ -622,10 +622,10 @@ function StatusTimeline({ load }: { load: Load }) {
   ];
 
   return (
-    <div className="flex items-center gap-0 w-full mt-2 overflow-x-auto pb-2 scrollbar-hide">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 w-full mt-2 sm:overflow-x-auto pb-2">
       {STEPS.map((step, i) => (
         <React.Fragment key={step.key}>
-          <div className="flex flex-col items-center gap-1 min-w-17.5 shrink-0">
+          <div className="flex sm:flex-col items-center gap-2 sm:gap-1 sm:min-w-17.5 shrink-0">
             <div
               className={cn(
                 "size-5.5 sm:size-6 rounded-full flex items-center justify-center border-2 transition-colors",
@@ -633,7 +633,7 @@ function StatusTimeline({ load }: { load: Load }) {
                   ? i === cur
                     ? "bg-emerald-500 border-emerald-500 text-white"
                     : "bg-emerald-500/20 border-emerald-500 text-emerald-600"
-                  : "bg-muted/50 border-border text-muted-foreground/40",
+                  : "bg-muted/50 border-border text-muted-foreground",
               )}
             >
               {i < cur ? (
@@ -646,16 +646,16 @@ function StatusTimeline({ load }: { load: Load }) {
             </div>
             <span
               className={cn(
-                "text-[10px] sm:text-[11px] font-semibold whitespace-nowrap leading-none",
-                i <= cur ? "text-emerald-600" : "text-muted-foreground/40",
+                "text-xs sm:text-xs font-semibold whitespace-nowrap leading-none",
+                i <= cur ? "text-emerald-600" : "text-muted-foreground",
               )}
             >
               {step.label}
             </span>
             <span
               className={cn(
-                "text-[9px] whitespace-nowrap leading-none mt-0.5",
-                i <= cur && timelineDates[i] ? "text-emerald-500/80" : "text-muted-foreground/35",
+                "text-xs whitespace-nowrap leading-none mt-0.5",
+                i <= cur && timelineDates[i] ? "text-emerald-500/80" : "text-muted-foreground",
               )}
             >
               {i <= cur && timelineDates[i] ? fmtDate(timelineDates[i]) : "N/A"}
@@ -664,7 +664,7 @@ function StatusTimeline({ load }: { load: Load }) {
           {i < STEPS.length - 1 && (
             <div
               className={cn(
-                "flex-1 h-0.5 -mt-6 mx-0.5 rounded-full min-w-5",
+                "hidden sm:block flex-1 h-0.5 -mt-6 mx-0.5 rounded-full min-w-5",
                 i < cur ? "bg-emerald-500" : "bg-border",
               )}
             />
@@ -692,7 +692,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
   const vehicleImg = vehicle?.imageUrl ? resolveImageUrl(vehicle.imageUrl) : null;
 
   return (
-    <Card className={cn('relative isolate overflow-hidden border-border/75 hover:shadow-lg transition-all duration-200 rounded-2xl group',
+    <Card className={cn('p-0 relative isolate overflow-hidden border-border/75 hover:shadow-lg transition-all duration-200 rounded-2xl group',
       isPending ? 'border-amber-500/30 bg-amber-500/3' : isRejected ? 'border-red-500/20 opacity-75' :
         (status === 'In-Transit') ? 'border-emerald-500/30 bg-emerald-500/3' :
           status === 'Picked Up' ? 'border-orange-500/30 bg-orange-500/3' :
@@ -705,8 +705,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
             </div>
           )}
-          <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link
@@ -718,12 +718,12 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                   </Link>
                   {isRequest ? (
                     isPending ? (
-                      <Badge className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20 gap-1">
+                      <Badge className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20 gap-1">
                         <Timer className="size-2.5" />
                         Pending Approval
                       </Badge>
                     ) : isRejected ? (
-                      <Badge className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20 gap-1">
+                      <Badge className="text-xs bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20 gap-1">
                         <XCircle className="size-2.5" />
                         Declined
                       </Badge>
@@ -737,22 +737,22 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                     </Badge>
                   )}
                   {load.pricing?.carrierPayAmount != null && load.pricing.carrierPayAmount > 0 && (
-                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20 gap-0.5"><DollarSign className="size-2.5" />{load.pricing.carrierPayAmount.toLocaleString()}</Badge>
+                    <Badge className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20 gap-0.5"><DollarSign className="size-2.5" />{load.pricing.carrierPayAmount.toLocaleString()}</Badge>
                   )}
                 </div>
                 <p className="text-sm font-bold text-foreground/80">
                   {vehicleName}
                 </p>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-col items-start gap-2 text-sm">
                   <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                     <div className="size-1.5 rounded-full bg-emerald-500" />
-                    <span className="truncate font-medium">{load.pickupLocation?.city || "Origin not provided"}{load.pickupLocation?.state ? `, ${load.pickupLocation.state}` : ""}</span>
+                    <span className="break-words [overflow-wrap:anywhere] font-medium"><span className="mr-2 text-xs text-muted-foreground">Pickup</span>{load.pickupLocation?.city || "Origin not provided"}{load.pickupLocation?.state ? `, ${load.pickupLocation.state}` : ""}</span>
                   </div>
-                  <ArrowRight className="size-3 text-muted-foreground shrink-0" />
+                  <ArrowRight className="hidden sm:block size-3 text-muted-foreground shrink-0" />
                   <div className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
                     <div className="size-1.5 rounded-full bg-rose-500" />
-                    <span className="truncate font-medium">
-                      {load.deliveryLocation?.city || "Destination not provided"}{load.deliveryLocation?.state ? `, ${load.deliveryLocation.state}` : ""}
+                    <span className="break-words [overflow-wrap:anywhere] font-medium">
+                      <span className="mr-2 text-xs text-muted-foreground">Delivery</span>{load.deliveryLocation?.city || "Destination not provided"}{load.deliveryLocation?.state ? `, ${load.deliveryLocation.state}` : ""}
                     </span>
                   </div>
                 </div>
@@ -764,7 +764,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
               </div>
 
               {!isRequest && (
-                <div className="relative z-10 flex flex-col items-end gap-2 shrink-0">
+                <div className="relative z-10 flex flex-wrap sm:flex-col items-start sm:items-end gap-2 shrink-0 border-t pt-3 sm:border-0 sm:pt-0">
                   {status === 'Assigned' && !load.driverAcceptedAt && isActive && (
                     <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="h-11 rounded-lg gap-1.5">
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
@@ -789,7 +789,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                   {load.proofOfDelivery?.imageUrl && (
                     <Badge
                       className={cn(
-                        "gap-1 text-[10px]",
+                        "gap-1 text-xs",
                         load.proofOfDelivery.confirmedAt
                           ? "bg-green-500/10 text-green-600 dark:text-green-300 border-green-500/20"
                           : "bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20",
@@ -805,7 +805,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-[10px] text-muted-foreground hover:text-red-500 h-11 px-2"
+                      className="text-xs text-muted-foreground hover:text-red-500 h-11 px-2"
                       onClick={() => onDrop(load)}
                       disabled={actionLoading === load._id}
                     >
@@ -828,7 +828,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
             {isRejected && load.rejectionReason && (
               <div className="flex items-start gap-2 rounded-xl bg-red-500/5 border border-red-500/15 p-2.5">
                 <AlertCircle className="size-3.5 text-red-500 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-red-600 dark:text-red-400">
+                <p className="text-xs text-red-600 dark:text-red-400">
                   {load.rejectionReason}
                 </p>
               </div>
@@ -837,8 +837,9 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
             {(isDispatched || isDelivered) && (
               <button
                 type="button"
+                aria-expanded={expanded}
                 onClick={() => setExpanded(!expanded)}
-                className="relative z-10 flex items-center gap-1 text-[11px] text-primary font-semibold hover:underline"
+                className="relative z-10 flex min-h-11 items-center gap-1 text-xs text-primary font-semibold hover:underline"
               >
                 <FileText className="size-3" />
                 {expanded ? "Hide" : "View"}{" "}
@@ -878,7 +879,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
 function DetailBlock({ label, text }: { label: string; text: string }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
         {label}
       </p>
       <p className="text-xs">{text}</p>
@@ -889,7 +890,7 @@ function DetailBlock({ label, text }: { label: string; text: string }) {
 function ContactBlock({ label, contact }: { label: string; contact: any }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
         {label}
       </p>
       <div className="flex flex-wrap gap-3 text-xs">
@@ -933,7 +934,7 @@ function MoneyBlock({
 }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         {label}
       </p>
       <p className={cn("text-sm font-bold", highlight && "text-emerald-600")}>

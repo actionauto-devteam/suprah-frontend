@@ -110,9 +110,9 @@ export default function DriverSchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 sm:py-8">
+    <div className="driver-page bg-background px-4 py-6 text-foreground sm:px-6 sm:py-8">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-7">
+        <header className="driver-simple-header mb-4">
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
             My Schedule
           </h1>
@@ -124,7 +124,7 @@ export default function DriverSchedulePage() {
 
         {sortedDates.length === 0 ? (
           <Card className="rounded-2xl border-border/80 bg-card shadow-sm ring-1 ring-border/20">
-            <CardContent className="flex min-h-80 flex-col items-center justify-center px-5 py-14 text-center">
+            <CardContent className="flex min-h-56 flex-col items-center justify-center px-4 py-8 text-center">
               <div className="mb-5 flex size-16 items-center justify-center rounded-2xl border border-border/70 bg-muted/40 shadow-sm">
                 <Package className="size-7 text-emerald-500" />
               </div>
@@ -145,7 +145,7 @@ export default function DriverSchedulePage() {
           <div className="relative">
             <div className="absolute bottom-0 left-[7px] top-5 w-0.5 rounded-full bg-linear-to-b from-emerald-500/60 via-emerald-500/25 to-transparent" />
 
-            <div className="flex flex-col gap-9">
+            <div className="flex flex-col gap-5">
               {sortedDates.map((date, dateIdx) => (
                 <motion.section
                   key={date}
@@ -200,7 +200,7 @@ export default function DriverSchedulePage() {
                               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Origin
                               </p>
-                              <p className="mt-0.5 truncate text-sm font-bold">
+                              <p className="mt-0.5 whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-bold">
                                 {load.origin ||
                                   `${load.pickupLocation?.city}, ${load.pickupLocation?.state}`}
                               </p>
@@ -212,7 +212,7 @@ export default function DriverSchedulePage() {
                               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                                 Destination
                               </p>
-                              <p className="mt-0.5 truncate text-sm font-bold">
+                              <p className="mt-0.5 whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-bold">
                                 {load.destination ||
                                   `${load.deliveryLocation?.city}, ${load.deliveryLocation?.state}`}
                               </p>

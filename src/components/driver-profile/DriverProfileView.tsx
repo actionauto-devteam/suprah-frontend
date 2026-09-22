@@ -456,8 +456,8 @@ export const DriverProfileView: React.FC = () => {
     driverStatusOptions[0];
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 space-y-6 sm:space-y-8 animate-fade-in overflow-x-hidden">
-      <ProfileHeader
+    <div className="driver-page driver-profile max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 space-y-4 sm:space-y-5 animate-fade-in min-w-0">
+      <div className="driver-profile-header"><ProfileHeader
         profile={profile}
         authUser={authUser}
         avatarUrl={avatarUrl}
@@ -471,26 +471,26 @@ export const DriverProfileView: React.FC = () => {
           setActiveTab("personal");
           setEditingPersonalInfo(true);
         }}
-      />
+      /></div>
 
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
         className="w-full"
       >
-        <div className="mb-4 sm:mb-8 bg-white/80 dark:bg-gray-900/70 p-1 sm:p-2 rounded-lg sm:rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-sm sticky top-20 sm:top-24 z-30 shadow-sm">
-          <TabsList className="bg-transparent h-auto gap-0.5 sm:gap-1.5 p-0 w-full flex flex-nowrap overflow-x-auto scrollbar-hide">
+        <div className="mb-3 sm:mb-4 bg-white/80 dark:bg-gray-900/70 p-1 sm:p-2 rounded-lg sm:rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-sm sticky top-0 z-30 shadow-sm">
+          <TabsList className="bg-transparent h-auto gap-0.5 sm:gap-1.5 p-0 w-full flex justify-start flex-nowrap overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
                 aria-label={tab.label}
                 title={tab.label}
-                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl size-11 sm:h-auto sm:w-auto p-0 sm:px-4 sm:py-2.5 transition-all inline-flex items-center justify-center sm:justify-start gap-0 sm:gap-2 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
+                className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-800 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-md rounded-md sm:rounded-xl min-h-11 h-auto w-auto px-2 py-2 sm:px-3 transition-all inline-flex items-center justify-center sm:justify-start gap-1.5 shrink-0 text-gray-600 dark:text-gray-400 border border-transparent data-[state=active]:border-emerald-500/20"
               >
                 <tab.icon className="size-3.5 sm:size-4" />
-                <span className="sr-only">{tab.label}</span>
-                <span className="hidden sm:inline font-semibold text-xs uppercase tracking-wider">
+                
+                <span className="inline font-semibold text-xs">
                   {tab.label}
                 </span>
               </TabsTrigger>
