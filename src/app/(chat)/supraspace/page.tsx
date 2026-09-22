@@ -29,7 +29,7 @@ import {
   MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
-  ExternalLink,
+  ExternalLink, Maximize2,
   Folder,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
@@ -4850,6 +4850,14 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
 };
 
 type SS4LocalPreviewAttachment = SSAttachment & { localPreviewUrl?: string };
+type SS4MediaViewerItem = {
+  id?: string;
+  src: string;
+  type: 'image' | 'video';
+  name: string;
+  mimeType?: string;
+  poster?: string;
+};
 
 function getAttachmentLocalPreviewUrl(attachment: SSAttachment): string | undefined {
   const localPreviewUrl = (attachment as SS4LocalPreviewAttachment).localPreviewUrl;
@@ -4879,20 +4887,34 @@ function SS4AttachmentImage({ attachment, alt, className, style }: { attachment:
   return <img src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} decoding="async" />;
 }
 
-function SS4AttachmentVideo({ attachment, className, style }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties }) {
+function SS4AttachmentVideo({ attachment, className, style, onExpand }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void }) {
   const localPreviewUrl = getAttachmentLocalPreviewUrl(attachment);
   const mediaUrl = getAttachmentMediaUrl(attachment);
   return (
-    <video
-      controls
-      preload={localPreviewUrl ? 'auto' : 'metadata'}
-      poster={attachment.thumbnailUrl || undefined}
-      playsInline
-      className={className}
-      style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
-    >
-      <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
-    </video>
+    <div className="relative">
+      <video
+        controls
+        preload={localPreviewUrl ? 'auto' : 'metadata'}
+        poster={attachment.thumbnailUrl || undefined}
+        playsInline
+        className={className}
+        style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
+      >
+        <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
+      </video>
+      {onExpand && (
+        <button
+          type="button"
+          onClick={event => { event.preventDefault(); event.stopPropagation(); onExpand(); }}
+          className="absolute left-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          style={{ background: 'rgba(0,0,0,0.62)', color: '#fff' }}
+          title="Open video viewer"
+          aria-label="Open video viewer"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -4955,17 +4977,18 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, mediaGallery, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
   onPin?: (id: string) => void; isPinned?: boolean;
-  onOpenMedia?: (v: { src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number }) => void;
+  onOpenMedia?: (v: SS4MediaViewerItem & { gallery?: SS4MediaViewerItem[]; index?: number }) => void;
   onReact: (id: string, emoji: string) => void;
   onVotePoll: (id: string, optionId: string) => void;
   onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
   onJoinMeeting: (meetingId: string) => void;
   nameFor: (id: string) => string;
+  mediaGallery?: SS4MediaViewerItem[];
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
@@ -5055,6 +5078,21 @@ const Bubble = React.memo(function Bubble({
   const swipeCueRef = React.useRef<HTMLDivElement>(null);
   const [swipeCueVisible, setSwipeCueVisible] = React.useState(false);
   const [swipeReplyReady, setSwipeReplyReady] = React.useState(false);
+  const openAttachmentMedia = React.useCallback((attachment: SSAttachment, attachmentIndex: number) => {
+    const type = isVideoAttachment(attachment) ? 'video' as const : 'image' as const;
+    const id = `${message._id}:${attachmentIndex}`;
+    const galleryIndex = mediaGallery?.findIndex(item => item.id === id) ?? -1;
+    onOpenMedia?.({
+      id,
+      src: getAttachmentMediaUrl(attachment),
+      type,
+      name: attachment.originalName,
+      mimeType: getAttachmentMimeType(attachment),
+      poster: attachment.thumbnailUrl,
+      gallery: galleryIndex >= 0 ? mediaGallery : undefined,
+      index: galleryIndex >= 0 ? galleryIndex : undefined,
+    });
+  }, [mediaGallery, message._id, onOpenMedia]);
   const editableAttachmentCount = (message.attachments || []).filter(a => !a.mimeType?.startsWith('audio/')).length;
   const canEditMessage = isOwn && !!onEditSave && !['voice', 'poll', 'event'].includes(message.type) && (Boolean(message.content?.trim()) || editableAttachmentCount > 0);
   const hasEditChanges = editDraft.trim() !== (message.content || '').trim() || editReplacementFiles.length > 0;
@@ -6746,29 +6784,30 @@ const Bubble = React.memo(function Bubble({
         {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
             {(() => {
-              const images = message.attachments.filter(isImageAttachment);
+              const images = message.attachments
+                .map((attachment, attachmentIndex) => ({ attachment, attachmentIndex }))
+                .filter(({ attachment }) => isImageAttachment(attachment));
               if (images.length === 0) return null;
               if (images.length === 1) return (
-                <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(images[0]), type: 'image', name: images[0].originalName }); }}
+                <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0]} alt={images[0].originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
+                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
                 </button>
               );
-              const gallery = images.map(im => ({ src: getAttachmentMediaUrl(im), type: 'image' as const, name: im.originalName }));
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
-                  {images.map((att, i) => (
-                    <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(att), type: 'image', name: att.originalName, gallery, index: i }); }}
+                  {images.map(({ attachment, attachmentIndex }, i) => (
+                    <button key={`img-${i}`} data-ss4-attachment-url={attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(attachment, attachmentIndex); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <SS4AttachmentImage attachment={att} alt={att.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
+                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
                     </button>
                   ))}
                 </div>
               );
             })()}
-            {message.attachments.filter(isVideoAttachment).map((att, i) => (
-              <div key={`video-${i}`} data-ss4-attachment-url={att.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
-                <SS4AttachmentVideo attachment={att} className="block w-full rounded-xl" style={{ maxHeight: 220 }} />
+            {message.attachments.map((attachment, attachmentIndex) => ({ attachment, attachmentIndex })).filter(({ attachment }) => isVideoAttachment(attachment)).map(({ attachment, attachmentIndex }, i) => (
+              <div key={`video-${i}`} data-ss4-attachment-url={attachment.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
+                <SS4AttachmentVideo attachment={attachment} className="block w-full rounded-xl" style={{ maxHeight: 220 }} onExpand={() => openAttachmentMedia(attachment, attachmentIndex)} />
               </div>
             ))}
             {message.attachments.filter(a => !isImageAttachment(a) && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
@@ -7085,8 +7124,8 @@ function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
   );
 }
 
-function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPosition }: {
-  src: string; type: 'image' | 'video'; name: string; onClose: () => void;
+function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onNext, galleryPosition }: {
+  src: string; type: 'image' | 'video'; name: string; mimeType?: string; poster?: string; onClose: () => void;
   onPrev?: () => void; onNext?: () => void;
   galleryPosition?: { index: number; total: number };
 }) {
@@ -7094,6 +7133,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   const [zoom, setZoom] = React.useState(1);
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
+  const [videoLoadFailed, setVideoLoadFailed] = React.useState(false);
   const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const hasDraggedRef = React.useRef(false);
@@ -7112,6 +7152,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   React.useEffect(() => {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
+    setVideoLoadFailed(false);
     dragRef.current = null;
     pinchRef.current = null;
   }, [src]);
@@ -7267,7 +7308,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
         className="flex-1 flex items-center justify-center overflow-hidden"
         style={{
           cursor: type !== 'image' ? 'default' : zoom > 1 ? 'move' : 'zoom-in',
-          touchAction: 'none',
+          touchAction: type === 'image' ? 'none' : 'auto',
           userSelect: 'none',
         }}
         onWheel={handleWheel}
@@ -7306,14 +7347,30 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
             }}
           />
         ) : (
-          <video
-            src={src}
-            controls
-            autoPlay
-            className="rounded-xl"
-            style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-            onClick={e => e.stopPropagation()}
-          />
+          <div className="relative max-h-full max-w-full" onClick={e => e.stopPropagation()}>
+            <video
+              key={src}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              poster={poster}
+              className="rounded-xl"
+              style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+              onError={() => setVideoLoadFailed(true)}
+            >
+              <source src={src} type={mimeType} />
+            </video>
+            {videoLoadFailed && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-black/75 px-6 text-center">
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>This video could not be loaded.</p>
+                <button type="button" onClick={handleDownload} disabled={downloading} className="ss4-pill-btn flex h-8 items-center gap-1.5 px-3 disabled:opacity-60" style={{ fontSize: 11 }}>
+                  {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                  Download
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -9466,7 +9523,7 @@ export default function SupraSpacePage() {
   const emojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiSheetRef = React.useRef<HTMLDivElement>(null);
-  const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number } | null>(null);
+  const [lightbox, setLightbox] = React.useState<(SS4MediaViewerItem & { gallery?: SS4MediaViewerItem[]; index?: number }) | null>(null);
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
 
@@ -9752,6 +9809,19 @@ export default function SupraSpacePage() {
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const activeMediaGallery = React.useMemo<SS4MediaViewerItem[]>(() => activeMsgs.flatMap(message =>
+    (message.attachments || []).flatMap((attachment, attachmentIndex) => {
+      if (!isImageAttachment(attachment) && !isVideoAttachment(attachment)) return [];
+      return [{
+        id: `${message._id}:${attachmentIndex}`,
+        src: getAttachmentMediaUrl(attachment),
+        type: isVideoAttachment(attachment) ? 'video' as const : 'image' as const,
+        name: attachment.originalName,
+        mimeType: getAttachmentMimeType(attachment),
+        poster: attachment.thumbnailUrl,
+      }];
+    }),
+  ), [activeMsgs]);
   const activePinnedMsgs = React.useMemo(
     () => activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted),
     [activeMsgs, pinnedMsgIds],
@@ -13224,6 +13294,7 @@ export default function SupraSpacePage() {
       onPin={handlePinToggle}
       isPinned={pinnedMsgIds.has(message._id)}
       onOpenMedia={setLightbox}
+      mediaGallery={activeMediaGallery}
       onReact={handleReact}
       onVotePoll={handleVotePoll}
       onRsvp={handleRsvp}
@@ -13236,7 +13307,7 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
     />
-  ), [activeConv?.theme?.emoji, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -15529,8 +15600,10 @@ export default function SupraSpacePage() {
                                     src: getAttachmentMediaUrl(attachment),
                                     type: isVideoAttachment(attachment) ? 'video' as const : 'image' as const,
                                     name: attachment.originalName,
+                                    mimeType: getAttachmentMimeType(attachment),
+                                    poster: attachment.thumbnailUrl,
                                   }));
-                                  setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, gallery, index: i });
+                                  setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, mimeType: getAttachmentMimeType(a), poster: a.thumbnailUrl, gallery, index: i });
                                 }} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
                                   {isVid ? <><video src={getAttachmentMediaUrl(a)} className="w-full h-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
@@ -16003,13 +16076,15 @@ export default function SupraSpacePage() {
           const hasGallery = !!gallery && gallery.length > 1;
           const goTo = (i: number) => setLightbox(prev => {
             if (!prev?.gallery?.[i]) return prev;
-            return { ...prev, src: prev.gallery[i].src, type: prev.gallery[i].type, name: prev.gallery[i].name, index: i };
+            return { ...prev, ...prev.gallery[i], index: i };
           });
           return (
             <LightboxModal
               src={lightbox.src}
               type={lightbox.type}
               name={lightbox.name}
+              mimeType={lightbox.mimeType}
+              poster={lightbox.poster}
               onClose={() => setLightbox(null)}
               onPrev={hasGallery && index > 0 ? () => goTo(index - 1) : undefined}
               onNext={hasGallery && index < gallery!.length - 1 ? () => goTo(index + 1) : undefined}
