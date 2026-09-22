@@ -13233,6 +13233,16 @@ export default function SupraSpacePage() {
     videoFileRef.current?.click();
   }, [prepareMobileMediaPicker]);
 
+  const openMobileCameraPicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    cameraFileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
+  const openMobileFilesPicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    fileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
   const pasteMediaFromClipboard = React.useCallback(async () => {
     if (!activeId) return;
     try {
@@ -15343,7 +15353,7 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Photo or video"><ImageIcon className="h-6 w-6" /></button>
+                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileAttachSheet} className="ss4-icon-btn ss4-mobile-media-action" title="Add attachment" aria-label="Add attachment" aria-haspopup="dialog" aria-expanded={mobileAttachSheetOpen}><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 type="button"
@@ -15914,7 +15924,7 @@ export default function SupraSpacePage() {
                 background: 'var(--bg-elevated)',
                 boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
                 height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
-                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
+                maxHeight: `calc(var(--ss4-vvh, 100dvh) - 72px)`,
                 minHeight: 0,
                 overflow: 'hidden',
                 overscrollBehavior: 'contain',
@@ -15948,7 +15958,7 @@ export default function SupraSpacePage() {
                   <MobileFilePicker files={pendingFiles} maxFiles={SS4_MAX_UPLOAD_FILES} onBrowse={() => fileRef.current?.click()} onRemove={removePendingFile} onClear={() => setPendingFiles([])} onClose={() => { setMobileFilePickerOpen(false); setMobileAttachSheetOpen(false); }} />
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="min-h-0 overflow-y-auto overscroll-contain space-y-1">
                   {!isIOSDevice && (
                     <>
                       <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
@@ -15963,6 +15973,22 @@ export default function SupraSpacePage() {
                         <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
                       </label>
+                    </>
+                  )}
+                  {isIOSDevice && (
+                    <>
+                      <button type="button" onClick={openMobileImagePicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Photo Library</span>
+                      </button>
+                      <button type="button" onClick={openMobileCameraPicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Take Photo or Video</span>
+                      </button>
+                      <button type="button" onClick={openMobileFilesPicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Choose Files</span>
+                      </button>
                     </>
                   )}
                   <button type="button" onClick={pasteMediaFromClipboard} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
