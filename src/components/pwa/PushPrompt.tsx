@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useWebPush } from "@/hooks/useWebPush";
 import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
+import { usePersistentPromptDismissal } from "@/hooks/usePersistentPromptDismissal";
 import { Bell, X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +18,7 @@ import { usePathname } from "next/navigation";
 // timeout, producing a noisy "[WebPush] Initialization error or timeout"
 // console warning for a prompt that was never going to render.
 const SUPRASPACE_SUBDOMAIN = "space.suprah-app.com";
+const PUSH_PROMPT_DISABLED_KEY = "push_prompt_disabled";
 
 export function PushPrompt() {
     const pathname = usePathname();
@@ -26,6 +28,7 @@ export function PushPrompt() {
         (typeof window !== "undefined" && window.location.hostname === SUPRASPACE_SUBDOMAIN);
     const { isSupported, isSubscribed, subscribe, isLoading } = useWebPush({ disabled: isSupraSpaceContext });
     const [showPrompt, setShowPrompt] = useState(false);
+    const { isDismissed: isPermanentlyDismissed, dismiss: dismissPermanently } = usePersistentPromptDismissal(PUSH_PROMPT_DISABLED_KEY);
     // Lower priority than InstallPrompt/IOSInstallHint (2) — the ability to
     // add-to-home-screen is more actionable/rarer than a re-askable push
     // opt-in, so this one yields the shared slot to those first.
@@ -33,7 +36,7 @@ export function PushPrompt() {
 
     useEffect(() => {
         // If not supported, already subscribed, or loading, do nothing
-        if (!isSupported || isSubscribed || isLoading) return;
+        if (!isSupported || isSubscribed || isLoading || isPermanentlyDismissed !== false) return;
 
         // Dimissal check - don't harass the user in the same session
         const dismissed = sessionStorage.getItem("push_prompt_dismissed");
@@ -55,7 +58,7 @@ export function PushPrompt() {
             slot.request();
         }, 4000);
         return () => clearTimeout(timer);
-    }, [isSupported, isSubscribed, isLoading, pathname, isSupraSpaceContext, slot.request]);
+    }, [isSupported, isSubscribed, isLoading, isPermanentlyDismissed, pathname, isSupraSpaceContext, slot.request]);
 
     useEffect(() => {
         if (isSubscribed) slot.release();
@@ -65,6 +68,12 @@ export function PushPrompt() {
         setShowPrompt(false);
         slot.release();
         sessionStorage.setItem("push_prompt_dismissed", "true");
+    };
+
+    const handlePermanentDismiss = () => {
+        dismissPermanently();
+        setShowPrompt(false);
+        slot.release();
     };
 
     const handleSubscribe = async () => {
@@ -102,17 +111,18 @@ export function PushPrompt() {
                         <div className="flex-1 pr-4">
                             <h3 className="text-sm font-bold tracking-tight text-foreground">Enable Real-Time Alerts</h3>
                             <p className="mt-1 text-xs text-muted-foreground leading-normal">
-                                Receive instant notifications for shipments, payouts, and team messages even when you're away.
+                                Receive instant notifications for shipments, payouts, and team messages even when you&apos;re away.
                             </p>
                         </div>
                     </div>
 
-                    <div className="mt-6 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-medium uppercase tracking-wider">
-                            <ShieldCheck className="h-3 w-3" />
-                            Standard PWA Push
-                        </div>
-                        <div className="flex gap-2">
+                    <div className="mt-6 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-medium uppercase tracking-wider">
+                                <ShieldCheck className="h-3 w-3" />
+                                Standard PWA Push
+                            </div>
+                            <div className="flex shrink-0 gap-2">
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -128,7 +138,15 @@ export function PushPrompt() {
                             >
                                 Enable
                             </Button>
+                            </div>
                         </div>
+                        <button
+                            type="button"
+                            onClick={handlePermanentDismiss}
+                            className="mx-auto block text-xs font-medium text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
+                        >
+                            Don&apos;t show again
+                        </button>
                     </div>
                 </div>
             </motion.div>

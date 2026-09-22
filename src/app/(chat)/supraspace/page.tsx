@@ -53,6 +53,7 @@ import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notificati
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { CallBanner } from './CallBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePersistentPromptDismissal } from '@/hooks/usePersistentPromptDismissal';
 
 const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet), { ssr: false });
 const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
@@ -122,6 +123,7 @@ type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/?install=1`;
+const SUPRASPACE_MOBILE_INSTALL_GATE_DISMISSED_KEY = 'supraspace-mobile-install-gate-dismissed';
 const SS4_UNREAD_COLOR_STORAGE_KEY = 'ss4_unread_dot_color';
 const SS4_LAST_CONVERSATION_STORAGE_KEY = 'ss4_last_conversation_id';
 const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
@@ -9110,12 +9112,13 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, [pathname]);
-  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
+  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState<boolean | null>(null);
   React.useEffect(() => {
     setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
   }, []);
   const isMobileViewport = useIsMobile();
-  const [mobileInstallPromptDismissed, setMobileInstallPromptDismissed] = React.useState(false);
+  const { isDismissed: mobileInstallPromptDismissed, dismiss: dismissMobileInstallPromptPermanently } = usePersistentPromptDismissal(SUPRASPACE_MOBILE_INSTALL_GATE_DISMISSED_KEY);
+  const [mobileInstallPromptClosed, setMobileInstallPromptClosed] = React.useState(false);
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -9491,7 +9494,7 @@ export default function SupraSpacePage() {
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
   }, [isIOSDevice, isMobileViewport, isStandaloneApp, theme]);
-  const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
+  const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && isSupraSpaceAlreadyInstalled === false && !mobileInstallPromptClosed && mobileInstallPromptDismissed === false;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -15865,11 +15868,11 @@ export default function SupraSpacePage() {
           />
         )}
         {showMobileInstallGate && (
-          <div className="ss4 fixed inset-0 z-200 flex items-center justify-center p-4" data-theme={theme} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setMobileInstallPromptDismissed(true)}>
+          <div className="ss4 fixed inset-0 z-200 flex items-center justify-center p-4" data-theme={theme} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setMobileInstallPromptClosed(true)}>
             <div className="relative flex flex-col items-center gap-5 text-center w-full max-w-xs rounded-2xl px-6 py-8" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
               <button
                 type="button"
-                onClick={() => setMobileInstallPromptDismissed(true)}
+                onClick={() => setMobileInstallPromptClosed(true)}
                 className="absolute right-3 top-3 h-8 w-8 rounded-full flex items-center justify-center"
                 style={{ color: 'var(--text-tertiary)' }}
                 title="Close"
@@ -15897,6 +15900,14 @@ export default function SupraSpacePage() {
                 {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                 {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Install SupraSpace'}
               </a>
+              <button
+                type="button"
+                onClick={dismissMobileInstallPromptPermanently}
+                className="text-xs font-medium underline-offset-4 hover:underline"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Don&apos;t show again
+              </button>
             </div>
           </div>
         )}
