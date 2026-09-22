@@ -4887,21 +4887,75 @@ function SS4AttachmentImage({ attachment, alt, className, style }: { attachment:
   return <img src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} decoding="async" />;
 }
 
-function SS4AttachmentVideo({ attachment, className, style, onExpand }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void }) {
+function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
   const localPreviewUrl = getAttachmentLocalPreviewUrl(attachment);
   const mediaUrl = getAttachmentMediaUrl(attachment);
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const recoveryTimerRef = React.useRef<number | null>(null);
+  const recoveredUrlRef = React.useRef<string | null>(null);
+
+  const clearRecoveryTimer = React.useCallback(() => {
+    if (recoveryTimerRef.current !== null) {
+      window.clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const recoverPlayback = React.useCallback(() => {
+    clearRecoveryTimer();
+    if (recoveredUrlRef.current === mediaUrl) return;
+    recoveredUrlRef.current = mediaUrl;
+    setLoadFailed(true);
+    onPlaybackFailure?.();
+  }, [clearRecoveryTimer, mediaUrl, onPlaybackFailure]);
+
+  React.useEffect(() => {
+    clearRecoveryTimer();
+    recoveredUrlRef.current = null;
+    setLoadFailed(false);
+    setReloadKey(0);
+    return clearRecoveryTimer;
+  }, [clearRecoveryTimer, mediaUrl]);
+
+  const retryPlayback = () => {
+    recoveredUrlRef.current = null;
+    setLoadFailed(false);
+    setReloadKey(key => key + 1);
+    onPlaybackFailure?.();
+  };
+
+  const watchPlaybackStart = () => {
+    clearRecoveryTimer();
+    recoveryTimerRef.current = window.setTimeout(recoverPlayback, 8000);
+  };
+
   return (
     <div className="relative">
       <video
+        key={`${mediaUrl}:${reloadKey}`}
         controls
         preload={localPreviewUrl ? 'auto' : 'metadata'}
         poster={attachment.thumbnailUrl || undefined}
         playsInline
         className={className}
         style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
+        onError={recoverPlayback}
+        onPlay={watchPlaybackStart}
+        onPause={clearRecoveryTimer}
+        onEnded={clearRecoveryTimer}
+        onTimeUpdate={event => {
+          if (event.currentTarget.currentTime > 0.05) clearRecoveryTimer();
+        }}
       >
         <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
       </video>
+      {loadFailed && (
+        <div className="absolute inset-x-2 bottom-10 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(0,0,0,0.74)', color: '#fff' }}>
+          <span className="truncate" style={{ fontSize: 10 }}>Could not load video</span>
+          <button type="button" onClick={retryPlayback} className="shrink-0 font-semibold" style={{ fontSize: 10, color: '#fff' }}>Retry</button>
+        </div>
+      )}
       {onExpand && (
         <button
           type="button"
@@ -4977,7 +5031,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, mediaGallery, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, mediaGallery, onRefreshMedia, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -4989,6 +5043,7 @@ const Bubble = React.memo(function Bubble({
   onJoinMeeting: (meetingId: string) => void;
   nameFor: (id: string) => string;
   mediaGallery?: SS4MediaViewerItem[];
+  onRefreshMedia?: () => void;
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
@@ -6807,7 +6862,7 @@ const Bubble = React.memo(function Bubble({
             })()}
             {message.attachments.map((attachment, attachmentIndex) => ({ attachment, attachmentIndex })).filter(({ attachment }) => isVideoAttachment(attachment)).map(({ attachment, attachmentIndex }, i) => (
               <div key={`video-${i}`} data-ss4-attachment-url={attachment.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
-                <SS4AttachmentVideo attachment={attachment} className="block w-full rounded-xl" style={{ maxHeight: 220 }} onExpand={() => openAttachmentMedia(attachment, attachmentIndex)} />
+                <SS4AttachmentVideo attachment={attachment} className="block w-full rounded-xl" style={{ maxHeight: 220 }} onExpand={() => openAttachmentMedia(attachment, attachmentIndex)} onPlaybackFailure={onRefreshMedia} />
               </div>
             ))}
             {message.attachments.filter(a => !isImageAttachment(a) && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
@@ -13282,6 +13337,11 @@ export default function SupraSpacePage() {
     } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
   }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
 
+  const refreshActiveMedia = React.useCallback(() => {
+    if (!activeId) return;
+    void fetchConversationMessages(activeId, { force: true, silent: true });
+  }, [activeId, fetchConversationMessages]);
+
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
   const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
     <Bubble
@@ -13295,6 +13355,7 @@ export default function SupraSpacePage() {
       isPinned={pinnedMsgIds.has(message._id)}
       onOpenMedia={setLightbox}
       mediaGallery={activeMediaGallery}
+      onRefreshMedia={refreshActiveMedia}
       onReact={handleReact}
       onVotePoll={handleVotePoll}
       onRsvp={handleRsvp}
@@ -13307,7 +13368,7 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
     />
-  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
