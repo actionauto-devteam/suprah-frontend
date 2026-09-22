@@ -84,8 +84,8 @@ export default function DriverSettingsPage() {
   }, [getToken]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-2xl">
-      <div>
+    <div className="driver-page p-4 sm:p-6 space-y-6 max-w-2xl">
+      <div className="driver-simple-header">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
           Manage your preferences.

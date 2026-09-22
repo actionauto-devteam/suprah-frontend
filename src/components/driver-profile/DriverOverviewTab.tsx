@@ -131,7 +131,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
 
     return (
         <>
-            <div className="space-y-4 sm:space-y-6 animate-tab-switch">
+            <div className="space-y-3 sm:space-y-4 animate-tab-switch">
                 <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden">
                     <CardHeader className="py-4 px-5 bg-linear-to-br from-slate-50 to-emerald-50/50 dark:from-gray-900 dark:to-gray-800/80 border-b border-gray-100 dark:border-gray-800">
                         <div className="flex flex-wrap items-center gap-2.5">
@@ -270,7 +270,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                     </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                     <Card className="p-0 shadow-lg border border-gray-200/80 dark:border-gray-800 overflow-hidden hover-lift group">
                         <CardHeader className="py-4 px-5 bg-linear-to-br from-blue-50 to-indigo-50/50 dark:from-gray-900 dark:to-gray-800/80 border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-2.5">
@@ -310,7 +310,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                 <Edit3 className="size-4" />
                             </button>
                         </CardHeader>
-                        <CardContent className="p-5 sm:p-6">
+                        <CardContent className="p-4 sm:p-5">
                             {profile?.personalInfo?.bio ? (
                                 <div className="relative pl-4 border-l-2 border-emerald-400/40">
                                     <Quote className="absolute -left-2.5 -top-1 size-5 text-emerald-400/50 bg-white dark:bg-gray-950 rounded-full" />
@@ -340,7 +340,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                         <info.icon className={cn("size-4 shrink-0", info.color)} />
                                         <div className="min-w-0">
                                             <p className="text-[9px] uppercase font-bold tracking-widest text-gray-400 dark:text-gray-500">{info.label}</p>
-                                            <p className="text-xs font-semibold truncate text-gray-800 dark:text-gray-200">{info.value}</p>
+                                            <p className="text-xs font-semibold whitespace-normal break-words [overflow-wrap:anywhere] text-gray-800 dark:text-gray-200">{info.value}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -357,7 +357,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all text-xs font-semibold group/link"
                                             >
                                                 <Link2 className="size-3 text-emerald-500" />
-                                                <span className="truncate max-w-32">{link.label || link.url}</span>
+                                                <span className="whitespace-normal break-words [overflow-wrap:anywhere] max-w-32">{link.label || link.url}</span>
                                                 <ExternalLink className="size-2.5 text-gray-400 dark:text-gray-500 group-hover/link:text-emerald-500 transition-colors" />
                                             </button>
                                         ))}
@@ -395,7 +395,7 @@ export const DriverOverviewTab: React.FC<DriverOverviewTabProps> = ({
                                             {activityIcons[activity.type] || <History className="size-4" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold truncate group-hover/act:text-purple-600 dark:group-hover/act:text-purple-400 transition-colors">{activity.title}</p>
+                                            <p className="text-sm font-semibold whitespace-normal break-words [overflow-wrap:anywhere] group-hover/act:text-purple-600 dark:group-hover/act:text-purple-400 transition-colors">{activity.title}</p>
                                             <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-0.5">{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</p>
                                         </div>
                                     </div>

@@ -137,7 +137,7 @@ const Counter = ({
       className={cn('rounded-2xl border-2 border-border/60 flex items-center justify-center font-bold transition-all active:scale-90 hover:border-primary/40', lg ? 'size-14 text-2xl' : 'size-11 text-xl')}>−</button>
     <div className="text-center min-w-20">
       <motion.span key={value} initial={{ scale: 1.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        className={cn('font-black tabular-nums block', color, lg ? 'text-7xl' : 'text-5xl')}>{value}</motion.span>
+        className={cn('font-black tabular-nums block', color, lg ? 'text-4xl' : 'text-3xl')}>{value}</motion.span>
       <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-widest">{label}</p>
     </div>
     <button type="button" onClick={() => onChange(Math.min(max, value + 1))}
@@ -156,6 +156,8 @@ export const EquipmentPage: React.FC = () => {
   const { getToken } = useAuth();
   const [form, setForm] = useState<EquipmentForm>(INIT);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const loadedRef = React.useRef(false);
   const [saving, setSaving] = useState(false);
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const [dialogCategory, setDialogCategory] = useState('open');
@@ -175,10 +177,14 @@ export const EquipmentPage: React.FC = () => {
   }), []);
 
   const fetchProfile = useCallback(async () => {
+    loadedRef.current = false;
+    setLoading(true);
+    setLoadError(false);
     try {
       const token = await getToken();
       const res = await apiClient.get('/api/driver-profile', { headers: { Authorization: `Bearer ${token}` } });
       const d = res.data?.data as DriverProfile | undefined;
+      if (!d) throw new Error("Equipment profile unavailable");
       if (d) {
         setForm({
           truckMake: d.truckMake || '', truckModel: d.truckModel || '', truckYear: d.truckYear, truckColor: d.truckColor || '',
@@ -192,7 +198,8 @@ export const EquipmentPage: React.FC = () => {
         const match = trailerTypeOptions.find(t => t.value === d.trailerType);
         if (match) setDialogCategory(match.category);
       }
-    } catch { toast.error('Failed to load equipment data'); }
+      loadedRef.current = true;
+    } catch { setLoadError(true); toast.error('Failed to load equipment data'); }
     finally { setLoading(false); }
   }, [getToken]);
 
@@ -205,10 +212,10 @@ export const EquipmentPage: React.FC = () => {
       Object.assign(payload, {
         truckMake: form.truckMake.trim(),
         truckModel: form.truckModel.trim(),
-        truckYear: form.truckYear || undefined,
+        truckYear: form.truckYear ?? null,
         truckColor: form.truckColor.trim(),
         engineType: form.engineType.trim(),
-        gvwr: form.gvwr || undefined,
+        gvwr: form.gvwr ?? null,
         vin: form.vin.trim(),
         plateNumber: form.plateNumber.trim(),
         dotNumber: form.dotNumber.trim(),
@@ -229,7 +236,7 @@ export const EquipmentPage: React.FC = () => {
             : '',
         trailerMake: form.trailerMake.trim(),
         trailerModel: form.trailerModel.trim(),
-        trailerYear: form.trailerYear || undefined,
+        trailerYear: form.trailerYear ?? null,
         hitchType: form.hitchType,
       });
     }
@@ -239,9 +246,9 @@ export const EquipmentPage: React.FC = () => {
         maxVehicleCapacity: form.trailerType
           ? form.maxVehicleCapacity
           : undefined,
-        trailerLength: form.trailerLength || undefined,
+        trailerLength: form.trailerLength ?? null,
         trailerAxles: form.trailerAxles,
-        trailerGvwr: form.trailerGvwr || undefined,
+        trailerGvwr: form.trailerGvwr ?? null,
       });
     }
 
@@ -259,7 +266,7 @@ export const EquipmentPage: React.FC = () => {
       section: Nav | 'all',
       options: { announce?: boolean } = {},
     ): Promise<boolean> => {
-      if (saving) return false;
+      if (saving || !loadedRef.current) return false;
 
       setSaving(true);
       try {
@@ -303,7 +310,7 @@ export const EquipmentPage: React.FC = () => {
       if (!saved) return;
 
       setNav(nextNav);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' });
     },
     [nav, persistEquipment, saving],
   );
@@ -335,11 +342,13 @@ export const EquipmentPage: React.FC = () => {
     </div>
   );
 
+  if (loadError) return <div role="alert" className="mx-auto max-w-xl space-y-4 p-6"><p>Equipment could not be loaded. Your saved details have not been changed.</p><Button onClick={() => void fetchProfile()}>Retry loading equipment</Button></div>;
+
   const inp = "h-11 text-sm font-medium bg-muted/20 border-border/60 focus:border-primary/50 focus:ring-primary/20 rounded-xl";
   const mono = cn(inp, 'font-mono tracking-wide');
 
   return (
-    <div className="max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+    <div className="driver-page driver-equipment max-w-5xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-5">
 
         <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
@@ -348,15 +357,15 @@ export const EquipmentPage: React.FC = () => {
           <div className="absolute bottom-0 left-0 w-60 h-60 bg-blue-500/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23fff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
 
-          <div className="relative p-5 sm:p-7">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
+          <div className="relative p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <Link href="/driver/profile" className="p-2.5 rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/15 backdrop-blur-sm shadow-sm">
                   <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </Link>
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Equipment & Rig</h1>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Equipment & Rig</h1>
                     <Badge className={cn('text-[10px] font-black px-2.5 h-5 bg-linear-to-r text-white border-0 shadow-lg', th.grad, th.glow)}>{sel?.capacity || 'Not configured'}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">Configure your truck, trailer, and capabilities</p>
@@ -364,7 +373,7 @@ export const EquipmentPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-3">
                 <div className="hidden sm:block text-right">
-                  <span className="text-4xl font-black tabular-nums text-foreground">{pct}%</span>
+                  <span className="text-2xl font-bold tabular-nums text-foreground">{pct}%</span>
                   <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
                     {equipmentReadiness.complete ? 'Ready' : 'Setup'}
                   </p>
@@ -399,7 +408,7 @@ export const EquipmentPage: React.FC = () => {
                     onClick={() => void handleNavigate(n.id)}
                     disabled={saving}
                     className={cn(
-                      'flex-1 flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 rounded-xl transition-all border relative overflow-hidden disabled:cursor-wait disabled:opacity-60',
+                      'min-w-0 flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 p-2 sm:p-2.5 rounded-xl transition-all border relative overflow-hidden disabled:cursor-wait disabled:opacity-60',
                       active ? 'bg-background/90 dark:bg-white/10 border-primary/35 dark:border-white/25 shadow-md' : 'bg-background/55 dark:bg-white/[0.04] border-border/70 dark:border-white/10 hover:bg-muted/70 dark:hover:bg-white/[0.07]'
                     )}>
                     {active && <motion.div layoutId="nav-glow" className={cn('absolute inset-x-0 top-0 h-0.5 bg-linear-to-r', n.color)} transition={{ type: 'spring', stiffness: 400, damping: 35 }} />}
@@ -419,20 +428,20 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'rig' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-sm">
                   <div className="absolute inset-0 bg-linear-to-br from-blue-500/5 via-transparent to-indigo-500/5" />
-                  <div className="relative p-6 sm:p-8 space-y-6">
+                  <div className="relative p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30"><Truck className="size-7" /></div>
+                      <div className="size-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30"><Truck className="size-5" /></div>
                       <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Truck & Engine</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold">Truck & Engine</h2>
                         <p className="text-sm text-muted-foreground mt-1">Primary vehicle specifications and details</p>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Truck Details</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Make</Label>
@@ -448,11 +457,11 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                            <Input type="number" min={1990} max={2030} value={form.truckYear || ''} onChange={e => patch({ truckYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={1990} max={2030} value={form.truckYear ?? ''} onChange={e => patch({ truckYear: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Color</Label>
@@ -468,15 +477,15 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Truck GVWR (lbs)</Label>
-                            <Input type="number" min={0} max={100000} value={form.gvwr || ''} onChange={e => patch({ gvwr: parseInt(e.target.value) || undefined })} placeholder="e.g. 26000" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={0} max={100000} value={form.gvwr ?? ''} onChange={e => patch({ gvwr: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="e.g. 26000" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Operating Authority</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">VIN</Label>
@@ -490,7 +499,7 @@ export const EquipmentPage: React.FC = () => {
                           </div>
                         </motion.div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.45 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">DOT Number</Label>
@@ -507,7 +516,7 @@ export const EquipmentPage: React.FC = () => {
                     </div>
 
                     <motion.div layout className="flex items-center justify-between border-t border-border/50 pt-6">
-                      <Button variant="ghost" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
+                      <Button variant="ghost" onClick={() => (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' })} className="gap-2 text-muted-foreground rounded-xl"><ArrowLeft className="size-4" /> Back</Button>
                       <Button onClick={() => void handleNavigate('trailer')} disabled={saving} className="gap-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20">
                         Next: Trailer <ChevronRight className="size-4" />
                       </Button>
@@ -519,19 +528,19 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'trailer' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-sm">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
-                  <div className="relative p-6 sm:p-8 space-y-6">
+                  <div className="relative p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Box className="size-7" /></div>
+                      <div className="size-10 rounded-xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Box className="size-5" /></div>
                       <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Trailer Configuration</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold">Trailer Configuration</h2>
                         <p className="text-sm text-muted-foreground mt-1">Trailer type, details and hitch configuration</p>
                       </div>
                       {sel && <Badge className={cn('text-xs font-bold px-3 py-1.5 bg-linear-to-r text-white border-0 shadow-lg', th.grad)}>{sel.capacity}</Badge>}
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Trailer Type *</h3>
                       <motion.button type="button" onClick={() => setTypeDialogOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full relative overflow-hidden rounded-2xl border-2 border-border/70 bg-linear-to-br from-background to-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:shadow-md group">
                         <div className="flex items-center gap-4">
@@ -539,7 +548,7 @@ export const EquipmentPage: React.FC = () => {
                             {sel ? (
                               <TSvg cat={cat} className="w-full h-full p-2" />
                             ) : (
-                              <Box className="size-7 text-muted-foreground" />
+                              <Box className="size-5 text-muted-foreground" />
                             )}
                           </div>
                           <div className="flex-1">
@@ -559,9 +568,9 @@ export const EquipmentPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Trailer Details</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Make</Label>
@@ -577,7 +586,7 @@ export const EquipmentPage: React.FC = () => {
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-muted-foreground">Year</Label>
-                            <Input type="number" min={1990} max={2030} value={form.trailerYear || ''} onChange={e => patch({ trailerYear: parseInt(e.target.value) || undefined })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
+                            <Input type="number" min={1990} max={2030} value={form.trailerYear ?? ''} onChange={e => patch({ trailerYear: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="2024" className="h-11 bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                           </div>
                         </motion.div>
                       </div>
@@ -613,19 +622,19 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'specs' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-sm">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
-                  <div className="relative p-6 sm:p-8 space-y-6">
+                  <div className="relative p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Gauge className="size-7" /></div>
+                      <div className="size-10 rounded-xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Gauge className="size-5" /></div>
                       <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Trailer Specifications</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold">Trailer Specifications</h2>
                         <p className="text-sm text-muted-foreground mt-1">Capacity, dimensions, and weight specifications</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4 h-full">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3 h-full">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
                             <Gauge className="size-5" />
@@ -653,7 +662,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4 h-full">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3 h-full">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-violet-500/30">
                             <Ruler className="size-5" />
@@ -663,7 +672,7 @@ export const EquipmentPage: React.FC = () => {
                             <p className="text-xs text-muted-foreground">{form.trailerLength || 0} feet</p>
                           </div>
                         </div>
-                        <input type="range" min={0} max={80} value={form.trailerLength || 0} onChange={e => patch({ trailerLength: parseInt(e.target.value) || undefined })}
+                        <input type="range" min={0} max={80} value={form.trailerLength || 0} onChange={e => patch({ trailerLength: e.target.value === '' ? undefined : Number(e.target.value) })}
                           className="w-full h-4 bg-muted/30 rounded-full appearance-none cursor-pointer accent-violet-500" />
                         <div className="flex items-center justify-between text-base text-muted-foreground font-bold">
                           <span>0 ft</span>
@@ -678,7 +687,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                         <div className="flex items-center gap-3">
                           <div className="size-10 rounded-xl bg-linear-to-br from-rose-500 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
                             <Settings2 className="size-5" />
@@ -697,7 +706,7 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                       </motion.div>
 
-                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }} className="relative overflow-hidden rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="size-10 rounded-xl bg-linear-to-br from-orange-500 to-red-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
                             <Gauge className="size-5" />
@@ -707,7 +716,7 @@ export const EquipmentPage: React.FC = () => {
                             <p className="text-xs text-muted-foreground">Gross Vehicle Weight Rating</p>
                           </div>
                         </div>
-                        <Input type="number" min={0} max={100000} value={form.trailerGvwr || ''} onChange={e => patch({ trailerGvwr: parseInt(e.target.value) || undefined })}
+                        <Input type="number" min={0} max={100000} value={form.trailerGvwr ?? ''} onChange={e => patch({ trailerGvwr: e.target.value === '' ? undefined : Number(e.target.value) })}
                           placeholder="e.g. 14000" className="h-12 text-lg font-bold text-center bg-linear-to-br from-background to-muted/30 border-2 border-border/70 rounded-xl hover:border-primary/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
                         <p className="text-xs text-muted-foreground text-center font-medium">Weight in pounds (lbs)</p>
                       </motion.div>
@@ -726,19 +735,19 @@ export const EquipmentPage: React.FC = () => {
 
             {nav === 'features' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-xl">
+                <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-background via-background to-background/50 backdrop-blur-sm shadow-sm">
                   <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
-                  <div className="relative p-6 sm:p-8 space-y-6">
+                  <div className="relative p-4 sm:p-5 space-y-4">
                     <div className="flex items-center gap-4">
-                      <div className="size-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Star className="size-7" /></div>
+                      <div className="size-10 rounded-xl bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"><Star className="size-5" /></div>
                       <div className="flex-1">
-                        <h2 className="text-2xl sm:text-3xl font-black">Special Features</h2>
+                        <h2 className="text-xl sm:text-2xl font-bold">Special Features</h2>
                         <p className="text-sm text-muted-foreground mt-1">Capabilities and special features on your rig</p>
                       </div>
                       <Badge className="text-xs font-bold bg-linear-to-r from-emerald-600 to-teal-600 text-white border-0 shadow-lg">{form.specialFeatures.length} selected</Badge>
                     </div>
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Available Features</h3>
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         {specialFeatureOptions.map((opt, idx) => {
@@ -749,7 +758,7 @@ export const EquipmentPage: React.FC = () => {
                               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                               className={cn('relative flex items-center justify-between gap-2 p-3 rounded-xl border-2 transition-all text-left',
                                 a ? 'border-emerald-500 bg-emerald-500/10 shadow-md ring-1 ring-emerald-500/30' : 'border-border/60 hover:border-border/80 hover:shadow-md')}>
-                              <span className={cn('text-xs font-bold truncate flex-1', a && 'text-emerald-600 dark:text-emerald-400')}>{opt.label}</span>
+                              <span className={cn('text-xs font-bold whitespace-normal break-words [overflow-wrap:anywhere] flex-1', a && 'text-emerald-600 dark:text-emerald-400')}>{opt.label}</span>
                               {a ? <CheckCircle2 className="size-5 text-emerald-500 shrink-0" /> : <Circle className="size-4 text-border shrink-0" />}
                             </motion.button>
                           );
@@ -775,7 +784,7 @@ export const EquipmentPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-5 space-y-4">
+                    <div className="rounded-2xl border-2 border-border/60 bg-muted/10 p-3 sm:p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Add Custom Features</h3>
                         <Button type="button" variant="ghost" size="sm" onClick={() => setCustomInputs(p => [...p, ''])} disabled={form.specialFeatures.length >= 20}
@@ -819,13 +828,13 @@ export const EquipmentPage: React.FC = () => {
         </AnimatePresence>
 
         <Dialog open={typeDialogOpen} onOpenChange={setTypeDialogOpen}>
-          <DialogContent className="max-w-5xl h-[85vh] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/60 flex flex-col bg-background">
+          <DialogContent className="w-[calc(100vw-1rem)] max-w-5xl h-[85dvh] max-h-[calc(100dvh-1rem)] p-0 gap-0 rounded-3xl overflow-hidden shadow-2xl border border-border/60 flex flex-col bg-background">
             {/* Header - Fixed */}
-            <div className="shrink-0 bg-background border-b border-border/50 p-6">
+            <div className="shrink-0 bg-background border-b border-border/50 p-3 sm:p-5">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className={cn('size-14 rounded-xl bg-linear-to-br flex items-center justify-center text-white shadow-lg', th.grad, th.glow)}>
-                    <Box className="size-7" />
+                    <Box className="size-5" />
                   </div>
                   <DialogHeader className="space-y-1 text-left">
                     <DialogTitle className="text-xl font-black">
@@ -870,7 +879,7 @@ export const EquipmentPage: React.FC = () => {
             </div>
 
             {/* Content Grid - Scrollable */}
-            <div className="flex-1 overflow-y-auto px-8 py-8 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-5 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={dialogCategory}
@@ -895,7 +904,7 @@ export const EquipmentPage: React.FC = () => {
                         className={cn(
                           'relative flex flex-row rounded-2xl border-2 transition-all overflow-hidden group cursor-pointer h-44',
                           s
-                            ? cn('shadow-xl ring-2 border-current', ct.ring, ct.glow, 'bg-muted/50')
+                            ? cn('shadow-sm ring-2 border-current', ct.ring, ct.glow, 'bg-muted/50')
                             : 'border-border/70 hover:border-border/70 hover:shadow-lg hover:bg-muted/20 bg-muted/5'
                         )}>
                         {/* Image Area - Left Side */}

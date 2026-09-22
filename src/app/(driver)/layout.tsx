@@ -1,6 +1,7 @@
                                                                                                           "use client";
 
 import * as React from "react";
+import "./driver-portal.css";
 import {
   SidebarProvider,
   SidebarInset,
@@ -116,18 +117,20 @@ function DriverLayoutContent({
       <SidebarProvider className="h-dvh overflow-hidden">
         <DriverSidebar />
       <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
-        <header className="flex min-h-16 shrink-0 items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)] border-b border-gray-200 dark:border-white/5 bg-background/80 backdrop-blur-xl sticky top-0 z-40">
+        <header className="driver-topbar flex min-h-16 shrink-0 items-center justify-between px-2 sm:px-4 pt-[env(safe-area-inset-top)] border-b border-gray-200 dark:border-white/5 bg-background/80 backdrop-blur-xl sticky top-0 z-40">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1 size-11" />
+            <div className="min-w-0"><span className="block text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">SUPRAH AI</span><span className="block text-xs font-semibold text-foreground">Driver Portal</span></div>
           </div>
           <div className="flex items-center gap-1 sm:gap-3">
-            <MountainTimeClock compact />
+            <div className="hidden min-[400px]:block"><MountainTimeClock compact /></div>
             <ThemeModeToggle compact className="h-11 w-11" />
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
+                  aria-label="Open driver account menu"
                   className="relative h-11 w-11 rounded-xl overflow-hidden border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
                 >
                   <Avatar className="h-10 w-10">
@@ -153,7 +156,7 @@ function DriverLayoutContent({
                     <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">
                       {user?.fullName}
                     </p>
-                    <p className="text-xs leading-none text-zinc-500 dark:text-zinc-400">
+                    <p className="break-all text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
                       {user?.primaryEmailAddress?.emailAddress}
                     </p>
                   </div>
@@ -182,7 +185,7 @@ function DriverLayoutContent({
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+        <main data-driver-scroll className="driver-workspace flex-1 min-h-0 min-w-0 overflow-y-auto bg-background p-0 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
           {children}
         </main>
         <MobileBottomNav items={driverNav} />

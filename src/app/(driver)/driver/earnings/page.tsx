@@ -132,8 +132,8 @@ export default function DriverEarningsPage() {
   }, [payouts, unpaidCompletedLoads]);
 
   return (
-    <div className="mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
-      <div>
+    <div className="driver-page mx-auto max-w-6xl p-4 sm:p-6 space-y-6">
+      <div className="driver-simple-header">
         <h1 className="text-2xl font-bold tracking-tight">Earnings</h1>
         <p className="text-muted-foreground text-sm">
           Your payout history and completed loads.
@@ -147,7 +147,7 @@ export default function DriverEarningsPage() {
       ) : (
         <>
           {/* Stats row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="driver-metrics grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -234,11 +234,11 @@ export default function DriverEarningsPage() {
                             {load && (
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <MapPin className="size-3 shrink-0" />
-                                <span className="truncate">
+                                <span className="whitespace-normal break-words [overflow-wrap:anywhere]">
                                   {load.pickupLocation?.city || load.origin || "Unknown"}
                                 </span>
                                 <ArrowRight className="size-3 shrink-0" />
-                                <span className="truncate">
+                                <span className="whitespace-normal break-words [overflow-wrap:anywhere]">
                                   {load.deliveryLocation?.city || load.destination || "Unknown"}
                                 </span>
                               </div>
@@ -283,11 +283,11 @@ export default function DriverEarningsPage() {
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <MapPin className="size-3 shrink-0" />
-                            <span className="truncate">
+                            <span className="whitespace-normal break-words [overflow-wrap:anywhere]">
                               {l.pickupLocation?.city || l.origin || "Unknown"}
                             </span>
                             <ArrowRight className="size-3 shrink-0" />
-                            <span className="truncate">
+                            <span className="whitespace-normal break-words [overflow-wrap:anywhere]">
                               {l.deliveryLocation?.city || l.destination || "Unknown"}
                             </span>
                           </div>

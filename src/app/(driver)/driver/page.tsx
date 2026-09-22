@@ -245,6 +245,7 @@ function writeDriverKpiSnapshot(
 }
 
 export default function DriverDashboardPage() {
+  const [mobileSection, setMobileSection] = React.useState<'status' | 'loads' | 'preferences'>('status');
   const { getToken } = useAuth();
   const { user } = useUser();
   const { theme } = useTheme();
@@ -416,6 +417,12 @@ export default function DriverDashboardPage() {
 
   const mapContainerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<any>(null);
+  // Panels remain mounted. Resize the existing map after CSS reveals it.
+  React.useEffect(() => {
+    if (mobileSection !== 'status') return;
+    const frame = window.requestAnimationFrame(() => mapRef.current?.resize());
+    return () => window.cancelAnimationFrame(frame);
+  }, [mobileSection]);
   const markerRef = React.useRef<any>(null);
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
@@ -1520,30 +1527,27 @@ export default function DriverDashboardPage() {
     OP_STATUS_CONFIG.find((item) => item.key === opStatus)?.label ?? "Active";
 
   return (
-    <div className="p-3 sm:p-5 lg:p-6 space-y-6 container mx-auto min-h-screen">
+    <div className="driver-page driver-dashboard driver-sectioned-dashboard space-y-4" data-mobile-section={mobileSection}>
 
       {/* ── HEADER ── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 animate-fade-in-up">
+      <div className="driver-dashboard-header flex flex-col lg:flex-row lg:items-center justify-between gap-3 animate-fade-in-up">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-bold tracking-widest uppercase px-2.5 py-1">
-              Driver Portal
-            </Badge>
-            <div className="size-1 rounded-full bg-border" />
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex flex-wrap items-center gap-2">
-              <Clock className="size-3" />
-              {currentTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "America/Denver" })}
-              <span className="text-primary/60 font-black tabular-nums">
-                {mountain} {mountainZone}
-              </span>
-              <span className="text-muted-foreground/40 tabular-nums">
-                ({utc} UTC)
-              </span>
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10"><Truck className="size-5 text-emerald-600 dark:text-emerald-400" /></div>
+            <div className="min-w-0">
+              <p className="driver-eyebrow">Suprah Driver Operations</p>
+              <h1 className="driver-page-title">Driver <span className="text-primary">Dashboard</span></h1>
+            </div>
           </div>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight">Command Center</h1>
+          <p className="driver-page-description mt-2">Your availability, assigned work and live location.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <Clock className="size-3 shrink-0" />
+            <span>{currentTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Denver" })}</span>
+            <span className="font-semibold tabular-nums">{mountain} {mountainZone}</span>
+            <span className="hidden sm:inline tabular-nums">({utc} UTC)</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {(isSharing || isStarting) && (
             <Badge
               className={cn(
@@ -1600,11 +1604,15 @@ export default function DriverDashboardPage() {
 
 
       {/* ── KPI CARDS (clickable) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1">
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}
-            className="p-0 border-border/75 dark:border-white/10 shadow-sm hover:shadow-xl transition-all duration-300 group relative overflow-hidden bg-card cursor-pointer hover:-translate-y-0.5 ring-1 ring-border/10"
+            className="p-0 border-border/75 dark:border-white/10 shadow-sm hover:shadow-xl transition-all duration-300 group relative overflow-hidden bg-card cursor-pointer focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 hover:-translate-y-0.5 ring-1 ring-border/10"
+            role="link"
+            tabIndex={0}
+            aria-label={`${kpi.label}: ${kpi.value}`}
+            onKeyDown={(event) => { if (event.key === "Enter") router.push(kpi.href); }}
             onClick={() => router.push(kpi.href)}
           >
             <div
@@ -1613,21 +1621,21 @@ export default function DriverDashboardPage() {
                 kpi.glow,
               )}
             />
-            <CardContent className="relative p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-4">
+            <CardContent className="relative p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     {kpi.label}
                   </p>
-                  <h3 className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
+                  <p className="driver-metric-value break-words text-foreground tabular-nums">
                     {kpi.value}
-                  </h3>
-                  <p className="mt-1 text-sm font-medium text-muted-foreground/85">
+                  </p>
+                  <p className="mt-1 text-xs sm:text-sm font-medium text-muted-foreground/85">
                     {kpi.sub}
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="hidden sm:flex shrink-0 items-center gap-2">
                   <div
                     className={cn(
                       "flex size-12 items-center justify-center rounded-2xl bg-linear-to-br text-white shadow-lg ring-4 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2",
@@ -1645,8 +1653,25 @@ export default function DriverDashboardPage() {
         ))}
       </div>
 
+      <nav id="driver-mobile-sections" className="driver-mobile-sections" aria-label="Driver dashboard sections">
+        {([
+          { id: 'status', label: 'Status & Map', controls: 'driver-status-panel driver-map-panel' },
+          { id: 'loads', label: 'Loads', controls: 'driver-loads-panel' },
+          { id: 'preferences', label: 'Work Preferences', controls: 'driver-preferences-panel' },
+        ] as const).map((section) => (
+          <button key={section.id} type="button" aria-pressed={mobileSection === section.id}
+            aria-controls={section.controls}
+            onClick={() => {
+              setMobileSection(section.id);
+              document.getElementById('driver-mobile-sections')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+            }}>
+            {section.label}
+          </button>
+        ))}
+      </nav>
+      <div className="driver-dashboard-panels">
       {/* ── DRIVER MAP ── */}
-      <div className="animate-fade-in-up stagger-2">
+      <div id="driver-map-panel" role="region" aria-label="Driver map" className="driver-map-panel animate-fade-in-up stagger-2">
         <Card className="w-full border-border/70 shadow-sm overflow-hidden bg-card p-0 gap-0">
           <CardContent className="p-0">
             <div className="relative h-[clamp(300px,38vh,360px)] sm:h-[clamp(340px,42vh,430px)] lg:h-[clamp(360px,45vh,500px)] overflow-hidden bg-muted">
@@ -1753,8 +1778,8 @@ export default function DriverDashboardPage() {
                 </div>
               )}
 
-              <div className="absolute bottom-3 right-3 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2.5">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5">Legend</p>
+              <details className="absolute bottom-3 right-3 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2.5">
+                <summary className="cursor-pointer min-h-11 flex items-center text-xs font-bold text-muted-foreground uppercase tracking-wide">Map legend</summary>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-primary" />
@@ -1769,18 +1794,17 @@ export default function DriverDashboardPage() {
                     <span className="text-xs text-muted-foreground font-medium">Delivery Point</span>
                   </div>
                 </div>
-              </div>
+              </details>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* ── DRIVER OPERATIONS + LOGISTICS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch animate-fade-in-up stagger-3">
-        {/* Driver state and active work share one operational column. Together
-            they stretch to the same height as the Logistics workspace. */}
-        <div className="lg:col-span-5 min-w-0 lg:h-full grid grid-rows-[auto_minmax(0,1fr)] gap-5">
-        <Card className="shrink-0 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+      <div className="driver-operations-grid animate-fade-in-up stagger-3">
+        {/* Keep operational controls and location context in independent columns. */}
+        <div className="driver-work-column">
+        <Card id="driver-status-panel" aria-label="Driver status" className="driver-status-panel shrink-0 border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
           <CardHeader className="py-3.5 px-4 sm:px-5 border-b border-border/50">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1800,7 +1824,7 @@ export default function DriverDashboardPage() {
           </CardHeader>
 
           <CardContent className="p-4 space-y-4">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="driver-status-summary grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-border/50 bg-muted/20 px-2.5 py-2.5 min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Availability</p>
                 <p className="mt-1 break-words text-base font-extrabold leading-tight text-foreground [overflow-wrap:anywhere]">{displayedDispatchLabel}</p>
@@ -1825,7 +1849,7 @@ export default function DriverDashboardPage() {
                 <p className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Work Availability</p>
                 <span className="text-xs font-medium text-muted-foreground">Can I take work?</span>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {OP_STATUS_CONFIG.map((item) => (
                   <Button
                     key={item.key}
@@ -1838,7 +1862,7 @@ export default function DriverDashboardPage() {
                     )}
                     onClick={() => void handleOperationalStatusClick(item.key as "active" | "on_leave" | "maintenance")}
                   >
-                    {item.icon} <span className="truncate">{item.label}</span>
+                    {item.icon} <span className="whitespace-normal break-words [overflow-wrap:anywhere]">{item.label}</span>
                   </Button>
                 ))}
               </div>
@@ -1967,7 +1991,7 @@ export default function DriverDashboardPage() {
                           if (!locked) handleLiveStatusChoice(item.key);
                         }}
                       >
-                        {item.icon} <span className="truncate">{item.label}</span>
+                        {item.icon} <span className="whitespace-normal break-words [overflow-wrap:anywhere]">{item.label}</span>
                       </Button>
                     );
                     return locked ? (
@@ -2112,7 +2136,7 @@ export default function DriverDashboardPage() {
           </CardContent>
         </Card>
 
-          <Card className="min-h-0 flex flex-col border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
+          <Card id="driver-loads-panel" aria-label="Current loads" className="driver-loads-panel min-h-0 flex flex-col border-border/70 shadow-sm p-0 gap-0 overflow-hidden bg-card/80 backdrop-blur-sm">
             <CardHeader className="shrink-0 py-3.5 px-5 border-b border-border/50">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2">
@@ -2154,6 +2178,10 @@ export default function DriverDashboardPage() {
               </div>
             </CardHeader>
 
+            <div className="driver-mobile-load-links">
+              <Link href="/driver/loads">My Loads <ArrowRight className="size-3.5" /></Link>
+              <Link href="/driver/available-loads">Available Loads <ArrowRight className="size-3.5" /></Link>
+            </div>
             <CardContent className="p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
               {isLoading ? (
                 <div className="space-y-3">
@@ -2589,7 +2617,7 @@ export default function DriverDashboardPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-7 gap-2.5 xl:h-full">
+                <div className="driver-empty-load">
                   <div className="size-10 rounded-xl bg-muted/40 flex items-center justify-center">
                     <Package className="size-5 text-muted-foreground/40" />
                   </div>
@@ -2604,13 +2632,13 @@ export default function DriverDashboardPage() {
         </div>
 
         {/* Logistics is one clearly bounded workspace: schedule + service area + preferred routes. */}
-        <section className="lg:col-span-7 lg:h-full min-w-0 rounded-2xl border border-border/70 bg-card/45 shadow-sm overflow-hidden">
+        <section id="driver-preferences-panel" aria-labelledby="driver-preferences-title" className="driver-preferences-panel min-w-0 rounded-2xl border border-border/70 bg-card/45 shadow-sm overflow-hidden">
           <div className="px-4 sm:px-5 py-4 border-b border-border/60 bg-muted/15">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <Truck className="size-4.5 text-emerald-500" />
-                  <h2 className="text-lg font-extrabold tracking-tight">Logistics Preferences</h2>
+                  <h2 id="driver-preferences-title" className="text-lg font-extrabold tracking-tight">Work Preferences</h2>
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground/90">
                   Your recurring work days, normal service area, and preferred routes used to improve load recommendations.
@@ -2743,7 +2771,7 @@ export default function DriverDashboardPage() {
               <Button
                 onClick={saveLogistics}
                 disabled={savingLogistics}
-                className="w-full gap-2 shadow-sm"
+                className="h-11 w-full gap-2 shadow-sm"
               >
                 {savingLogistics ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Save Logistics
@@ -2752,6 +2780,8 @@ export default function DriverDashboardPage() {
           </div>
         </section>
       </div>
+      </div>
+
       <DriverAcceptLoadDialog
         open={!!acceptDialogLoad}
         onOpenChange={(open) => {

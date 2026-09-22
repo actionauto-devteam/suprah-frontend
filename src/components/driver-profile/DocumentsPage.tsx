@@ -768,10 +768,7 @@ export const DocumentsPage: React.FC = () => {
 
     if (!driverState.trim() && accountPrefill.state) {
       setDriverState(accountPrefill.state);
-      setDriverZip(
-        (current) =>
-          current.trim() || getDefaultZipForState(accountPrefill.state),
-      );
+      // A state cannot establish a postal ZIP; retain the driver-entered value.
     }
 
     accountAutofillAppliedRef.current = true;
@@ -804,29 +801,12 @@ export const DocumentsPage: React.FC = () => {
 
       setDriverState(nextState);
 
-      // State alone cannot identify the exact postal ZIP. Use a representative
-      // default ZIP as an editable starting point whenever the driver
-      // explicitly changes the selected State.
-      const defaultZip = getDefaultZipForState(nextState);
-      if (defaultZip) {
-        setDriverZip(defaultZip);
-      }
+      toast.info('State changed. Please review your ZIP code before saving.');
     },
     [driverState],
   );
 
-  const handleSavePersonalInfo = async () => {
-    if (!personalInfoComplete) {
-      toast.error(
-        `Complete the required fields: ${missingPersonalRequirements
-          .map((item) => item.label)
-          .join(', ')}`,
-      );
-      return;
-    }
-
-    setSavingPersonal(true);
-    try {
+  const saveInformation = async () => {
       const token = await getToken();
       const response = await apiClient.patch(
         '/api/driver-profile/personal-info',
@@ -857,11 +837,28 @@ export const DocumentsPage: React.FC = () => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
+    return response;
+  };
+
+  const handleSavePersonalInfo = async () => {
+    if (savingPersonal || savingIdentity) return;
+    if (!personalInfoComplete) {
+      toast.error(
+        `Complete the required fields: ${missingPersonalRequirements
+          .map((item) => item.label)
+          .join(', ')}`,
+      );
+      return;
+    }
+
+    setSavingPersonal(true);
+    try {
+      const response = await saveInformation();
       const data = response.data?.data as DriverProfile | undefined;
       if (data) hydrateProfile(data);
       toast.success('Driver verification information saved');
       setActiveStep('agreement');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
@@ -873,6 +870,7 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleSubmitForReview = async () => {
+    if (savingPersonal || savingIdentity) return;
     if (uploadedCount < requiredDocs.length) {
       toast.error('Upload all required documents before submitting');
       return;
@@ -893,6 +891,9 @@ export const DocumentsPage: React.FC = () => {
     setSavingIdentity(true);
     try {
       const token = await getToken();
+      // Persist the exact Information shown before submitting for review.
+      // A failed save stops here and leaves the local draft intact.
+      await saveInformation();
       const response = await apiClient.patch(
         '/api/driver-profile/identity-verification',
         {
@@ -910,7 +911,7 @@ export const DocumentsPage: React.FC = () => {
           : 'Driver Verification submitted for admin review',
       );
       setActiveStep('review');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message || 'Failed to submit Driver Verification',
@@ -1178,7 +1179,7 @@ export const DocumentsPage: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
+    <fieldset disabled={savingPersonal || savingIdentity} className="driver-page driver-documents min-w-0 mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
       <div className="space-y-5">
         <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
           <div className="flex items-start justify-between gap-4">
@@ -1222,8 +1223,9 @@ export const DocumentsPage: React.FC = () => {
                 <React.Fragment key={step.id}>
                   <button
                     type="button"
+                    aria-label={step.label}
                     onClick={() => setActiveStep(step.id)}
-                    className="flex flex-col items-center gap-1.5"
+                    className="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1"
                   >
                     <span
                       className={cn(
@@ -1241,7 +1243,7 @@ export const DocumentsPage: React.FC = () => {
                     </span>
                     <span
                       className={cn(
-                        'hidden text-[11px] font-medium sm:block',
+                        'block text-[10px] sm:text-[11px] font-medium',
                         active ? 'text-foreground' : 'text-muted-foreground',
                       )}
                     >
@@ -1328,7 +1330,9 @@ export const DocumentsPage: React.FC = () => {
                 </div>
 
                 {optionalDocs.length > 0 && (
-                  <div className="space-y-3">
+                  <details className="driver-disclosure" open={optionalDocs.some(item => documents.some(doc => doc.type === item.type && doc.reviewStatus === 'rejected')) || undefined}>
+                    <summary>Optional documents <span className="text-xs font-normal text-muted-foreground">({optionalDocs.length} types · expand to upload or manage)</span></summary>
+                    <div className="space-y-3 p-3">
                     <div className="flex items-center gap-3">
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Optional
@@ -1353,7 +1357,8 @@ export const DocumentsPage: React.FC = () => {
                         disabled={documents.length >= 20}
                       />
                     ))}
-                  </div>
+                    </div>
+                  </details>
                 )}
 
                 <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1374,7 +1379,7 @@ export const DocumentsPage: React.FC = () => {
             )}
 
             {activeStep === 'personal' && (
-              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+              <div className="rounded-3xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
                 <div className="mb-6 flex items-center gap-4">
                   <UserCheck className="size-8 text-blue-500" />
                   <div>
@@ -1500,12 +1505,7 @@ export const DocumentsPage: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   setDriverState(accountPrefill.state);
-                                  const defaultZip = getDefaultZipForState(
-                                    accountPrefill.state,
-                                  );
-                                  if (defaultZip) {
-                                    setDriverZip(defaultZip);
-                                  }
+                                  toast.info('State updated. Please review your ZIP code before saving.');
                                 }}
                                 className="font-bold underline underline-offset-2"
                               >
@@ -1730,7 +1730,7 @@ export const DocumentsPage: React.FC = () => {
             )}
 
             {activeStep === 'agreement' && (
-              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+              <div className="rounded-3xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
                 <div className="mb-6 flex items-center gap-4">
                   <Scale className="size-8 text-amber-500" />
                   <div>
@@ -1823,7 +1823,7 @@ export const DocumentsPage: React.FC = () => {
                   </div>
                 </label>
 
-                <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-5">
+                <div className="mt-5 flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-border/60 pt-4">
                   <Button variant="ghost" onClick={() => setActiveStep('personal')}>
                     <ArrowLeft className="mr-1.5 size-4" /> Back
                   </Button>
@@ -1848,7 +1848,7 @@ export const DocumentsPage: React.FC = () => {
             )}
 
             {activeStep === 'review' && (
-              <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
+              <div className="rounded-3xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
                 <div className="mb-6 flex items-center gap-4">
                   {verificationStatus === 'verified' ? (
                     <BadgeCheck className="size-8 text-emerald-500" />
@@ -2060,7 +2060,7 @@ export const DocumentsPage: React.FC = () => {
               {uploadFile ? (
                 <div className="flex items-center justify-center gap-2">
                   <FileText className="size-5" />
-                  <span className="max-w-[240px] truncate text-sm font-bold">
+                  <span className="max-w-[240px] whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-bold">
                     {uploadFile.name}
                   </span>
                   <Button
@@ -2155,7 +2155,7 @@ export const DocumentsPage: React.FC = () => {
           if (!open) closeDocumentViewer();
         }}
       >
-        <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-3xl">
+        <DialogContent className="flex w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] flex-col sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>View Document</DialogTitle>
             <DialogDescription>
@@ -2163,7 +2163,7 @@ export const DocumentsPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-[280px] flex-1 overflow-auto rounded-xl border border-border/70 p-3">
+          <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border/70 p-3">
             {viewingLoading ? (
               <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-5 animate-spin" />
@@ -2249,6 +2249,6 @@ export const DocumentsPage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </fieldset>
   );
 };
