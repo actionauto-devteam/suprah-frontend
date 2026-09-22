@@ -9256,6 +9256,7 @@ export default function SupraSpacePage() {
   // sizing below — that native-app-feel lock should NOT apply to a normal
   // browser tab.
   const [isIOSDevice, setIsIOSDevice] = React.useState(false);
+  const [keyboardViewportOpen, setKeyboardViewportOpen] = React.useState(false);
   const conversationPageSize = React.useMemo(() => (isMobileViewport ? 50 : SS4_CONVERSATION_PAGE_SIZE), [isMobileViewport]);
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
@@ -9312,7 +9313,10 @@ export default function SupraSpacePage() {
     if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
   }, [isMobileViewport, isStandaloneApp]);
   React.useEffect(() => {
-    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
+    if ((!isIOSDevice && !isMobileViewport) || typeof window === 'undefined' || !window.visualViewport) {
+      setKeyboardViewportOpen(false);
+      return;
+    }
     const viewport = window.visualViewport;
     let raf = 0;
     let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
@@ -9343,6 +9347,7 @@ export default function SupraSpacePage() {
         // page lock, so compare against the last unfocused visual viewport.
         const visualKeyboardGap = Math.max(0, baselineVisualHeight - visualHeight);
         const keyboardOpen = focusedTextEntry && (viewport.scale || 1) === 1 && visualKeyboardGap > 100;
+        setKeyboardViewportOpen(previous => previous === keyboardOpen ? previous : keyboardOpen);
         // visualViewport is the usable display area in both states. This avoids
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
@@ -9409,8 +9414,9 @@ export default function SupraSpacePage() {
       document.documentElement.style.removeProperty('--ss4-vvh');
       document.documentElement.style.removeProperty('--ss4-vv-top');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
+      setKeyboardViewportOpen(false);
     };
-  }, [isIOSDevice]);
+  }, [isIOSDevice, isMobileViewport]);
   React.useEffect(() => {
     if (!activeId || (!isMobileViewport && !isStandaloneApp)) return;
     let touchY: number | null = null;
@@ -13664,7 +13670,8 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  const standaloneShellStyle: React.CSSProperties = isIOSDevice
+  const visualViewportShellActive = isIOSDevice || (isMobileViewport && keyboardViewportOpen);
+  const standaloneShellStyle: React.CSSProperties = visualViewportShellActive
     ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
