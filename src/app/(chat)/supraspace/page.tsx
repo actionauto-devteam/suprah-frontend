@@ -1007,6 +1007,11 @@ const SS4_VIDEO_EXTENSIONS = new Set([
 const SS4_IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tif', '.tiff', '.avif',
 ]);
+const SS4_PASTED_ATTACHMENT_EXTENSIONS = new Set([
+  ...SS4_IMAGE_EXTENSIONS,
+  ...SS4_VIDEO_EXTENSIONS,
+  '.pdf',
+]);
 const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -1031,6 +1036,7 @@ const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
   '.mpeg': 'video/mpeg',
   '.mpg': 'video/mpeg',
   '.ogv': 'video/ogg',
+  '.pdf': 'application/pdf',
 };
 const SS4_CLIPBOARD_TYPE_MIME: Record<string, string> = {
   'public.mpeg-4': 'video/mp4',
@@ -1071,6 +1077,7 @@ const SS4_MIME_EXTENSION_PREFERENCE: Record<string, string> = {
   'video/3gpp': '.3gp',
   'video/mpeg': '.mpeg',
   'video/ogg': '.ogv',
+  'application/pdf': '.pdf',
 };
 const SS4_MEDIA_INPUT_ACCEPT = 'image/*,video/*';
 const SS4_VIDEO_INPUT_ACCEPT = 'video/*';
@@ -4669,7 +4676,7 @@ function isSS4MediaUrl(url: string): boolean {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'file:') return false;
     const extension = getMediaExtension(parsed.pathname);
-    return Boolean(extension && SS4_MEDIA_EXTENSION_MIME[extension] && (SS4_IMAGE_EXTENSIONS.has(extension) || SS4_VIDEO_EXTENSIONS.has(extension)));
+    return Boolean(extension && SS4_PASTED_ATTACHMENT_EXTENSIONS.has(extension));
   } catch {
     return false;
   }
@@ -11195,9 +11202,9 @@ export default function SupraSpacePage() {
     const pastedMediaReference = getSS4PastedMediaReference(content, '');
     if (hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
       if (pastedMediaReference?.local) {
-        showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+        showUploadNotice('error', 'iPhone only shared a local file path. Use the share sheet so SupraSpace can access the actual file.');
       } else if (pastedMediaReference) {
-        showUploadNotice('error', 'Paste the copied video again so SupraSpace can attach it as media.');
+        showUploadNotice('error', 'Paste the copied attachment again so SupraSpace can attach it as a file.');
       }
       return;
     }
@@ -11485,16 +11492,16 @@ export default function SupraSpacePage() {
         }
       } catch {
       }
-      showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+      showUploadNotice('error', 'iPhone only shared a local file path. Use the share sheet so SupraSpace can access the actual file.');
       return;
     }
 
     try {
-      showUploadNotice('info', 'Preparing copied media...');
+      showUploadNotice('info', 'Preparing copied attachment...');
       const file = await ss4PastedMediaUrlToFile(reference.url);
       await handleUploadFiles([file]);
     } catch {
-      showUploadNotice('error', 'Could not read the copied video. Use Photos & Videos instead.');
+      showUploadNotice('error', 'Could not read the copied attachment. Use the file picker instead.');
     }
   }, [handleUploadFiles, showUploadNotice]);
 
