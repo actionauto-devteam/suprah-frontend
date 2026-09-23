@@ -31,6 +31,7 @@ import {
   CalendarDays,
   Megaphone,
   Crown,
+  Video, // ➕ SUPRAH MEET
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -74,6 +75,8 @@ import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
 // Suprah YapLine — live PTT session count. Singleton useSyncExternalStore
 // store (no provider needed), same pattern as the Feeds badge below.
 import { useYapLineActiveCount } from "@/lib/yapline-store";
+// ➕ MEET BADGE — count of the user's meetings scheduled for today (MDT).
+import { useMeetTodayCount } from "@/hooks/useMeetTodayCount";
 import { useNotifications } from "@/context/NotificationContext";
 import { isLocatorNotification } from "@/components/notifications/notification-utils";
 import {
@@ -146,6 +149,13 @@ const data = {
       title: "Suprah Space",
       url: "/crm/supra-space",
       icon: MessageSquare,
+    },
+    // ➕ MEET BADGE — isNew removed: the live today-count badge below
+    // replaces the static "New" tag on this item.
+    {
+      title: "Suprah Meet",
+      url: "/crm/suprah-meet",
+      icon: Video,
     },
     {
       title: "Suprah YapLine",
@@ -316,6 +326,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // YapLine badge — count of live PTT sessions in the user's conversations.
   // Singleton useSyncExternalStore store, same pattern as the Feeds badge.
   const yapLive = useYapLineActiveCount();
+  // ➕ MEET BADGE — the user's meetings scheduled for today (MDT); polls the
+  // visibility-scoped meetings list every 60s.
+  const meetToday = useMeetTodayCount();
   // Locator badge — geofence/shift alerts admins asked to keep visible from the
   // sidebar, not just buried in the general bell. Red (not the usual emerald/blue)
   // since these are the "something needs attention" alerts, distinct from the
@@ -544,6 +557,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           </Badge>
                         )}
 
+                        {/* ➕ MEET BADGE — Suprah Meet: how many of the user's
+                            meetings are still scheduled for today (MDT).
+                            Replaces the static "New" tag. Polls the
+                            visibility-scoped meetings list every 60s via
+                            useMeetTodayCount; hidden at 0 and when the
+                            sidebar is collapsed to icons. */}
+                        {item.title === "Suprah Meet" && meetToday > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[9px] h-4 min-w-4 px-1 leading-none bg-emerald-600 text-white border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            {meetToday > 99 ? "99+" : meetToday}
+                          </Badge>
+                        )}
+
                         {/* Suprah YapLine: always-on "Live" tag — the app's
                             branding, matching Suprah Space's ● Live treatment.
                             Steady emerald while channels are quiet; switches to
@@ -563,9 +591,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           </Badge>
                         )}
 
-                        {/* Suprah One Desk: fresh module — "New" tag until the team
-                            has lived with it for a release or two. */}
-
+                        {/* Generic "New" tag for newly introduced Apps modules.
+                            YapLine is excluded because it already carries its
+                            custom Live badge above. (Suprah Meet no longer sets
+                            isNew — its live today-count badge replaces it.) */}
+                        {item.isNew && item.title !== "Suprah YapLine" && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[8px] h-4 px-1 leading-none uppercase tracking-tighter bg-primary text-primary-foreground border-none group-data-[collapsible=icon]:hidden"
+                          >
+                            New
+                          </Badge>
+                        )}
 
                         {/* Feeds: unseen posts since last visit + unread
                             mentions/comments/@all announcements. Comes from
