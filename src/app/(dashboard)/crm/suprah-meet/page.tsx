@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
+  CircleDot, Clock, Copy, Globe, Plus, Repeat, Search, ShieldCheck, Sparkles, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,10 @@ const mdt = (iso: string) =>
 /** Local "YYYY-MM-DD" without the UTC shift of toISOString(). */
 const fmtDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** "Today + offsetDays" as YYYY-MM-DD in America/Denver — the calendar runs on Mountain time. */
+const denverDayStr = (offsetDays: number) =>
+  new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Denver" });
 
 export default function SuprahMeetLobbyPage() {
   const router = useRouter();
@@ -182,7 +186,7 @@ export default function SuprahMeetLobbyPage() {
                 text="Every session is gated by your CRM identity and scoped to your org." />
               <Capability icon={<CircleDot className="size-5" />} title="Cloud recording"
                 text="Server-side capture straight to AWS — nothing depends on one laptop." />
-              <Capability icon={<Bot className="size-5" />} title="AI summaries"
+              <Capability icon={<Sparkles className="size-5" />} title="AI summaries"
                 text="Key points, decisions, and action items generated after every recording." />
             </div>
           </section>
@@ -381,8 +385,10 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const todayStr = React.useMemo(() => fmtDay(new Date()), []);
-  const tomorrowStr = React.useMemo(() => fmtDay(new Date(Date.now() + 86_400_000)), []);
+  // "Today"/"Tomorrow" chips and the date-picker minimum follow Mountain time,
+  // not the viewer's local day (PH is a day ahead of Utah in the evening).
+  const todayStr = React.useMemo(() => denverDayStr(0), []);
+  const tomorrowStr = React.useMemo(() => denverDayStr(1), []);
 
   // Repeating rules need an end date — default to two weeks out.
   React.useEffect(() => {
@@ -572,6 +578,8 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
               </div>
             </div>
 
+            <MountainNow />
+
             {/* Repeat */}
             <div className="mt-3">
               <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -708,5 +716,25 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Live "right now in Mountain time" readout — removes timezone guesswork when scheduling from elsewhere. */
+function MountainNow() {
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p className="mt-3 text-[11px] text-emerald-600 dark:text-emerald-400">
+      Right now in Mountain time:{" "}
+      <span className="font-medium">
+        {now.toLocaleString("en-US", {
+          timeZone: "America/Denver", weekday: "short", month: "short",
+          day: "numeric", hour: "numeric", minute: "2-digit",
+        })}
+      </span>
+    </p>
   );
 }

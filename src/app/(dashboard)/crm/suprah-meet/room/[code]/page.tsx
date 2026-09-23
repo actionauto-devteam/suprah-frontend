@@ -277,7 +277,7 @@ export default function SuprahMeetRoomPage() {
                         ? "ml-auto rounded-br-sm border-emerald-400/30 bg-emerald-400/10"
                         : "rounded-bl-sm border-emerald-400/15 bg-[#142a21]")}>
                       <p className="mb-0.5 text-[10px] text-emerald-200/60">
-                        {m.isSelf ? "You" : m.name} · {new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                        {m.isSelf ? "You" : m.name} · {new Date(m.at).toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" })} MT
                       </p>
                       {m.text}
                     </div>
