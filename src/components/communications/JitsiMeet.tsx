@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -15,16 +14,7 @@ interface JitsiMeetProps {
   onError?: (error: any) => void;
 }
 
-export function JitsiMeet({
-  roomName,
-  displayName,
-  email,
-  avatarUrl,
-  jwt,
-  domain,
-  onClose,
-  onError,
-}: JitsiMeetProps) {
+export function JitsiMeet({ roomName, displayName, email, avatarUrl, jwt, domain, onClose }: JitsiMeetProps) {
   const resolvedDomain = domain || process.env.NEXT_PUBLIC_JITSI_DOMAIN || '8x8.vc';
   const hasJoined = React.useRef(false);
 
@@ -41,26 +31,7 @@ export function JitsiMeet({
           disableDeepLinking: true,
           disableInviteFunctions: true,
           enableEmailInStats: false,
-          toolbarButtons: [
-            'microphone',
-            'camera',
-            'closedcaptions',
-            'desktop',
-            'fullscreen',
-            'fodeviceselection',
-            'hangup',
-            'profile',
-            'chat',
-            'recording',
-            'settings',
-            'raisehand',
-            'videoquality',
-            'filmstrip',
-            'tileview',
-            'select-background',
-            'mute-everyone',
-            'security',
-          ],
+          toolbarButtons: ['microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup', 'profile', 'chat', 'recording', 'settings', 'raisehand', 'videoquality', 'filmstrip', 'tileview', 'select-background', 'mute-everyone', 'security'],
         }}
         interfaceConfigOverwrite={{
           DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
@@ -72,10 +43,7 @@ export function JitsiMeet({
         userInfo={{ displayName, email: email || '' }}
         onApiReady={(externalApi) => {
           if (avatarUrl) {
-            try {
-              externalApi.executeCommand('avatarUrl', avatarUrl);
-            } catch {
-            }
+            try { externalApi.executeCommand('avatarUrl', avatarUrl); } catch { }
           }
           externalApi.addEventListeners({
             videoConferenceJoined: () => { hasJoined.current = true; },
@@ -84,13 +52,6 @@ export function JitsiMeet({
         }}
         onReadyToClose={onClose}
         getIFrameRef={(iframeRef) => {
-          // 100vh/100vw don't account for iOS's dynamic browser chrome and
-          // safe areas (notch/Dynamic Island) — Jitsi's own internal layout
-          // (its top call-info bar, bottom toolbar) then computes against an
-          // incorrect viewport, pushing its own controls up under the notch
-          // (unreachable) and leaving dead space elsewhere. 100dvh/100dvw
-          // resolve to the actual visible viewport instead — same fix this
-          // codebase already uses elsewhere (see ss4-mobile-emoji-panel).
           iframeRef.style.height = '100dvh';
           iframeRef.style.width = '100dvw';
         }}

@@ -6,7 +6,7 @@ import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounte
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
 import { MessageTimeline } from '@/components/supraspace/messages/MessageTimeline';
-import { EventModal, MeetingJoinInfoModal, MeetingModal, PollModal, ScheduleMeetingModal } from '@/components/supraspace/ConversationCreationModals';
+import { EventModal, PollModal } from '@/components/supraspace/ConversationCreationModals';
 import { ThreadReportModal, type ThreadReportAction } from '@/components/supraspace/ThreadReportModal';
 import { ManageMembersModal } from '@/components/supraspace/ManageMembersModal';
 import { ConversationSettingsModal } from '@/components/supraspace/ConversationSettingsModal';
@@ -47,17 +47,11 @@ import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } f
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
-import nextDynamic from 'next/dynamic';
-import { useCall, CallSession } from '@/hooks/useCall';
-import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
+import { isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
-import { CallBanner } from './CallBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePersistentPromptDismissal } from '@/hooks/usePersistentPromptDismissal';
 
-const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet), { ssr: false });
-const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
-const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
 import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT, todayStrMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
@@ -1327,10 +1321,6 @@ if (typeof document !== 'undefined') {
     .ss4-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar); border-radius:4px; }
     .ss4-date-line { height:1px; background:var(--border-1); }
     .ss4-date-chip { background:var(--surface-2); border:1px solid var(--border-1); border-radius:20px; color:var(--text-tertiary); font-size:11px; padding:3px 12px; white-space:nowrap; }
-    .ss4-vcall-modal { background:#0d1117; border:1px solid rgba(255,255,255,0.08); border-radius:20px; box-shadow:var(--shadow-lg); }
-    .ss4-vcall-screen { background:radial-gradient(ellipse at 50% 30%,#141e3a 0%,#0a0d14 100%); position:relative; overflow:hidden; }
-    @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.4);} 50%{box-shadow:0 0 0 12px rgba(22,163,74,0);} }
-    .ss4-calling-ring { animation:ss4-call-ring 2s ease-in-out infinite; }
 .ss4-tab-bar {
   background: rgba(127, 127, 127, 0.08);
   border-radius: 8px;
@@ -4263,19 +4253,6 @@ const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = 
   { key: 'read', label: 'Read' },
   { key: 'mentions', label: 'Mentions' },
 ];
-interface MeetingJoinRequestedPayload {
-  meetingId?: string;
-  requester?: { userId?: string; name?: string; email?: string };
-}
-interface MeetingAdmissionUpdatedPayload {
-  meetingId?: string;
-  status?: 'pending' | 'approved' | 'denied';
-}
-interface PendingMeetingDraft {
-  title: string;
-  scheduledAt: string;
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -4521,92 +4498,6 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
             </button>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MeetingCard({
-  meeting,
-  event,
-  onJoin,
-}: {
-  meeting: NonNullable<NonNullable<SSMessage['metadata']>['meeting']>;
-  event?: SSMessage['event'] | null;
-  onJoin: (meetingId: string) => void;
-}) {
-  const start = meeting.scheduledAt || event?.startTime ? new Date(meeting.scheduledAt || event!.startTime) : null;
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(meeting.meetingLink);
-      toast.success('Meeting link copied');
-    } catch {
-      toast.error('Could not copy link');
-    }
-  };
-
-  return (
-    <div className="ss4-card overflow-hidden" style={{ minWidth: 240, maxWidth: 320 }}>
-      <div className="px-3.5 py-2.5" style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <Video className="h-4 w-4 shrink-0" style={{ color: 'var(--accent)' }} />
-          <p className="font-bold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{meeting.title || 'Video meeting'}</p>
-        </div>
-      </div>
-      <div className="px-3.5 py-3 flex flex-col gap-2">
-        {start && (
-          <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-2)' }}>
-          <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-          <span className="truncate ss4-mono" style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>{meeting.meetingLink}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => onJoin(meeting.meetingId)} className="flex-1 h-8 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-1.5" style={{ fontSize: 12 }}>
-            <Video className="h-3.5 w-3.5" /> Join
-          </button>
-          <button onClick={copyLink} className="h-8 w-8 ss4-icon-btn flex items-center justify-center" title="Copy meeting link">
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <p style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>
-          @{meeting.allowedDomain || 'actionautoutah.com'} joins directly. Other domains need host approval.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingDraft; onRemove: () => void }) {
-  const start = meeting.scheduledAt ? new Date(meeting.scheduledAt) : null;
-  return (
-    <div className="relative overflow-hidden rounded-xl" style={{ width: 288, maxWidth: '100%', border: '1px solid rgba(46,127,255,0.55)', background: '#1f7ae8' }}>
-      <button
-        onClick={onRemove}
-        className="absolute right-2 top-2 z-10 h-5 w-5 rounded-full flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.35)', color: '#fff' }}
-        title="Remove meeting"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-      <div className="px-3.5 py-3 min-h-28 flex flex-col justify-between">
-        <div>
-          <p className="font-semibold leading-none" style={{ fontSize: 15, color: '#fff' }}>{meeting.title || 'Video meeting'}</p>
-          <p className="mt-1" style={{ fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>SupraSpace Meet</p>
-          {start && (
-            <p className="mt-2 font-medium" style={{ fontSize: 13, color: '#ffffff' }}>
-              {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}
-            </p>
-          )}
-        </div>
-        <Video className="self-end h-12 w-12" style={{ color: 'rgba(255,255,255,0.72)' }} />
-      </div>
-      <div className="px-3.5 py-2.5 flex items-center gap-2" style={{ background: 'rgba(0,0,0,0.74)', color: '#fff' }}>
-        <Video className="h-3.5 w-3.5 shrink-0" style={{ color: '#ffd84d' }} />
-        <span className="font-semibold" style={{ fontSize: 12 }}>Join video meeting</span>
       </div>
     </div>
   );
@@ -5040,7 +4931,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, mediaGallery, onRefreshMedia, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5049,7 +4940,6 @@ const Bubble = React.memo(function Bubble({
   onReact: (id: string, emoji: string) => void;
   onVotePoll: (id: string, optionId: string) => void;
   onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
-  onJoinMeeting: (meetingId: string) => void;
   nameFor: (id: string) => string;
   mediaGallery?: SS4MediaViewerItem[];
   onRefreshMedia?: () => void;
@@ -6837,11 +6727,8 @@ const Bubble = React.memo(function Bubble({
           <PollCard poll={message.poll} uid={uid} onVote={(optId) => onVotePoll(message._id, optId)} />
         )}
 
-        {message.metadata?.meeting?.meetingId && (
-          <MeetingCard meeting={message.metadata.meeting} event={message.event} onJoin={onJoinMeeting} />
-        )}
 
-        {message.type === 'event' && message.event && !message.metadata?.meeting?.meetingId && (
+        {message.type === 'event' && message.event && (
           <EventCard event={message.event} uid={uid} onRsvp={(r) => onRsvp(message._id, r)} />
         )}
 
@@ -7128,65 +7015,6 @@ const Bubble = React.memo(function Bubble({
     </div>
   );
 });
-
-function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
-  conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
-}) {
-  const [showJitsi, setShowJitsi] = React.useState(false);
-  const name = getConvName(conv, uid);
-  const currentUser = React.useMemo(() => allUsers.find(u => u._id === uid) || { fullName: 'User' }, [uid, allUsers]);
-  const roomName = React.useMemo(() => `supraspace-${conv._id}`, [conv._id]);
-
-  React.useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        await apiClient.post(`/api/supraspace/conversations/${conv._id}/video-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      } catch (err) { console.error('[VideoCall] token:', err); }
-    };
-    if (token && conv._id) fetchToken();
-  }, [token, conv._id]);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setShowJitsi(true), 1200);
-    return () => clearTimeout(t);
-  }, []);
-
-  if (showJitsi) {
-    return <JitsiMeet roomName={roomName} displayName={currentUser.fullName} onClose={onClose} onError={(e) => { console.error('[Jitsi]', e); onClose(); }} />;
-  }
-
-  const avatar = getConvAvatar(conv, uid);
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4 ss4-vcall-modal w-full max-w-sm overflow-hidden flex flex-col" data-theme="dark">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2.5">
-            <Video className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />
-            <span className="font-semibold" style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>Video Call</span>
-          </div>
-          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}><X className="h-3.5 w-3.5" /></button>
-        </div>
-        <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
-          <div className="flex flex-col items-center gap-4 relative z-10">
-            <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring', getAvaColor(name))}>
-              {conv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(avatar)} name={name} size={24} />
-                : avatar ? <img src={resolveImageUrl(avatar)} alt="" className="w-full h-full object-cover" />
-                  : <span className="text-white font-bold" style={{ fontSize: 24 }}>{ini(name)}</span>}
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <p className="ss4-display font-bold" style={{ fontSize: 17, color: '#fff' }}>{name}</p>
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Connecting</span>
-                {[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block" style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />)}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="pb-4 pt-2 text-center"><p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>Powered by Jitsi Meet</p></div>
-      </div>
-    </div>
-  );
-}
 
 function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onNext, galleryPosition }: {
   src: string; type: 'image' | 'video'; name: string; mimeType?: string; poster?: string; onClose: () => void;
@@ -9199,7 +9027,6 @@ export default function SupraSpacePage() {
   const handledShareTargetIdRef = React.useRef<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const dragCounterRef = React.useRef(0);
-  const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
   const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
   const [scheduleOpen, setScheduleOpen] = React.useState(false);
   const [customScheduleAt, setCustomScheduleAt] = React.useState('');
@@ -9604,11 +9431,6 @@ export default function SupraSpacePage() {
   const [appSettingsOpen, setAppSettingsOpen] = React.useState(false);
   const [pollOpen, setPollOpen] = React.useState(false);
   const [eventOpen, setEventOpen] = React.useState(false);
-  const [meetingOpen, setMeetingOpen] = React.useState(false);
-  const [meetingMenuOpen, setMeetingMenuOpen] = React.useState(false);
-  const [meetingLinkInfo, setMeetingLinkInfo] = React.useState<string | null>(null);
-  const [meetingActionLoading, setMeetingActionLoading] = React.useState<'later' | 'instant' | null>(null);
-  const [scheduleMeetingOpen, setScheduleMeetingOpen] = React.useState(false);
   const [gifOpen, setGifOpen] = React.useState(false);
   const [mobileAttachSheetOpen, setMobileAttachSheetOpen] = React.useState(false);
   const [mobileFilePickerOpen, setMobileFilePickerOpen] = React.useState(false);
@@ -9616,7 +9438,6 @@ export default function SupraSpacePage() {
   const [summarizeOpen, setSummarizeOpen] = React.useState(false);
   const [createMenuOpen, setCreateMenuOpen] = React.useState(false);
   const createMenuRef = React.useRef<HTMLDivElement>(null);
-  const meetingMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
   const mobileAttachSheetRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -9743,7 +9564,7 @@ export default function SupraSpacePage() {
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
     };
-  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording]);
+  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingGif, recording]);
 
   React.useEffect(() => {
     inputTextRef.current = input;
@@ -10072,48 +9893,6 @@ export default function SupraSpacePage() {
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
-  const call = useCall(socket, token, uid);
-  const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
-  const activeMeetingRef = React.useRef<CallSession | null>(null);
-  React.useEffect(() => { activeMeetingRef.current = activeMeeting; }, [activeMeeting]);
-  const [callRecording, setCallRecording] = React.useState<{ isRecording: boolean; startedAt: string | null } | null>(null);
-
-  React.useEffect(() => {
-    if (!socket) return;
-    const onStarted = (data: { meetingId: string; recordingStartedAt: string }) => {
-      setCallRecording({ isRecording: true, startedAt: data.recordingStartedAt });
-    };
-    const onStopped = () => setCallRecording(null);
-    socket.on('call:recording-started', onStarted);
-    socket.on('call:recording-stopped', onStopped);
-    return () => {
-      socket.off('call:recording-started', onStarted);
-      socket.off('call:recording-stopped', onStopped);
-    };
-  }, [socket]);
-  const handleStartCall = React.useCallback(async (conv: SSConversation) => {
-    try { setActiveMeeting(await call.startCall(conv._id)); }
-    catch (e) { showUploadNotice('error', getErrorMessage(e, 'Could not start the call.')); }
-  }, [call, showUploadNotice]);
-
-  const handleJoinCall = React.useCallback(async (meetingId: string) => {
-    try { setActiveMeeting(await call.joinCall(meetingId)); }
-    catch (e: unknown) {
-      const responseStatus = (e as { response?: { status?: number } })?.response?.status;
-      if (responseStatus === 202) {
-        toast('Waiting for host approval');
-        return;
-      }
-      showUploadNotice('error', getErrorMessage(e, 'Could not join the call.'));
-    }
-  }, [call, showUploadNotice]);
-
-  const handleLeaveCall = React.useCallback(async () => {
-    const mId = activeMeeting?.call?.meetingId;
-    setActiveMeeting(null);
-    if (mId) await call.endCall(mId);
-  }, [activeMeeting, call]);
-
   const getMainTokenRef = React.useRef(getMainToken);
   getMainTokenRef.current = getMainToken;
 
@@ -10405,8 +10184,7 @@ export default function SupraSpacePage() {
       ).trim();
       const hasInitialConversationTarget = Boolean(
         initialConversationTargetId
-        || initialUrlParams.get('userId')
-        || initialUrlParams.get('meeting'),
+        || initialUrlParams.get('userId'),
       );
       const allowSavedConversationRestore = !hasInitialConversationTarget && !isRunningAsSupraSpaceStandalone();
       const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
@@ -10472,25 +10250,6 @@ export default function SupraSpacePage() {
           handledRouteConversationIdRef.current = pendingRouteConversationId;
           clearSupraSpaceConversationParam();
           if (!openedRouteConversation) clearStoredSupraSpaceConversationId(pendingRouteConversationId, myData._id);
-        }
-
-        const pendingMeetingId = urlParams.get('meeting');
-        if (pendingMeetingId) {
-          try {
-            const joinRes = await apiClient.post('/api/calls/join', { meetingId: pendingMeetingId }, { headers: { Authorization: `Bearer ${t}` } });
-            if (joinRes.status === 202 || joinRes.data?.data?.status === 'pending') {
-              toast('Waiting for host approval');
-            } else if (joinRes.data?.data?.jitsi) {
-              const session = joinRes.data.data as CallSession;
-              const convId = session.call?.conversationId;
-              if (convId && availableConvos.some(c => c._id === String(convId))) openFetchedConversation(String(convId));
-              setActiveMeeting(session);
-            }
-            router.replace('/crm/supra-space', { scroll: false });
-          } catch (meetingErr: unknown) {
-            const message = (meetingErr as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(message || 'Could not open meeting');
-          }
         }
 
         const pendingUserId = urlParams.get('userId');
@@ -10748,34 +10507,6 @@ export default function SupraSpacePage() {
     };
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
-    const onMeetingJoinRequested = (payload: MeetingJoinRequestedPayload) => {
-      const requester = payload?.requester;
-      if (!payload?.meetingId || !requester) return;
-      toast(`${requester.name || requester.email} wants to join`, {
-        action: {
-          label: 'Approve',
-          onClick: async () => {
-            try {
-              await apiClient.post(`/api/calls/meeting/${payload.meetingId}/admission`, {
-                userId: requester.userId,
-                email: requester.email,
-                decision: 'approved',
-              }, { headers: { Authorization: `Bearer ${token}` } });
-              toast.success('Guest approved');
-            } catch (e: unknown) {
-              toast.error(getErrorMessage(e, 'Could not approve guest.'));
-            }
-          },
-        },
-      });
-    };
-    const onMeetingAdmissionUpdated = (payload: MeetingAdmissionUpdatedPayload) => {
-      if (payload?.status === 'approved' && payload?.meetingId) {
-        toast.success('Meeting approved');
-        handleJoinCall(payload.meetingId);
-      }
-    };
-
     const onEdited = ({ conversationId, messageId, content, attachments, type }: any) => {
       const patch: Partial<SSMessage> = { content, isEdited: true };
       if (Array.isArray(attachments)) patch.attachments = attachments;
@@ -10790,13 +10521,6 @@ export default function SupraSpacePage() {
       });
       patchMsg(conversationId, messageId, { pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null });
     };
-    const onCallEnded = ({ conversationId, meetingId }: { conversationId?: string; meetingId?: string }) => {
-      const m = activeMeetingRef.current;
-      if (!m) return;
-      if (m.call?.meetingId === meetingId || m.call?.conversationId === conversationId) {
-        setActiveMeeting(null);
-      }
-    };
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
     socket.on('message:edited', onEdited);
@@ -10810,9 +10534,6 @@ export default function SupraSpacePage() {
     socket.on('message:pinned', onPinned);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
-    socket.on('meeting:join-requested', onMeetingJoinRequested);
-    socket.on('meeting:admission-updated', onMeetingAdmissionUpdated);
-    socket.on('call:ended', onCallEnded);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (userId === uid) {
         setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
@@ -10861,14 +10582,11 @@ export default function SupraSpacePage() {
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
       socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction); socket.off('message:pinned', onPinned);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
-      socket.off('meeting:join-requested', onMeetingJoinRequested);
-      socket.off('meeting:admission-updated', onMeetingAdmissionUpdated);
-      socket.off('call:ended', onCallEnded);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
       socket.off('conversations:all-read', onAllRead);
     };
-  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, token, handleJoinCall]);
+  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages]);
 
   React.useLayoutEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -11074,7 +10792,6 @@ export default function SupraSpacePage() {
       if (rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
       return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
-    call.refreshStatus(activeId);
   }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
 
   React.useEffect(() => {
@@ -11109,7 +10826,7 @@ export default function SupraSpacePage() {
     if (previousId) {
       const currentDraft = textareaRef.current ? htmlToMarkdown(textareaRef.current) : inputTextRef.current || '';
       setConversationDraft(previousId, currentDraft);
-      composerExtrasRef.current[previousId] = { files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting };
+      composerExtrasRef.current[previousId] = { files: pendingFiles, reply: replyTo, gif: pendingGif };
     }
 
     const nextDraftRaw = activeId ? composerDraftsRef.current[activeId] || '' : '';
@@ -11119,7 +10836,6 @@ export default function SupraSpacePage() {
     const extras = activeId ? composerExtrasRef.current[activeId] : undefined;
     setReplyTo(extras?.reply || null);
     setPendingFiles(extras?.files || []);
-    setPendingMeeting(extras?.meeting || null);
     setPendingGif(extras?.gif || null);
     setUploadNotice(null);
     setShowInfo(false);
@@ -11144,7 +10860,6 @@ export default function SupraSpacePage() {
         setEmojiOpen(false);
       }],
       [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
-      [meetingMenuOpen, make(meetingMenuRef, () => setMeetingMenuOpen(false))],
       [gifOpen, (e: MouseEvent) => {
         const target = e.target as Node;
         if (gifRef.current?.contains(target) || mobileAttachSheetRef.current?.contains(target)) return;
@@ -11154,7 +10869,7 @@ export default function SupraSpacePage() {
     const active = hs.filter(([on]) => on).map(([, h]) => h);
     active.forEach(h => document.addEventListener('mousedown', h));
     return () => active.forEach(h => document.removeEventListener('mousedown', h));
-  }, [autrixOpen, emojiOpen, createMenuOpen, meetingMenuOpen, gifOpen]);
+  }, [autrixOpen, emojiOpen, createMenuOpen, gifOpen]);
 
   React.useEffect(() => {
     if (!memberCard) return;
@@ -11178,9 +10893,8 @@ export default function SupraSpacePage() {
     const currentComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
     const hasText = Boolean(currentComposerText.trim());
     const hasPendingFiles = pendingFiles.length > 0;
-    const hasPendingMeeting = !!pendingMeeting;
     const hasPendingGif = !!pendingGif;
-    if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
+    if (!hasText && !hasPendingFiles && !hasPendingGif) return;
     if (sendInFlightRef.current) return;
     const conversationId = activeId;
     const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
@@ -11203,7 +10917,7 @@ export default function SupraSpacePage() {
       ),
     );
     const pastedMediaReference = getSS4PastedMediaReference(content, '');
-    if (hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
+    if (hasText && !hasPendingFiles && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
       if (pastedMediaReference?.local) {
         showUploadNotice('error', 'iPhone only shared a local file path. Use the share sheet so SupraSpace can access the actual file.');
       } else if (pastedMediaReference) {
@@ -11214,7 +10928,6 @@ export default function SupraSpacePage() {
     const replyMessageId = replyTo?._id;
     const restoredFailedSend = restoredFailedSendRef.current;
     const canRetryDelivery = !!restoredFailedSend
-      && !pendingMeeting
       && restoredFailedSend.conversationId === conversationId
       && restoredFailedSend.content === content
       && restoredFailedSend.scheduledAt === scheduledAt
@@ -11224,18 +10937,14 @@ export default function SupraSpacePage() {
       && restoredFailedSend.files.every((file, index) => file === pendingFiles[index]);
     const deliveryId = canRetryDelivery ? restoredFailedSend.id : createMessageId();
     if (!canRetryDelivery) restoredFailedSendRef.current = null;
-    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting, scheduledAt };
+    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, scheduledAt };
     const isScheduledSend = Boolean(scheduledAt);
     if (content.length > SS4_MAX_MESSAGE_CHARS) {
       showUploadNotice('error', `Message is ${content.length.toLocaleString()} characters. Limit is 10,000.`);
       return;
     }
-    if (isScheduledSend && (hasPendingFiles || hasPendingMeeting)) {
+    if (isScheduledSend && hasPendingFiles) {
       showUploadNotice('error', 'Schedule send currently supports text and GIF messages only.');
-      return;
-    }
-    if (hasPendingMeeting && (hasPendingFiles || hasPendingGif)) {
-      showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
       return;
     }
     if (hasPendingFiles && hasPendingGif) {
@@ -11250,7 +10959,6 @@ export default function SupraSpacePage() {
     setReplyTo(null);
     setPendingFiles([]);
     setPendingGif(null);
-    setPendingMeeting(null);
     setSending(true);
     sendInFlightRef.current = true;
     sendTypingStop(conversationId);
@@ -11258,23 +10966,7 @@ export default function SupraSpacePage() {
     let optimisticAttachmentId: string | null = null;
     let optimisticAttachmentUrls: string[] = [];
     try {
-      if (hasPendingMeeting) {
-        if (hasPendingFiles || hasPendingGif) {
-          showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
-          return;
-        }
-        const r = await apiClient.post('/api/calls/meeting', {
-          conversationId,
-          title: pendingMeeting.title,
-          scheduledAt: pendingMeeting.scheduledAt || undefined,
-          optionalMessage: content,
-        }, { headers: { Authorization: `Bearer ${token}` } });
-        if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        if (r.data?.data?.meetingLink) {
-          try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
-          catch { toast.success('Meeting sent'); }
-        }
-      } else if (hasPendingFiles) {
+      if (hasPendingFiles) {
         if (hasPendingGif) {
           showUploadNotice('error', 'Send GIFs separately from file attachments.');
           return;
@@ -11387,7 +11079,6 @@ export default function SupraSpacePage() {
         });
         showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
       }
-      else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
       else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
       else {
         if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
@@ -11396,7 +11087,7 @@ export default function SupraSpacePage() {
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
 
-  const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
+  const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !sending;
   const scheduleOptions = React.useMemo(() => {
     const now = new Date();
     const today8 = new Date(now); today8.setHours(8, 0, 0, 0);
@@ -12162,87 +11853,6 @@ export default function SupraSpacePage() {
     if (!activeId) return; setEventOpen(false);
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/event`, ev, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create event.')); }
   };
-  const createMeeting = (meeting: PendingMeetingDraft) => {
-    if (!activeId) return;
-    setPendingMeeting({ title: meeting.title || 'Video meeting', scheduledAt: meeting.scheduledAt || '' });
-    setMeetingOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  };
-  const createStandaloneMeeting = async (meeting: PendingMeetingDraft) => {
-    const r = await apiClient.post('/api/calls/meeting', {
-      title: meeting.title || 'Video meeting',
-      scheduledAt: meeting.scheduledAt || undefined,
-    }, { headers: { Authorization: `Bearer ${token}` } });
-    const meetingLink = r.data?.data?.meetingLink;
-    const meetingId = r.data?.data?.call?.meetingId;
-    if (!meetingLink || !meetingId) throw new Error('Meeting link was not returned');
-    return { meetingLink, meetingId };
-  };
-  const createMeetingLink = async (meeting: PendingMeetingDraft) => {
-    try {
-      const { meetingLink } = await createStandaloneMeeting(meeting);
-      try {
-        await navigator.clipboard.writeText(meetingLink);
-        toast.success('Meeting link created and copied');
-      } catch {
-        toast.success('Meeting link created');
-      }
-      return meetingLink;
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
-      throw e;
-    }
-  };
-  const handleCreateMeetingForLater = async () => {
-    setMeetingMenuOpen(false);
-    setMeetingActionLoading('later');
-    try {
-      const { meetingLink } = await createStandaloneMeeting({ title: 'Video meeting', scheduledAt: '' });
-      setMeetingLinkInfo(meetingLink);
-      try {
-        await navigator.clipboard.writeText(meetingLink);
-        toast.success('Meeting link created and copied');
-      } catch {
-        toast.success('Meeting link created');
-      }
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
-    } finally {
-      setMeetingActionLoading(null);
-    }
-  };
-  const handleStartInstantMeeting = async () => {
-    setMeetingMenuOpen(false);
-    setMeetingActionLoading('instant');
-    try {
-      const { meetingId } = await createStandaloneMeeting({ title: 'Instant meeting', scheduledAt: '' });
-      setActiveMeeting(await call.joinCall(meetingId));
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to start instant meeting.'));
-    } finally {
-      setMeetingActionLoading(null);
-    }
-  };
-  const handleScheduleSuprahMeeting = async (data: { title: string; description: string; scheduledAt: string; endTime: string; department: string }) => {
-    try {
-      const r = await apiClient.post('/api/calls/meeting/schedule', {
-        title: data.title,
-        description: data.description || undefined,
-        scheduledAt: data.scheduledAt,
-        endTime: data.endTime || undefined,
-        department: data.department,
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      const meetingLink = r.data?.data?.meetingLink;
-      const participantCount = r.data?.data?.participantCount;
-      setScheduleMeetingOpen(false);
-      if (meetingLink) setMeetingLinkInfo(meetingLink);
-      toast.success(`Meeting scheduled${participantCount ? ` for ${participantCount} participant${participantCount === 1 ? '' : 's'}` : ''}`);
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to schedule meeting.'));
-      throw e;
-    }
-  };
-
   const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
     if (!activeId) return;
     const cleanContent = normalizeMessageMarkdownText(content);
@@ -13385,7 +12995,6 @@ export default function SupraSpacePage() {
       onReact={handleReact}
       onVotePoll={handleVotePoll}
       onRsvp={handleRsvp}
-      onJoinMeeting={handleJoinCall}
       nameFor={nameFor}
       members={msgSeenByMembers[message._id] || EMPTY_MEMBERS_ARRAY}
       hideTime={hideTime}
@@ -13394,7 +13003,7 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
     />
-  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -13746,7 +13355,7 @@ export default function SupraSpacePage() {
               type="button"
               className="ss4-pill-btn h-9 shrink-0 px-3 text-xs font-semibold"
               onClick={() => {
-                const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || Boolean(pendingMeeting) || sharedTargetFiles.length > 0 || sending || uploading;
+                const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || sharedTargetFiles.length > 0 || sending || uploading;
                 if (hasUnsentComposerWork) {
                   showUploadNotice('info', 'Send or clear the current draft before updating.');
                   return;
@@ -13876,36 +13485,6 @@ export default function SupraSpacePage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
-                  {!isStandaloneApp && (
-                    <div ref={meetingMenuRef} className="relative">
-                      <button
-                        onClick={() => setMeetingMenuOpen(v => !v)}
-                        className="ss4-video-btn h-7 px-2.5 flex items-center gap-1.5"
-                        title="New meeting"
-                        disabled={!!meetingActionLoading}
-                        style={{ opacity: meetingActionLoading ? 0.7 : 1 }}
-                      >
-                        {meetingActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
-                        <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
-                      </button>
-                      {meetingMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-                          <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Create a meeting link for later
-                          </button>
-                          <button onClick={handleStartInstantMeeting} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <Plus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Start an instant meeting
-                          </button>
-                          <button onClick={() => { setMeetingMenuOpen(false); setScheduleMeetingOpen(true); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <CalendarPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Schedule in Suprah Calendar
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   )}
                 </div>
               </div>
@@ -14371,16 +13950,6 @@ export default function SupraSpacePage() {
                     <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
                       <Sparkles className="h-3.5 w-3.5" /> New Space
                     </DropdownMenuItem>
-                    <div style={{ height: 1, background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', margin: '3px 4px' }} />
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleCreateMeetingForLater}>
-                      <Link2 className="h-3.5 w-3.5" /> Create meeting link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleStartInstantMeeting}>
-                      <Video className="h-3.5 w-3.5" /> Start instant meeting
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setScheduleMeetingOpen(true)}>
-                      <CalendarPlus className="h-3.5 w-3.5" /> Schedule meeting
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -14554,25 +14123,12 @@ export default function SupraSpacePage() {
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild><button className="ss4-video-btn h-10 min-w-10 px-2.5 lg:h-8 lg:min-w-0 lg:px-3 flex items-center justify-center gap-1.5" title="Start a call"><Phone className="h-5 w-5 lg:h-3.5 lg:w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 12 }}>Call</span></button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setMeetingOpen(true)}><CalendarPlus className="h-3.5 w-3.5" /> Create Meeting</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                       <button onClick={() => setThreadReportOpen(true)} className="hidden lg:flex ss4-icon-btn h-8 w-8" title="Download thread report">
                         <FileText className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-5 w-5 lg:h-4 lg:w-4" /></button>
                     </div>
                   </div>
-
-                  { }
-                  {call.liveCalls[activeId] && !activeMeeting && (
-                    <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
-                  )}
 
                   { }
                   {(() => {
@@ -14687,16 +14243,16 @@ export default function SupraSpacePage() {
                         <p className="truncate mt-1">{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</p>
                         <div className="flex gap-2 mt-2">
                           <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
-                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif || pendingMeeting) {
+                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
                               showUploadNotice('info', 'Send or save your current draft before restoring this message.');
                               return;
                             }
                             syncComposerText(item.content, true);
                             if (textareaRef.current) textareaRef.current.innerHTML = markdownTextToEditorHtml(item.content);
-                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif); setPendingMeeting(item.meeting);
-                            restoredFailedSendRef.current = item.meeting ? null : item;
+                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif);
+                            restoredFailedSendRef.current = item;
                             setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
-                            showUploadNotice('info', item.meeting ? 'Draft restored. Check the conversation before resending.' : 'Draft restored. It can safely retry its original delivery.');
+                            showUploadNotice('info', 'Draft restored. It can safely retry its original delivery.');
                           }}>Restore draft</button>
                           <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
                             if (window.confirm('Discard this unsent message and its files?')) {
@@ -14718,11 +14274,6 @@ export default function SupraSpacePage() {
                       <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
                         <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
                         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
-                      </div>
-                    )}
-                    {pendingMeeting && (
-                      <div className="ss4-reply-bar px-3 py-2.5">
-                        <PendingMeetingPreview meeting={pendingMeeting} onRemove={() => setPendingMeeting(null)} />
                       </div>
                     )}
                     {pendingGif && (
@@ -14754,7 +14305,7 @@ export default function SupraSpacePage() {
                       </div>
                     ) : recording ? (
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)' }} />
                         <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
                         <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
                         <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
@@ -15478,7 +15029,6 @@ export default function SupraSpacePage() {
                                 <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-3)', boxShadow: '0 12px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)' }}>
                                   <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
                                   <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><CalendarPlus className="h-3.5 w-3.5" /> Create Event</button>
-                                  <button onClick={() => { setCreateMenuOpen(false); setMeetingOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><Video className="h-3.5 w-3.5" /> Create Meeting</button>
                                 </div>
                               )}
                             </div>
@@ -15505,7 +15055,7 @@ export default function SupraSpacePage() {
                               <Type className="h-4 w-4" />
                             </button>
                           </div>
-                          <button onClick={() => handleSend()} disabled={sending || (!composerHasText && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
+                          <button onClick={() => handleSend()} disabled={sending || (!composerHasText && pendingFiles.length === 0 && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>
@@ -15809,29 +15359,6 @@ export default function SupraSpacePage() {
           />
         )}
 
-        { }
-        {call.incoming && !activeMeeting && (
-          <IncomingCallModal
-            call={call.incoming}
-            onJoin={() => handleJoinCall(call.incoming!.meetingId)}
-            onDismiss={() => { stopCallSound(); call.setIncoming(null); }}
-          />
-        )}
-        {activeMeeting && (
-          <CallExperience
-            session={activeMeeting}
-            displayName={me?.fullName || 'User'}
-            email={me?.email}
-            avatarUrl={me?.avatar}
-            currentUserId={uid}
-            token={token}
-            conversationMembers={activeConv ? safeMembers(activeConv) : []}
-            callRecording={callRecording}
-            onRecordingChange={setCallRecording}
-            onClose={handleLeaveCall}
-          />
-        )}
-
         {manageOpen && activeConv && (
           <ManageMembersModal
             users={allUsers}
@@ -16044,20 +15571,6 @@ export default function SupraSpacePage() {
         )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
-        {meetingOpen && (
-          <MeetingModal
-            onClose={() => setMeetingOpen(false)}
-            onCreate={createMeeting}
-            onCreateLink={createMeetingLink}
-            canAddToMessage={!!activeId}
-          />
-        )}
-        {meetingLinkInfo && (
-          <MeetingJoinInfoModal link={meetingLinkInfo} onClose={() => setMeetingLinkInfo(null)} />
-        )}
-        {scheduleMeetingOpen && (
-          <ScheduleMeetingModal onClose={() => setScheduleMeetingOpen(false)} onSubmit={handleScheduleSuprahMeeting} />
-        )}
         {activeUsersOpen && (
           <ActiveUsersModal
             users={allUsers}
@@ -16236,7 +15749,6 @@ export default function SupraSpacePage() {
               ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
               : []),
             { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
-            { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); openConversation(sheetConv._id); setConvMobileSheet(null); } },
             { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
           ];
           return (

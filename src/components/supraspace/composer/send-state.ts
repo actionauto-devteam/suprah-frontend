@@ -5,7 +5,6 @@ export type ComposerDraft = {
   files: File[];
   reply: SSMessage | null;
   gif: SSGif | null;
-  meeting: { title: string; scheduledAt: string } | null;
 };
 
 export type FailedSend = ComposerDraft & {

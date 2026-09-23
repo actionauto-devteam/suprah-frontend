@@ -21,7 +21,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
-import { JitsiMeet } from "@/app/(chat)/supraspace/JitsiMeet";
+import { JitsiMeet } from "@/components/communications/JitsiMeet";
 import { initializeSocket } from "@/lib/socket.client";
 import type { Socket } from "socket.io-client";
 
