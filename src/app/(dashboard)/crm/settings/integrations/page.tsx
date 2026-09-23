@@ -47,6 +47,10 @@ interface OrgLeadConfig {
 export default function IntegrationsSettingsPage() {
   const router = useRouter();
   const { getToken } = useAuth();
+  const getTokenRef = React.useRef(getToken);
+  React.useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
   const [user, setUser] = React.useState<CrmUserData | null>(null);
   const [token, setToken] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
@@ -116,7 +120,7 @@ export default function IntegrationsSettingsPage() {
         }
 
         try {
-          const mainToken = await getToken();
+          const mainToken = await getTokenRef.current();
           const filtersRes = await apiClient.get("/api/vehicles/filters", {
             headers: { Authorization: `Bearer ${mainToken}` },
           });
@@ -135,7 +139,7 @@ export default function IntegrationsSettingsPage() {
       }
     };
     init();
-  }, [router, getToken]);
+  }, [router]);
 
   const handleConnectGmail = async () => {
     try {
