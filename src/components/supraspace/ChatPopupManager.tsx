@@ -3958,13 +3958,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setQuickReactMsgId(null); setQuickReactPos(null);
   };
 
+  const applyMessageReactions = React.useCallback((messageId: string, reactions: SSMessage['reactions']) => {
+    if (!Array.isArray(reactions)) return;
+    setMessages(prev => prev.map(message => message._id === messageId ? { ...message, reactions } : message));
+  }, []);
+
   // ── Actions ──
   const handleReact = async (messageId: string, emoji: string) => {
     clearBar();
     try {
-      await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
+      const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
-    } catch { /* best-effort */ }
+      applyMessageReactions(messageId, response.data?.data?.reactions);
+    } catch {
+      toast.error('Could not update reaction. Please try again.');
+    }
   };
 
   const handleDelete = async (msgId: string) => {
@@ -5154,6 +5162,19 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     socket.on('message:deleted', handler);
     return () => { socket.off('message:deleted', handler); };
   }, [socket, conv._id]);
+  React.useEffect(() => {
+    if (!socket) return;
+    const handler = ({ conversationId, messageId, reactions }: {
+      conversationId: string;
+      messageId: string;
+      reactions: SSMessage['reactions'];
+    }) => {
+      if (conversationId !== conv._id) return;
+      applyMessageReactions(messageId, reactions);
+    };
+    socket.on('message:reaction', handler);
+    return () => { socket.off('message:reaction', handler); };
+  }, [socket, conv._id, applyMessageReactions]);
   React.useEffect(() => {
     if (!socket) return;
     const handler = ({ conversationId, messageId, content, attachments, type }: {
