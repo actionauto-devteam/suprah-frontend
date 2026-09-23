@@ -4234,6 +4234,17 @@ function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: 
   return <span className="text-white font-bold" style={{ fontSize: size }}>{(name || '?').trim().charAt(0).toUpperCase() || '#'}</span>;
 }
 
+function SS4AvatarImage({ src, name, className, size = 11 }: { src?: string | null; name: string; className?: string; size?: number }) {
+  const resolved = resolveImageUrl(src);
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
+
+  if (!resolved || failedSrc === resolved) {
+    return <span className="text-white font-semibold" style={{ fontSize: size }}>{ini(name)}</span>;
+  }
+
+  return <img src={resolved} alt="" className={className} onError={() => setFailedSrc(resolved)} />;
+}
+
 function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; name: string; avatar?: string | null; size?: number }) {
   const emoji = getConvEmoji(conv);
   const resolved = resolveImageUrl(avatar);
@@ -4783,8 +4794,43 @@ function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: stri
   };
 }
 
+function SS4RemoteImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: React.CSSProperties }) {
+  const previewUrl = src;
+  const [loadedUrl, setLoadedUrl] = React.useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  const loading = loadedUrl !== previewUrl && failedUrl !== previewUrl;
+  const failed = failedUrl === previewUrl;
+
+  return (
+    <div className={cn('relative isolate overflow-hidden bg-black/10', className)} style={style}>
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span style={{ fontSize: 11 }}>Loading image</span>
+        </div>
+      )}
+      {failed ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
+          <ImageIcon className="h-6 w-6" aria-hidden="true" />
+          <span style={{ fontSize: 11 }}>Image unavailable</span>
+        </div>
+      ) : (
+        <img
+          src={previewUrl}
+          alt={alt}
+          className="h-full w-full object-cover"
+          style={{ display: 'block' }}
+          decoding="async"
+          onLoad={() => setLoadedUrl(previewUrl)}
+          onError={() => setFailedUrl(previewUrl)}
+        />
+      )}
+    </div>
+  );
+}
+
 function SS4AttachmentImage({ attachment, alt, className, style }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties }) {
-  return <img src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} decoding="async" />;
+  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} />;
 }
 
 function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
@@ -4831,29 +4877,32 @@ function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlayback
   };
 
   return (
-    <div className="relative">
-      <video
-        key={`${mediaUrl}:${reloadKey}`}
-        controls
-        preload={localPreviewUrl ? 'auto' : 'metadata'}
-        poster={attachment.thumbnailUrl || undefined}
-        playsInline
-        className={className}
-        style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
-        onError={recoverPlayback}
-        onPlay={watchPlaybackStart}
-        onPause={clearRecoveryTimer}
-        onEnded={clearRecoveryTimer}
-        onTimeUpdate={event => {
-          if (event.currentTarget.currentTime > 0.05) clearRecoveryTimer();
-        }}
-      >
-        <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
-      </video>
+    <div className="relative" style={loadFailed ? { aspectRatio: '16 / 9' } : undefined}>
+      {!loadFailed && (
+        <video
+          key={`${mediaUrl}:${reloadKey}`}
+          controls
+          preload={localPreviewUrl ? 'auto' : 'metadata'}
+          poster={attachment.thumbnailUrl || undefined}
+          playsInline
+          className={className}
+          style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
+          onError={recoverPlayback}
+          onPlay={watchPlaybackStart}
+          onPause={clearRecoveryTimer}
+          onEnded={clearRecoveryTimer}
+          onTimeUpdate={event => {
+            if (event.currentTarget.currentTime > 0.05) clearRecoveryTimer();
+          }}
+        >
+          <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
+        </video>
+      )}
       {loadFailed && (
-        <div className="absolute inset-x-2 bottom-10 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(0,0,0,0.74)', color: '#fff' }}>
-          <span className="truncate" style={{ fontSize: 10 }}>Could not load video</span>
-          <button type="button" onClick={retryPlayback} className="shrink-0 font-semibold" style={{ fontSize: 10, color: '#fff' }}>Retry</button>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl px-4 text-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)', border: '1px solid var(--border-2)' }}>
+          <Film className="h-7 w-7" aria-hidden="true" />
+          <span style={{ fontSize: 11 }}>Video unavailable</span>
+          <button type="button" onClick={retryPlayback} className="rounded-lg px-3 py-1.5 font-semibold" style={{ fontSize: 11, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>Retry</button>
         </div>
       )}
       {onExpand && (
@@ -5957,7 +6006,7 @@ const Bubble = React.memo(function Bubble({
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
-            ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
+            ? <SS4AvatarImage src={message.sender.avatar} name={senderDisplayName || ''} className="w-full h-full object-cover" />
             : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(senderDisplayName || '')}</span>}
         </div>
       ) : <div className="w-7 sm:w-8 shrink-0" />}
@@ -6849,7 +6898,7 @@ const Bubble = React.memo(function Bubble({
                     <div key={m._id} title={m.fullName}
                       className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
                       style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
-                      {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : m.fullName[0]?.toUpperCase()}
+                      {m.avatar ? <SS4AvatarImage src={m.avatar} name={m.fullName} className="w-full h-full object-cover" size={6} /> : m.fullName[0]?.toUpperCase()}
                     </div>
                   ))}
                   {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
@@ -7026,6 +7075,8 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = React.useState(false);
+  const [loadedImageSrc, setLoadedImageSrc] = React.useState<string | null>(null);
+  const [failedImageSrc, setFailedImageSrc] = React.useState<string | null>(null);
   const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const hasDraggedRef = React.useRef(false);
@@ -7055,6 +7106,8 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
     setZoom(clamped);
   };
   const zoomBy = (delta: number) => applyZoom(zoom + delta);
+  const imageLoading = type === 'image' && loadedImageSrc !== src && failedImageSrc !== src;
+  const imageLoadFailed = type === 'image' && failedImageSrc === src;
 
   const handleDownload = async () => {
     if (downloading) return;
@@ -7220,24 +7273,35 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
         }}
       >
         {type === 'image' ? (
-          <img
-            src={src}
-            alt={name}
-            draggable={false}
-            onClick={e => e.stopPropagation()}
-            style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
-              objectFit: 'contain',
-              borderRadius: 12,
-              boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
-              pointerEvents: 'auto',
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-              transition: isDragging ? 'none' : 'transform 0.12s ease-out',
-              willChange: 'transform',
-            }}
-          />
+          <div className="relative flex h-full w-full items-center justify-center" onClick={e => e.stopPropagation()}>
+            {imageLoading && <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'rgba(255,255,255,0.72)' }} />}
+            {imageLoadFailed ? (
+              <div className="flex flex-col items-center gap-2 text-center" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                <ImageIcon className="h-8 w-8" aria-hidden="true" />
+                <p style={{ fontSize: 13 }}>This image could not be loaded.</p>
+              </div>
+            ) : (
+              <img
+                src={src}
+                alt={name}
+                draggable={false}
+                onLoad={() => setLoadedImageSrc(src)}
+                onError={() => setFailedImageSrc(src)}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  borderRadius: 12,
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                  pointerEvents: 'auto',
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.12s ease-out',
+                  willChange: 'transform',
+                }}
+              />
+            )}
+          </div>
         ) : (
           <div className="relative max-h-full max-w-full" onClick={e => e.stopPropagation()}>
             <video
@@ -7636,10 +7700,10 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
                   <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))} style={{ fontSize: 8, fontWeight: 700 }}>
                     {target.kind === 'conversation'
                       ? target.avatar
-                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={10} />
                         : <Users className="h-3 w-3" />
                       : target.avatar
-                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={10} />
                         : ini(target.label)}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{target.label.split(' ')[0]}</span>
@@ -7661,10 +7725,10 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
                 <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))}>
                   {target.kind === 'conversation'
                     ? target.avatar
-                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={11} />
                       : <Users className="h-4 w-4" />
                     : target.avatar
-                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={11} />
                       : <span style={{ fontSize: 11, fontWeight: 700 }}>{ini(target.label)}</span>}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -8743,7 +8807,7 @@ const ConvRow = React.memo(function ConvRow({
       )}
       <div className="relative shrink-0">
         <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-          {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+          {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <SS4AvatarImage src={cAvatar} name={cName} className="w-full h-full object-cover" size={10} /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
         </div>
         {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
           : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: unreadDotColor, boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
@@ -14107,7 +14171,7 @@ export default function SupraSpacePage() {
                     <button onClick={() => setShowInfo(true)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
                       <div className="relative shrink-0">
                         <div className={cn('h-10.5 w-10.5 lg:h-9 lg:w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={14} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold text-sm lg:text-[11px]">{ini(getConvName(activeConv, uid))}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={14} /> : getConvAvatar(activeConv, uid) ? <SS4AvatarImage src={getConvAvatar(activeConv, uid)} name={getConvName(activeConv, uid)} className="w-full h-full object-cover" size={14} /> : <span className="text-white font-semibold text-sm lg:text-[11px]">{ini(getConvName(activeConv, uid))}</span>}
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
@@ -15143,7 +15207,7 @@ export default function SupraSpacePage() {
                     <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                       <div className="relative">
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <SS4AvatarImage src={cAvatar} name={cName} className="w-full h-full object-cover" size={26} /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                         </div>
                         {activeConv.type === 'group' && (
                           <>
@@ -15243,7 +15307,7 @@ export default function SupraSpacePage() {
                                   }));
                                   setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, mimeType: getAttachmentMimeType(a), poster: a.thumbnailUrl, gallery, index: i });
                                 }} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
-                                  {isVid ? <><video src={getAttachmentMediaUrl(a)} className="w-full h-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
+                                  {isVid ? <><SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
                               );
                             })}
