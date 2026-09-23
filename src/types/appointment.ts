@@ -55,6 +55,17 @@ export interface Appointment {
   reminderTime?: string;
   reminderSentAt?: string;
   noShowFollowUpSentAt?: string;
+  noShowFollowUpStatus?: 'processing' | 'sent' | 'failed' | 'skipped';
+  noShowFollowUpAttemptCount?: number;
+  noShowFollowUpLastAttemptAt?: string;
+  noShowFollowUpNextRetryAt?: string;
+  noShowFollowUpFailureReason?: string;
+  reviewRequestSentAt?: string;
+  reviewRequestStatus?: 'processing' | 'sent' | 'failed' | 'skipped';
+  reviewRequestAttemptCount?: number;
+  reviewRequestLastAttemptAt?: string;
+  reviewRequestNextRetryAt?: string;
+  reviewRequestFailureReason?: string;
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;

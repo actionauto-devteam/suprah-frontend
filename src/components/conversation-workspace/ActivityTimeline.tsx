@@ -5,6 +5,7 @@ import {
   Check,
   FileText,
   Mail,
+  MessageCircle,
   MessageSquare,
   Phone,
   StickyNote,
@@ -23,6 +24,8 @@ const activityIcon = (kind: WorkspaceActivityItem["kind"]) => {
       return Phone;
     case "sms":
       return MessageSquare;
+    case "webchat":
+      return MessageCircle;
     case "status":
       return Check;
     case "email":
@@ -53,6 +56,13 @@ const activityTone = (kind: WorkspaceActivityItem["kind"]) => {
     return {
       icon: "bg-teal-500/15 text-teal-700 dark:text-teal-300",
       dot: "bg-teal-500",
+    };
+  }
+
+  if (kind === "webchat") {
+    return {
+      icon: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+      dot: "bg-cyan-500",
     };
   }
 

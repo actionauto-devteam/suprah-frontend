@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
+  getWebchatConfig,
   sendWebChatMessage,
   startWebChat,
   syncWebChat,
+  type WebChatConfig,
   type WebChatVisitorMessage,
 } from "@/lib/api/webchat"
 
@@ -30,6 +32,16 @@ interface WebChatWidgetProps {
   vehicleId?: string
   orgKey?: string
   contextLabel?: string
+  /** True when rendered inside the /embed/chat iframe on an external site.
+   *  Fills its container instead of self-positioning with `fixed`, and
+   *  reports its own pixel size to the parent page so the loader script can
+   *  resize the iframe to match (closed bubble vs. open panel). */
+  embedMode?: boolean
+}
+
+function postEmbedState(open: boolean) {
+  if (typeof window === "undefined" || window.parent === window) return
+  window.parent.postMessage({ type: "suprah-webchat:resize", open }, "*")
 }
 
 function readSession(key: string): StoredSession | null {
@@ -76,7 +88,7 @@ function mergeMessages(current: WebChatVisitorMessage[], incoming: WebChatVisito
   )
 }
 
-export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidgetProps) {
+export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: WebChatWidgetProps) {
   const storageKey = `${STORAGE_PREFIX}${orgKey ? `org:${orgKey}` : `vehicle:${vehicleId}`}`
 
   const [open, setOpen] = React.useState(false)
@@ -88,6 +100,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
   const [draft, setDraft] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
+  const [config, setConfig] = React.useState<WebChatConfig | null>(null)
+  const [staffTyping, setStaffTyping] = React.useState(false)
 
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
@@ -95,7 +109,8 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
 
   React.useEffect(() => {
     openRef.current = open
-  }, [open])
+    if (embedMode) postEmbedState(open)
+  }, [open, embedMode])
 
   React.useEffect(() => {
     messagesRef.current = messages
@@ -104,6 +119,18 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
   React.useEffect(() => {
     setSession(readSession(storageKey))
   }, [storageKey])
+
+  React.useEffect(() => {
+    let cancelled = false
+    void getWebchatConfig(vehicleId, orgKey).then((result) => {
+      if (!cancelled) setConfig(result)
+    }).catch(() => {
+      if (!cancelled) setConfig({ enabled: true, greeting: "", withinHours: true })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [vehicleId, orgKey])
 
   React.useEffect(() => {
     if (open && listRef.current) {
@@ -137,11 +164,12 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
           const after = last
             ? new Date(new Date(last.createdAt).getTime() - 1000).toISOString()
             : undefined
-          const incoming = await syncWebChat(session.sessionId, session.token, after)
+          const result = await syncWebChat(session.sessionId, session.token, after)
           if (cancelled) return
 
+          setStaffTyping(result.staffTyping)
           const known = new Set(messagesRef.current.map((message) => message._id))
-          const fresh = incoming.filter((message) => !known.has(message._id))
+          const fresh = result.messages.filter((message) => !known.has(message._id))
           if (fresh.length > 0) {
             setMessages((previous) => mergeMessages(previous, fresh))
             if (!openRef.current) {
@@ -239,6 +267,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
   }
 
   if (!vehicleId && !orgKey) return null
+  if (config?.enabled === false) return null
 
   if (!open) {
     return (
@@ -246,8 +275,11 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
         type="button"
         onClick={handleOpen}
         aria-label="Open chat"
-        className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:bottom-6 sm:right-6"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        className={cn(
+          "flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          embedMode ? "relative" : "fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6",
+        )}
+        style={embedMode ? undefined : { marginBottom: "env(safe-area-inset-bottom)" }}
       >
         <MessageCircle className="h-6 w-6" />
         {unread > 0 && (
@@ -263,7 +295,12 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
     <div
       role="dialog"
       aria-label="Chat with us"
-      className="fixed inset-0 z-50 flex flex-col bg-background sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[34rem] sm:max-h-[calc(100dvh-3rem)] sm:w-96 sm:rounded-2xl sm:border sm:shadow-2xl"
+      className={cn(
+        "flex flex-col bg-background",
+        embedMode
+          ? "h-full w-full sm:rounded-2xl sm:border sm:shadow-2xl"
+          : "fixed inset-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[34rem] sm:max-h-[calc(100dvh-3rem)] sm:w-96 sm:rounded-2xl sm:border sm:shadow-2xl",
+      )}
     >
       <div className="flex items-center justify-between gap-3 bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-2xl">
         <div className="min-w-0">
@@ -314,9 +351,24 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
 
             {messages.length <= 1 && (
               <p className="px-2 text-center text-xs text-muted-foreground">
-                Thanks for reaching out! A team member will reply here soon. You can close this
-                window and come back later. Your chat is saved on this device.
+                {config?.greeting ||
+                  "Thanks for reaching out! A team member will reply here soon. You can close this window and come back later. Your chat is saved on this device."}
+                {config?.withinHours === false && (
+                  <span className="mt-1 block">
+                    We&apos;re currently offline — we&apos;ll get back to you as soon as we&apos;re back.
+                  </span>
+                )}
               </p>
+            )}
+
+            {staffTyping && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2.5">
+                  <span className="size-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.3s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-foreground/50 [animation-delay:-0.15s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-foreground/50" />
+                </div>
+              </div>
             )}
           </div>
 
@@ -362,8 +414,14 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel }: WebChatWidget
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
           <p className="text-sm text-muted-foreground">
-            Have a question? Send us a message and we&apos;ll reply right here.
+            {config?.greeting || "Have a question? Send us a message and we'll reply right here."}
           </p>
+
+          {config?.withinHours === false && (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              We&apos;re currently offline. Leave a message and a team member will get back to you.
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <label htmlFor="webchat-name" className="text-xs font-medium">

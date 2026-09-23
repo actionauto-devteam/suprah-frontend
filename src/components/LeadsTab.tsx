@@ -11,6 +11,7 @@ import {
   CreditCard,
   Inbox,
   Mail,
+  Megaphone,
   MessageSquare,
   Moon,
   Plus,
@@ -21,6 +22,7 @@ import {
   Sun,
   X,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useLeads, useLeadStatusCounts, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAuth } from "@/providers/AuthProvider"
@@ -302,6 +304,15 @@ export function LeadsTab({
   const [lastSyncTime, setLastSyncTime] = React.useState<Date | null>(null);
 
   const [replyMessage, setReplyMessage] = React.useState("");
+  const lastTypingPingRef = React.useRef(0);
+
+  const pingWebchatTyping = React.useCallback((lead: Lead | null) => {
+    if (!lead || !isWebchatLead(lead)) return;
+    const now = Date.now();
+    if (now - lastTypingPingRef.current < 3000) return;
+    lastTypingPingRef.current = now;
+    void apiClient.post(`/api/crm/webchat/leads/${lead._id}/typing`, {}).catch(() => {});
+  }, []);
   const [isSending, setIsSending] = React.useState(false);
   const [apptOpen, setApptOpen] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
@@ -376,6 +387,8 @@ export function LeadsTab({
     () => (quoteVehicle ? [quoteVehicle] : []),
     [quoteVehicle],
   );
+
+  const router = useRouter();
 
   // -- Bulk reply: select mode + selection --
   const [selectMode, setSelectMode] = React.useState(false);
@@ -1600,6 +1613,15 @@ export function LeadsTab({
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             <button
+              onClick={() => router.push("/crm/campaigns")}
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              title="SMS Campaigns"
+            >
+              <Megaphone className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Campaigns</span>
+            </button>
+
+            <button
               onClick={toggleSelectMode}
               className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
               style={
@@ -1922,7 +1944,10 @@ export function LeadsTab({
                   <ReplySection
                     isClosed={isClosed}
                     replyMessage={replyMessage}
-                    setReplyMessage={setReplyMessage}
+                    setReplyMessage={(value) => {
+                      setReplyMessage(value);
+                      pingWebchatTyping(selectedLead);
+                    }}
                     onSend={handleSend}
                     isSending={isSending}
                     onStatusChange={handleStatus}

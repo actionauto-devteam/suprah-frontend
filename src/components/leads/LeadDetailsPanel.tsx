@@ -5,13 +5,43 @@ import { Save } from "lucide-react";
 import { ContactDetailsPanel } from "@/components/conversation-workspace/ContactDetailsPanel";
 import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
 import {
-  leadActivityItems,
   leadDetailSections,
   leadQuickActions,
   leadToWorkspaceContact,
 } from "@/components/conversation-workspace/adapters/lead-inbox-adapter";
-import { useLeadCommunicationActivity } from "@/hooks/useLeadCommunicationActivity";
+import type { WorkspaceActivityItem } from "@/components/conversation-workspace/workspace-types";
+import { useCustomerTimeline, type CustomerTimelineItem } from "@/hooks/useCustomerTimeline";
 import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
+
+function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
+  if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
+  switch (item.channel) {
+    case "note":
+      return "note";
+    case "call":
+      return "call";
+    case "sms":
+      return "sms";
+    case "email":
+      return "email";
+    case "webchat":
+      return "webchat";
+    case "appointment":
+      return "status";
+    default:
+      return "communication";
+  }
+}
+
+function toWorkspaceActivities(items: CustomerTimelineItem[]): WorkspaceActivityItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    kind: timelineItemKind(item),
+    title: item.title,
+    description: item.body,
+    createdAt: item.occurredAt,
+  }));
+}
 
 interface LeadDetailsUpdate {
   firstName?: string;
@@ -115,15 +145,13 @@ export function LeadDetailsPanel({
   );
 
   const leadName = [lead?.firstName, lead?.lastName].filter(Boolean).join(" ").trim() || undefined;
-  const { items: commActivityItems } = useLeadCommunicationActivity(lead?._id, dialablePhone || undefined);
+  const { items: timelineItems } = useCustomerTimeline(lead?._id);
   const { dial } = useTelnyxRTC();
 
-  const activities = React.useMemo(() => {
-    const merged = [...leadActivityItems(lead), ...commActivityItems];
-    return merged.sort(
-      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-    );
-  }, [lead, commActivityItems]);
+  const activities = React.useMemo(
+    () => toWorkspaceActivities(timelineItems),
+    [timelineItems],
+  );
 
   const actions = React.useMemo(
     () =>
