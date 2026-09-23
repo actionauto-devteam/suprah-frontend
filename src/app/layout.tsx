@@ -60,6 +60,8 @@ import { DevRoleSwitcher } from "@/components/dev/DevRoleSwitcher";
 import { Suspense } from "react";
 
 import { ThemeProvider } from "@/context/ThemeContext";
+import { HideOnEmbed } from "@/components/layout/HideOnEmbed";
+import { AppMain } from "@/components/layout/AppMain";
 
 export default function RootLayout({
   children,
@@ -87,24 +89,28 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ThemeProvider>
-            <SplashScreen />
-            <main className="flex-1 overflow-hidden bg-background">
+            <HideOnEmbed>
+              <SplashScreen />
+            </HideOnEmbed>
+            <AppMain>
               <QueryProvider>
                 <Suspense fallback={null}>
                   <ReferralCatcher />
                 </Suspense>
                 {children}
               </QueryProvider>
-            </main>
+            </AppMain>
             <Toaster position="top-right" />
-            <SystemStatusBanner />
-            <ImpersonationBanner />
-            {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
-            <ServiceWorkerRegistration />
-            <TrayAutoConnect />
-            <InstallPrompt />
-            <PushPrompt />
-            <IOSInstallHint />
+            <HideOnEmbed>
+              <SystemStatusBanner />
+              <ImpersonationBanner />
+              {process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true" && <DevRoleSwitcher />}
+              <ServiceWorkerRegistration />
+              <TrayAutoConnect />
+              <InstallPrompt />
+              <PushPrompt />
+              <IOSInstallHint />
+            </HideOnEmbed>
           </ThemeProvider>
         </AuthProvider>
       </body>

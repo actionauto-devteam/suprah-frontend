@@ -43,14 +43,43 @@ export const sendWebChatMessage = async (
   return res.data.data.message;
 };
 
+export interface SyncResult {
+  messages: WebChatVisitorMessage[];
+  staffTyping: boolean;
+}
+
 export const syncWebChat = async (
   sessionId: string,
   token: string,
   after?: string,
-): Promise<WebChatVisitorMessage[]> => {
+): Promise<SyncResult> => {
   const res = await apiClient.post(`/api/webchat/public/sessions/${sessionId}/sync`, {
     token,
     after,
   });
-  return res.data.data.messages;
+  return {
+    messages: res.data.data.messages || [],
+    staffTyping: Boolean(res.data.data.staffTyping),
+  };
+};
+
+export interface WebChatConfig {
+  enabled: boolean;
+  greeting: string;
+  withinHours: boolean;
+}
+
+export const getWebchatConfig = async (
+  vehicleId?: string,
+  orgKey?: string,
+): Promise<WebChatConfig> => {
+  const res = await apiClient.get("/api/webchat/public/config", {
+    params: { vehicleId, orgKey },
+  });
+  const data = res.data.data;
+  return {
+    enabled: data?.enabled !== false,
+    greeting: data?.greeting || "",
+    withinHours: data?.withinHours !== false,
+  };
 };

@@ -23,6 +23,7 @@ interface DemoScenario {
     startTime: string
     reminderSent: boolean
     noShowFollowUpSentAt: string | null
+    reviewRequestSentAt: string | null
   } | null
   optedOut: boolean
   nurtureCount: number
@@ -292,6 +293,34 @@ function DemoScenarioCard({
           <div className="space-y-2.5">
             <StepHeading
               number={4}
+              title="Customer completes the appointment"
+              hint="Once completed, the system texts asking for a review — with your review link if you've set one in Settings, or a softer ask if not."
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={anyBusy || !appointment}
+                onClick={() => onAction(leadId, "complete", "complete")}
+              >
+                {isBusy("complete") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Mark as Completed
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={anyBusy || appointment?.status !== "completed"}
+                onClick={() => onAction(leadId, "review-request", "review-request")}
+              >
+                {isBusy("review-request") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Send review request now
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            <StepHeading
+              number={5}
               title="Follow-ups for a quiet lead"
               hint="Three short texts at about day 1, 3 and 7 when a lead goes silent. The demo sends the next one now."
             />

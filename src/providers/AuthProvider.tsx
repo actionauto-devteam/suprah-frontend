@@ -64,6 +64,7 @@ const PUBLIC_ROUTES = [
   "/verify-email",
   "/accept-invite",
   "/vehicle",
+  "/embed",
   "/referral",
   "/offline",
   "/support",
