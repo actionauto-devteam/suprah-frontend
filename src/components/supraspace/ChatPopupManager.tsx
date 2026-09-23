@@ -5971,7 +5971,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ref={popupShellRef}
         data-chat-popup-shell="true"
         className="fixed bottom-0 z-50 rounded-t-xl border border-border/60 bg-card shadow-2xl"
-        style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column', width: POPUP_W, right: rightPx, height: POPUP_H }}
+        style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column', width: POPUP_W, right: rightPx, height: POPUP_H, maxHeight: '100dvh' }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -6954,8 +6954,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                 ))}
               </div>
-              <div className="flex min-w-0 items-center gap-1 px-2 py-1.5">
-                {/* Left icon buttons */}
+              <div className="flex min-w-0 flex-col gap-1 px-2 py-1.5">
+                <div className="flex min-w-0 items-center gap-1">
                 <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
                 <div className="relative shrink-0" ref={attachMenuRef}>
                   <button title="Add" onClick={() => setAttachMenuOpen(v => !v)}
@@ -7005,9 +7005,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 >
                   {recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4.5 w-4.5" />}
                 </button>
+                </div>
 
-                {/* Text input */}
-                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
+                <div className="flex min-w-0 items-end gap-1">
+                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-2xl px-3" style={{ minHeight: 34 }}>
                   {!composerHasText && (
                     <span className="absolute left-3 text-[15px] text-muted-foreground/55 pointer-events-none select-none">Aa</span>
                   )}
@@ -7082,14 +7083,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       });
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
+                    aria-label="Message. Press Shift+Enter for a new line and Enter to send."
+                    title="Shift+Enter for a new line · Enter to send"
                     className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
                     style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4', caretColor: 'var(--foreground)' }}
                   />
                 </div>
 
-                {/* Right buttons */}
                 {composerHasText || pendingAttachments.length > 0 || pendingGif ? (
-                  <button title="Send" onClick={handleSend} disabled={sending}
+                  <button title="Send (Enter)" onClick={handleSend} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
@@ -7101,6 +7103,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     ) : <ThumbsUp className="h-4 w-4" />}
                   </button>
                 )}
+                </div>
               </div>
               </>
               )}
