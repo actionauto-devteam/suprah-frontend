@@ -782,6 +782,19 @@ export function AppointmentDetailsModal({
                         : "Review request pending"}
               </p>
             )}
+            {appointment.status === "completed" && appointment.customerBooking?.email && (
+              <p>
+                {appointment.reviewRequestEmailStatus === "processing"
+                  ? "Review request email is being sent"
+                  : appointment.reviewRequestEmailStatus === "failed"
+                    ? `Review request email failed${appointment.reviewRequestEmailNextRetryAt ? `; retry scheduled ${fmtLongDateTimeMDT(appointment.reviewRequestEmailNextRetryAt)}` : " after maximum attempts"}`
+                    : appointment.reviewRequestEmailStatus === "skipped"
+                      ? `Review request email skipped${appointment.reviewRequestEmailFailureReason ? `: ${appointment.reviewRequestEmailFailureReason}` : ""}`
+                      : appointment.reviewRequestEmailSentAt
+                        ? `Review request email sent: ${fmtLongDateTimeMDT(appointment.reviewRequestEmailSentAt)}`
+                        : "Review request email pending"}
+              </p>
+            )}
           </div>
         </div>
 

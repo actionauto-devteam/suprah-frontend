@@ -24,6 +24,7 @@ interface DemoScenario {
     reminderSent: boolean
     noShowFollowUpSentAt: string | null
     reviewRequestSentAt: string | null
+    reviewRequestEmailSentAt: string | null
   } | null
   optedOut: boolean
   nurtureCount: number
@@ -294,7 +295,7 @@ function DemoScenarioCard({
             <StepHeading
               number={4}
               title="Customer completes the appointment"
-              hint="Once completed, the system texts asking for a review — with your review link if you've set one in Settings, or a softer ask if not."
+              hint="Once completed, the system texts and emails asking for a review — with your review link if you've set one in Settings, or a softer ask if not."
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -410,7 +411,9 @@ export default function DemoLabPage() {
         const response = await call()
         const payload = response.data?.data
         if (payload?.scenario) applyScenario(payload.scenario)
-        if (payload?.blocked) {
+        if (response.data?.message) {
+          setNotice(response.data.message)
+        } else if (payload?.blocked) {
           setNotice("Blocked: this number opted out with STOP, so the automatic text was not sent.")
         }
         setRefreshKey((value) => value + 1)

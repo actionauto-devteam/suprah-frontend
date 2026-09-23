@@ -22,6 +22,7 @@ export interface Participant {
 export interface CustomerBooking {
   isCustomerBooking: boolean;
   phone?: string;
+  email?: string;
   customerId?: string;
   customerName?: string;
   customerEmail?: string;
@@ -66,6 +67,12 @@ export interface Appointment {
   reviewRequestLastAttemptAt?: string;
   reviewRequestNextRetryAt?: string;
   reviewRequestFailureReason?: string;
+  reviewRequestEmailSentAt?: string;
+  reviewRequestEmailStatus?: 'processing' | 'sent' | 'failed' | 'skipped';
+  reviewRequestEmailAttemptCount?: number;
+  reviewRequestEmailLastAttemptAt?: string;
+  reviewRequestEmailNextRetryAt?: string;
+  reviewRequestEmailFailureReason?: string;
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;
