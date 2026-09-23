@@ -4396,7 +4396,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : editDraft.trim();
+    const editor = editAreaRef.current;
+    const serialized = editor ? htmlToMarkdown(editor) : editDraft;
+    const visibleText = editor?.innerText || editDraft;
+    const next = normalizeMessageMarkdownText(
+      canonicalizeColorMarkup(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serialized, visibleText),
+          visibleText,
+        ),
+      ),
+    );
     setEditDraft(next);
     return next;
   }, [editDraft]);
