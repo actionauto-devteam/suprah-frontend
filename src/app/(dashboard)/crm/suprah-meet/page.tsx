@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Plus, Repeat, Search, ShieldCheck, Sparkles, Trash2,
+  CircleDot, Clock, Copy, Globe, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ interface DeptRow { key: string; label: string; }
 
 type RepeatRule = "none" | "daily" | "weekdays" | "weekends" | "custom";
 const MAX_SESSIONS = 30;
-const PAST_PER_PAGE = 10;
+const PER_PAGE = 10; // Upcoming and Past both paginate at 10 per page
 const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 const mdt = (iso: string) =>
@@ -58,6 +58,7 @@ export default function SuprahMeetLobbyPage() {
   const [showNew, setShowNew] = React.useState<false | "now" | "later">(false);
   const [confirmDelete, setConfirmDelete] = React.useState<MeetingRow | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const [upcomingPage, setUpcomingPage] = React.useState(1);
   const [pastPage, setPastPage] = React.useState(1);
 
   const load = React.useCallback(async () => {
@@ -98,15 +99,23 @@ export default function SuprahMeetLobbyPage() {
   const upcoming = meetings.filter((m) => m.status === "scheduled");
   const past = meetings.filter((m) => m.status === "ended");
 
-  // ── Past meetings pagination: max 10 per page ─────────────────────────
-  const pastTotalPages = Math.max(1, Math.ceil(past.length / PAST_PER_PAGE));
+  // ── Pagination: Upcoming and Past both cap at 10 per page ─────────────
+  const upcomingTotalPages = Math.max(1, Math.ceil(upcoming.length / PER_PAGE));
+  const safeUpcomingPage = Math.min(upcomingPage, upcomingTotalPages);
+  const upcomingVisible = upcoming.slice((safeUpcomingPage - 1) * PER_PAGE, safeUpcomingPage * PER_PAGE);
+
+  const pastTotalPages = Math.max(1, Math.ceil(past.length / PER_PAGE));
   const safePastPage = Math.min(pastPage, pastTotalPages);
-  const pastVisible = past.slice((safePastPage - 1) * PAST_PER_PAGE, safePastPage * PAST_PER_PAGE);
+  const pastVisible = past.slice((safePastPage - 1) * PER_PAGE, safePastPage * PER_PAGE);
 
   React.useEffect(() => {
-    // Clamp if the list shrinks (e.g. after a reload).
+    // Clamp if the lists shrink (e.g. after a delete or reload).
+    if (upcomingPage > upcomingTotalPages) setUpcomingPage(upcomingTotalPages);
     if (pastPage > pastTotalPages) setPastPage(pastTotalPages);
-  }, [pastPage, pastTotalPages]);
+  }, [upcomingPage, upcomingTotalPages, pastPage, pastTotalPages]);
+
+  const goUpcomingPage = (page: number) =>
+    setUpcomingPage(Math.min(Math.max(1, page), upcomingTotalPages));
 
   const goPastPage = (page: number) => {
     setPastPage(Math.min(Math.max(1, page), pastTotalPages));
@@ -186,7 +195,7 @@ export default function SuprahMeetLobbyPage() {
                 text="Every session is gated by your CRM identity and scoped to your org." />
               <Capability icon={<CircleDot className="size-5" />} title="Cloud recording"
                 text="Server-side capture straight to AWS — nothing depends on one laptop." />
-              <Capability icon={<Sparkles className="size-5" />} title="AI summaries"
+              <Capability icon={<Bot className="size-5" />} title="AI summaries"
                 text="Key points, decisions, and action items generated after every recording." />
             </div>
           </section>
@@ -205,7 +214,7 @@ export default function SuprahMeetLobbyPage() {
 
             <Group title="Upcoming">
               {upcoming.length === 0 && <EmptyRow text="Nothing scheduled yet — plan one with Schedule." />}
-              {upcoming.map((m) => (
+              {upcomingVisible.map((m) => (
                 <MeetingCard key={m._id} m={m} sub={m.scheduledAt ? mdt(m.scheduledAt) : undefined}
                   action={
                     <div className="flex items-center gap-1">
@@ -221,6 +230,8 @@ export default function SuprahMeetLobbyPage() {
                     </div>
                   } />
               ))}
+              <Pager total={upcoming.length} page={safeUpcomingPage}
+                totalPages={upcomingTotalPages} onPage={goUpcomingPage} />
             </Group>
 
             <Group title="Past meetings">
@@ -236,29 +247,8 @@ export default function SuprahMeetLobbyPage() {
                 </div>
               ))}
 
-              {/* Pagination — max 10 per page */}
-              {past.length > PAST_PER_PAGE && (
-                <div className="flex items-center justify-between pt-1">
-                  <p className="text-xs text-muted-foreground">
-                    {(safePastPage - 1) * PAST_PER_PAGE + 1}–{Math.min(safePastPage * PAST_PER_PAGE, past.length)} of {past.length}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <Button size="icon" variant="outline" className="size-8"
-                      disabled={safePastPage <= 1} onClick={() => goPastPage(safePastPage - 1)}
-                      title="Previous page">
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                    <span className="min-w-16 text-center text-xs text-muted-foreground">
-                      Page {safePastPage} of {pastTotalPages}
-                    </span>
-                    <Button size="icon" variant="outline" className="size-8"
-                      disabled={safePastPage >= pastTotalPages} onClick={() => goPastPage(safePastPage + 1)}
-                      title="Next page">
-                      <ChevronRight className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <Pager total={past.length} page={safePastPage}
+                totalPages={pastTotalPages} onPage={goPastPage} />
             </Group>
           </section>
         </div>
@@ -335,6 +325,33 @@ function Group({ title, live, children }: { title: string; live?: boolean; child
 
 function EmptyRow({ text }: { text: string }) {
   return <p className="rounded-2xl border border-dashed p-4 text-center text-xs text-muted-foreground">{text}</p>;
+}
+
+/** Shared pager for meeting lists — renders nothing until a list exceeds one page. */
+function Pager({ total, page, totalPages, onPage }: {
+  total: number; page: number; totalPages: number; onPage: (page: number) => void;
+}) {
+  if (total <= PER_PAGE) return null;
+  return (
+    <div className="flex items-center justify-between pt-1">
+      <p className="text-xs text-muted-foreground">
+        {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button size="icon" variant="outline" className="size-8"
+          disabled={page <= 1} onClick={() => onPage(page - 1)} title="Previous page">
+          <ChevronLeft className="size-4" />
+        </Button>
+        <span className="min-w-16 text-center text-xs text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <Button size="icon" variant="outline" className="size-8"
+          disabled={page >= totalPages} onClick={() => onPage(page + 1)} title="Next page">
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function MeetingCard({ m, sub, action, plain }: { m: MeetingRow; sub?: string; action: React.ReactNode; plain?: boolean }) {
