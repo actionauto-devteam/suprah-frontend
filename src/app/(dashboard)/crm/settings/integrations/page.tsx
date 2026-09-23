@@ -679,7 +679,7 @@ export default function IntegrationsSettingsPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-base font-bold truncate">Review Requests</p>
-                                        <p className="text-xs text-muted-foreground/60 mt-0.5">After a completed appointment, we text the customer asking for a review.</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">After a completed appointment, we text and email the customer asking for a review.</p>
                                     </div>
                                 </div>
                                 {savedReviewLink && (
