@@ -30,7 +30,7 @@ interface DeptRow { key: string; label: string; }
 
 type RepeatRule = "none" | "daily" | "weekdays" | "weekends" | "custom";
 const MAX_SESSIONS = 30;
-const PER_PAGE = 10; // Upcoming and Past both paginate at 10 per page
+const PER_PAGE = 5; // Upcoming and Past both paginate at 10 per page
 const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 const mdt = (iso: string) =>
