@@ -64,7 +64,7 @@ export function useSuprahMeet() {
   const [recording, setRecording] = useState(false);
   const [reactions, setReactions] = useState<ReactionEvent[]>([]);
 
-  // Non-fatal problems (e.g. recording failed on AWS) — shown as a toast.
+  // Non-fatal problems (recording failed, message not sent, no mic) — toast.
   const [notice, setNotice] = useState<string | null>(null);
   const clearNotice = useCallback(() => setNotice(null), []);
 
@@ -85,6 +85,12 @@ export function useSuprahMeet() {
   const videoDevicesRef = useRef<{ deviceId: string; label: string }[]>([]);
   const camIndexRef = useRef(0);
   const joinedAtRef = useRef(0);
+
+  // ── AUDIO FIX: keep the <audio> element in a ref. The element usually
+  // mounts BEFORE the Chime session exists, so binding only at ref-time is a
+  // race that can leave remote audio with nowhere to play (= silence).
+  // We store it here and (re)bind right after audioVideo.start().
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   // ── Scene-share machinery (the "never black MP4" recorder) ──────────
   const tilesStoreRef = useRef<Record<number, TileInfo>>({});
@@ -132,9 +138,24 @@ export function useSuprahMeet() {
     } catch { /* best-effort */ }
   }, []);
 
-  const sendData = useCallback((topic: string, payload: Record<string, unknown>, lifetimeMs = 5000) => {
-    av()?.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
-  }, []);
+  // ── CHAT/CRASH FIX: realtimeSendDataMessage THROWS when the signaling
+  // connection isn't fully established (or blips). Unguarded, that exception
+  // crashed the room component → React unmounted it → the cleanup tore the
+  // session down → "the meeting ended" the moment someone chatted. Every
+  // send now goes through this guard and reports success instead of throwing.
+  const sendData = useCallback(
+    (topic: string, payload: Record<string, unknown>, lifetimeMs = 5000): boolean => {
+      const audioVideo = av();
+      if (!audioVideo) return false;
+      try {
+        audioVideo.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
   /* ── Scene share: build, announce, and keep in sync ─────────────── */
 
@@ -180,7 +201,7 @@ export function useSuprahMeet() {
     if (!sceneOnRef.current) return;
     sceneOnRef.current = false;
     ignoreNextShareStopRef.current = true;
-    av()?.stopContentShare();
+    try { av()?.stopContentShare(); } catch { /* already stopped */ }
     sceneRecRef.current?.stop();
     sceneRecRef.current = null;
     announceScene(false);
@@ -250,6 +271,9 @@ export function useSuprahMeet() {
 
       audioVideo.realtimeSubscribeToAttendeeIdPresence((attendeeId, present, externalUserId) => {
         if (attendeeId.includes("#content")) return;
+        // AWS's media-capture pipeline joins as a silent attendee with the
+        // reserved external id "aws:MediaPipeline" — brand it as our AI.
+        const isPipeline = (externalUserId || "").startsWith("aws:");
         if (present) {
           const crmUserId = crmIdFrom(externalUserId);
           const known = crmUserId ? namesRef.current.get(crmUserId) : undefined;
@@ -258,20 +282,24 @@ export function useSuprahMeet() {
             ...r,
             [attendeeId]: {
               attendeeId, crmUserId,
-              name: isSelf ? selfNameRef.current : known?.fullName || "Suprah Autrix",
+              name: isSelf
+                ? selfNameRef.current
+                : isPipeline
+                  ? "Suprah Autrix"
+                  : known?.fullName || "Joining…",
               avatar: known?.avatar ?? null,
               muted: false, handRaised: false,
             },
           }));
-          if (!known && !isSelf) void refreshNames();
-          if (!isSelf && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
+          if (!known && !isSelf && !isPipeline) void refreshNames();
+          if (!isSelf && !isPipeline && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
           audioVideo.realtimeSubscribeToVolumeIndicator(attendeeId, (_id, _volume, muted) => {
             if (muted === null) return;
             setRoster((r) => (r[attendeeId] ? { ...r, [attendeeId]: { ...r[attendeeId], muted } } : r));
           });
         } else {
           audioVideo.realtimeUnsubscribeFromVolumeIndicator(attendeeId);
-          if (Date.now() - joinedAtRef.current > 2000) meetSounds.leave();
+          if (!isPipeline && Date.now() - joinedAtRef.current > 2000) meetSounds.leave();
           setRoster((r) => { const next = { ...r }; delete next[attendeeId]; return next; });
         }
       });
@@ -281,6 +309,12 @@ export function useSuprahMeet() {
       );
 
       audioVideo.addObserver({
+        // AUDIO FIX: (re)bind the output element once the session is truly
+        // up — covers reconnects and any mount-order race.
+        audioVideoDidStart: () => {
+          const el = audioElRef.current;
+          if (el) void audioVideo.bindAudioElement(el).catch(() => {});
+        },
         videoTileDidUpdate: (tileState: VideoTileState) => {
           if (!tileState.tileId || !tileState.boundAttendeeId) return;
           const info: TileInfo = {
@@ -385,8 +419,23 @@ export function useSuprahMeet() {
         } catch { /* ignore */ }
       });
 
+      // ── Microphone. On an insecure origin (plain http:// over a LAN IP —
+      // anything that isn't localhost or HTTPS) the browser hides ALL audio
+      // devices, this list comes back EMPTY, and the user joins with no mic:
+      // they see everyone, nobody hears them. Surface that loudly instead
+      // of failing silently.
       const audioInputs = await audioVideo.listAudioInputDevices();
-      if (audioInputs[0]) await audioVideo.startAudioInput(audioInputs[0].deviceId);
+      if (audioInputs[0]) {
+        try {
+          await audioVideo.startAudioInput(audioInputs[0].deviceId);
+        } catch {
+          setNotice("Your microphone could not be started. Check the browser's mic permission (padlock icon) and reload.");
+        }
+      } else {
+        setNotice(
+          "No microphone is available to the browser. Allow mic access for this site — and note that mic/camera only work on localhost or HTTPS, not on a plain http:// address."
+        );
+      }
 
       const videoInputs = await audioVideo.listVideoInputDevices();
       videoDevicesRef.current = videoInputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
@@ -395,6 +444,14 @@ export function useSuprahMeet() {
       setVideoDeviceCount(videoDevicesRef.current.length);
 
       audioVideo.start();
+
+      // AUDIO FIX: bind the output element now that the session exists. The
+      // <audio> element mounted long before this point, so the ref-time bind
+      // had nothing to attach to — this is the bind that actually counts.
+      if (audioElRef.current) {
+        try { await audioVideo.bindAudioElement(audioElRef.current); } catch { /* retried in audioVideoDidStart */ }
+      }
+
       joinedAtRef.current = Date.now();
       setMicOn(true);
       setPhase("in");
@@ -402,11 +459,17 @@ export function useSuprahMeet() {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
       setPhase("error");
     }
-  }, [announceScene, pushReaction, refreshNames, syncSceneShare]);
+  }, [announceScene, pushReaction, refreshNames, sendData, syncSceneShare]);
 
   const bindAudio = useCallback((el: HTMLAudioElement | null) => {
-    if (el) void av()?.bindAudioElement(el);
+    audioElRef.current = el;
+    if (el) {
+      // If the session already exists (e.g. React remounted the element),
+      // bind immediately; otherwise join() binds it after start().
+      void av()?.bindAudioElement(el).catch(() => {});
+    }
   }, []);
+
   const bindVideoTile = useCallback((tileId: number, el: HTMLVideoElement | null) => {
     if (el) {
       videoElsRef.current.set(tileId, el);
@@ -466,7 +529,7 @@ export function useSuprahMeet() {
     const audioVideo = av();
     if (!audioVideo) return;
     if (userSharingRef.current) {
-      audioVideo.stopContentShare(); // observer clears state and resyncs scene
+      try { audioVideo.stopContentShare(); } catch { /* already stopped */ }
     } else {
       // A real screen share takes priority over the recording scene share.
       if (sceneOnRef.current) stopSceneShare();
@@ -499,7 +562,11 @@ export function useSuprahMeet() {
   const sendChat = useCallback((text: string) => {
     const clean = text.trim();
     if (!clean) return;
-    sendData(CHAT_TOPIC, { name: selfNameRef.current, text: clean }, 60_000);
+    const ok = sendData(CHAT_TOPIC, { name: selfNameRef.current, text: clean }, 60_000);
+    if (!ok) {
+      setNotice("Message not sent — the meeting connection isn't ready. Try again in a moment.");
+      return;
+    }
     setChatMessages((m) => [...m, {
       id: `${Date.now()}-self`, name: selfNameRef.current, text: clean, at: Date.now(), isSelf: true,
     }]);
