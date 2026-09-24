@@ -2224,6 +2224,27 @@ function restoreMissingSerialsFromSources(serialized: string, sources: Array<str
   return restoredLines.join('\n');
 }
 
+function serializeVisibleRichText(el: HTMLElement): string {
+  const visibleText = stripCopiedTextArtifacts(el.innerText);
+  const serializedText = stripCopiedTextArtifacts(htmlToMarkdown(el));
+
+  return normalizeMessageMarkdownText(
+    canonicalizeColorMarkup(
+      restoreMissingSerialsFromSources(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serializedText, visibleText),
+          visibleText,
+        ),
+        [
+          visibleText,
+          stripCopiedTextArtifacts(el.textContent || ''),
+          serializedText,
+        ],
+      ),
+    ),
+  );
+}
+
 function canonicalizeColorMarkup(value: string): string {
   const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
   let result = '';
@@ -5224,7 +5245,7 @@ const Bubble = React.memo(function Bubble({
     }
   };
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : '';
+    const next = editAreaRef.current ? serializeVisibleRichText(editAreaRef.current) : '';
     setEditDraft(next);
     return next;
   }, []);
