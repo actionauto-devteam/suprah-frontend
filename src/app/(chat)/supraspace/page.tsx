@@ -3166,7 +3166,7 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
   const perLine = (inner: string, marker: string) =>
     inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
   let normalized = text
-    .replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
+    .replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
     .replace(/__([\s\S]*?)__/g, (_match, inner: string) => perLine(inner, '__'))
     .replace(/~~([\s\S]*?)~~/g, (_match, inner: string) => perLine(inner, '~~'));
   normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
@@ -3334,14 +3334,10 @@ function stripOrphanedBoldMarker(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  const normalized = stripOrphanedBoldMarker(
-    normalizeListExitLineSpacing(
-      normalizePastedListArtifacts(
-        stripCopiedTextArtifacts(text)
-          .replace(/\r\n?/g, '\n')
-          .replace(/\u00a0/g, ' '),
-      ),
-    ),
+  const normalized = normalizeListExitLineSpacing(
+    stripCopiedTextArtifacts(text)
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
   );
   return stripCopiedTextArtifacts(normalized).trim();
 }
@@ -3387,8 +3383,6 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
   const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
     .replace(/\n{4,}/g, '\n\n\n');
 }
 
@@ -3442,12 +3436,9 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
 
     const pushPlain = (plain: string) => {
       if (!plain) return;
-      plain = stripResidualSupraSpaceInlineControlMarkers(
-        stripSupraSpaceTypographyTags(
-          plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
-        ),
+      plain = stripSupraSpaceTypographyTags(
+        plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
       );
-      plain = stripResidualSingleMarkdownMarkers(plain);
       const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -3656,11 +3647,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       lineIndex++;
       continue;
     }
-    if (/^\s*(?:\*\*|__|~~)\s*$/.test(raw)) {
-      lineIndex++;
-      continue;
-    }
-
     if (FENCE_RE.test(raw)) {
       const codeLines: string[] = [];
       lineIndex++;
@@ -12781,6 +12767,7 @@ export default function SupraSpacePage() {
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = event.nativeEvent as InputEvent;
+    if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') return;
     if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
       const pastedAttachments = clipboardAttachmentFiles(inputEvent.dataTransfer);
       if (pastedAttachments.length > 0 && handleUploadFilesRef.current) {
@@ -14627,6 +14614,9 @@ export default function SupraSpacePage() {
                                   saveComposerSelection();
                                   scheduleRefreshActiveFormats();
                                 }
+                              }}
+                              onCompositionEnd={event => {
+                                syncComposerText(event.currentTarget.innerText.replace(/\n$/, ''), true);
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;

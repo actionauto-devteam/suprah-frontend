@@ -904,7 +904,7 @@ const MEDIA_LABELS: Record<string, string> = {
 const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
+  return text.replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) =>
     inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
   );
 }
@@ -1021,11 +1021,9 @@ function normalizePastedListArtifacts(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   return normalizeListExitLineSpacing(
-    normalizePastedListArtifacts(
-      text
-        .replace(/\r\n?/g, '\n')
-        .replace(/\u00a0/g, ' '),
-    ),
+    text
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
   ).trim();
 }
 
@@ -1062,8 +1060,6 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
   const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
     .replace(/\n{4,}/g, '\n\n\n');
 }
 
@@ -5664,6 +5660,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   ]);
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = event.nativeEvent as InputEvent;
+    if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') return;
     const inserted = insertPreselectedTypographyText(
       event,
       composerFontFamilyChosen ? composerFontFamily : null,
@@ -7034,6 +7032,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       );
                       handleTyping(event);
                       rememberComposerSelection();
+                    }}
+                    onCompositionEnd={event => {
+                      syncComposerText(event.currentTarget.innerText.replace(/\n$/, ''), true);
                     }}
                     onFocus={() => {
                       rememberComposerSelection();
