@@ -2035,6 +2035,7 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
     element.style.removeProperty('background-color');
     element.style.removeProperty('background-image');
     element.style.removeProperty('text-shadow');
+    element.removeAttribute('bgcolor');
 
     if (!element.getAttribute('style')?.trim()) {
       element.removeAttribute('style');
