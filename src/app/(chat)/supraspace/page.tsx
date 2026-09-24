@@ -1251,7 +1251,7 @@ if (typeof document !== 'undefined') {
       background:rgba(0,0,0,.2);
       font-family:'Geist Mono',monospace!important;
     }
-    .ss4-list { display:flex; flex-direction:column; gap:5px; margin:.18em 0 .32em; padding:0; list-style:none; }
+    .ss4-list { display:flex; flex-direction:column; gap:0; margin:.18em 0 .32em; padding:0; list-style:none; }
     .ss4-list-item { display:flex; align-items:flex-start; gap:7px; margin:0; padding:0; list-style:none; }
     .ss4-list-marker { width:1em; flex:0 0 1em; text-align:center; line-height:1.66; }
     .ss4-list-marker-num { width:auto; min-width:1.35em; flex-basis:auto; text-align:right; }

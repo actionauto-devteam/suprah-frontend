@@ -1147,7 +1147,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (bullet) {
           const depth = depthFrom(bullet[1], bullet[2]);
           return (
-            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
+            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
               <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`)}</span>
             </span>
@@ -1158,7 +1158,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (numbered) {
           const depth = depthFrom(numbered[1]);
           return (
-            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
+            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
               <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`)}</span>
             </span>
