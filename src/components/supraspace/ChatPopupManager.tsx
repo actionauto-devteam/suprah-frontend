@@ -700,18 +700,37 @@ function insertSoftLineBreakWithCaretFormatting(
 ): boolean {
   root.focus();
 
-  const inserted = document.execCommand('insertLineBreak');
-  if (!inserted) {
-    document.execCommand('insertHTML', false, '<br>');
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return false;
   }
 
-  insertTypingStyleCaretMarker(
+  range.deleteContents();
+  const br = document.createElement('br');
+  range.insertNode(br);
+
+  const nextRange = document.createRange();
+  nextRange.setStartAfter(br);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+
+  if (insertTypingStyleCaretMarker(
     root,
     fontFamily,
     fontSize,
     inlineFormats,
     color,
-  );
+  )) return true;
+
+  const marker = document.createTextNode('\u200B');
+  nextRange.insertNode(marker);
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
   return true;
 }
 

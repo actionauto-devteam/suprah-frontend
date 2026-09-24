@@ -868,13 +868,20 @@ function insertSoftLineBreakWithCaretFormatting(
   selection.removeAllRanges();
   selection.addRange(nextRange);
 
-  insertTypingStyleCaretMarker(
+  if (insertTypingStyleCaretMarker(
     root,
     fontFamily,
     fontSize,
     inlineFormats,
     color,
-  );
+  )) return true;
+
+  const marker = document.createTextNode('\u200B');
+  nextRange.insertNode(marker);
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
   return true;
 }
 
