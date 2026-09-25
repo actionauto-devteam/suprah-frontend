@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Armchair, Check, Circle, Copy, Hand, Hourglass, Info, MessageSquare, Mic,
-  MicOff, Minimize2, MonitorUp, PhoneOff, Pin, PinOff, ScreenShareOff, Send,
-  SmilePlus, SwitchCamera, Users, Video, VideoOff, Wand2, X,
+  Armchair, Check, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
+  Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, PhoneOff,
+  Pin, PinOff, ScreenShareOff, Send, SmilePlus, SwitchCamera, Users, Video,
+  VideoOff, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, resolveImageUrl } from "@/lib/utils";
@@ -26,6 +27,31 @@ const swatchOnCls = "border-emerald-400 shadow-[0_0_0_1px_theme(colors.emerald.4
 const swatchLabelCls =
   "rounded bg-[#071410]/80 px-1 py-px text-[9px] leading-tight text-emerald-100";
 
+/* ── Adjust view (Meet-style) — saved for future meetings ────────────────── */
+type ViewLayout = "auto" | "tiled" | "spotlight" | "sidebar";
+interface ViewSettings { layout: ViewLayout; maxTiles: number; hideNoVideo: boolean; }
+const VIEW_LS_KEY = "suprah-meet-view";
+const TILE_STEPS = [6, 9, 12, 16, 25, 49];
+const VIEW_OPTIONS: { value: ViewLayout; label: string; desc: string }[] = [
+  { value: "auto",      label: "Auto (dynamic)", desc: "Pages the grid to fit your screen" },
+  { value: "tiled",     label: "Tiled",          desc: "Fixed grid — pick the tile count below" },
+  { value: "spotlight", label: "Spotlight",      desc: "Only the pinned person or active speaker" },
+  { value: "sidebar",   label: "Sidebar",        desc: "One big tile plus a strip of the others" },
+];
+const defaultView = (): ViewSettings => ({ layout: "auto", maxTiles: 16, hideNoVideo: false });
+const loadView = (): ViewSettings => {
+  try {
+    const raw = localStorage.getItem(VIEW_LS_KEY);
+    if (!raw) return defaultView();
+    const v = JSON.parse(raw);
+    return {
+      layout: (["auto", "tiled", "spotlight", "sidebar"] as ViewLayout[]).includes(v.layout) ? v.layout : "auto",
+      maxTiles: TILE_STEPS.includes(v.maxTiles) ? v.maxTiles : 16,
+      hideNoVideo: Boolean(v.hideNoVideo),
+    };
+  } catch { return defaultView(); }
+};
+
 export default function SuprahMeetRoomPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
@@ -40,13 +66,26 @@ export default function SuprahMeetRoomPage() {
   const [showTogether, setShowTogether] = React.useState(false);
   const [chatDraft, setChatDraft] = React.useState("");
   const [pinnedId, setPinnedId] = React.useState<string | null>(null);
+  // Adjust view — persisted so the choice carries into future meetings.
+  const [view, setView] = React.useState<ViewSettings>(() =>
+    typeof window === "undefined" ? defaultView() : loadView());
+  const [showViewDialog, setShowViewDialog] = React.useState(false);
+  const [gridPage, setGridPage] = React.useState(0);
+  const [autoMax, setAutoMax] = React.useState(16);
+  React.useEffect(() => {
+    try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify(view)); } catch { /* private mode */ }
+  }, [view]);
+  React.useEffect(() => {
+    const calc = () => setAutoMax(window.innerWidth < 640 ? 8 : window.innerWidth < 1024 ? 12 : 20);
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const [toast, setToast] = React.useState<string | null>(null);
   // Waiting room: "checking" until the backend says we may join.
   const [gate, setGate] = React.useState<"checking" | "admitted" | "waiting" | "denied" | "over">("checking");
-  const [waitingList, setWaitingList] = React.useState<
-    { crmUserId: string; fullName: string; avatar: string | null }[]
-  >([]);
+  const [waitingList, setWaitingList] = React.useState<{ crmUserId: string; fullName: string; avatar: string | null }[]>([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
   // Waiting-room gate: hosts, admins/managers, and tagged attendees go straight
@@ -136,15 +175,39 @@ export default function SuprahMeetRoomPage() {
   const people = Object.values(meet.roster);
   const raised = people.filter((p) => p.handRaised);
 
-  // Pin → spotlight. Screen share always outranks a pin; the pin comes back
-  // when sharing stops. A pin auto-clears if that person leaves.
+  // Adjust view: optionally hide camera-off tiles (like Meet's toggle).
+  const stagePeople = view.hideNoVideo
+    ? people.filter((p) => tilesByAttendee.has(p.attendeeId))
+    : people;
+
+  // A pin auto-clears if that person leaves.
   React.useEffect(() => {
     if (pinnedId && !people.some((p) => p.attendeeId === pinnedId)) setPinnedId(null);
   }, [people, pinnedId]);
-  const spotPerson = !contentTile && pinnedId
-    ? people.find((p) => p.attendeeId === pinnedId) ?? null : null;
   const togglePin = (attendeeId: string) =>
     setPinnedId((prev) => (prev === attendeeId ? null : attendeeId));
+
+  // Hero for spotlight/sidebar: the pin wins, then the active speaker, then anyone.
+  const heroPerson =
+    stagePeople.find((p) => p.attendeeId === pinnedId) ??
+    stagePeople.find((p) => p.attendeeId === meet.activeSpeakerId) ??
+    stagePeople[0] ?? null;
+
+  // Which layout renders. Screen share always outranks everything; a pin
+  // promotes Auto/Tiled to the sidebar layout (and comes back off when unpinned).
+  const stageMode: "content" | "spotlight" | "sidebar" | "grid" =
+    contentTile ? "content"
+    : view.layout === "spotlight" && heroPerson ? "spotlight"
+    : (view.layout === "sidebar" || pinnedId) && heroPerson ? "sidebar"
+    : "grid";
+  const spotPerson = stageMode === "sidebar" ? heroPerson : null;
+
+  // Grid pagination: Tiled uses the slider; Auto sizes pages to the screen.
+  const pageSize = view.layout === "tiled" ? view.maxTiles : autoMax;
+  const pageCount = Math.max(1, Math.ceil(stagePeople.length / pageSize));
+  const page = Math.min(gridPage, pageCount - 1);
+  const pagePeople = stagePeople.slice(page * pageSize, page * pageSize + pageSize);
+  React.useEffect(() => { setGridPage((p) => Math.min(p, pageCount - 1)); }, [pageCount]);
 
   /** Grid columns tuned to how many tiles are on stage. */
   const gridCls = (n: number) =>
@@ -284,6 +347,10 @@ export default function SuprahMeetRoomPage() {
           </span>
         )}
         <div className="flex-1" />
+        <button onClick={() => setShowViewDialog(true)} title="Adjust view"
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-emerald-400/20 text-emerald-200/70 hover:border-emerald-400/50 hover:text-emerald-200">
+          <LayoutGrid className="size-4" />
+        </button>
         <button onClick={() => router.push("/crm/suprah-meet")}
           title="Minimize — the meeting keeps running while you browse Suprah Space"
           className="grid size-8 shrink-0 place-items-center rounded-md border border-emerald-400/20 text-emerald-200/70 hover:border-emerald-400/50 hover:text-emerald-200">
@@ -357,7 +424,7 @@ export default function SuprahMeetRoomPage() {
               <TileVideo tile={contentTile} bind={meet.bindVideoTile} contain
                 className="min-h-0 border-emerald-400/30 shadow-[0_0_40px_rgba(16,185,129,0.1)]" />
               <div className="flex gap-2 overflow-x-auto md:flex-col md:gap-3 md:overflow-y-auto">
-                {people.map((p) => (
+                {stagePeople.map((p) => (
                   <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
                     bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
                     isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
@@ -365,14 +432,28 @@ export default function SuprahMeetRoomPage() {
                 ))}
               </div>
             </div>
+          ) : stageMode === "spotlight" && heroPerson ? (
+            <div className="relative min-h-0 flex-1">
+              <PersonTile person={heroPerson} tile={tilesByAttendee.get(heroPerson.attendeeId)}
+                bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === heroPerson.attendeeId}
+                isSelf={heroPerson.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                pinned={heroPerson.attendeeId === pinnedId}
+                onPin={() => togglePin(heroPerson.attendeeId)} className="h-full" />
+              {stagePeople.length > 1 && (
+                <span className="absolute right-3 top-3 rounded-full border border-emerald-400/25 bg-[#071410]/85 px-2.5 py-1 text-[10px] text-emerald-200/80 backdrop-blur">
+                  +{stagePeople.length - 1} more — open People
+                </span>
+              )}
+            </div>
           ) : spotPerson ? (
             <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
               <PersonTile person={spotPerson} tile={tilesByAttendee.get(spotPerson.attendeeId)}
                 bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === spotPerson.attendeeId}
                 isSelf={spotPerson.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
-                pinned onPin={() => setPinnedId(null)} className="min-h-0" />
+                pinned={spotPerson.attendeeId === pinnedId}
+                onPin={() => togglePin(spotPerson.attendeeId)} className="min-h-0" />
               <div className="flex gap-2 overflow-x-auto md:flex-col md:gap-3 md:overflow-y-auto">
-                {people.filter((p) => p.attendeeId !== spotPerson.attendeeId).map((p) => (
+                {stagePeople.filter((p) => p.attendeeId !== spotPerson.attendeeId).map((p) => (
                   <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
                     bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
                     isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
@@ -382,19 +463,36 @@ export default function SuprahMeetRoomPage() {
               </div>
             </div>
           ) : (
-            <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 md:gap-3", gridCls(people.length))}>
-              {people.map((p) => (
-                <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
-                  bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
-                  isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
-                  onPin={() => togglePin(p.attendeeId)} />
-              ))}
-              {people.length === 0 && (
-                <div className="grid place-items-center">
-                  <div className="flex flex-col items-center gap-3 text-sm text-emerald-200/60">
-                    <SuprahMeetLogo className="size-14 opacity-90" />
-                    {meet.phase === "joining" ? "Connecting to the meeting…" : "Waiting for others…"}
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+              <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 overflow-y-auto md:gap-3", gridCls(pagePeople.length))}>
+                {pagePeople.map((p) => (
+                  <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
+                    bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
+                    isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                    onPin={() => togglePin(p.attendeeId)} />
+                ))}
+                {pagePeople.length === 0 && (
+                  <div className="grid place-items-center">
+                    <div className="flex max-w-xs flex-col items-center gap-3 text-center text-sm text-emerald-200/60">
+                      <SuprahMeetLogo className="size-14 opacity-90" />
+                      {people.length > 0
+                        ? "No cameras are on. Turn off “Hide tiles without video” in Adjust view to see everyone."
+                        : meet.phase === "joining" ? "Connecting to the meeting…" : "Waiting for others…"}
+                    </div>
                   </div>
+                )}
+              </div>
+              {pageCount > 1 && (
+                <div className="flex shrink-0 items-center justify-center gap-2 text-xs text-emerald-200/70">
+                  <button disabled={page === 0} onClick={() => setGridPage(page - 1)}
+                    className="grid size-7 place-items-center rounded-full border border-emerald-400/20 hover:border-emerald-400/50 disabled:opacity-30">
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <span>{page * pageSize + 1}–{Math.min(stagePeople.length, (page + 1) * pageSize)} of {stagePeople.length}</span>
+                  <button disabled={page === pageCount - 1} onClick={() => setGridPage(page + 1)}
+                    className="grid size-7 place-items-center rounded-full border border-emerald-400/20 hover:border-emerald-400/50 disabled:opacity-30">
+                    <ChevronRight className="size-4" />
+                  </button>
                 </div>
               )}
             </div>
@@ -640,6 +738,71 @@ export default function SuprahMeetRoomPage() {
           </aside>
         )}
       </div>
+
+      {/* Adjust view dialog (Meet-style) */}
+      {showViewDialog && (
+        <div className="absolute inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setShowViewDialog(false)}>
+          <div className="w-full max-w-sm rounded-2xl border border-emerald-400/25 bg-[#0f1f19] p-4 shadow-2xl shadow-emerald-950/50"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-base font-semibold">Adjust view</h3>
+              <button onClick={() => setShowViewDialog(false)}
+                className="rounded-md p-1 text-emerald-200/60 hover:bg-emerald-400/10 hover:text-emerald-200">
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-emerald-200/50">Selection is saved for future meetings</p>
+
+            <div className="space-y-1.5">
+              {VIEW_OPTIONS.map((o) => (
+                <button key={o.value} onClick={() => setView({ ...view, layout: o.value })}
+                  className={cn("flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors",
+                    view.layout === o.value
+                      ? "border-emerald-400/60 bg-emerald-400/10"
+                      : "border-emerald-400/15 hover:border-emerald-400/35")}>
+                  <span className={cn("grid size-4 shrink-0 place-items-center rounded-full border",
+                    view.layout === o.value ? "border-emerald-400" : "border-emerald-200/40")}>
+                    {view.layout === o.value && <span className="size-2 rounded-full bg-emerald-400" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm">{o.label}</span>
+                    <span className="block text-[11px] leading-snug text-emerald-200/50">{o.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs font-medium text-emerald-200/80">Tiles per page</p>
+              {view.layout === "tiled" ? (
+                <div className="mt-1.5 flex items-center gap-3">
+                  <input type="range" min={0} max={TILE_STEPS.length - 1} step={1}
+                    value={TILE_STEPS.indexOf(view.maxTiles)}
+                    onChange={(e) => setView({ ...view, maxTiles: TILE_STEPS[Number(e.target.value)] })}
+                    className="w-full accent-emerald-500" />
+                  <span className="w-8 shrink-0 text-right text-sm text-emerald-300">{view.maxTiles}</span>
+                </div>
+              ) : (
+                <p className="mt-1 text-[11px] text-emerald-200/50">
+                  Can&apos;t change the tile count in this layout — it&apos;s automatic.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-emerald-400/10 pt-3.5">
+              <span className="text-sm">Hide tiles without video</span>
+              <button role="switch" aria-checked={view.hideNoVideo}
+                onClick={() => setView({ ...view, hideNoVideo: !view.hideNoVideo })}
+                className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                  view.hideNoVideo ? "bg-emerald-500" : "bg-emerald-100/20")}>
+                <span className={cn("absolute top-0.5 size-4 rounded-full bg-white transition-all",
+                  view.hideNoVideo ? "left-[18px]" : "left-0.5")} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className="absolute bottom-24 left-1/2 z-40 w-max max-w-[90%] -translate-x-1/2 rounded-xl border border-emerald-400/30 bg-[#142a21] px-4 py-2 text-center text-sm">

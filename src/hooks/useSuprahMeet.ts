@@ -228,7 +228,7 @@ export function useSuprahMeet() {
             ...r,
             [attendeeId]: {
               attendeeId, crmUserId,
-              name: isSelf ? selfNameRef.current : known?.fullName || "Joining…",
+              name: isSelf ? selfNameRef.current : known?.fullName || "Suprah Autrix",
               avatar: known?.avatar ?? null,
               muted: false, handRaised: false,
             },
