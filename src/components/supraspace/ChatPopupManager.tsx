@@ -4096,22 +4096,51 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
     if (!targetId) return;
 
-    const target = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
-    if (!target) {
-      toast.info('Original message is not loaded yet. Scroll up to load older messages.');
-      return;
-    }
-
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.animate(
+    const focusTarget = (node: HTMLElement) => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      node.animate(
       [
         { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
         { boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.55), 0 0 24px rgba(59, 130, 246, 0.32)', transform: 'scale(1.015)' },
         { boxShadow: '0 0 0 0 rgba(59, 130, 246, 0)', transform: 'scale(1)' },
       ],
       { duration: 1400, easing: 'ease' },
-    );
-  }, []);
+      );
+    };
+    const target = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
+    if (target) {
+      focusTarget(target);
+      return;
+    }
+
+    const createdAt = typeof replyTo === 'string' ? undefined : replyTo?.createdAt;
+    const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
+    const timestamp = createdAt ? new Date(createdAt) : null;
+    if (!effectiveToken || !timestamp || Number.isNaN(timestamp.getTime())) {
+      toast.info('Original message is not available in this conversation.');
+      return;
+    }
+
+    void apiClient.get(`/api/supraspace/conversations/${conv._id}/messages`, {
+      headers: { Authorization: `Bearer ${effectiveToken}` },
+      params: { before: new Date(timestamp.getTime() + 1000).toISOString(), limit: 40 },
+    }).then(response => {
+      const fetched: SSMessage[] = response.data?.data || [];
+      if (!fetched.some(message => message._id === targetId)) {
+        toast.info('Original message is no longer available.');
+        return;
+      }
+      setMessages(previous => Array.from(
+        new Map([...previous, ...fetched].map(message => [message._id, message])).values(),
+      ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+      requestAnimationFrame(() => {
+        const fetchedTarget = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${targetId}"]`);
+        if (fetchedTarget) focusTarget(fetchedTarget);
+      });
+    }).catch(() => {
+      toast.error('Could not load the original message.');
+    });
+  }, [conv._id, crmToken]);
 
   const stageFiles = React.useCallback((files: FileList | File[] | null) => {
     const seenIncoming = new Set<string>();
@@ -5356,7 +5385,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const handleSend = async () => {
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
-    const text = normalizeMessageMarkdownText(
+    const serializedText = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         restoreMissingSerialsFromSources(
           preserveVisiblePayloadLines(
@@ -5374,6 +5403,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ),
       ),
     );
+    const text = serializedText || normalizeMessageMarkdownText(visibleComposerText);
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
       return;
@@ -5782,7 +5812,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const handleTyping = (e: React.FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const val = (el.innerText || '').replace(/\n$/, '');
-    syncComposerText(val);
+    syncComposerText(val, true);
     const inputEvent = e.nativeEvent as InputEvent;
     const textBeforeCaret = getComposerTextBeforeCaret(el);
     const cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);

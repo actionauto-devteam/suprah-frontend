@@ -5073,7 +5073,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5085,6 +5085,7 @@ const Bubble = React.memo(function Bubble({
   nameFor: (id: string) => string;
   mediaGallery?: SS4MediaViewerItem[];
   onRefreshMedia?: () => void;
+  onJumpToMessage?: (messageId: string, createdAt?: string) => void;
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
@@ -5909,23 +5910,8 @@ const Bubble = React.memo(function Bubble({
         : (replyTo as any)?._id || (replyTo as any)?.id;
 
     if (!targetId) return;
-
-    const target = document.getElementById(`ss4-msg-${targetId}`);
-    if (!target) {
-      toast.info('Original message is not loaded yet. Scroll up to load older messages.');
-      return;
-    }
-
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.animate(
-      [
-        { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0)', transform: 'scale(1)' },
-        { boxShadow: '0 0 0 4px rgba(22, 163, 74, 0.55), 0 0 28px rgba(22, 163, 74, 0.35)', transform: 'scale(1.01)' },
-        { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0)', transform: 'scale(1)' },
-      ],
-      { duration: 1400, easing: 'ease' },
-    );
-  }, []);
+    onJumpToMessage?.(targetId, typeof replyTo === 'string' ? undefined : replyTo?.createdAt);
+  }, [onJumpToMessage]);
 
   const handleTouchStart = (event: React.TouchEvent) => {
     if (event.touches.length !== 1) return;
@@ -6090,7 +6076,7 @@ const Bubble = React.memo(function Bubble({
   const actionBorder = isLightTheme ? 'rgba(15,23,42,0.14)' : 'rgba(255,255,255,0.14)';
 
   return (
-    <div ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
+    <div id={`ss4-msg-${message._id}`} ref={bubbleRowRef} className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5 relative ss4-msg-enter ss4-mobile-no-select', isOwn && 'flex-row-reverse', isMentioned && 'ss4-mention-highlight')}
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onTouchMove={handleTouchMove} onContextMenu={handleMobileContextMenu}>
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
@@ -11052,7 +11038,7 @@ export default function SupraSpacePage() {
     const conversationId = activeId;
     const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
     const serializedComposerText = stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
-    const content = normalizeMessageMarkdownText(
+    const serializedContent = normalizeMessageMarkdownText(
       canonicalizeColorMarkup(
         restoreMissingSerialsFromSources(
           preserveVisiblePayloadLines(
@@ -11069,6 +11055,9 @@ export default function SupraSpacePage() {
         ),
       ),
     );
+    const content = serializedContent || (hasText
+      ? normalizeMessageMarkdownText(visibleComposerText)
+      : '');
     const pastedMediaReference = getSS4PastedMediaReference(content, '');
     if (hasText && !hasPendingFiles && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
       if (pastedMediaReference?.local) {
@@ -11719,7 +11708,7 @@ export default function SupraSpacePage() {
     const val = currentText.length > SS4_MAX_MESSAGE_CHARS
       ? enforceComposerLengthFromDom(el, getCaretOffset(el))
       : currentText;
-    syncComposerText(val);
+    syncComposerText(val, true);
     const inputEvent = e.nativeEvent as InputEvent;
     let cursorAfterInput: number | null = null;
     const shouldInspectMention =
@@ -11752,7 +11741,7 @@ export default function SupraSpacePage() {
         const restoreCursor = cursorAfterInput ?? getCaretOffset(current);
         highlightMentionsInComposer(current);
         const nextText = current.innerText.replace(/\n$/, '');
-        syncComposerText(nextText);
+        syncComposerText(nextText, true);
         const selection = window.getSelection();
         if (selection) {
           const range = rangeFromTextOffset(current, Math.min(restoreCursor, nextText.length));
@@ -12071,16 +12060,12 @@ export default function SupraSpacePage() {
     }
   }, [activeId, pinnedMsgIds, activeConv, uid, token, patchMsg]);
 
-  const jumpToMessage = React.useCallback((msgId: string) => {
+  const jumpToMessage = React.useCallback(async (msgId: string, createdAt?: string) => {
     setPinnedModalOpen(false);
     setShowInfo(false);
-    window.setTimeout(() => {
+    const scrollToTarget = () => {
       const target = document.getElementById(`ss4-msg-${msgId}`);
-      if (!target) {
-        toast.info('Pinned message is not loaded yet. Scroll up to load older messages.');
-        return;
-      }
-
+      if (!target) return false;
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target.animate(
         [
@@ -12090,8 +12075,48 @@ export default function SupraSpacePage() {
         ],
         { duration: 1300, easing: 'ease' },
       );
-    }, 120);
-  }, []);
+      return true;
+    };
+
+    if (scrollToTarget()) return;
+    if (!activeId || !createdAt || !token) {
+      toast.info('Original message is not available in this conversation.');
+      return;
+    }
+
+    const timestamp = new Date(createdAt);
+    if (Number.isNaN(timestamp.getTime())) {
+      toast.info('Original message is not available in this conversation.');
+      return;
+    }
+
+    pendingNotificationTargetRef.current = { conversationId: activeId, messageId: msgId };
+    setLoadingMsgs(true);
+    try {
+      const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          before: new Date(timestamp.getTime() + 1000).toISOString(),
+          limit: SS4_MESSAGE_PAGE_SIZE,
+        },
+      });
+      const messages: SSMessage[] = r.data?.data || [];
+      if (!messages.some(message => message._id === msgId)) {
+        pendingNotificationTargetRef.current = null;
+        toast.info('Original message is no longer available.');
+        return;
+      }
+      setMsgs(previous => ({
+        ...previous,
+        [activeId]: mergeMessages(previous[activeId] || [], messages),
+      }));
+    } catch {
+      pendingNotificationTargetRef.current = null;
+      toast.error('Could not load the original message.');
+    } finally {
+      setLoadingMsgs(false);
+    }
+  }, [activeId, token]);
 
   const togglePinConv = React.useCallback(async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
@@ -13142,6 +13167,7 @@ export default function SupraSpacePage() {
       onOpenMedia={setLightbox}
       mediaGallery={activeMediaGallery}
       onRefreshMedia={refreshActiveMedia}
+      onJumpToMessage={jumpToMessage}
       onReact={handleReact}
       onVotePoll={handleVotePoll}
       onRsvp={handleRsvp}
@@ -13153,7 +13179,7 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
     />
-  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
