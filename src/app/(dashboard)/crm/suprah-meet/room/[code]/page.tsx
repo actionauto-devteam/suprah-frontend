@@ -3,41 +3,110 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Circle, Copy, Hand, MessageSquare, Mic, MicOff, MonitorUp, PhoneOff,
-  ScreenShareOff, Send, SmilePlus, SwitchCamera, Users, Video, VideoOff, X,
+  Armchair, Check, Circle, Copy, Hand, Hourglass, Info, MessageSquare, Mic,
+  MicOff, Minimize2, MonitorUp, PhoneOff, Pin, PinOff, ScreenShareOff, Send,
+  SmilePlus, SwitchCamera, Users, Video, VideoOff, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, resolveImageUrl } from "@/lib/utils";
-import { useSuprahMeet, type RosterEntry, type TileInfo } from "@/hooks/useSuprahMeet";
+import { apiClient } from "@/lib/api-client";
+import {
+  MEET_SCENES, type MeetSceneKey, type RosterEntry, type TileInfo,
+} from "@/hooks/useSuprahMeet";
+import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
 
+/* Picker swatch styling (backgrounds + Together Mode) */
+const swatchCls =
+  "relative grid h-14 place-items-end overflow-hidden rounded-lg border border-emerald-400/20 p-1 text-left transition-all hover:scale-[1.03]";
+const swatchOnCls = "border-emerald-400 shadow-[0_0_0_1px_theme(colors.emerald.400)]";
+const swatchLabelCls =
+  "rounded bg-[#071410]/80 px-1 py-px text-[9px] leading-tight text-emerald-100";
+
 export default function SuprahMeetRoomPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
   const code = decodeURIComponent(String(params.code || "")).toUpperCase();
-  const meet = useSuprahMeet();
+  // The meeting session lives in MeetSessionProvider (mounted in the CRM
+  // layout), so navigating away minimizes the meeting instead of killing it.
+  const { meet, activeCode, open } = useMeetSession();
 
-  const [panel, setPanel] = React.useState<"none" | "chat" | "people">("none");
+  const [panel, setPanel] = React.useState<"none" | "chat" | "people" | "info">("none");
   const [showReactions, setShowReactions] = React.useState(false);
+  const [showBackgrounds, setShowBackgrounds] = React.useState(false);
+  const [showTogether, setShowTogether] = React.useState(false);
   const [chatDraft, setChatDraft] = React.useState("");
-  const [elapsed, setElapsed] = React.useState(0);
+  const [pinnedId, setPinnedId] = React.useState<string | null>(null);
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
   const [toast, setToast] = React.useState<string | null>(null);
-  const joinedRef = React.useRef(false);
+  // Waiting room: "checking" until the backend says we may join.
+  const [gate, setGate] = React.useState<"checking" | "admitted" | "waiting" | "denied" | "over">("checking");
+  const [waitingList, setWaitingList] = React.useState<
+    { crmUserId: string; fullName: string; avatar: string | null }[]
+  >([]);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
+  // Waiting-room gate: hosts, admins/managers, and tagged attendees go straight
+  // in; anyone joining purely by code asks the host first and polls until
+  // admitted. Falls back to a direct join if the endpoint is unavailable.
   React.useEffect(() => {
-    if (!joinedRef.current && code) { joinedRef.current = true; void meet.join(code); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code]);
+    if (!code) return;
+    if (activeCode && activeCode !== code) return; // busy screen handles this
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      try {
+        const res = await apiClient.post(`/api/crm/meet/meetings/${code}/request-join`);
+        const d = res.data?.data ?? {};
+        if (cancelled) return;
+        if (d.admitted) { setGate("admitted"); open(code); return; }
+        if (d.denied) { setGate("denied"); return; }
+        if (d.ended) { setGate("over"); return; }
+        setGate("waiting");
+        timer = setTimeout(() => { void check(); }, 3000); // keep asking; refresh-safe
+      } catch {
+        // Older backend or transient error → let the normal join path decide
+        // (its error screen reports the real problem).
+        if (!cancelled) { setGate("admitted"); open(code); }
+      }
+    };
+    void check();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [code, open, activeCode]);
 
+  // Host side: poll the waiting queue while in the meeting.
+  const refreshWaiting = React.useCallback(async () => {
+    try {
+      const res = await apiClient.get(`/api/crm/meet/meetings/${code}/waiting`);
+      setWaitingList(res.data?.data?.waiting ?? []);
+    } catch { /* non-controllers get 403 — fine */ }
+  }, [code]);
+  React.useEffect(() => {
+    if (meet.phase !== "in" || !meet.canControl) return;
+    void refreshWaiting();
+    const t = setInterval(() => { void refreshWaiting(); }, 4000);
+    return () => clearInterval(t);
+  }, [meet.phase, meet.canControl, refreshWaiting]);
+
+  const respondWaiting = async (userId: string, action: "admit" | "deny") => {
+    try {
+      await apiClient.post(`/api/crm/meet/meetings/${code}/waiting/${userId}`, { action });
+      await refreshWaiting();
+    } catch { setToast("Could not update the waiting room."); }
+  };
+
+  // Elapsed is derived from the server's startedAt (a UTC instant), so it is
+  // identical on every device and survives minimize/refresh.
   React.useEffect(() => {
     if (meet.phase !== "in") return;
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [meet.phase]);
+  const startedMs = meet.meeting?.startedAt ? new Date(meet.meeting.startedAt).getTime() : null;
+  const elapsed = startedMs ? Math.max(0, Math.floor((nowMs - startedMs) / 1000)) : 0;
 
   React.useEffect(() => {
     if (panel === "chat") { meet.markChatRead(); chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }
@@ -55,8 +124,11 @@ export default function SuprahMeetRoomPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const fmt = (s: number) =>
-    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const fmt = (s: number) => {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const mm = `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    return h > 0 ? `${h}:${mm}` : mm;
+  };
 
   const contentTile = meet.tiles.find((t) => t.isContent);
   const cameraTiles = meet.tiles.filter((t) => !t.isContent);
@@ -64,8 +136,101 @@ export default function SuprahMeetRoomPage() {
   const people = Object.values(meet.roster);
   const raised = people.filter((p) => p.handRaised);
 
+  // Pin → spotlight. Screen share always outranks a pin; the pin comes back
+  // when sharing stops. A pin auto-clears if that person leaves.
+  React.useEffect(() => {
+    if (pinnedId && !people.some((p) => p.attendeeId === pinnedId)) setPinnedId(null);
+  }, [people, pinnedId]);
+  const spotPerson = !contentTile && pinnedId
+    ? people.find((p) => p.attendeeId === pinnedId) ?? null : null;
+  const togglePin = (attendeeId: string) =>
+    setPinnedId((prev) => (prev === attendeeId ? null : attendeeId));
+
+  /** Grid columns tuned to how many tiles are on stage. */
+  const gridCls = (n: number) =>
+    n <= 1 ? "grid-cols-1"
+    : n === 2 ? "grid-cols-1 sm:grid-cols-2"
+    : n <= 4 ? "grid-cols-2"
+    : n <= 9 ? "grid-cols-2 md:grid-cols-3"
+    : n <= 12 ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+    : "grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
+
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
   const copyCode = () => { void navigator.clipboard?.writeText(code).catch(() => {}); setToast("Meeting code copied"); };
+
+  // Already in a different meeting → don't hijack the running session.
+  if (activeCode && activeCode !== code) {
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+        <SuprahMeetLogo className="size-12" />
+        <p className="text-lg font-medium">You&apos;re already in a meeting</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          You&apos;re currently in <span className="font-medium text-foreground">{activeCode}</span>.
+          Return to it, or leave it to join {code} instead.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button onClick={() => router.push(`/crm/suprah-meet/room/${activeCode}`)}>Return to {activeCode}</Button>
+          <Button variant="outline"
+            onClick={() => { void (async () => { await meet.leave(); location.reload(); })(); }}>
+            Leave it and join {code}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gate === "checking" && meet.phase !== "in" && meet.phase !== "joining") {
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-3 p-6 text-center">
+        <SuprahMeetLogo className="size-12 animate-pulse" />
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      </div>
+    );
+  }
+
+  if (gate === "waiting") {
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="grid size-16 place-items-center rounded-2xl bg-emerald-500/10">
+          <Hourglass className="size-8 animate-pulse text-emerald-500" />
+        </div>
+        <p className="text-lg font-medium">Asking the host to let you in</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          You&apos;re in the waiting room for <span className="font-medium text-foreground">{code}</span>.
+          You&apos;ll join automatically the moment the host admits you — keep this page open.
+          Refreshing is fine; your spot is saved.
+        </p>
+        <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Cancel</Button>
+      </div>
+    );
+  }
+
+  if (gate === "denied") {
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+        <SuprahMeetLogo className="size-12" />
+        <p className="text-lg font-medium">The host didn&apos;t admit you</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Your request to join {code} was declined. If you think this is a mistake,
+          contact the host directly.
+        </p>
+        <Button onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
+      </div>
+    );
+  }
+
+  if (gate === "over") {
+    return (
+      <div className="flex h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-4 p-6 text-center">
+        <SuprahMeetLogo className="size-12" />
+        <p className="text-lg font-medium">This meeting has ended</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {code} finished before you were admitted.
+        </p>
+        <Button onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
+      </div>
+    );
+  }
 
   if (meet.phase === "error") {
     return (
@@ -106,8 +271,6 @@ export default function SuprahMeetRoomPage() {
         <div className="absolute left-1/3 top-0 size-96 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
       </div>
 
-      <audio ref={meet.bindAudio} autoPlay className="hidden" />
-
       {/* Top bar */}
       <header className="relative z-10 flex items-center gap-2 border-b border-emerald-400/15 bg-[#0a1410]/80 px-3 py-2.5 backdrop-blur md:gap-3 md:px-4">
         <SuprahMeetLogo className="size-7 shrink-0 md:size-8" />
@@ -121,6 +284,11 @@ export default function SuprahMeetRoomPage() {
           </span>
         )}
         <div className="flex-1" />
+        <button onClick={() => router.push("/crm/suprah-meet")}
+          title="Minimize — the meeting keeps running while you browse Suprah Space"
+          className="grid size-8 shrink-0 place-items-center rounded-md border border-emerald-400/20 text-emerald-200/70 hover:border-emerald-400/50 hover:text-emerald-200">
+          <Minimize2 className="size-4" />
+        </button>
         <button onClick={copyCode}
           className="flex shrink-0 items-center gap-1.5 rounded-md border border-dashed border-emerald-400/30 px-2.5 py-1 text-xs text-emerald-200/80 hover:border-emerald-400/60 hover:text-emerald-300">
           {code} <Copy className="size-3" />
@@ -140,8 +308,49 @@ export default function SuprahMeetRoomPage() {
         </div>
       )}
 
+      {/* Waiting room queue (host / admins only) */}
+      {meet.canControl && waitingList.length > 0 && (
+        <div className="relative z-10 flex items-center gap-2 overflow-x-auto border-b border-sky-400/20 bg-sky-500/10 px-3 py-1.5 text-xs md:px-4">
+          <Hourglass className="size-3.5 shrink-0 text-sky-300" />
+          <span className="shrink-0 text-sky-200/80">Waiting to join:</span>
+          {waitingList.map((w) => (
+            <span key={w.crmUserId}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-sky-400/15 px-2 py-0.5 text-sky-100">
+              {w.fullName}
+              <button title="Admit" onClick={() => void respondWaiting(w.crmUserId, "admit")}
+                className="grid size-5 place-items-center rounded-full bg-emerald-500/25 text-emerald-200 hover:bg-emerald-500/40">
+                <Check className="size-3" />
+              </button>
+              <button title="Don't admit" onClick={() => void respondWaiting(w.crmUserId, "deny")}
+                className="grid size-5 place-items-center rounded-full bg-rose-500/25 text-rose-200 hover:bg-rose-500/40">
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+          {waitingList.length > 1 && (
+            <button
+              onClick={() => { waitingList.forEach((w) => void respondWaiting(w.crmUserId, "admit")); }}
+              className="shrink-0 rounded-full border border-emerald-400/40 bg-emerald-400/15 px-2.5 py-0.5 text-emerald-200 hover:bg-emerald-400/25">
+              Admit all
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Stage */}
       <div className="relative z-10 flex min-h-0 flex-1">
+        {/* Together Mode: one shared scene behind the whole grid — every
+            camera is background-replaced with the SAME image, so tiles blend
+            into a single room. */}
+        {meet.togetherScene && !contentTile && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-0 opacity-80"
+            style={{ background: MEET_SCENES.find((sc) => sc.key === meet.togetherScene)?.css }} />
+        )}
+        {meet.togetherScene && (
+          <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 rounded-full border border-emerald-400/30 bg-[#071410]/80 px-3 py-1 text-[10px] tracking-widest text-emerald-300 backdrop-blur">
+            TOGETHER MODE · {MEET_SCENES.find((sc) => sc.key === meet.togetherScene)?.label.toUpperCase()}
+          </div>
+        )}
         <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 md:gap-3 md:p-3">
           {contentTile ? (
             <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
@@ -156,15 +365,29 @@ export default function SuprahMeetRoomPage() {
                 ))}
               </div>
             </div>
+          ) : spotPerson ? (
+            <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
+              <PersonTile person={spotPerson} tile={tilesByAttendee.get(spotPerson.attendeeId)}
+                bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === spotPerson.attendeeId}
+                isSelf={spotPerson.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                pinned onPin={() => setPinnedId(null)} className="min-h-0" />
+              <div className="flex gap-2 overflow-x-auto md:flex-col md:gap-3 md:overflow-y-auto">
+                {people.filter((p) => p.attendeeId !== spotPerson.attendeeId).map((p) => (
+                  <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
+                    bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
+                    isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                    onPin={() => togglePin(p.attendeeId)}
+                    className="h-24 w-40 shrink-0 md:h-auto md:w-full md:shrink" />
+                ))}
+              </div>
+            </div>
           ) : (
-            <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 md:gap-3",
-              people.length <= 1 && "grid-cols-1",
-              people.length === 2 && "grid-cols-1 sm:grid-cols-2",
-              people.length > 2 && "grid-cols-2 lg:grid-cols-3")}>
+            <div className={cn("grid min-h-0 flex-1 auto-rows-fr gap-2 md:gap-3", gridCls(people.length))}>
               {people.map((p) => (
                 <PersonTile key={p.attendeeId} person={p} tile={tilesByAttendee.get(p.attendeeId)}
                   bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === p.attendeeId}
-                  isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera} />
+                  isSelf={p.attendeeId === meet.selfAttendeeId} mirror={!meet.isBackCamera}
+                  onPin={() => togglePin(p.attendeeId)} />
               ))}
               {people.length === 0 && (
                 <div className="grid place-items-center">
@@ -210,7 +433,7 @@ export default function SuprahMeetRoomPage() {
               iconOn={<Hand className="size-5" />} iconOff={<Hand className="size-5" />} />
 
             <div className="relative">
-              <Ctl on onClick={() => setShowReactions((v) => !v)} label="React"
+              <Ctl on onClick={() => { setShowReactions((v) => !v); setShowBackgrounds(false); setShowTogether(false); }} label="React"
                 iconOn={<SmilePlus className="size-5" />} iconOff={<SmilePlus className="size-5" />} />
               {showReactions && (
                 <div className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-emerald-400/25 bg-[#142a21] p-1.5 shadow-xl shadow-emerald-500/10">
@@ -221,6 +444,73 @@ export default function SuprahMeetRoomPage() {
                 </div>
               )}
             </div>
+
+            {/* Virtual background picker (hidden on browsers without WebGL2/WASM support) */}
+            {meet.backgroundsSupported && (
+              <div className="relative">
+                <Ctl on={meet.background === "none"} accent
+                  onClick={() => { setShowBackgrounds((v) => !v); setShowTogether(false); setShowReactions(false); }}
+                  label="Background"
+                  iconOn={<Wand2 className="size-5" />} iconOff={<Wand2 className="size-5" />} />
+                {showBackgrounds && (
+                  <div className="absolute bottom-full left-1/2 z-30 mb-2 w-60 -translate-x-1/2 rounded-2xl border border-emerald-400/25 bg-[#142a21] p-2 shadow-xl shadow-emerald-500/10">
+                    {meet.togetherScene && (
+                      <p className="mb-1.5 px-0.5 text-[10px] leading-snug text-amber-300/90">
+                        Together Mode is on — it overrides personal backgrounds until it&apos;s turned off.
+                      </p>
+                    )}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button onClick={() => { void meet.setBackground("none"); setShowBackgrounds(false); }}
+                        className={cn(swatchCls, "bg-[#0a1410]", meet.background === "none" && swatchOnCls)}>
+                        <span className={swatchLabelCls}>None</span>
+                      </button>
+                      <button onClick={() => { void meet.setBackground("blur"); setShowBackgrounds(false); }}
+                        className={cn(swatchCls, "bg-emerald-200/10 backdrop-blur", meet.background === "blur" && swatchOnCls)}>
+                        <span className="absolute inset-2 rounded-full bg-emerald-300/20 blur-md" />
+                        <span className={swatchLabelCls}>Blur</span>
+                      </button>
+                      {MEET_SCENES.map((sc) => (
+                        <button key={sc.key} style={{ background: sc.css }}
+                          onClick={() => { void meet.setBackground(sc.key); setShowBackgrounds(false); }}
+                          className={cn(swatchCls, meet.background === sc.key && swatchOnCls)}>
+                          <span className={swatchLabelCls}>{sc.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Together Mode — host/admins put everyone in the same room */}
+            {meet.canControl && meet.backgroundsSupported && (
+              <div className="relative">
+                <Ctl on={!meet.togetherScene} accent
+                  onClick={() => { setShowTogether((v) => !v); setShowBackgrounds(false); setShowReactions(false); }}
+                  label="Together Mode"
+                  iconOn={<Armchair className="size-5" />} iconOff={<Armchair className="size-5" />} />
+                {showTogether && (
+                  <div className="absolute bottom-full left-1/2 z-30 mb-2 w-60 -translate-x-1/2 rounded-2xl border border-emerald-400/25 bg-[#142a21] p-2 shadow-xl shadow-emerald-500/10">
+                    <p className="mb-1.5 px-0.5 text-[10px] leading-snug text-emerald-200/70">
+                      Everyone&apos;s camera gets the same scene, so the grid reads as one shared room.
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button onClick={() => { meet.toggleTogether(null); setShowTogether(false); }}
+                        className={cn(swatchCls, "bg-[#0a1410]", !meet.togetherScene && swatchOnCls)}>
+                        <span className={swatchLabelCls}>Off</span>
+                      </button>
+                      {MEET_SCENES.map((sc) => (
+                        <button key={sc.key} style={{ background: sc.css }}
+                          onClick={() => { meet.toggleTogether(sc.key); setShowTogether(false); }}
+                          className={cn(swatchCls, meet.togetherScene === sc.key && swatchOnCls)}>
+                          <span className={swatchLabelCls}>{sc.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Ctl on={panel !== "chat"} accent onClick={() => setPanel(panel === "chat" ? "none" : "chat")}
               label="Chat" badge={panel !== "chat" && meet.chatUnread > 0 ? meet.chatUnread : undefined}
@@ -241,6 +531,7 @@ export default function SuprahMeetRoomPage() {
             </Button>
             {meet.canControl && (
               <Button variant="outline"
+                title="Ends the meeting for everyone. Host-only while the host is in the room."
                 className="hidden h-11 rounded-xl border-rose-400/40 px-4 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:inline-flex"
                 onClick={() => void meet.endMeeting()}>End for all</Button>
             )}
@@ -251,11 +542,11 @@ export default function SuprahMeetRoomPage() {
         {panel !== "none" && (
           <aside className="absolute inset-0 z-30 flex flex-col border-emerald-400/15 bg-[#0f1f19]/95 backdrop-blur md:static md:inset-auto md:w-80 md:border-l">
             <div className="flex border-b border-emerald-400/15 text-sm">
-              {(["chat", "people"] as const).map((t) => (
+              {(["chat", "people", "info"] as const).map((t) => (
                 <button key={t} onClick={() => setPanel(t)}
                   className={cn("flex-1 py-3 capitalize md:py-2.5",
                     panel === t ? "border-b-2 border-emerald-400 font-semibold text-emerald-300" : "text-emerald-200/60")}>
-                  {t === "people" ? `People (${people.length})` : "Chat"}
+                  {t === "people" ? `People (${people.length})` : t === "info" ? "Info" : "Chat"}
                 </button>
               ))}
               <button onClick={() => setPanel("none")} className="grid w-12 place-items-center text-emerald-200/60 hover:text-emerald-200">
@@ -284,6 +575,42 @@ export default function SuprahMeetRoomPage() {
                   ))}
                   <div ref={chatEndRef} />
                 </>
+              ) : panel === "info" ? (
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Title</p>
+                    <p>{meet.meeting?.title ?? "Suprah Meet"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Meeting code</p>
+                    <button onClick={copyCode} className="flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200">
+                      {code} <Copy className="size-3" />
+                    </button>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Started</p>
+                    <p>{startedMs
+                      ? new Date(startedMs).toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" }) + " MT"
+                      : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Duration</p>
+                    <p>{fmt(elapsed)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">In the room</p>
+                    <p>{people.length} participant{people.length === 1 ? "" : "s"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Recording</p>
+                    <p>{meet.recording ? "Recording to the cloud" : "Not recording"}</p>
+                  </div>
+                  <p className="flex items-start gap-1.5 border-t border-emerald-400/10 pt-3 text-xs text-emerald-200/50">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    All times are Mountain time. Use the minimize button in the top bar to
+                    keep the meeting running while you work elsewhere in Suprah Space.
+                  </p>
+                </div>
               ) : (
                 people.map((p) => (
                   <div key={p.attendeeId} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-emerald-400/5">
@@ -368,13 +695,14 @@ function TileVideo({ tile, bind, className, contain }: {
   );
 }
 
-function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className }: {
+function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, pinned, onPin }: {
   person: RosterEntry; tile?: TileInfo;
   bind: (tileId: number, el: HTMLVideoElement | null) => void;
   speaking: boolean; isSelf: boolean; mirror: boolean; className?: string;
+  pinned?: boolean; onPin?: () => void;
 }) {
   return (
-    <div className={cn("relative min-h-24 overflow-hidden rounded-2xl border bg-[#0f1f19] transition-shadow duration-300 md:min-h-28",
+    <div className={cn("group relative min-h-24 overflow-hidden rounded-2xl border bg-[#0f1f19] transition-shadow duration-300 md:min-h-28",
       speaking
         ? "border-emerald-400 shadow-[0_0_0_1px_theme(colors.emerald.400),0_0_28px_rgba(52,211,153,0.4)]"
         : "border-emerald-400/15",
@@ -386,6 +714,15 @@ function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className }:
         <div className="absolute inset-0 grid place-items-center">
           <ProfileBubble name={person.name} avatar={person.avatar} size="lg" />
         </div>
+      )}
+      {onPin && (
+        <button onClick={onPin} title={pinned ? "Unpin" : "Pin — keep this video as the main focus"}
+          className={cn("absolute left-2 top-2 z-10 grid size-7 place-items-center rounded-full border backdrop-blur transition-opacity",
+            pinned
+              ? "border-emerald-400/60 bg-emerald-500/25 text-emerald-200 opacity-100"
+              : "border-emerald-400/20 bg-[#071410]/70 text-emerald-200/70 opacity-70 hover:opacity-100")}>
+          {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+        </button>
       )}
       {person.handRaised && (
         <span className="absolute right-2 top-2 grid size-7 place-items-center rounded-full border border-amber-400/40 bg-amber-500/20"

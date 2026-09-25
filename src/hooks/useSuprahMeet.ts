@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  BackgroundBlurVideoFrameProcessor, BackgroundReplacementVideoFrameProcessor,
   ConsoleLogger, DefaultActiveSpeakerPolicy, DefaultDeviceController,
-  DefaultEventController, DefaultMeetingSession, LogLevel,
-  MeetingSessionConfiguration, MeetingSessionStatusCode, NoOpEventReporter,
+  DefaultEventController, DefaultMeetingSession, DefaultVideoTransformDevice,
+  LogLevel, MeetingSessionConfiguration, MeetingSessionStatusCode,
+  NoOpEventReporter,
   type DataMessage, type MeetingSessionStatus, type VideoTileState,
 } from "amazon-chime-sdk-js";
 import { apiClient } from "@/lib/api-client";
 import { meetSounds } from "@/lib/meet-sounds";
-import { resolveImageUrl } from "@/lib/utils";
-import { MeetSceneRecorder, type SceneData } from "@/lib/meet-scene-recorder";
 
 export interface MeetParticipantInfo {
   crmUserId: string;
@@ -32,6 +32,7 @@ export interface ChatMessage { id: string; name: string; text: string; at: numbe
 export interface MeetingInfo {
   _id: string; code: string; title: string;
   status: "scheduled" | "live" | "ended";
+  startedAt?: string | null;       // set by the backend when the meeting goes live
   participants: MeetParticipantInfo[];
   recording: { status: string };
 }
@@ -40,10 +41,70 @@ type Phase = "idle" | "joining" | "in" | "ended" | "error";
 
 const DATA_TOPIC = "suprah-meet";
 const CHAT_TOPIC = "meet-chat";
+/* ── Virtual background scenes ──────────────────────────────────────────────
+ * Drawn on a canvas at runtime (no image assets to host or load). The same
+ * scenes power personal backgrounds AND Together Mode, where every camera is
+ * replaced with the identical room so the grid reads as one shared space. */
+export type MeetSceneKey = "showroom" | "office" | "skyline" | "midnight";
+export type MeetBackground = "none" | "blur" | MeetSceneKey;
+
+export const MEET_SCENES: { key: MeetSceneKey; label: string; css: string }[] = [
+  { key: "showroom", label: "Emerald showroom", css: "linear-gradient(160deg,#071410 0%,#0d2b1f 55%,#134034 100%)" },
+  { key: "office",   label: "Night office",     css: "linear-gradient(160deg,#0b1220 0%,#16213a 60%,#1f2c4d 100%)" },
+  { key: "skyline",  label: "Dusk skyline",     css: "linear-gradient(180deg,#0b1026 0%,#25204d 55%,#5a2a53 100%)" },
+  { key: "midnight", label: "Midnight",         css: "linear-gradient(160deg,#04060c 0%,#0a0f1d 100%)" },
+];
+const isSceneKey = (v: unknown): v is MeetSceneKey => MEET_SCENES.some((s) => s.key === v);
+
+const sceneCache = new Map<MeetSceneKey, Blob>();
+async function sceneBlob(key: MeetSceneKey): Promise<Blob> {
+  const hit = sceneCache.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1280; canvas.height = 720;
+  const ctx = canvas.getContext("2d")!;
+  const stops: Record<MeetSceneKey, [string, string, string]> = {
+    showroom: ["#071410", "#0d2b1f", "#134034"],
+    office:   ["#0b1220", "#16213a", "#1f2c4d"],
+    skyline:  ["#0b1026", "#25204d", "#5a2a53"],
+    midnight: ["#04060c", "#0a0f1d", "#0a0f1d"],
+  };
+  const [a, b, c] = stops[key];
+  const g = ctx.createLinearGradient(0, 0, 320, 720);
+  g.addColorStop(0, a); g.addColorStop(0.55, b); g.addColorStop(1, c);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1280, 720);
+  if (key === "showroom") {          // faint digital grid, matches the room UI
+    ctx.strokeStyle = "rgba(16,185,129,0.10)"; ctx.lineWidth = 1;
+    for (let x = 0; x <= 1280; x += 64) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 720); ctx.stroke(); }
+    for (let y = 0; y <= 720; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1280, y); ctx.stroke(); }
+  } else if (key === "skyline") {    // blocky building silhouettes on the horizon
+    ctx.fillStyle = "rgba(5,8,20,0.9)";
+    for (let x = 0; x < 1280; x += 90) {
+      const h = 140 + ((x * 37) % 160);
+      ctx.fillRect(x, 720 - h, 70, h);
+    }
+  } else if (key === "midnight") {   // sparse stars
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    for (let i = 0; i < 90; i++) {
+      const x = (i * 137.5) % 1280, y = (i * 89.7) % 500;
+      ctx.fillRect(x, y, (i % 3) === 0 ? 2 : 1, (i % 3) === 0 ? 2 : 1);
+    }
+  } else {                           // office window panes
+    ctx.fillStyle = "rgba(120,160,255,0.06)";
+    for (let x = 120; x < 1200; x += 260) ctx.fillRect(x, 90, 180, 380);
+  }
+  // gentle vignette so faces pop
+  const v = ctx.createRadialGradient(640, 330, 240, 640, 360, 900);
+  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.45)");
+  ctx.fillStyle = v; ctx.fillRect(0, 0, 1280, 720);
+  const blob = await new Promise<Blob>((res, rej) =>
+    canvas.toBlob((bl) => (bl ? res(bl) : rej(new Error("scene render failed"))), "image/jpeg", 0.9));
+  sceneCache.set(key, blob);
+  return blob;
+}
+
 /** ExternalUserId is "crmUserId#session" (see joinMeeting on the backend). */
 const crmIdFrom = (externalUserId?: string) => (externalUserId || "").split("#")[0];
-/** Content attendee ids are "<attendeeId>#content" — this returns the owner. */
-const contentOwner = (attendeeId: string) => attendeeId.split("#")[0];
 
 export function useSuprahMeet() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -64,51 +125,33 @@ export function useSuprahMeet() {
   const [recording, setRecording] = useState(false);
   const [reactions, setReactions] = useState<ReactionEvent[]>([]);
 
-  // Non-fatal problems (recording failed, message not sent, no mic) — toast.
+  // Non-fatal problems (e.g. recording failed on AWS) — shown as a toast.
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Virtual backgrounds + Together Mode
+  const [background, setBackgroundState] = useState<MeetBackground>("none");
+  const [backgroundsSupported, setBackgroundsSupported] = useState(false);
+  const [togetherScene, setTogetherSceneState] = useState<MeetSceneKey | null>(null);
   const clearNotice = useCallback(() => setNotice(null), []);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
   const [videoDeviceCount, setVideoDeviceCount] = useState(0);
 
-  /** Attendee whose content share is the recording scene — hidden from the UI. */
-  const [sceneAttendee, setSceneAttendee] = useState("");
-
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
   const namesRef = useRef<Map<string, MeetParticipantInfo>>(new Map());
   const selfNameRef = useRef("You");
   const selfCrmIdRef = useRef("");
-  const selfAttendeeIdRef = useRef("");
   const codeRef = useRef("");
   const leftIntentionallyRef = useRef(false);
   const videoDevicesRef = useRef<{ deviceId: string; label: string }[]>([]);
   const camIndexRef = useRef(0);
   const joinedAtRef = useRef(0);
-
-  // ── AUDIO FIX: keep the <audio> element in a ref. The element usually
-  // mounts BEFORE the Chime session exists, so binding only at ref-time is a
-  // race that can leave remote audio with nowhere to play (= silence).
-  // We store it here and (re)bind right after audioVideo.start().
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-
-  // ── Scene-share machinery (the "never black MP4" recorder) ──────────
-  const tilesStoreRef = useRef<Record<number, TileInfo>>({});
-  const videoElsRef = useRef<Map<number, HTMLVideoElement>>(new Map());
-  const rosterRef = useRef<Record<string, RosterEntry>>({});
-  const activeSpeakerRef = useRef("");
-  const meetingRef = useRef<MeetingInfo | null>(null);
-  const localRecorderRef = useRef(false);   // THIS client pressed Record
-  const userSharingRef = useRef(false);     // real screen share by this client
-  const remoteContentRef = useRef(false);   // someone else is sharing content
-  const sceneOnRef = useRef(false);
-  const sceneRecRef = useRef<MeetSceneRecorder | null>(null);
-  const sceneAnnounceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const ignoreNextShareStopRef = useRef(false);
-
-  useEffect(() => { rosterRef.current = roster; }, [roster]);
-  useEffect(() => { activeSpeakerRef.current = activeSpeakerId; }, [activeSpeakerId]);
-  useEffect(() => { meetingRef.current = meeting; }, [meeting]);
+  const backgroundRef = useRef<MeetBackground>("none");
+  const togetherRef = useRef<MeetSceneKey | null>(null);
+  const togetherOwnerRef = useRef(false);        // did WE turn Together Mode on?
+  const transformRef = useRef<DefaultVideoTransformDevice | null>(null);
+  const applyTogetherRef = useRef<(scene: MeetSceneKey | null) => void>(() => {});
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -138,103 +181,6 @@ export function useSuprahMeet() {
     } catch { /* best-effort */ }
   }, []);
 
-  // ── CHAT/CRASH FIX: realtimeSendDataMessage THROWS when the signaling
-  // connection isn't fully established (or blips). Unguarded, that exception
-  // crashed the room component → React unmounted it → the cleanup tore the
-  // session down → "the meeting ended" the moment someone chatted. Every
-  // send now goes through this guard and reports success instead of throwing.
-  const sendData = useCallback(
-    (topic: string, payload: Record<string, unknown>, lifetimeMs = 5000): boolean => {
-      const audioVideo = av();
-      if (!audioVideo) return false;
-      try {
-        audioVideo.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    []
-  );
-
-  /* ── Scene share: build, announce, and keep in sync ─────────────── */
-
-  const buildScene = useCallback((): SceneData => {
-    const attendeeToVideo = new Map<string, HTMLVideoElement>();
-    Object.values(tilesStoreRef.current).forEach((t) => {
-      if (t.isContent) return;
-      const el = videoElsRef.current.get(t.tileId);
-      if (el) attendeeToVideo.set(t.attendeeId, el);
-    });
-    const people = Object.values(rosterRef.current).map((p) => ({
-      attendeeId: p.attendeeId,
-      name: p.name,
-      avatar: p.avatar ? resolveImageUrl(p.avatar) : null,
-      muted: p.muted,
-      speaking: activeSpeakerRef.current === p.attendeeId,
-      isSelf: p.attendeeId === selfAttendeeIdRef.current,
-      videoEl: attendeeToVideo.get(p.attendeeId) ?? null,
-    }));
-    return {
-      title: meetingRef.current?.title || "Suprah Meet",
-      code: codeRef.current,
-      people,
-    };
-  }, []);
-
-  const announceScene = useCallback((on: boolean) => {
-    setSceneAttendee(on ? selfAttendeeIdRef.current : "");
-    // Lifetime 5 min so late joiners also learn to hide this content tile.
-    sendData(DATA_TOPIC, { t: "scene", attendee: selfAttendeeIdRef.current, on }, 300_000);
-    if (sceneAnnounceTimerRef.current) {
-      clearInterval(sceneAnnounceTimerRef.current);
-      sceneAnnounceTimerRef.current = null;
-    }
-    if (on) {
-      sceneAnnounceTimerRef.current = setInterval(() => {
-        sendData(DATA_TOPIC, { t: "scene", attendee: selfAttendeeIdRef.current, on: true }, 300_000);
-      }, 240_000);
-    }
-  }, [sendData]);
-
-  const stopSceneShare = useCallback(() => {
-    if (!sceneOnRef.current) return;
-    sceneOnRef.current = false;
-    ignoreNextShareStopRef.current = true;
-    try { av()?.stopContentShare(); } catch { /* already stopped */ }
-    sceneRecRef.current?.stop();
-    sceneRecRef.current = null;
-    announceScene(false);
-  }, [announceScene]);
-
-  /** Desired state: scene share runs iff we're the recorder and no real
-   *  content share (ours or anyone's) is active. */
-  const syncSceneShare = useCallback(async () => {
-    const audioVideo = av();
-    if (!audioVideo) return;
-    const wantScene =
-      localRecorderRef.current && !userSharingRef.current && !remoteContentRef.current;
-
-    if (wantScene && !sceneOnRef.current) {
-      try {
-        const recorder = new MeetSceneRecorder(buildScene);
-        const stream = recorder.start();
-        sceneRecRef.current = recorder;
-        sceneOnRef.current = true;
-        await audioVideo.startContentShare(stream);
-        announceScene(true);
-      } catch {
-        sceneOnRef.current = false;
-        sceneRecRef.current?.stop();
-        sceneRecRef.current = null;
-      }
-    } else if (!wantScene && sceneOnRef.current) {
-      stopSceneShare();
-    }
-  }, [announceScene, buildScene, stopSceneShare]);
-
-  /* ── Join ────────────────────────────────────────────────────────── */
-
   const join = useCallback(async (code: string) => {
     setPhase("joining");
     setError(null);
@@ -245,14 +191,13 @@ export function useSuprahMeet() {
       const data = res.data?.data;
       const meetingInfo: MeetingInfo = data.meeting;
       setMeeting(meetingInfo);
-      meetingRef.current = meetingInfo;
       setCanControl(Boolean(data.self?.canControl));
       selfNameRef.current = data.self?.fullName || "You";
       selfCrmIdRef.current = data.self?.crmUserId || "";
       meetingInfo.participants.forEach((p) => namesRef.current.set(p.crmUserId, p));
       setRecording(meetingInfo.recording?.status === "recording");
 
-      const logger = new ConsoleLogger("SuprahMeet", LogLevel.OFF);
+      const logger = new ConsoleLogger("SuprahMeet", LogLevel.ERROR);
       const configuration = new MeetingSessionConfiguration(data.chime.Meeting, data.chime.Attendee);
       const deviceController = new DefaultDeviceController(logger);
       // NoOpEventReporter silences the "Unhandled type received while
@@ -261,7 +206,6 @@ export function useSuprahMeet() {
       const session = new DefaultMeetingSession(configuration, logger, deviceController, eventController);
       sessionRef.current = session;
       setSelfAttendeeId(data.chime.Attendee.AttendeeId);
-      selfAttendeeIdRef.current = data.chime.Attendee.AttendeeId;
 
       const audioVideo = session.audioVideo;
 
@@ -271,9 +215,6 @@ export function useSuprahMeet() {
 
       audioVideo.realtimeSubscribeToAttendeeIdPresence((attendeeId, present, externalUserId) => {
         if (attendeeId.includes("#content")) return;
-        // AWS's media-capture pipeline joins as a silent attendee with the
-        // reserved external id "aws:MediaPipeline" — brand it as our AI.
-        const isPipeline = (externalUserId || "").startsWith("aws:");
         if (present) {
           const crmUserId = crmIdFrom(externalUserId);
           const known = crmUserId ? namesRef.current.get(crmUserId) : undefined;
@@ -282,24 +223,20 @@ export function useSuprahMeet() {
             ...r,
             [attendeeId]: {
               attendeeId, crmUserId,
-              name: isSelf
-                ? selfNameRef.current
-                : isPipeline
-                  ? "Suprah Autrix"
-                  : known?.fullName || "Joining…",
+              name: isSelf ? selfNameRef.current : known?.fullName || "Joining…",
               avatar: known?.avatar ?? null,
               muted: false, handRaised: false,
             },
           }));
-          if (!known && !isSelf && !isPipeline) void refreshNames();
-          if (!isSelf && !isPipeline && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
+          if (!known && !isSelf) void refreshNames();
+          if (!isSelf && Date.now() - joinedAtRef.current > 2000) meetSounds.join();
           audioVideo.realtimeSubscribeToVolumeIndicator(attendeeId, (_id, _volume, muted) => {
             if (muted === null) return;
             setRoster((r) => (r[attendeeId] ? { ...r, [attendeeId]: { ...r[attendeeId], muted } } : r));
           });
         } else {
           audioVideo.realtimeUnsubscribeFromVolumeIndicator(attendeeId);
-          if (!isPipeline && Date.now() - joinedAtRef.current > 2000) meetSounds.leave();
+          if (Date.now() - joinedAtRef.current > 2000) meetSounds.leave();
           setRoster((r) => { const next = { ...r }; delete next[attendeeId]; return next; });
         }
       });
@@ -309,43 +246,20 @@ export function useSuprahMeet() {
       );
 
       audioVideo.addObserver({
-        // AUDIO FIX: (re)bind the output element once the session is truly
-        // up — covers reconnects and any mount-order race.
-        audioVideoDidStart: () => {
-          const el = audioElRef.current;
-          if (el) void audioVideo.bindAudioElement(el).catch(() => {});
-        },
         videoTileDidUpdate: (tileState: VideoTileState) => {
           if (!tileState.tileId || !tileState.boundAttendeeId) return;
-          const info: TileInfo = {
-            tileId: tileState.tileId,
-            attendeeId: tileState.boundAttendeeId,
-            isLocal: Boolean(tileState.localTile),
-            isContent: Boolean(tileState.isContent),
-          };
-          tilesStoreRef.current = { ...tilesStoreRef.current, [info.tileId]: info };
-          setTiles(tilesStoreRef.current);
-
-          // A content share from someone else means the scene share yields
-          // (their screen becomes the recorded presenter view).
-          if (info.isContent && contentOwner(info.attendeeId) !== selfAttendeeIdRef.current) {
-            remoteContentRef.current = true;
-            setTimeout(() => void syncSceneShare(), 300);
-          }
+          setTiles((t) => ({
+            ...t,
+            [tileState.tileId!]: {
+              tileId: tileState.tileId!,
+              attendeeId: tileState.boundAttendeeId!,
+              isLocal: Boolean(tileState.localTile),
+              isContent: Boolean(tileState.isContent),
+            },
+          }));
         },
         videoTileWasRemoved: (tileId: number) => {
-          const removed = tilesStoreRef.current[tileId];
-          const next = { ...tilesStoreRef.current };
-          delete next[tileId];
-          tilesStoreRef.current = next;
-          setTiles(next);
-
-          if (removed?.isContent && contentOwner(removed.attendeeId) !== selfAttendeeIdRef.current) {
-            remoteContentRef.current = Object.values(next).some(
-              (t) => t.isContent && contentOwner(t.attendeeId) !== selfAttendeeIdRef.current
-            );
-            setTimeout(() => void syncSceneShare(), 800);
-          }
+          setTiles((t) => { const next = { ...t }; delete next[tileId]; return next; });
         },
         audioVideoDidStop: (status: MeetingSessionStatus) => {
           if (leftIntentionallyRef.current) return;
@@ -361,25 +275,7 @@ export function useSuprahMeet() {
         },
       });
 
-      audioVideo.addContentShareObserver({
-        contentShareDidStop: () => {
-          if (ignoreNextShareStopRef.current) {
-            ignoreNextShareStopRef.current = false;
-            return;
-          }
-          if (sceneOnRef.current) {
-            // Our canvas share ended unexpectedly — clean up and let sync retry.
-            sceneOnRef.current = false;
-            sceneRecRef.current?.stop();
-            sceneRecRef.current = null;
-            announceScene(false);
-          } else {
-            userSharingRef.current = false;
-            setSharing(false);
-          }
-          setTimeout(() => void syncSceneShare(), 800);
-        },
-      });
+      audioVideo.addContentShareObserver({ contentShareDidStop: () => setSharing(false) });
 
       audioVideo.realtimeSubscribeToReceiveDataMessage(DATA_TOPIC, (msg: DataMessage) => {
         try {
@@ -397,9 +293,8 @@ export function useSuprahMeet() {
             setRecording(Boolean(payload.on));
             if (payload.on) meetSounds.recording();
           }
-          if (payload.t === "scene") {
-            // Hide the recorder's canvas share from everyone's UI.
-            setSceneAttendee(payload.on ? String(payload.attendee || "") : "");
+          if (payload.t === "together") {
+            applyTogetherRef.current(isSceneKey(payload.scene) ? payload.scene : null);
           }
         } catch { /* ignore malformed */ }
       });
@@ -419,23 +314,8 @@ export function useSuprahMeet() {
         } catch { /* ignore */ }
       });
 
-      // ── Microphone. On an insecure origin (plain http:// over a LAN IP —
-      // anything that isn't localhost or HTTPS) the browser hides ALL audio
-      // devices, this list comes back EMPTY, and the user joins with no mic:
-      // they see everyone, nobody hears them. Surface that loudly instead
-      // of failing silently.
       const audioInputs = await audioVideo.listAudioInputDevices();
-      if (audioInputs[0]) {
-        try {
-          await audioVideo.startAudioInput(audioInputs[0].deviceId);
-        } catch {
-          setNotice("Your microphone could not be started. Check the browser's mic permission (padlock icon) and reload.");
-        }
-      } else {
-        setNotice(
-          "No microphone is available to the browser. Allow mic access for this site — and note that mic/camera only work on localhost or HTTPS, not on a plain http:// address."
-        );
-      }
+      if (audioInputs[0]) await audioVideo.startAudioInput(audioInputs[0].deviceId);
 
       const videoInputs = await audioVideo.listVideoInputDevices();
       videoDevicesRef.current = videoInputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
@@ -444,14 +324,6 @@ export function useSuprahMeet() {
       setVideoDeviceCount(videoDevicesRef.current.length);
 
       audioVideo.start();
-
-      // AUDIO FIX: bind the output element now that the session exists. The
-      // <audio> element mounted long before this point, so the ref-time bind
-      // had nothing to attach to — this is the bind that actually counts.
-      if (audioElRef.current) {
-        try { await audioVideo.bindAudioElement(audioElRef.current); } catch { /* retried in audioVideoDidStart */ }
-      }
-
       joinedAtRef.current = Date.now();
       setMicOn(true);
       setPhase("in");
@@ -459,24 +331,13 @@ export function useSuprahMeet() {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
       setPhase("error");
     }
-  }, [announceScene, pushReaction, refreshNames, sendData, syncSceneShare]);
+  }, [pushReaction, refreshNames]);
 
   const bindAudio = useCallback((el: HTMLAudioElement | null) => {
-    audioElRef.current = el;
-    if (el) {
-      // If the session already exists (e.g. React remounted the element),
-      // bind immediately; otherwise join() binds it after start().
-      void av()?.bindAudioElement(el).catch(() => {});
-    }
+    if (el) void av()?.bindAudioElement(el);
   }, []);
-
   const bindVideoTile = useCallback((tileId: number, el: HTMLVideoElement | null) => {
-    if (el) {
-      videoElsRef.current.set(tileId, el);
-      av()?.bindVideoElement(tileId, el);
-    } else {
-      videoElsRef.current.delete(tileId);
-    }
+    if (el) av()?.bindVideoElement(tileId, el);
   }, []);
 
   const toggleMic = useCallback(() => {
@@ -487,14 +348,59 @@ export function useSuprahMeet() {
     setMicOn(!micOn);
   }, [micOn]);
 
+  // Backgrounds need WebGL2 + WASM — probe once, hide the UI when unsupported.
+  useEffect(() => {
+    let on = true;
+    void (async () => {
+      try {
+        const [blur, repl] = await Promise.all([
+          BackgroundBlurVideoFrameProcessor.isSupported(),
+          BackgroundReplacementVideoFrameProcessor.isSupported(),
+        ]);
+        if (on) setBackgroundsSupported(Boolean(blur && repl));
+      } catch { if (on) setBackgroundsSupported(false); }
+    })();
+    return () => { on = false; };
+  }, []);
+
+  /** Together Mode overrides the personal background while it is active. */
+  const effectiveBackground = () => togetherRef.current ?? backgroundRef.current;
+
+  const stopTransform = useCallback(async () => {
+    const t = transformRef.current;
+    transformRef.current = null;
+    if (t) await t.stop().catch(() => {});
+  }, []);
+
+  /** Wrap the raw camera in a blur/replacement pipeline when one is wanted. */
+  const buildVideoDevice = useCallback(async (deviceId: string) => {
+    await stopTransform();
+    const wanted = effectiveBackground();
+    if (wanted === "none") return deviceId;
+    try {
+      const processor = wanted === "blur"
+        ? await BackgroundBlurVideoFrameProcessor.create()
+        : await BackgroundReplacementVideoFrameProcessor.create(undefined, {
+            imageBlob: await sceneBlob(wanted),
+          });
+      if (!processor || !sessionRef.current) return deviceId;
+      const device = new DefaultVideoTransformDevice(
+        sessionRef.current.logger, deviceId, [processor]);
+      transformRef.current = device;
+      return device;
+    } catch {
+      return deviceId; // effect unavailable → plain camera, never break video
+    }
+  }, [stopTransform]);
+
   const startCamAt = useCallback(async (index: number) => {
     const audioVideo = av();
     const device = videoDevicesRef.current[index];
     if (!audioVideo || !device) throw new Error("No camera found");
-    await audioVideo.startVideoInput(device.deviceId);
+    await audioVideo.startVideoInput(await buildVideoDevice(device.deviceId));
     audioVideo.startLocalVideoTile();
     camIndexRef.current = index;
-  }, []);
+  }, [buildVideoDevice]);
 
   const toggleCam = useCallback(async () => {
     const audioVideo = av();
@@ -503,6 +409,7 @@ export function useSuprahMeet() {
       if (camOn) {
         audioVideo.stopLocalVideoTile();
         await audioVideo.stopVideoInput();
+        await stopTransform();
         setCamOn(false);
       } else {
         if (videoDevicesRef.current.length === 0) {
@@ -514,7 +421,7 @@ export function useSuprahMeet() {
         setCamOn(true);
       }
     } catch { setCamOn(false); }
-  }, [camOn, startCamAt]);
+  }, [camOn, startCamAt, stopTransform]);
 
   /** Mobile back/front camera flip — cycles through available cameras. */
   const switchCamera = useCallback(async () => {
@@ -525,24 +432,55 @@ export function useSuprahMeet() {
 
   const facingBack = () => /back|rear|environment/i.test(videoDevicesRef.current[camIndexRef.current]?.label || "");
 
+  /** Pick a personal background ("none" | "blur" | scene). */
+  const setBackground = useCallback(async (next: MeetBackground) => {
+    backgroundRef.current = next;
+    setBackgroundState(next);
+    if (togetherRef.current) return;         // Together Mode wins until it's off
+    if (camOn) { try { await startCamAt(camIndexRef.current); } catch { /* keep cam */ } }
+  }, [camOn, startCamAt]);
+
+  const applyTogether = useCallback(async (scene: MeetSceneKey | null) => {
+    if (togetherRef.current === scene) return;
+    togetherRef.current = scene;
+    setTogetherSceneState(scene);
+    if (scene === null) togetherOwnerRef.current = false;
+    if (camOn) { try { await startCamAt(camIndexRef.current); } catch { /* keep cam */ } }
+  }, [camOn, startCamAt]);
+  useEffect(() => {
+    applyTogetherRef.current = (scene) => { void applyTogether(scene); };
+  }, [applyTogether]);
+
+
   const toggleShare = useCallback(async () => {
     const audioVideo = av();
     if (!audioVideo) return;
-    if (userSharingRef.current) {
-      try { audioVideo.stopContentShare(); } catch { /* already stopped */ }
-    } else {
-      // A real screen share takes priority over the recording scene share.
-      if (sceneOnRef.current) stopSceneShare();
-      try {
-        await audioVideo.startContentShareFromScreenCapture();
-        userSharingRef.current = true;
-        setSharing(true);
-      } catch {
-        // Picker cancelled — bring the scene back if we're recording.
-        void syncSceneShare();
-      }
+    if (sharing) { audioVideo.stopContentShare(); setSharing(false); }
+    else {
+      try { await audioVideo.startContentShareFromScreenCapture(); setSharing(true); }
+      catch { /* cancelled */ }
     }
-  }, [stopSceneShare, syncSceneShare]);
+  }, [sharing]);
+
+  const sendData = useCallback((topic: string, payload: Record<string, unknown>, lifetimeMs = 5000) => {
+    av()?.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
+  }, []);
+
+  /** Host/admin: put EVERYONE in the same room (scene), or null to turn it off. */
+  const toggleTogether = useCallback((scene: MeetSceneKey | null) => {
+    togetherOwnerRef.current = scene !== null;
+    sendData(DATA_TOPIC, { t: "together", scene }, 300_000);
+    void applyTogether(scene);
+  }, [sendData, applyTogether]);
+
+  // Late joiners: whoever turned Together Mode on rebroadcasts the scene every
+  // 8s, so someone who joins mid-meeting lands in the same room.
+  useEffect(() => {
+    if (!togetherScene || !togetherOwnerRef.current) return;
+    const t = setInterval(
+      () => sendData(DATA_TOPIC, { t: "together", scene: togetherScene }, 300_000), 8000);
+    return () => clearInterval(t);
+  }, [togetherScene, sendData]);
 
   const sendReaction = useCallback((emoji: string) => {
     sendData(DATA_TOPIC, { t: "reaction", emoji, name: selfNameRef.current });
@@ -562,11 +500,7 @@ export function useSuprahMeet() {
   const sendChat = useCallback((text: string) => {
     const clean = text.trim();
     if (!clean) return;
-    const ok = sendData(CHAT_TOPIC, { name: selfNameRef.current, text: clean }, 60_000);
-    if (!ok) {
-      setNotice("Message not sent — the meeting connection isn't ready. Try again in a moment.");
-      return;
-    }
+    sendData(CHAT_TOPIC, { name: selfNameRef.current, text: clean }, 60_000);
     setChatMessages((m) => [...m, {
       id: `${Date.now()}-self`, name: selfNameRef.current, text: clean, at: Date.now(), isSelf: true,
     }]);
@@ -574,56 +508,46 @@ export function useSuprahMeet() {
 
   const markChatRead = useCallback(() => setChatUnread(0), []);
 
-  // Recording failures are NON-FATAL: caught here, surfaced via `notice`.
+  // Recording failures are NON-FATAL: caught here, surfaced via `notice`,
+  // never thrown — so the room stays up and nothing hits the console as an
+  // unhandled rejection.
   const startRecording = useCallback(async () => {
     try {
       await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/recording/start`);
       setRecording(true);
-      localRecorderRef.current = true;
       meetSounds.recording();
       sendData(DATA_TOPIC, { t: "recording", on: true }, 300_000);
-      // Publish the scene so the MP4 always has a picture, cameras or not.
-      void syncSceneShare();
     } catch (err: any) {
       setNotice(err?.response?.data?.message ||
         "Recording could not start. Check the backend logs for the AWS reason.");
     }
-  }, [sendData, syncSceneShare]);
+  }, [sendData]);
 
   const stopRecording = useCallback(async () => {
     try {
       await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/recording/stop`);
       setRecording(false);
-      localRecorderRef.current = false;
       sendData(DATA_TOPIC, { t: "recording", on: false }, 300_000);
-      void syncSceneShare(); // tears the scene share down
     } catch (err: any) {
       setNotice(err?.response?.data?.message ||
         "Recording could not be stopped. Check the backend logs for the AWS reason.");
     }
-  }, [sendData, syncSceneShare]);
+  }, [sendData]);
 
   const teardown = useCallback(async () => {
-    localRecorderRef.current = false;
-    if (sceneAnnounceTimerRef.current) {
-      clearInterval(sceneAnnounceTimerRef.current);
-      sceneAnnounceTimerRef.current = null;
-    }
-    sceneOnRef.current = false;
-    sceneRecRef.current?.stop();
-    sceneRecRef.current = null;
     const audioVideo = av();
     if (audioVideo) {
       try {
         audioVideo.stopContentShare();
         audioVideo.stopLocalVideoTile();
         await audioVideo.stopVideoInput();
+        await stopTransform();
         await audioVideo.stopAudioInput();
         audioVideo.stop();
       } catch { /* best effort */ }
     }
     sessionRef.current = null;
-  }, []);
+  }, [stopTransform]);
 
   const leave = useCallback(async () => {
     leftIntentionallyRef.current = true;
@@ -648,22 +572,14 @@ export function useSuprahMeet() {
 
   useEffect(() => () => { leftIntentionallyRef.current = true; void teardown(); }, [teardown]);
 
-  // The recorder's canvas share is infrastructure, not a presentation —
-  // filter it out so no one's UI shows it.
-  const visibleTiles = Object.values(tiles).filter((t) => {
-    if (!t.isContent) return true;
-    const owner = contentOwner(t.attendeeId);
-    if (sceneAttendee && owner === sceneAttendee) return false;
-    if (sceneOnRef.current && owner === selfAttendeeIdRef.current) return false;
-    return true;
-  });
-
   return {
     phase, error, endedReason, meeting, canControl, selfAttendeeId,
-    roster, tiles: visibleTiles, activeSpeakerId,
+    roster, tiles: Object.values(tiles), activeSpeakerId,
     micOn, camOn, sharing, handRaised, recording, reactions,
     chatMessages, chatUnread, videoDeviceCount,
     notice, clearNotice,
+    background, setBackground, backgroundsSupported,
+    togetherScene, toggleTogether,
     isBackCamera: facingBack(),
     join, bindAudio, bindVideoTile,
     toggleMic, toggleCam, switchCamera, toggleShare, toggleHand,
