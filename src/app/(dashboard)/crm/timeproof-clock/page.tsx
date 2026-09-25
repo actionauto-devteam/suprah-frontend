@@ -148,6 +148,16 @@ function getDeviceHint() {
   return "desktop-web"
 }
 
+async function isSwitchingDesktopSession(crmToken: string): Promise<boolean> {
+  try {
+    const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${crmToken}` } })
+    const data = res.data?.data || res.data
+    return data?.monitoringMode === "switching"
+  } catch {
+    return false
+  }
+}
+
 function isMacDesktop() {
   if (typeof navigator === "undefined") return false
   const platform = navigator.platform || ""
@@ -637,12 +647,15 @@ export default function TimeprofClockPage() {
           const mainRes = await apiClient.get("/api/timeclock/me")
           const mainData = mainRes.data?.data || mainRes.data
           if (mainData?.isMobileMonitoringDept ?? isMobileMonitoringDept(mainData?.department)) {
-            authModeRef.current = 'main'
-            setUser(mainData)
-            setToken('__main__')
-            setTodayLogs(mainData.todayTimeLogs || [])
-            setIsLoading(false)
-            return
+            const staysOnCrmIdentity = !!crmT && getDeviceHint() === "desktop-web" && await isSwitchingDesktopSession(crmT)
+            if (!staysOnCrmIdentity) {
+              authModeRef.current = 'main'
+              setUser(mainData)
+              setToken('__main__')
+              setTodayLogs(mainData.todayTimeLogs || [])
+              setIsLoading(false)
+              return
+            }
           }
         } catch { }
       }
