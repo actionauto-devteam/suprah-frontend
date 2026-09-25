@@ -22,10 +22,14 @@ import {
   Gauge,
   Anchor,
   ImageOff,
+  Activity,
+  Smartphone,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { ActivityLogCard } from "@/components/crm/timeproof/ActivityLogCard"
+import { MobileMonitoringPanel } from "@/components/crm/timeproof/MobileMonitoringPanel"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface Screenshot {
   _id: string
@@ -720,6 +724,27 @@ export default function ScreenshotGalleryPage() {
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null)
   const [isLotTechMain, setIsLotTechMain] = React.useState<boolean | null>(null)
   const [myRole, setMyRole] = React.useState<string | null>(null)
+  const initialTab = searchParams.get("tab")
+  const [activeTab, setActiveTab] = React.useState<"screenshots" | "mobile" | "activity">(
+    initialTab === "activity" ? "activity" : initialTab === "mobile" ? "mobile" : "screenshots",
+  )
+  const [mobileTabEnabled, setMobileTabEnabled] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!userId) return
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    let cancelled = false
+    apiClient
+      .getUserMonitoringDevice(userId, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (!cancelled) setMobileTabEnabled(!!res.data?.data?.enabled)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
   const formattedDate = React.useMemo(() => {
     return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
@@ -925,6 +950,264 @@ export default function ScreenshotGalleryPage() {
     return <LotTechDayView dateStr={dateStr} totalSecondsFromParam={totalSecondsFromParam} formattedDate={formattedDate} userId={userId} />
   }
 
+  const screenshotsPanel = (
+    <>
+      {/* ── Timeline ── */}
+      {screenshots.length > 0 && (
+        <div className="rounded-2xl border border-border/40 bg-card p-5">
+          <Timeline
+            screenshots={screenshots}
+            breaks={breaks}
+            onDotClick={openLightbox}
+          />
+        </div>
+      )}
+
+      {/* ── Deletion notices: persistent record when an admin deleted a
+          screenshot on this user's behalf — the push notification sent
+          at delete-time is easy to miss, this stays visible in-app. ── */}
+      {deletionNotices.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-2">
+          {deletionNotices.map((n, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <Trash2 className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">{n.reason}</p>
+                <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                  {new Date(n.at).toLocaleString("en-US", {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Screenshot Grid ── */}
+      {screenshots.length === 0 ? (
+        <div className="rounded-2xl border border-border/40 bg-card flex flex-col items-center justify-center py-20 gap-3">
+          <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center">
+            <Camera className="h-6 w-6 text-muted-foreground/30" />
+          </div>
+          <p className="text-sm font-semibold text-muted-foreground/50">No screenshots for this day</p>
+          <p className="text-xs text-muted-foreground/30">Screenshots are captured automatically during active sessions</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
+              All Screenshots
+            </p>
+            <div className="flex items-center gap-3">
+              {selectMode ? (
+                <>
+                  <button
+                    onClick={toggleSelectAll}
+                    className="text-[10px] font-bold text-primary hover:underline"
+                  >
+                    {allSelected ? "Deselect all" : "Select all"}
+                  </button>
+                  <span className="text-[10px] text-muted-foreground/50">
+                    {selectedIds.size} selected
+                  </span>
+                  <button
+                    onClick={toggleSelectMode}
+                    className="text-[10px] font-bold text-muted-foreground/60 hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] text-muted-foreground/35">
+                    Click any to enlarge
+                  </p>
+                  {canDeleteScreenshots && selectableScreenshots.length > 0 && (
+                    <button
+                      onClick={toggleSelectMode}
+                      className="text-[10px] font-bold text-primary hover:underline"
+                    >
+                      Select
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {screenshots.map((s, i) => (
+              <div
+                key={s._id}
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (selectMode) {
+                    if (!s.isBlurred) toggleSelected(s._id)
+                    return
+                  }
+                  openLightbox(i)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return
+                  if (selectMode) {
+                    if (!s.isBlurred) toggleSelected(s._id)
+                    return
+                  }
+                  openLightbox(i)
+                }}
+                className="group flex flex-col gap-1.5 text-left focus:outline-none cursor-pointer"
+              >
+                {/* Timestamp + idle/placeholder badge — outside the image, top-right */}
+                <div className="flex items-center justify-end gap-2 px-0.5">
+                  {s.isPlaceholder ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                      <ImageOff className="h-2.5 w-2.5" />
+                      No Capture
+                    </span>
+                  ) : s.breakEvent ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                      <Coffee className="h-2.5 w-2.5" />
+                      {s.breakEvent === 'break-in' ? 'Break In' : 'Break Out'}
+                    </span>
+                  ) : s.idleDetected && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      Idle
+                    </span>
+                  )}
+                  <span className="text-sm font-mono font-bold text-foreground/70 group-hover:text-foreground transition-colors">
+                    {fmtTime(s.capturedAt)}
+                  </span>
+                </div>
+
+                {/* Screenshot thumbnail */}
+                <div className="relative aspect-video rounded-xl overflow-hidden border border-border/40 group-hover:border-primary/40 group-hover:shadow-lg transition-all bg-muted/20">
+                  {s.isPlaceholder ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-muted/40 px-3 text-center">
+                      <ImageOff className="h-5 w-5 text-muted-foreground/50" />
+                      <p className="text-[10px] font-semibold text-muted-foreground/60 leading-snug">
+                        Screenshot unavailable — Screen Recording permission not granted on this Mac
+                      </p>
+                    </div>
+                  ) : s.isBlurred ? (
+                    <FakeLoadingThumb className="w-full h-full" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={s.url}
+                      alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                  )}
+
+                  {/* Break-event overlay takes priority over idle — a break-in/out shot is
+                      never also flagged idle (captured with idleDetected=false) but keep the
+                      precedence explicit in case that ever changes. */}
+                  {!s.isPlaceholder && s.breakEvent ? (
+                    <div className="absolute inset-0 bg-amber-500/20 border-2 border-amber-500/40 rounded-xl" />
+                  ) : !s.isPlaceholder && s.idleDetected && (
+                    <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
+                  )}
+
+                  {!selectMode && (
+                    <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                    </div>
+                  )}
+
+                  {/* Selection checkbox — replaces the per-item delete button while
+                      select mode is active */}
+                  {selectMode && !s.isBlurred && (
+                    <div
+                      className={`absolute inset-0 rounded-xl transition-colors ${selectedIds.has(s._id) ? "bg-primary/20 border-2 border-primary" : "bg-black/10"
+                        }`}
+                    >
+                      <div
+                        className={`absolute top-1.5 left-1.5 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(s._id)
+                            ? "bg-primary border-primary"
+                            : "bg-black/40 border-white/70"
+                          }`}
+                      >
+                        {selectedIds.has(s._id) && (
+                          <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-foreground" fill="none" stroke="currentColor" strokeWidth={3}>
+                            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete icon — self-service only, one per screenshot */}
+                  {!selectMode && canDeleteScreenshots && !s.isBlurred && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteScreenshot(s) }}
+                      disabled={deletingKey === s._id}
+                      title="Delete this screenshot"
+                      className="absolute top-1.5 right-1.5 h-7 w-7 rounded-lg bg-black/50 hover:bg-rose-500/80 flex items-center justify-center text-white/80 hover:text-white transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-100"
+                    >
+                      {deletingKey === s._id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating bulk-delete bar ── */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-border/60 bg-card shadow-2xl px-4 py-3">
+          <span className="text-xs font-bold text-foreground">
+            {selectedIds.size} screenshot{selectedIds.size === 1 ? "" : "s"} selected
+          </span>
+          <button
+            onClick={() => { setBulkDeleteError(""); setBulkDeleteOpen(true) }}
+            className="h-9 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Selected
+          </button>
+        </div>
+      )}
+
+      {/* ── Break Details ── */}
+      {breaks.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/20 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Coffee className="h-4 w-4 text-amber-500" />
+            <p className="text-xs font-black tracking-tight">Break Periods</p>
+            <span className="ml-auto text-[10px] text-muted-foreground/40">
+              Actual break sessions
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {breaks.map((b: BreakSegment, i: number) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15"
+              >
+                <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-[11px] font-mono text-muted-foreground/60 flex-1">
+                  {new Date(new Date(b.from).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
+                  <span className="mx-1.5 text-muted-foreground/30">–</span>
+                  {new Date(new Date(b.to).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
+                </span>
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                  {fmtDuration(b.duration)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div className="min-h-screen bg-background timeproof-scope">
       {/* ── Header ── */}
@@ -1066,260 +1349,38 @@ export default function ScreenshotGalleryPage() {
               </div>
             </div>
 
-            {userId && <ActivityLogCard userId={userId} dateStr={dateStr} />}
-
-            {/* ── Timeline ── */}
-            {screenshots.length > 0 && (
-              <div className="rounded-2xl border border-border/40 bg-card p-5">
-                <Timeline
-                  screenshots={screenshots}
-                  breaks={breaks}
-                  onDotClick={openLightbox}
-                />
-              </div>
-            )}
-
-            {/* ── Deletion notices: persistent record when an admin deleted a
-                screenshot on this user's behalf — the push notification sent
-                at delete-time is easy to miss, this stays visible in-app. ── */}
-            {deletionNotices.length > 0 && (
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-2">
-                {deletionNotices.map((n, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <Trash2 className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">{n.reason}</p>
-                      <p className="text-[10px] text-muted-foreground/50 mt-0.5">
-                        {new Date(n.at).toLocaleString("en-US", {
-                          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── Screenshot Grid ── */}
-            {screenshots.length === 0 ? (
-              <div className="rounded-2xl border border-border/40 bg-card flex flex-col items-center justify-center py-20 gap-3">
-                <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center">
-                  <Camera className="h-6 w-6 text-muted-foreground/30" />
-                </div>
-                <p className="text-sm font-semibold text-muted-foreground/50">No screenshots for this day</p>
-                <p className="text-xs text-muted-foreground/30">Screenshots are captured automatically during active sessions</p>
-              </div>
+            {userId ? (
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "screenshots" | "mobile" | "activity")} className="gap-5">
+                <TabsList className="h-10 w-full justify-start overflow-x-auto sm:w-fit">
+                  <TabsTrigger value="screenshots" className="gap-1.5 px-3 sm:gap-2 sm:px-4">
+                    <Camera className="h-3.5 w-3.5" />
+                    Screenshots
+                    <span className="text-[11px] tabular-nums text-muted-foreground">{screenshots.length}</span>
+                  </TabsTrigger>
+                  {(mobileTabEnabled || activeTab === "mobile") && (
+                    <TabsTrigger value="mobile" aria-label="Mobile Monitoring" className="gap-1.5 px-3 sm:gap-2 sm:px-4">
+                      <Smartphone className="h-3.5 w-3.5" />
+                      <span className="sm:hidden">Mobile</span>
+                      <span className="hidden sm:inline">Mobile Monitoring</span>
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger value="activity" className="gap-1.5 px-3 sm:gap-2 sm:px-4">
+                    <Activity className="h-3.5 w-3.5" />
+                    Activity Log
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="screenshots" className="space-y-5">
+                  {screenshotsPanel}
+                </TabsContent>
+                <TabsContent value="mobile">
+                  <MobileMonitoringPanel userId={userId} dateStr={dateStr} />
+                </TabsContent>
+                <TabsContent value="activity">
+                  <ActivityLogCard userId={userId} dateStr={dateStr} />
+                </TabsContent>
+              </Tabs>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
-                    All Screenshots
-                  </p>
-                  <div className="flex items-center gap-3">
-                    {selectMode ? (
-                      <>
-                        <button
-                          onClick={toggleSelectAll}
-                          className="text-[10px] font-bold text-primary hover:underline"
-                        >
-                          {allSelected ? "Deselect all" : "Select all"}
-                        </button>
-                        <span className="text-[10px] text-muted-foreground/50">
-                          {selectedIds.size} selected
-                        </span>
-                        <button
-                          onClick={toggleSelectMode}
-                          className="text-[10px] font-bold text-muted-foreground/60 hover:text-foreground"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-[10px] text-muted-foreground/35">
-                          Click any to enlarge
-                        </p>
-                        {canDeleteScreenshots && selectableScreenshots.length > 0 && (
-                          <button
-                            onClick={toggleSelectMode}
-                            className="text-[10px] font-bold text-primary hover:underline"
-                          >
-                            Select
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {screenshots.map((s, i) => (
-                    <div
-                      key={s._id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        if (selectMode) {
-                          if (!s.isBlurred) toggleSelected(s._id)
-                          return
-                        }
-                        openLightbox(i)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter" && e.key !== " ") return
-                        if (selectMode) {
-                          if (!s.isBlurred) toggleSelected(s._id)
-                          return
-                        }
-                        openLightbox(i)
-                      }}
-                      className="group flex flex-col gap-1.5 text-left focus:outline-none cursor-pointer"
-                    >
-                      {/* Timestamp + idle/placeholder badge — outside the image, top-right */}
-                      <div className="flex items-center justify-end gap-2 px-0.5">
-                        {s.isPlaceholder ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
-                            <ImageOff className="h-2.5 w-2.5" />
-                            No Capture
-                          </span>
-                        ) : s.breakEvent ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                            <Coffee className="h-2.5 w-2.5" />
-                            {s.breakEvent === 'break-in' ? 'Break In' : 'Break Out'}
-                          </span>
-                        ) : s.idleDetected && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
-                            <AlertTriangle className="h-2.5 w-2.5" />
-                            Idle
-                          </span>
-                        )}
-                        <span className="text-sm font-mono font-bold text-foreground/70 group-hover:text-foreground transition-colors">
-                          {fmtTime(s.capturedAt)}
-                        </span>
-                      </div>
-
-                      {/* Screenshot thumbnail */}
-                      <div className="relative aspect-video rounded-xl overflow-hidden border border-border/40 group-hover:border-primary/40 group-hover:shadow-lg transition-all bg-muted/20">
-                        {s.isPlaceholder ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-muted/40 px-3 text-center">
-                            <ImageOff className="h-5 w-5 text-muted-foreground/50" />
-                            <p className="text-[10px] font-semibold text-muted-foreground/60 leading-snug">
-                              Screenshot unavailable — Screen Recording permission not granted on this Mac
-                            </p>
-                          </div>
-                        ) : s.isBlurred ? (
-                          <FakeLoadingThumb className="w-full h-full" />
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={s.url}
-                            alt={`Screenshot at ${fmtTime(s.capturedAt)}`}
-                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                            loading="lazy"
-                          />
-                        )}
-
-                        {/* Break-event overlay takes priority over idle — a break-in/out shot is
-                            never also flagged idle (captured with idleDetected=false) but keep the
-                            precedence explicit in case that ever changes. */}
-                        {!s.isPlaceholder && s.breakEvent ? (
-                          <div className="absolute inset-0 bg-amber-500/20 border-2 border-amber-500/40 rounded-xl" />
-                        ) : !s.isPlaceholder && s.idleDetected && (
-                          <div className="absolute inset-0 bg-rose-500/20 border-2 border-rose-500/40 rounded-xl" />
-                        )}
-
-                        {!selectMode && (
-                          <div className="absolute inset-0 bg-black/15 sm:bg-black/0 sm:group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <ZoomIn className="h-5 w-5 text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                          </div>
-                        )}
-
-                        {/* Selection checkbox — replaces the per-item delete button while
-                            select mode is active */}
-                        {selectMode && !s.isBlurred && (
-                          <div
-                            className={`absolute inset-0 rounded-xl transition-colors ${selectedIds.has(s._id) ? "bg-primary/20 border-2 border-primary" : "bg-black/10"
-                              }`}
-                          >
-                            <div
-                              className={`absolute top-1.5 left-1.5 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors ${selectedIds.has(s._id)
-                                  ? "bg-primary border-primary"
-                                  : "bg-black/40 border-white/70"
-                                }`}
-                            >
-                              {selectedIds.has(s._id) && (
-                                <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-foreground" fill="none" stroke="currentColor" strokeWidth={3}>
-                                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Delete icon — self-service only, one per screenshot */}
-                        {!selectMode && canDeleteScreenshots && !s.isBlurred && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteScreenshot(s) }}
-                            disabled={deletingKey === s._id}
-                            title="Delete this screenshot"
-                            className="absolute top-1.5 right-1.5 h-7 w-7 rounded-lg bg-black/50 hover:bg-rose-500/80 flex items-center justify-center text-white/80 hover:text-white transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-100"
-                          >
-                            {deletingKey === s._id
-                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Floating bulk-delete bar ── */}
-            {selectMode && selectedIds.size > 0 && (
-              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-border/60 bg-card shadow-2xl px-4 py-3">
-                <span className="text-xs font-bold text-foreground">
-                  {selectedIds.size} screenshot{selectedIds.size === 1 ? "" : "s"} selected
-                </span>
-                <button
-                  onClick={() => { setBulkDeleteError(""); setBulkDeleteOpen(true) }}
-                  className="h-9 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Selected
-                </button>
-              </div>
-            )}
-
-            {/* ── Break Details ── */}
-            {breaks.length > 0 && (
-              <div className="rounded-2xl border border-amber-500/20 bg-card p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Coffee className="h-4 w-4 text-amber-500" />
-                  <p className="text-xs font-black tracking-tight">Break Periods</p>
-                  <span className="ml-auto text-[10px] text-muted-foreground/40">
-                    Actual break sessions
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {breaks.map((b: BreakSegment, i: number) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-50/30 dark:bg-amber-950/15 border border-amber-500/15"
-                    >
-                      <div className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-                      <span className="text-[11px] font-mono text-muted-foreground/60 flex-1">
-                        {new Date(new Date(b.from).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
-                        <span className="mx-1.5 text-muted-foreground/30">–</span>
-                        {new Date(new Date(b.to).getTime() + MDT_OFFSET_MS).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" })}
-                      </span>
-                      <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                        {fmtDuration(b.duration)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              screenshotsPanel
             )}
           </>
         )}
