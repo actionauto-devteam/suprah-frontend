@@ -1,13 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Activity, AlertTriangle, Coffee, LogIn, LogOut, RotateCcw, Timer } from "lucide-react"
+import { Activity, AlertTriangle, Coffee, LogIn, LogOut, Monitor, RotateCcw, Smartphone, Timer } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { fmtHuman, toMDTDate } from "@/components/crm/timeproof/shared"
 
-type EventKind = "time-in" | "time-out" | "break-in" | "break-out" | "idle" | "idle-stage" | "shift-resumed"
+type EventKind = "time-in" | "time-out" | "break-in" | "break-out" | "idle" | "idle-stage" | "shift-resumed" | "monitoring-switch"
 type ReasonKind = "auto" | "admin" | "early-end" | "none"
 
 interface ActivityEvent {
@@ -24,6 +24,9 @@ interface ActivityEvent {
   stage?: 2 | 3
   removedTimeOutAt?: string | null
   removedTimeOutNote?: string | null
+  switchedTo?: "desktop" | "mobile"
+  switchedBy?: "user" | "admin"
+  locationUpdates?: { count: number; firstAt: string | null; lastAt: string | null } | null
 }
 
 interface ActivitySummary {
@@ -35,6 +38,7 @@ interface ActivitySummary {
   idleCount: number
   idleSeconds: number
   resumeCount: number
+  switchCount?: number
 }
 
 interface ActivityLogCardProps {
@@ -73,6 +77,7 @@ const KIND_META: Record<EventKind, { icon: LucideIcon; tile: string; title: stri
   idle: { icon: AlertTriangle, tile: "bg-rose-500/10 text-rose-600 dark:text-rose-400", title: "Idle" },
   "idle-stage": { icon: Timer, tile: "bg-rose-500/10 text-rose-600 dark:text-rose-400", title: "Idle marker" },
   "shift-resumed": { icon: RotateCcw, tile: "bg-blue-500/10 text-blue-600 dark:text-blue-400", title: "Shift resumed" },
+  "monitoring-switch": { icon: Monitor, tile: "bg-teal-500/10 text-teal-600 dark:text-teal-400", title: "Monitoring switched" },
 }
 
 const Chip = ({ className, children }: { className?: string; children: React.ReactNode }) => (
@@ -88,12 +93,15 @@ const Chip = ({ className, children }: { className?: string; children: React.Rea
 
 const EventRow = ({ event }: { event: ActivityEvent }) => {
   const meta = KIND_META[event.kind]
-  const Icon = meta.icon
+  const Icon = event.kind === "monitoring-switch" && event.switchedTo === "mobile" ? Smartphone : meta.icon
   const detailClass = "text-[12px] leading-snug text-muted-foreground break-words"
 
   let title = meta.title
   if (event.kind === "idle-stage") {
     title = event.stage === 2 ? "Idle 20 min mark — 2nd warning" : "Idle 30 min mark — auto-end stage"
+  }
+  if (event.kind === "monitoring-switch") {
+    title = event.switchedTo === "mobile" ? "Monitoring moved to phone" : "Monitoring moved to computer"
   }
 
   return (
@@ -134,6 +142,23 @@ const EventRow = ({ event }: { event: ActivityEvent }) => {
               {typeof event.durationSeconds === "number" ? ` · ${fmtHuman(event.durationSeconds)}` : ""}
             </p>
             {event.flaggedAt && <p className={detailClass}>Flagged idle at {fmtClock(event.flaggedAt)}</p>}
+          </>
+        )}
+        {event.kind === "monitoring-switch" && (
+          <>
+            <p className={detailClass}>{event.switchedBy === "admin" ? "Changed by an admin" : "Chosen by the employee"}</p>
+            {event.switchedTo === "mobile" && event.locationUpdates && (
+              event.locationUpdates.count > 0 ? (
+                <p className={detailClass}>
+                  {event.locationUpdates.count} location {event.locationUpdates.count === 1 ? "update" : "updates"} received from the phone
+                  {event.locationUpdates.firstAt && event.locationUpdates.lastAt
+                    ? ` · ${fmtClockShort(event.locationUpdates.firstAt)} to ${fmtClockShort(event.locationUpdates.lastAt)}`
+                    : ""}
+                </p>
+              ) : (
+                <p className="text-[12px] leading-snug text-amber-700 dark:text-amber-300">No location updates were received from the phone during this time</p>
+              )
+            )}
           </>
         )}
         {event.kind === "shift-resumed" && (
@@ -218,6 +243,11 @@ export function ActivityLogCard({ userId, dateStr }: ActivityLogCardProps) {
             {summary.idleCount > 0 && (
               <SummaryChip>
                 {summary.idleCount} idle · {fmtHuman(summary.idleSeconds)}
+              </SummaryChip>
+            )}
+            {typeof summary.switchCount === "number" && summary.switchCount > 0 && (
+              <SummaryChip>
+                {summary.switchCount} monitoring {summary.switchCount === 1 ? "switch" : "switches"}
               </SummaryChip>
             )}
             {summary.resumeCount > 0 && (
