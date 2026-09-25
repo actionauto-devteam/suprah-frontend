@@ -536,6 +536,16 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       )));
     });
 
+    listen('conversation:deleted', ({ conversationId }: { conversationId: string }) => {
+      setConversations(prev => prev.filter(conv => conv._id !== conversationId));
+      setOpenChats(prev => prev.filter(id => id !== conversationId));
+      setMinimizedChats(prev => {
+        const next = new Set(prev);
+        next.delete(conversationId);
+        return next;
+      });
+    });
+
     // New conversation was created → prepend if not already in list
     listen('conversation:new', (conv: SSConv) => {
       if (conv.notificationPreference) {

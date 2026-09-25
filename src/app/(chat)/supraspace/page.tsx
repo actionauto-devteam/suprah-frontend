@@ -9886,6 +9886,7 @@ export default function SupraSpacePage() {
     return result;
   }, [activeMsgs, activeConv, uid]);
   const isAdmin = !!(activeConv && (
+    activeConv.members.some(member => member._id === uid && member.role === 'admin') ||
     (activeConv.admins || []).map(String).includes(uid) ||
     String((activeConv as any).createdBy) === uid
   ));

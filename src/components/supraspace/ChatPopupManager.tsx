@@ -3416,7 +3416,11 @@ function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
   const [saving, setSaving] = React.useState(false);
   const [removingId, setRemovingId] = React.useState<string | null>(null);
   const memberIds = React.useMemo(() => new Set(conv.members.map(m => m._id)), [conv.members]);
-  const viewerIsAdmin = !!crmUserId && (conv.admins?.includes(crmUserId) || conv.createdBy === crmUserId);
+  const viewerIsAdmin = !!crmUserId && (
+    conv.members.some(member => member._id === crmUserId && member.role === 'admin')
+    || conv.admins?.includes(crmUserId)
+    || conv.createdBy === crmUserId
+  );
 
   React.useEffect(() => {
     if (!crmToken || view !== 'invite') return;
