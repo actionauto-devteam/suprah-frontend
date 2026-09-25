@@ -25,7 +25,8 @@ interface ActivityEvent {
   removedTimeOutAt?: string | null
   removedTimeOutNote?: string | null
   switchedTo?: "desktop" | "mobile"
-  switchedBy?: "user" | "admin"
+  switchedBy?: "user" | "admin" | "geofence"
+  placeName?: string | null
   locationUpdates?: { count: number; firstAt: string | null; lastAt: string | null } | null
 }
 
@@ -101,7 +102,9 @@ const EventRow = ({ event }: { event: ActivityEvent }) => {
     title = event.stage === 2 ? "Idle 20 min mark — 2nd warning" : "Idle 30 min mark — auto-end stage"
   }
   if (event.kind === "monitoring-switch") {
-    title = event.switchedTo === "mobile" ? "Monitoring moved to phone" : "Monitoring moved to computer"
+    title = event.switchedTo === "mobile"
+      ? event.switchedBy === "geofence" ? "Monitoring moved to phone automatically" : "Monitoring moved to phone"
+      : "Monitoring moved to computer"
   }
 
   return (
@@ -146,7 +149,13 @@ const EventRow = ({ event }: { event: ActivityEvent }) => {
         )}
         {event.kind === "monitoring-switch" && (
           <>
-            <p className={detailClass}>{event.switchedBy === "admin" ? "Changed by an admin" : "Chosen by the employee"}</p>
+            <p className={detailClass}>
+              {event.switchedBy === "admin"
+                ? "Changed by an admin"
+                : event.switchedBy === "geofence"
+                  ? `The phone left ${event.placeName || "the work site"}`
+                  : "Chosen by the employee"}
+            </p>
             {event.switchedTo === "mobile" && event.locationUpdates && (
               event.locationUpdates.count > 0 ? (
                 <p className={detailClass}>

@@ -40,6 +40,7 @@ interface EditUserForm {
   monitoringModeOverride: "default" | "off" | "always" | "switching"
   trayDeviceAuthOverride: "default" | "on" | "off"
   deviceSwitchOverride: "default" | "on" | "off"
+  autoSwitchOverride: "default" | "on" | "off"
   desktopLocationOverride: "default" | "on" | "off"
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
@@ -72,6 +73,7 @@ interface EditUserModalProps {
     monitoringModeOverride?: "default" | "off" | "always" | "switching"
     trayDeviceAuthOverride?: "default" | "on" | "off"
     deviceSwitchOverride?: "default" | "on" | "off"
+    autoSwitchOverride?: "default" | "on" | "off"
     desktopLocationOverride?: "default" | "on" | "off"
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
@@ -114,6 +116,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     monitoringModeOverride: "default",
     trayDeviceAuthOverride: "default",
     deviceSwitchOverride: "default",
+    autoSwitchOverride: "default",
     desktopLocationOverride: "default",
     payrollLocation: "",
     hourlyTrackingExempt: false,
@@ -136,6 +139,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         monitoringModeOverride: user.monitoringModeOverride ?? "default",
         trayDeviceAuthOverride: user.trayDeviceAuthOverride ?? "default",
         deviceSwitchOverride: user.deviceSwitchOverride ?? "default",
+        autoSwitchOverride: user.autoSwitchOverride ?? "default",
         desktopLocationOverride: user.desktopLocationOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
@@ -189,6 +193,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           monitoringModeOverride: form.monitoringModeOverride,
           trayDeviceAuthOverride: form.trayDeviceAuthOverride,
           deviceSwitchOverride: form.deviceSwitchOverride,
+          autoSwitchOverride: form.autoSwitchOverride,
           desktopLocationOverride: form.desktopLocationOverride,
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
@@ -483,6 +488,28 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             <Select
               value={form.deviceSwitchOverride}
               onValueChange={(v) => setForm((p) => ({ ...p, deviceSwitchOverride: v as EditUserForm["deviceSwitchOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Server Setting</SelectItem>
+                <SelectItem value="on" className="rounded-lg text-sm">On</SelectItem>
+                <SelectItem value="off" className="rounded-lg text-sm">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Auto-Switch When Leaving a Work Site</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Needs Switch Monitoring Between Devices to be on. When the employee&apos;s phone leaves every place marked as a Work Site in the Team Pulse locator for about a minute, monitoring moves to their phone by itself, and switching back to the computer is blocked until the phone is at a Work Site again. Choose On to try it for one person first.
+              </p>
+            </div>
+            <Select
+              value={form.autoSwitchOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, autoSwitchOverride: v as EditUserForm["autoSwitchOverride"] }))}
             >
               <SelectTrigger className="rounded-xl">
                 <SelectValue />

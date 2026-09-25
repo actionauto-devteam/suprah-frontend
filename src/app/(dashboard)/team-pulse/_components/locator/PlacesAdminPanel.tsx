@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MapPin, Plus, Trash2, Pencil, Loader2, Crosshair, Search, Users, ShieldAlert, TriangleAlert } from "lucide-react";
+import { MapPin, Plus, Trash2, Pencil, Loader2, Crosshair, Search, Users, ShieldAlert, TriangleAlert, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +27,13 @@ interface FormState {
   warningRadiusM: number;
   color: string;
   icon: string;
+  isWorkSite: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   name: "", address: "", description: "", lat: "", lng: "",
   radiusM: 100, warningEnabled: false, warningRadiusM: 150,
-  color: COLOR_PRESETS[0], icon: ICON_NAMES[0],
+  color: COLOR_PRESETS[0], icon: ICON_NAMES[0], isWorkSite: false,
 };
 
 interface Props {
@@ -113,7 +114,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       coords: { lat, lng }, radiusM: form.radiusM,
       warningRadiusM: form.warningEnabled ? form.warningRadiusM : undefined,
       icon: form.icon, color: form.color,
-      address: form.address, description: form.description, isActive: true, createdBy: "", createdAt: "", updatedAt: "",
+      address: form.address, description: form.description, isActive: true, isWorkSite: form.isWorkSite, createdBy: "", createdAt: "", updatedAt: "",
     });
   }, [dialogOpen, form, editing, onDraftChange]);
 
@@ -141,6 +142,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       warningRadiusM: place.warningRadiusM || Math.round(place.radiusM * 1.5),
       color: place.color || COLOR_PRESETS[0],
       icon: place.icon || ICON_NAMES[0],
+      isWorkSite: !!place.isWorkSite,
     });
     setDialogOpen(true);
   }
@@ -158,6 +160,7 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
       warningRadiusM: form.warningEnabled ? form.warningRadiusM : (editing?.warningRadiusM ? null : undefined),
       address: form.address.trim() || undefined,
       description: form.description.trim() || undefined,
+      isWorkSite: form.isWorkSite,
     };
 
     if (editing) {
@@ -232,6 +235,11 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className="text-xs font-bold truncate">{place.name}</p>
+                  {place.isWorkSite && (
+                    <span className="flex items-center gap-0.5 text-[8px] font-black text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1 rounded shrink-0">
+                      <Building2 className="size-2.5" /> Work Site
+                    </span>
+                  )}
                   {hereNow > 0 && (
                     <span className="flex items-center gap-0.5 text-[8px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 rounded shrink-0">
                       <Users className="size-2.5" /> {hereNow} here
@@ -360,6 +368,24 @@ export function PlacesAdminPanel({ pickMode, onStartPick, onCancelPick, pickedCo
               ) : (
                 <p className="text-[9px] text-muted-foreground/40">Off — a small step outside the radius counts as leaving right away.</p>
               )}
+            </div>
+
+            <div className="space-y-1.5 rounded-lg border border-border/40 p-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="size-3 text-blue-500" />
+                  <label className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Work Site</label>
+                </div>
+                <Switch
+                  checked={form.isWorkSite}
+                  onCheckedChange={(checked) => setForm((f) => ({ ...f, isWorkSite: checked }))}
+                />
+              </div>
+              <p className="text-[9px] text-muted-foreground/50">
+                {form.isWorkSite
+                  ? "Counts as the company for Auto-Switch: when an employee's phone leaves every Work Site, their monitoring moves to the phone."
+                  : "Off — leaving this place never moves anyone's monitoring to their phone."}
+              </p>
             </div>
 
             {overlappingPlaces.length > 0 && (

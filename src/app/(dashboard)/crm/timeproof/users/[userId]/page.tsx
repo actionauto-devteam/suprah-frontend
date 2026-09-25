@@ -379,7 +379,13 @@ export default function AdminUserTimeprofPage() {
     }
   }, [userId])
 
-  const [monitoringDevice, setMonitoringDevice] = React.useState<{ enabled: boolean; activeDevice: "desktop" | "mobile" | null } | null>(null)
+  const [monitoringDevice, setMonitoringDevice] = React.useState<{
+    enabled: boolean
+    activeDevice: "desktop" | "mobile" | null
+    autoSwitch?: boolean
+    away?: { since: string; siteName: string | null } | null
+    history?: Array<{ to: "desktop" | "mobile"; by: string; placeName?: string | null }>
+  } | null>(null)
   const [settingDevice, setSettingDevice] = React.useState<"desktop" | "mobile" | null>(null)
   const [deviceError, setDeviceError] = React.useState("")
 
@@ -1180,6 +1186,18 @@ export default function AdminUserTimeprofPage() {
                     ? `${data.user.fullName.split(" ")[0]} is being monitored on their ${monitoringDevice.activeDevice === "mobile" ? "phone" : "computer"}.`
                     : `${data.user.fullName.split(" ")[0]} has not chosen a monitoring device for this shift yet.`}
                 </p>
+                {monitoringDevice.autoSwitch && (
+                  <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                    {monitoringDevice.away
+                      ? `Their phone is away from ${monitoringDevice.away.siteName || "the work site"}, so switching back to the computer is blocked for them.`
+                      : "Auto-Switch is on: monitoring moves to their phone when it leaves a Work Site."}
+                  </p>
+                )}
+                {monitoringDevice.activeDevice === "mobile" && monitoringDevice.history?.[monitoringDevice.history.length - 1]?.by === "geofence" && (
+                  <p className="text-[10px] text-blue-500/80 leading-relaxed">
+                    Moved to the phone automatically after leaving {monitoringDevice.history[monitoringDevice.history.length - 1].placeName || "the work site"}.
+                  </p>
+                )}
                 {deviceError && (
                   <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{deviceError}</p>
                 )}
