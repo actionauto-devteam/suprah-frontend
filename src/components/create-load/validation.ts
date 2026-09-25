@@ -5,6 +5,7 @@ import {
   LoadVehicle,
   LoadDates,
   LoadContract,
+  LoadPricingInput,
   PostType,
 } from "./types";
 import { mountainTodayDateKey, scheduleDateKey } from "@/utils/calendar.utils";
@@ -161,6 +162,43 @@ export function validateContract(contract: LoadContract): StepValidation {
   return { valid: issues.length === 0, issues, warnings: [] };
 }
 
+export function validatePricing(
+  postType: PostType,
+  pricing: LoadPricingInput,
+): StepValidation {
+  if (postType !== "assign-carrier") return ok();
+  if (pricing.isPricingEnabled === false) return ok();
+
+  const totalDriverPay = Number(pricing.carrierPayAmount);
+  if (!Number.isFinite(totalDriverPay) || totalDriverPay <= 0) {
+    return {
+      valid: false,
+      issues: [
+        {
+          field: "pricing.carrierPayAmount",
+          message: "Enter a Total Driver Pay greater than $0",
+        },
+      ],
+      warnings: [],
+    };
+  }
+
+  if (totalDriverPay > 1_000_000) {
+    return {
+      valid: false,
+      issues: [
+        {
+          field: "pricing.carrierPayAmount",
+          message: "Total Driver Pay cannot exceed $1,000,000",
+        },
+      ],
+      warnings: [],
+    };
+  }
+
+  return ok();
+}
+
 export function validateAssignment(
   postType: PostType,
   selectedDriverId: string | null,
@@ -194,6 +232,7 @@ export function validateAll(input: {
   trailerType: string;
   dates: LoadDates;
   contract: LoadContract;
+  pricing: LoadPricingInput;
   selectedDriverId: string | null;
   makeAvailable: boolean;
 }): StepValidation {
@@ -203,6 +242,7 @@ export function validateAll(input: {
     validateVehicles(input.vehicles, input.trailerType),
     validateDates(input.dates),
     validateContract(input.contract),
+    validatePricing(input.postType, input.pricing),
     validateAssignment(
       input.postType,
       input.selectedDriverId,

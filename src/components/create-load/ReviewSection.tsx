@@ -86,6 +86,7 @@ export function ReviewSection({
     TRAILER_TYPE_OPTIONS.find((t) => t.value === trailerType)?.label ?? trailerType
 
   const photosCount = vehicles.filter((v) => v.inspectionPhotoUrl).length
+  const pricingEnabled = pricing.isPricingEnabled !== false
 
   return (
     <div className="space-y-4">
@@ -155,18 +156,42 @@ export function ReviewSection({
         </Card>
 
         <Card icon={DollarSign} title="Pricing">
-          <Row
-            label="Carrier Pay"
-            value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
-          />
-          <Row
-            label="COP / COD"
-            value={pricing.copCodAmount != null ? `$${pricing.copCodAmount.toLocaleString()}` : "—"}
-          />
-          <Row
-            label="$ / Mile"
-            value={pricing.pricePerMile != null ? `$${pricing.pricePerMile.toFixed(2)}` : "—"}
-          />
+          {!pricingEnabled ? (
+            <>
+              <Row label="Pricing entry" value="Skipped by Dispatch" />
+              <Row label="Can be added later" value="Yes — from Edit Load" />
+            </>
+          ) : postType === "assign-carrier" ? (
+            <>
+              <Row
+                label="Total Driver Pay"
+                value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
+              />
+              <Row
+                label="Driver pricing"
+                value={pricing.isVisibleToDriver === false ? "Hidden from driver" : "Visible to driver"}
+              />
+            </>
+          ) : (
+            <>
+              <Row
+                label="Carrier Pay"
+                value={pricing.carrierPayAmount != null ? `$${pricing.carrierPayAmount.toLocaleString()}` : "—"}
+              />
+              <Row
+                label="COP / COD"
+                value={pricing.copCodAmount != null ? `$${pricing.copCodAmount.toLocaleString()}` : "—"}
+              />
+              <Row
+                label="$ / Mile"
+                value={pricing.pricePerMile != null ? `$${pricing.pricePerMile.toFixed(2)}` : "—"}
+              />
+              <Row
+                label="Board pricing"
+                value={pricing.isVisibleToDriver === false ? "Hidden from drivers" : "Visible to drivers"}
+              />
+            </>
+          )}
         </Card>
 
         {postType === "assign-carrier" && (

@@ -51,6 +51,10 @@ export interface LoadPricing {
   carrierPayAmount?: number;
   copCodAmount?: number;
   balanceAmount?: number;
+  /** Missing/true = pricing is active (backward compatible); false = Dispatch skipped pricing. */
+  isPricingEnabled?: boolean;
+  /** Missing/true = visible (backward compatible); false = redact from drivers. */
+  isVisibleToDriver?: boolean;
 }
 
 export type LoadStatus =
@@ -117,6 +121,12 @@ export interface Load {
   pickedUpAt?: string;
   inTransitAt?: string;
   deliveredAt?: string;
+  proofOfPickup?: {
+    imageUrl: string;
+    submittedAt: string;
+    note?: string;
+    submittedBy?: string;
+  };
   proofOfDelivery?: {
     imageUrl: string;
     submittedAt: string;

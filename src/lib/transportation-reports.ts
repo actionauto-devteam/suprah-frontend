@@ -266,6 +266,8 @@ export function generateBolHtml(load: Load, companyName: string = "Your Dealersh
     : "No signed contract recorded"
 
   const statusClass = String(load.status || "").toLowerCase().replace(/[^a-z]+/g, "-")
+  const isDirectAssignment = load.postType === "assign-carrier"
+  const pricingEnabled = load.pricing?.isPricingEnabled !== false
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1032,13 +1034,18 @@ export function generateBolHtml(load: Load, companyName: string = "Your Dealersh
 
     <section class="summary-grid">
       <div class="metric">
-        <div class="metric-label">Carrier Pay</div>
-        <div class="metric-value">${fmtCurrency(load.pricing?.carrierPayAmount || 0)}</div>
+        <div class="metric-label">${isDirectAssignment ? "Total Driver Pay" : "Carrier Pay"}</div>
+        <div class="metric-value">${!pricingEnabled ? "Pricing not provided" : load.pricing?.isVisibleToDriver === false ? "Pricing hidden" : fmtCurrency(load.pricing?.carrierPayAmount || 0)}</div>
       </div>
-      <div class="metric">
+      ${isDirectAssignment
+        ? `<div class="metric">
+        <div class="metric-label">Pricing Visibility</div>
+        <div class="metric-value">${!pricingEnabled ? "Not applicable" : load.pricing?.isVisibleToDriver === false ? "Hidden from driver" : "Visible to driver"}</div>
+      </div>`
+        : `<div class="metric">
         <div class="metric-label">COD / COP</div>
-        <div class="metric-value">${fmtCurrency(load.pricing?.copCodAmount || 0)}</div>
-      </div>
+        <div class="metric-value">${!pricingEnabled ? "Pricing not provided" : load.pricing?.isVisibleToDriver === false ? "Pricing hidden" : fmtCurrency(load.pricing?.copCodAmount || 0)}</div>
+      </div>`}
       <div class="metric">
         <div class="metric-label">Total Miles</div>
         <div class="metric-value">${fmtNumber(load.pricing?.miles || 0)}</div>

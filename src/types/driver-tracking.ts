@@ -162,5 +162,7 @@ export interface DriverTrackingItem {
       zip?: string | null;
     };
     releaseRequest?: LoadReleaseRequestSummary | null;
+    requiresDispatchReconfirmation?: boolean;
+    assignmentMaterialVersion?: string | null;
   }[];
 }

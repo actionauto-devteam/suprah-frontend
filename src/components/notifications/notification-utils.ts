@@ -56,6 +56,8 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   driver_request_approved: { icon: CheckCircle2, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
   driver_request_rejected: { icon: XCircle, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   driver_assigned: { icon: Truck, gradient: 'from-violet-500 to-purple-500', bg: 'bg-violet-500' },
+  load_accepted: { icon: CheckCircle2, gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500' },
+  load_amendment_acknowledged: { icon: CheckCircle2, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   driver_location_update: { icon: MapPin, gradient: 'from-blue-500 to-sky-500', bg: 'bg-blue-500' },
   driver_dispatch_alert: { icon: AlertTriangle, gradient: 'from-red-500 to-orange-500', bg: 'bg-red-500' },
   driver_dispatch_message: { icon: MessageSquare, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
@@ -173,6 +175,8 @@ const TYPE_LABELS: Record<string, string> = {
   driver_request_approved: 'Driver Request Approved',
   driver_request_rejected: 'Driver Request Rejected',
   driver_assigned: 'Driver Assigned',
+  load_accepted: 'Load Accepted',
+  load_amendment_acknowledged: 'Load Update Acknowledged',
   driver_location_update: 'Driver Location Update',
   driver_payout: 'Driver Payout',
   payment_received: 'Payment Received',
@@ -260,7 +264,8 @@ export function getNotificationTypeLabel(type: string): string {
 function inferLegacyCategory(type: string): NotificationCategory {
   if (type.startsWith('quote_') || type.startsWith('shipment_') || type === 'proof_of_delivery'
     || type === 'proof_submitted' || type === 'delivery_confirmed' || type.startsWith('driver_request')
-    || type === 'driver_assigned' || type === 'driver_payout') return 'transportation';
+    || type === 'driver_assigned' || type === 'load_accepted' || type === 'load_amendment_acknowledged'
+    || type === 'driver_payout') return 'transportation';
   if (type.startsWith('vehicle_') || type.startsWith('inventory_') || type === 'new_inventory_alert') return 'inventory';
   if (type.startsWith('appointment_') || type === 'guest_response') return 'appointments';
   if (type.startsWith('new_lead') || type.startsWith('lead_') || type.startsWith('crm_')
@@ -340,7 +345,8 @@ const ROUTE_MAP: Record<string, string> = {
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   driver_request: '/driver-tracker', driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
-  driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',
+  driver_assigned: '/driver/loads', load_accepted: '/driver-tracker', load_amendment_acknowledged: '/transportation',
+  driver_payout: '/driver/earnings',
   message_received: '/crm/supra-space',
   aftermarket_inquiry: '/crm/support-center?tab=aftermarket', aftermarket_invoice: '/customer/payments', aftermarket_order: '/crm/aftermarket',
   driver_location_update: '/driver-tracker',
@@ -451,6 +457,35 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
   const metadataRoute = typeof notification.metadata?.route === 'string'
     ? notification.metadata.route
     : '';
+
+  // New request notifications carry an exact contextual route from the backend.
+  // Older stored rows may either have no route or the former generic
+  // /driver-tracker?driverId=... route. Upgrade both to the authoritative
+  // load-state resolver when loadId + driverId are available, while preserving
+  // an explicit Dispatch Chat deep link if one was intentionally stored.
+  if (notification.type === 'driver_request') {
+    const loadId = String(notification.metadata?.loadId ?? '').trim();
+    const driverId = String(notification.metadata?.driverId ?? '').trim();
+    const loadNumber = String(notification.metadata?.loadNumber ?? loadId).trim();
+    const objectIdPattern = /^[a-f0-9]{24}$/i;
+    const parsedMetadataRoute = metadataRoute ? parseInternalRoute(metadataRoute) : null;
+    const isDriverTrackerRoute = parsedMetadataRoute?.pathname === '/driver-tracker';
+    const hasExactLoadTarget = Boolean(
+      parsedMetadataRoute?.searchParams.get('loadInquiryId') &&
+      parsedMetadataRoute?.searchParams.get('inquiryDriverId')
+    );
+    const hasExplicitChatTarget = parsedMetadataRoute?.searchParams.get('openDispatchChat') === '1';
+
+    if (
+      objectIdPattern.test(loadId) &&
+      objectIdPattern.test(driverId) &&
+      (!metadataRoute || (isDriverTrackerRoute && !hasExactLoadTarget && !hasExplicitChatTarget))
+    ) {
+      return `/driver-tracker?loadInquiryId=${encodeURIComponent(loadId)}&inquiryDriverId=${encodeURIComponent(driverId)}&inquiryLoadNumber=${encodeURIComponent(loadNumber)}`;
+    }
+
+    if (!metadataRoute) return '/driver-tracker';
+  }
 
   // Project Management's actual frontend route is /project. Repair the old
   // /crm/project alias and the short-lived mistaken /projects alias (or a

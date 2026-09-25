@@ -72,6 +72,7 @@ interface DriverTrackerAvailableLoadsCardProps {
   isLoading: boolean;
   activeDrivers: DriverTrackingItem[];
   onAssign: (item: AvailableItem, driverId: string) => Promise<boolean>;
+  focusedLoadId?: string | null;
 }
 
 export function DriverTrackerAvailableLoadsCard({
@@ -79,10 +80,31 @@ export function DriverTrackerAvailableLoadsCard({
   isLoading,
   activeDrivers,
   onAssign,
+  focusedLoadId = null,
 }: DriverTrackerAvailableLoadsCardProps) {
   const [assigning, setAssigning] = React.useState<string | null>(null);
   const [assignLoad, setAssignLoad] = React.useState<AvailableItem | null>(null);
   const [driverSearch, setDriverSearch] = React.useState("");
+  const loadRefs = React.useRef(new Map<string, HTMLDivElement>());
+  const handledFocusedLoadRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!focusedLoadId) {
+      handledFocusedLoadRef.current = null;
+      return;
+    }
+    if (isLoading || handledFocusedLoadRef.current === focusedLoadId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = loadRefs.current.get(focusedLoadId);
+      if (!target) return;
+      handledFocusedLoadRef.current = focusedLoadId;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedLoadId, isLoading, loads]);
 
   const previewDriverIds = React.useMemo(
     () => activeDrivers.map((driver) => driver.id),
@@ -157,8 +179,22 @@ export function DriverTrackerAvailableLoadsCard({
   return (
     <>
       <div className="space-y-3 p-3 sm:space-y-0 sm:divide-y sm:divide-border/30 sm:p-0">
-        {loads.map((load) => (
-          <div key={load._id} className="min-w-0 rounded-xl border border-border/50 bg-card p-3 transition-colors hover:bg-accent/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-4">
+        {loads.map((load) => {
+          const isFocused = focusedLoadId === load._id;
+          return (
+          <div
+            key={load._id}
+            ref={(node) => {
+              if (node) loadRefs.current.set(load._id, node);
+              else loadRefs.current.delete(load._id);
+            }}
+            tabIndex={isFocused ? -1 : undefined}
+            className={`min-w-0 rounded-xl border border-border/50 bg-card p-3 transition-[background-color,box-shadow,border-color] hover:bg-accent/30 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-4 ${
+              isFocused
+                ? "border-blue-500/60 bg-blue-500/[0.07] ring-2 ring-blue-500/45 ring-offset-2 ring-offset-background sm:bg-blue-500/[0.07]"
+                : ""
+            }`}
+          >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start sm:gap-4">
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
@@ -240,7 +276,8 @@ export function DriverTrackerAvailableLoadsCard({
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <Dialog

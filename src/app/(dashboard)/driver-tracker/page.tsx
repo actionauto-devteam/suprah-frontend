@@ -54,6 +54,7 @@ export interface AvailableItem {
   };
   isPostedToBoard?: boolean;
 }
+
 import { DriverTrackerMap } from "@/components/driver-tracker/DriverTrackerMap";
 import { DriverTrackerShareCard } from "@/components/driver-tracker/DriverTrackerShareCard";
 import { DriverTrackerLoadsCard } from "@/components/driver-tracker/DriverTrackerLoadsCard";
@@ -85,6 +86,35 @@ import {
   initializeSocket,
   getSocket,
 } from "@/lib/socket.client";
+
+function mapLoadToAvailableItem(load: any): AvailableItem {
+  return {
+    _id: String(load._id),
+    __docType: "load",
+    trackingNumber: load.loadNumber,
+    origin: `${load.pickupLocation?.city || ""}${load.pickupLocation?.state ? `, ${load.pickupLocation.state}` : ""}`,
+    destination: `${load.deliveryLocation?.city || ""}${load.deliveryLocation?.state ? `, ${load.deliveryLocation.state}` : ""}`,
+    status: String(load.status || "Posted"),
+    trailerTypeRequired: load.trailerType,
+    vehicleCount: Array.isArray(load.vehicles) ? load.vehicles.length : 0,
+    carrierPayAmount: load.pricing?.carrierPayAmount,
+    requestedPickupDate:
+      load.dates?.firstAvailable ?? load.dates?.pickupDeadline,
+    pickupLocation: {
+      city: load.pickupLocation?.city,
+      state: load.pickupLocation?.state,
+      zip: load.pickupLocation?.zip,
+      coordinates: load.pickupLocation?.coordinates ?? null,
+    },
+    deliveryLocation: {
+      city: load.deliveryLocation?.city,
+      state: load.deliveryLocation?.state,
+      zip: load.deliveryLocation?.zip,
+      coordinates: load.deliveryLocation?.coordinates ?? null,
+    },
+    isPostedToBoard: false,
+  };
+}
 
 const statusLabel: Record<DriverStatus, string> = {
   "on-route": "On Route",
@@ -170,6 +200,7 @@ export default function DriverTrackerPage() {
   const [availableLoads, setAvailableLoads] = React.useState<AvailableItem[]>([]);
   const [loadsLoading, setLoadsLoading] = React.useState(true);
   const [availableLoadsHasMore, setAvailableLoadsHasMore] = React.useState(false);
+  const [availableLoadsTotal, setAvailableLoadsTotal] = React.useState(0);
   const [availableLoadsError, setAvailableLoadsError] = React.useState<string | null>(null);
   const [loadRequestsError, setLoadRequestsError] = React.useState<string | null>(null);
   const [selectedLoadsDriverId, setSelectedLoadsDriverId] = React.useState<string | null>(null);
@@ -181,7 +212,10 @@ export default function DriverTrackerPage() {
   const [approvingId, setApprovingId] = React.useState<string | null>(null);
   const [rejectingId, setRejectingId] = React.useState<string | null>(null);
   const [loadsTab, setLoadsTab] = React.useState("assigned");
+  const [loadInquiryContext, setLoadInquiryContext] = React.useState<{ loadId: string; loadNumber: string; driverId: string } | null>(null);
   const [focusedRequestKey, setFocusedRequestKey] = React.useState<string | null>(null);
+  const [focusedAssignedLoadId, setFocusedAssignedLoadId] = React.useState<string | null>(null);
+  const [focusedAvailableLoadId, setFocusedAvailableLoadId] = React.useState<string | null>(null);
   const [alertDriver, setAlertDriver] = React.useState<DriverTrackingItem | null>(null);
   const [alertDialogOpen, setAlertDialogOpen] = React.useState(false);
   const [chatDriver, setChatDriver] = React.useState<DriverTrackingItem | null>(null);
@@ -233,6 +267,7 @@ export default function DriverTrackerPage() {
     React.useState<DriverTrackerMobileDrawerTab>("overview");
 
   const loadManagementRef = React.useRef<HTMLDivElement | null>(null);
+  const handledLoadInquiryDeepLinkRef = React.useRef<string | null>(null);
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<any>(null);
   const fleetLayerRef = React.useRef<DriverFleetLayer | null>(null);
@@ -599,36 +634,18 @@ export default function DriverTrackerPage() {
       const allLoads = requireTrackerArray<any>(loadsRes.data?.data?.loads, "available loads");
       const mapped: AvailableItem[] = allLoads
         .filter((l) => l.status === "Posted" && !l.assignedDriverId)
-        .map((l) => ({
-          _id: l._id,
-          __docType: "load" as const,
-          trackingNumber: l.loadNumber,
-          origin: `${l.pickupLocation?.city || ""}${l.pickupLocation?.state ? `, ${l.pickupLocation.state}` : ""}`,
-          destination: `${l.deliveryLocation?.city || ""}${l.deliveryLocation?.state ? `, ${l.deliveryLocation.state}` : ""}`,
-          status: l.status,
-          trailerTypeRequired: l.trailerType,
-          vehicleCount: l.vehicles?.length || 0,
-          carrierPayAmount: l.pricing?.carrierPayAmount,
-          requestedPickupDate: l.dates?.firstAvailable ?? l.dates?.pickupDeadline,
-          pickupLocation: {
-            city: l.pickupLocation?.city,
-            state: l.pickupLocation?.state,
-            zip: l.pickupLocation?.zip,
-            coordinates: l.pickupLocation?.coordinates ?? null,
-          },
-          deliveryLocation: {
-            city: l.deliveryLocation?.city,
-            state: l.deliveryLocation?.state,
-            zip: l.deliveryLocation?.zip,
-            coordinates: l.deliveryLocation?.coordinates ?? null,
-          },
-          isPostedToBoard: false,
-        }));
+        .map(mapLoadToAvailableItem);
       setAvailableLoads(mapped);
+      const paginationTotal = Number(loadsRes.data?.data?.pagination?.total);
+      setAvailableLoadsTotal(
+        Number.isFinite(paginationTotal)
+          ? Math.max(0, paginationTotal)
+          : mapped.length,
+      );
       setAvailableLoadsHasMore(Boolean(loadsRes.data?.data?.pagination?.hasMore));
     } catch (err: any) {
       if (!request.isCurrent()) return;
-      if ([401, 403].includes(err.response?.status)) { setAvailableLoads([]); setAvailableLoadsHasMore(false); }
+      if ([401, 403].includes(err.response?.status)) { setAvailableLoads([]); setAvailableLoadsTotal(0); setAvailableLoadsHasMore(false); }
       setAvailableLoadsError(err.response?.data?.message || err.message || "Could not refresh available loads. Previously loaded results may be out of date.");
     } finally {
       if (request.isCurrent()) { setLoadsLoading(false); request.finish(); }
@@ -1076,33 +1093,144 @@ export default function DriverTrackerPage() {
   );
 
   const openLoadManagement = React.useCallback((tab: string, driverId: string | null = null) => {
+    setLoadInquiryContext(null);
     setLoadsTab(tab);
     setMobileWorkspace("loads");
     setMobileDriverDrawerOpen(false);
     setSelectedLoadsDriverId(driverId);
     setFocusedRequestKey(null);
+    setFocusedAssignedLoadId(null);
+    setFocusedAvailableLoadId(null);
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       loadManagementRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       loadManagementRef.current?.focus({ preventScroll: true });
     }));
   }, [setMobileWorkspace]);
 
-  const handleReviewLoadRequest = React.useCallback(
-    (loadId: string, driverId: string) => {
-      const requestKey = `${loadId}-${driverId}`;
+  const resolveLoadInquiryDestination = React.useCallback(
+    async (
+      loadId: string,
+      inquiryDriverId: string,
+      routeLoadNumber?: string,
+    ) => {
+      if (
+        !/^[a-f0-9]{24}$/i.test(loadId) ||
+        !/^[a-f0-9]{24}$/i.test(inquiryDriverId) ||
+        !isSignedIn ||
+        !user?.id ||
+        isDriver
+      ) {
+        return;
+      }
 
-      // Keep navigation inside Driver Tracker. The event already contains the
-      // exact server-authorized load + driver pair, so no extra backend lookup
-      // or thread ownership rule is introduced here.
-      setLoadsTab("requests");
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Authentication is not ready. Please retry.");
+      }
+
+      // The exact Load document is authoritative. Do not infer the destination
+      // from the currently rendered arrays because Available Loads is paginated
+      // and a historical request may already have moved to another lifecycle.
+      const response = await apiClient.get(
+        `/api/driver-tracking/loads/${encodeURIComponent(loadId)}`,
+        {
+          timeout: 15000,
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      const load = response.data?.data;
+      if (!load || String(load._id ?? "") !== loadId) {
+        throw new Error("The load linked to this inquiry is no longer available.");
+      }
+
+      const loadNumber = String(
+        load.loadNumber || routeLoadNumber || loadId,
+      );
+      const assignedDriverId = String(
+        load.assignedDriverId?._id ??
+          load.assignedDriverId?.id ??
+          load.assignedDriverId ??
+          "",
+      ).trim();
+      const status = String(load.status ?? "");
+      const isActiveAssignment =
+        Boolean(assignedDriverId) &&
+        ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(status);
+      const pendingRequests = Array.isArray(load.driverRequests)
+        ? load.driverRequests
+        : [];
+      const inquiryStillPending =
+        status === "Posted" &&
+        !assignedDriverId &&
+        pendingRequests.some(
+          (request: any) =>
+            String(request?.driverId ?? "") === inquiryDriverId,
+        );
+
       setMobileWorkspace("loads");
       setMobileDriverDrawerOpen(false);
-      setFocusedRequestKey(requestKey);
-      setSelectedLoadsDriverId(null);
       setChatDialogOpen(false);
       setChatDriver(null);
-      clearDispatchChatDeepLink();
-      void fetchLoadRequests();
+
+      if (isActiveAssignment) {
+        setLoadInquiryContext(null);
+        setFocusedRequestKey(null);
+        setFocusedAvailableLoadId(null);
+        // Reset before the refresh so clicking the same historical inquiry
+        // again still produces a fresh exact-load focus after data reconciles.
+        setFocusedAssignedLoadId(null);
+        setSelectedLoadsDriverId(assignedDriverId);
+        setLoadsTab("assigned");
+        await fetchDrivers();
+        setFocusedAssignedLoadId(loadId);
+
+        if (assignedDriverId !== inquiryDriverId) {
+          toast.info(
+            `Request resolved — load ${loadNumber} was assigned to another driver.`,
+          );
+        }
+      } else if (inquiryStillPending) {
+        setSelectedLoadsDriverId(null);
+        setFocusedAssignedLoadId(null);
+        setFocusedAvailableLoadId(null);
+        setLoadInquiryContext({
+          loadId,
+          driverId: inquiryDriverId,
+          loadNumber,
+        });
+        setFocusedRequestKey(`${loadId}-${inquiryDriverId}`);
+        setLoadsTab("requests");
+        await fetchLoadRequests();
+      } else if (status === "Posted" && !assignedDriverId) {
+        setSelectedLoadsDriverId(null);
+        setFocusedRequestKey(null);
+        setFocusedAssignedLoadId(null);
+        // Reset first so a repeated click on the same inquiry can re-focus it.
+        setFocusedAvailableLoadId(null);
+        setLoadInquiryContext(null);
+        setLoadsTab("available");
+
+        await fetchAvailableLoads();
+
+        // Guarantee the linked load is visible even when it is beyond the
+        // normal 50-item Available Loads page.
+        const exactAvailableLoad = mapLoadToAvailableItem(load);
+        setAvailableLoads((previous) => [
+          exactAvailableLoad,
+          ...previous.filter((item) => item._id !== loadId),
+        ]);
+        setFocusedAvailableLoadId(loadId);
+      } else {
+        setLoadInquiryContext(null);
+        setFocusedRequestKey(null);
+        setFocusedAssignedLoadId(null);
+        setFocusedAvailableLoadId(null);
+        setSelectedLoadsDriverId(null);
+        toast.info(
+          `Load ${loadNumber} is ${status || "no longer active"} and is no longer in active Load Management.`,
+        );
+      }
 
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -1110,11 +1238,118 @@ export default function DriverTrackerPage() {
             behavior: "smooth",
             block: "start",
           });
+          loadManagementRef.current?.focus({ preventScroll: true });
         });
       });
     },
-    [clearDispatchChatDeepLink, fetchLoadRequests, setMobileWorkspace],
+    [
+      fetchAvailableLoads,
+      fetchDrivers,
+      fetchLoadRequests,
+      getToken,
+      isDriver,
+      isSignedIn,
+      setMobileWorkspace,
+      user?.id,
+    ],
   );
+
+  const handleReviewLoadRequest = React.useCallback(
+    (loadId: string, driverId: string) => {
+      clearDispatchChatDeepLink();
+      void resolveLoadInquiryDestination(loadId, driverId).catch((err: any) => {
+        const status = Number(err?.response?.status || 0);
+        toast.error(
+          status === 404
+            ? "The load linked to this request no longer exists in this organization."
+            : err?.response?.data?.message ||
+                err?.message ||
+                "Could not resolve the current load location.",
+        );
+      });
+    },
+    [clearDispatchChatDeepLink, resolveLoadInquiryDestination],
+  );
+
+  React.useEffect(() => {
+    const loadId = searchParams.get("loadInquiryId") || "";
+    const inquiryDriverId = searchParams.get("inquiryDriverId") || "";
+    const routeLoadNumber = (
+      searchParams.get("inquiryLoadNumber") || loadId
+    ).slice(0, 80);
+
+    if (
+      !/^[a-f0-9]{24}$/i.test(loadId) ||
+      !/^[a-f0-9]{24}$/i.test(inquiryDriverId)
+    ) {
+      handledLoadInquiryDeepLinkRef.current = null;
+      return;
+    }
+    if (!isSignedIn || !user?.id || isDriver) return;
+
+    const deepLinkKey = `${loadId}:${inquiryDriverId}`;
+    if (handledLoadInquiryDeepLinkRef.current === deepLinkKey) return;
+    handledLoadInquiryDeepLinkRef.current = deepLinkKey;
+
+    let cancelled = false;
+
+    const clearInquiryQuery = () => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      [
+        "loadInquiryId",
+        "inquiryDriverId",
+        "inquiryLoadNumber",
+        "openDispatchChat",
+        "driverId",
+        "threadId",
+      ].forEach((key) => nextParams.delete(key));
+      router.replace(
+        nextParams.size ? `${pathname}?${nextParams.toString()}` : pathname,
+        { scroll: false },
+      );
+    };
+
+    void resolveLoadInquiryDestination(
+      loadId,
+      inquiryDriverId,
+      routeLoadNumber,
+    )
+      .catch((err: any) => {
+        if (cancelled) return;
+        const status = Number(err?.response?.status || 0);
+        toast.error(
+          status === 404
+            ? "The load linked to this inquiry no longer exists in this organization."
+            : err?.response?.data?.message ||
+                err?.message ||
+                "Could not resolve the current load location.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) clearInquiryQuery();
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isDriver,
+    isSignedIn,
+    pathname,
+    resolveLoadInquiryDestination,
+    router,
+    searchParams,
+    user?.id,
+  ]);
+
+  const inquiryRequests = loadInquiryContext
+    ? loadRequests.filter(
+        (request: any) =>
+          String(request.loadId ?? request.shipmentId ?? "") ===
+            loadInquiryContext.loadId &&
+          String(request.driverId ?? "") === loadInquiryContext.driverId,
+      )
+    : loadRequests;
 
   const handleMessageDriver = React.useCallback(
     (driver: DriverTrackingItem) => {
@@ -1314,8 +1549,11 @@ export default function DriverTrackerPage() {
     let cancelled = false;
     let cleanupLoadListeners: (() => void) | undefined;
     const driverListenerCleanups: Array<() => void> = [];
-    const refreshAvailableLoads = () => {
-      if (!cancelled) void fetchAvailableLoads();
+    const refreshLoadManagement = () => {
+      if (cancelled) return;
+      void fetchDrivers();
+      void fetchAvailableLoads();
+      void fetchLoadRequests();
     };
 
     const connectSocket = async () => {
@@ -1329,8 +1567,6 @@ export default function DriverTrackerPage() {
           driverListenerCleanups.push(() => sock.off(event, handler));
           return sock;
         }) as typeof sock.on;
-        listen("connect", () => { void fetchDrivers(); });
-
         listen(
           "driver:location",
           (data: {
@@ -1378,11 +1614,14 @@ export default function DriverTrackerPage() {
           fetchAvailableLoads();
         });
 
-        listen("load:change", refreshAvailableLoads);
-        listen("connect", refreshAvailableLoads);
+        // Any organization-level load mutation can move a load between
+        // Assigned, Available, and Requests. Refresh all three sources so the
+        // tab counts and currently rendered destination stay in sync.
+        listen("load:change", refreshLoadManagement);
+        listen("connect", refreshLoadManagement);
         cleanupLoadListeners = () => {
-          sock.off("load:change", refreshAvailableLoads);
-          sock.off("connect", refreshAvailableLoads);
+          sock.off("load:change", refreshLoadManagement);
+          sock.off("connect", refreshLoadManagement);
         };
 
         listen(
@@ -2019,7 +2258,7 @@ export default function DriverTrackerPage() {
                   key: "available",
                   label: "Available",
                   icon: <Truck className="size-3 text-blue-500 dark:text-blue-400 shrink-0" />,
-                  count: availableLoads.length,
+                  count: availableLoadsTotal,
                   activeClass: "bg-blue-500/20 border-blue-500/40",
                   badgeClass: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
                 },
@@ -2037,6 +2276,8 @@ export default function DriverTrackerPage() {
                 key={tab.key}
                 onClick={() => {
                   setLoadsTab(tab.key);
+                  setFocusedAssignedLoadId(null);
+                  setFocusedAvailableLoadId(null);
                   if (tab.key !== "requests") setFocusedRequestKey(null);
                 }}
                 className={`flex items-center justify-center gap-1.5 px-1.5 sm:px-2.5 py-2 sm:py-1.5 rounded-md flex-1 min-h-11 transition-colors ${loadsTab === tab.key
@@ -2086,6 +2327,8 @@ export default function DriverTrackerPage() {
             onRemoveLoad={handleRemoveLoad}
             onReassignLoad={handleReassignLoad}
             onKeepAssigned={handleKeepAssigned}
+            onAssignmentReconfirmed={fetchDrivers}
+            focusedLoadId={focusedAssignedLoadId}
           />
         )}
 
@@ -2105,25 +2348,36 @@ export default function DriverTrackerPage() {
             isLoading={loadsLoading && availableLoads.length === 0}
             activeDrivers={eligibleDrivers}
             onAssign={handleAssignFromAvailable}
+            focusedLoadId={focusedAvailableLoadId}
           />}
           </>
         )}
 
         {loadsTab === "requests" && (
           <>
+          {loadInquiryContext && (
+            <div className="m-3 space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+              <p className="font-semibold">Available load inquiry · {loadInquiryContext.loadNumber}</p>
+              <p className="text-muted-foreground">Contacting dispatch does not submit a load request. Submitted requests for this load appear below.</p>
+              <div className="flex flex-wrap gap-2">
+                <Link className="inline-flex min-h-11 items-center rounded-lg border border-border bg-background px-3 font-semibold" href={"/transportation/load/" + encodeURIComponent(loadInquiryContext.loadId)}>View Load</Link>
+                <button type="button" className="min-h-11 rounded-lg border border-border px-3 font-semibold" onClick={() => { setLoadInquiryContext(null); setFocusedRequestKey(null); }}>Show All Requests</button>
+              </div>
+            </div>
+          )}
           {loadRequestsError && (
             <div role="alert" className="m-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
               <p className="min-w-0 flex-1">{loadRequestsError}</p>
               <button type="button" disabled={loadRequestsLoading} onClick={() => void fetchLoadRequests()} className="min-h-10 rounded-lg border border-border bg-background px-3 font-bold disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring">Retry</button>
             </div>
           )}
-            {focusedRequestKey && !loadRequestsLoading && !loadRequestsError && !focusedRequestExists && (
+            {!loadInquiryContext && focusedRequestKey && !loadRequestsLoading && !loadRequestsError && !focusedRequestExists && (
               <div className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
                 This load request is no longer pending. It may already have been approved, rejected, or assigned to another driver.
               </div>
             )}
 
-            {!loadRequestsError && !loadRequestsLoading && loadRequests.length === 0 ? (
+            {!loadRequestsError && !loadRequestsLoading && inquiryRequests.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center">
                   <Bell className="size-7 text-muted-foreground/40" />
@@ -2137,7 +2391,7 @@ export default function DriverTrackerPage() {
               </div>
             ) : (
               (!loadRequestsError || loadRequests.length > 0) && <DriverTrackerRequestsCard
-                requests={loadRequests}
+                requests={inquiryRequests}
                 isLoading={loadRequestsLoading && loadRequests.length === 0}
                 onApprove={handleApproveRequest}
                 onReject={handleRejectRequest}
@@ -2174,6 +2428,7 @@ export default function DriverTrackerPage() {
         onOpenChat={handleMessageDriver}
         onUnreadRefresh={refreshDriverUnread}
         onReviewLoadRequest={handleReviewLoadRequest}
+        onAssignmentReconfirmed={fetchDrivers}
         onAlertDriver={(driver) => {
           setAlertDriver(driver);
           setAlertDialogOpen(true);

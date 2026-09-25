@@ -12,6 +12,7 @@ import {
   MapPin,
   Package,
   Route,
+  RefreshCw,
   Truck,
   UserPlus,
   Wifi,
@@ -37,6 +38,7 @@ import type {
   DriverTrackingItem,
 } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
+import { AssignmentReconfirmDialog } from "@/components/driver-tracker/AssignmentReconfirmDialog";
 
 export type DriverTrackerMobileDrawerTab = "overview" | "chat" | "loads";
 
@@ -57,6 +59,7 @@ interface DriverTrackerMobileDrawerProps {
   onOpenChat?: (driver: DriverTrackingItem) => void;
   onUnreadRefresh?: (driverId: string) => void | Promise<void>;
   onReviewLoadRequest?: (loadId: string, driverId: string) => void;
+  onAssignmentReconfirmed?: () => void | Promise<void>;
 }
 
 const OP_LABEL: Record<DriverOperationalStatus, string> = {
@@ -145,7 +148,11 @@ export function DriverTrackerMobileDrawer({
   onOpenChat,
   onUnreadRefresh,
   onReviewLoadRequest,
+  onAssignmentReconfirmed,
 }: DriverTrackerMobileDrawerProps) {
+  const [reconfirmShipment, setReconfirmShipment] = React.useState<
+    DriverTrackingItem["shipments"][number] | null
+  >(null);
   const [trackingNow, setTrackingNow] = React.useState(() => Date.now());
   const isMobile = useIsMobile();
   React.useEffect(() => {
@@ -262,6 +269,7 @@ export function DriverTrackerMobileDrawer({
   React.useEffect(() => { contentScroll.current = {}; if (contentNode.current) contentNode.current.scrollTop = 0; }, [driverId]);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
@@ -558,6 +566,28 @@ export function DriverTrackerMobileDrawer({
                         </div>
                       </div>
 
+                      {shipment.requiresDispatchReconfirmation && (
+                        <div className="mt-2.5 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] p-2.5">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-black uppercase tracking-[0.08em] text-amber-800 dark:text-amber-300">Review Required</p>
+                              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Dispatch must review the current assignment before the driver can accept it.</p>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="mt-2 h-9 w-full gap-1.5 border-amber-500/30 text-[10px] font-black text-amber-800 dark:text-amber-300"
+                                onClick={() => setReconfirmShipment(shipment)}
+                              >
+                                <RefreshCw className="size-3.5" />
+                                Review Updated Assignment
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mt-2.5 grid min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(7.25rem,0.75fr)] gap-2 max-[360px]:grid-cols-1">
                         <div className="min-w-0 rounded-lg border border-border/45 bg-background/35 p-2.5">
                           <p className="mb-2 text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
@@ -818,5 +848,19 @@ export function DriverTrackerMobileDrawer({
         </div>
       </SheetContent>
     </Sheet>
+
+    <AssignmentReconfirmDialog
+      open={reconfirmShipment !== null}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setReconfirmShipment(null);
+      }}
+      loadId={reconfirmShipment?.id ?? null}
+      loadLabel={reconfirmShipment?.trackingNumber}
+      onConfirmed={async () => {
+        await onAssignmentReconfirmed?.();
+        setReconfirmShipment(null);
+      }}
+    />
+    </>
   );
 }

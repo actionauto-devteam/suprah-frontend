@@ -375,6 +375,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   const vCount = vehicles.length
   const isPublic = load.additionalInfo?.visibility !== "private"
   const isLoadBoard = load.postType === "load-board"
+  const pricingEnabled = load.pricing?.isPricingEnabled !== false
 
   // Real inventory photo — served by the API (matched by vehicleId / VIN).
   // No stock-photo fallback: an unrelated vehicle photo is worse than an
@@ -640,17 +641,17 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     `}</style>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1.5 lg:text-right">
+                    <div className="flex items-center gap-2 lg:justify-end">
                       <div className="size-6 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
                         <MapPin className="size-3.5 text-cyan-500" />
                       </div>
                       <span className="text-[11px] lg:text-xs font-black text-cyan-600 dark:text-cyan-400 uppercase tracking-widest">Destination</span>
                     </div>
-                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground truncate">
+                    <p className="text-lg lg:text-xl font-black tracking-tight text-foreground truncate lg:text-right">
                       {delivery.city}, {delivery.state}
                     </p>
-                    <p className="text-[11px] lg:text-xs text-muted-foreground font-medium flex items-center gap-1">
+                    <p className="text-[11px] lg:text-xs text-muted-foreground font-medium flex items-center gap-1 lg:justify-end">
                       <User className="size-3" /> {delivery.contactName || "No contact"}
                     </p>
                   </div>
@@ -667,13 +668,15 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     {vCount} UNIT{vCount !== 1 ? "S" : ""}
                   </StatTile>
                   <StatTile
-                    label="Carrier Pay"
+                    label={isLoadBoard ? "Carrier Pay" : "Total Driver Pay"}
                     icon={<DollarSign className="size-3.5 text-emerald-500 shrink-0" />}
                     onClick={() => setActiveInfoModal("financials")}
                     hint="View financial information"
                   >
                     <span className="text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(load.pricing?.carrierPayAmount)}
+                      {pricingEnabled
+                        ? formatCurrency(load.pricing?.carrierPayAmount)
+                        : "Not provided"}
                     </span>
                   </StatTile>
                   <StatTile
@@ -920,10 +923,12 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                   <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                        Carrier Pay
+                        {isLoadBoard ? "Carrier Pay" : "Total Driver Pay"}
                       </p>
                       <p className="mt-1 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(load.pricing?.carrierPayAmount)}
+                        {pricingEnabled
+                          ? formatCurrency(load.pricing?.carrierPayAmount)
+                          : "Not provided"}
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-300/90 bg-background/55 px-3.5 py-2.5 text-right dark:border-white/15">
@@ -941,16 +946,18 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <ModalMetric
-                    label="Carrier Pay"
-                    value={formatCurrency(load.pricing?.carrierPayAmount)}
+                    label={isLoadBoard ? "Carrier Pay" : "Total Driver Pay"}
+                    value={pricingEnabled ? formatCurrency(load.pricing?.carrierPayAmount) : "Not provided"}
                     icon={<DollarSign className="size-3.5" />}
                     emphasis
                   />
-                  <ModalMetric
-                    label="COD / COP"
-                    value={formatCurrency(load.pricing?.copCodAmount ?? 0)}
-                    icon={<Banknote className="size-3.5" />}
-                  />
+                  {isLoadBoard && pricingEnabled && (
+                    <ModalMetric
+                      label="COD / COP"
+                      value={formatCurrency(load.pricing?.copCodAmount ?? 0)}
+                      icon={<Banknote className="size-3.5" />}
+                    />
+                  )}
                   <ModalMetric
                     label="Total Distance"
                     value={
@@ -960,23 +967,48 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     }
                     icon={<Route className="size-3.5" />}
                   />
-                  {load.pricing?.pricePerMile != null && (
+                  {isLoadBoard && pricingEnabled && load.pricing?.pricePerMile != null && (
                     <ModalMetric
                       label="Price / Mile"
                       value={`$${load.pricing.pricePerMile.toFixed(2)}/mi`}
                       icon={<Gauge className="size-3.5" />}
                     />
                   )}
-                  <ModalMetric
-                    label="Estimated Market Rate"
-                    value={formatCurrency(load.pricing?.estimatedRate)}
-                    icon={<Gauge className="size-3.5" />}
-                  />
-                  {load.pricing?.balanceAmount != null && (
+                  {isLoadBoard && pricingEnabled && (
+                    <ModalMetric
+                      label="Estimated Market Rate"
+                      value={formatCurrency(load.pricing?.estimatedRate)}
+                      icon={<Gauge className="size-3.5" />}
+                    />
+                  )}
+                  {isLoadBoard && pricingEnabled && load.pricing?.balanceAmount != null && (
                     <ModalMetric
                       label="Balance"
                       value={formatCurrency(load.pricing.balanceAmount)}
                       icon={<CircleDollarSign className="size-3.5" />}
+                    />
+                  )}
+                  {!pricingEnabled ? (
+                    <ModalMetric
+                      label="Pricing Entry"
+                      value="Not provided"
+                      icon={<DollarSign className="size-3.5" />}
+                    />
+                  ) : !isLoadBoard && (
+                    <ModalMetric
+                      label="Pricing Visibility"
+                      value={
+                        load.pricing?.isVisibleToDriver === false
+                          ? "Hidden from driver"
+                          : "Visible to driver"
+                      }
+                      icon={
+                        load.pricing?.isVisibleToDriver === false ? (
+                          <Lock className="size-3.5" />
+                        ) : (
+                          <Globe className="size-3.5" />
+                        )
+                      }
                     />
                   )}
                 </div>
@@ -986,8 +1018,11 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                     Financial context
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    Values shown here come from this load&apos;s saved pricing information.
-                    Missing amounts are displayed as unavailable rather than estimated.
+                    {!pricingEnabled
+                      ? "Dispatch intentionally skipped pricing for this load. Pricing can be added later from Edit Load."
+                      : isLoadBoard
+                        ? "Values shown here come from this load's saved pricing information. Missing amounts are displayed as unavailable rather than estimated."
+                        : "Total Driver Pay is the authoritative amount entered by Dispatch for this assigned load. It is not recalculated from mileage."}
                   </p>
                 </div>
               </div>

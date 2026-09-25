@@ -41,6 +41,7 @@ import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import type { DriverLoadCompatibility } from '@/types/driver-tracking';
 import { titleCaseDay } from '@/lib/driver-load-compatibility';
 import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
+import { initializeSocket } from '@/lib/socket.client';
 
 const FALLBACK = '/vehicle-placeholder.jpg';
 
@@ -208,6 +209,7 @@ export default function AvailableLoadDetailPage() {
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [requesting, setRequesting] = React.useState(false);
+  const [cancellingRequest, setCancellingRequest] = React.useState(false);
   const [showContract, setShowContract] = React.useState(false);
   const mapRef = React.useRef<HTMLDivElement>(null);
   const mapInstanceRef = React.useRef<any>(null);
@@ -222,7 +224,12 @@ export default function AvailableLoadDetailPage() {
       );
       setData(normalizeLoad(response.data?.data));
     } catch (error: any) {
-      toast.error(extractErr(error, 'Failed to load details'));
+      // A load can leave the board while this detail page is open. Treat the
+      // expected authorization/not-found response as state reconciliation, not
+      // as a noisy network failure.
+      if (error?.response?.status !== 403 && error?.response?.status !== 404) {
+        toast.error(extractErr(error, 'Failed to load details'));
+      }
       setData(null);
     } finally {
       setLoading(false);
@@ -232,6 +239,35 @@ export default function AvailableLoadDetailPage() {
   React.useEffect(() => {
     void fetchDetail();
   }, [fetchDetail]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    const refresh = () => {
+      if (mounted) void fetchDetail();
+    };
+
+    const setup = async () => {
+      const token = await getToken();
+      if (!token || !mounted) return;
+      socket = initializeSocket(token);
+      socket.on('driver:loads_updated', refresh);
+      socket.on('driver:load_request_updated', refresh);
+      socket.on('driver:load_requested', refresh);
+      socket.on('load:change', refresh);
+      socket.on('connect', refresh);
+    };
+
+    void setup();
+    return () => {
+      mounted = false;
+      socket?.off('driver:loads_updated', refresh);
+      socket?.off('driver:load_request_updated', refresh);
+      socket?.off('driver:load_requested', refresh);
+      socket?.off('load:change', refresh);
+      socket?.off('connect', refresh);
+    };
+  }, [getToken, fetchDetail]);
 
   React.useEffect(() => {
     if (!data || !mapboxToken || !mapRef.current) return;
@@ -379,6 +415,28 @@ export default function AvailableLoadDetailPage() {
     }
   };
 
+  const handleCancelRequest = React.useCallback(async () => {
+    if (!data?._id) return;
+    setCancellingRequest(true);
+    try {
+      const token = await getToken();
+      await apiClient.post(
+        `/api/driver-tracking/loads/${encodeURIComponent(data._id)}/request`,
+        { action: 'cancel' },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.success('Load request cancelled', {
+        description: 'The load returned to its original available workflow, and Dispatch was informed.',
+      });
+      await fetchDetail();
+    } catch (error: any) {
+      toast.error(extractErr(error, 'Failed to cancel load request'));
+      await fetchDetail();
+    } finally {
+      setCancellingRequest(false);
+    }
+  }, [data?._id, getToken, fetchDetail]);
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
@@ -405,8 +463,13 @@ export default function AvailableLoadDetailPage() {
   const vehicleName = quote?.vehicleName;
   const vehicleImage = quote?.vehicleImage;
   const vehicles = data.vehicles || [];
-  const pay = data.pricing?.carrierPayAmount || data.carrierPayAmount || quote?.rate || 0;
-  const miles = quote?.miles || data.estimatedMiles;
+  const pricingEnabled = data.pricing?.isPricingEnabled !== false;
+  const pricingVisible = data.pricing?.isVisibleToDriver !== false;
+  const pay = pricingEnabled && pricingVisible
+    ? data.pricing?.carrierPayAmount ?? data.carrierPayAmount ?? quote?.rate ?? null
+    : null;
+  const miles = data.pricing?.miles ?? quote?.miles ?? data.estimatedMiles;
+  const payLabel = data.postType === "assign-carrier" ? "Total Driver Pay" : "Carrier Pay";
   const isRequested = data.myRequestStatus === 'pending' || data.hasRequested;
   const isRejected = data.myRequestStatus === 'rejected';
   const compatibility: DriverLoadCompatibility | undefined = data.compatibility;
@@ -438,7 +501,15 @@ export default function AvailableLoadDetailPage() {
                   <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{vehicleName || `${data.origin} → ${data.destination}`}</p>
                 </div>
               </div>
-              {pay > 0 && <span className="text-3xl font-black tabular-nums text-foreground">${pay.toLocaleString()}</span>}
+              {!pricingEnabled ? (
+                <span className="text-sm font-bold text-muted-foreground">Pricing not provided</span>
+              ) : pricingVisible ? (
+                pay != null && pay > 0 ? (
+                  <span className="text-3xl font-black tabular-nums text-foreground">${pay.toLocaleString()}</span>
+                ) : null
+              ) : (
+                <span className="text-sm font-bold text-muted-foreground">Pricing hidden</span>
+              )}
             </div>
 
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-2 rounded-xl border border-border/80 dark:border-white/10 bg-background/70 dark:bg-white/5 px-4 py-3 text-sm font-semibold text-foreground sm:flex sm:items-center">
@@ -472,9 +543,21 @@ export default function AvailableLoadDetailPage() {
             </Badge>
           )}
           {isRequested && (
-            <Badge className="h-auto min-h-11 whitespace-normal border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
-              <Timer className="mr-2 size-4 shrink-0" />Request Pending — Awaiting Approval
-            </Badge>
+            <>
+              <Badge className="h-auto min-h-11 whitespace-normal border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
+                <Timer className="mr-2 size-4 shrink-0" />Request Pending — Awaiting Approval
+              </Badge>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 gap-2 rounded-xl border-destructive/25 text-sm font-bold text-destructive hover:bg-destructive/10"
+                disabled={cancellingRequest}
+                onClick={() => void handleCancelRequest()}
+              >
+                {cancellingRequest ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+                {cancellingRequest ? 'Cancelling Request…' : 'Cancel Request'}
+              </Button>
+            </>
           )}
         </div>
 
@@ -538,9 +621,13 @@ export default function AvailableLoadDetailPage() {
           </InfoCard>
 
           <InfoCard icon={<DollarSign className="size-4 text-emerald-500" />} title="Financials">
-            {pay > 0 && <DetailRow label="Carrier Pay" value={`$${pay.toLocaleString()}`} />}
+            {pricingVisible ? (
+              pay != null ? <DetailRow label={payLabel} value={`$${pay.toLocaleString()}`} /> : null
+            ) : (
+              <DetailRow label="Pricing" value="Hidden by Dispatch" />
+            )}
             {miles && <DetailRow label="Distance" value={`${miles.toLocaleString()} miles`} />}
-            {data.copCodAmount > 0 && <DetailRow label="COD" value={`$${data.copCodAmount.toLocaleString()}`} />}
+            {pricingVisible && data.copCodAmount > 0 && <DetailRow label="COD" value={`$${data.copCodAmount.toLocaleString()}`} />}
             {data.trailerTypeRequired && <DetailRow label="Trailer Required" value={trailerLabel(data.trailerTypeRequired)} />}
           </InfoCard>
 

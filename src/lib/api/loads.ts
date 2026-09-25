@@ -34,7 +34,13 @@ export interface CreateLoadPayload {
   trailerType: string;
   // pricePerMile: dispatcher's $/mi rate from the Pricing step — persisted
   // on the load (pricing.pricePerMile) so cards/detail views can show it.
-  pricing?: { pricePerMile?: number; carrierPayAmount?: number; copCodAmount?: number };
+  pricing?: {
+    pricePerMile?: number;
+    carrierPayAmount?: number;
+    copCodAmount?: number;
+    isPricingEnabled?: boolean;
+    isVisibleToDriver?: boolean;
+  };
 }
 
 export interface CreatedLoad {

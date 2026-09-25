@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   BellRing,
@@ -651,6 +652,15 @@ export function SystemEventCard({
   const requestDispatcherId = String(
     metadata.dispatcherId ?? metadata.threadDispatcherId ?? "",
   ).trim();
+  const canViewLoadInquiry = Boolean(
+    !viewerIsDriver && event.notificationType === "driver_load_inquiry" &&
+    /^[a-f0-9]{24}$/i.test(requestLoadId) && /^[a-f0-9]{24}$/i.test(requestDriverId) &&
+    viewerId && requestDispatcherId === viewerId,
+  );
+  const inquiryHref = "/driver-tracker?" + new URLSearchParams({
+    loadInquiryId: requestLoadId, inquiryDriverId: requestDriverId,
+    inquiryLoadNumber: String(loadNumber ?? "").slice(0, 80),
+  }).toString();
   const canReviewLoadRequest = Boolean(
     onReviewLoadRequest &&
       !viewerIsDriver &&
@@ -948,6 +958,27 @@ export function SystemEventCard({
           </div>
         )}
 
+        {canViewLoadInquiry && (
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <p className="text-xs text-muted-foreground">Inquiry only — a load request has not been submitted by this action.</p>
+            {onReviewLoadRequest ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                onClick={() =>
+                  onReviewLoadRequest(requestLoadId, requestDriverId)
+                }
+              >
+                View Load <ChevronRight className="size-4" />
+              </Button>
+            ) : (
+              <Button asChild variant="outline" className="min-h-11 border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+                <Link href={inquiryHref}>View Load <ChevronRight className="size-4" /></Link>
+              </Button>
+            )}
+          </div>
+        )}
         {canReviewLoadRequest && (
           <div className="mt-3 flex justify-center">
             <Button

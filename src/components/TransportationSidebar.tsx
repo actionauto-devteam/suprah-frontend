@@ -464,7 +464,9 @@ export function TransportationMobileSupportCenter() {
         <SectionLabel icon={LifeBuoy}>Support Center</SectionLabel>
         <div className="rounded-xl border border-border/60 bg-card/70 p-3 space-y-2 text-xs">
           <a
-            href="mailto:support@suprahai.com"
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=support%40suprahai.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:underline font-medium break-all"
           >
             <Mail className="size-3.5 shrink-0" />
@@ -719,7 +721,9 @@ export function TransportationSidebar({
         <SectionLabel icon={LifeBuoy}>Support Center</SectionLabel>
         <div className="rounded-xl border border-border/60 bg-background/40 p-2.5 sm:p-3 space-y-1.5 sm:space-y-2 text-[11px] sm:text-xs">
           <a
-            href="mailto:support@suprahai.com"
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=support%40suprahai.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:underline font-medium break-all"
           >
             <Mail className="size-3.5 shrink-0" />

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Loader2, Truck, Megaphone, ArrowLeft, ArrowRight, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   createLoad,
   assignDriverToLoad,
@@ -138,12 +140,32 @@ function mapAdditionalInfoFromLoad(info?: any): LoadAdditionalInfo {
   }
 }
 
-function mapPricingFromLoad(pricing?: any): LoadPricingInput {
-  if (!pricing) return {}
+function mapPricingFromLoad(
+  pricing: any,
+  postType: PostType,
+): LoadPricingInput {
+  if (!pricing) return { isPricingEnabled: true, isVisibleToDriver: true }
+
+  const isPricingEnabled = pricing.isPricingEnabled !== false
+
+  if (postType === "assign-carrier") {
+    return {
+      carrierPayAmount: isPricingEnabled
+        ? pricing.carrierPayAmount ?? undefined
+        : undefined,
+      isPricingEnabled,
+      isVisibleToDriver: pricing.isVisibleToDriver !== false,
+    }
+  }
+
   return {
-    pricePerMile: pricing.pricePerMile ?? undefined,
-    carrierPayAmount: pricing.carrierPayAmount ?? undefined,
-    copCodAmount: pricing.copCodAmount ?? undefined,
+    pricePerMile: isPricingEnabled ? pricing.pricePerMile ?? undefined : undefined,
+    carrierPayAmount: isPricingEnabled
+      ? pricing.carrierPayAmount ?? undefined
+      : undefined,
+    copCodAmount: isPricingEnabled ? pricing.copCodAmount ?? undefined : undefined,
+    isPricingEnabled,
+    isVisibleToDriver: pricing.isVisibleToDriver !== false,
   }
 }
 
@@ -204,7 +226,9 @@ export function LoadFormLayout({
     () => (isEdit ? mapAdditionalInfoFromLoad(initialLoad!.additionalInfo) : emptyAdditionalInfo()),
   )
   const [pricing, setPricing] = React.useState<LoadPricingInput>(() =>
-    isEdit ? mapPricingFromLoad(initialLoad!.pricing) : {},
+    isEdit
+      ? mapPricingFromLoad(initialLoad!.pricing, postType)
+      : { isPricingEnabled: true, isVisibleToDriver: true },
   )
   const [contract, setContract] = React.useState<LoadContract>(() =>
     isEdit
@@ -288,10 +312,11 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         trailerType,
         dates,
         contract,
+        pricing,
         selectedDriverId,
         makeAvailable: postType === "assign-carrier" && !isEdit ? makeAvailable : false,
       }),
-    [postType, pickup, delivery, vehicles, trailerType, dates, contract, selectedDriverId, makeAvailable, isEdit],
+    [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit],
   )
 
   // ── Submit ──
@@ -305,11 +330,13 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         ? "vehicles"
         : field.startsWith("dates")
           ? "schedule"
-          : field.startsWith("contract")
-            ? "review"
-            : field === "driverId"
-              ? "assignment"
-              : "route"
+          : field.startsWith("pricing")
+            ? "pricing"
+            : field.startsWith("contract")
+              ? "review"
+              : field === "driverId"
+                ? "assignment"
+                : "route"
       const idx = steps.findIndex((s) => s.key === target)
       if (idx >= 0) setStepIndex(idx)
       return
@@ -340,13 +367,23 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         return
       }
 
+      const createAdditionalInfo =
+        postType === "assign-carrier"
+          ? {
+              ...additionalInfo,
+              // Direct assignments must never be discoverable during the
+              // create→assign handoff. "Make Available" intentionally publishes.
+              visibility: makeAvailable ? "public" as const : "private" as const,
+            }
+          : additionalInfo
+
       const { load, warning } = await createLoad({
         postType,
         pickup,
         delivery,
         vehicles,
         dates,
-        additionalInfo,
+        additionalInfo: createAdditionalInfo,
         contract,
         trailerType,
         pricing,
@@ -540,18 +577,18 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
               <span className="block text-[9px] font-black text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">
                 Trailer Type
               </span>
-              <select
-                className="w-full h-9 rounded-lg border border-border/60 bg-background/40 px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
-                value={trailerType}
-                onChange={(e) => setTrailerType(e.target.value)}
-              >
-                {TRAILER_TYPE_OPTIONS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                    {t.capacity > 0 ? ` (rated ${t.capacity})` : ""}
-                  </option>
-                ))}
-              </select>
+              <Select value={trailerType} onValueChange={setTrailerType}>
+                <SelectTrigger aria-label="Trailer Type" className="w-full min-h-11 rounded-lg border-border bg-background text-foreground">
+                  <SelectValue placeholder="Select trailer type" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="max-h-[min(20rem,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)] bg-popover text-popover-foreground">
+                  {TRAILER_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value} className="min-h-10 whitespace-normal">
+                      {t.label}{t.capacity > 0 ? ` (rated ${t.capacity})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
 
             <VehicleSection
@@ -574,6 +611,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
 
         {step.key === "pricing" && (
           <PricingPanel
+            postType={postType}
             pickupZip={pickup.zip}
             deliveryZip={delivery.zip}
             vehicles={vehicles}
@@ -745,6 +783,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
 // canonical value lives in pricing.pricePerMile.
 
 interface PricingPanelProps {
+  postType: PostType
   pickupZip: string
   deliveryZip: string
   vehicles: LoadVehicle[]
@@ -756,6 +795,7 @@ interface PricingPanelProps {
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 function PricingPanel({
+  postType,
   pickupZip,
   deliveryZip,
   vehicles,
@@ -766,13 +806,142 @@ function PricingPanel({
   const [estimate, setEstimate] = React.useState<RateResult | null>(null)
   const [isCalculating, setIsCalculating] = React.useState(false)
 
-  // Display buffer for the $/mi input; canonical value = pricing.pricePerMile
+  // Load Board-only display buffer. Hooks stay unconditional so switching or
+  // reusing the component cannot violate React's hook ordering.
   const [ppmText, setPpmText] = React.useState<string>(
     pricing.pricePerMile != null ? String(pricing.pricePerMile) : "",
   )
-  // Tracks whether the CURRENT $/mi came from the dispatcher (typed) or was
-  // derived from an estimate — decides whose number survives a Recalculate.
   const userSetPpmRef = React.useRef(false)
+
+  const pricingEnabled = pricing.isPricingEnabled !== false
+  const pricingVisible = pricing.isVisibleToDriver !== false
+
+  const setPricingEnabled = (checked: boolean) => {
+    if (checked) {
+      onChange({
+        ...pricing,
+        isPricingEnabled: true,
+      })
+      return
+    }
+
+    // Keep the in-progress values locally so an accidental toggle can be
+    // reversed without retyping. The backend strips compensation fields when
+    // isPricingEnabled=false, so skipped pricing is never persisted as stale data.
+    onChange({
+      ...pricing,
+      isPricingEnabled: false,
+      isVisibleToDriver: pricingVisible,
+    })
+  }
+
+  const setPricingVisibility = (checked: boolean) => {
+    onChange({ ...pricing, isVisibleToDriver: checked })
+  }
+
+  const handleTotalDriverPayChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const raw = e.target.value
+    const pay = raw === "" ? undefined : Math.max(0, Number(raw) || 0)
+
+    // Assign Carrier uses one authoritative manually-entered total.
+    // Do not derive, estimate, or synchronize it with price-per-mile.
+    onChange({
+      carrierPayAmount: pay,
+      isPricingEnabled: true,
+      isVisibleToDriver: pricingVisible,
+    })
+  }
+
+  const pricingEnabledToggle = (
+    <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
+      <div className="min-w-0 pr-3">
+        <p className="text-xs font-medium text-foreground">Include Pricing</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
+          {postType === "load-board"
+            ? "Turn this off to post the load without entering pricing. Pricing can be added later from Edit Load."
+            : "Turn this off to assign or publish the load without entering Total Driver Pay. Pricing can be added later from Edit Load."}
+        </p>
+      </div>
+      <Switch
+        checked={pricingEnabled}
+        onCheckedChange={setPricingEnabled}
+        className="shrink-0 data-[state=checked]:bg-green-500"
+      />
+    </div>
+  )
+
+  const pricingSkippedNotice = (
+    <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-4">
+      <p className="text-xs font-semibold text-foreground">Pricing will be skipped for this load.</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        No compensation value is required while Include Pricing is off. Route mileage may still be saved for operational use, and pricing can be added later by editing the load.
+      </p>
+    </div>
+  )
+
+  const visibilityToggle = (
+    <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
+      <div className="min-w-0 pr-3">
+        <p className="text-xs font-medium text-foreground">
+          {postType === "load-board"
+            ? "Show Pricing on Load Board"
+            : "Show Pricing to Driver"}
+        </p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
+          {postType === "load-board"
+            ? "Allow drivers viewing this load to see the posted compensation."
+            : "Allow the assigned driver to see the Total Driver Pay."}
+        </p>
+      </div>
+      <Switch
+        checked={pricingVisible}
+        onCheckedChange={setPricingVisibility}
+        className="shrink-0 data-[state=checked]:bg-green-500"
+      />
+    </div>
+  )
+
+  if (postType === "assign-carrier") {
+    return (
+      <div className="space-y-4">
+        {pricingEnabledToggle}
+
+        {!pricingEnabled ? (
+          pricingSkippedNotice
+        ) : (
+          <>
+        <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+          <label className="block">
+            <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">
+              Total Driver Pay (USD)
+            </span>
+            <input
+              className="h-10 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm font-semibold placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+              type="number"
+              min={0.01}
+              max={1_000_000}
+              step="0.01"
+              value={pricing.carrierPayAmount ?? ""}
+              onChange={handleTotalDriverPayChange}
+              placeholder="Enter total driver pay"
+              inputMode="decimal"
+            />
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              Enter the final total amount to be paid to the driver for this
+              load. No price-per-mile, COP/COD, balance, or rate estimate is
+              required for direct assignment.
+            </p>
+          </label>
+        </div>
+
+        {visibilityToggle}
+          </>
+        )}
+      </div>
+    )
+  }
 
   const miles = estimate?.miles ?? 0
   const zipsReady = /^\d{5}/.test(pickupZip ?? "") && /^\d{5}/.test(deliveryZip ?? "")
@@ -871,6 +1040,12 @@ function PricingPanel({
 
   return (
     <div className="space-y-4">
+      {pricingEnabledToggle}
+
+      {!pricingEnabled ? (
+        pricingSkippedNotice
+      ) : (
+        <>
       {/* Estimate */}
       <div className="rounded-xl border border-border/60 bg-background/40 p-4 relative overflow-hidden">
         <span className="absolute top-0 inset-x-0 h-px bg-linear-to-r from-transparent via-emerald-500/50 to-transparent" />
@@ -1005,6 +1180,10 @@ function PricingPanel({
           — edit either one and the other updates. The $/mi rate is saved with
           the load.
         </p>
+      )}
+
+      {visibilityToggle}
+        </>
       )}
     </div>
   )

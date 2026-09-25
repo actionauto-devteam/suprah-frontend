@@ -55,7 +55,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { trailerTypeOptions } from '@/components/driver-profile/driver-profile-constants';
-import { initializeSocket, getSocket } from '@/lib/socket.client';
+import { initializeSocket } from '@/lib/socket.client';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import {
   DriverContractModal,
@@ -87,6 +87,8 @@ interface AvailableLoad {
     carrierPayAmount?: number;
     copCodAmount?: number;
     balanceAmount?: number;
+    isPricingEnabled?: boolean;
+    isVisibleToDriver?: boolean;
   };
   trailerTypeRequired?: string;
   trailerType?: string;
@@ -149,11 +151,30 @@ const timeAgo = (value: string) => {
 const extractErr = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.message || fallback;
 
-const getPay = (load: AvailableLoad) =>
-  load.pricing?.carrierPayAmount ||
-  load.carrierPayAmount ||
-  load.preservedQuoteData?.rate ||
-  0;
+const isPricingEnabled = (load: AvailableLoad) =>
+  load.pricing?.isPricingEnabled !== false;
+
+const isPricingVisible = (load: AvailableLoad) =>
+  load.pricing?.isVisibleToDriver !== false;
+
+const getPay = (load: AvailableLoad): number | null => {
+  // Skipped or explicitly hidden pricing must never fall back to legacy/quote values.
+  if (!isPricingEnabled(load) || !isPricingVisible(load)) return null;
+
+  const candidates = [
+    load.pricing?.carrierPayAmount,
+    load.carrierPayAmount,
+    load.preservedQuoteData?.rate,
+  ];
+  const value = candidates.find(
+    (candidate) =>
+      typeof candidate === "number" &&
+      Number.isFinite(candidate) &&
+      candidate > 0,
+  );
+
+  return typeof value === "number" ? value : null;
+};
 
 function hasCompatibilityMismatch(compatibility?: DriverLoadCompatibility) {
   if (!compatibility) return false;
@@ -305,6 +326,7 @@ export default function AvailableLoadsPage() {
   const [requestTarget, setRequestTarget] = React.useState<AvailableLoad | null>(null);
   const [showContractModal, setShowContractModal] = React.useState(false);
   const [requesting, setRequesting] = React.useState(false);
+  const [cancellingRequestId, setCancellingRequestId] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [chatOpen, setChatOpen] = React.useState(false);
   const [chatThread, setChatThread] = React.useState<DispatchChatThreadSummary | null>(null);
@@ -319,8 +341,9 @@ export default function AvailableLoadsPage() {
       const profile = response.data?.data;
       const trailer = profile?.trailerType;
       if (trailer) {
+        // Keep the driver's configured trailer available for compatibility context
+        // and filter options, but leave the actual filter under user control.
         setDriverTrailerType(trailer);
-        setTrailerFilter((previous) => (previous === 'all' ? trailer : previous));
       }
       setEquipmentCapacity(
         typeof profile?.maxVehicleCapacity === 'number'
@@ -385,26 +408,28 @@ export default function AvailableLoadsPage() {
 
   React.useEffect(() => {
     let mounted = true;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    const refresh = () => {
+      if (mounted) void fetchLoads();
+    };
     const setup = async () => {
       const token = await getToken();
       if (!token || !mounted) return;
-      const socket = initializeSocket(token);
-      const refresh = () => {
-        if (mounted) void fetchLoads();
-      };
+      socket = initializeSocket(token);
       socket.on('driver:loads_updated', refresh);
       socket.on('driver:load_requested', refresh);
       socket.on('driver:load_request_updated', refresh);
       socket.on('load:change', refresh);
+      socket.on('connect', refresh);
     };
     void setup();
     return () => {
       mounted = false;
-      const socket = getSocket();
-      socket?.off('driver:loads_updated');
-      socket?.off('driver:load_requested');
-      socket?.off('driver:load_request_updated');
-      socket?.off('load:change');
+      socket?.off('driver:loads_updated', refresh);
+      socket?.off('driver:load_requested', refresh);
+      socket?.off('driver:load_request_updated', refresh);
+      socket?.off('load:change', refresh);
+      socket?.off('connect', refresh);
     };
   }, [getToken, fetchLoads]);
 
@@ -450,6 +475,30 @@ export default function AvailableLoadsPage() {
       setRequesting(false);
     }
   };
+
+  const handleCancelRequest = React.useCallback(
+    async (load: AvailableLoad) => {
+      setCancellingRequestId(load._id);
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/request`,
+          { action: 'cancel' },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success('Load request cancelled', {
+          description: 'The load is available again in its original workflow, and Dispatch was informed.',
+        });
+        await fetchLoads();
+      } catch (error: any) {
+        toast.error(extractErr(error, 'Failed to cancel load request'));
+        await fetchLoads();
+      } finally {
+        setCancellingRequestId(null);
+      }
+    },
+    [getToken, fetchLoads],
+  );
 
   const handleMessageCreator = React.useCallback(
     async (load: AvailableLoad) => {
@@ -515,9 +564,11 @@ export default function AvailableLoadsPage() {
     return [...matching].sort((a, b) => {
       switch (sortBy) {
         case 'pay-high':
-          return getPay(b) - getPay(a);
+          return (getPay(b) ?? Number.NEGATIVE_INFINITY) -
+            (getPay(a) ?? Number.NEGATIVE_INFINITY);
         case 'pay-low':
-          return getPay(a) - getPay(b);
+          return (getPay(a) ?? Number.POSITIVE_INFINITY) -
+            (getPay(b) ?? Number.POSITIVE_INFINITY);
         case 'pickup-soon':
           return (
             new Date(a.dates?.firstAvailable || a.dates?.pickupDeadline || a.createdAt).getTime() -
@@ -530,10 +581,13 @@ export default function AvailableLoadsPage() {
   }, [loads, search, trailerFilter, sortBy]);
 
   const pendingCount = loads.filter((load) => load.myRequestStatus === 'pending').length;
-  const avgPay = loads.length
-    ? Math.round(loads.reduce((sum, load) => sum + getPay(load), 0) / loads.length)
-    : 0;
-  const highPay = loads.length ? Math.max(...loads.map(getPay)) : 0;
+  const visiblePays = loads
+    .map(getPay)
+    .filter((value): value is number => value != null);
+  const avgPay = visiblePays.length
+    ? Math.round(visiblePays.reduce((sum, value) => sum + value, 0) / visiblePays.length)
+    : null;
+  const highPay = visiblePays.length ? Math.max(...visiblePays) : null;
 
   const sortOptions: Array<{
     key: SortMode;
@@ -601,8 +655,8 @@ export default function AvailableLoadsPage() {
                   label="Equipment Capacity"
                   className={equipmentCapacity == null ? 'text-amber-500' : 'text-indigo-500'}
                 />
-                <Stat value={`$${avgPay.toLocaleString()}`} label="Avg Pay" className="text-emerald-500" />
-                <Stat value={`$${highPay.toLocaleString()}`} label="Top Pay" className="text-emerald-500" />
+                <Stat value={avgPay != null ? `$${avgPay.toLocaleString()}` : "—"} label="Avg Pay" className="text-emerald-500" />
+                <Stat value={highPay != null ? `$${highPay.toLocaleString()}` : "—"} label="Top Pay" className="text-emerald-500" />
               </div>
             )}
           </div>
@@ -705,6 +759,8 @@ export default function AvailableLoadsPage() {
                       chatOpening={chatOpeningLoadId === load._id}
                       onMessageCreator={() => void handleMessageCreator(load)}
                       onRequest={() => setRequestTarget(load)}
+                      onCancelRequest={() => void handleCancelRequest(load)}
+                      cancellingRequest={cancellingRequestId === load._id}
                     />
                   </motion.div>
                 ))}
@@ -748,7 +804,15 @@ export default function AvailableLoadsPage() {
               <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3">
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <Badge variant="outline" className="break-all text-xs [overflow-wrap:anywhere]">{requestTarget.trackingNumber || requestTarget._id.slice(-8)}</Badge>
-                  {getPay(requestTarget) > 0 && <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">${getPay(requestTarget).toLocaleString()}</span>}
+                  {getPay(requestTarget) != null ? (
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      ${getPay(requestTarget)!.toLocaleString()}
+                    </span>
+                  ) : requestTarget.pricing?.isPricingEnabled === false ? (
+                    <span className="text-xs font-bold text-muted-foreground">Pricing not provided</span>
+                  ) : requestTarget.pricing?.isVisibleToDriver === false ? (
+                    <span className="text-xs font-bold text-muted-foreground">Pricing hidden</span>
+                  ) : null}
                 </div>
                 <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">{requestTarget.origin} → {requestTarget.destination}</p>
                 <CompatibilityBadges compatibility={requestTarget.compatibility} />
@@ -851,14 +915,18 @@ function LoadCard({
   load,
   onRequest,
   onMessageCreator,
+  onCancelRequest,
   canTakeNewWork,
   chatOpening,
+  cancellingRequest,
 }: {
   load: AvailableLoad;
   onRequest: () => void;
   onMessageCreator: () => void;
+  onCancelRequest: () => void;
   canTakeNewWork: boolean;
   chatOpening: boolean;
+  cancellingRequest: boolean;
 }) {
   const quote = load.preservedQuoteData;
   const isRequested = load.myRequestStatus === 'pending';
@@ -892,7 +960,19 @@ function LoadCard({
                 }}
               />
               <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
-              {pay > 0 && <div className="absolute bottom-2.5 right-2.5 rounded-lg bg-black/70 px-2.5 py-1 text-base font-black text-emerald-400 backdrop-blur-sm">${pay.toLocaleString()}</div>}
+              {pay != null ? (
+                <div className="absolute bottom-2.5 right-2.5 rounded-lg bg-black/70 px-2.5 py-1 text-base font-black text-emerald-400 backdrop-blur-sm">
+                  ${pay.toLocaleString()}
+                </div>
+              ) : load.pricing?.isPricingEnabled === false ? (
+                <div className="absolute bottom-2.5 right-2.5 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-bold text-white/80 backdrop-blur-sm">
+                  Pricing not provided
+                </div>
+              ) : load.pricing?.isVisibleToDriver === false ? (
+                <div className="absolute bottom-2.5 right-2.5 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-bold text-white/80 backdrop-blur-sm">
+                  Pricing hidden
+                </div>
+              ) : null}
             </div>
 
             <div className="min-w-0 flex-1 space-y-3 p-4">
@@ -936,14 +1016,14 @@ function LoadCard({
                       event.stopPropagation();
                       onMessageCreator();
                     }}
-                    aria-label={`Message the creator of ${load.trackingNumber || load.loadNumber || 'this load'}`}
+                    aria-label={`Message the dispatcher of ${load.trackingNumber || load.loadNumber || 'this load'}`}
                   >
                     {chatOpening ? (
                       <Loader2 className="size-3 animate-spin" />
                     ) : (
                       <MessageSquare className="size-3" />
                     )}
-                    {chatOpening ? 'Opening Chat…' : 'Message Creator'}
+                    {chatOpening ? 'Opening Chat…' : 'Message Dispatcher'}
                   </Button>
                 )}
 
@@ -963,7 +1043,26 @@ function LoadCard({
                     {capacityBlocked ? 'Capacity Mismatch' : offSchedule ? 'Request Anyway' : 'Request'}
                   </Button>
                 )}
-                {isRequested && <Badge variant="outline" className="border-amber-500/30 text-xs text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>}
+                {isRequested && (
+                  <div className="relative z-10 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="border-amber-500/30 text-xs text-amber-600 dark:text-amber-300"><Timer className="mr-1 size-3" />Awaiting Approval</Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-11 gap-1.5 border-destructive/25 px-3 text-xs font-bold text-destructive hover:bg-destructive/10"
+                      disabled={cancellingRequest}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onCancelRequest();
+                      }}
+                    >
+                      {cancellingRequest ? <Loader2 className="size-3 animate-spin" /> : <XCircle className="size-3" />}
+                      {cancellingRequest ? 'Cancelling…' : 'Cancel Request'}
+                    </Button>
+                  </div>
+                )}
                 <ChevronRight className="hidden sm:block size-4 text-muted-foreground/30 transition-colors group-hover:text-primary" />
               </div>
             </div>

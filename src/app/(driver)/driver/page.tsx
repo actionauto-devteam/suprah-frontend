@@ -76,6 +76,7 @@ import { PreferredRoutesEditor } from "@/components/driver-profile/PreferredRout
 import { ConfirmationModal, ConfirmationVariant } from "@/components/ui/confirmation-modal";
 import { DriverAcceptLoadDialog } from "@/components/driver/DriverAcceptLoadDialog";
 import { DriverReleaseLoadDialog } from "@/components/driver/DriverReleaseLoadDialog";
+import { DriverPickupProofDialog } from "@/components/driver/DriverPickupProofDialog";
 import { DriverStatusChangeDialog } from "@/components/driver/DriverStatusChangeDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
@@ -268,10 +269,11 @@ export default function DriverDashboardPage() {
   const [acknowledgingAmendment, setAcknowledgingAmendment] = React.useState<string | null>(null);
   const [selectedActiveLoadId, setSelectedActiveLoadId] = React.useState<string | null>(null);
   const [dropping, setDropping] = React.useState<string | null>(null);
+  const [cancellingLoadRequest, setCancellingLoadRequest] = React.useState<string | null>(null);
   const [cancellingRelease, setCancellingRelease] = React.useState<string | null>(null);
   const [releaseDialogLoad, setReleaseDialogLoad] = React.useState<any | null>(null);
-  const [pickingUp, setPickingUp] = React.useState<string | null>(null);
   const [startingRoute, setStartingRoute] = React.useState<string | null>(null);
+  const [pickupDialogLoad, setPickupDialogLoad] = React.useState<any | null>(null);
   const [deliveryDialogLoad, setDeliveryDialogLoad] = React.useState<any | null>(null);
   const [mapReady, setMapReady] = React.useState(false);
   const [mapError, setMapError] = React.useState<string | null>(null);
@@ -989,6 +991,59 @@ export default function DriverDashboardPage() {
     [getToken, fetchData, workEligibility.canTakeNewWork, workEligibility.blockReason],
   );
 
+  const rejectAssignedLoad = React.useCallback(
+    async (load: any) => {
+      if (!load?._id) return;
+      setDropping(load._id);
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/drop`,
+          { reason: 'driver_declined_assignment' },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success('Load assignment rejected', {
+          description: 'The load was returned to its original available workflow and the responsible dispatcher was informed in Dispatch Chat.',
+        });
+        setConfirmState((previous) => ({ ...previous, isOpen: false, load: null }));
+        await fetchData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to reject load assignment');
+        await fetchData();
+      } finally {
+        setDropping(null);
+      }
+    },
+    [getToken, fetchData],
+  );
+
+  const cancelPendingLoadRequest = React.useCallback(
+    async (load: any) => {
+      if (!load?._id) return;
+      const loadId = String(load._id);
+      setCancellingLoadRequest(loadId);
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(loadId)}/request`,
+          { action: 'cancel' },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success('Load request cancelled', {
+          description: 'The load returned to its original available workflow and Dispatch was informed.',
+        });
+        setConfirmState((previous) => ({ ...previous, isOpen: false, load: null }));
+        await fetchData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to cancel load request');
+        await fetchData();
+      } finally {
+        setCancellingLoadRequest(null);
+      }
+    },
+    [getToken, fetchData],
+  );
+
   const acknowledgeLoadAmendment = React.useCallback(
     async (load: any, amendment: any) => {
       if (!load?._id || !amendment?.id) return;
@@ -1086,28 +1141,6 @@ export default function DriverDashboardPage() {
     [getToken, fetchData],
   );
 
-  const markPickedUp = React.useCallback(
-    async (load: any) => {
-      setPickingUp(load._id);
-      try {
-        const token = await getToken();
-        await apiClient.post(
-          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/pickup`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        toast.success("Pickup recorded");
-        await fetchData();
-        setConfirmState((prev) => ({ ...prev, isOpen: false }));
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to mark load as picked up");
-      } finally {
-        setPickingUp(null);
-      }
-    },
-    [getToken, fetchData],
-  );
-
   const startRoute = React.useCallback(
     async (load: any) => {
       setStartingRoute(load._id);
@@ -1136,11 +1169,6 @@ export default function DriverDashboardPage() {
     let variant: ConfirmationVariant = 'primary';
 
     switch (action) {
-      case 'mark-picked-up':
-        title = 'Confirm Pickup?';
-        description = 'Confirm that all vehicles on this load have been picked up. The pickup time will be recorded and Dispatch will be notified.';
-        variant = 'success';
-        break;
       case 'start-route':
         title = 'Start Route?';
         description = 'Are you ready to begin the delivery route? This will notify the organization that you are in transit.';
@@ -1150,6 +1178,16 @@ export default function DriverDashboardPage() {
         title = 'Cancel Release Request?';
         description = `Cancel your pending release request for ${getLoadReference(load)}? The load will remain assigned to you and its normal actions will return based on its current status.`;
         variant = 'warning';
+        break;
+      case 'cancel-load-request':
+        title = 'Cancel Load Request?';
+        description = `Cancel your pending request for ${getLoadReference(load)}? The load will return to its original available workflow and Dispatch will be informed.`;
+        variant = 'warning';
+        break;
+      case 'reject-assignment':
+        title = 'Reject Assigned Load?';
+        description = `Reject ${getLoadReference(load)}? The assignment will be removed immediately, the load will return to its original available workflow, and the responsible dispatcher will be informed in Dispatch Chat.`;
+        variant = 'danger';
         break;
       default:
         return;
@@ -1167,9 +1205,10 @@ export default function DriverDashboardPage() {
 
   const executeConfirmedAction = () => {
     const { action, load } = confirmState;
-    if (action === 'mark-picked-up') markPickedUp(load);
     if (action === 'start-route') startRoute(load);
     if (action === 'cancel-release-request') cancelReleaseRequest(load);
+    if (action === 'cancel-load-request') cancelPendingLoadRequest(load);
+    if (action === 'reject-assignment') rejectAssignedLoad(load);
   };
 
   const performOpStatusUpdate = React.useCallback(
@@ -2223,7 +2262,13 @@ export default function DriverDashboardPage() {
                         </p>
                       </div>
                       <span className="shrink-0 pt-4 text-base font-black text-emerald-600 dark:text-emerald-400">
-                        ${(currentLoad.pricing?.carrierPayAmount || 0).toLocaleString()}
+                        {currentLoad.pricing?.isPricingEnabled === false
+                          ? "Pricing not provided"
+                          : currentLoad.pricing?.isVisibleToDriver === false
+                            ? "Pricing hidden"
+                            : currentLoad.pricing?.carrierPayAmount != null
+                              ? `$${currentLoad.pricing.carrierPayAmount.toLocaleString()}`
+                              : "—"}
                       </span>
                     </div>
 
@@ -2311,7 +2356,7 @@ export default function DriverDashboardPage() {
                           : currentLoadHasPendingRelease && currentLoad.status !== "In-Transit"
                             ? "Dispatch is reviewing your release request. This load remains assigned until a decision is made."
                             : currentLoad.status === "Assigned"
-                              ? (!workEligibility.canTakeNewWork ? workEligibility.blockReason || "New work is currently unavailable. Review your work availability and documents." : "Review the load details and sign to accept this assignment.")
+                              ? (!workEligibility.canTakeNewWork ? workEligibility.blockReason || "New work is currently unavailable. Review your work availability and documents." : "Review the load details, then accept or reject this assignment.")
                               : currentLoad.status === "Accepted"
                                 ? "Confirm pickup after collecting the vehicles."
                                 : currentLoad.status === "Picked Up"
@@ -2321,38 +2366,49 @@ export default function DriverDashboardPage() {
                     </div>
 
                     {!currentLoadHasPendingRelease && currentLoad.status === "Assigned" && (
-                      <Button
-                        size="sm"
-                        className="w-full h-11 text-sm font-bold shadow-sm"
-                        disabled={accepting === currentLoad._id || !workEligibility.canTakeNewWork}
-                        onClick={() => {
-                          if (!workEligibility.canTakeNewWork) {
-                            toast.error(workEligibility.blockReason || "You are not eligible to accept this load right now.");
-                            return;
-                          }
-                          setAcceptDialogLoad(currentLoad);
-                        }}
-                      >
-                        {accepting === currentLoad._id ? (
-                          <><Loader2 className="size-3.5 mr-2 animate-spin" />Accepting...</>
-                        ) : (
-                          <><CheckCircle2 className="size-3.5 mr-2" />Accept Load</>
-                        )}
-                      </Button>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button
+                          size="sm"
+                          className="h-11 text-sm font-bold shadow-sm"
+                          disabled={accepting === currentLoad._id || dropping === currentLoad._id || !workEligibility.canTakeNewWork}
+                          onClick={() => {
+                            if (!workEligibility.canTakeNewWork) {
+                              toast.error(workEligibility.blockReason || "You are not eligible to accept this load right now.");
+                              return;
+                            }
+                            setAcceptDialogLoad(currentLoad);
+                          }}
+                        >
+                          {accepting === currentLoad._id ? (
+                            <><Loader2 className="size-3.5 mr-2 animate-spin" />Accepting...</>
+                          ) : (
+                            <><CheckCircle2 className="size-3.5 mr-2" />Accept Load</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-11 text-sm font-bold text-destructive border-destructive/25 hover:bg-destructive/10"
+                          disabled={accepting === currentLoad._id || dropping === currentLoad._id}
+                          onClick={() => handleAction("reject-assignment", currentLoad)}
+                        >
+                          {dropping === currentLoad._id ? (
+                            <><Loader2 className="size-3.5 mr-2 animate-spin" />Rejecting...</>
+                          ) : (
+                            <><XCircle className="size-3.5 mr-2" />Reject Load</>
+                          )}
+                        </Button>
+                      </div>
                     )}
 
                     {!currentLoadHasPendingRelease && currentLoad.status === "Accepted" && (
                       <Button
                         size="sm"
                         className="w-full h-11 text-sm font-bold bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
-                        disabled={pickingUp === currentLoad._id || Boolean(currentPendingAmendment)}
-                        onClick={() => handleAction("mark-picked-up", currentLoad)}
+                        disabled={Boolean(currentPendingAmendment)}
+                        onClick={() => setPickupDialogLoad(currentLoad)}
                       >
-                        {pickingUp === currentLoad._id ? (
-                          <><Loader2 className="size-3.5 mr-2 animate-spin" />Recording Pickup...</>
-                        ) : (
-                          <><Package className="size-3.5 mr-2" />Mark Picked Up</>
-                        )}
+                        <><Package className="size-3.5 mr-2" />Mark Picked Up</>
                       </Button>
                     )}
 
@@ -2397,7 +2453,7 @@ export default function DriverDashboardPage() {
                       </div>
                     )}
 
-                    {["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status) && (
+                    {(currentLoadHasPendingRelease || ["Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status)) && (
                       currentLoadHasPendingRelease ? (
                         <div className="space-y-2.5">
                           <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-3 text-xs leading-relaxed text-muted-foreground">
@@ -2530,13 +2586,26 @@ export default function DriverDashboardPage() {
                               : ""}
                           </p>
                         </div>
-                        <Link
-                          href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
-                          className="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
-                        >
-                          View Request
-                          <ArrowRight className="size-3" />
-                        </Link>
+                        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                          <Link
+                            href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
+                            className="inline-flex h-11 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                          >
+                            View Request
+                            <ArrowRight className="size-3" />
+                          </Link>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-11 border-destructive/25 text-xs font-bold text-destructive hover:bg-destructive/10"
+                            disabled={cancellingLoadRequest === String(pendingCurrentRequest._id)}
+                            onClick={() => handleAction("cancel-load-request", pendingCurrentRequest)}
+                          >
+                            {cancellingLoadRequest === String(pendingCurrentRequest._id) ? <Loader2 className="mr-1 size-3 animate-spin" /> : <XCircle className="mr-1 size-3" />}
+                            {cancellingLoadRequest === String(pendingCurrentRequest._id) ? "Cancelling…" : "Cancel Request"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2597,13 +2666,26 @@ export default function DriverDashboardPage() {
                               })
                             : "recently"}.
                         </p>
-                        <Link
-                          href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
-                          className="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
-                        >
-                          View Request
-                          <ArrowRight className="size-3" />
-                        </Link>
+                        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                          <Link
+                            href={`/driver/available-loads/${encodeURIComponent(String(pendingCurrentRequest._id))}`}
+                            className="inline-flex h-11 items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-500/15 dark:text-amber-300"
+                          >
+                            View Request
+                            <ArrowRight className="size-3" />
+                          </Link>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-11 border-destructive/25 text-xs font-bold text-destructive hover:bg-destructive/10"
+                            disabled={cancellingLoadRequest === String(pendingCurrentRequest._id)}
+                            onClick={() => handleAction("cancel-load-request", pendingCurrentRequest)}
+                          >
+                            {cancellingLoadRequest === String(pendingCurrentRequest._id) ? <Loader2 className="mr-1 size-3 animate-spin" /> : <XCircle className="mr-1 size-3" />}
+                            {cancellingLoadRequest === String(pendingCurrentRequest._id) ? "Cancelling…" : "Cancel Request"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2802,6 +2884,17 @@ export default function DriverDashboardPage() {
         onSubmit={requestLoadRelease}
       />
 
+      <DriverPickupProofDialog
+        load={pickupDialogLoad}
+        getToken={getToken}
+        onClose={() => setPickupDialogLoad(null)}
+        onPickedUp={async () => {
+          setPickupDialogLoad(null);
+          toast.success("Pickup recorded");
+          await fetchData();
+        }}
+      />
+
       <DriverDeliveryProofDialog
         load={deliveryDialogLoad}
         loadReference={deliveryDialogLoad ? getLoadReference(deliveryDialogLoad) : ""}
@@ -2859,20 +2952,22 @@ export default function DriverDashboardPage() {
         title={confirmState.title}
         description={confirmState.description}
         confirmText={
-          confirmState.action === "mark-picked-up"
-            ? "Confirm Pickup"
-            : confirmState.action === "start-route"
-              ? "Start Route"
+          confirmState.action === "start-route"
+            ? "Start Route"
               : confirmState.action === "cancel-release-request"
                 ? "Cancel Release Request"
-                : "Confirm"
+                : confirmState.action === "cancel-load-request"
+                  ? "Cancel Load Request"
+                  : confirmState.action === "reject-assignment"
+                    ? "Reject Load"
+                    : "Confirm"
         }
         variant={confirmState.variant}
         isLoading={
           !!accepting ||
           !!dropping ||
+          !!cancellingLoadRequest ||
           !!cancellingRelease ||
-          !!pickingUp ||
           !!startingRoute
         }
       />

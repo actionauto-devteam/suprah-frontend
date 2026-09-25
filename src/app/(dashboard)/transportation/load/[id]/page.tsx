@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
@@ -753,21 +753,60 @@ export default function LoadDetailsPage() {
           <CardContent className="p-4 flex flex-col justify-between gap-4 h-full">
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground text-sm font-medium">Carrier Pay</span>
-                <span className="font-bold text-xl text-foreground">${load.pricing?.carrierPayAmount?.toLocaleString() || "0"}</span>
+                <span className="text-muted-foreground text-sm font-medium">
+                  {load.postType === "assign-carrier" ? "Total Driver Pay" : "Carrier Pay"}
+                </span>
+                <span className="font-bold text-xl text-foreground">
+                  {load.pricing?.isPricingEnabled === false
+                    ? "Not provided"
+                    : load.pricing?.carrierPayAmount != null
+                      ? `$${load.pricing.carrierPayAmount.toLocaleString()}`
+                      : "—"}
+                </span>
               </div>
               <Separator className="bg-border/50" />
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground text-sm font-medium">COD / COP</span>
-                <span className="font-semibold text-lg">${load.pricing?.copCodAmount?.toLocaleString() || "0"}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground text-sm font-medium">Total Distance</span>
-                <span className="font-semibold">{load.pricing?.miles?.toLocaleString() || "0"} mi</span>
-              </div>
+
+              {load.pricing?.isPricingEnabled === false ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">Pricing Entry</span>
+                    <span className="font-semibold">Skipped by Dispatch</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">Total Distance</span>
+                    <span className="font-semibold">{load.pricing?.miles?.toLocaleString() || "0"} mi</span>
+                  </div>
+                </>
+              ) : load.postType === "load-board" ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">COD / COP</span>
+                    <span className="font-semibold text-lg">${load.pricing?.copCodAmount?.toLocaleString() || "0"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">Total Distance</span>
+                    <span className="font-semibold">{load.pricing?.miles?.toLocaleString() || "0"} mi</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">Total Distance</span>
+                    <span className="font-semibold">{load.pricing?.miles?.toLocaleString() || "0"} mi</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground text-sm font-medium">Pricing Visibility</span>
+                    <span className="font-semibold">
+                      {load.pricing?.isVisibleToDriver === false
+                        ? "Hidden from driver"
+                        : "Visible to driver"}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {load.pricing?.estimatedRate && (
+            {load.pricing?.isPricingEnabled !== false && load.postType === "load-board" && load.pricing?.estimatedRate && (
               <div className="flex items-center justify-between gap-3 p-3 bg-background border border-border/50 rounded-xl shadow-sm">
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
                   <AlertCircle className="size-3" /> Est. Market Rate
@@ -784,6 +823,37 @@ export default function LoadDetailsPage() {
            to match a taller sibling; nothing is ever left stranded alone
            in an otherwise-empty row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 items-start">
+
+        {/* Proof of Pickup */}
+        {load.proofOfPickup?.imageUrl && (
+          <Card className="sm:col-span-2 lg:col-span-1 border-border shadow-sm bg-card overflow-hidden p-0">
+            <CardHeader className="p-4 border-b border-border/50 bg-orange-500/5">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                <Camera className="size-3.5" /> Proof of Pickup
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="relative group overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+                <img
+                  src={load.proofOfPickup.imageUrl}
+                  alt="Pickup proof preview"
+                  className="w-full aspect-video object-contain bg-muted/20"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Submitted</p>
+                <p className="text-sm font-medium">
+                  {new Date(load.proofOfPickup.submittedAt).toLocaleString("en-US", { timeZone: "America/Denver" })}
+                </p>
+                {load.proofOfPickup.note && (
+                  <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">
+                    {load.proofOfPickup.note}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Proof of Delivery */}
         {load.proofOfDelivery && (

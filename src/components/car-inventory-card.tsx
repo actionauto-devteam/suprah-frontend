@@ -211,6 +211,8 @@ interface VehicleImageProps {
   showStatusBadge?: boolean;
   showStatusDot?: boolean;
   showDaysOnLot?: boolean;
+  /** Move Days on Lot to the mobile image top-right while preserving desktop placement. */
+  mobileDaysOnLotTopRight?: boolean;
   isSaved?: boolean;
   onToggleSave?: (e: React.MouseEvent) => void;
   isComparing?: boolean;
@@ -227,6 +229,7 @@ function VehicleImage({
   showStatusBadge,
   showStatusDot,
   showDaysOnLot,
+  mobileDaysOnLotTopRight = false,
   isSaved,
   onToggleSave,
   isComparing,
@@ -409,7 +412,16 @@ function VehicleImage({
       )}
 
       {showDaysOnLot && vehicle.daysOnLot !== undefined && vehicle.daysOnLot > 0 && (
-        <div className="absolute bottom-2.5 right-2.5 z-10 rounded-full bg-black/65 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+        <div
+          className={cn(
+            "absolute z-10 rounded-full bg-black/65 px-2.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm",
+            mobileDaysOnLotTopRight
+              ? onToggleSave
+                ? "top-2.5 right-12 sm:top-auto sm:right-2.5 sm:bottom-2.5"
+                : "top-2.5 right-2.5 sm:top-auto sm:bottom-2.5"
+              : "bottom-2.5 right-2.5",
+          )}
+        >
           {vehicle.daysOnLot}d on lot
         </div>
       )}
@@ -511,6 +523,7 @@ export function CarInventoryCard({
           statusCfg={statusCfg}
           showStatusDot
           showDaysOnLot
+          mobileDaysOnLotTopRight={mobileOptimized}
           onClick={() => onVehicleClick?.(vehicle)}
           className={cn("shrink-0 rounded-l-2xl", mobileOptimized ? "w-24 xs:w-28 sm:w-44" : "w-28 sm:w-44")} 
           isSaved={isSaved}
@@ -688,6 +701,7 @@ export function CarInventoryCard({
         statusCfg={statusCfg}
         showStatusBadge
         showDaysOnLot
+        mobileDaysOnLotTopRight={mobileOptimized}
         onClick={() => onVehicleClick?.(vehicle)}
         className={cn("w-full", mobileOptimized ? "aspect-[16/9] sm:aspect-5/3" : "aspect-5/3")}
         isSaved={isSaved}

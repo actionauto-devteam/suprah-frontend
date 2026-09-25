@@ -48,12 +48,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { initializeSocket, getSocket } from "@/lib/socket.client";
+import { initializeSocket } from "@/lib/socket.client";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import { Load, LoadStatus } from '@/types/load';
 import { ConfirmationModal, ConfirmationVariant } from '@/components/ui/confirmation-modal';
 import { DriverContractModal, DriverSignedContract } from '@/components/create-load/DriverContractModal';
+import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDialog';
+import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 
 // Real driver-tracking endpoint — accept/pickup/start-route/drop all live
@@ -64,6 +66,12 @@ const ACTION_ENDPOINTS: Record<string, string> = {
   'mark-picked-up': 'pickup',
   'start-route': 'start-route',
   'drop-load': 'drop',
+  // Keep the existing route contract stable: cancelling a pending board
+  // request reuses /request with { action: "cancel" }, while rejecting a
+  // dispatcher assignment reuses /drop before the driver has accepted it.
+  'cancel-request': 'request',
+  'reject-assignment': 'drop',
+  'cancel-release-request': 'release-request/cancel',
 };
 
 const STATUS_THEME: Record<LoadStatus, string> = {
@@ -90,7 +98,7 @@ const getStepIdx = (load: Load) => {
   if (status === 'Delivered') return 4;
   if (status === 'In-Transit') return 3;
   if (status === 'Picked Up') return 2;
-  if (status === 'Accepted' || load.driverAcceptedAt) return 1;
+  if (status === 'Accepted') return 1;
   return 0;
 };
 
@@ -175,7 +183,9 @@ export default function DriverLoadsPage() {
   });
 
   // Dialog Targets
+  const [pickupProofTarget, setPickupProofTarget] = React.useState<Load | null>(null);
   const [proofTarget, setProofTarget] = React.useState<Load | null>(null);
+  const [releaseDialogLoad, setReleaseDialogLoad] = React.useState<Load | null>(null);
 
   const [refreshing, setRefreshing] = React.useState(false);
   const [maxLoadCapacity, setMaxLoadCapacity] = React.useState(12);
@@ -221,26 +231,26 @@ export default function DriverLoadsPage() {
 
   React.useEffect(() => {
     let mounted = true;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    const refresh = () => {
+      if (mounted) void fetchLoads();
+    };
     const setup = async () => {
       const token = await getToken();
       if (!token || !mounted) return;
-      const sock = initializeSocket(token);
-      const refresh = () => {
-        if (mounted) fetchLoads();
-      };
-      sock.on("driver:loads_updated", refresh);
-      sock.on("driver:load_request_updated", refresh);
-      sock.on("driver:load_requested", refresh);
+      socket = initializeSocket(token);
+      socket.on("driver:loads_updated", refresh);
+      socket.on("driver:load_request_updated", refresh);
+      socket.on("driver:load_requested", refresh);
+      socket.on("connect", refresh);
     };
-    setup();
+    void setup();
     return () => {
       mounted = false;
-      const s = getSocket();
-      if (s) {
-        s.off("driver:loads_updated");
-        s.off("driver:load_request_updated");
-        s.off("driver:load_requested");
-      }
+      socket?.off("driver:loads_updated", refresh);
+      socket?.off("driver:load_request_updated", refresh);
+      socket?.off("driver:load_requested", refresh);
+      socket?.off("connect", refresh);
     };
   }, [getToken, fetchLoads]);
 
@@ -252,6 +262,41 @@ export default function DriverLoadsPage() {
     await fetchLoads(page + 1, true);
   };
 
+  const requestLoadRelease = React.useCallback(
+    async (
+      load: Load,
+      request: {
+        reason: string;
+        message: string;
+        priority: "standard" | "emergency";
+      },
+    ) => {
+      const id = String(load?._id ?? "");
+      if (!id) return;
+
+      setActionLoading(id);
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(id)}/release-request`,
+          request,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        toast.success("Release request sent to Dispatch", {
+          description: "The load remains assigned until Dispatch decides.",
+        });
+        setReleaseDialogLoad(null);
+        await fetchLoads();
+      } catch (err: any) {
+        toast.error(extractErr(err, "Failed to request load release"));
+        await fetchLoads();
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [getToken, fetchLoads],
+  );
+
   const executeAction = async (action: string, id: string, signature?: DriverSignedContract) => {
     if (!id) {
       toast.error(`Cannot ${action}: Load ID is missing`);
@@ -261,19 +306,35 @@ export default function DriverLoadsPage() {
     try {
       const token = await getToken();
       const endpoint = ACTION_ENDPOINTS[action] ?? action;
-      await apiClient.post(`/api/driver-tracking/loads/${id}/${endpoint}`, signature ?? {}, { headers: { Authorization: `Bearer ${token}` } });
+      const requestBody =
+        action === 'cancel-request'
+          ? { action: 'cancel' }
+          : signature ?? {};
+      await apiClient.post(
+        `/api/driver-tracking/loads/${encodeURIComponent(id)}/${endpoint}`,
+        requestBody,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       toast.success(
         action === 'accept-load' ? 'Load accepted' :
           action === 'start-route' ? 'Route started' :
-            action === 'drop-load' ? 'Load dropped' :
-              action === 'mark-picked-up' ? 'Load picked up' :
-                'Done'
+            action === 'cancel-request' ? 'Load request cancelled' :
+              action === 'reject-assignment' ? 'Load assignment rejected' :
+                action === 'cancel-release-request' ? 'Release request cancelled' :
+                  action === 'drop-load' ? 'Release request sent to Dispatch' :
+                    action === 'mark-picked-up' ? 'Load picked up' :
+                      'Done'
       );
       await fetchLoads();
       setConfirmState(prev => ({ ...prev, isOpen: false }));
       setContractState(null);
     } catch (err: any) {
       toast.error(extractErr(err, `Failed to ${action}`));
+      // Cancellation/rejection can race with a dispatcher action. Refresh so
+      // the page immediately reflects the backend's authoritative state.
+      if (action === 'cancel-request' || action === 'reject-assignment' || action === 'cancel-release-request') {
+        await fetchLoads();
+      }
     } finally {
       setActionLoading(null);
     }
@@ -296,21 +357,52 @@ export default function DriverLoadsPage() {
       return;
     }
 
+    if (action === 'mark-picked-up') {
+      const load =
+        typeof loadOrId === 'string'
+          ? loads.find((candidate) => candidate._id === actualLoadId) ?? null
+          : loadOrId;
+      if (!load) {
+        toast.error('This load is no longer available. Refresh and try again.');
+        return;
+      }
+      setPickupProofTarget(load);
+      return;
+    }
+
+    if (action === 'drop-load') {
+      const load =
+        typeof loadOrId === 'string'
+          ? loads.find((candidate) => candidate._id === actualLoadId) ?? null
+          : loadOrId;
+      if (!load) {
+        toast.error('This load is no longer available. Refresh and try again.');
+        return;
+      }
+      setReleaseDialogLoad(load);
+      return;
+    }
+
     switch (action) {
-      case 'mark-picked-up':
-        title = 'Confirm Pickup?';
-        description = 'Are you sure you have picked up all vehicles for this load? The current time will be recorded as the pickup time.';
-        variant = 'success';
-        break;
       case 'start-route':
         title = 'Start Route?';
         description = 'Are you ready to begin the delivery route? This will notify the organization that you are in transit.';
         variant = 'success';
         break;
-      case 'drop-load':
-        title = 'Drop This Load?';
-        description = 'Warning: You are about to drop this load. This action should only be taken if you cannot complete the delivery.';
+      case 'cancel-request':
+        title = 'Cancel Load Request?';
+        description = 'Cancel your pending request for this load? The load itself will remain available in the workflow it came from, and Dispatch will be informed that you cancelled your request.';
+        variant = 'warning';
+        break;
+      case 'reject-assignment':
+        title = 'Reject Assigned Load?';
+        description = 'Reject this dispatcher assignment? The load will be removed from your assigned loads and returned to the workflow it came from. The responsible dispatcher will be notified in Dispatch Chat.';
         variant = 'danger';
+        break;
+      case 'cancel-release-request':
+        title = 'Cancel Release Request?';
+        description = 'Cancel your pending release request? The load will remain assigned to you and its normal actions will become available again based on its current status.';
+        variant = 'warning';
         break;
       default:
         executeAction(action, actualLoadId);
@@ -552,6 +644,9 @@ export default function DriverLoadsPage() {
                       isRequest={tab === 'requests'}
                       actionLoading={actionLoading}
                       onAccept={(l) => handleAction('accept-load', l)}
+                      onRejectAssignment={(l) => handleAction('reject-assignment', l)}
+                      onCancelRequest={(l) => handleAction('cancel-request', l)}
+                      onCancelReleaseRequest={(l) => handleAction('cancel-release-request', l)}
                       onMarkPickedUp={(l) => handleAction('mark-picked-up', l)}
                       onDrop={(l) => handleAction('drop-load', l)}
                       onStartRoute={(l) => handleAction('start-route', l)}
@@ -583,6 +678,15 @@ export default function DriverLoadsPage() {
         title={confirmState.title}
         description={confirmState.description}
         variant={confirmState.variant}
+        confirmText={
+          confirmState.action === 'cancel-request'
+            ? 'Cancel Request'
+            : confirmState.action === 'reject-assignment'
+              ? 'Reject Load'
+              : confirmState.action === 'cancel-release-request'
+                ? 'Cancel Release Request'
+                : undefined
+        }
         isLoading={!!actionLoading}
       />
 
@@ -594,6 +698,30 @@ export default function DriverLoadsPage() {
         title="Accept This Load"
         description="Review and sign the transport contract to accept this load assignment."
         confirmLabel="Accept & Sign"
+      />
+
+      <DriverReleaseLoadDialog
+        open={!!releaseDialogLoad}
+        onOpenChange={(open) => {
+          if (!open && !actionLoading) setReleaseDialogLoad(null);
+        }}
+        load={releaseDialogLoad}
+        isSubmitting={
+          !!releaseDialogLoad &&
+          actionLoading === String(releaseDialogLoad._id)
+        }
+        onSubmit={requestLoadRelease}
+      />
+
+      <DriverPickupProofDialog
+        load={pickupProofTarget}
+        getToken={getToken}
+        onClose={() => setPickupProofTarget(null)}
+        onPickedUp={async () => {
+          setPickupProofTarget(null);
+          toast.success("Pickup recorded");
+          await fetchLoads();
+        }}
       />
 
       <SubmitProofModal
@@ -615,7 +743,7 @@ function StatusTimeline({ load }: { load: Load }) {
 
   const timelineDates = [
     load.assignedAt,
-    load.driverAcceptedAt,
+    load.acceptedAt ?? load.driverAcceptedAt,
     load.pickedUpAt,
     load.inTransitAt,
     load.deliveredAt
@@ -675,9 +803,9 @@ function StatusTimeline({ load }: { load: Load }) {
   );
 }
 
-function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, onDrop, onStartRoute, onSubmitProof, canAcceptWork }: {
+function LoadCard({ load, isRequest, actionLoading, onAccept, onRejectAssignment, onCancelRequest, onCancelReleaseRequest, onMarkPickedUp, onDrop, onStartRoute, onSubmitProof, canAcceptWork }: {
   load: Load; isRequest: boolean; actionLoading: string | null;
-  onAccept: (id: string) => void; onMarkPickedUp: (id: string) => void; onDrop: (l: Load) => void; onStartRoute: (id: string) => void; onSubmitProof: () => void; canAcceptWork: boolean;
+  onAccept: (id: string) => void; onRejectAssignment: (load: Load) => void; onCancelRequest: (load: Load) => void; onCancelReleaseRequest: (load: Load) => void; onMarkPickedUp: (id: string) => void; onDrop: (l: Load) => void; onStartRoute: (id: string) => void; onSubmitProof: () => void; canAcceptWork: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const status = load.status;
@@ -686,6 +814,8 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
   const isDelivered = status === 'Delivered';
   const isPending = load.myRequestStatus === 'pending';
   const isRejected = load.myRequestStatus === 'rejected';
+  const isAccepted = ['Accepted', 'Picked Up', 'In-Transit', 'Delivered'].includes(status);
+  const hasPendingRelease = (load as any).releaseRequest?.status === 'pending';
 
   const vehicle = load.vehicles?.[0];
   const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : "Unknown Vehicle";
@@ -763,22 +893,78 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                 </div>
               </div>
 
+              {isRequest && isPending && (
+                <div className="relative z-10 flex shrink-0 items-start border-t pt-3 sm:border-0 sm:pt-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onCancelRequest(load)}
+                    disabled={actionLoading === load._id}
+                    className="h-11 rounded-lg gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                  >
+                    {actionLoading === load._id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        <XCircle className="size-4" />
+                        Cancel Request
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
               {!isRequest && (
                 <div className="relative z-10 flex flex-wrap sm:flex-col items-start sm:items-end gap-2 shrink-0 border-t pt-3 sm:border-0 sm:pt-0">
-                  {status === 'Assigned' && !load.driverAcceptedAt && isActive && (
-                    <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="h-11 rounded-lg gap-1.5">
-                      {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
-                    </Button>
+                  {status === 'Assigned' && !isAccepted && isActive && !hasPendingRelease && (
+                    <>
+                      <Button size="sm" onClick={() => onAccept(load._id)} disabled={actionLoading === load._id || !canAcceptWork} className="h-11 rounded-lg gap-1.5">
+                        {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><CheckCircle2 className="size-4" />{canAcceptWork ? 'Accept' : 'Unavailable'}</>}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRejectAssignment(load)}
+                        disabled={actionLoading === load._id}
+                        className="h-11 rounded-lg gap-1.5 border-red-500/30 text-red-600 hover:bg-red-500/10 dark:text-red-300"
+                      >
+                        {actionLoading === load._id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <>
+                            <XCircle className="size-4" />
+                            Reject Load
+                          </>
+                        )}
+                      </Button>
+                    </>
                   )}
-                  {status === 'Accepted' && (
+                  {status === 'Accepted' && !hasPendingRelease && (
                     <Button size="sm" className="h-11 bg-orange-600 hover:bg-orange-700 rounded-lg gap-1.5" onClick={() => onMarkPickedUp(load._id)} disabled={actionLoading === load._id}>
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><Package className="size-4" />Mark Picked Up</>}
                     </Button>
                   )}
-                  {status === 'Picked Up' && (
+                  {status === 'Picked Up' && !hasPendingRelease && (
                     <Button size="sm" className="h-11 bg-emerald-600 hover:bg-emerald-700 rounded-lg gap-1.5" onClick={() => onStartRoute(load._id)} disabled={actionLoading === load._id}>
                       {actionLoading === load._id ? <Loader2 className="size-4 animate-spin" /> : <><Navigation2 className="size-4" />Start Route</>}
                     </Button>
+                  )}
+                  {hasPendingRelease && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                        <Clock className="mr-1 size-3" />Release Pending
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-11 gap-1.5 border-amber-500/30 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                        onClick={() => onCancelReleaseRequest(load)}
+                        disabled={actionLoading === load._id}
+                      >
+                        {actionLoading === load._id ? <Loader2 className="size-3 animate-spin" /> : <XCircle className="size-3" />}
+                        Cancel Release
+                      </Button>
+                    </div>
                   )}
                   {(status === 'In-Transit') && (
                     <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20 gap-1 animate-pulse"><Navigation2 className="size-3" />In Transit</Badge>
@@ -801,7 +987,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                         : "Proof Sent"}
                     </Badge>
                   )}
-                  {isActive && load.driverAcceptedAt && (
+                  {isActive && isAccepted && !hasPendingRelease && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -814,7 +1000,7 @@ function LoadCard({ load, isRequest, actionLoading, onAccept, onMarkPickedUp, on
                       ) : (
                         <>
                           <Ban className="size-3 mr-1" />
-                          Drop
+                          Request Release
                         </>
                       )}
                     </Button>

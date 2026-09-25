@@ -42,6 +42,7 @@ import {
 } from "@/lib/driver-load-compatibility";
 import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview";
 import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges";
+import { AssignmentReconfirmDialog } from "@/components/driver-tracker/AssignmentReconfirmDialog";
 
 const STATUS_BADGE: Record<string, string> = {
   Assigned: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -69,6 +70,8 @@ interface DriverTrackerLoadsCardProps {
   onRemoveLoad?: (shipmentId: string) => Promise<void>;
   onReassignLoad?: (shipmentId: string, newDriverId: string) => Promise<boolean>;
   onKeepAssigned?: (shipmentId: string) => Promise<void>;
+  onAssignmentReconfirmed?: () => void | Promise<void>;
+  focusedLoadId?: string | null;
 }
 
 export function DriverTrackerLoadsCard({
@@ -83,13 +86,76 @@ export function DriverTrackerLoadsCard({
   onRemoveLoad,
   onReassignLoad,
   onKeepAssigned,
+  onAssignmentReconfirmed,
+  focusedLoadId = null,
 }: DriverTrackerLoadsCardProps) {
   const router = useRouter();
   const [viewDriver, setViewDriver] = React.useState<DriverTrackingItem | null>(null);
+  const [reconfirmShipment, setReconfirmShipment] = React.useState<
+    DriverTrackingItem["shipments"][number] | null
+  >(null);
+  const focusedLoadRefs = React.useRef(new Map<string, HTMLDivElement>());
+  const handledFocusedLoadRef = React.useRef<string | null>(null);
+  const scrolledFocusedLoadRef = React.useRef<string | null>(null);
   const currentViewDriver = React.useMemo(
     () => (viewDriver ? ((allDrivers ?? drivers).find((d) => d.id === viewDriver.id) ?? null) : null),
     [allDrivers, drivers, viewDriver],
   );
+
+  React.useEffect(() => {
+    if (!focusedLoadId) {
+      handledFocusedLoadRef.current = null;
+      scrolledFocusedLoadRef.current = null;
+      return;
+    }
+    if (
+      (isLoading && drivers.length === 0) ||
+      handledFocusedLoadRef.current === focusedLoadId
+    ) {
+      return;
+    }
+
+    const targetDriver = (allDrivers ?? drivers).find((driver) =>
+      (driver.shipments ?? []).some(
+        (shipment) => String(shipment.id) === String(focusedLoadId),
+      ),
+    );
+    if (!targetDriver) return;
+
+    handledFocusedLoadRef.current = focusedLoadId;
+    setViewDriver(targetDriver);
+  }, [allDrivers, drivers, focusedLoadId, isLoading]);
+
+  React.useEffect(() => {
+    if (
+      !focusedLoadId ||
+      !currentViewDriver ||
+      scrolledFocusedLoadRef.current === focusedLoadId
+    ) {
+      return;
+    }
+    const containsLoad = (currentViewDriver.shipments ?? []).some(
+      (shipment) => String(shipment.id) === String(focusedLoadId),
+    );
+    if (!containsLoad) return;
+
+    let secondFrame: number | null = null;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = focusedLoadRefs.current.get(focusedLoadId);
+        if (!target) return;
+        scrolledFocusedLoadRef.current = focusedLoadId;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.focus({ preventScroll: true });
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [currentViewDriver, focusedLoadId]);
+
   const [removing, setRemoving] = React.useState<string | null>(null);
   const [reassigning, setReassigning] = React.useState<string | null>(null);
   const [keepingAssigned, setKeepingAssigned] = React.useState<string | null>(null);
@@ -285,8 +351,15 @@ export function DriverTrackerLoadsCard({
                 </div>
 
                 <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-1 sm:flex-wrap sm:items-center sm:justify-end">
-                  {shipments.length > 0 && shipments.map((s) => (
-                    <div key={s.id} className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/25 p-2 sm:justify-start sm:gap-1 sm:bg-transparent sm:p-0">
+                  {shipments.length > 0 && shipments.map((s) => {
+                    const isFocused = String(s.id) === String(focusedLoadId ?? "");
+                    return (
+                    <div
+                      key={s.id}
+                      className={`flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/25 p-2 transition-[background-color,box-shadow] sm:justify-start sm:gap-1 sm:bg-transparent sm:p-0 ${
+                        isFocused ? "bg-blue-500/[0.08] ring-2 ring-blue-500/40 sm:bg-blue-500/[0.08]" : ""
+                      }`}
+                    >
                       <Badge variant="outline" className="min-h-6 h-auto max-w-full whitespace-normal break-all px-2 py-1 text-xs sm:text-[10px] font-semibold leading-tight [overflow-wrap:anywhere] border-border/50">
                         <Package className="mr-0.5 size-2.5 shrink-0" />
                         {s.trackingNumber || s.id.slice(-6)}
@@ -299,13 +372,19 @@ export function DriverTrackerLoadsCard({
                           {s.status}
                         </Badge>
                       )}
+                      {s.requiresDispatchReconfirmation && (
+                        <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[9px] leading-tight text-amber-700 [overflow-wrap:anywhere] dark:text-amber-300">
+                          <AlertTriangle className="mr-0.5 size-2.5 shrink-0" />Review Required
+                        </Badge>
+                      )}
                       {(s as any).proofPending && (
                         <Badge className="min-h-5 h-auto whitespace-normal break-words border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-xs sm:text-[9px] leading-tight text-amber-600 [overflow-wrap:anywhere] animate-pulse dark:text-amber-400">
                           <Camera className="mr-0.5 size-2.5 shrink-0" />Proof
                         </Badge>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                   <Button
                     size="sm"
                     variant="outline"
@@ -371,8 +450,22 @@ export function DriverTrackerLoadsCard({
               </div>
             )}
 
-            {currentViewDriver?.shipments?.map((shipment) => (
-              <div key={shipment.id} className="rounded-xl border border-border/40 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-sm sm:p-4">
+            {currentViewDriver?.shipments?.map((shipment) => {
+              const isFocused = String(shipment.id) === String(focusedLoadId ?? "");
+              return (
+              <div
+                key={shipment.id}
+                ref={(node) => {
+                  if (node) focusedLoadRefs.current.set(String(shipment.id), node);
+                  else focusedLoadRefs.current.delete(String(shipment.id));
+                }}
+                tabIndex={isFocused ? -1 : undefined}
+                className={`rounded-xl border border-border/40 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-sm sm:p-4 ${
+                  isFocused
+                    ? "border-blue-500/55 bg-blue-500/[0.06] ring-2 ring-blue-500/45 ring-offset-2 ring-offset-background"
+                    : ""
+                }`}
+              >
                 <div
                   className="flex min-w-0 cursor-pointer flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
                   onClick={() => {
@@ -415,6 +508,31 @@ export function DriverTrackerLoadsCard({
                     <ExternalLink className="hidden size-3.5 shrink-0 text-muted-foreground/40 sm:block" />
                   </div>
                 </div>
+
+                {shipment.requiresDispatchReconfirmation && (
+                  <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs leading-relaxed text-muted-foreground">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="font-bold text-foreground">Assignment Review Required</p>
+                        <p>Material load information changed after assignment, or responsible dispatcher ownership needs reconfirmation. Driver acceptance remains blocked until Dispatch reviews the current version.</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 min-h-10 gap-1.5 border-amber-500/30 bg-background text-xs font-bold text-amber-800 hover:bg-amber-500/10 dark:text-amber-300"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setReconfirmShipment(shipment);
+                          }}
+                        >
+                          <RefreshCw className="size-3.5" />
+                          Review Updated Assignment
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {shipment.releaseRequest?.status === "pending" && (
                   <div className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3 text-xs leading-relaxed text-muted-foreground">
@@ -489,7 +607,8 @@ export function DriverTrackerLoadsCard({
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>
@@ -654,6 +773,19 @@ export function DriverTrackerLoadsCard({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AssignmentReconfirmDialog
+        open={reconfirmShipment !== null}
+        onOpenChange={(open) => {
+          if (!open) setReconfirmShipment(null);
+        }}
+        loadId={reconfirmShipment?.id ?? null}
+        loadLabel={reconfirmShipment?.trackingNumber}
+        onConfirmed={async () => {
+          await onAssignmentReconfirmed?.();
+          setReconfirmShipment(null);
+        }}
+      />
     </>
   );
 }

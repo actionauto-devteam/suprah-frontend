@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -329,6 +329,8 @@ export function TransportationMobileLoadCard({
   // not each load record's historical postType. Otherwise cards inside the
   // same Board can render different metric order/hierarchy.
   const isLoadBoard = presentation === "load-board";
+  const isDirectAssignment = load.postType === "assign-carrier";
+  const pricingEnabled = load.pricing?.isPricingEnabled !== false;
   const schedule = getMobileLoadSchedulePresentation(load);
   const currentJourney = normalizeJourney(load.status);
   const deleteBlocked = load.status === "In-Transit";
@@ -555,11 +557,11 @@ export function TransportationMobileLoadCard({
               />
 
               <MobileSupportMetric
-                title="Carrier Pay"
+                title={isDirectAssignment ? "Total Driver Pay" : "Carrier Pay"}
                 ariaLabel="View financial information"
                 onClick={(event) => openInspectorSection(event, "financials")}
                 icon={<DollarSign className="size-2.5 shrink-0 text-muted-foreground" />}
-                value={formatMobileLoadCurrency(load.pricing?.carrierPayAmount)}
+                value={pricingEnabled ? formatMobileLoadCurrency(load.pricing?.carrierPayAmount) : "Not provided"}
                 valueClassName="text-foreground"
                 tone="neutral"
               />

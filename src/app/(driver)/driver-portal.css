@@ -103,3 +103,58 @@
   .driver-sectioned-dashboard .driver-mobile-load-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; padding: .75rem 1rem 0; }
   .driver-sectioned-dashboard .driver-mobile-load-links a { display: flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .375rem; padding: .5rem; border: 1px solid var(--border); border-radius: .625rem; font-size: .8125rem; font-weight: 600; }
 }
+/* Profile header: identity above a shared, evenly aligned action row.
+   Scoped to the driver wrapper; the shared ProfileHeader remains unchanged. */
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 6.5rem;
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  gap: .5rem .875rem;
+  padding: 1rem;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > [class~="group/avatar"] {
+  grid-column: 1; grid-row: 1 / 3; align-self: start;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 {
+  display: contents;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > :first-child {
+  grid-column: 2 / -1; grid-row: 1; display: flex; flex-direction: row;
+  flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: .375rem .625rem;
+  min-width: 0; margin: 0; text-align: left;
+}
+.driver-workspace .driver-profile-header h1 { font-size: clamp(1.25rem, 2vw, 1.75rem); line-height: 1.2; margin: 0; }
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > p {
+  grid-column: 2 / -1; grid-row: 2; margin: 0; min-width: 0;
+  text-align: left; overflow-wrap: anywhere; word-break: normal; line-height: 1.5;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > div:last-child {
+  grid-column: 1 / 3; grid-row: 3; margin: .5rem 0 0; min-width: 0;
+  display: flex; justify-content: flex-start; gap: .5rem;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > div:last-child > button {
+  width: 100%; min-height: 2.75rem; justify-content: flex-start;
+  padding: .625rem .75rem; border-radius: .75rem; box-shadow: none;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > div:last-child > button > span {
+  max-width: none; min-width: 0; text-align: left; line-height: 1.4;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) {
+  grid-column: 3; grid-row: 3; align-self: start; margin-top: .5rem;
+  width: 100%; justify-content: stretch; gap: .5rem;
+}
+.driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) > button {
+  width: 100%; min-height: 2.75rem; height: auto; border-radius: .75rem;
+  margin: 0; padding: .625rem .75rem; justify-content: center; box-shadow: none;
+}
+.driver-workspace .driver-profile-header > div > .grid {
+  padding: .875rem 1rem; gap: .875rem 1rem; align-items: start;
+}
+@media (min-width: 640px) {
+  .driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) {
+    grid-template-columns: 5rem minmax(0, 1fr) 12rem;
+  }
+  .driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .flex-1 > div:last-child { grid-column: 2; }
+  .driver-workspace .driver-profile-header > div > .relative.w-full:not(.grid) > .shrink-0:not([class~="group/avatar"]) { flex-wrap: nowrap; }
+}

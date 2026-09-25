@@ -475,6 +475,31 @@ export function TransportationMobileLoadOverview({ load }: { load: Load }) {
         />
       </div>
 
+      {load.proofOfPickup?.imageUrl ? (
+        <section className="overflow-hidden rounded-xl border border-orange-500/30 bg-orange-500/[0.04]">
+          <div className="border-b border-orange-500/20 px-3.5 py-2.5">
+            <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300">
+              <ImageIcon className="size-3.5" /> Pickup Proof
+            </p>
+          </div>
+          <img
+            src={load.proofOfPickup.imageUrl}
+            alt="Pickup proof"
+            className="max-h-60 w-full object-contain bg-muted/20"
+          />
+          <div className="space-y-1 px-3.5 py-3">
+            <p className="text-[10px] font-semibold text-muted-foreground">
+              Submitted {formatDateTime(load.proofOfPickup.submittedAt)}
+            </p>
+            {load.proofOfPickup.note ? (
+              <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/85">
+                {load.proofOfPickup.note}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       {load.dates?.notes ? (
         <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
@@ -644,16 +669,20 @@ export function TransportationMobileLoadVehicles({ load }: { load: Load }) {
 }
 
 export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
+  const isDirectAssignment = load.postType === "assign-carrier";
+  const pricingEnabled = load.pricing?.isPricingEnabled !== false;
+  const primaryLabel = isDirectAssignment ? "Total Driver Pay" : "Carrier Pay";
+
   return (
     <div className="space-y-3.5">
       <section className="overflow-hidden rounded-2xl border border-emerald-500/40 bg-linear-to-br from-emerald-500/8 via-background to-cyan-500/4 p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-              Carrier Pay
+              {primaryLabel}
             </p>
             <p className="mt-1 break-words text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-              {formatMobileLoadCurrency(load.pricing?.carrierPayAmount)}
+              {pricingEnabled ? formatMobileLoadCurrency(load.pricing?.carrierPayAmount) : "Not provided"}
             </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-background/55 px-3 py-2.5">
@@ -669,36 +698,67 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
 
       <div className="grid grid-cols-2 gap-2">
         <DetailField
-          label="Carrier Pay"
-          value={formatMobileLoadCurrency(load.pricing?.carrierPayAmount)}
+          label={primaryLabel}
+          value={pricingEnabled ? formatMobileLoadCurrency(load.pricing?.carrierPayAmount) : "Not provided"}
           icon={<DollarSign className="size-3" />}
           emphasis
         />
-        <DetailField
-          label="COD / COP"
-          value={formatMobileLoadCurrency(load.pricing?.copCodAmount ?? 0)}
-          icon={<Banknote className="size-3" />}
-        />
-        <DetailField
-          label="Total Distance"
-          value={load.pricing?.miles != null ? `${Math.round(load.pricing.miles)} mi` : "—"}
-          icon={<Route className="size-3" />}
-        />
-        <DetailField
-          label="Price / Mile"
-          value={load.pricing?.pricePerMile != null ? `$${load.pricing.pricePerMile.toFixed(2)}/mi` : "—"}
-          icon={<Gauge className="size-3" />}
-        />
-        <DetailField
-          label="Estimated Market Rate"
-          value={formatMobileLoadCurrency(load.pricing?.estimatedRate)}
-          icon={<Gauge className="size-3" />}
-        />
-        <DetailField
-          label="Balance"
-          value={formatMobileLoadCurrency(load.pricing?.balanceAmount)}
-          icon={<CircleDollarSign className="size-3" />}
-        />
+
+        {!pricingEnabled ? (
+          <>
+            <DetailField
+              label="Pricing Entry"
+              value="Not provided"
+              icon={<DollarSign className="size-3" />}
+            />
+            <DetailField
+              label="Total Distance"
+              value={load.pricing?.miles != null ? `${Math.round(load.pricing.miles)} mi` : "—"}
+              icon={<Route className="size-3" />}
+            />
+          </>
+        ) : isDirectAssignment ? (
+          <>
+            <DetailField
+              label="Total Distance"
+              value={load.pricing?.miles != null ? `${Math.round(load.pricing.miles)} mi` : "—"}
+              icon={<Route className="size-3" />}
+            />
+            <DetailField
+              label="Pricing Visibility"
+              value={load.pricing?.isVisibleToDriver === false ? "Hidden from driver" : "Visible to driver"}
+              icon={<DollarSign className="size-3" />}
+            />
+          </>
+        ) : (
+          <>
+            <DetailField
+              label="COD / COP"
+              value={formatMobileLoadCurrency(load.pricing?.copCodAmount ?? 0)}
+              icon={<Banknote className="size-3" />}
+            />
+            <DetailField
+              label="Total Distance"
+              value={load.pricing?.miles != null ? `${Math.round(load.pricing.miles)} mi` : "—"}
+              icon={<Route className="size-3" />}
+            />
+            <DetailField
+              label="Price / Mile"
+              value={load.pricing?.pricePerMile != null ? `$${load.pricing.pricePerMile.toFixed(2)}/mi` : "—"}
+              icon={<Gauge className="size-3" />}
+            />
+            <DetailField
+              label="Estimated Market Rate"
+              value={formatMobileLoadCurrency(load.pricing?.estimatedRate)}
+              icon={<Gauge className="size-3" />}
+            />
+            <DetailField
+              label="Balance"
+              value={formatMobileLoadCurrency(load.pricing?.balanceAmount)}
+              icon={<CircleDollarSign className="size-3" />}
+            />
+          </>
+        )}
       </div>
 
       <div className="rounded-xl border border-border/60 bg-muted/20 px-3.5 py-3">
@@ -706,7 +766,11 @@ export function TransportationMobileLoadFinancials({ load }: { load: Load }) {
           Financial Context
         </p>
         <p className="mt-1.5 break-words text-[11px] leading-relaxed text-muted-foreground">
-          Values shown here come from this load&apos;s saved pricing information. Missing amounts are displayed as unavailable rather than estimated.
+          {!pricingEnabled
+            ? "Dispatch intentionally skipped pricing for this load. Pricing can be added later from Edit Load."
+            : isDirectAssignment
+              ? "Total Driver Pay is the final amount entered by Dispatch for this load and is not recalculated from mileage."
+              : "Values shown here come from this load's saved pricing information. Missing amounts are displayed as unavailable rather than estimated."}
         </p>
       </div>
     </div>

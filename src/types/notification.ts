@@ -40,6 +40,8 @@ export type NotificationType =
   | 'driver_request_approved'
   | 'driver_request_rejected'
   | 'driver_assigned'
+  | 'load_accepted'
+  | 'load_amendment_acknowledged'
   | 'driver_location_update'
   | 'driver_payout'
   | 'payment_received'

@@ -130,6 +130,10 @@ export interface LoadPricingInput {
   pricePerMile?: number;
   carrierPayAmount?: number;
   copCodAmount?: number;
+  /** Missing/true = pricing is part of this load; false = Dispatch intentionally skipped pricing. */
+  isPricingEnabled?: boolean;
+  /** Controls whether driver-facing APIs may expose compensation when pricing is enabled. */
+  isVisibleToDriver?: boolean;
 }
 
 export const TRAILER_TYPE_OPTIONS: Array<{

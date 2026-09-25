@@ -674,23 +674,53 @@ export const generateLoadPDF = async (
 
   drawRoundedCard(marginX, y, financeLeftWidth, financeHeight);
 
-  const financeRows = [
-    {
-      label: "Carrier Pay",
-      value: formatCurrency(load.pricing?.carrierPayAmount),
-    },
-    {
-      label: "COP/COD",
-      value:
-        load.pricing?.copCodAmount != null
-          ? formatCurrency(load.pricing.copCodAmount)
-          : "None",
-    },
-    {
-      label: "Payment",
-      value: "Direct Deposit",
-    },
-  ];
+  const isDirectAssignment = load.postType === "assign-carrier";
+  const pricingEnabled = load.pricing?.isPricingEnabled !== false;
+  const pricingVisibleToDriver = load.pricing?.isVisibleToDriver !== false;
+  const displayedPay = !pricingEnabled
+    ? "Pricing not provided"
+    : pricingVisibleToDriver
+      ? formatCurrency(load.pricing?.carrierPayAmount)
+      : "Pricing hidden";
+  const financeRows = isDirectAssignment
+    ? [
+        {
+          label: "Total Driver Pay",
+          value: displayedPay,
+        },
+        {
+          label: "Pricing Visibility",
+          value: !pricingEnabled
+            ? "Not applicable"
+            : load.pricing?.isVisibleToDriver === false
+              ? "Hidden from driver"
+              : "Visible to driver",
+        },
+        {
+          label: "Payment",
+          value: "Direct Deposit",
+        },
+      ]
+    : [
+        {
+          label: "Carrier Pay",
+          value: displayedPay,
+        },
+        {
+          label: "COP/COD",
+          value: !pricingEnabled
+            ? "Not provided"
+            : pricingVisibleToDriver
+              ? load.pricing?.copCodAmount != null
+                ? formatCurrency(load.pricing.copCodAmount)
+                : "None"
+              : "Pricing hidden",
+        },
+        {
+          label: "Payment",
+          value: "Direct Deposit",
+        },
+      ];
 
   drawCompactRows(
     financeRows,
@@ -732,7 +762,7 @@ export const generateLoadPDF = async (
   pdf.setFont(F.heading, "bold");
   pdf.setFontSize(8);
   pdf.text(
-    "TOTAL TRANSPORT RATE",
+    isDirectAssignment ? "TOTAL DRIVER PAY" : "TOTAL TRANSPORT RATE",
     totalRateX + totalRateWidth / 2,
     y + 6,
     { align: "center" },
@@ -741,17 +771,19 @@ export const generateLoadPDF = async (
   pdf.setFont(F.medium, F.medium === "Inter" ? "medium" : "bold");
   pdf.setFontSize(16.5);
   pdf.text(
-    formatCurrency(load.pricing?.carrierPayAmount),
+    displayedPay,
     totalRateX + totalRateWidth / 2,
     y + 21.2,
     { align: "center" },
   );
 
-  pdf.setFont(F.body, "normal");
-  pdf.setFontSize(7.4);
-  pdf.text("USD", totalRateX + totalRateWidth / 2, y + 28.2, {
-    align: "center",
-  });
+  if (pricingEnabled && pricingVisibleToDriver) {
+    pdf.setFont(F.body, "normal");
+    pdf.setFontSize(7.4);
+    pdf.text("USD", totalRateX + totalRateWidth / 2, y + 28.2, {
+      align: "center",
+    });
+  }
 
   // ─── Footer ────────────────────────────────────────────────────────────────
   const footerY = pageHeight - 10;
