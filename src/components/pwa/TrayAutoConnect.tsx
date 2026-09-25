@@ -1,88 +1,100 @@
 "use client"
 
 import * as React from "react"
+import { getActiveTrayToken, pushTokenToTray } from "@/lib/trayConnection"
 
-const TRAY_AUTH_URL = "http://127.0.0.1:18642/auth"
-const RETRY_INTERVAL_MS = 10_000
-// After enough consecutive failures (Chrome's Private Network Access blocking
-// this fetch outright on browsers/tray versions that don't support it yet,
-// or the tray genuinely not running), back off to a slower cadence — retrying
-// every 10s forever floods devtools with an unsuppressable browser-level CORS
-// log line on every attempt (can't be silenced from application code) without
-// actually getting closer to connecting.
-const BACKOFF_AFTER_FAILURES = 6
-const BACKOFF_INTERVAL_MS = 120_000
-// Once connected, keep re-posting at this slower cadence instead of stopping forever — a tab
-// left open past the token's ~12h expiry used to leave the tray holding a dead token
-// indefinitely (nothing else re-triggers handleTrayAuth on the tray side), silently breaking
-// heartbeat/screenshots/clock-in until the user did a full page reload. Safe to repost this
-// often: the tray's handleTrayAuth treats a same-token post as an instant no-op, and validates
-// any different token against the backend before ever touching its current session.
-const KEEPALIVE_INTERVAL_MS = 5 * 60_000
+const FAST_INTERVAL_MS = 3_000
+const FAST_ATTEMPTS = 5
+const SLOW_INTERVAL_MS = 10_000
+const SLOW_FAILURE_LIMIT = 15
+const CAPPED_INTERVAL_MS = 20_000
+const KEEPALIVE_INTERVAL_MS = 60_000
+const TOKEN_WATCH_INTERVAL_MS = 2_000
 
-function getActiveToken(): string | null {
-  if (typeof window === "undefined") return null
-  const crmToken = localStorage.getItem("crm_token")
-  if (crmToken) return crmToken
-  return (window as any).__AUTH_TOKEN__ || null
-}
-
-/**
- * Silently hands the current session's token to the desktop tray app the
- * moment it becomes reachable on localhost — no manual sign-in inside the
- * tray app itself. Mounted once at the root layout so it runs app-wide
- * (not just on TimeProof pages) and works for either a CRM session or a
- * main-system session, whichever is active.
- */
 export function TrayAutoConnect() {
-  const connectedRef = React.useRef(false)
-  const failureCountRef = React.useRef(0)
-
   React.useEffect(() => {
     let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout>
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let inFlight = false
+    let connected = false
+    let failures = 0
+    let lastToken: string | null = null
 
-    const scheduleNext = () => {
+    const nextDelay = () => {
+      if (connected) return KEEPALIVE_INTERVAL_MS
+      if (failures < FAST_ATTEMPTS) return FAST_INTERVAL_MS
+      if (failures < SLOW_FAILURE_LIMIT) return SLOW_INTERVAL_MS
+      return CAPPED_INTERVAL_MS
+    }
+
+    const schedule = () => {
       if (cancelled) return
-      const delay = connectedRef.current
-        ? KEEPALIVE_INTERVAL_MS
-        : failureCountRef.current >= BACKOFF_AFTER_FAILURES ? BACKOFF_INTERVAL_MS : RETRY_INTERVAL_MS
-      timeoutId = setTimeout(attempt, delay)
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(attempt, nextDelay())
     }
 
     const attempt = async () => {
-      if (cancelled) { scheduleNext(); return }
-      const token = getActiveToken()
-      if (!token) { scheduleNext(); return }
+      if (cancelled || inFlight) return
+      inFlight = true
       try {
-        const res = await fetch(TRAY_AUTH_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-          signal: AbortSignal.timeout(2000),
-        })
-        if (res.ok) {
-          connectedRef.current = true
-          failureCountRef.current = 0
+        const token = getActiveTrayToken()
+        lastToken = token
+        if (!token) return
+        const result = await pushTokenToTray(token)
+        if (cancelled) return
+        if (result === "connected") {
+          connected = true
+          failures = 0
         } else {
-          // Was connected, now failing (e.g. tray restarted for an auto-update) — drop back to
-          // the fast retry cadence instead of silently staying dormant at the slow keep-alive
-          // interval until this tab is reloaded.
-          connectedRef.current = false
-          failureCountRef.current += 1
+          connected = false
+          failures += 1
         }
-      } catch {
-        // Tray app not running (yet/anymore), or the browser blocked this loopback
-        // fetch outright (Private Network Access) — either way, back off
-        // after repeated failures instead of retrying every 10s forever.
-        connectedRef.current = false
-        failureCountRef.current += 1
+      } finally {
+        inFlight = false
+        schedule()
       }
-      scheduleNext()
     }
 
+    const pushNow = () => {
+      if (cancelled) return
+      clearTimeout(timeoutId)
+      attempt()
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") pushNow()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === "crm_token") {
+        failures = 0
+        pushNow()
+      }
+    }
+
+    const tokenWatcher = setInterval(() => {
+      const current = getActiveTrayToken()
+      if (current && current !== lastToken) {
+        failures = 0
+        pushNow()
+      }
+    }, TOKEN_WATCH_INTERVAL_MS)
+
+    document.addEventListener("visibilitychange", onVisibility)
+    window.addEventListener("focus", pushNow)
+    window.addEventListener("online", pushNow)
+    window.addEventListener("storage", onStorage)
+
     attempt()
-    return () => { cancelled = true; clearTimeout(timeoutId) }
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+      clearInterval(tokenWatcher)
+      document.removeEventListener("visibilitychange", onVisibility)
+      window.removeEventListener("focus", pushNow)
+      window.removeEventListener("online", pushNow)
+      window.removeEventListener("storage", onStorage)
+    }
   }, [])
 
   return null

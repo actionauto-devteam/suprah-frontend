@@ -420,7 +420,11 @@ export function LocationInfoPanel({
                 return <Chip icon={signal.icon} label="Signal" value={signal.label} iconClassName={signal.className} />;
               })()}
               {loc.deviceType && (
-                <Chip icon={loc.deviceType === "mobile" ? Smartphone : Monitor} label="Device" value={loc.deviceType === "mobile" ? "Phone" : "Computer"} />
+                <Chip
+                  icon={loc.deviceType === "mobile" ? Smartphone : Monitor}
+                  label="Device"
+                  value={loc.deviceType === "mobile" ? "Phone" : loc.locationSource === "tray" ? "Computer (tray)" : "Computer"}
+                />
               )}
               {/* Only counts while actually sharing — otherwise this kept showing "stayed put"
                   off a stale last-known anchor from before sharing stopped. */}

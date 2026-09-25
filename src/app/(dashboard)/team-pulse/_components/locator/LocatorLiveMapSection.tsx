@@ -212,7 +212,7 @@ function buildPopupHtml(
     typeof loc.speedMph === "number" ? popupChip(pal, "Speed", `${loc.speedMph} mph`) : null,
     typeof loc.batteryLevel === "number" ? popupChip(pal, "Battery", `${loc.batteryLevel}%${loc.isCharging ? " ⚡" : ""}`) : null,
     loc.sharingState === "sharing" ? popupChip(pal, "Signal", signal.label) : null,
-    loc.deviceType ? popupChip(pal, "Device", loc.deviceType === "mobile" ? "📱 Phone" : "💻 Computer") : null,
+    loc.deviceType ? popupChip(pal, "Device", loc.deviceType === "mobile" ? "📱 Phone" : loc.locationSource === "tray" ? "💻 Computer (tray)" : "💻 Computer") : null,
     distanceMi !== null ? popupChip(pal, "Distance", `${formatDistanceMi(distanceMi)} away`) : null,
     gpsAccuracy,
   ].filter((c): c is string => !!c);
@@ -733,6 +733,7 @@ export function LocatorLiveMapSection({
           loc.batteryLevel ?? "",
           loc.isCharging ? "1" : "0",
           loc.deviceType ?? "",
+          loc.locationSource ?? "",
           loc.sharingSince ?? "",
           loc.drivingSessionId ?? "",
           theme,
