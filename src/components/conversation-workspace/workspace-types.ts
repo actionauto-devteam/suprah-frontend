@@ -23,7 +23,7 @@ export interface WorkspaceContact {
 
 export interface WorkspaceActivityItem {
   id: string;
-  kind: "inquiry" | "note" | "status" | "call" | "sms" | "email" | "communication";
+  kind: "inquiry" | "note" | "status" | "call" | "sms" | "email" | "webchat" | "communication";
   title: string;
   description?: string;
   createdAt?: string | Date;

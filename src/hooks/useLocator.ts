@@ -60,6 +60,7 @@ export interface ActiveEmployeeLocation {
     connectionType?: string;
     effectiveType?: string;
     deviceType?: 'mobile' | 'desktop';
+    locationSource?: 'tray';
     currentPlaceId?: string;
     drivingSessionId?: string;
     lastSeenAt: string;

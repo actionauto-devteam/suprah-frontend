@@ -700,18 +700,37 @@ function insertSoftLineBreakWithCaretFormatting(
 ): boolean {
   root.focus();
 
-  const inserted = document.execCommand('insertLineBreak');
-  if (!inserted) {
-    document.execCommand('insertHTML', false, '<br>');
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    return false;
   }
 
-  insertTypingStyleCaretMarker(
+  range.deleteContents();
+  const br = document.createElement('br');
+  range.insertNode(br);
+
+  const nextRange = document.createRange();
+  nextRange.setStartAfter(br);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+
+  if (insertTypingStyleCaretMarker(
     root,
     fontFamily,
     fontSize,
     inlineFormats,
     color,
-  );
+  )) return true;
+
+  const marker = document.createTextNode('\u200B');
+  nextRange.insertNode(marker);
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
   return true;
 }
 
@@ -904,7 +923,7 @@ const MEDIA_LABELS: Record<string, string> = {
 const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) =>
+  return text.replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) =>
     inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
   );
 }
@@ -1021,11 +1040,9 @@ function normalizePastedListArtifacts(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   return normalizeListExitLineSpacing(
-    normalizePastedListArtifacts(
-      text
-        .replace(/\r\n?/g, '\n')
-        .replace(/\u00a0/g, ' '),
-    ),
+    text
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
   ).trim();
 }
 
@@ -1062,8 +1079,6 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
   const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
     .replace(/\n{4,}/g, '\n\n\n');
 }
 
@@ -1151,7 +1166,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (bullet) {
           const depth = depthFrom(bullet[1], bullet[2]);
           return (
-            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
+            <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
               <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`)}</span>
             </span>
@@ -1162,7 +1177,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (numbered) {
           const depth = depthFrom(numbered[1]);
           return (
-            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7, marginTop: index > 0 ? 4 : 0 }}>
+            <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
               <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`)}</span>
             </span>
@@ -2039,6 +2054,7 @@ function sanitizePastedEditorHtmlForTheme(html: string): string {
     element.style.removeProperty('background-color');
     element.style.removeProperty('background-image');
     element.style.removeProperty('text-shadow');
+    element.removeAttribute('bgcolor');
 
     if (!element.getAttribute('style')?.trim()) {
       element.removeAttribute('style');
@@ -3958,13 +3974,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setQuickReactMsgId(null); setQuickReactPos(null);
   };
 
+  const applyMessageReactions = React.useCallback((messageId: string, reactions: SSMessage['reactions']) => {
+    if (!Array.isArray(reactions)) return;
+    setMessages(prev => prev.map(message => message._id === messageId ? { ...message, reactions } : message));
+  }, []);
+
   // ── Actions ──
   const handleReact = async (messageId: string, emoji: string) => {
     clearBar();
     try {
-      await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
+      const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
-    } catch { /* best-effort */ }
+      applyMessageReactions(messageId, response.data?.data?.reactions);
+    } catch {
+      toast.error('Could not update reaction. Please try again.');
+    }
   };
 
   const handleDelete = async (msgId: string) => {
@@ -4388,7 +4412,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : editDraft.trim();
+    const editor = editAreaRef.current;
+    const serialized = editor ? htmlToMarkdown(editor) : editDraft;
+    const visibleText = editor?.innerText || editDraft;
+    const next = normalizeMessageMarkdownText(
+      canonicalizeColorMarkup(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serialized, visibleText),
+          visibleText,
+        ),
+      ),
+    );
     setEditDraft(next);
     return next;
   }, [editDraft]);
@@ -5156,6 +5190,19 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [socket, conv._id]);
   React.useEffect(() => {
     if (!socket) return;
+    const handler = ({ conversationId, messageId, reactions }: {
+      conversationId: string;
+      messageId: string;
+      reactions: SSMessage['reactions'];
+    }) => {
+      if (conversationId !== conv._id) return;
+      applyMessageReactions(messageId, reactions);
+    };
+    socket.on('message:reaction', handler);
+    return () => { socket.off('message:reaction', handler); };
+  }, [socket, conv._id, applyMessageReactions]);
+  React.useEffect(() => {
+    if (!socket) return;
     const handler = ({ conversationId, messageId, content, attachments, type }: {
       conversationId: string;
       messageId: string;
@@ -5633,6 +5680,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   ]);
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
+    const inputEvent = event.nativeEvent as InputEvent;
+    if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') return;
     const inserted = insertPreselectedTypographyText(
       event,
       composerFontFamilyChosen ? composerFontFamily : null,
@@ -5950,7 +5999,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ref={popupShellRef}
         data-chat-popup-shell="true"
         className="fixed bottom-0 z-50 rounded-t-xl border border-border/60 bg-card shadow-2xl"
-        style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column', width: POPUP_W, right: rightPx, height: POPUP_H }}
+        style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column', width: POPUP_W, right: rightPx, height: POPUP_H, maxHeight: '100dvh' }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -6933,8 +6982,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                 ))}
               </div>
-              <div className="flex min-w-0 items-center gap-1 px-2 py-1.5">
-                {/* Left icon buttons */}
+              <div className="flex min-w-0 flex-col gap-1 px-2 py-1.5">
+                <div className="flex min-w-0 items-center gap-1">
                 <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
                 <div className="relative shrink-0" ref={attachMenuRef}>
                   <button title="Add" onClick={() => setAttachMenuOpen(v => !v)}
@@ -6984,9 +7033,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 >
                   {recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4.5 w-4.5" />}
                 </button>
+                </div>
 
-                {/* Text input */}
-                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-full px-3" style={{ minHeight: 34 }}>
+                <div className="flex min-w-0 items-end gap-1">
+                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-2xl px-3" style={{ minHeight: 34 }}>
                   {!composerHasText && (
                     <span className="absolute left-3 text-[15px] text-muted-foreground/55 pointer-events-none select-none">Aa</span>
                   )}
@@ -7002,6 +7052,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       );
                       handleTyping(event);
                       rememberComposerSelection();
+                    }}
+                    onCompositionEnd={event => {
+                      syncComposerText(event.currentTarget.innerText.replace(/\n$/, ''), true);
                     }}
                     onFocus={() => {
                       rememberComposerSelection();
@@ -7061,14 +7114,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       });
                     }}
                     onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionAnchor(-1); }, 150)}
+                    aria-label="Message. Press Shift+Enter for a new line and Enter to send."
+                    title="Shift+Enter for a new line · Enter to send"
                     className="w-full min-w-0 max-w-full overflow-x-hidden outline-none"
                     style={{ fontSize: 15, minHeight: '1.25rem', maxHeight: 80, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4', caretColor: 'var(--foreground)' }}
                   />
                 </div>
 
-                {/* Right buttons */}
                 {composerHasText || pendingAttachments.length > 0 || pendingGif ? (
-                  <button title="Send" onClick={handleSend} disabled={sending}
+                  <button title="Send (Enter)" onClick={handleSend} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
@@ -7080,6 +7134,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     ) : <ThumbsUp className="h-4 w-4" />}
                   </button>
                 )}
+                </div>
               </div>
               </>
               )}

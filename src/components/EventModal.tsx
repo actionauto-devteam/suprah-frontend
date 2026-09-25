@@ -258,7 +258,7 @@ export function EventModal({
     : "Create a new calendar item.";
 
   const bodyContent = (
-    <div className="relative">
+    <div className="relative min-w-0 max-w-full">
       {isAppointment && (
         <p className="mb-4 rounded-lg border border-teal-400/35 bg-teal-400/10 p-3 text-xs text-teal-100">
           This is an appointment from the Appointment Page. Edit it there to
@@ -340,8 +340,8 @@ export function EventModal({
       </div>
 
       {/* Timing */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
+      <div className="mb-4 grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 max-w-full">
           <label className={label} htmlFor="sc-start">Starts ({calendarTzLabel()})</label>
           <DateTimePicker
             id="sc-start"
@@ -352,7 +352,7 @@ export function EventModal({
             popoverClassName={dateTimePopover}
           />
         </div>
-        <div>
+        <div className="min-w-0 max-w-full">
           <label className={label} htmlFor="sc-end">Ends ({calendarTzLabel()})</label>
           <DateTimePicker
             id="sc-end"
@@ -591,16 +591,16 @@ export function EventModal({
       <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
         <SheetContent
           side="bottom"
-          className="flex h-[92dvh] max-h-[calc(100dvh-env(safe-area-inset-top))] flex-col gap-0 overflow-hidden rounded-t-2xl border-slate-700 bg-slate-950 p-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] text-slate-100 shadow-2xl [&_[data-slot=sheet-close]]:text-slate-300 [&_[data-slot=sheet-close]]:hover:bg-slate-800"
+          className="flex h-[92dvh] w-full min-w-0 max-w-full max-h-[calc(100dvh-env(safe-area-inset-top))] flex-col gap-0 overflow-hidden rounded-t-2xl border-slate-700 bg-slate-950 p-0 text-slate-100 shadow-2xl [&_[data-slot=sheet-close]]:text-slate-300 [&_[data-slot=sheet-close]]:hover:bg-slate-800"
         >
           <SheetHeader className="shrink-0 border-b border-slate-700 px-4 py-3 text-left">
             <SheetTitle className="text-base font-semibold text-slate-50">{modalTitle}</SheetTitle>
             <SheetDescription className="sr-only">{modalDescription}</SheetDescription>
           </SheetHeader>
 
-          <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 py-4">{bodyContent}</div>
+          <div className="min-h-0 min-w-0 max-w-full flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 py-4">{bodyContent}</div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-700 bg-slate-900/80 px-4 py-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-700 bg-slate-900/80 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
             {footerActions}
           </div>
         </SheetContent>

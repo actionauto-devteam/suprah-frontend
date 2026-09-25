@@ -6,11 +6,13 @@ import {
     Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
 
-    AlertTriangle, Copy, Key, RefreshCw, HeartHandshake, Building2
+    AlertTriangle, Copy, Key, RefreshCw, HeartHandshake, Building2, Star, Plus, X, MapPin, MessageCircle
 
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
@@ -23,6 +25,12 @@ interface CrmUserData {
   email: string;
   avatar?: string;
   role: string;
+  organizationId?: string;
+}
+
+interface ReviewLinkRow {
+  location: string;
+  url: string;
 }
 
 interface OrgLeadConfig {
@@ -39,6 +47,10 @@ interface OrgLeadConfig {
 export default function IntegrationsSettingsPage() {
   const router = useRouter();
   const { getToken } = useAuth();
+  const getTokenRef = React.useRef(getToken);
+  React.useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
   const [user, setUser] = React.useState<CrmUserData | null>(null);
   const [token, setToken] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);
@@ -47,6 +59,17 @@ export default function IntegrationsSettingsPage() {
   const [sourceEmailInput, setSourceEmailInput] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
   const [copiedField, setCopiedField] = React.useState<"webhook" | "secret" | null>(null);
+  const [reviewLinkInput, setReviewLinkInput] = React.useState("");
+  const [savedReviewLink, setSavedReviewLink] = React.useState("");
+  const [reviewLinksInput, setReviewLinksInput] = React.useState<ReviewLinkRow[]>([]);
+  const [savedReviewLinksSnapshot, setSavedReviewLinksSnapshot] = React.useState("[]");
+  const [isSavingReviewLink, setIsSavingReviewLink] = React.useState(false);
+  const [vehicleLocations, setVehicleLocations] = React.useState<string[]>([]);
+  const [webchatEnabled, setWebchatEnabled] = React.useState(true);
+  const [savedWebchatEnabled, setSavedWebchatEnabled] = React.useState(true);
+  const [webchatGreeting, setWebchatGreeting] = React.useState("");
+  const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
+  const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
   const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
@@ -71,6 +94,40 @@ export default function IntegrationsSettingsPage() {
         setConfig(configData);
         if (configData.leadSourceEmail) {
           setSourceEmailInput(configData.leadSourceEmail);
+        }
+
+        try {
+          const settingsRes = await apiClient.get("/api/crm/org-settings", {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          const settingsData = settingsRes.data?.data || settingsRes.data;
+          const link = settingsData?.reviewLink || "";
+          const links: ReviewLinkRow[] = Array.isArray(settingsData?.reviewLinks)
+            ? settingsData.reviewLinks
+            : [];
+          setReviewLinkInput(link);
+          setSavedReviewLink(link);
+          setReviewLinksInput(links);
+          setSavedReviewLinksSnapshot(JSON.stringify(links));
+          const enabled = settingsData?.webchatEnabled !== false;
+          const greeting = settingsData?.webchatGreeting || "";
+          setWebchatEnabled(enabled);
+          setSavedWebchatEnabled(enabled);
+          setWebchatGreeting(greeting);
+          setSavedWebchatGreeting(greeting);
+        } catch (settingsError) {
+          console.error("Failed to fetch organization settings:", settingsError);
+        }
+
+        try {
+          const mainToken = await getTokenRef.current();
+          const filtersRes = await apiClient.get("/api/vehicles/filters", {
+            headers: { Authorization: `Bearer ${mainToken}` },
+          });
+          const filtersData = filtersRes.data?.data || filtersRes.data;
+          setVehicleLocations(Array.isArray(filtersData?.locations) ? filtersData.locations : []);
+        } catch (filtersError) {
+          console.error("Failed to fetch vehicle locations:", filtersError);
         }
       } catch (error) {
         console.error("Initialization failed:", error);
@@ -190,6 +247,89 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSaving(false)
+        }
+    }
+
+    const addReviewLinkRow = () => {
+        setReviewLinksInput(prev => [...prev, { location: "", url: "" }])
+    }
+
+    const updateReviewLinkRow = (index: number, field: keyof ReviewLinkRow, value: string) => {
+        setReviewLinksInput(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row))
+    }
+
+    const removeReviewLinkRow = (index: number) => {
+        setReviewLinksInput(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const reviewSettingsDirty =
+        reviewLinkInput.trim() !== savedReviewLink ||
+        JSON.stringify(reviewLinksInput) !== savedReviewLinksSnapshot
+
+    const handleSaveReviewLink = async () => {
+        if (!isAdmin) return
+        setIsSavingReviewLink(true)
+        try {
+            const t = await getToken()
+            const cleanedRows = reviewLinksInput
+                .map(row => ({ location: row.location.trim(), url: row.url.trim() }))
+                .filter(row => row.location && row.url)
+            const res = await apiClient.patch(
+                "/api/crm/org-settings",
+                { reviewLink: reviewLinkInput.trim(), reviewLinks: cleanedRows },
+                { headers: { Authorization: `Bearer ${t}` } },
+            )
+            const saved = res.data?.data || res.data
+            const savedLinks: ReviewLinkRow[] = Array.isArray(saved?.reviewLinks) ? saved.reviewLinks : cleanedRows
+            setSavedReviewLink(reviewLinkInput.trim())
+            setReviewLinksInput(savedLinks)
+            setSavedReviewLinksSnapshot(JSON.stringify(savedLinks))
+            toast.success("Review settings saved", {
+                description: savedLinks.length > 0
+                    ? `Using ${savedLinks.length} location-specific link${savedLinks.length > 1 ? "s" : ""}, plus the default.`
+                    : reviewLinkInput.trim()
+                        ? "Completed-appointment texts will now include the default link."
+                        : "Review request texts will no longer include a link."
+            })
+        } catch (error) {
+            console.error("Failed to save review settings:", error)
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+            toast.error("Save failed", {
+                description: message || "Could not save the review settings. Please try again."
+            })
+        } finally {
+            setIsSavingReviewLink(false)
+        }
+    }
+
+    const webchatSettingsDirty =
+        webchatEnabled !== savedWebchatEnabled || webchatGreeting.trim() !== savedWebchatGreeting
+
+    const handleSaveWebchatSettings = async () => {
+        if (!isAdmin) return
+        setIsSavingWebchat(true)
+        try {
+            const t = await getToken()
+            await apiClient.patch(
+                "/api/crm/org-settings",
+                { webchatEnabled, webchatGreeting: webchatGreeting.trim() },
+                { headers: { Authorization: `Bearer ${t}` } },
+            )
+            setSavedWebchatEnabled(webchatEnabled)
+            setSavedWebchatGreeting(webchatGreeting.trim())
+            toast.success("Webchat settings saved", {
+                description: webchatEnabled
+                    ? "The chat widget is live on your public vehicle pages."
+                    : "The chat widget is now hidden from visitors."
+            })
+        } catch (error) {
+            console.error("Failed to save webchat settings:", error)
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+            toast.error("Save failed", {
+                description: message || "Could not save the webchat settings. Please try again."
+            })
+        } finally {
+            setIsSavingWebchat(false)
         }
     }
 
@@ -524,6 +664,188 @@ export default function IntegrationsSettingsPage() {
                                         >
                                             <Key className="h-3 w-3" />
                                             Regenerate Key
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        { }
+                        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                                        <Star className="h-5 w-5 text-amber-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold truncate">Review Requests</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">After a completed appointment, we text and email the customer asking for a review.</p>
+                                    </div>
+                                </div>
+                                {savedReviewLink && (
+                                    <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Link set
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <div className="p-4 sm:p-6 space-y-4">
+                                {!isAdmin && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can modify the review link.</p>
+                                    </div>
+                                )}
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Default review link</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">Paste your dealership&apos;s Google Business review link. Leaving this blank still sends a text asking how it went, just without a direct link.</p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <input
+                                            disabled={!isAdmin || isSavingReviewLink}
+                                            className="flex-1 h-10 rounded-xl border border-border/50 bg-background px-4 text-sm outline-none focus:border-amber-500/50 transition-colors disabled:opacity-50"
+                                            value={reviewLinkInput}
+                                            onChange={e => setReviewLinkInput(e.target.value)}
+                                            placeholder="https://g.page/r/your-dealership/review"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 max-w-xl pt-2 border-t border-border/30">
+                                    <div className="flex items-center gap-1.5 pt-3">
+                                        <MapPin className="h-3.5 w-3.5 text-amber-500" />
+                                        <label className="text-sm font-semibold text-foreground">Location-specific links (optional)</label>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">
+                                        Route the review link by which lot the vehicle came from — matched against the location already on each vehicle&apos;s listing. Falls back to the default link above when there&apos;s no match.
+                                    </p>
+
+                                    <datalist id="vehicle-location-options">
+                                        {vehicleLocations.map(loc => <option key={loc} value={loc} />)}
+                                    </datalist>
+
+                                    <div className="space-y-2 mt-2">
+                                        {reviewLinksInput.map((row, index) => (
+                                            <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                                <input
+                                                    disabled={!isAdmin || isSavingReviewLink}
+                                                    className="w-full sm:w-40 h-10 rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:border-amber-500/50 transition-colors disabled:opacity-50"
+                                                    value={row.location}
+                                                    onChange={e => updateReviewLinkRow(index, "location", e.target.value)}
+                                                    placeholder="e.g. Lehi"
+                                                    list="vehicle-location-options"
+                                                />
+                                                <input
+                                                    disabled={!isAdmin || isSavingReviewLink}
+                                                    className="flex-1 h-10 rounded-xl border border-border/50 bg-background px-4 text-sm outline-none focus:border-amber-500/50 transition-colors disabled:opacity-50"
+                                                    value={row.url}
+                                                    onChange={e => updateReviewLinkRow(index, "url", e.target.value)}
+                                                    placeholder="https://g.page/r/lehi-location/review"
+                                                />
+                                                {isAdmin && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        disabled={isSavingReviewLink}
+                                                        onClick={() => removeReviewLinkRow(index)}
+                                                        className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                                                        aria-label="Remove this location"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {isAdmin && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={isSavingReviewLink}
+                                            onClick={addReviewLinkRow}
+                                            className="h-8 rounded-lg text-xs font-semibold border-dashed gap-1.5 mt-1"
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                            Add location
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {isAdmin && (
+                                    <div className="pt-2">
+                                        <Button
+                                            onClick={handleSaveReviewLink}
+                                            disabled={isSavingReviewLink || !reviewSettingsDirty}
+                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                                        >
+                                            {isSavingReviewLink ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save review settings"}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        { }
+                        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0">
+                                        <MessageCircle className="h-5 w-5 text-cyan-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold truncate">Website Chat</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">The chat bubble on your public vehicle pages.</p>
+                                    </div>
+                                </div>
+                                <Badge className={webchatEnabled ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
+                                    {webchatEnabled ? "Live" : "Hidden"}
+                                </Badge>
+                            </div>
+
+                            <div className="p-4 sm:p-6 space-y-4">
+                                {!isAdmin && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can modify webchat settings.</p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between gap-3 max-w-xl">
+                                    <div className="min-w-0">
+                                        <label className="text-sm font-semibold text-foreground">Show the chat bubble</label>
+                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md mt-0.5">Turn this off to hide the chat widget from every visitor, without changing anything else.</p>
+                                    </div>
+                                    <Switch
+                                        checked={webchatEnabled}
+                                        onCheckedChange={setWebchatEnabled}
+                                        disabled={!isAdmin || isSavingWebchat}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Greeting message</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">Shown to visitors before your team replies. Leave blank to use the default greeting.</p>
+                                    <Textarea
+                                        disabled={!isAdmin || isSavingWebchat}
+                                        value={webchatGreeting}
+                                        onChange={e => setWebchatGreeting(e.target.value)}
+                                        rows={2}
+                                        maxLength={300}
+                                        placeholder="Thanks for reaching out! A team member will reply here soon."
+                                        className="resize-none"
+                                    />
+                                </div>
+
+                                {isAdmin && (
+                                    <div className="pt-2">
+                                        <Button
+                                            onClick={handleSaveWebchatSettings}
+                                            disabled={isSavingWebchat || !webchatSettingsDirty}
+                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                                        >
+                                            {isSavingWebchat ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save webchat settings"}
                                         </Button>
                                     </div>
                                 )}

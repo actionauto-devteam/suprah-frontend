@@ -34,9 +34,9 @@ const UI = {
     usageSubheading: "What the app does every day, explained simply.",
     windows: "Windows",
     mac: "macOS",
-    doneTitle: "All done! The app starts automatically",
+    doneTitle: "All done! Open the app before every shift",
     doneBody: (icon: string) => (
-      <>Every time you turn on your computer, Suprah.AI - Timeproof Clock will start on its own. You don&apos;t need to open it again — just look for the <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
+      <>The app does not start on its own. Each day, open Suprah.AI - Timeproof Clock before you start your shift, then look for the <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
     ),
     trayIconWin: "in the system tray (bottom-right).",
     trayIconMac: "in the menu bar (top-right).",
@@ -52,9 +52,9 @@ const UI = {
     usageSubheading: "Simpleng paliwanag kung ano ang ginagawa ng app araw-araw.",
     windows: "Windows",
     mac: "macOS",
-    doneTitle: "Tapos na! Awtomatikong bubukas ang app",
+    doneTitle: "Tapos na! Buksan ang app bago ang bawat shift",
     doneBody: (icon: string) => (
-      <>Tuwing bubuksan mo ang computer mo, awtomatikong tatakbo ang Suprah.AI - Timeproof Clock. Hindi mo na ito kailangang buksan ulit — hanapin lang ang <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
+      <>Hindi kusang bubukas ang app. Araw-araw, buksan ang Suprah.AI - Timeproof Clock bago mo simulan ang shift mo, tapos hanapin ang <span className="font-medium text-zinc-400">AA</span> icon {icon}.</>
     ),
     trayIconWin: "sa system tray (kanang-baba).",
     trayIconMac: "sa menu bar (kanang-taas).",
@@ -334,8 +334,8 @@ function TrayPopupMockup({ lang, waiting }: { lang: Lang; waiting: boolean }) {
           {waiting ? (
             <p className="text-[10px] leading-relaxed text-zinc-500">
               {lang === "en"
-                ? "Not signed in yet. Sign in on the dashboard in your browser — this connects automatically."
-                : "Hindi pa naka-sign in. Mag-sign in sa dashboard gamit ang browser mo — awtomatiko itong kokonekta."}
+                ? "Not signed in yet. Sign in on the website — this window will connect automatically."
+                : "Hindi pa naka-sign in. Mag-sign in sa website — awtomatikong kokonekta ang window na ito."}
             </p>
           ) : (
             <div className="rounded-lg bg-emerald-600 py-2 text-center text-[10px] font-bold text-white">
@@ -397,7 +397,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
         },
         {
           title: "That's it — no login needed here",
-          body: <>You do NOT need to type any username or password into this app. As soon as you&apos;re signed in on the website, it connects on its own within a few seconds.</>,
+          body: <>You do NOT need to type any username or password into this app. As soon as you&apos;re signed in on the website, it connects on its own within a few seconds. From tomorrow on, open the app yourself before every shift — it does not start by itself.</>,
         },
       ];
     }
@@ -434,7 +434,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       },
       {
         title: "Tapos na — walang kailangang i-login dito",
-        body: <>Hindi mo na kailangang mag-type ng username o password sa app na ito. Sa sandaling naka-sign in ka na sa website, awtomatiko itong kokonekta sa loob ng ilang segundo.</>,
+        body: <>Hindi mo na kailangang mag-type ng username o password sa app na ito. Sa sandaling naka-sign in ka na sa website, awtomatiko itong kokonekta sa loob ng ilang segundo. Simula bukas, ikaw mismo ang magbukas ng app bago ang bawat shift — hindi ito kusang bubukas.</>,
       },
     ];
   }
@@ -488,7 +488,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
         title: "Find the app in your menu bar — no login needed",
         body: <>The app does NOT open a normal window — it lives in your {b("menu bar")} at the {b("top-right of your screen")}, near the Wi-Fi and battery icons. Look for the small {b("AA")} icon.</>,
         visual: <MacMenuBar lang={lang} />,
-        tip: <>You do NOT need to type a username or password here. As soon as you&apos;re signed in on the website, it connects on its own within a few seconds.</>,
+        tip: <>You do NOT need to type a username or password here. As soon as you&apos;re signed in on the website, it connects on its own within a few seconds. From tomorrow on, open the app yourself before every shift — it does not start by itself.</>,
       },
     ];
   }
@@ -539,7 +539,7 @@ function getDownloadSteps(platform: Platform, lang: Lang): Step[] {
       title: "Hanapin ang app sa menu bar mo — walang kailangang i-login",
       body: <>Hindi ito nagbubukas ng normal na window — nakatira ito sa {b("menu bar")} mo sa {b("kanang-itaas ng screen mo")}, malapit sa Wi-Fi at battery icons. Hanapin ang maliit na {b("AA")} icon.</>,
       visual: <MacMenuBar lang={lang} />,
-      tip: <>Hindi mo kailangang mag-type ng username o password dito. Sa sandaling naka-sign in ka na sa website, awtomatiko itong kokonekta sa loob ng ilang segundo.</>,
+      tip: <>Hindi mo kailangang mag-type ng username o password dito. Sa sandaling naka-sign in ka na sa website, awtomatiko itong kokonekta sa loob ng ilang segundo. Simula bukas, ikaw mismo ang magbukas ng app bago ang bawat shift — hindi ito kusang bubukas.</>,
     },
   ];
 }
@@ -553,8 +553,8 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
   if (lang === "en") {
     return [
       {
-        title: "Find the little AA icon",
-        body: <>It&apos;s always there, quietly running, at the {b(iconLoc)}.</>,
+        title: "Open the app, then find the little AA icon",
+        body: <>Open Suprah.AI - Timeproof Clock before your shift. Once it&apos;s open, it stays quietly running at the {b(iconLoc)}.</>,
       },
       {
         title: "Click it to open the popup",
@@ -565,6 +565,18 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
         title: 'If it says "Waiting for sign-in"',
         body: <>That just means the app hasn&apos;t connected yet. Go to the Suprah.AI dashboard in your browser and log in — the app will connect itself within a few seconds. You never type a password into the app itself.</>,
         visual: <TrayPopupMockup lang={lang} waiting />,
+      },
+      {
+        title: "First time on a new computer? Finish connecting once",
+        body: <>Press {b("Start Shift")} on the website. If your browser asks to open TimeProof, choose {b("Open")} (tick {b("Always allow")} so it stays quiet next time). If the app asks to connect this computer to your account, choose {b("Connect & Continue")}. You only do this once per computer — after that the app signs itself in every day.</>,
+      },
+      {
+        title: "Sign Out vs. Disconnect this computer",
+        body: <>{b("Sign Out")} in the app&apos;s menu only stops tracking and shows a {b("Sign in")} button — this computer stays connected to your account. {b("Disconnect this computer")} removes the connection completely, so you will finish connecting again next time. Use Disconnect on a computer you no longer use or share.</>,
+      },
+      {
+        title: 'If it says "Can\'t connect"',
+        body: <>Close the tray app, open it again, then try again on the website. This is the fix almost every time.</>,
       },
       {
         title: "Start your shift",
@@ -583,15 +595,19 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
         body: <>Do this from the popup or the website. If you forget, you can also end your shift later from your phone — see the website for that option.</>,
       },
       {
-        title: "You never need to fully close the app",
-        body: <>Just leave it running in the background — it starts automatically every time you turn on your computer, and remembers your sign-in.</>,
+        title: "Open it fresh every day",
+        body: <>The app does not start by itself when you turn on your computer. Open it before every shift. When you shut down your computer, it closes on its own.</>,
+      },
+      {
+        title: 'See "Download latest version"?',
+        body: <>That means a new version is ready. Click the button, close the tray app, then run the file you downloaded.</>,
       },
     ];
   }
   return [
     {
-      title: "Hanapin ang maliit na AA icon",
-      body: <>Laging nandito ito, tahimik na tumatakbo, sa {b(iconLoc)}.</>,
+      title: "Buksan ang app, tapos hanapin ang maliit na AA icon",
+      body: <>Buksan ang Suprah.AI - Timeproof Clock bago ang shift mo. Kapag nakabukas na, tahimik itong tumatakbo sa {b(iconLoc)}.</>,
     },
     {
       title: "I-click ito para buksan ang popup",
@@ -602,6 +618,18 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
       title: 'Kung sabing "Waiting for sign-in"',
       body: <>Ibig sabihin lang nito ay hindi pa nakakonekta ang app. Pumunta sa Suprah.AI dashboard gamit ang browser mo at mag-log in — awtomatiko na itong kokonekta sa loob ng ilang segundo. Hindi ka kailanman magta-type ng password sa app mismo.</>,
       visual: <TrayPopupMockup lang={lang} waiting />,
+    },
+    {
+      title: "Unang beses sa bagong computer? Tapusin ang pagkonekta nang isang beses",
+      body: <>I-click ang {b("Start Shift")} sa website. Kung tanungin ng browser mo kung bubuksan ang TimeProof, piliin ang {b("Open")} (i-tick ang {b("Always allow")} para hindi na ito magtanong sa susunod). Kung tanungin ng app kung ikokonekta ang computer na ito sa account mo, piliin ang {b("Connect & Continue")}. Isang beses lang ito sa bawat computer — pagkatapos nito, kusa nang magsa-sign in ang app araw-araw.</>,
+    },
+    {
+      title: "Sign Out vs. Disconnect this computer",
+      body: <>Ang {b("Sign Out")} sa menu ng app ay humihinto lang ng tracking at may lalabas na {b("Sign in")} button — nakakonekta pa rin ang computer na ito sa account mo. Ang {b("Disconnect this computer")} ay tuluyang tinatanggal ang koneksyon, kaya kailangan mo ulit tapusin ang pagkonekta sa susunod. Gamitin ang Disconnect sa computer na hindi mo na ginagamit o pinaghahatian.</>,
+    },
+    {
+      title: 'Kung sabing "Can\'t connect"',
+      body: <>I-close ang tray app, buksan ulit ito, tapos subukan ulit sa website. Ito ang solusyon halos palagi.</>,
     },
     {
       title: "Simulan ang shift mo",
@@ -620,8 +648,12 @@ function getUsageSteps(platform: Platform, lang: Lang): Step[] {
       body: <>Gawin ito mula sa popup o sa website. Kung nakalimutan mo, pwede mo ring tapusin ang shift mo mamaya gamit ang phone mo — tingnan ang website para diyan.</>,
     },
     {
-      title: "Hindi mo kailanman kailangang isara nang tuluyan ang app",
-      body: <>Iwan mo na lang itong tumatakbo sa background — awtomatiko itong bubukas tuwing bubuksan mo ang computer mo, at naaalala nito ang sign-in mo.</>,
+      title: "Buksan ito nang bago araw-araw",
+      body: <>Hindi kusang bubukas ang app kapag binuksan mo ang computer mo. Buksan ito bago ang bawat shift. Kapag ni-shutdown mo ang computer, kusa itong nagsasara.</>,
+    },
+    {
+      title: 'Nakita mo ang "Download latest version"?',
+      body: <>Ibig sabihin, may bagong version na. I-click ang button, i-close ang tray app, tapos patakbuhin ang file na na-download mo.</>,
     },
   ];
 }

@@ -758,9 +758,41 @@ export function AppointmentDetailsModal({
             </p>
             {appointment.status === "no-show" && appointment.customerBooking?.phone && (
               <p>
-                {appointment.noShowFollowUpSentAt
-                  ? `Rebooking text sent: ${fmtLongDateTimeMDT(appointment.noShowFollowUpSentAt)}`
-                  : "Rebooking text not yet sent"}
+                {appointment.noShowFollowUpStatus === "processing"
+                  ? "Rebooking text is being sent"
+                  : appointment.noShowFollowUpStatus === "failed"
+                    ? `Rebooking text failed${appointment.noShowFollowUpNextRetryAt ? `; retry scheduled ${fmtLongDateTimeMDT(appointment.noShowFollowUpNextRetryAt)}` : " after maximum attempts"}`
+                    : appointment.noShowFollowUpStatus === "skipped"
+                      ? `Rebooking text skipped${appointment.noShowFollowUpFailureReason ? `: ${appointment.noShowFollowUpFailureReason}` : ""}`
+                      : appointment.noShowFollowUpSentAt
+                        ? `Rebooking text sent: ${fmtLongDateTimeMDT(appointment.noShowFollowUpSentAt)}`
+                        : "Rebooking text pending"}
+              </p>
+            )}
+            {appointment.status === "completed" && appointment.customerBooking?.phone && (
+              <p>
+                {appointment.reviewRequestStatus === "processing"
+                  ? "Review request is being sent"
+                  : appointment.reviewRequestStatus === "failed"
+                    ? `Review request failed${appointment.reviewRequestNextRetryAt ? `; retry scheduled ${fmtLongDateTimeMDT(appointment.reviewRequestNextRetryAt)}` : " after maximum attempts"}`
+                    : appointment.reviewRequestStatus === "skipped"
+                      ? `Review request skipped${appointment.reviewRequestFailureReason ? `: ${appointment.reviewRequestFailureReason}` : ""}`
+                      : appointment.reviewRequestSentAt
+                        ? `Review request sent: ${fmtLongDateTimeMDT(appointment.reviewRequestSentAt)}`
+                        : "Review request pending"}
+              </p>
+            )}
+            {appointment.status === "completed" && appointment.customerBooking?.email && (
+              <p>
+                {appointment.reviewRequestEmailStatus === "processing"
+                  ? "Review request email is being sent"
+                  : appointment.reviewRequestEmailStatus === "failed"
+                    ? `Review request email failed${appointment.reviewRequestEmailNextRetryAt ? `; retry scheduled ${fmtLongDateTimeMDT(appointment.reviewRequestEmailNextRetryAt)}` : " after maximum attempts"}`
+                    : appointment.reviewRequestEmailStatus === "skipped"
+                      ? `Review request email skipped${appointment.reviewRequestEmailFailureReason ? `: ${appointment.reviewRequestEmailFailureReason}` : ""}`
+                      : appointment.reviewRequestEmailSentAt
+                        ? `Review request email sent: ${fmtLongDateTimeMDT(appointment.reviewRequestEmailSentAt)}`
+                        : "Review request email pending"}
               </p>
             )}
           </div>

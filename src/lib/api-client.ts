@@ -988,6 +988,14 @@ class ApiClient {
     return this.post("/api/locator/consent", data, config);
   }
 
+  async getTrayDeviceStatus(config?: AxiosRequestConfig) {
+    return this.get("/api/tray-device/status", config);
+  }
+
+  async createTrayBootstrapCode(config?: AxiosRequestConfig) {
+    return this.post("/api/tray-device/bootstrap", {}, config);
+  }
+
   async setLocationSharingOptOut(
     data: { optOut: boolean },
     config?: AxiosRequestConfig

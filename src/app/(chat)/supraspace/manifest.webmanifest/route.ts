@@ -17,7 +17,7 @@ export function GET(request: Request) {
             id: 'suprah-space',
             name: 'SupraSpace',
             short_name: 'SupraSpace',
-            description: 'Team messaging, calls, and status for Suprah.AI',
+            description: 'Team messaging and status for Suprah.AI',
             // Relative values always resolve to the origin that served this
             // manifest, including a reverse-proxied SupraSpace subdomain.
             start_url: startUrl,

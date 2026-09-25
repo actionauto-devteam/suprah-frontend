@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import { usePwaNagSlot } from "@/hooks/usePwaNagSlot";
+import { usePersistentPromptDismissal } from "@/hooks/usePersistentPromptDismissal";
 import { Bell, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,16 +12,19 @@ interface CrmPushPromptProps {
   role: string;
 }
 
+const CRM_PUSH_PROMPT_DISABLED_KEY = "crm_push_prompt_disabled";
+
 export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   const { isSupported, isSubscribed, subscribe, isLoading } = useCrmWebPush();
   const [showPrompt, setShowPrompt] = useState(false);
+  const { isDismissed: isPermanentlyDismissed, dismiss: dismissPermanently } = usePersistentPromptDismissal(CRM_PUSH_PROMPT_DISABLED_KEY);
   // Same shared mutex as DashboardNotifications/AutrixWelcomeGate/InstallPrompt/
   // PushPrompt/IOSInstallHint — this was previously the one nag that could
   // still double up with those on /crm/* routes since it never coordinated.
   const slot = usePwaNagSlot("crm-push", 1);
 
   useEffect(() => {
-    if (!role || !isSupported || isSubscribed || isLoading) return;
+    if (!role || !isSupported || isSubscribed || isLoading || isPermanentlyDismissed !== false) return;
 
     const dismissed = sessionStorage.getItem("crm_push_prompt_dismissed");
     if (dismissed) return;
@@ -30,7 +34,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
       slot.request();
     }, 5000);
     return () => clearTimeout(timer);
-  }, [role, isSupported, isSubscribed, isLoading, slot.request]);
+  }, [role, isSupported, isSubscribed, isLoading, isPermanentlyDismissed, slot.request]);
 
   useEffect(() => {
     if (isSubscribed) slot.release();
@@ -40,6 +44,12 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
     setShowPrompt(false);
     slot.release();
     sessionStorage.setItem("crm_push_prompt_dismissed", "true");
+  };
+
+  const handlePermanentDismiss = () => {
+    dismissPermanently();
+    setShowPrompt(false);
+    slot.release();
   };
 
   const handleSubscribe = async () => {
@@ -83,12 +93,13 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
-              <ShieldAlert className="h-3 w-3" />
-              SupraSpace Push
-            </div>
-            <div className="flex gap-2">
+          <div className="mt-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
+                <ShieldAlert className="h-3 w-3" />
+                SupraSpace Push
+              </div>
+              <div className="flex shrink-0 gap-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -105,7 +116,15 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
               >
                 Enable
               </Button>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={handlePermanentDismiss}
+              className="mx-auto block text-xs font-medium text-zinc-500 underline-offset-4 hover:text-zinc-300 hover:underline"
+            >
+              Don&apos;t show again
+            </button>
           </div>
         </div>
       </motion.div>

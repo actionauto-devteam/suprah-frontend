@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import type { AxiosRequestConfig } from "axios"
 import { apiClient } from "@/lib/api-client"
+import { getActiveTrayToken, openTrayConnect, openTrayViaProtocol, openTrayWake, pushTokenToTray } from "@/lib/trayConnection"
+import { finishTrayConnection, recoverTray, type TrayRecoveryDeps, type TrayRecoveryPhase } from "@/lib/trayRecovery"
 import { useOrg } from "@/hooks/useOrg"
 import { initializeSocket } from "@/lib/socket.client"
 import { playOverBreakAlarm, stopOverBreakAlarm } from "@/lib/notification-sound"
@@ -83,6 +85,8 @@ interface CrmUserData {
   department?: string
   locationRequiredForTimeproof?: boolean
   isMobileMonitoringDept?: boolean
+  trayDeviceAuthEnabled?: boolean
+  monitoringMode?: "off" | "always" | "switching"
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -142,6 +146,16 @@ function getDeviceHint() {
   if (/iPad|iPhone|iPod/i.test(ua)) return "ios-pwa"
   if (/Android/i.test(ua)) return "android-pwa"
   return "desktop-web"
+}
+
+async function isSwitchingDesktopSession(crmToken: string): Promise<boolean> {
+  try {
+    const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${crmToken}` } })
+    const data = res.data?.data || res.data
+    return data?.monitoringMode === "switching"
+  } catch {
+    return false
+  }
 }
 
 function isMacDesktop() {
@@ -346,6 +360,12 @@ export default function TimeprofClockPage() {
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0)
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
+  const [trayReconnecting, setTrayReconnecting] = React.useState(false)
+  const [trayPhase, setTrayPhase] = React.useState<TrayRecoveryPhase | null>(null)
+  const [trayFinishHint, setTrayFinishHint] = React.useState(false)
+  const trayWaitCancelledRef = React.useRef(false)
+  const trayBackgroundRef = React.useRef(false)
+  const trayDeviceMode = user?.trayDeviceAuthEnabled === true
   const [serverIsOnShift, setServerIsOnShift] = React.useState(false)
   const [serverIsOnBreak, setServerIsOnBreak] = React.useState(false)
   const [serverIsShiftFromToday, setServerIsShiftFromToday] = React.useState(false)
@@ -627,12 +647,15 @@ export default function TimeprofClockPage() {
           const mainRes = await apiClient.get("/api/timeclock/me")
           const mainData = mainRes.data?.data || mainRes.data
           if (mainData?.isMobileMonitoringDept ?? isMobileMonitoringDept(mainData?.department)) {
-            authModeRef.current = 'main'
-            setUser(mainData)
-            setToken('__main__')
-            setTodayLogs(mainData.todayTimeLogs || [])
-            setIsLoading(false)
-            return
+            const staysOnCrmIdentity = !!crmT && getDeviceHint() === "desktop-web" && await isSwitchingDesktopSession(crmT)
+            if (!staysOnCrmIdentity) {
+              authModeRef.current = 'main'
+              setUser(mainData)
+              setToken('__main__')
+              setTodayLogs(mainData.todayTimeLogs || [])
+              setIsLoading(false)
+              return
+            }
           }
         } catch { }
       }
@@ -763,15 +786,143 @@ export default function TimeprofClockPage() {
     }
   }
 
-  const POLL_INTERVAL_MS = 1500
-  const POLL_MAX_ATTEMPTS = 8 // ~12s total
-  const attemptTrayReconnect = async (): Promise<boolean> => {
-    try { window.location.href = `actionauto://auth?token=${encodeURIComponent(token)}` } catch { }
-    for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-      if (await isTrayOnline()) return true
+  React.useEffect(() => {
+    trayWaitCancelledRef.current = false
+    return () => { trayWaitCancelledRef.current = true }
+  }, [])
+
+  const cancelTrayWait = () => {
+    trayWaitCancelledRef.current = true
+  }
+
+  const TRAY_WAIT_MAX_MS = 60_000
+  const TRAY_CHECK_AGAIN_MAX_MS = 15_000
+  const TRAY_WAIT_POLL_MS = 2_000
+  const TRAY_REPUSH_MS = 5_000
+  const ensureTrayConnected = async (openApp: boolean, maxWaitMs = TRAY_WAIT_MAX_MS): Promise<boolean> => {
+    trayWaitCancelledRef.current = false
+    const firstPush = await pushTokenToTray(getActiveTrayToken())
+    if (firstPush === "connected" && await isTrayOnline()) return true
+    if (firstPush === "rejected" || firstPush === "no-token") return false
+    if (firstPush === "unreachable" && openApp) openTrayViaProtocol(getActiveTrayToken())
+
+    setTrayReconnecting(true)
+    try {
+      const startedAt = Date.now()
+      let lastPushAt = startedAt
+      while (Date.now() - startedAt < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, TRAY_WAIT_POLL_MS))
+        if (trayWaitCancelledRef.current) return false
+        if (await isTrayOnline()) return true
+        if (Date.now() - lastPushAt >= TRAY_REPUSH_MS) {
+          lastPushAt = Date.now()
+          await pushTokenToTray(getActiveTrayToken())
+        }
+      }
+      return false
+    } finally {
+      setTrayReconnecting(false)
     }
-    return false
+  }
+
+  const buildTrayRecoveryDeps = (): TrayRecoveryDeps => {
+    const authConfig = (): RequestConfigWithSkipRefresh => ({
+      headers: { Authorization: `Bearer ${localStorage.getItem("crm_token") || ""}` },
+      _skipAuthRefresh: true,
+    })
+    return {
+      isOnline: isTrayOnline,
+      getRegistration: async () => {
+        try {
+          const res = await apiClient.getTrayDeviceStatus(authConfig())
+          return !!res.data?.data?.registered
+        } catch (err: unknown) {
+          return (err as ApiError).response?.status === 403 ? "disabled" : null
+        }
+      },
+      mintCode: async () => {
+        try {
+          const res = await apiClient.createTrayBootstrapCode(authConfig())
+          const code = res.data?.data?.code
+          return typeof code === "string" && code ? code : null
+        } catch {
+          return null
+        }
+      },
+      openWake: openTrayWake,
+      openConnect: openTrayConnect,
+      isCancelled: () => trayWaitCancelledRef.current,
+      onPhase: setTrayPhase,
+    }
+  }
+
+  const ensureTrayConnectedViaDevice = async (): Promise<boolean> => {
+    trayWaitCancelledRef.current = false
+    setTrayReconnecting(true)
+    try {
+      const outcome = await recoverTray(buildTrayRecoveryDeps())
+      if (outcome === "online") return true
+      if (outcome === "legacy") return await ensureTrayConnected(true)
+      return false
+    } finally {
+      setTrayPhase(null)
+      setTrayReconnecting(false)
+    }
+  }
+
+  const connectTray = (openApp: boolean, maxWaitMs = TRAY_WAIT_MAX_MS): Promise<boolean> =>
+    trayDeviceMode ? ensureTrayConnectedViaDevice() : ensureTrayConnected(openApp, maxWaitMs)
+
+  const finishTrayFromUserGesture = async (): Promise<boolean> => {
+    trayWaitCancelledRef.current = false
+    setTrayReconnecting(true)
+    try {
+      const outcome = await finishTrayConnection(buildTrayRecoveryDeps())
+      return outcome === "online"
+    } finally {
+      setTrayPhase(null)
+      setTrayReconnecting(false)
+    }
+  }
+
+  const handleFinishTrayClick = async () => {
+    setTrayChecking(true)
+    try {
+      const online = await finishTrayFromUserGesture()
+      if (online) {
+        setShowTrayModal(false)
+        setTrayFinishHint(false)
+        await checkResumableAndStart()
+      } else if (!trayWaitCancelledRef.current) {
+        toast.error("We couldn't connect to the TimeProof app. Open it, then try Finish connecting again.")
+      }
+    } finally {
+      setTrayChecking(false)
+    }
+  }
+
+  const recoverTrayInBackground = async () => {
+    if (trayBackgroundRef.current) return
+    trayBackgroundRef.current = true
+    try {
+      trayWaitCancelledRef.current = false
+      const outcome = await recoverTray(buildTrayRecoveryDeps())
+      setTrayFinishHint(outcome === "needs_finish" || outcome === "failed")
+    } finally {
+      trayBackgroundRef.current = false
+      setTrayPhase(null)
+    }
+  }
+
+  const handleFinishHintClick = async () => {
+    if (trayBackgroundRef.current) return
+    trayBackgroundRef.current = true
+    try {
+      const online = await finishTrayFromUserGesture()
+      setTrayFinishHint(!online)
+    } finally {
+      trayBackgroundRef.current = false
+    }
   }
 
   const handleResumeShiftClick = async () => {
@@ -826,12 +977,15 @@ export default function TimeprofClockPage() {
     const isMain = authModeRef.current === 'main'
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (isGenuineMobileDevice || isLotTech || isMain) {
+      if (trayDeviceMode && isLotTech && !isGenuineMobileDevice && !isMain && user?.monitoringMode === "switching") {
+        recoverTrayInBackground().catch(() => {})
+      }
       await checkResumableAndStart()
       return
     }
     setTrayChecking(true)
     try {
-      const online = await isTrayOnline()
+      const online = await connectTray(true)
       if (online) {
         setShowTrayModal(false)
         await checkResumableAndStart()
@@ -843,7 +997,29 @@ export default function TimeprofClockPage() {
     } finally {
       setTrayChecking(false)
     }
-  }, [mobileMonitoringUser, checkResumableAndStart])
+  }, [mobileMonitoringUser, checkResumableAndStart, trayDeviceMode, user?.monitoringMode])
+
+  const retryTrayConnection = async (openApp: boolean, maxWaitMs: number, forceLegacy = false) => {
+    setTrayChecking(true)
+    try {
+      const online = await (forceLegacy ? ensureTrayConnected(openApp, maxWaitMs) : connectTray(openApp, maxWaitMs))
+      if (online) {
+        setShowTrayModal(false)
+        await checkResumableAndStart()
+      } else if (!trayWaitCancelledRef.current) {
+        toast.error("Still couldn't reach the tray app. Close it, open it again, then try again.")
+      }
+    } catch {
+      toast.error("Still couldn't reach the tray app. Close it, open it again, then try again.")
+    } finally {
+      setTrayChecking(false)
+    }
+  }
+
+  const closeTrayModal = () => {
+    cancelTrayWait()
+    setShowTrayModal(false)
+  }
 
   const handleEndShiftClick = React.useCallback(() => {
     const currentTotalMs = wallClockBaseMs + (wallClockBaseAt ? Date.now() - wallClockBaseAt : 0)
@@ -918,7 +1094,7 @@ export default function TimeprofClockPage() {
       const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
       if (!(isGenuineMobileDevice || isLotTech || isMain)) {
         setTrayChecking(true)
-        const online = await isTrayOnline().finally(() => setTrayChecking(false))
+        const online = await connectTray(true).finally(() => setTrayChecking(false))
         if (!online) {
           setShowTrayModal(true)
           return
@@ -951,7 +1127,7 @@ export default function TimeprofClockPage() {
     const isGenuineMobileDevice = getDeviceHint() !== 'desktop-web'
     if (!(isGenuineMobileDevice || isLotTech || isMain)) {
       setTrayChecking(true)
-      const online = await isTrayOnline().finally(() => setTrayChecking(false))
+      const online = await connectTray(true).finally(() => setTrayChecking(false))
       if (!online) {
         setShowTrayModal(true)
         return
@@ -1413,6 +1589,28 @@ export default function TimeprofClockPage() {
                     </div>
                   )
                 })()}
+                {trayFinishHint && !trayReconnecting && (
+                  <div className="mt-2 space-y-1 text-center">
+                    <p className="text-[13px] font-semibold text-amber-600 dark:text-amber-400">The TimeProof app on this computer isn&apos;t connected yet.</p>
+                    <button type="button" onClick={handleFinishHintClick} className="text-[12px] font-semibold text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                      Finish connecting
+                    </button>
+                  </div>
+                )}
+                {trayReconnecting && (
+                  <div className="mt-2 space-y-1 text-center">
+                    <p className="text-[13px] font-semibold text-amber-600 dark:text-amber-400">
+                      {!trayDeviceMode
+                        ? "Reconnecting to your tray app... this can take up to a minute."
+                        : trayPhase === "finishing"
+                          ? "Finishing setup — if your browser asks to open TimeProof, choose Open."
+                          : "Connecting to TimeProof..."}
+                    </p>
+                    <button type="button" onClick={cancelTrayWait} className="text-[12px] font-semibold text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                      Show me how to open or install it
+                    </button>
+                  </div>
+                )}
                 {clockMsg && <p className="mt-2 text-center font-mono text-[13px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
               </div>
             </div>
@@ -2036,9 +2234,9 @@ export default function TimeprofClockPage() {
 
       {showTrayModal && (
         <div className="fixed inset-0 z-200 flex items-start justify-center pt-12 p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTrayModal(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeTrayModal} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700/60 shadow-2xl overflow-y-auto max-h-[88vh] overscroll-contain" style={{ animation: "slideUp 0.25s ease-out" }}>
-            <button onClick={() => setShowTrayModal(false)} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
+            <button onClick={closeTrayModal} className="absolute top-3 right-3 h-9 w-9 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 flex items-center justify-center text-zinc-300 hover:text-zinc-200 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
             <div className="px-6 pt-6 pb-5 space-y-5">
@@ -2047,12 +2245,19 @@ export default function TimeprofClockPage() {
                   <MonitorDot className="h-8 w-8 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-base font-black text-white">Tray App Required</p>
-                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">The <span className="text-white font-semibold">Suprah.AI - Timeproof Clock</span> must be installed and running to track your shift, capture screenshots, and monitor activity.</p>
+                  <p className="text-base font-black text-white">{trayDeviceMode ? "Finish Connecting TimeProof" : "Open Your Tray App"}</p>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    {trayDeviceMode
+                      ? <>The <span className="text-white font-semibold">Suprah.AI - Timeproof Clock</span> on this computer isn&apos;t signed in yet. You only need to finish this once on each computer.</>
+                      : <>The <span className="text-white font-semibold">Suprah.AI - Timeproof Clock</span> must be open on your computer to track your shift, capture screenshots, and monitor activity.</>}
+                  </p>
                 </div>
               </div>
               <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/40 px-4 py-3 space-y-2">
-                {["Download and install the tray app below", "Launch it — it will appear in your system tray", "Come back here and click Start Shift"].map((step, i) => (
+                {(trayDeviceMode
+                  ? ["Click Finish connecting below.", "If your browser asks to open TimeProof, choose Open (tick Always allow so it stays quiet next time).", "If TimeProof asks to connect this computer to your account, choose Connect & Continue."]
+                  : ["Open the tray app on your computer. If it is already open, close it and open it again.", "Don't have it yet? Download and install it below.", "Come back here and click Start Shift"]
+                ).map((step, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <span className="h-4 w-4 rounded-full bg-emerald-600/20 border border-emerald-500/30 text-[11px] font-black text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                     <p className="text-[13px] text-zinc-300 leading-relaxed">{step}</p>
@@ -2060,31 +2265,26 @@ export default function TimeprofClockPage() {
                 ))}
               </div>
               <div className="space-y-2">
-                <a href={getTrayDownloadUrl()} target="_blank" rel="noopener noreferrer" onClick={() => setShowTrayModal(false)}
-                  className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors">
-                  <Download className="h-4 w-4" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
-                </a>
-                <button onClick={async () => {
-                  setTrayChecking(true)
-                  try {
-                    const online = await attemptTrayReconnect()
-                    if (online) { setShowTrayModal(false); await checkResumableAndStart() }
-                    else toast.error("Still couldn't reach the tray app. Make sure it's running, then try again.")
-                  } catch { } finally { setTrayChecking(false) }
-                }} disabled={trayChecking}
-                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors disabled:opacity-50">
-                  <MonitorDot className="h-3.5 w-3.5" /> Already Installed — Open It
+                {trayDeviceMode && (
+                  <button onClick={handleFinishTrayClick} disabled={trayChecking}
+                    className="flex w-full items-center justify-center gap-2 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-colors disabled:opacity-50">
+                    {trayChecking ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</> : <><MonitorDot className="h-4 w-4" /> Finish connecting</>}
+                  </button>
+                )}
+                <button onClick={() => retryTrayConnection(true, TRAY_WAIT_MAX_MS, trayDeviceMode)} disabled={trayChecking}
+                  className={cn("flex w-full items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-50",
+                    trayDeviceMode
+                      ? "h-10 border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300"
+                      : "h-11 bg-emerald-500 hover:bg-emerald-400 text-white")}>
+                  {trayChecking && !trayDeviceMode ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</> : <><MonitorDot className="h-4 w-4" /> Open Tray App</>}
                 </button>
-                <button onClick={async () => {
-                  setTrayChecking(true)
-                  try {
-                    const online = await attemptTrayReconnect()
-                    if (online) { setShowTrayModal(false); await checkResumableAndStart() }
-                    else toast.error("Tray app not detected. Make sure it is running.")
-                  } catch { toast.error("Tray app not detected. Make sure it is running.") } finally { setTrayChecking(false) }
-                }} disabled={trayChecking}
+                <a href={getTrayDownloadUrl()} target="_blank" rel="noopener noreferrer" onClick={closeTrayModal}
+                  className="flex w-full items-center justify-center gap-2 h-10 rounded-xl border border-zinc-700/60 bg-zinc-800/60 hover:bg-zinc-700/60 text-zinc-300 text-sm font-bold transition-colors">
+                  <Download className="h-3.5 w-3.5" /> Download Tray App ({isMacDesktop() ? ".dmg" : ".exe"})
+                </a>
+                <button onClick={() => retryTrayConnection(false, TRAY_CHECK_AGAIN_MAX_MS, trayDeviceMode)} disabled={trayChecking}
                   className="flex w-full items-center justify-center gap-2 h-9 rounded-xl text-zinc-400 hover:text-zinc-300 text-sm font-semibold transition-colors disabled:opacity-50">
-                  {trayChecking ? <><Loader2 className="h-3 w-3 animate-spin" /> Checking…</> : <><RefreshCw className="h-3 w-3" /> Check Again</>}
+                  <RefreshCw className="h-3 w-3" /> Check Again
                 </button>
                 <a
                   href="/guide"

@@ -6,7 +6,7 @@ import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounte
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
 import { MessageTimeline } from '@/components/supraspace/messages/MessageTimeline';
-import { EventModal, MeetingJoinInfoModal, MeetingModal, PollModal, ScheduleMeetingModal } from '@/components/supraspace/ConversationCreationModals';
+import { EventModal, PollModal } from '@/components/supraspace/ConversationCreationModals';
 import { ThreadReportModal, type ThreadReportAction } from '@/components/supraspace/ThreadReportModal';
 import { ManageMembersModal } from '@/components/supraspace/ManageMembersModal';
 import { ConversationSettingsModal } from '@/components/supraspace/ConversationSettingsModal';
@@ -29,7 +29,7 @@ import {
   MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
-  ExternalLink,
+  ExternalLink, Maximize2,
   Folder,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme, EmojiClickData } from 'emoji-picker-react';
@@ -47,16 +47,11 @@ import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } f
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
-import nextDynamic from 'next/dynamic';
-import { useCall, CallSession } from '@/hooks/useCall';
-import { stopCallSound, isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
+import { isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
-import { CallBanner } from './CallBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePersistentPromptDismissal } from '@/hooks/usePersistentPromptDismissal';
 
-const JitsiMeet = nextDynamic(() => import('./JitsiMeet').then(m => m.JitsiMeet), { ssr: false });
-const IncomingCallModal = nextDynamic(() => import('./IncomingCallModal').then(m => m.IncomingCallModal), { ssr: false });
-const CallExperience = nextDynamic(() => import('./CallExperience').then(m => m.CallExperience), { ssr: false });
 import { EmojiReactionPicker, MobileEmojiReactionSheet } from '@/components/supraspace/EmojiReactionPicker';
 import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT, todayStrMDT } from '@/lib/timezone';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
@@ -122,6 +117,7 @@ type SS4FontSize = 10 | 12 | 14 | 16 | 18 | 20 | 24 | 28 | 32 | 36;
 
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 const SUPRASPACE_SUBDOMAIN_URL = `https://${SUPRASPACE_SUBDOMAIN}/?install=1`;
+const SUPRASPACE_MOBILE_INSTALL_GATE_DISMISSED_KEY = 'supraspace-mobile-install-gate-dismissed';
 const SS4_UNREAD_COLOR_STORAGE_KEY = 'ss4_unread_dot_color';
 const SS4_LAST_CONVERSATION_STORAGE_KEY = 'ss4_last_conversation_id';
 const SS4_UNREAD_COLOR_CHANGED_EVENT = 'ss4_unread_color_changed';
@@ -872,13 +868,20 @@ function insertSoftLineBreakWithCaretFormatting(
   selection.removeAllRanges();
   selection.addRange(nextRange);
 
-  insertTypingStyleCaretMarker(
+  if (insertTypingStyleCaretMarker(
     root,
     fontFamily,
     fontSize,
     inlineFormats,
     color,
-  );
+  )) return true;
+
+  const marker = document.createTextNode('\u200B');
+  nextRange.insertNode(marker);
+  nextRange.setStart(marker, marker.data.length);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
   return true;
 }
 
@@ -1007,6 +1010,11 @@ const SS4_VIDEO_EXTENSIONS = new Set([
 const SS4_IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.bmp', '.tif', '.tiff', '.avif',
 ]);
+const SS4_PASTED_ATTACHMENT_EXTENSIONS = new Set([
+  ...SS4_IMAGE_EXTENSIONS,
+  ...SS4_VIDEO_EXTENSIONS,
+  '.pdf',
+]);
 const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -1031,6 +1039,7 @@ const SS4_MEDIA_EXTENSION_MIME: Record<string, string> = {
   '.mpeg': 'video/mpeg',
   '.mpg': 'video/mpeg',
   '.ogv': 'video/ogg',
+  '.pdf': 'application/pdf',
 };
 const SS4_CLIPBOARD_TYPE_MIME: Record<string, string> = {
   'public.mpeg-4': 'video/mp4',
@@ -1071,6 +1080,7 @@ const SS4_MIME_EXTENSION_PREFERENCE: Record<string, string> = {
   'video/3gpp': '.3gp',
   'video/mpeg': '.mpeg',
   'video/ogg': '.ogv',
+  'application/pdf': '.pdf',
 };
 const SS4_MEDIA_INPUT_ACCEPT = 'image/*,video/*';
 const SS4_VIDEO_INPUT_ACCEPT = 'video/*';
@@ -1248,7 +1258,7 @@ if (typeof document !== 'undefined') {
       background:rgba(0,0,0,.2);
       font-family:'Geist Mono',monospace!important;
     }
-    .ss4-list { display:flex; flex-direction:column; gap:5px; margin:.18em 0 .32em; padding:0; list-style:none; }
+    .ss4-list { display:flex; flex-direction:column; gap:0; margin:.18em 0 .32em; padding:0; list-style:none; }
     .ss4-list-item { display:flex; align-items:flex-start; gap:7px; margin:0; padding:0; list-style:none; }
     .ss4-list-marker { width:1em; flex:0 0 1em; text-align:center; line-height:1.66; }
     .ss4-list-marker-num { width:auto; min-width:1.35em; flex-basis:auto; text-align:right; }
@@ -1318,10 +1328,6 @@ if (typeof document !== 'undefined') {
     .ss4-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar); border-radius:4px; }
     .ss4-date-line { height:1px; background:var(--border-1); }
     .ss4-date-chip { background:var(--surface-2); border:1px solid var(--border-1); border-radius:20px; color:var(--text-tertiary); font-size:11px; padding:3px 12px; white-space:nowrap; }
-    .ss4-vcall-modal { background:#0d1117; border:1px solid rgba(255,255,255,0.08); border-radius:20px; box-shadow:var(--shadow-lg); }
-    .ss4-vcall-screen { background:radial-gradient(ellipse at 50% 30%,#141e3a 0%,#0a0d14 100%); position:relative; overflow:hidden; }
-    @keyframes ss4-call-ring { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.4);} 50%{box-shadow:0 0 0 12px rgba(22,163,74,0);} }
-    .ss4-calling-ring { animation:ss4-call-ring 2s ease-in-out infinite; }
 .ss4-tab-bar {
   background: rgba(127, 127, 127, 0.08);
   border-radius: 8px;
@@ -2223,6 +2229,27 @@ function restoreMissingSerialsFromSources(serialized: string, sources: Array<str
   });
 
   return restoredLines.join('\n');
+}
+
+function serializeVisibleRichText(el: HTMLElement): string {
+  const visibleText = stripCopiedTextArtifacts(el.innerText);
+  const serializedText = stripCopiedTextArtifacts(htmlToMarkdown(el));
+
+  return normalizeMessageMarkdownText(
+    canonicalizeColorMarkup(
+      restoreMissingSerialsFromSources(
+        preserveVisiblePayloadLines(
+          preserveVisibleVinLines(serializedText, visibleText),
+          visibleText,
+        ),
+        [
+          visibleText,
+          stripCopiedTextArtifacts(el.textContent || ''),
+          serializedText,
+        ],
+      ),
+    ),
+  );
 }
 
 function canonicalizeColorMarkup(value: string): string {
@@ -3146,7 +3173,7 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
   const perLine = (inner: string, marker: string) =>
     inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
   let normalized = text
-    .replace(/\*\*([\s\S]*?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
+    .replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
     .replace(/__([\s\S]*?)__/g, (_match, inner: string) => perLine(inner, '__'))
     .replace(/~~([\s\S]*?)~~/g, (_match, inner: string) => perLine(inner, '~~'));
   normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
@@ -3314,14 +3341,10 @@ function stripOrphanedBoldMarker(text: string): string {
 }
 
 function normalizeMessageMarkdownText(text: string): string {
-  const normalized = stripOrphanedBoldMarker(
-    normalizeListExitLineSpacing(
-      normalizePastedListArtifacts(
-        stripCopiedTextArtifacts(text)
-          .replace(/\r\n?/g, '\n')
-          .replace(/\u00a0/g, ' '),
-      ),
-    ),
+  const normalized = normalizeListExitLineSpacing(
+    stripCopiedTextArtifacts(text)
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' '),
   );
   return stripCopiedTextArtifacts(normalized).trim();
 }
@@ -3367,8 +3390,6 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
   const compatibleText = prepareSupraSpaceMarkupForDisplay(text);
   return normalizeMultilineMarkdownBlocks(normalizeMessageMarkdownText(compatibleText))
     .replace(/\{color:(#[0-9a-fA-F]{6})\}\s*\*\*([\s\S]*?)\*\*\s*\{\/color\}/g, '**{color:$1}$2{/color}**')
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*\n([^\n]+?)\s*(?:\*\*|__|~~)(?=\n|$)/g, (_m, prefix: string, line: string) => `${prefix}**${line.trimEnd()}**`)
-    .replace(/(^|\n)\s*(?:\*\*|__|~~)\s*(?=\n|$)/g, '$1')
     .replace(/\n{4,}/g, '\n\n\n');
 }
 
@@ -3422,12 +3443,9 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
 
     const pushPlain = (plain: string) => {
       if (!plain) return;
-      plain = stripResidualSupraSpaceInlineControlMarkers(
-        stripSupraSpaceTypographyTags(
-          plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
-        ),
+      plain = stripSupraSpaceTypographyTags(
+        plain.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
       );
-      plain = stripResidualSingleMarkdownMarkers(plain);
       const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
       let last = 0;
       let match: RegExpExecArray | null;
@@ -3636,11 +3654,6 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       lineIndex++;
       continue;
     }
-    if (/^\s*(?:\*\*|__|~~)\s*$/.test(raw)) {
-      lineIndex++;
-      continue;
-    }
-
     if (FENCE_RE.test(raw)) {
       const codeLines: string[] = [];
       lineIndex++;
@@ -4235,6 +4248,17 @@ function GroupAvatarFace({ src, name, size = 13 }: { src?: string | null; name: 
   return <span className="text-white font-bold" style={{ fontSize: size }}>{(name || '?').trim().charAt(0).toUpperCase() || '#'}</span>;
 }
 
+function SS4AvatarImage({ src, name, className, size = 11 }: { src?: string | null; name: string; className?: string; size?: number }) {
+  const resolved = resolveImageUrl(src);
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
+
+  if (!resolved || failedSrc === resolved) {
+    return <span className="text-white font-semibold" style={{ fontSize: size }}>{ini(name)}</span>;
+  }
+
+  return <img src={resolved} alt="" className={className} onError={() => setFailedSrc(resolved)} />;
+}
+
 function ChannelFace({ conv, name, avatar, size = 13 }: { conv: SSConversation; name: string; avatar?: string | null; size?: number }) {
   const emoji = getConvEmoji(conv);
   const resolved = resolveImageUrl(avatar);
@@ -4254,19 +4278,6 @@ const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = 
   { key: 'read', label: 'Read' },
   { key: 'mentions', label: 'Mentions' },
 ];
-interface MeetingJoinRequestedPayload {
-  meetingId?: string;
-  requester?: { userId?: string; name?: string; email?: string };
-}
-interface MeetingAdmissionUpdatedPayload {
-  meetingId?: string;
-  status?: 'pending' | 'approved' | 'denied';
-}
-interface PendingMeetingDraft {
-  title: string;
-  scheduledAt: string;
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -4517,92 +4528,6 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
   );
 }
 
-function MeetingCard({
-  meeting,
-  event,
-  onJoin,
-}: {
-  meeting: NonNullable<NonNullable<SSMessage['metadata']>['meeting']>;
-  event?: SSMessage['event'] | null;
-  onJoin: (meetingId: string) => void;
-}) {
-  const start = meeting.scheduledAt || event?.startTime ? new Date(meeting.scheduledAt || event!.startTime) : null;
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(meeting.meetingLink);
-      toast.success('Meeting link copied');
-    } catch {
-      toast.error('Could not copy link');
-    }
-  };
-
-  return (
-    <div className="ss4-card overflow-hidden" style={{ minWidth: 240, maxWidth: 320 }}>
-      <div className="px-3.5 py-2.5" style={{ background: 'var(--accent-muted)', borderBottom: '1px solid var(--border-1)' }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <Video className="h-4 w-4 shrink-0" style={{ color: 'var(--accent)' }} />
-          <p className="font-bold truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{meeting.title || 'Video meeting'}</p>
-        </div>
-      </div>
-      <div className="px-3.5 py-3 flex flex-col gap-2">
-        {start && (
-          <div className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 rounded-lg px-2.5 py-2" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-2)' }}>
-          <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
-          <span className="truncate ss4-mono" style={{ fontSize: 10.5, color: 'var(--text-secondary)' }}>{meeting.meetingLink}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => onJoin(meeting.meetingId)} className="flex-1 h-8 rounded-lg ss4-send-btn font-semibold flex items-center justify-center gap-1.5" style={{ fontSize: 12 }}>
-            <Video className="h-3.5 w-3.5" /> Join
-          </button>
-          <button onClick={copyLink} className="h-8 w-8 ss4-icon-btn flex items-center justify-center" title="Copy meeting link">
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <p style={{ fontSize: 10.5, color: 'var(--text-tertiary)' }}>
-          @{meeting.allowedDomain || 'actionautoutah.com'} joins directly. Other domains need host approval.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function PendingMeetingPreview({ meeting, onRemove }: { meeting: PendingMeetingDraft; onRemove: () => void }) {
-  const start = meeting.scheduledAt ? new Date(meeting.scheduledAt) : null;
-  return (
-    <div className="relative overflow-hidden rounded-xl" style={{ width: 288, maxWidth: '100%', border: '1px solid rgba(46,127,255,0.55)', background: '#1f7ae8' }}>
-      <button
-        onClick={onRemove}
-        className="absolute right-2 top-2 z-10 h-5 w-5 rounded-full flex items-center justify-center"
-        style={{ background: 'rgba(0,0,0,0.35)', color: '#fff' }}
-        title="Remove meeting"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-      <div className="px-3.5 py-3 min-h-28 flex flex-col justify-between">
-        <div>
-          <p className="font-semibold leading-none" style={{ fontSize: 15, color: '#fff' }}>{meeting.title || 'Video meeting'}</p>
-          <p className="mt-1" style={{ fontSize: 11, color: 'rgba(255,255,255,0.78)' }}>SupraSpace Meet</p>
-          {start && (
-            <p className="mt-2 font-medium" style={{ fontSize: 13, color: '#ffffff' }}>
-              {start.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: MDT_TZ })}
-            </p>
-          )}
-        </div>
-        <Video className="self-end h-12 w-12" style={{ color: 'rgba(255,255,255,0.72)' }} />
-      </div>
-      <div className="px-3.5 py-2.5 flex items-center gap-2" style={{ background: 'rgba(0,0,0,0.74)', color: '#fff' }}>
-        <Video className="h-3.5 w-3.5 shrink-0" style={{ color: '#ffd84d' }} />
-        <span className="font-semibold" style={{ fontSize: 12 }}>Join video meeting</span>
-      </div>
-    </div>
-  );
-}
-
 async function imageUrlToPngBlob(url: string): Promise<Blob> {
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
   const res = await fetch(proxyUrl, { cache: 'no-store', credentials: 'include' });
@@ -4669,7 +4594,7 @@ function isSS4MediaUrl(url: string): boolean {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'file:') return false;
     const extension = getMediaExtension(parsed.pathname);
-    return Boolean(extension && SS4_MEDIA_EXTENSION_MIME[extension] && (SS4_IMAGE_EXTENSIONS.has(extension) || SS4_VIDEO_EXTENSIONS.has(extension)));
+    return Boolean(extension && SS4_PASTED_ATTACHMENT_EXTENSIONS.has(extension));
   } catch {
     return false;
   }
@@ -4850,6 +4775,14 @@ const touchDistance = (touches: React.TouchList | TouchList) => {
 };
 
 type SS4LocalPreviewAttachment = SSAttachment & { localPreviewUrl?: string };
+type SS4MediaViewerItem = {
+  id?: string;
+  src: string;
+  type: 'image' | 'video';
+  name: string;
+  mimeType?: string;
+  poster?: string;
+};
 
 function getAttachmentLocalPreviewUrl(attachment: SSAttachment): string | undefined {
   const localPreviewUrl = (attachment as SS4LocalPreviewAttachment).localPreviewUrl;
@@ -4875,24 +4808,130 @@ function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: stri
   };
 }
 
-function SS4AttachmentImage({ attachment, alt, className, style }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties }) {
-  return <img src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} decoding="async" />;
+function SS4RemoteImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: React.CSSProperties }) {
+  const previewUrl = src;
+  const [loadedUrl, setLoadedUrl] = React.useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  const loading = loadedUrl !== previewUrl && failedUrl !== previewUrl;
+  const failed = failedUrl === previewUrl;
+
+  return (
+    <div className={cn('relative isolate overflow-hidden bg-black/10', className)} style={style}>
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span style={{ fontSize: 11 }}>Loading image</span>
+        </div>
+      )}
+      {failed ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
+          <ImageIcon className="h-6 w-6" aria-hidden="true" />
+          <span style={{ fontSize: 11 }}>Image unavailable</span>
+        </div>
+      ) : (
+        <img
+          src={previewUrl}
+          alt={alt}
+          className="h-full w-full object-cover"
+          style={{ display: 'block' }}
+          decoding="async"
+          onLoad={() => setLoadedUrl(previewUrl)}
+          onError={() => setFailedUrl(previewUrl)}
+        />
+      )}
+    </div>
+  );
 }
 
-function SS4AttachmentVideo({ attachment, className, style }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties }) {
+function SS4AttachmentImage({ attachment, alt, className, style }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties }) {
+  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} />;
+}
+
+function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
   const localPreviewUrl = getAttachmentLocalPreviewUrl(attachment);
   const mediaUrl = getAttachmentMediaUrl(attachment);
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const recoveryTimerRef = React.useRef<number | null>(null);
+  const recoveredUrlRef = React.useRef<string | null>(null);
+
+  const clearRecoveryTimer = React.useCallback(() => {
+    if (recoveryTimerRef.current !== null) {
+      window.clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const recoverPlayback = React.useCallback(() => {
+    clearRecoveryTimer();
+    if (recoveredUrlRef.current === mediaUrl) return;
+    recoveredUrlRef.current = mediaUrl;
+    setLoadFailed(true);
+    onPlaybackFailure?.();
+  }, [clearRecoveryTimer, mediaUrl, onPlaybackFailure]);
+
+  React.useEffect(() => {
+    clearRecoveryTimer();
+    recoveredUrlRef.current = null;
+    setLoadFailed(false);
+    setReloadKey(0);
+    return clearRecoveryTimer;
+  }, [clearRecoveryTimer, mediaUrl]);
+
+  const retryPlayback = () => {
+    recoveredUrlRef.current = null;
+    setLoadFailed(false);
+    setReloadKey(key => key + 1);
+    onPlaybackFailure?.();
+  };
+
+  const watchPlaybackStart = () => {
+    clearRecoveryTimer();
+    recoveryTimerRef.current = window.setTimeout(recoverPlayback, 8000);
+  };
+
   return (
-    <video
-      controls
-      preload={localPreviewUrl ? 'auto' : 'metadata'}
-      poster={attachment.thumbnailUrl || undefined}
-      playsInline
-      className={className}
-      style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
-    >
-      <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
-    </video>
+    <div className="relative" style={loadFailed ? { aspectRatio: '16 / 9' } : undefined}>
+      {!loadFailed && (
+        <video
+          key={`${mediaUrl}:${reloadKey}`}
+          controls
+          preload={localPreviewUrl ? 'auto' : 'metadata'}
+          poster={attachment.thumbnailUrl || undefined}
+          playsInline
+          className={className}
+          style={{ aspectRatio: '16 / 9', background: 'rgba(0,0,0,0.18)', objectFit: 'contain', ...style }}
+          onError={recoverPlayback}
+          onPlay={watchPlaybackStart}
+          onPause={clearRecoveryTimer}
+          onEnded={clearRecoveryTimer}
+          onTimeUpdate={event => {
+            if (event.currentTarget.currentTime > 0.05) clearRecoveryTimer();
+          }}
+        >
+          <source src={mediaUrl} type={getAttachmentMimeType(attachment)} />
+        </video>
+      )}
+      {loadFailed && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl px-4 text-center" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)', border: '1px solid var(--border-2)' }}>
+          <Film className="h-7 w-7" aria-hidden="true" />
+          <span style={{ fontSize: 11 }}>Video unavailable</span>
+          <button type="button" onClick={retryPlayback} className="rounded-lg px-3 py-1.5 font-semibold" style={{ fontSize: 11, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>Retry</button>
+        </div>
+      )}
+      {onExpand && (
+        <button
+          type="button"
+          onClick={event => { event.preventDefault(); event.stopPropagation(); onExpand(); }}
+          className="absolute left-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          style={{ background: 'rgba(0,0,0,0.62)', color: '#fff' }}
+          title="Open video viewer"
+          aria-label="Open video viewer"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -4955,17 +4994,18 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, onJoinMeeting, nameFor, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
   onPin?: (id: string) => void; isPinned?: boolean;
-  onOpenMedia?: (v: { src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number }) => void;
+  onOpenMedia?: (v: SS4MediaViewerItem & { gallery?: SS4MediaViewerItem[]; index?: number }) => void;
   onReact: (id: string, emoji: string) => void;
   onVotePoll: (id: string, optionId: string) => void;
   onRsvp: (id: string, r: 'going' | 'maybe' | 'declined') => void;
-  onJoinMeeting: (meetingId: string) => void;
   nameFor: (id: string) => string;
+  mediaGallery?: SS4MediaViewerItem[];
+  onRefreshMedia?: () => void;
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
@@ -5055,6 +5095,21 @@ const Bubble = React.memo(function Bubble({
   const swipeCueRef = React.useRef<HTMLDivElement>(null);
   const [swipeCueVisible, setSwipeCueVisible] = React.useState(false);
   const [swipeReplyReady, setSwipeReplyReady] = React.useState(false);
+  const openAttachmentMedia = React.useCallback((attachment: SSAttachment, attachmentIndex: number) => {
+    const type = isVideoAttachment(attachment) ? 'video' as const : 'image' as const;
+    const id = `${message._id}:${attachmentIndex}`;
+    const galleryIndex = mediaGallery?.findIndex(item => item.id === id) ?? -1;
+    onOpenMedia?.({
+      id,
+      src: getAttachmentMediaUrl(attachment),
+      type,
+      name: attachment.originalName,
+      mimeType: getAttachmentMimeType(attachment),
+      poster: attachment.thumbnailUrl,
+      gallery: galleryIndex >= 0 ? mediaGallery : undefined,
+      index: galleryIndex >= 0 ? galleryIndex : undefined,
+    });
+  }, [mediaGallery, message._id, onOpenMedia]);
   const editableAttachmentCount = (message.attachments || []).filter(a => !a.mimeType?.startsWith('audio/')).length;
   const canEditMessage = isOwn && !!onEditSave && !['voice', 'poll', 'event'].includes(message.type) && (Boolean(message.content?.trim()) || editableAttachmentCount > 0);
   const hasEditChanges = editDraft.trim() !== (message.content || '').trim() || editReplacementFiles.length > 0;
@@ -5183,7 +5238,7 @@ const Bubble = React.memo(function Bubble({
     }
   };
   const syncEditDraft = React.useCallback(() => {
-    const next = editAreaRef.current ? canonicalizeColorMarkup(htmlToMarkdown(editAreaRef.current)).trim() : '';
+    const next = editAreaRef.current ? serializeVisibleRichText(editAreaRef.current) : '';
     setEditDraft(next);
     return next;
   }, []);
@@ -5965,7 +6020,7 @@ const Bubble = React.memo(function Bubble({
       {showAvatar ? (
         <div className={cn('h-7 w-7 sm:h-8 sm:w-8 rounded-full shrink-0 mt-0.5 flex items-center justify-center overflow-hidden', aColor)}>
           {message.sender?.avatar
-            ? <img src={resolveImageUrl(message.sender.avatar)} alt="" className="w-full h-full object-cover" />
+            ? <SS4AvatarImage src={message.sender.avatar} name={senderDisplayName || ''} className="w-full h-full object-cover" />
             : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(senderDisplayName || '')}</span>}
         </div>
       ) : <div className="w-7 sm:w-8 shrink-0" />}
@@ -6735,40 +6790,38 @@ const Bubble = React.memo(function Bubble({
           <PollCard poll={message.poll} uid={uid} onVote={(optId) => onVotePoll(message._id, optId)} />
         )}
 
-        {message.metadata?.meeting?.meetingId && (
-          <MeetingCard meeting={message.metadata.meeting} event={message.event} onJoin={onJoinMeeting} />
-        )}
 
-        {message.type === 'event' && message.event && !message.metadata?.meeting?.meetingId && (
+        {message.type === 'event' && message.event && (
           <EventCard event={message.event} uid={uid} onRsvp={(r) => onRsvp(message._id, r)} />
         )}
 
         {message.type !== 'voice' && message.attachments.length > 0 && (
           <div className={cn('flex flex-col gap-1.5', message.content ? 'mt-1' : '')}>
             {(() => {
-              const images = message.attachments.filter(isImageAttachment);
+              const images = message.attachments
+                .map((attachment, attachmentIndex) => ({ attachment, attachmentIndex }))
+                .filter(({ attachment }) => isImageAttachment(attachment));
               if (images.length === 0) return null;
               if (images.length === 1) return (
-                <button data-ss4-attachment-url={images[0].url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(images[0]), type: 'image', name: images[0].originalName }); }}
+                <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0]} alt={images[0].originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
+                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
                 </button>
               );
-              const gallery = images.map(im => ({ src: getAttachmentMediaUrl(im), type: 'image' as const, name: im.originalName }));
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
-                  {images.map((att, i) => (
-                    <button key={`img-${i}`} data-ss4-attachment-url={att.url} onClick={event => { if (preventClickAfterLongPress(event)) return; onOpenMedia?.({ src: getAttachmentMediaUrl(att), type: 'image', name: att.originalName, gallery, index: i }); }}
+                  {images.map(({ attachment, attachmentIndex }, i) => (
+                    <button key={`img-${i}`} data-ss4-attachment-url={attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(attachment, attachmentIndex); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <SS4AttachmentImage attachment={att} alt={att.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
+                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
                     </button>
                   ))}
                 </div>
               );
             })()}
-            {message.attachments.filter(isVideoAttachment).map((att, i) => (
-              <div key={`video-${i}`} data-ss4-attachment-url={att.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
-                <SS4AttachmentVideo attachment={att} className="block w-full rounded-xl" style={{ maxHeight: 220 }} />
+            {message.attachments.map((attachment, attachmentIndex) => ({ attachment, attachmentIndex })).filter(({ attachment }) => isVideoAttachment(attachment)).map(({ attachment, attachmentIndex }, i) => (
+              <div key={`video-${i}`} data-ss4-attachment-url={attachment.url} className="rounded-xl overflow-hidden" style={{ maxWidth: 280 }}>
+                <SS4AttachmentVideo attachment={attachment} className="block w-full rounded-xl" style={{ maxHeight: 220 }} onExpand={() => openAttachmentMedia(attachment, attachmentIndex)} onPlaybackFailure={onRefreshMedia} />
               </div>
             ))}
             {message.attachments.filter(a => !isImageAttachment(a) && !a.mimeType.startsWith('audio/') && !isVideoAttachment(a)).map((att, i) => (
@@ -6859,7 +6912,7 @@ const Bubble = React.memo(function Bubble({
                     <div key={m._id} title={m.fullName}
                       className={cn('h-3.5 w-3.5 rounded-full overflow-hidden flex items-center justify-center text-white shrink-0', getAvaColor(m.fullName))}
                       style={{ fontSize: 6, border: '1px solid var(--bg-base)' }}>
-                      {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : m.fullName[0]?.toUpperCase()}
+                      {m.avatar ? <SS4AvatarImage src={m.avatar} name={m.fullName} className="w-full h-full object-cover" size={6} /> : m.fullName[0]?.toUpperCase()}
                     </div>
                   ))}
                   {seenByOthers.length > 5 && <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>+{seenByOthers.length - 5}</span>}
@@ -7026,67 +7079,8 @@ const Bubble = React.memo(function Bubble({
   );
 });
 
-function VideoCallModal({ conv, uid, onClose, allUsers, token }: {
-  conv: SSConversation; uid: string; onClose: () => void; allUsers: CrmUser[]; token: string;
-}) {
-  const [showJitsi, setShowJitsi] = React.useState(false);
-  const name = getConvName(conv, uid);
-  const currentUser = React.useMemo(() => allUsers.find(u => u._id === uid) || { fullName: 'User' }, [uid, allUsers]);
-  const roomName = React.useMemo(() => `supraspace-${conv._id}`, [conv._id]);
-
-  React.useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        await apiClient.post(`/api/supraspace/conversations/${conv._id}/video-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      } catch (err) { console.error('[VideoCall] token:', err); }
-    };
-    if (token && conv._id) fetchToken();
-  }, [token, conv._id]);
-
-  React.useEffect(() => {
-    const t = setTimeout(() => setShowJitsi(true), 1200);
-    return () => clearTimeout(t);
-  }, []);
-
-  if (showJitsi) {
-    return <JitsiMeet roomName={roomName} displayName={currentUser.fullName} onClose={onClose} onError={(e) => { console.error('[Jitsi]', e); onClose(); }} />;
-  }
-
-  const avatar = getConvAvatar(conv, uid);
-  return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="ss4 ss4-vcall-modal w-full max-w-sm overflow-hidden flex flex-col" data-theme="dark">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2.5">
-            <Video className="h-4 w-4" style={{ color: 'var(--accent-text)' }} />
-            <span className="font-semibold" style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)' }}>Video Call</span>
-          </div>
-          <button onClick={onClose} className="h-7 w-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: 'rgba(255,255,255,0.5)' }}><X className="h-3.5 w-3.5" /></button>
-        </div>
-        <div className="ss4-vcall-screen flex flex-col items-center justify-center" style={{ height: 260 }}>
-          <div className="flex flex-col items-center gap-4 relative z-10">
-            <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden ss4-calling-ring', getAvaColor(name))}>
-              {conv.type === 'group' ? <GroupAvatarFace src={resolveImageUrl(avatar)} name={name} size={24} />
-                : avatar ? <img src={resolveImageUrl(avatar)} alt="" className="w-full h-full object-cover" />
-                  : <span className="text-white font-bold" style={{ fontSize: 24 }}>{ini(name)}</span>}
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <p className="ss4-display font-bold" style={{ fontSize: 17, color: '#fff' }}>{name}</p>
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Connecting</span>
-                {[0, 1, 2].map(i => <span key={i} className="ss4-typing-dot h-1 w-1 rounded-full inline-block" style={{ background: 'rgba(255,255,255,0.4)', animationDelay: `${i * 0.2}s` }} />)}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="pb-4 pt-2 text-center"><p style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>Powered by Jitsi Meet</p></div>
-      </div>
-    </div>
-  );
-}
-
-function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPosition }: {
-  src: string; type: 'image' | 'video'; name: string; onClose: () => void;
+function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onNext, galleryPosition }: {
+  src: string; type: 'image' | 'video'; name: string; mimeType?: string; poster?: string; onClose: () => void;
   onPrev?: () => void; onNext?: () => void;
   galleryPosition?: { index: number; total: number };
 }) {
@@ -7094,6 +7088,9 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   const [zoom, setZoom] = React.useState(1);
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
+  const [videoLoadFailed, setVideoLoadFailed] = React.useState(false);
+  const [loadedImageSrc, setLoadedImageSrc] = React.useState<string | null>(null);
+  const [failedImageSrc, setFailedImageSrc] = React.useState<string | null>(null);
   const dragRef = React.useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const hasDraggedRef = React.useRef(false);
@@ -7112,6 +7109,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
   React.useEffect(() => {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
+    setVideoLoadFailed(false);
     dragRef.current = null;
     pinchRef.current = null;
   }, [src]);
@@ -7122,6 +7120,8 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
     setZoom(clamped);
   };
   const zoomBy = (delta: number) => applyZoom(zoom + delta);
+  const imageLoading = type === 'image' && loadedImageSrc !== src && failedImageSrc !== src;
+  const imageLoadFailed = type === 'image' && failedImageSrc === src;
 
   const handleDownload = async () => {
     if (downloading) return;
@@ -7267,7 +7267,7 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
         className="flex-1 flex items-center justify-center overflow-hidden"
         style={{
           cursor: type !== 'image' ? 'default' : zoom > 1 ? 'move' : 'zoom-in',
-          touchAction: 'none',
+          touchAction: type === 'image' ? 'none' : 'auto',
           userSelect: 'none',
         }}
         onWheel={handleWheel}
@@ -7287,33 +7287,60 @@ function LightboxModal({ src, type, name, onClose, onPrev, onNext, galleryPositi
         }}
       >
         {type === 'image' ? (
-          <img
-            src={src}
-            alt={name}
-            draggable={false}
-            onClick={e => e.stopPropagation()}
-            style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
-              objectFit: 'contain',
-              borderRadius: 12,
-              boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
-              pointerEvents: 'auto',
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-              transition: isDragging ? 'none' : 'transform 0.12s ease-out',
-              willChange: 'transform',
-            }}
-          />
+          <div className="relative flex h-full w-full items-center justify-center" onClick={e => e.stopPropagation()}>
+            {imageLoading && <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'rgba(255,255,255,0.72)' }} />}
+            {imageLoadFailed ? (
+              <div className="flex flex-col items-center gap-2 text-center" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                <ImageIcon className="h-8 w-8" aria-hidden="true" />
+                <p style={{ fontSize: 13 }}>This image could not be loaded.</p>
+              </div>
+            ) : (
+              <img
+                src={src}
+                alt={name}
+                draggable={false}
+                onLoad={() => setLoadedImageSrc(src)}
+                onError={() => setFailedImageSrc(src)}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  borderRadius: 12,
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                  pointerEvents: 'auto',
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.12s ease-out',
+                  willChange: 'transform',
+                }}
+              />
+            )}
+          </div>
         ) : (
-          <video
-            src={src}
-            controls
-            autoPlay
-            className="rounded-xl"
-            style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-            onClick={e => e.stopPropagation()}
-          />
+          <div className="relative max-h-full max-w-full" onClick={e => e.stopPropagation()}>
+            <video
+              key={src}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              poster={poster}
+              className="rounded-xl"
+              style={{ maxHeight: '100%', maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+              onError={() => setVideoLoadFailed(true)}
+            >
+              <source src={src} type={mimeType} />
+            </video>
+            {videoLoadFailed && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-black/75 px-6 text-center">
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>This video could not be loaded.</p>
+                <button type="button" onClick={handleDownload} disabled={downloading} className="ss4-pill-btn flex h-8 items-center gap-1.5 px-3 disabled:opacity-60" style={{ fontSize: 11 }}>
+                  {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                  Download
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -7687,10 +7714,10 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
                   <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))} style={{ fontSize: 8, fontWeight: 700 }}>
                     {target.kind === 'conversation'
                       ? target.avatar
-                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={10} />
                         : <Users className="h-3 w-3" />
                       : target.avatar
-                        ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                        ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={10} />
                         : ini(target.label)}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{target.label.split(' ')[0]}</span>
@@ -7712,10 +7739,10 @@ function ForwardMessageModal({ users, conversations, message, token, onClose }: 
                 <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvaColor(target.label))}>
                   {target.kind === 'conversation'
                     ? target.avatar
-                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={11} />
                       : <Users className="h-4 w-4" />
                     : target.avatar
-                      ? <img src={resolveImageUrl(target.avatar)} alt="" className="w-full h-full object-cover" />
+                      ? <SS4AvatarImage src={target.avatar} name={target.label} className="w-full h-full object-cover" size={11} />
                       : <span style={{ fontSize: 11, fontWeight: 700 }}>{ini(target.label)}</span>}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -7764,7 +7791,7 @@ function PeoplePanel({ users, presence, uid, onSelect, showFilters }: {
       <button key={u._id} onClick={() => onSelect(u._id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-(--bg-hover) transition-colors">
         <div className="relative shrink-0">
           <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
-            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+            {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
           </div>
           {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
         </div>
@@ -7937,7 +7964,7 @@ function PrioritySendersModal({ users, selfId, onClose }: {
                   style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}
                 >
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                    {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
@@ -8228,7 +8255,7 @@ function MenuProfilePanel({ me, presence, uid, token }: {
       {me && (
         <div className="flex items-center gap-3 pb-4 mb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 15 }}>
-            {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+            {me.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me.fullName}</p>
@@ -8384,7 +8411,7 @@ function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvR
         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-1)' }}
       >
         <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me?.fullName || 'Me'))} style={{ fontSize: 15 }}>
-          {me?.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
+          {me?.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me?.fullName || 'You'}</p>
@@ -8460,7 +8487,7 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
         <div className="flex items-center gap-3 pb-4 mb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className="relative shrink-0">
             <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
-              {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+              {me.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
             </div>
             {presence && uid && <PresenceAvatarDot status={presence[uid]?.onlineStatus ?? 'offline'} deviceType={presence[uid]?.lastDeviceType ?? undefined} />}
           </div>
@@ -8794,7 +8821,7 @@ const ConvRow = React.memo(function ConvRow({
       )}
       <div className="relative shrink-0">
         <div className={cn('h-8 w-8 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-          {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
+          {conv.type === 'group' ? <ChannelFace conv={conv} avatar={cAvatar} name={cName} size={11} /> : cAvatar ? <SS4AvatarImage src={cAvatar} name={cName} className="w-full h-full object-cover" size={10} /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(cName)}</span>}
         </div>
         {conv.type === 'direct' && online ? <PresenceAvatarDot status={otherPresence!.onlineStatus} deviceType={otherPresence?.lastDeviceType ?? undefined} />
           : isUnread ? <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: unreadDotColor, boxShadow: '0 0 0 2px var(--sidebar-bg)' }} /> : null}
@@ -8991,12 +9018,13 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     setIsSupraSpaceStandaloneUrl(window.location.hostname === SUPRASPACE_SUBDOMAIN);
   }, [pathname]);
-  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState(false);
+  const [isSupraSpaceAlreadyInstalled, setIsSupraSpaceAlreadyInstalled] = React.useState<boolean | null>(null);
   React.useEffect(() => {
     setIsSupraSpaceAlreadyInstalled(isSupraSpaceInstalled());
   }, []);
   const isMobileViewport = useIsMobile();
-  const [mobileInstallPromptDismissed, setMobileInstallPromptDismissed] = React.useState(false);
+  const { isDismissed: mobileInstallPromptDismissed, dismiss: dismissMobileInstallPromptPermanently } = usePersistentPromptDismissal(SUPRASPACE_MOBILE_INSTALL_GATE_DISMISSED_KEY);
+  const [mobileInstallPromptClosed, setMobileInstallPromptClosed] = React.useState(false);
   const { theme, setTheme } = useTheme();
   const { getToken: getMainToken } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -9077,7 +9105,6 @@ export default function SupraSpacePage() {
   const handledShareTargetIdRef = React.useRef<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const dragCounterRef = React.useRef(0);
-  const [pendingMeeting, setPendingMeeting] = React.useState<PendingMeetingDraft | null>(null);
   const [pendingGif, setPendingGif] = React.useState<{ url: string; width?: number; height?: number; title?: string } | null>(null);
   const [scheduleOpen, setScheduleOpen] = React.useState(false);
   const [customScheduleAt, setCustomScheduleAt] = React.useState('');
@@ -9144,6 +9171,7 @@ export default function SupraSpacePage() {
   // sizing below — that native-app-feel lock should NOT apply to a normal
   // browser tab.
   const [isIOSDevice, setIsIOSDevice] = React.useState(false);
+  const [keyboardViewportOpen, setKeyboardViewportOpen] = React.useState(false);
   const conversationPageSize = React.useMemo(() => (isMobileViewport ? 50 : SS4_CONVERSATION_PAGE_SIZE), [isMobileViewport]);
   React.useEffect(() => {
     const standalone = isRunningAsSupraSpaceStandalone();
@@ -9200,7 +9228,10 @@ export default function SupraSpacePage() {
     if (!isStandaloneApp && !isMobileViewport) setMobileSearchOpen(false);
   }, [isMobileViewport, isStandaloneApp]);
   React.useEffect(() => {
-    if (!isIOSDevice || typeof window === 'undefined' || !window.visualViewport) return;
+    if ((!isIOSDevice && !isMobileViewport) || typeof window === 'undefined' || !window.visualViewport) {
+      setKeyboardViewportOpen(false);
+      return;
+    }
     const viewport = window.visualViewport;
     let raf = 0;
     let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
@@ -9231,6 +9262,7 @@ export default function SupraSpacePage() {
         // page lock, so compare against the last unfocused visual viewport.
         const visualKeyboardGap = Math.max(0, baselineVisualHeight - visualHeight);
         const keyboardOpen = focusedTextEntry && (viewport.scale || 1) === 1 && visualKeyboardGap > 100;
+        setKeyboardViewportOpen(previous => previous === keyboardOpen ? previous : keyboardOpen);
         // visualViewport is the usable display area in both states. This avoids
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
@@ -9297,8 +9329,9 @@ export default function SupraSpacePage() {
       document.documentElement.style.removeProperty('--ss4-vvh');
       document.documentElement.style.removeProperty('--ss4-vv-top');
       document.documentElement.style.removeProperty('--ss4-safe-bottom');
+      setKeyboardViewportOpen(false);
     };
-  }, [isIOSDevice]);
+  }, [isIOSDevice, isMobileViewport]);
   React.useEffect(() => {
     if (!activeId || (!isMobileViewport && !isStandaloneApp)) return;
     let touchY: number | null = null;
@@ -9366,7 +9399,7 @@ export default function SupraSpacePage() {
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
     };
   }, [isIOSDevice, isMobileViewport, isStandaloneApp, theme]);
-  const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && !mobileInstallPromptDismissed;
+  const showMobileInstallGate = !embedded && !isStandaloneApp && isMobileViewport && isSupraSpaceAlreadyInstalled === false && !mobileInstallPromptClosed && mobileInstallPromptDismissed === false;
 
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
@@ -9466,7 +9499,7 @@ export default function SupraSpacePage() {
   const emojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiRef = React.useRef<HTMLDivElement>(null);
   const mobileEmojiSheetRef = React.useRef<HTMLDivElement>(null);
-  const [lightbox, setLightbox] = React.useState<{ src: string; type: 'image' | 'video'; name: string; gallery?: { src: string; type: 'image' | 'video'; name: string }[]; index?: number } | null>(null);
+  const [lightbox, setLightbox] = React.useState<(SS4MediaViewerItem & { gallery?: SS4MediaViewerItem[]; index?: number }) | null>(null);
   const [memberCard, setMemberCard] = React.useState<{ member: SSConversation['members'][number]; pos: { x: number; y: number } } | null>(null);
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
 
@@ -9476,11 +9509,6 @@ export default function SupraSpacePage() {
   const [appSettingsOpen, setAppSettingsOpen] = React.useState(false);
   const [pollOpen, setPollOpen] = React.useState(false);
   const [eventOpen, setEventOpen] = React.useState(false);
-  const [meetingOpen, setMeetingOpen] = React.useState(false);
-  const [meetingMenuOpen, setMeetingMenuOpen] = React.useState(false);
-  const [meetingLinkInfo, setMeetingLinkInfo] = React.useState<string | null>(null);
-  const [meetingActionLoading, setMeetingActionLoading] = React.useState<'later' | 'instant' | null>(null);
-  const [scheduleMeetingOpen, setScheduleMeetingOpen] = React.useState(false);
   const [gifOpen, setGifOpen] = React.useState(false);
   const [mobileAttachSheetOpen, setMobileAttachSheetOpen] = React.useState(false);
   const [mobileFilePickerOpen, setMobileFilePickerOpen] = React.useState(false);
@@ -9488,7 +9516,6 @@ export default function SupraSpacePage() {
   const [summarizeOpen, setSummarizeOpen] = React.useState(false);
   const [createMenuOpen, setCreateMenuOpen] = React.useState(false);
   const createMenuRef = React.useRef<HTMLDivElement>(null);
-  const meetingMenuRef = React.useRef<HTMLDivElement>(null);
   const gifRef = React.useRef<HTMLDivElement>(null);
   const mobileAttachSheetRef = React.useRef<HTMLDivElement>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -9615,7 +9642,7 @@ export default function SupraSpacePage() {
       window.removeEventListener('resize', update);
       document.documentElement.style.removeProperty('--ss4-composer-height');
     };
-  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingMeeting, pendingGif, recording]);
+  }, [isIOSDevice, activeId, replyTo, pendingFiles.length, pendingGif, recording]);
 
   React.useEffect(() => {
     inputTextRef.current = input;
@@ -9752,6 +9779,19 @@ export default function SupraSpacePage() {
 
   const activeConv = convos.find(c => c._id === activeId);
   const activeMsgs = activeId ? (msgs[activeId] || []) : [];
+  const activeMediaGallery = React.useMemo<SS4MediaViewerItem[]>(() => activeMsgs.flatMap(message =>
+    (message.attachments || []).flatMap((attachment, attachmentIndex) => {
+      if (!isImageAttachment(attachment) && !isVideoAttachment(attachment)) return [];
+      return [{
+        id: `${message._id}:${attachmentIndex}`,
+        src: getAttachmentMediaUrl(attachment),
+        type: isVideoAttachment(attachment) ? 'video' as const : 'image' as const,
+        name: attachment.originalName,
+        mimeType: getAttachmentMimeType(attachment),
+        poster: attachment.thumbnailUrl,
+      }];
+    }),
+  ), [activeMsgs]);
   const activePinnedMsgs = React.useMemo(
     () => activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted),
     [activeMsgs, pinnedMsgIds],
@@ -9930,48 +9970,6 @@ export default function SupraSpacePage() {
   }, []);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-
-  const call = useCall(socket, token, uid);
-  const [activeMeeting, setActiveMeeting] = React.useState<CallSession | null>(null);
-  const activeMeetingRef = React.useRef<CallSession | null>(null);
-  React.useEffect(() => { activeMeetingRef.current = activeMeeting; }, [activeMeeting]);
-  const [callRecording, setCallRecording] = React.useState<{ isRecording: boolean; startedAt: string | null } | null>(null);
-
-  React.useEffect(() => {
-    if (!socket) return;
-    const onStarted = (data: { meetingId: string; recordingStartedAt: string }) => {
-      setCallRecording({ isRecording: true, startedAt: data.recordingStartedAt });
-    };
-    const onStopped = () => setCallRecording(null);
-    socket.on('call:recording-started', onStarted);
-    socket.on('call:recording-stopped', onStopped);
-    return () => {
-      socket.off('call:recording-started', onStarted);
-      socket.off('call:recording-stopped', onStopped);
-    };
-  }, [socket]);
-  const handleStartCall = React.useCallback(async (conv: SSConversation) => {
-    try { setActiveMeeting(await call.startCall(conv._id)); }
-    catch (e) { showUploadNotice('error', getErrorMessage(e, 'Could not start the call.')); }
-  }, [call, showUploadNotice]);
-
-  const handleJoinCall = React.useCallback(async (meetingId: string) => {
-    try { setActiveMeeting(await call.joinCall(meetingId)); }
-    catch (e: unknown) {
-      const responseStatus = (e as { response?: { status?: number } })?.response?.status;
-      if (responseStatus === 202) {
-        toast('Waiting for host approval');
-        return;
-      }
-      showUploadNotice('error', getErrorMessage(e, 'Could not join the call.'));
-    }
-  }, [call, showUploadNotice]);
-
-  const handleLeaveCall = React.useCallback(async () => {
-    const mId = activeMeeting?.call?.meetingId;
-    setActiveMeeting(null);
-    if (mId) await call.endCall(mId);
-  }, [activeMeeting, call]);
 
   const getMainTokenRef = React.useRef(getMainToken);
   getMainTokenRef.current = getMainToken;
@@ -10264,8 +10262,7 @@ export default function SupraSpacePage() {
       ).trim();
       const hasInitialConversationTarget = Boolean(
         initialConversationTargetId
-        || initialUrlParams.get('userId')
-        || initialUrlParams.get('meeting'),
+        || initialUrlParams.get('userId'),
       );
       const allowSavedConversationRestore = !hasInitialConversationTarget && !isRunningAsSupraSpaceStandalone();
       const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
@@ -10331,25 +10328,6 @@ export default function SupraSpacePage() {
           handledRouteConversationIdRef.current = pendingRouteConversationId;
           clearSupraSpaceConversationParam();
           if (!openedRouteConversation) clearStoredSupraSpaceConversationId(pendingRouteConversationId, myData._id);
-        }
-
-        const pendingMeetingId = urlParams.get('meeting');
-        if (pendingMeetingId) {
-          try {
-            const joinRes = await apiClient.post('/api/calls/join', { meetingId: pendingMeetingId }, { headers: { Authorization: `Bearer ${t}` } });
-            if (joinRes.status === 202 || joinRes.data?.data?.status === 'pending') {
-              toast('Waiting for host approval');
-            } else if (joinRes.data?.data?.jitsi) {
-              const session = joinRes.data.data as CallSession;
-              const convId = session.call?.conversationId;
-              if (convId && availableConvos.some(c => c._id === String(convId))) openFetchedConversation(String(convId));
-              setActiveMeeting(session);
-            }
-            router.replace('/crm/supra-space', { scroll: false });
-          } catch (meetingErr: unknown) {
-            const message = (meetingErr as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            toast.error(message || 'Could not open meeting');
-          }
         }
 
         const pendingUserId = urlParams.get('userId');
@@ -10607,34 +10585,6 @@ export default function SupraSpacePage() {
     };
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
-    const onMeetingJoinRequested = (payload: MeetingJoinRequestedPayload) => {
-      const requester = payload?.requester;
-      if (!payload?.meetingId || !requester) return;
-      toast(`${requester.name || requester.email} wants to join`, {
-        action: {
-          label: 'Approve',
-          onClick: async () => {
-            try {
-              await apiClient.post(`/api/calls/meeting/${payload.meetingId}/admission`, {
-                userId: requester.userId,
-                email: requester.email,
-                decision: 'approved',
-              }, { headers: { Authorization: `Bearer ${token}` } });
-              toast.success('Guest approved');
-            } catch (e: unknown) {
-              toast.error(getErrorMessage(e, 'Could not approve guest.'));
-            }
-          },
-        },
-      });
-    };
-    const onMeetingAdmissionUpdated = (payload: MeetingAdmissionUpdatedPayload) => {
-      if (payload?.status === 'approved' && payload?.meetingId) {
-        toast.success('Meeting approved');
-        handleJoinCall(payload.meetingId);
-      }
-    };
-
     const onEdited = ({ conversationId, messageId, content, attachments, type }: any) => {
       const patch: Partial<SSMessage> = { content, isEdited: true };
       if (Array.isArray(attachments)) patch.attachments = attachments;
@@ -10649,13 +10599,6 @@ export default function SupraSpacePage() {
       });
       patchMsg(conversationId, messageId, { pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null });
     };
-    const onCallEnded = ({ conversationId, meetingId }: { conversationId?: string; meetingId?: string }) => {
-      const m = activeMeetingRef.current;
-      if (!m) return;
-      if (m.call?.meetingId === meetingId || m.call?.conversationId === conversationId) {
-        setActiveMeeting(null);
-      }
-    };
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
     socket.on('message:edited', onEdited);
@@ -10669,9 +10612,6 @@ export default function SupraSpacePage() {
     socket.on('message:pinned', onPinned);
     socket.on('message:poll', onPoll);
     socket.on('message:event', onEvent);
-    socket.on('meeting:join-requested', onMeetingJoinRequested);
-    socket.on('meeting:admission-updated', onMeetingAdmissionUpdated);
-    socket.on('call:ended', onCallEnded);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (userId === uid) {
         setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
@@ -10720,14 +10660,11 @@ export default function SupraSpacePage() {
       socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
       socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction); socket.off('message:pinned', onPinned);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
-      socket.off('meeting:join-requested', onMeetingJoinRequested);
-      socket.off('meeting:admission-updated', onMeetingAdmissionUpdated);
-      socket.off('call:ended', onCallEnded);
       socket.off('messages:read', onMsgsRead);
       socket.off('user:profile:updated', onProfileUpdated);
       socket.off('conversations:all-read', onAllRead);
     };
-  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, token, handleJoinCall]);
+  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages]);
 
   React.useLayoutEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -10933,7 +10870,6 @@ export default function SupraSpacePage() {
       if (rb.includes(uid)) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
       return { ...c, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...c.lastMessage, readBy: [...rb, uid] } };
     }));
-    call.refreshStatus(activeId);
   }, [activeId, token, activeMsgsMissing, fetchConversationMessages]); // eslint-disable-line
 
   React.useEffect(() => {
@@ -10968,7 +10904,7 @@ export default function SupraSpacePage() {
     if (previousId) {
       const currentDraft = textareaRef.current ? htmlToMarkdown(textareaRef.current) : inputTextRef.current || '';
       setConversationDraft(previousId, currentDraft);
-      composerExtrasRef.current[previousId] = { files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting };
+      composerExtrasRef.current[previousId] = { files: pendingFiles, reply: replyTo, gif: pendingGif };
     }
 
     const nextDraftRaw = activeId ? composerDraftsRef.current[activeId] || '' : '';
@@ -10978,7 +10914,6 @@ export default function SupraSpacePage() {
     const extras = activeId ? composerExtrasRef.current[activeId] : undefined;
     setReplyTo(extras?.reply || null);
     setPendingFiles(extras?.files || []);
-    setPendingMeeting(extras?.meeting || null);
     setPendingGif(extras?.gif || null);
     setUploadNotice(null);
     setShowInfo(false);
@@ -11003,7 +10938,6 @@ export default function SupraSpacePage() {
         setEmojiOpen(false);
       }],
       [createMenuOpen, make(createMenuRef, () => setCreateMenuOpen(false))],
-      [meetingMenuOpen, make(meetingMenuRef, () => setMeetingMenuOpen(false))],
       [gifOpen, (e: MouseEvent) => {
         const target = e.target as Node;
         if (gifRef.current?.contains(target) || mobileAttachSheetRef.current?.contains(target)) return;
@@ -11013,7 +10947,7 @@ export default function SupraSpacePage() {
     const active = hs.filter(([on]) => on).map(([, h]) => h);
     active.forEach(h => document.addEventListener('mousedown', h));
     return () => active.forEach(h => document.removeEventListener('mousedown', h));
-  }, [autrixOpen, emojiOpen, createMenuOpen, meetingMenuOpen, gifOpen]);
+  }, [autrixOpen, emojiOpen, createMenuOpen, gifOpen]);
 
   React.useEffect(() => {
     if (!memberCard) return;
@@ -11037,9 +10971,8 @@ export default function SupraSpacePage() {
     const currentComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
     const hasText = Boolean(currentComposerText.trim());
     const hasPendingFiles = pendingFiles.length > 0;
-    const hasPendingMeeting = !!pendingMeeting;
     const hasPendingGif = !!pendingGif;
-    if (!hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif) return;
+    if (!hasText && !hasPendingFiles && !hasPendingGif) return;
     if (sendInFlightRef.current) return;
     const conversationId = activeId;
     const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
@@ -11062,18 +10995,17 @@ export default function SupraSpacePage() {
       ),
     );
     const pastedMediaReference = getSS4PastedMediaReference(content, '');
-    if (hasText && !hasPendingFiles && !hasPendingMeeting && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
+    if (hasText && !hasPendingFiles && !hasPendingGif && isOnlySS4PastedMediaReference(content, pastedMediaReference)) {
       if (pastedMediaReference?.local) {
-        showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+        showUploadNotice('error', 'iPhone only shared a local file path. Use the share sheet so SupraSpace can access the actual file.');
       } else if (pastedMediaReference) {
-        showUploadNotice('error', 'Paste the copied video again so SupraSpace can attach it as media.');
+        showUploadNotice('error', 'Paste the copied attachment again so SupraSpace can attach it as a file.');
       }
       return;
     }
     const replyMessageId = replyTo?._id;
     const restoredFailedSend = restoredFailedSendRef.current;
     const canRetryDelivery = !!restoredFailedSend
-      && !pendingMeeting
       && restoredFailedSend.conversationId === conversationId
       && restoredFailedSend.content === content
       && restoredFailedSend.scheduledAt === scheduledAt
@@ -11083,18 +11015,14 @@ export default function SupraSpacePage() {
       && restoredFailedSend.files.every((file, index) => file === pendingFiles[index]);
     const deliveryId = canRetryDelivery ? restoredFailedSend.id : createMessageId();
     if (!canRetryDelivery) restoredFailedSendRef.current = null;
-    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, meeting: pendingMeeting, scheduledAt };
+    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, scheduledAt };
     const isScheduledSend = Boolean(scheduledAt);
     if (content.length > SS4_MAX_MESSAGE_CHARS) {
       showUploadNotice('error', `Message is ${content.length.toLocaleString()} characters. Limit is 10,000.`);
       return;
     }
-    if (isScheduledSend && (hasPendingFiles || hasPendingMeeting)) {
+    if (isScheduledSend && hasPendingFiles) {
       showUploadNotice('error', 'Schedule send currently supports text and GIF messages only.');
-      return;
-    }
-    if (hasPendingMeeting && (hasPendingFiles || hasPendingGif)) {
-      showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
       return;
     }
     if (hasPendingFiles && hasPendingGif) {
@@ -11109,7 +11037,6 @@ export default function SupraSpacePage() {
     setReplyTo(null);
     setPendingFiles([]);
     setPendingGif(null);
-    setPendingMeeting(null);
     setSending(true);
     sendInFlightRef.current = true;
     sendTypingStop(conversationId);
@@ -11117,23 +11044,7 @@ export default function SupraSpacePage() {
     let optimisticAttachmentId: string | null = null;
     let optimisticAttachmentUrls: string[] = [];
     try {
-      if (hasPendingMeeting) {
-        if (hasPendingFiles || hasPendingGif) {
-          showUploadNotice('error', 'Send attachments and GIFs separately before sending a meeting.');
-          return;
-        }
-        const r = await apiClient.post('/api/calls/meeting', {
-          conversationId,
-          title: pendingMeeting.title,
-          scheduledAt: pendingMeeting.scheduledAt || undefined,
-          optionalMessage: content,
-        }, { headers: { Authorization: `Bearer ${token}` } });
-        if (r.data?.data?.message) appendMessageLocal(conversationId, r.data.data.message);
-        if (r.data?.data?.meetingLink) {
-          try { await navigator.clipboard.writeText(r.data.data.meetingLink); toast.success('Meeting sent and link copied'); }
-          catch { toast.success('Meeting sent'); }
-        }
-      } else if (hasPendingFiles) {
+      if (hasPendingFiles) {
         if (hasPendingGif) {
           showUploadNotice('error', 'Send GIFs separately from file attachments.');
           return;
@@ -11246,7 +11157,6 @@ export default function SupraSpacePage() {
         });
         showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
       }
-      else if (hasPendingMeeting) showUploadNotice('error', getErrorMessage(error, 'Failed to send meeting.'));
       else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
       else {
         if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
@@ -11255,7 +11165,7 @@ export default function SupraSpacePage() {
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
 
-  const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !pendingMeeting && !sending;
+  const canScheduleSend = Boolean(composerHasText || pendingGif) && pendingFiles.length === 0 && !sending;
   const scheduleOptions = React.useMemo(() => {
     const now = new Date();
     const today8 = new Date(now); today8.setHours(8, 0, 0, 0);
@@ -11354,16 +11264,16 @@ export default function SupraSpacePage() {
         }
       } catch {
       }
-      showUploadNotice('error', 'iPhone only shared a local video path. Use Photos & Videos so SupraSpace can access the actual file.');
+      showUploadNotice('error', 'iPhone only shared a local file path. Use the share sheet so SupraSpace can access the actual file.');
       return;
     }
 
     try {
-      showUploadNotice('info', 'Preparing copied media...');
+      showUploadNotice('info', 'Preparing copied attachment...');
       const file = await ss4PastedMediaUrlToFile(reference.url);
       await handleUploadFiles([file]);
     } catch {
-      showUploadNotice('error', 'Could not read the copied video. Use Photos & Videos instead.');
+      showUploadNotice('error', 'Could not read the copied attachment. Use the file picker instead.');
     }
   }, [handleUploadFiles, showUploadNotice]);
 
@@ -12021,87 +11931,6 @@ export default function SupraSpacePage() {
     if (!activeId) return; setEventOpen(false);
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/event`, ev, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create event.')); }
   };
-  const createMeeting = (meeting: PendingMeetingDraft) => {
-    if (!activeId) return;
-    setPendingMeeting({ title: meeting.title || 'Video meeting', scheduledAt: meeting.scheduledAt || '' });
-    setMeetingOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  };
-  const createStandaloneMeeting = async (meeting: PendingMeetingDraft) => {
-    const r = await apiClient.post('/api/calls/meeting', {
-      title: meeting.title || 'Video meeting',
-      scheduledAt: meeting.scheduledAt || undefined,
-    }, { headers: { Authorization: `Bearer ${token}` } });
-    const meetingLink = r.data?.data?.meetingLink;
-    const meetingId = r.data?.data?.call?.meetingId;
-    if (!meetingLink || !meetingId) throw new Error('Meeting link was not returned');
-    return { meetingLink, meetingId };
-  };
-  const createMeetingLink = async (meeting: PendingMeetingDraft) => {
-    try {
-      const { meetingLink } = await createStandaloneMeeting(meeting);
-      try {
-        await navigator.clipboard.writeText(meetingLink);
-        toast.success('Meeting link created and copied');
-      } catch {
-        toast.success('Meeting link created');
-      }
-      return meetingLink;
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
-      throw e;
-    }
-  };
-  const handleCreateMeetingForLater = async () => {
-    setMeetingMenuOpen(false);
-    setMeetingActionLoading('later');
-    try {
-      const { meetingLink } = await createStandaloneMeeting({ title: 'Video meeting', scheduledAt: '' });
-      setMeetingLinkInfo(meetingLink);
-      try {
-        await navigator.clipboard.writeText(meetingLink);
-        toast.success('Meeting link created and copied');
-      } catch {
-        toast.success('Meeting link created');
-      }
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to create meeting link.'));
-    } finally {
-      setMeetingActionLoading(null);
-    }
-  };
-  const handleStartInstantMeeting = async () => {
-    setMeetingMenuOpen(false);
-    setMeetingActionLoading('instant');
-    try {
-      const { meetingId } = await createStandaloneMeeting({ title: 'Instant meeting', scheduledAt: '' });
-      setActiveMeeting(await call.joinCall(meetingId));
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to start instant meeting.'));
-    } finally {
-      setMeetingActionLoading(null);
-    }
-  };
-  const handleScheduleSuprahMeeting = async (data: { title: string; description: string; scheduledAt: string; endTime: string; department: string }) => {
-    try {
-      const r = await apiClient.post('/api/calls/meeting/schedule', {
-        title: data.title,
-        description: data.description || undefined,
-        scheduledAt: data.scheduledAt,
-        endTime: data.endTime || undefined,
-        department: data.department,
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      const meetingLink = r.data?.data?.meetingLink;
-      const participantCount = r.data?.data?.participantCount;
-      setScheduleMeetingOpen(false);
-      if (meetingLink) setMeetingLinkInfo(meetingLink);
-      toast.success(`Meeting scheduled${participantCount ? ` for ${participantCount} participant${participantCount === 1 ? '' : 's'}` : ''}`);
-    } catch (e) {
-      showUploadNotice('error', getErrorMessage(e, 'Failed to schedule meeting.'));
-      throw e;
-    }
-  };
-
   const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
     if (!activeId) return;
     const cleanContent = normalizeMessageMarkdownText(content);
@@ -12945,6 +12774,7 @@ export default function SupraSpacePage() {
 
   const handleComposerTypographyBeforeInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const inputEvent = event.nativeEvent as InputEvent;
+    if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') return;
     if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
       const pastedAttachments = clipboardAttachmentFiles(inputEvent.dataTransfer);
       if (pastedAttachments.length > 0 && handleUploadFilesRef.current) {
@@ -13102,6 +12932,16 @@ export default function SupraSpacePage() {
     videoFileRef.current?.click();
   }, [prepareMobileMediaPicker]);
 
+  const openMobileCameraPicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    cameraFileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
+  const openMobileFilesPicker = React.useCallback(() => {
+    prepareMobileMediaPicker();
+    fileRef.current?.click();
+  }, [prepareMobileMediaPicker]);
+
   const pasteMediaFromClipboard = React.useCallback(async () => {
     if (!activeId) return;
     try {
@@ -13212,6 +13052,11 @@ export default function SupraSpacePage() {
     } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
   }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
 
+  const refreshActiveMedia = React.useCallback(() => {
+    if (!activeId) return;
+    void fetchConversationMessages(activeId, { force: true, silent: true });
+  }, [activeId, fetchConversationMessages]);
+
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
   const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
     <Bubble
@@ -13224,10 +13069,11 @@ export default function SupraSpacePage() {
       onPin={handlePinToggle}
       isPinned={pinnedMsgIds.has(message._id)}
       onOpenMedia={setLightbox}
+      mediaGallery={activeMediaGallery}
+      onRefreshMedia={refreshActiveMedia}
       onReact={handleReact}
       onVotePoll={handleVotePoll}
       onRsvp={handleRsvp}
-      onJoinMeeting={handleJoinCall}
       nameFor={nameFor}
       members={msgSeenByMembers[message._id] || EMPTY_MEMBERS_ARRAY}
       hideTime={hideTime}
@@ -13236,7 +13082,7 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
     />
-  ), [activeConv?.theme?.emoji, handleDelete, handleEdit, handleJoinCall, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -13532,8 +13378,9 @@ export default function SupraSpacePage() {
     </div>
   );
 
-  const standaloneShellStyle: React.CSSProperties = isIOSDevice
-    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+  const visualViewportShellActive = isIOSDevice || (isMobileViewport && keyboardViewportOpen);
+  const standaloneShellStyle: React.CSSProperties = visualViewportShellActive
+    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
@@ -13587,7 +13434,7 @@ export default function SupraSpacePage() {
               type="button"
               className="ss4-pill-btn h-9 shrink-0 px-3 text-xs font-semibold"
               onClick={() => {
-                const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || Boolean(pendingMeeting) || sharedTargetFiles.length > 0 || sending || uploading;
+                const hasUnsentComposerWork = composerHasText || pendingFiles.length > 0 || Boolean(pendingGif) || sharedTargetFiles.length > 0 || sending || uploading;
                 if (hasUnsentComposerWork) {
                   showUploadNotice('info', 'Send or clear the current draft before updating.');
                   return;
@@ -13717,36 +13564,6 @@ export default function SupraSpacePage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
-                  {!isStandaloneApp && (
-                    <div ref={meetingMenuRef} className="relative">
-                      <button
-                        onClick={() => setMeetingMenuOpen(v => !v)}
-                        className="ss4-video-btn h-7 px-2.5 flex items-center gap-1.5"
-                        title="New meeting"
-                        disabled={!!meetingActionLoading}
-                        style={{ opacity: meetingActionLoading ? 0.7 : 1 }}
-                      >
-                        {meetingActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
-                        <span className="font-semibold hidden sm:inline" style={{ fontSize: 11 }}>Meet</span>
-                      </button>
-                      {meetingMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 z-50 w-59 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden p-1" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-lg)' }}>
-                          <button onClick={handleCreateMeetingForLater} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <Link2 className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Create a meeting link for later
-                          </button>
-                          <button onClick={handleStartInstantMeeting} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <Plus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Start an instant meeting
-                          </button>
-                          <button onClick={() => { setMeetingMenuOpen(false); setScheduleMeetingOpen(true); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg hover:bg-(--bg-hover)" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                            <CalendarPlus className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                            Schedule in Suprah Calendar
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   )}
                 </div>
               </div>
@@ -14212,16 +14029,6 @@ export default function SupraSpacePage() {
                     <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setShowModal({ open: true, tab: 'space' })}>
                       <Sparkles className="h-3.5 w-3.5" /> New Space
                     </DropdownMenuItem>
-                    <div style={{ height: 1, background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)', margin: '3px 4px' }} />
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleCreateMeetingForLater}>
-                      <Link2 className="h-3.5 w-3.5" /> Create meeting link
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={handleStartInstantMeeting}>
-                      <Video className="h-3.5 w-3.5" /> Start instant meeting
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setScheduleMeetingOpen(true)}>
-                      <CalendarPlus className="h-3.5 w-3.5" /> Schedule meeting
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -14379,7 +14186,7 @@ export default function SupraSpacePage() {
                     <button onClick={() => setShowInfo(true)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
                       <div className="relative shrink-0">
                         <div className={cn('h-10.5 w-10.5 lg:h-9 lg:w-9 rounded-full flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(getConvName(activeConv, uid)))}>
-                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={14} /> : getConvAvatar(activeConv, uid) ? <img src={resolveImageUrl(getConvAvatar(activeConv, uid))} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold text-sm lg:text-[11px]">{ini(getConvName(activeConv, uid))}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={resolveImageUrl(getConvAvatar(activeConv, uid))} name={getConvName(activeConv, uid)} size={14} /> : getConvAvatar(activeConv, uid) ? <SS4AvatarImage src={getConvAvatar(activeConv, uid)} name={getConvName(activeConv, uid)} className="w-full h-full object-cover" size={14} /> : <span className="text-white font-semibold text-sm lg:text-[11px]">{ini(getConvName(activeConv, uid))}</span>}
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
@@ -14395,25 +14202,12 @@ export default function SupraSpacePage() {
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild><button className="ss4-video-btn h-10 min-w-10 px-2.5 lg:h-8 lg:min-w-0 lg:px-3 flex items-center justify-center gap-1.5" title="Start a call"><Phone className="h-5 w-5 lg:h-3.5 lg:w-3.5" /><span className="font-semibold hidden sm:inline" style={{ fontSize: 12 }}>Call</span></button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36 rounded-xl" style={{ background: theme === 'dark' ? '#141618' : '#ffffff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'}` }}>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Video className="h-3.5 w-3.5" /> Video Call</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => handleStartCall(activeConv)}><Phone className="h-3.5 w-3.5" /> Voice Call</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg cursor-pointer text-xs" style={{ color: 'var(--text-secondary)' }} onClick={() => setMeetingOpen(true)}><CalendarPlus className="h-3.5 w-3.5" /> Create Meeting</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                       <button onClick={() => setThreadReportOpen(true)} className="hidden lg:flex ss4-icon-btn h-8 w-8" title="Download thread report">
                         <FileText className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>
                       <button onClick={() => setShowInfo(v => !v)} className={cn('ss4-icon-btn h-10 w-10 lg:h-8 lg:w-8', showInfo && 'ss4-video-btn')} title="Details"><Info className="h-5 w-5 lg:h-4 lg:w-4" /></button>
                     </div>
                   </div>
-
-                  { }
-                  {call.liveCalls[activeId] && !activeMeeting && (
-                    <CallBanner call={call.liveCalls[activeId]} onJoin={() => handleJoinCall(call.liveCalls[activeId].meetingId)} />
-                  )}
 
                   { }
                   {(() => {
@@ -14528,16 +14322,16 @@ export default function SupraSpacePage() {
                         <p className="truncate mt-1">{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</p>
                         <div className="flex gap-2 mt-2">
                           <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
-                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif || pendingMeeting) {
+                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
                               showUploadNotice('info', 'Send or save your current draft before restoring this message.');
                               return;
                             }
                             syncComposerText(item.content, true);
                             if (textareaRef.current) textareaRef.current.innerHTML = markdownTextToEditorHtml(item.content);
-                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif); setPendingMeeting(item.meeting);
-                            restoredFailedSendRef.current = item.meeting ? null : item;
+                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif);
+                            restoredFailedSendRef.current = item;
                             setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
-                            showUploadNotice('info', item.meeting ? 'Draft restored. Check the conversation before resending.' : 'Draft restored. It can safely retry its original delivery.');
+                            showUploadNotice('info', 'Draft restored. It can safely retry its original delivery.');
                           }}>Restore draft</button>
                           <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
                             if (window.confirm('Discard this unsent message and its files?')) {
@@ -14559,11 +14353,6 @@ export default function SupraSpacePage() {
                       <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
                         <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
                         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
-                      </div>
-                    )}
-                    {pendingMeeting && (
-                      <div className="ss4-reply-bar px-3 py-2.5">
-                        <PendingMeetingPreview meeting={pendingMeeting} onRemove={() => setPendingMeeting(null)} />
                       </div>
                     )}
                     {pendingGif && (
@@ -14595,7 +14384,7 @@ export default function SupraSpacePage() {
                       </div>
                     ) : recording ? (
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)', animation: 'ss4-call-ring 1.5s infinite' }} />
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)' }} />
                         <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
                         <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
                         <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
@@ -14615,7 +14404,7 @@ export default function SupraSpacePage() {
                                     <Users className="h-3 w-3" style={{ color: 'var(--accent)' }} />
                                   </div>
                                   : <div className={cn('h-6 w-6 rounded-full flex items-center justify-center overflow-hidden text-white font-semibold shrink-0', getAvaColor(opt.fullName))} style={{ fontSize: 9 }}>
-                                    {opt.avatar ? <img src={opt.avatar} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
+                                    {opt.avatar ? <img src={resolveImageUrl(opt.avatar)} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
                                   </div>
                                 }
                                 <div className="min-w-0 flex items-baseline gap-1.5">
@@ -14832,6 +14621,9 @@ export default function SupraSpacePage() {
                                   saveComposerSelection();
                                   scheduleRefreshActiveFormats();
                                 }
+                              }}
+                              onCompositionEnd={event => {
+                                syncComposerText(event.currentTarget.innerText.replace(/\n$/, ''), true);
                               }}
                               onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -15204,7 +14996,7 @@ export default function SupraSpacePage() {
                             </button>
                           </div>
                           <div className="ss4-mobile-trailing flex md:hidden">
-                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileImagePicker} className="ss4-icon-btn ss4-mobile-media-action" title="Photo or video"><ImageIcon className="h-6 w-6" /></button>
+                            <button type="button" onPointerDown={e => { e.preventDefault(); e.stopPropagation(); prepareMobileMediaPicker(); }} onClick={openMobileAttachSheet} className="ss4-icon-btn ss4-mobile-media-action" title="Add attachment" aria-label="Add attachment" aria-haspopup="dialog" aria-expanded={mobileAttachSheetOpen}><ImageIcon className="h-6 w-6" /></button>
                             {composerHasText || pendingFiles.length > 0 || pendingGif ? (
                               <button
                                 type="button"
@@ -15319,7 +15111,6 @@ export default function SupraSpacePage() {
                                 <div className="absolute bottom-full left-0 mb-2 z-50 rounded-xl overflow-hidden py-1" style={{ width: 160, background: 'var(--bg-elevated)', border: '1px solid var(--border-3)', boxShadow: '0 12px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)' }}>
                                   <button onClick={() => { setCreateMenuOpen(false); setPollOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><BarChart3 className="h-3.5 w-3.5" /> Create Poll</button>
                                   <button onClick={() => { setCreateMenuOpen(false); setEventOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><CalendarPlus className="h-3.5 w-3.5" /> Create Event</button>
-                                  <button onClick={() => { setCreateMenuOpen(false); setMeetingOpen(true); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-(--bg-hover)" style={{ fontSize: 12, color: 'var(--text-secondary)' }}><Video className="h-3.5 w-3.5" /> Create Meeting</button>
                                 </div>
                               )}
                             </div>
@@ -15346,7 +15137,7 @@ export default function SupraSpacePage() {
                               <Type className="h-4 w-4" />
                             </button>
                           </div>
-                          <button onClick={() => handleSend()} disabled={sending || (!composerHasText && pendingFiles.length === 0 && !pendingMeeting && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
+                          <button onClick={() => handleSend()} disabled={sending || (!composerHasText && pendingFiles.length === 0 && !pendingGif)} className="ss4-send-btn h-7 w-7 flex items-center justify-center shrink-0 sm:h-8 sm:w-8">
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           </button>
                         </div>
@@ -15434,7 +15225,7 @@ export default function SupraSpacePage() {
                     <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                       <div className="relative">
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
-                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <img src={resolveImageUrl(cAvatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
+                          {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <SS4AvatarImage src={cAvatar} name={cName} className="w-full h-full object-cover" size={26} /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                         </div>
                         {activeConv.type === 'group' && (
                           <>
@@ -15495,7 +15286,7 @@ export default function SupraSpacePage() {
                               <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
                                 <button onClick={e => setMemberCard({ member: m, pos: { x: e.clientX, y: e.clientY } })} className="relative shrink-0">
                                   <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
+                                    {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
                                   </div>
                                   {isOnline && <PresenceAvatarDot status={memberPresence!.onlineStatus} deviceType={memberPresence?.lastDeviceType ?? undefined} />}
                                 </button>
@@ -15529,10 +15320,12 @@ export default function SupraSpacePage() {
                                     src: getAttachmentMediaUrl(attachment),
                                     type: isVideoAttachment(attachment) ? 'video' as const : 'image' as const,
                                     name: attachment.originalName,
+                                    mimeType: getAttachmentMimeType(attachment),
+                                    poster: attachment.thumbnailUrl,
                                   }));
-                                  setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, gallery, index: i });
+                                  setLightbox({ src: getAttachmentMediaUrl(a), type: isVid ? 'video' : 'image', name: a.originalName, mimeType: getAttachmentMimeType(a), poster: a.thumbnailUrl, gallery, index: i });
                                 }} className="aspect-square rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-hover)' }}>
-                                  {isVid ? <><video src={getAttachmentMediaUrl(a)} className="w-full h-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
+                                  {isVid ? <><SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" /><div className="absolute inset-0 flex items-center justify-center bg-black/30"><Play className="h-5 w-5" style={{ color: '#fff' }} /></div></> : <SS4AttachmentImage attachment={a} alt={a.originalName} className="w-full h-full object-cover" />}
                                 </button>
                               );
                             })}
@@ -15648,29 +15441,6 @@ export default function SupraSpacePage() {
           />
         )}
 
-        { }
-        {call.incoming && !activeMeeting && (
-          <IncomingCallModal
-            call={call.incoming}
-            onJoin={() => handleJoinCall(call.incoming!.meetingId)}
-            onDismiss={() => { stopCallSound(); call.setIncoming(null); }}
-          />
-        )}
-        {activeMeeting && (
-          <CallExperience
-            session={activeMeeting}
-            displayName={me?.fullName || 'User'}
-            email={me?.email}
-            avatarUrl={me?.avatar}
-            currentUserId={uid}
-            token={token}
-            conversationMembers={activeConv ? safeMembers(activeConv) : []}
-            callRecording={callRecording}
-            onRecordingChange={setCallRecording}
-            onClose={handleLeaveCall}
-          />
-        )}
-
         {manageOpen && activeConv && (
           <ManageMembersModal
             users={allUsers}
@@ -15707,11 +15477,11 @@ export default function SupraSpacePage() {
           />
         )}
         {showMobileInstallGate && (
-          <div className="ss4 fixed inset-0 z-200 flex items-center justify-center p-4" data-theme={theme} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setMobileInstallPromptDismissed(true)}>
+          <div className="ss4 fixed inset-0 z-200 flex items-center justify-center p-4" data-theme={theme} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setMobileInstallPromptClosed(true)}>
             <div className="relative flex flex-col items-center gap-5 text-center w-full max-w-xs rounded-2xl px-6 py-8" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
               <button
                 type="button"
-                onClick={() => setMobileInstallPromptDismissed(true)}
+                onClick={() => setMobileInstallPromptClosed(true)}
                 className="absolute right-3 top-3 h-8 w-8 rounded-full flex items-center justify-center"
                 style={{ color: 'var(--text-tertiary)' }}
                 title="Close"
@@ -15739,6 +15509,14 @@ export default function SupraSpacePage() {
                 {isSupraSpaceAlreadyInstalled ? <ExternalLink className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                 {isSupraSpaceAlreadyInstalled ? 'Open SupraSpace' : 'Install SupraSpace'}
               </a>
+              <button
+                type="button"
+                onClick={dismissMobileInstallPromptPermanently}
+                className="text-xs font-medium underline-offset-4 hover:underline"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Don&apos;t show again
+              </button>
             </div>
           </div>
         )}
@@ -15773,7 +15551,7 @@ export default function SupraSpacePage() {
                 background: 'var(--bg-elevated)',
                 boxShadow: '0 -16px 48px rgba(0,0,0,0.55)',
                 height: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
-                maxHeight: (gifOpen || mobileFilePickerOpen) ? `calc(var(--ss4-vvh, 100dvh) - 72px)` : undefined,
+                maxHeight: `calc(var(--ss4-vvh, 100dvh) - 72px)`,
                 minHeight: 0,
                 overflow: 'hidden',
                 overscrollBehavior: 'contain',
@@ -15807,7 +15585,7 @@ export default function SupraSpacePage() {
                   <MobileFilePicker files={pendingFiles} maxFiles={SS4_MAX_UPLOAD_FILES} onBrowse={() => fileRef.current?.click()} onRemove={removePendingFile} onClear={() => setPendingFiles([])} onClose={() => { setMobileFilePickerOpen(false); setMobileAttachSheetOpen(false); }} />
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="min-h-0 overflow-y-auto overscroll-contain space-y-1">
                   {!isIOSDevice && (
                     <>
                       <label htmlFor={imageInputId} onClick={() => { setGifOpen(false); setMobileFilePickerOpen(false); }} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
@@ -15822,6 +15600,22 @@ export default function SupraSpacePage() {
                         <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                         <span className="font-semibold" style={{ fontSize: 14 }}>Camera</span>
                       </label>
+                    </>
+                  )}
+                  {isIOSDevice && (
+                    <>
+                      <button type="button" onClick={openMobileImagePicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <ImageIcon className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Photo Library</span>
+                      </button>
+                      <button type="button" onClick={openMobileCameraPicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Camera className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Take Photo or Video</span>
+                      </button>
+                      <button type="button" onClick={openMobileFilesPicker} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
+                        <Folder className="h-6 w-6 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+                        <span className="font-semibold" style={{ fontSize: 14 }}>Choose Files</span>
+                      </button>
                     </>
                   )}
                   <button type="button" onClick={pasteMediaFromClipboard} className="w-full flex items-center gap-5 rounded-2xl px-3 py-3.5 text-left active:bg-white/5" style={{ color: 'var(--text-primary)' }}>
@@ -15859,20 +15653,6 @@ export default function SupraSpacePage() {
         )}
         {pollOpen && <PollModal onClose={() => setPollOpen(false)} onCreate={createPoll} />}
         {eventOpen && <EventModal onClose={() => setEventOpen(false)} onCreate={createEvent} />}
-        {meetingOpen && (
-          <MeetingModal
-            onClose={() => setMeetingOpen(false)}
-            onCreate={createMeeting}
-            onCreateLink={createMeetingLink}
-            canAddToMessage={!!activeId}
-          />
-        )}
-        {meetingLinkInfo && (
-          <MeetingJoinInfoModal link={meetingLinkInfo} onClose={() => setMeetingLinkInfo(null)} />
-        )}
-        {scheduleMeetingOpen && (
-          <ScheduleMeetingModal onClose={() => setScheduleMeetingOpen(false)} onSubmit={handleScheduleSuprahMeeting} />
-        )}
         {activeUsersOpen && (
           <ActiveUsersModal
             users={allUsers}
@@ -15980,7 +15760,7 @@ export default function SupraSpacePage() {
                 <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                   <div className="relative">
                     <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                      {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
+                      {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
                     </div>
                     {isOnline && <PresenceAvatarDot status={memberCardPresence!.onlineStatus} deviceType={memberCardPresence?.lastDeviceType ?? undefined} sizeClass="size-3" />}
                   </div>
@@ -16003,13 +15783,15 @@ export default function SupraSpacePage() {
           const hasGallery = !!gallery && gallery.length > 1;
           const goTo = (i: number) => setLightbox(prev => {
             if (!prev?.gallery?.[i]) return prev;
-            return { ...prev, src: prev.gallery[i].src, type: prev.gallery[i].type, name: prev.gallery[i].name, index: i };
+            return { ...prev, ...prev.gallery[i], index: i };
           });
           return (
             <LightboxModal
               src={lightbox.src}
               type={lightbox.type}
               name={lightbox.name}
+              mimeType={lightbox.mimeType}
+              poster={lightbox.poster}
               onClose={() => setLightbox(null)}
               onPrev={hasGallery && index > 0 ? () => goTo(index - 1) : undefined}
               onNext={hasGallery && index < gallery!.length - 1 ? () => goTo(index + 1) : undefined}
@@ -16049,7 +15831,6 @@ export default function SupraSpacePage() {
               ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
               : []),
             { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
-            { icon: <Phone className="h-5 w-5" />, label: 'Call', onClick: () => { handleStartCall(sheetConv); openConversation(sheetConv._id); setConvMobileSheet(null); } },
             { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
           ];
           return (
