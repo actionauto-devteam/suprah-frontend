@@ -39,6 +39,8 @@ interface EditUserForm {
   locationRequiredOverride: "default" | "required" | "exempt"
   monitoringModeOverride: "default" | "off" | "always" | "switching"
   trayDeviceAuthOverride: "default" | "on" | "off"
+  deviceSwitchOverride: "default" | "on" | "off"
+  desktopLocationOverride: "default" | "on" | "off"
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
   otWarningExempt: boolean
@@ -69,6 +71,8 @@ interface EditUserModalProps {
     locationRequiredOverride?: "default" | "required" | "exempt"
     monitoringModeOverride?: "default" | "off" | "always" | "switching"
     trayDeviceAuthOverride?: "default" | "on" | "off"
+    deviceSwitchOverride?: "default" | "on" | "off"
+    desktopLocationOverride?: "default" | "on" | "off"
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
     otWarningExempt?: boolean
@@ -109,6 +113,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     locationRequiredOverride: "default",
     monitoringModeOverride: "default",
     trayDeviceAuthOverride: "default",
+    deviceSwitchOverride: "default",
+    desktopLocationOverride: "default",
     payrollLocation: "",
     hourlyTrackingExempt: false,
     otWarningExempt: false,
@@ -129,6 +135,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
         monitoringModeOverride: user.monitoringModeOverride ?? "default",
         trayDeviceAuthOverride: user.trayDeviceAuthOverride ?? "default",
+        deviceSwitchOverride: user.deviceSwitchOverride ?? "default",
+        desktopLocationOverride: user.desktopLocationOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
         otWarningExempt: !!user.otWarningExempt,
@@ -180,6 +188,8 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           locationRequiredOverride: form.locationRequiredOverride,
           monitoringModeOverride: form.monitoringModeOverride,
           trayDeviceAuthOverride: form.trayDeviceAuthOverride,
+          deviceSwitchOverride: form.deviceSwitchOverride,
+          desktopLocationOverride: form.desktopLocationOverride,
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
           otWarningExempt: form.otWarningExempt,
@@ -451,6 +461,50 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
             <Select
               value={form.trayDeviceAuthOverride}
               onValueChange={(v) => setForm((p) => ({ ...p, trayDeviceAuthOverride: v as EditUserForm["trayDeviceAuthOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Server Setting</SelectItem>
+                <SelectItem value="on" className="rounded-lg text-sm">On</SelectItem>
+                <SelectItem value="off" className="rounded-lg text-sm">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Switch Monitoring Between Devices</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                For Switching accounts: shows a Switch button so the employee chooses whether their computer or their phone is being monitored. Choose On to try it for one person first.
+              </p>
+            </div>
+            <Select
+              value={form.deviceSwitchOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, deviceSwitchOverride: v as EditUserForm["deviceSwitchOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Server Setting</SelectItem>
+                <SelectItem value="on" className="rounded-lg text-sm">On</SelectItem>
+                <SelectItem value="off" className="rounded-lg text-sm">Off</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Desktop Location (Tray App)</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Lets the TimeProof tray app keep reporting this person&apos;s location from their computer while the browser tab is in the background, so working in another tab is not flagged as location stopped. Choose On to try it for one person first.
+              </p>
+            </div>
+            <Select
+              value={form.desktopLocationOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, desktopLocationOverride: v as EditUserForm["desktopLocationOverride"] }))}
             >
               <SelectTrigger className="rounded-xl">
                 <SelectValue />

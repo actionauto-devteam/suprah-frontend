@@ -76,6 +76,8 @@ interface CrmUserRow {
   locationRequiredOverride?: "default" | "required" | "exempt"
   monitoringModeOverride?: "default" | "off" | "always" | "switching"
   trayDeviceAuthOverride?: "default" | "on" | "off"
+  deviceSwitchOverride?: "default" | "on" | "off"
+  desktopLocationOverride?: "default" | "on" | "off"
   payrollLocation?: "Utah" | "Philippines" | null
   hourlyTrackingExempt?: boolean
 }

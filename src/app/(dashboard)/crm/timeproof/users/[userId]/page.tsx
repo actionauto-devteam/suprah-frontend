@@ -379,6 +379,41 @@ export default function AdminUserTimeprofPage() {
     }
   }, [userId])
 
+  const [monitoringDevice, setMonitoringDevice] = React.useState<{ enabled: boolean; activeDevice: "desktop" | "mobile" | null } | null>(null)
+  const [settingDevice, setSettingDevice] = React.useState<"desktop" | "mobile" | null>(null)
+  const [deviceError, setDeviceError] = React.useState("")
+
+  const loadMonitoringDevice = React.useCallback(async () => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    try {
+      const res = await apiClient.getUserMonitoringDevice(userId, { headers: { Authorization: `Bearer ${token}` } })
+      setMonitoringDevice(res.data?.data ?? null)
+    } catch {
+      setMonitoringDevice(null)
+    }
+  }, [userId])
+
+  React.useEffect(() => {
+    if (isAdminOrManager && data?.isLive) loadMonitoringDevice()
+  }, [isAdminOrManager, data?.isLive, loadMonitoringDevice])
+
+  const handleSetMonitoringDevice = React.useCallback(async (to: "desktop" | "mobile") => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setSettingDevice(to)
+    setDeviceError("")
+    try {
+      await apiClient.adminSetMonitoringDevice(userId, to, { headers: { Authorization: `Bearer ${token}` } })
+      await loadMonitoringDevice()
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setDeviceError(err?.response?.data?.message || "Failed to change the monitoring device.")
+    } finally {
+      setSettingDevice(null)
+    }
+  }, [userId, loadMonitoringDevice])
+
   // Payout calculator follows the calendar month navigation — no separate nav needed
   const calcMonthDate = new Date(Date.UTC(viewYear, viewMonth, 1))
   const calcMonthShort = calcMonthDate.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
@@ -1133,6 +1168,38 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
             </div>
+
+            {isAdminOrManager && data.isLive && monitoringDevice?.enabled && (
+              <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Radio className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="text-[11px] font-black tracking-tight">Monitoring Device</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground/50 leading-relaxed">
+                  {monitoringDevice.activeDevice
+                    ? `${data.user.fullName.split(" ")[0]} is being monitored on their ${monitoringDevice.activeDevice === "mobile" ? "phone" : "computer"}.`
+                    : `${data.user.fullName.split(" ")[0]} has not chosen a monitoring device for this shift yet.`}
+                </p>
+                {deviceError && (
+                  <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{deviceError}</p>
+                )}
+                {isAdmin && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["desktop", "mobile"] as const).map((device) => (
+                      <button
+                        key={device}
+                        onClick={() => handleSetMonitoringDevice(device)}
+                        disabled={settingDevice !== null || monitoringDevice.activeDevice === device}
+                        className="h-9 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                      >
+                        {settingDevice === device && <RefreshCw className="h-3 w-3 animate-spin" />}
+                        {device === "desktop" ? "Set to Computer" : "Set to Phone"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Force Clock-Out: admin/manager power for an idle agent ── */}
             {isAdminOrManager && data.isLive && (

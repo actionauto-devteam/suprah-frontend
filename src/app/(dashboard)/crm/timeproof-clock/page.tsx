@@ -22,6 +22,7 @@ import {
   Lock,
   LogOut,
   MapPin,
+  Monitor,
   MonitorDot,
   Play,
   Power,
@@ -29,6 +30,7 @@ import {
   RefreshCw,
   Scissors,
   ShieldAlert,
+  Smartphone,
   Timer,
   Users,
   X,
@@ -87,6 +89,7 @@ interface CrmUserData {
   isMobileMonitoringDept?: boolean
   trayDeviceAuthEnabled?: boolean
   monitoringMode?: "off" | "always" | "switching"
+  deviceSwitch?: { enabled: boolean; activeDevice: "desktop" | "mobile" | null }
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -148,7 +151,7 @@ function getDeviceHint() {
   return "desktop-web"
 }
 
-async function isSwitchingDesktopSession(crmToken: string): Promise<boolean> {
+async function isSwitchingCrmSession(crmToken: string): Promise<boolean> {
   try {
     const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${crmToken}` } })
     const data = res.data?.data || res.data
@@ -357,6 +360,8 @@ export default function TimeprofClockPage() {
   const [isClocking, setIsClocking] = React.useState(false)
   const [clockMsg, setClockMsg] = React.useState("")
   const [isOnBreak, setIsOnBreak] = React.useState(false)
+  const [deviceSwitchState, setDeviceSwitchState] = React.useState<{ enabled: boolean; activeDevice: "desktop" | "mobile" | null }>({ enabled: false, activeDevice: null })
+  const [switchingDevice, setSwitchingDevice] = React.useState(false)
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0)
   const [showTrayModal, setShowTrayModal] = React.useState(false)
   const [trayChecking, setTrayChecking] = React.useState(false)
@@ -539,6 +544,7 @@ export default function TimeprofClockPage() {
       const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
       const data = res.data?.data || res.data
       setTodayLogs(data.todayTimeLogs || [])
+      setDeviceSwitchState({ enabled: !!data.deviceSwitch?.enabled, activeDevice: data.deviceSwitch?.activeDevice ?? null })
     } catch { }
   }, [])
 
@@ -628,7 +634,10 @@ export default function TimeprofClockPage() {
     sock.on("break-in", syncBreakIn)
     sock.on("break-out", syncBreakOut)
     sock.on("crm:early-end", onEarlyEnd)
+    const onMonitoringDevice = () => { refreshShiftState() }
+    sock.on("monitoring-device", onMonitoringDevice)
     return () => {
+      sock.off("monitoring-device", onMonitoringDevice)
       sock.off("time-in", syncTimeIn)
       sock.off("time-out", syncTimeOut)
       sock.off("break-in", syncBreakIn)
@@ -647,7 +656,7 @@ export default function TimeprofClockPage() {
           const mainRes = await apiClient.get("/api/timeclock/me")
           const mainData = mainRes.data?.data || mainRes.data
           if (mainData?.isMobileMonitoringDept ?? isMobileMonitoringDept(mainData?.department)) {
-            const staysOnCrmIdentity = !!crmT && getDeviceHint() === "desktop-web" && await isSwitchingDesktopSession(crmT)
+            const staysOnCrmIdentity = !!crmT && await isSwitchingCrmSession(crmT)
             if (!staysOnCrmIdentity) {
               authModeRef.current = 'main'
               setUser(mainData)
@@ -757,7 +766,10 @@ export default function TimeprofClockPage() {
         router.replace("/crm")
         return
       }
-      if (type === "time-in" && /already clocked in/i.test(msg)) {
+      if (type === "time-in" && /other TimeProof account/i.test(msg)) {
+        setClockMsg(msg)
+        refreshShiftState()
+      } else if (type === "time-in" && /already clocked in/i.test(msg)) {
         setLocallyResumedShift(true)
         sessionStorage.setItem("crm_resumed_shift", "true")
         setClockMsg(`Resumed your open shift at ${fmt(new Date())}`)
@@ -922,6 +934,57 @@ export default function TimeprofClockPage() {
       setTrayFinishHint(!online)
     } finally {
       trayBackgroundRef.current = false
+    }
+  }
+
+  const thisMonitoringDevice = (): "desktop" | "mobile" => (getDeviceHint() === "desktop-web" ? "desktop" : "mobile")
+
+  const sendSwitchRequest = async (to: "desktop" | "mobile") => {
+    const t = localStorage.getItem("crm_token")
+    if (!t) throw new Error("CRM session is missing")
+    return apiClient.switchMonitoringDevice(to, { headers: { Authorization: `Bearer ${t}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh)
+  }
+
+  const handleSwitchMonitoringHere = async () => {
+    if (switchingDevice) return
+    const to = thisMonitoringDevice()
+    setSwitchingDevice(true)
+    try {
+      if (to === "mobile") {
+        if (typeof navigator === "undefined" || !navigator.geolocation) throw new Error("This device can't share location.")
+        const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 })
+        )
+        const headers = await getCrmLocatorHeaders()
+        await apiClient.pingLocation(
+          {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracyM: position.coords.accuracy ?? undefined,
+            connectivity: navigator.onLine ? "online" : "offline",
+            deviceType: "mobile",
+          },
+          headers,
+        )
+      }
+      try {
+        await sendSwitchRequest(to)
+      } catch (err: unknown) {
+        const code = (err as ApiError & { response?: { data?: { code?: string } } }).response?.data?.code
+        if (to === "desktop" && code === "DESKTOP_NOT_READY" && (await connectTray(true))) {
+          await sendSwitchRequest(to)
+        } else {
+          throw err
+        }
+      }
+      toast.success(to === "mobile" ? "Monitoring moved to this phone" : "Monitoring moved to this computer")
+      await refreshShiftState()
+      fetchActivityState()
+    } catch (err: unknown) {
+      const denied = (err as { code?: number })?.code === 1
+      toast.error(denied ? "Allow location on this phone, then try again." : getErrorMessage(err, "Could not switch monitoring. Try again."))
+    } finally {
+      setSwitchingDevice(false)
     }
   }
 
@@ -1614,6 +1677,48 @@ export default function TimeprofClockPage() {
                 {clockMsg && <p className="mt-2 text-center font-mono text-[13px] text-emerald-600 dark:text-emerald-400/70">{clockMsg}</p>}
               </div>
             </div>
+
+            {authModeRef.current !== 'main' && deviceSwitchState.enabled && isActive && (() => {
+              const here = thisMonitoringDevice()
+              const active = deviceSwitchState.activeDevice
+              const isHere = active === here
+              const name = (d: "desktop" | "mobile") => (d === "mobile" ? "phone" : "computer")
+              return (
+                <div className={cn("w-full rounded-2xl border bg-card px-5 py-4", isHere ? "border-emerald-500/30" : "border-amber-500/40")}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="h-8 w-8 shrink-0 rounded-xl border border-emerald-500/20 bg-emerald-600/10 flex items-center justify-center">
+                        {here === "mobile" ? <Smartphone className="h-4 w-4 text-emerald-500" /> : <Monitor className="h-4 w-4 text-emerald-500" />}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-black tracking-tight text-foreground">Monitoring device</p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground/80">
+                          {isHere
+                            ? `Monitoring is running on this ${name(here)}. To move it, open TimeProof on your other device and tap Switch there.`
+                            : active
+                              ? `Monitoring is running on your ${name(active)}.`
+                              : "This device isn't set as your monitoring device yet."}
+                        </p>
+                      </div>
+                    </div>
+                    {isHere ? (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 sm:self-auto">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active here
+                      </span>
+                    ) : (
+                      <Button
+                        onClick={handleSwitchMonitoringHere}
+                        disabled={switchingDevice}
+                        className="h-10 w-full shrink-0 gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-500 sm:w-auto"
+                      >
+                        {switchingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Switch to this {name(here)}</>}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {user?.locationRequiredForTimeproof !== false && (() => {
               const meta = locatorStateMeta(locatorState, locatorError, locatorAwaitingFirstFix)

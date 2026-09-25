@@ -996,6 +996,18 @@ class ApiClient {
     return this.post("/api/tray-device/bootstrap", {}, config);
   }
 
+  async switchMonitoringDevice(to: "desktop" | "mobile", config?: AxiosRequestConfig) {
+    return this.post("/api/crm/timeproof/monitoring-device", { to }, config);
+  }
+
+  async getUserMonitoringDevice(userId: string, config?: AxiosRequestConfig) {
+    return this.get(`/api/crm/timeproof/user/${userId}/monitoring-device`, config);
+  }
+
+  async adminSetMonitoringDevice(userId: string, to: "desktop" | "mobile", config?: AxiosRequestConfig) {
+    return this.post(`/api/crm/timeproof/user/${userId}/monitoring-device`, { to }, config);
+  }
+
   async setLocationSharingOptOut(
     data: { optOut: boolean },
     config?: AxiosRequestConfig
