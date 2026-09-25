@@ -152,6 +152,11 @@ export function useSuprahMeet() {
   const togetherOwnerRef = useRef(false);        // did WE turn Together Mode on?
   const transformRef = useRef<DefaultVideoTransformDevice | null>(null);
   const applyTogetherRef = useRef<(scene: MeetSceneKey | null) => void>(() => {});
+  // The hidden <audio> element (mounted in MeetSessionProvider). It mounts
+  // BEFORE any meeting exists, so we remember it here and bind it during
+  // join() — binding at mount time would hit a null session and remote audio
+  // would never play.
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -323,6 +328,12 @@ export function useSuprahMeet() {
       camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
       setVideoDeviceCount(videoDevicesRef.current.length);
 
+      // Bind remote audio NOW — the provider's <audio> element mounted long
+      // before this session existed, so its ref-time bind was a no-op.
+      if (audioElRef.current) {
+        await audioVideo.bindAudioElement(audioElRef.current).catch(() => {});
+      }
+
       audioVideo.start();
       joinedAtRef.current = Date.now();
       setMicOn(true);
@@ -334,7 +345,8 @@ export function useSuprahMeet() {
   }, [pushReaction, refreshNames]);
 
   const bindAudio = useCallback((el: HTMLAudioElement | null) => {
-    if (el) void av()?.bindAudioElement(el);
+    audioElRef.current = el;
+    if (el) void av()?.bindAudioElement(el).catch(() => {});
   }, []);
   const bindVideoTile = useCallback((tileId: number, el: HTMLVideoElement | null) => {
     if (el) av()?.bindVideoElement(tileId, el);
