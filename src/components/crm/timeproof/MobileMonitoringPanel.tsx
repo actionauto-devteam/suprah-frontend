@@ -11,6 +11,8 @@ interface PhonePeriod {
   end: string
   endedBy: "switch" | "time-out" | "open"
   startedBy: "switch" | "shift-start"
+  changedBy?: "user" | "admin" | "geofence" | null
+  placeName?: string | null
   locationUpdates: { count: number; firstAt: string | null; lastAt: string | null }
 }
 
@@ -113,6 +115,16 @@ export function MobileMonitoringPanel({ userId, dateStr }: MobileMonitoringPanel
   )
   const totalUpdates = periods.reduce((sum, period) => sum + period.locationUpdates.count, 0)
   const hasMovement = !!movement && (movement.placeVisits.length > 0 || movement.stationarySegments.length > 0 || movement.distanceMi > 0)
+  const arrivalsIn = (period: PhonePeriod) => {
+    const startMs = new Date(period.start).getTime()
+    const endMs = period.endedBy === "open" ? Number.POSITIVE_INFINITY : new Date(period.end).getTime()
+    return (movement?.placeVisits ?? [])
+      .filter((visit) => {
+        const at = new Date(visit.enteredAt).getTime()
+        return at >= startMs && at <= endMs
+      })
+      .sort((a, b) => new Date(a.enteredAt).getTime() - new Date(b.enteredAt).getTime())
+  }
   const timeline = movement
     ? [
         ...movement.placeVisits.map((visit) => ({ kind: "place" as const, at: new Date(visit.enteredAt).getTime(), visit })),
@@ -162,9 +174,21 @@ export function MobileMonitoringPanel({ userId, dateStr }: MobileMonitoringPanel
                       <span className="ml-2 font-mono text-[12px] font-semibold text-muted-foreground">{fmtHuman(seconds)}</span>
                     </p>
                     <p className="text-[12px] leading-snug text-muted-foreground">
-                      {period.startedBy === "shift-start" ? "Shift started on the phone" : "Monitoring moved to the phone"}
+                      {period.startedBy === "shift-start"
+                        ? "Shift started on the phone"
+                        : period.changedBy === "geofence"
+                          ? `Moved to the phone automatically after leaving ${period.placeName || "the work site"}`
+                          : period.changedBy === "admin"
+                            ? "Moved to the phone by an admin"
+                            : "Monitoring moved to the phone"}
                       {period.endedBy === "switch" ? " · then moved back to the computer" : period.endedBy === "time-out" ? " · shift ended" : " · still on the phone"}
                     </p>
+                    {arrivalsIn(period).map((visit) => (
+                      <p key={`${visit.placeName}-${visit.enteredAt}`} className="flex items-center gap-1.5 text-[12px] font-semibold leading-snug text-blue-600 dark:text-blue-400">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        Arrived at {visit.placeName} · {fmtClock(visit.enteredAt)}
+                      </p>
+                    ))}
                     {updates.count > 0 ? (
                       <p className="text-[12px] leading-snug text-muted-foreground">
                         {updates.count} location {updates.count === 1 ? "update" : "updates"} received
@@ -203,9 +227,9 @@ export function MobileMonitoringPanel({ userId, dateStr }: MobileMonitoringPanel
                     <MapPin className="h-3.5 w-3.5 text-blue-500" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-bold text-foreground">{entry.visit.placeName}</p>
+                    <p className="truncate text-[13px] font-bold text-foreground">Arrived at {entry.visit.placeName}</p>
                     <p className="mt-0.5 font-mono text-[11px] text-muted-foreground/60">
-                      {fmtClock(entry.visit.enteredAt)} to {entry.visit.exitedAt ? fmtClock(entry.visit.exitedAt) : "still here"}
+                      {fmtClock(entry.visit.enteredAt)} · {entry.visit.exitedAt ? `left ${fmtClock(entry.visit.exitedAt)}` : "still here"}
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-[11px] font-bold text-blue-500">

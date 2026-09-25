@@ -89,7 +89,7 @@ interface CrmUserData {
   isMobileMonitoringDept?: boolean
   trayDeviceAuthEnabled?: boolean
   monitoringMode?: "off" | "always" | "switching"
-  deviceSwitch?: { enabled: boolean; activeDevice: "desktop" | "mobile" | null }
+  deviceSwitch?: { enabled: boolean; activeDevice: "desktop" | "mobile" | null; autoSwitch?: boolean }
   todayTimeLogs?: Array<{
     _id: string
     type: "time-in" | "time-out" | "break-in" | "break-out"
@@ -360,7 +360,7 @@ export default function TimeprofClockPage() {
   const [isClocking, setIsClocking] = React.useState(false)
   const [clockMsg, setClockMsg] = React.useState("")
   const [isOnBreak, setIsOnBreak] = React.useState(false)
-  const [deviceSwitchState, setDeviceSwitchState] = React.useState<{ enabled: boolean; activeDevice: "desktop" | "mobile" | null }>({ enabled: false, activeDevice: null })
+  const [deviceSwitchState, setDeviceSwitchState] = React.useState<{ enabled: boolean; activeDevice: "desktop" | "mobile" | null; autoSwitch: boolean }>({ enabled: false, activeDevice: null, autoSwitch: false })
   const [switchingDevice, setSwitchingDevice] = React.useState(false)
   const [breakAccumulatedMs, setBreakAccumulatedMs] = React.useState(0)
   const [showTrayModal, setShowTrayModal] = React.useState(false)
@@ -544,7 +544,11 @@ export default function TimeprofClockPage() {
       const res = await apiClient.get("/api/crm/me", { headers: { Authorization: `Bearer ${t}` } })
       const data = res.data?.data || res.data
       setTodayLogs(data.todayTimeLogs || [])
-      setDeviceSwitchState({ enabled: !!data.deviceSwitch?.enabled, activeDevice: data.deviceSwitch?.activeDevice ?? null })
+      setDeviceSwitchState({
+        enabled: !!data.deviceSwitch?.enabled,
+        activeDevice: data.deviceSwitch?.activeDevice ?? null,
+        autoSwitch: !!data.deviceSwitch?.autoSwitch,
+      })
     } catch { }
   }, [])
 
@@ -634,7 +638,13 @@ export default function TimeprofClockPage() {
     sock.on("break-in", syncBreakIn)
     sock.on("break-out", syncBreakOut)
     sock.on("crm:early-end", onEarlyEnd)
-    const onMonitoringDevice = () => { refreshShiftState() }
+    const onMonitoringDevice = (data?: { by?: string; activeDevice?: string; placeName?: string | null }) => {
+      if (data?.by === "geofence" && data.activeDevice === "mobile") {
+        toast.info(`Monitoring moved to your phone because you left ${data.placeName || "your work site"}.`)
+      }
+      refreshShiftState()
+      fetchActivityState()
+    }
     sock.on("monitoring-device", onMonitoringDevice)
     return () => {
       sock.off("monitoring-device", onMonitoringDevice)
@@ -1699,6 +1709,11 @@ export default function TimeprofClockPage() {
                               ? `Monitoring is running on your ${name(active)}.`
                               : "This device isn't set as your monitoring device yet."}
                         </p>
+                        {deviceSwitchState.autoSwitch && active === "desktop" && (
+                          <p className="mt-1 text-[12px] text-muted-foreground/70">
+                            If your phone leaves a company work site, monitoring moves to your phone automatically. Keep TimeProof open on your phone with location on.
+                          </p>
+                        )}
                       </div>
                     </div>
                     {isHere ? (

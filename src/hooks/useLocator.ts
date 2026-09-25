@@ -35,6 +35,7 @@ export interface Place {
     address?: string;
     description?: string;
     isActive: boolean;
+    isWorkSite?: boolean;
     createdBy: string;
     createdAt: string;
     updatedAt: string;
@@ -158,7 +159,7 @@ export function useCreatePlace() {
     const getHeaders = useAuthHeaders();
 
     return useMutation({
-        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; warningRadiusM?: number | null; icon?: string; color?: string; address?: string; description?: string }) => {
+        mutationFn: async (data: { name: string; lat: number; lng: number; radiusM?: number; warningRadiusM?: number | null; icon?: string; color?: string; address?: string; description?: string; isWorkSite?: boolean }) => {
             const headers = await getHeaders();
             const response = await apiClient.createPlace(data, headers);
             return response.data?.data || response.data;

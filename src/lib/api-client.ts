@@ -1055,7 +1055,7 @@ class ApiClient {
   }
 
   async createPlace(
-    data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string; description?: string },
+    data: { name: string; lat: number; lng: number; radiusM?: number; icon?: string; color?: string; address?: string; description?: string; isWorkSite?: boolean },
     config?: AxiosRequestConfig
   ) {
     return this.post("/api/locator/places", data, config);
