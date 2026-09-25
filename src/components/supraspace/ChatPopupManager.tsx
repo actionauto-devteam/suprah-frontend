@@ -1765,6 +1765,73 @@ function applyTextColorToRichEditorSelection(root: HTMLElement, color: string): 
   });
 }
 
+function applyFontSizeToRichEditorSelection(
+  root: HTMLElement,
+  fontSize: SS4FontSize,
+): void {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  if (
+    !root.contains(range.startContainer)
+    || !root.contains(range.endContainer)
+    || range.collapsed
+  ) {
+    return;
+  }
+
+  const selectedTextNodes: Text[] = [];
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const textNode = node as Text;
+        const parent = textNode.parentElement;
+        return textNode.data
+          && parent
+          && !parent.closest('[data-rich-editor-selection-marker]')
+          && range.intersectsNode(textNode)
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      },
+    },
+  );
+
+  let current = walker.nextNode();
+  while (current) {
+    selectedTextNodes.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  selectedTextNodes.reverse().forEach(textNode => {
+    const originalLength = textNode.data.length;
+    let startOffset = textNode === range.startContainer ? range.startOffset : 0;
+    let endOffset = textNode === range.endContainer ? range.endOffset : originalLength;
+
+    startOffset = Math.max(0, Math.min(startOffset, originalLength));
+    endOffset = Math.max(startOffset, Math.min(endOffset, originalLength));
+    if (startOffset === endOffset) return;
+
+    if (endOffset < textNode.data.length) textNode.splitText(endOffset);
+    const selectedNode = startOffset > 0
+      ? textNode.splitText(startOffset)
+      : textNode;
+    const parent = selectedNode.parentElement;
+
+    if (parent?.tagName.toLowerCase() === 'span' && parent.childNodes.length === 1) {
+      parent.style.fontSize = `${fontSize}px`;
+      return;
+    }
+
+    const sizeSpan = document.createElement('span');
+    sizeSpan.style.fontSize = `${fontSize}px`;
+    selectedNode.parentNode?.insertBefore(sizeSpan, selectedNode);
+    sizeSpan.appendChild(selectedNode);
+  });
+}
+
 function htmlToMarkdown(el: HTMLElement): string {
   const walk = (node: Node, listDepth = 0): string => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -4790,11 +4857,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const nextRange = executeRichEditorCommandPreservingSelection(
         root,
         range,
-        () => {
-          document.execCommand('styleWithCSS', false, 'true');
-          document.execCommand('fontSize', false, '7');
-          normalizeRichEditorFontSizeElements(root, fontSize);
-        },
+        () => applyFontSizeToRichEditorSelection(root, fontSize),
       );
       if (nextRange) editSelectionRangeRef.current = nextRange;
       syncEditDraft();
@@ -5581,11 +5644,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const nextRange = executeRichEditorCommandPreservingSelection(
         root,
         range,
-        () => {
-          document.execCommand('styleWithCSS', false, 'true');
-          document.execCommand('fontSize', false, '7');
-          normalizeRichEditorFontSizeElements(root, fontSize);
-        },
+        () => applyFontSizeToRichEditorSelection(root, fontSize),
       );
       if (nextRange) inputSelectionRangeRef.current = nextRange;
       syncComposerText(root.innerText.replace(/\n$/, ''), true);
