@@ -7791,7 +7791,7 @@ function PeoplePanel({ users, presence, uid, onSelect, showFilters }: {
       <button key={u._id} onClick={() => onSelect(u._id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-(--bg-hover) transition-colors">
         <div className="relative shrink-0">
           <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(u.fullName))} style={{ fontSize: 12 }}>
-            {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
+            {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : ini(u.fullName)}
           </div>
           {isOn && <PresenceAvatarDot status={status} deviceType={presence[u._id]?.lastDeviceType ?? undefined} />}
         </div>
@@ -7964,7 +7964,7 @@ function PrioritySendersModal({ users, selfId, onClose }: {
                   style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}
                 >
                   <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvaColor(u.fullName))}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
+                    {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{ini(u.fullName)}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>
@@ -8255,7 +8255,7 @@ function MenuProfilePanel({ me, presence, uid, token }: {
       {me && (
         <div className="flex items-center gap-3 pb-4 mb-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me.fullName))} style={{ fontSize: 15 }}>
-            {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+            {me.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me.fullName}</p>
@@ -8411,7 +8411,7 @@ function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvR
         style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-1)' }}
       >
         <div className={cn('h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden shrink-0', getAvaColor(me?.fullName || 'Me'))} style={{ fontSize: 15 }}>
-          {me?.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
+          {me?.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me?.fullName || 'Me')}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold" style={{ fontSize: 15, color: 'var(--text-primary)' }}>{me?.fullName || 'You'}</p>
@@ -8487,7 +8487,7 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
         <div className="flex items-center gap-3 pb-4 mb-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className="relative shrink-0">
             <div className={cn('h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden', getAvaColor(me.fullName))} style={{ fontSize: 14 }}>
-              {me.avatar ? <img src={me.avatar} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
+              {me.avatar ? <img src={resolveImageUrl(me.avatar)} alt="" className="w-full h-full object-cover" /> : ini(me.fullName)}
             </div>
             {presence && uid && <PresenceAvatarDot status={presence[uid]?.onlineStatus ?? 'offline'} deviceType={presence[uid]?.lastDeviceType ?? undefined} />}
           </div>
@@ -13380,7 +13380,7 @@ export default function SupraSpacePage() {
 
   const visualViewportShellActive = isIOSDevice || (isMobileViewport && keyboardViewportOpen);
   const standaloneShellStyle: React.CSSProperties = visualViewportShellActive
-    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
@@ -14404,7 +14404,7 @@ export default function SupraSpacePage() {
                                     <Users className="h-3 w-3" style={{ color: 'var(--accent)' }} />
                                   </div>
                                   : <div className={cn('h-6 w-6 rounded-full flex items-center justify-center overflow-hidden text-white font-semibold shrink-0', getAvaColor(opt.fullName))} style={{ fontSize: 9 }}>
-                                    {opt.avatar ? <img src={opt.avatar} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
+                                    {opt.avatar ? <img src={resolveImageUrl(opt.avatar)} alt="" className="w-full h-full object-cover" /> : ini(opt.fullName)}
                                   </div>
                                 }
                                 <div className="min-w-0 flex items-baseline gap-1.5">
@@ -15286,7 +15286,7 @@ export default function SupraSpacePage() {
                               <div key={m._id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-(--bg-hover)">
                                 <button onClick={e => setMemberCard({ member: m, pos: { x: e.clientX, y: e.clientY } })} className="relative shrink-0">
                                   <div className={cn('h-9 w-9 rounded-full flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                                    {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
+                                    {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 12 }}>{ini(m.fullName)}</span>}
                                   </div>
                                   {isOnline && <PresenceAvatarDot status={memberPresence!.onlineStatus} deviceType={memberPresence?.lastDeviceType ?? undefined} />}
                                 </button>
@@ -15760,7 +15760,7 @@ export default function SupraSpacePage() {
                 <div className="flex flex-col items-center gap-3 px-5 pt-6 pb-4">
                   <div className="relative">
                     <div className={cn('h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden', getAvaColor(m.fullName))}>
-                      {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
+                      {m.avatar ? <img src={resolveImageUrl(m.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-bold" style={{ fontSize: 22 }}>{ini(m.fullName)}</span>}
                     </div>
                     {isOnline && <PresenceAvatarDot status={memberCardPresence!.onlineStatus} deviceType={memberCardPresence?.lastDeviceType ?? undefined} sizeClass="size-3" />}
                   </div>

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Check, Search, UserPlus, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 
 export type SupraSpaceMemberCandidate = {
   _id: string;
@@ -76,7 +76,7 @@ export function ManageMembersModal({
                 >
                   <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full', getAvatarClass(user.fullName))}>
                     {user.avatar
-                      ? <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                      ? <img src={resolveImageUrl(user.avatar)} alt="" className="h-full w-full object-cover" />
                       : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{getInitials(user.fullName)}</span>}
                   </div>
                   <div className="min-w-0 flex-1">

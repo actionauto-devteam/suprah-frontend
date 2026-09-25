@@ -4,7 +4,7 @@ import { Wifi, X } from 'lucide-react';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import type { PresenceMap } from '@/hooks/useSupraSpaceSocket';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 
 export type SupraSpaceActiveUser = {
   _id: string;
@@ -39,7 +39,7 @@ export function ActiveUsersModal({
       <div key={user._id} className="flex w-full items-center gap-3 px-4 py-2.5">
         <div className="relative shrink-0">
           <div className={cn('flex h-9 w-9 items-center justify-center overflow-hidden rounded-full font-semibold text-white', getAvatarClass(user.fullName))} style={{ fontSize: 12 }}>
-            {user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : getInitials(user.fullName)}
+            {user.avatar ? <img src={resolveImageUrl(user.avatar)} alt="" className="h-full w-full object-cover" /> : getInitials(user.fullName)}
           </div>
           {online && <PresenceAvatarDot status={status} deviceType={presence[user._id]?.lastDeviceType ?? undefined} />}
         </div>

@@ -29,8 +29,27 @@ export function resolveImageUrl(url?: string | null): string | undefined {
   const trimmed = url.trim();
   if (!trimmed) return undefined;
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const databaseAvatar = trimmed.match(/^db:([a-f\d]{24})(\?[^\s#]*)?$/i);
+  if (databaseAvatar) return `${API_BASE_URL}/api/crm/avatars/db-${databaseAvatar[1]}${databaseAvatar[2] || ''}`;
+  const avatarFileName = (value: string): string | null => {
+    const match = value.match(/^avatars\/(\d{13}-\d{1,10}\.(?:jpe?g|png|webp|gif))$/i);
+    return match?.[1] || null;
+  };
+  const avatarKey = avatarFileName(trimmed);
+  if (avatarKey) return `${API_BASE_URL}/api/crm/avatars/${encodeURIComponent(avatarKey)}`;
+
   // If it's already an absolute URL (Cloudflare R2, Google, Data URI, or local blob), return as is
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    try {
+      const parsed = new URL(trimmed);
+      const legacyAvatar = parsed.hostname.endsWith('.r2.dev')
+        ? avatarFileName(parsed.pathname.slice(1))
+        : null;
+      if (legacyAvatar) return `${API_BASE_URL}/api/crm/avatars/${encodeURIComponent(legacyAvatar)}`;
+    } catch {
+      return undefined;
+    }
     return trimmed;
   }
 
@@ -40,8 +59,6 @@ export function resolveImageUrl(url?: string | null): string | undefined {
   }
 
   // If it's a relative path (Legacy local uploads), prepend the Backend API URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
   // Ensure we don't double slash
   const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return `${API_BASE_URL}${cleanPath}`;

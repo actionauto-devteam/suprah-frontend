@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Check as CheckIcon, MessageSquare, Search, Sparkles, Users, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, resolveImageUrl } from '@/lib/utils';
 
 export type SupraSpaceConversationUser = {
   _id: string;
@@ -77,7 +77,7 @@ export function NewConversationModal({ users, theme, onClose, onStartDM, onCreat
               {selectedUsers.map(u => (
                 <span key={u._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: 'var(--accent-muted)', border: '1px solid rgba(22,163,74,0.2)' }}>
                   <span className={cn('h-5 w-5 rounded-full shrink-0 flex items-center justify-center overflow-hidden text-white', getAvatarClass(u.fullName))} style={{ fontSize: 8, fontWeight: 700 }}>
-                    {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : getInitials(u.fullName)}
+                    {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : getInitials(u.fullName)}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{u.fullName.split(' ')[0]}</span>
                   <button onClick={() => toggle(u._id)} style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }} title={`Remove ${u.fullName}`}>
@@ -104,7 +104,7 @@ export function NewConversationModal({ users, theme, onClose, onStartDM, onCreat
                       className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left', active ? 'bg-(--accent-muted)' : 'hover:bg-(--bg-hover)')}
                       style={active ? { border: '1px solid rgba(22,163,74,0.2)' } : undefined}>
                       <div className={cn('h-8 w-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden', getAvatarClass(u.fullName))}>
-                        {u.avatar ? <img src={u.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{getInitials(u.fullName)}</span>}
+                        {u.avatar ? <img src={resolveImageUrl(u.avatar)} alt="" className="w-full h-full object-cover" /> : <span className="text-white font-semibold" style={{ fontSize: 11 }}>{getInitials(u.fullName)}</span>}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{u.fullName}</p>

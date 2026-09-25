@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
-import { cn } from "@/lib/utils";
+import { cn, resolveImageUrl } from "@/lib/utils";
 
 function Avatar({
   className,
@@ -26,7 +26,7 @@ function AvatarImage({
   src,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
-  const normalizedSrc = typeof src === "string" ? src.trim() : src;
+  const normalizedSrc = typeof src === "string" ? resolveImageUrl(src) : src;
 
   if (!normalizedSrc) {
     return null;
