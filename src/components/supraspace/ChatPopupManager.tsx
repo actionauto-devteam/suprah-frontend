@@ -710,6 +710,16 @@ function insertSoftLineBreakWithCaretFormatting(
   range.deleteContents();
   const br = document.createElement('br');
   range.insertNode(br);
+  const typingSpan = br.parentElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+  if (
+    typingSpan
+    && typingSpan.parentNode
+    && stripSupraSpaceTypingMarkers(typingSpan.textContent || '').trim() === ''
+  ) {
+    typingSpan.parentNode.insertBefore(br, typingSpan.nextSibling);
+  }
 
   const nextRange = document.createRange();
   nextRange.setStartAfter(br);
@@ -725,9 +735,11 @@ function insertSoftLineBreakWithCaretFormatting(
     color,
   )) return true;
 
-  const marker = document.createTextNode('\u200B');
+  const marker = document.createElement('span');
+  marker.setAttribute('data-ss4-caret-anchor', 'true');
+  marker.append(document.createTextNode('\u200B'));
   nextRange.insertNode(marker);
-  nextRange.setStart(marker, marker.data.length);
+  nextRange.setStartAfter(marker);
   nextRange.collapse(true);
   selection.removeAllRanges();
   selection.addRange(nextRange);

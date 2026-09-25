@@ -861,6 +861,16 @@ function insertSoftLineBreakWithCaretFormatting(
   range.deleteContents();
   const br = document.createElement('br');
   range.insertNode(br);
+  const typingSpan = br.parentElement?.closest<HTMLElement>(
+    'span[data-ss4-typing-style="true"]',
+  );
+  if (
+    typingSpan
+    && typingSpan.parentNode
+    && stripSupraSpaceTypingMarkers(typingSpan.textContent || '').trim() === ''
+  ) {
+    typingSpan.parentNode.insertBefore(br, typingSpan.nextSibling);
+  }
 
   const nextRange = document.createRange();
   nextRange.setStartAfter(br);
@@ -876,9 +886,11 @@ function insertSoftLineBreakWithCaretFormatting(
     color,
   )) return true;
 
-  const marker = document.createTextNode('\u200B');
+  const marker = document.createElement('span');
+  marker.setAttribute('data-ss4-caret-anchor', 'true');
+  marker.append(document.createTextNode('\u200B'));
   nextRange.insertNode(marker);
-  nextRange.setStart(marker, marker.data.length);
+  nextRange.setStartAfter(marker);
   nextRange.collapse(true);
   selection.removeAllRanges();
   selection.addRange(nextRange);
@@ -13439,7 +13451,7 @@ export default function SupraSpacePage() {
 
   const visualViewportShellActive = isIOSDevice || (isMobileViewport && keyboardViewportOpen);
   const standaloneShellStyle: React.CSSProperties = visualViewportShellActive
-    ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
+    ? { position: 'fixed', top: 'var(--ss4-vv-top, 0px)', left: 0, right: 0, bottom: 'auto', height: 'var(--ss4-vvh, 100dvh)', minHeight: 0, boxSizing: 'border-box' }
     : isStandaloneApp ? { height: 'var(--ss4-vvh, 100dvh)', boxSizing: 'border-box' } : {};
 
   return (
