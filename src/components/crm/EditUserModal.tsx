@@ -38,6 +38,7 @@ interface EditUserForm {
   screenshotExempt: boolean
   locationRequiredOverride: "default" | "required" | "exempt"
   monitoringModeOverride: "default" | "off" | "always" | "switching"
+  trayDeviceAuthOverride: "default" | "on" | "off"
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
   otWarningExempt: boolean
@@ -67,6 +68,7 @@ interface EditUserModalProps {
     screenshotExempt?: boolean
     locationRequiredOverride?: "default" | "required" | "exempt"
     monitoringModeOverride?: "default" | "off" | "always" | "switching"
+    trayDeviceAuthOverride?: "default" | "on" | "off"
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
     otWarningExempt?: boolean
@@ -106,6 +108,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     screenshotExempt: false,
     locationRequiredOverride: "default",
     monitoringModeOverride: "default",
+    trayDeviceAuthOverride: "default",
     payrollLocation: "",
     hourlyTrackingExempt: false,
     otWarningExempt: false,
@@ -125,6 +128,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         screenshotExempt: !!user.screenshotExempt,
         locationRequiredOverride: user.locationRequiredOverride ?? "default",
         monitoringModeOverride: user.monitoringModeOverride ?? "default",
+        trayDeviceAuthOverride: user.trayDeviceAuthOverride ?? "default",
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
         otWarningExempt: !!user.otWarningExempt,
@@ -175,6 +179,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           screenshotExempt: form.screenshotExempt,
           locationRequiredOverride: form.locationRequiredOverride,
           monitoringModeOverride: form.monitoringModeOverride,
+          trayDeviceAuthOverride: form.trayDeviceAuthOverride,
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
           otWarningExempt: form.otWarningExempt,
@@ -432,6 +437,28 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
                 <SelectItem value="off" className="rounded-lg text-sm">Screenshots Only</SelectItem>
                 <SelectItem value="always" className="rounded-lg text-sm">Mobile / GPS Only</SelectItem>
                 <SelectItem value="switching" className="rounded-lg text-sm">Switching (Desktop + Mobile)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-border/50 p-3 space-y-2">
+            <div>
+              <Label className="text-xs font-semibold text-foreground">Tray App Sign-in</Label>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                Lets this account&apos;s TimeProof tray app sign in on its own from a registered computer. Choose On to try it for one person before it is rolled out to everyone.
+              </p>
+            </div>
+            <Select
+              value={form.trayDeviceAuthOverride}
+              onValueChange={(v) => setForm((p) => ({ ...p, trayDeviceAuthOverride: v as EditUserForm["trayDeviceAuthOverride"] }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="default" className="rounded-lg text-sm">Follow Server Setting</SelectItem>
+                <SelectItem value="on" className="rounded-lg text-sm">On</SelectItem>
+                <SelectItem value="off" className="rounded-lg text-sm">Off</SelectItem>
               </SelectContent>
             </Select>
           </div>
