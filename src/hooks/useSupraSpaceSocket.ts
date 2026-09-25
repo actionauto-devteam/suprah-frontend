@@ -70,6 +70,7 @@ export interface SSConversation {
   admins: string[];
   pinnedBy?: string[];
   archivedBy?: string[];
+  leftBy?: string[];
   deletedFor?: string[];
   theme?: SSTheme;
   lastMessage?: SSMessage;

@@ -57,6 +57,7 @@ export interface SSConv {
   theme?: { accent?: string | null; emoji?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
+  leftBy?: string[];
   manualUnread?: boolean;
   deletedFor?: string[];
   notificationPreference?: NotifPref;
@@ -111,7 +112,7 @@ interface MessengerCtxValue {
   markAllAsRead: () => void;
   markConversationUnread: (convId: string, unread: boolean) => void;
   archiveConversation: (convId: string, archived: boolean) => Promise<void>;
-  deleteConversation: (convId: string) => Promise<{ permanent: boolean }>;
+  deleteConversation: (convId: string) => Promise<{ permanent: boolean; left: boolean }>;
   refreshConversations: () => void;
   refreshSpaces: () => void;
 }
@@ -546,6 +547,26 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       });
     });
 
+    listen('conversation:left', ({ conversationId }: { conversationId: string }) => {
+      setConversations(prev => prev.map(conv => {
+        if (conv._id !== conversationId || !crmUserId) return conv;
+        return {
+          ...conv,
+          members: conv.members.filter(member => member._id !== crmUserId),
+          archivedBy: [...new Set([...(conv.archivedBy || []), crmUserId])],
+          leftBy: [...new Set([...(conv.leftBy || []), crmUserId])],
+          unreadCount: 0,
+          manualUnread: false,
+        };
+      }));
+      setOpenChats(prev => prev.filter(id => id !== conversationId));
+      setMinimizedChats(prev => {
+        const next = new Set(prev);
+        next.delete(conversationId);
+        return next;
+      });
+    });
+
     // New conversation was created → prepend if not already in list
     listen('conversation:new', (conv: SSConv) => {
       if (conv.notificationPreference) {
@@ -838,16 +859,30 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   // Delete/leave a conversation — permanent for group admins, otherwise just hides it for this user
   const deleteConversation = React.useCallback(async (convId: string) => {
-    setConversations((prev) => prev.filter((conv) => conv._id !== convId));
-    if (!crmToken) return { permanent: false };
+    const conversation = conversationsRef.current.find(conv => conv._id === convId);
+    if (conversation?.type !== 'group') setConversations(prev => prev.filter(conv => conv._id !== convId));
+    if (!crmToken) return { permanent: false, left: false };
     try {
       const r = await apiClient.delete(`/api/supraspace/conversations/${convId}`, authConfig(crmToken, true));
-      return { permanent: Boolean(r.data?.data?.permanent) };
+      const permanent = Boolean(r.data?.data?.permanent);
+      const left = Boolean(r.data?.data?.left);
+      if (permanent) setConversations(prev => prev.filter(conv => conv._id !== convId));
+      if (left && crmUserId) {
+        setConversations(prev => prev.map(conv => conv._id === convId ? {
+          ...conv,
+          members: conv.members.filter(member => member._id !== crmUserId),
+          archivedBy: [...new Set([...(conv.archivedBy || []), crmUserId])],
+          leftBy: [...new Set([...(conv.leftBy || []), crmUserId])],
+          unreadCount: 0,
+          manualUnread: false,
+        } : conv));
+      }
+      return { permanent, left };
     } catch (err) {
       fetchConversations();
       throw err;
     }
-  }, [crmToken, fetchConversations]);
+  }, [crmToken, crmUserId, fetchConversations]);
 
   const value = React.useMemo(() => ({
         conversations,

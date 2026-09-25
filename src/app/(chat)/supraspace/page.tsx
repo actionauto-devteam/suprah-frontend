@@ -6064,6 +6064,16 @@ const Bubble = React.memo(function Bubble({
     );
   }
 
+  if (message.type === 'system') {
+    return (
+      <div className="px-4 py-1.5 text-center sm:px-5">
+        <span className="inline-block rounded-full px-3 py-1" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--surface-2)' }}>
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+
   const senderDisplayName = members.find(m => m._id === message.sender?._id)?.displayNickname || message.sender?.fullName;
   const aColor = getAvaColor(message.sender?.fullName || '');
   const voiceAtt = message.type === 'voice' ? message.attachments.find(a => a.mimeType.startsWith('audio/')) : null;
@@ -9890,6 +9900,7 @@ export default function SupraSpacePage() {
     (activeConv.admins || []).map(String).includes(uid) ||
     String((activeConv as any).createdBy) === uid
   ));
+  const hasLeftChannel = !!(activeConv?.type === 'group' && (activeConv.leftBy || []).map(String).includes(uid));
   const isReportGroup = /^DayPulse Reports$/i.test(activeConv?.name || '');
   const isShiftAlertsGroup = /^Shift Alerts$/i.test(activeConv?.name || '');
 
@@ -10626,6 +10637,17 @@ export default function SupraSpacePage() {
       setConvos(p => p.filter(x => x._id !== conversationId));
       setActiveId(prev => prev === conversationId ? null : prev);
     };
+    const onConvLeft = ({ conversationId }: { conversationId: string }) => {
+      setConvos(p => p.map(c => c._id === conversationId ? {
+        ...c,
+        members: c.members.filter(member => member._id !== uid),
+        archivedBy: [...new Set([...(c.archivedBy || []), uid])],
+        leftBy: [...new Set([...(c.leftBy || []), uid])],
+        unreadCount: 0,
+        manualUnread: false,
+      } : c));
+      setActiveId(prev => prev === conversationId ? null : prev);
+    };
     const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
     const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
@@ -10667,6 +10689,7 @@ export default function SupraSpacePage() {
     socket.on('conversation:new', onNew);
     socket.on('conversation:updated', onConvUpdated);
     socket.on('conversation:deleted', onConvDeleted);
+    socket.on('conversation:left', onConvLeft);
     socket.on('conversation:theme', onConvTheme);
     socket.on('conversation:moved', onConvMoved);
     socket.on('space:deleted', onSpaceDeleted);
@@ -10719,7 +10742,7 @@ export default function SupraSpacePage() {
     socket.on('conversations:all-read', onAllRead);
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
-      socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted);
+      socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted); socket.off('conversation:left', onConvLeft);
       socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction); socket.off('message:pinned', onPinned);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('messages:read', onMsgsRead);
@@ -12132,8 +12155,19 @@ export default function SupraSpacePage() {
   const deleteConversation = async (c: SSConversation) => {
     setConfirmDelete(false); setShowInfo(false);
     try {
-      await apiClient.delete(`/api/supraspace/conversations/${c._id}`, { headers: { Authorization: `Bearer ${token}` } });
-      setConvos(p => p.filter(x => x._id !== c._id));
+      const r = await apiClient.delete(`/api/supraspace/conversations/${c._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.data?.data?.left) {
+        setConvos(p => p.map(x => x._id === c._id ? {
+          ...x,
+          members: x.members.filter(member => member._id !== uid),
+          archivedBy: [...new Set([...(x.archivedBy || []), uid])],
+          leftBy: [...new Set([...(x.leftBy || []), uid])],
+          unreadCount: 0,
+          manualUnread: false,
+        } : x));
+      } else {
+        setConvos(p => p.filter(x => x._id !== c._id));
+      }
       setActiveId(prev => prev === c._id ? null : prev);
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
       ctxRefreshConvosRef.current();
@@ -12148,7 +12182,18 @@ export default function SupraSpacePage() {
     const leaving = memberId === uid;
     try {
       const r = await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { removeMembers: [memberId] }, { headers: { Authorization: `Bearer ${token}` } });
-      if (leaving) { setConvos(p => p.filter(x => x._id !== activeConv._id)); setActiveId(null); setShowInfo(false); }
+      if (leaving) {
+        setConvos(p => p.map(x => x._id === activeConv._id ? {
+          ...x,
+          members: x.members.filter(member => member._id !== uid),
+          archivedBy: [...new Set([...(x.archivedBy || []), uid])],
+          leftBy: [...new Set([...(x.leftBy || []), uid])],
+          unreadCount: 0,
+          manualUnread: false,
+        } : x));
+        setActiveId(null);
+        setShowInfo(false);
+      }
       else if (r.data?.data) patchConv(activeConv._id, r.data.data);
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to remove member.')); }
   };
@@ -14474,10 +14519,10 @@ export default function SupraSpacePage() {
                       </div>
                     )}
 
-                    {isReportGroup || isShiftAlertsGroup ? (
+                    {isReportGroup || isShiftAlertsGroup || hasLeftChannel ? (
                       <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
                         <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                          {isShiftAlertsGroup ? 'Read-only · Shift alerts are posted here automatically' : 'Read-only · DayPulse reports are posted here automatically'}
+                          {hasLeftChannel ? 'Read-only history · You left this channel' : isShiftAlertsGroup ? 'Read-only · Shift alerts are posted here automatically' : 'Read-only · DayPulse reports are posted here automatically'}
                         </span>
                       </div>
                     ) : recording ? (
@@ -15508,7 +15553,7 @@ export default function SupraSpacePage() {
                           <button onClick={() => setConfirmDelete(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-(--danger-muted)" style={{ color: 'var(--danger)', fontSize: 13, border: '1px solid var(--danger-muted)' }}><Trash2 className="h-4 w-4" /> Delete conversation</button>
                         ) : (
                           <div className="rounded-xl p-3 space-y-2.5" style={{ background: 'var(--danger-muted)', border: '1px solid rgba(240,92,92,0.3)' }}>
-                            <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>Delete this conversation for everyone? This cannot be undone.</p>
+                            <p style={{ fontSize: 12, color: 'var(--text-primary)' }}>{activeConv.type === 'direct' ? 'Remove this conversation from your inbox? The other person will still keep their copy.' : 'Delete this conversation for everyone? This cannot be undone.'}</p>
                             <div className="flex items-center gap-2">
                               <button onClick={() => setConfirmDelete(false)} className="flex-1 h-8 rounded-lg ss4-pill-btn" style={{ fontSize: 12 }}>Cancel</button>
                               <button onClick={() => deleteConversation(activeConv)} className="flex-1 h-8 rounded-lg font-semibold" style={{ fontSize: 12, background: 'var(--danger)', color: '#fff' }}>Delete</button>
@@ -16038,7 +16083,7 @@ export default function SupraSpacePage() {
               </div>
               <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete conversation?</p>
               <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                "{getConvName(deleteConfirmConv, uid)}" will be permanently deleted for you. This cannot be undone.
+                {deleteConfirmConv.type === 'direct' ? `"${getConvName(deleteConfirmConv, uid)}" will be removed only from your inbox. The other person will still keep their copy.` : `"${getConvName(deleteConfirmConv, uid)}" will be deleted for everyone. This cannot be undone.`}
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setDeleteConfirmConv(null)} className="flex-1 h-10 rounded-xl font-semibold" style={{ fontSize: 13, background: 'var(--bg-hover,rgba(255,255,255,0.07))', color: 'var(--text-primary)' }}>Cancel</button>
