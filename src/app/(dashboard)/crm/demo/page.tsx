@@ -317,6 +317,19 @@ function DemoScenarioCard({
                 Send review request now
               </Button>
             </div>
+            {appointment?.status === "completed" && (
+              <p className="text-xs text-muted-foreground">
+                SMS:{" "}
+                {appointment.reviewRequestSentAt
+                  ? `sent ${fmtShortDateTimeMDT(appointment.reviewRequestSentAt)}`
+                  : "not yet sent"}
+                {" · "}
+                Email:{" "}
+                {appointment.reviewRequestEmailSentAt
+                  ? `sent ${fmtShortDateTimeMDT(appointment.reviewRequestEmailSentAt)}`
+                  : "not yet sent"}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2.5">
