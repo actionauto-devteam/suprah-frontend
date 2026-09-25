@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, ShieldCheck, Sparkles, Trash2,
+  CircleDot, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -265,7 +265,7 @@ export default function SuprahMeetLobbyPage() {
                 text="Every session is gated by your CRM identity and scoped to your org." />
               <Capability icon={<CircleDot className="size-5" />} title="Cloud recording"
                 text="Server-side capture straight to AWS — nothing depends on one laptop." />
-              <Capability icon={<Sparkles className="size-5" />} title="AI summaries"
+              <Capability icon={<Bot className="size-5" />} title="AI summaries"
                 text="Key points, decisions, and action items generated after every recording." />
             </div>
           </section>

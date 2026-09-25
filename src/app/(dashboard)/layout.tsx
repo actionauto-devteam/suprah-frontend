@@ -61,6 +61,9 @@ import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import { apiClient } from "@/lib/api-client";
+// Suprah Meet — the meeting session lives at this shell level so navigating
+// anywhere keeps the call alive (minimize + floating mini window).
+import { MeetSessionProvider } from "@/components/suprah-meet/MeetSessionProvider"; // ← ADDED
 import {
   AlertDialog,
   AlertDialogAction,
@@ -567,7 +570,11 @@ export default function DashboardLayout({
 
   const content = (
     <SupraSpaceMessengerProvider>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      {/* Suprah Meet — session + mini window survive navigation anywhere in
+          the dashboard shell (same pattern as YapLine, but context-based). */}
+      <MeetSessionProvider>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      </MeetSessionProvider>
     </SupraSpaceMessengerProvider>
   );
 
