@@ -70,6 +70,7 @@ import {
   MessageSquare,
   Camera,
   ImageIcon,
+  History,
 } from "lucide-react";
 import { US_STATES, AVAILABLE_DAYS } from "@/components/driver-profile/driver-profile-constants";
 import { PreferredRoutesEditor } from "@/components/driver-profile/PreferredRoutesEditor";
@@ -77,11 +78,13 @@ import { ConfirmationModal, ConfirmationVariant } from "@/components/ui/confirma
 import { DriverAcceptLoadDialog } from "@/components/driver/DriverAcceptLoadDialog";
 import { DriverReleaseLoadDialog } from "@/components/driver/DriverReleaseLoadDialog";
 import { DriverPickupProofDialog } from "@/components/driver/DriverPickupProofDialog";
+import { DriverLoadChangesDialog, type DriverLoadChange } from "@/components/driver/DriverLoadChangesDialog";
 import { DriverStatusChangeDialog } from "@/components/driver/DriverStatusChangeDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
 import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
 import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -267,6 +270,7 @@ export default function DriverDashboardPage() {
   const [accepting, setAccepting] = React.useState<string | null>(null);
   const [acceptDialogLoad, setAcceptDialogLoad] = React.useState<any | null>(null);
   const [acknowledgingAmendment, setAcknowledgingAmendment] = React.useState<string | null>(null);
+  const [loadChangesOpen, setLoadChangesOpen] = React.useState(false);
   const [selectedActiveLoadId, setSelectedActiveLoadId] = React.useState<string | null>(null);
   const [dropping, setDropping] = React.useState<string | null>(null);
   const [cancellingLoadRequest, setCancellingLoadRequest] = React.useState<string | null>(null);
@@ -485,7 +489,7 @@ export default function DriverDashboardPage() {
         }));
       })
       .catch((err: any) => {
-        toast.error(err?.response?.data?.message || "Failed to load dashboard");
+        toast.error(userErrorMessage(err, "load your dashboard"));
       });
 
     const requestsTask = apiClient
@@ -697,6 +701,17 @@ export default function DriverDashboardPage() {
     currentLoad.pendingDriverAmendments.length > 0
       ? currentLoad.pendingDriverAmendments[0]
       : null;
+  // Every Dispatch change during this assignment (newest first). Changes made
+  // before acceptance are informational and alert until the driver views them.
+  const currentLoadChanges: DriverLoadChange[] = Array.isArray(currentLoad?.driverLoadChanges)
+    ? currentLoad.driverLoadChanges
+    : [];
+  const unseenInfoChanges = currentLoadChanges.filter(
+    (change) => change.status === "informational" && !change.seenAt,
+  );
+  const unseenChangeLabels = [
+    ...new Set(unseenInfoChanges.flatMap((change) => change.changes.map((item) => item.label))),
+  ];
   const otherActiveLoads = activeLoads.filter(
     (load) => String(load._id) !== String(currentLoad?._id ?? ""),
   );
@@ -971,15 +986,19 @@ export default function DriverDashboardPage() {
         await fetchData();
       } catch (err: any) {
         const message =
-          err.response?.data?.message || "Failed to accept load";
+          userErrorMessage(err, "accept this load");
         toast.error(message);
 
         // Force a fresh review when the server says the signed screen is stale
         // or Dispatch must reconfirm materially changed assignment terms.
+        // Uses the machine-readable reason, not the (user-facing) wording.
+        const reasonType = String(err?.response?.data?.errors?.[0]?.type ?? "");
         if (
-          message.includes("changed since you reviewed") ||
-          message.includes("changed after Dispatch assigned") ||
-          message.includes("legacy assignment was updated")
+          [
+            "load_reviewed_material_version_mismatch",
+            "load_assignment_material_changed",
+            "legacy_load_assignment_changed",
+          ].includes(reasonType)
         ) {
           setAcceptDialogLoad(null);
           await fetchData();
@@ -1008,7 +1027,7 @@ export default function DriverDashboardPage() {
         setConfirmState((previous) => ({ ...previous, isOpen: false, load: null }));
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Failed to reject load assignment');
+        toast.error(userErrorMessage(err, "reject this load assignment"));
         await fetchData();
       } finally {
         setDropping(null);
@@ -1035,7 +1054,7 @@ export default function DriverDashboardPage() {
         setConfirmState((previous) => ({ ...previous, isOpen: false, load: null }));
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Failed to cancel load request');
+        toast.error(userErrorMessage(err, "cancel your load request"));
         await fetchData();
       } finally {
         setCancellingLoadRequest(null);
@@ -1061,10 +1080,29 @@ export default function DriverDashboardPage() {
         await fetchData();
       } catch (err: any) {
         toast.error(
-          err.response?.data?.message || "Failed to acknowledge the Load Update",
+          userErrorMessage(err, "acknowledge the load update"),
         );
       } finally {
         setAcknowledgingAmendment(null);
+      }
+    },
+    [getToken, fetchData],
+  );
+
+  const openLoadChanges = React.useCallback(
+    async (load: any, hasUnseen: boolean) => {
+      setLoadChangesOpen(true);
+      if (!load?._id || !hasUnseen) return;
+      try {
+        const token = await getToken();
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/changes/seen`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        await fetchData();
+      } catch {
+        // Non-fatal: the alert simply stays until the next successful view.
       }
     },
     [getToken, fetchData],
@@ -1094,7 +1132,7 @@ export default function DriverDashboardPage() {
         setReleaseDialogLoad(null);
         await fetchData();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to request load release");
+        toast.error(userErrorMessage(err, "send your release request"));
       } finally {
         setDropping(null);
       }
@@ -1128,7 +1166,7 @@ export default function DriverDashboardPage() {
         await fetchData();
       } catch (err: any) {
         toast.error(
-          err.response?.data?.message || "Failed to cancel the release request",
+          userErrorMessage(err, "cancel your release request"),
         );
         // A 409 normally means Dispatch or another lifecycle action won the
         // race. Always refresh so the selected Current Load immediately shows
@@ -1155,7 +1193,7 @@ export default function DriverDashboardPage() {
         fetchData();
         setConfirmState(prev => ({ ...prev, isOpen: false }));
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to start route");
+        toast.error(userErrorMessage(err, "start the route"));
       } finally {
         setStartingRoute(null);
       }
@@ -1297,7 +1335,7 @@ export default function DriverDashboardPage() {
         queuedLiveStatusRef.current = null;
         setQueuedLiveStatus(null);
         toast.error(
-          err?.response?.data?.message || "Failed to update Work Availability",
+          userErrorMessage(err, "update your Work Availability"),
         );
         return false;
       } finally {
@@ -1434,7 +1472,7 @@ export default function DriverDashboardPage() {
 
       toast.success("Logistics saved");
     } catch {
-      toast.error("Failed to save logistics");
+      toast.error("We couldn't save your logistics details. Please try again.");
     } finally {
       setSavingLogistics(false);
     }
@@ -1460,7 +1498,7 @@ export default function DriverDashboardPage() {
       toast.success("Work Availability request cancelled");
       await Promise.all([fetchData(), workEligibility.refresh()]);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Unable to cancel the Work Availability request");
+      toast.error(userErrorMessage(error, "cancel your Work Availability request"));
     }
   }, [fetchData, getToken, workEligibility]);
 
@@ -2292,6 +2330,40 @@ export default function DriverDashboardPage() {
                       </span>
                     </Link>
 
+                    {unseenInfoChanges.length > 0 && !currentPendingAmendment ? (
+                      <div className="rounded-xl border border-sky-500/35 bg-sky-500/10 p-4 shadow-sm" role="status">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-sky-600 dark:text-sky-400" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black text-sky-800 dark:text-sky-300">Dispatch updated this load</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                              Changed: {unseenChangeLabels.join(", ") || "Load details"}.
+                              {currentLoad.status === "Assigned"
+                                ? " Dispatch will reconfirm the assignment before you can accept it."
+                                : ""}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-3 h-11 w-full font-bold"
+                              onClick={() => openLoadChanges(currentLoad, true)}
+                            >
+                              <History className="mr-2 size-3.5" />View changes
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : currentLoadChanges.length > 0 ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-10 w-full font-semibold"
+                        onClick={() => openLoadChanges(currentLoad, unseenInfoChanges.length > 0)}
+                      >
+                        <History className="mr-2 size-3.5" />View changes ({currentLoadChanges.length})
+                      </Button>
+                    ) : null}
+
                     {currentPendingAmendment && (
                       <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 shadow-sm">
                         <div className="flex items-start gap-3">
@@ -2884,6 +2956,13 @@ export default function DriverDashboardPage() {
         onSubmit={requestLoadRelease}
       />
 
+      <DriverLoadChangesDialog
+        open={loadChangesOpen}
+        onOpenChange={setLoadChangesOpen}
+        loadReference={currentLoad ? getLoadReference(currentLoad) : ""}
+        changes={currentLoadChanges}
+      />
+
       <DriverPickupProofDialog
         load={pickupDialogLoad}
         getToken={getToken}
@@ -3061,9 +3140,7 @@ function DriverDeliveryProofDialog({
       await onDelivered();
     } catch (err: any) {
       setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to complete delivery",
+        userErrorMessage(err, "complete this delivery"),
       );
     } finally {
       setSubmitting(false);

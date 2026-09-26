@@ -39,6 +39,7 @@ import type {
   DriverDispatchAlertType,
   DriverDispatchQuickPreset,
 } from '@/types/notification';
+import { userErrorMessage } from "@/lib/user-error";
 
 interface DriverDispatchAlertDialogProps {
   open: boolean;
@@ -304,8 +305,7 @@ export function DriverDispatchAlertDialog({
         if (cancelled) return;
         setLoads([]);
         setContextError(
-          error.response?.data?.message ||
-            'Could not verify the active dispatcher-driver relationship.',
+          userErrorMessage(error, "check that this driver has an active load with you"),
         );
       } finally {
         if (!cancelled) setContextLoading(false);
@@ -381,7 +381,7 @@ export function DriverDispatchAlertDialog({
       );
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Could not send driver alert');
+      toast.error(userErrorMessage(error, "send the alert to this driver"));
     } finally {
       setSending(false);
     }

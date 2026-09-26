@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Settings, Bell, MapPin, Moon, Wallet, CheckCircle2, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { StripeConnectStatus } from "@/types/driver-payout";
+import { userErrorMessage } from "@/lib/user-error";
 
 export default function DriverSettingsPage() {
   const { user } = useUser();
@@ -55,9 +56,7 @@ export default function DriverSettingsPage() {
       if (url) window.location.href = url;
     } catch (err: any) {
       const msg =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to connect Stripe account.";
+        userErrorMessage(err, "connect your payout account");
       setOnboardError(msg);
     } finally {
       setOnboardLoading(false);

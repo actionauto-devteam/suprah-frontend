@@ -45,6 +45,7 @@ import type { DriverLoadCompatibility } from "@/types/driver-tracking"
 import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility"
 import { DriverLoadCompatibilityReviewDialog } from "@/components/driver-tracker/DriverLoadCompatibilityReviewDialog"
 import { scheduleDateKey } from "@/utils/calendar.utils"
+import { userErrorMessage } from "@/lib/user-error";
 
 
 // ─── Create / Edit Load: form orchestrator ───────────────────────────────────
@@ -400,7 +401,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             try {
               await uploadVehicleInspectionPhoto(load._id, index, file)
             } catch {
-              toast.error(`Load ${load.loadNumber} was created, but a vehicle photo failed to upload.`)
+              toast.error(`Load ${load.loadNumber} was created, but a vehicle photo couldn't be uploaded. Edit the load to add the photo again.`)
             }
           }),
         )
@@ -435,11 +436,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
           // The load EXISTS — don't pretend the whole thing failed. Tell the
           // dispatcher exactly what state they're in and where to fix it.
           toast.error(
-            `Load ${load.loadNumber} was created, but assigning the driver failed: ` +
-              (assignErr?.response?.data?.message ||
-                assignErr?.message ||
-                "unknown error") +
-              ". Assign them from the Transportation page.",
+            `Load ${load.loadNumber} was created, but the driver couldn't be assigned: ${userErrorMessage(assignErr, "assign the driver")} You can assign them from Driver Tracker.`,
           )
         }
       } else if (postType === "assign-carrier" && makeAvailable) {
@@ -453,9 +450,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
       router.push("/transportation?tab=shipments")
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          `Failed to ${isEdit ? "save" : "create"} load. Please try again.`,
+        userErrorMessage(err, `${isEdit ? "save" : "create"} this load`),
       )
     } finally {
       setIsSubmitting(false)
@@ -488,9 +483,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
       router.push("/transportation?tab=shipments")
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "The compatibility override could not be applied.",
+        userErrorMessage(err, "apply the compatibility override"),
       )
     } finally {
       setIsApplyingCompatibilityOverride(false)
@@ -986,7 +979,7 @@ function PricingPanel({
       }
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message || err?.message || "Rate calculation failed.",
+        userErrorMessage(err, "calculate the rate"),
       )
     } finally {
       setIsCalculating(false)

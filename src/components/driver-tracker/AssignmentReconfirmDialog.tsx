@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { userErrorMessage } from "@/lib/user-error";
 
 type ReviewLoad = Load & {
   acceptanceMaterialVersion?: string;
@@ -53,10 +54,6 @@ function money(value?: number) {
   return value == null ? "Not provided" : `$${value.toLocaleString()}`;
 }
 
-function extractMessage(error: any, fallback: string) {
-  return error?.response?.data?.message || error?.message || fallback;
-}
-
 export function AssignmentReconfirmDialog({
   open,
   onOpenChange,
@@ -88,7 +85,7 @@ export function AssignmentReconfirmDialog({
       }
       setLoad(data);
     } catch (err) {
-      setError("Failed to fetch load details");
+      setError(userErrorMessage(err, "load this load's details"));
     } finally {
       setLoading(false);
     }
@@ -125,7 +122,7 @@ export function AssignmentReconfirmDialog({
       }
       onOpenChange(false);
     } catch (err: any) {
-      const message = extractMessage(err, "Failed to reconfirm the assignment");
+      const message = userErrorMessage(err, "reconfirm this assignment");
       // 409: the load changed while it was being reviewed (or is no longer
       // Assigned). Reload so the dispatcher reviews the latest terms.
       if (err?.response?.status === 409) await fetchLoad();
@@ -149,6 +146,9 @@ export function AssignmentReconfirmDialog({
     load?.status === "Assigned" &&
     !loading &&
     !submitting;
+  // Opened from a "Load Details Changed" notification on a load the driver
+  // already accepted: review only, the driver acknowledges the change.
+  const reviewOnly = !!load && load.status !== "Assigned";
 
   return (
     <Dialog
@@ -160,10 +160,12 @@ export function AssignmentReconfirmDialog({
     >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Reconfirm assignment</DialogTitle>
+          <DialogTitle>{reviewOnly ? "Review load changes" : "Reconfirm assignment"}</DialogTitle>
           <DialogDescription>
             {loadLabel || (load ? `Load #${load.loadNumber}` : "")}
-            {" — review the current load details before confirming."}
+            {reviewOnly
+              ? " — current load details. The driver must acknowledge the change before continuing."
+              : " — review the current load details before confirming."}
           </DialogDescription>
         </DialogHeader>
 
@@ -270,6 +272,15 @@ export function AssignmentReconfirmDialog({
             </section>
 
             <section>
+              <div className="font-medium">Notes</div>
+              {load.additionalInfo?.notes ? (
+                <p className="whitespace-pre-wrap">{load.additionalInfo.notes}</p>
+              ) : (
+                <div>Not provided</div>
+              )}
+            </section>
+
+            <section>
               <div className="font-medium">Instructions</div>
               {instructions.length ? (
                 instructions.map((text, index) => (
@@ -300,14 +311,16 @@ export function AssignmentReconfirmDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={!canConfirm}>
-            {submitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-            )}
-            Confirm assignment
-          </Button>
+          {!reviewOnly && (
+            <Button onClick={handleConfirm} disabled={!canConfirm}>
+              {submitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+              )}
+              Confirm assignment
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

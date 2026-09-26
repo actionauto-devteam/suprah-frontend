@@ -102,7 +102,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
         setVerificationAgreement(!!d.verificationAgreement);
       }
     } catch {
-      toast.error('Failed to load your application data');
+      toast.error("We couldn't load your application data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -140,8 +140,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
   };
 
   const handleUpload = async () => {
-    if (!uploadFile || !uploadLabel.trim()) { toast.error('Please select a file and provide a label'); return; }
-    if (uploadFile.size > 5 * 1024 * 1024) { toast.error('File must be under 5MB'); return; }
+    if (!uploadFile || !uploadLabel.trim()) { toast.error("Choose a file and enter a name for the document."); return; }
+    if (uploadFile.size > 5 * 1024 * 1024) { toast.error("This file is larger than 5 MB. Choose a smaller file."); return; }
     setUploading(true);
     try {
       const token = await getToken();
@@ -157,7 +157,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       toast.success('Document uploaded');
       setShowUploadDialog(false);
     } catch {
-      toast.error('Failed to upload document');
+      toast.error("We couldn't upload this document. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -172,14 +172,14 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       toast.success('Document removed');
       setShowDeleteConfirm(null);
     } catch {
-      toast.error('Failed to delete document');
+      toast.error("We couldn't delete this document. Please try again.");
     } finally {
       setDeletingId(null);
     }
   };
 
   const handleSaveCompliance = async () => {
-    if (!complianceDone) { toast.error('Please complete all required compliance fields'); return; }
+    if (!complianceDone) { toast.error("Fill in all required compliance fields before saving."); return; }
     setSavingCompliance(true);
     try {
       const token = await getToken();
@@ -191,14 +191,14 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       }, { headers: { Authorization: `Bearer ${token}` } });
       setActiveStep('agreement');
     } catch {
-      toast.error('Failed to save compliance info');
+      toast.error("We couldn't save your compliance details. Please try again.");
     } finally {
       setSavingCompliance(false);
     }
   };
 
   const handleSubmitApplication = async () => {
-    if (ssnLast4.replace(/\D/g, '').length !== 4) { toast.error('Please enter exactly 4 digits for SSN'); return; }
+    if (ssnLast4.replace(/\D/g, '').length !== 4) { toast.error("Enter only the last 4 digits of your SSN."); return; }
     setSubmitting(true);
     try {
       const token = await getToken();
@@ -210,7 +210,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       toast.success('Application submitted for review');
       onComplete();
     } catch {
-      toast.error('Failed to submit application');
+      toast.error("We couldn't submit your application. Please try again.");
     } finally {
       setSubmitting(false);
     }

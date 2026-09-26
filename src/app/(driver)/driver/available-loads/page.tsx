@@ -66,6 +66,7 @@ import type { DriverLoadCompatibility } from '@/types/driver-tracking';
 import { titleCaseDay } from '@/lib/driver-load-compatibility';
 import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
 import { DispatchChatDialog, type DispatchChatThreadSummary } from '@/components/dispatch-chat/DispatchChatDialog';
+import { userErrorMessage } from "@/lib/user-error";
 
 const FALLBACK = '/vehicle-placeholder.jpg';
 
@@ -147,9 +148,6 @@ const timeAgo = (value: string) => {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
 };
-
-const extractErr = (error: any, fallback: string) =>
-  error?.response?.data?.message || error?.message || fallback;
 
 const isPricingEnabled = (load: AvailableLoad) =>
   load.pricing?.isPricingEnabled !== false;
@@ -390,7 +388,7 @@ export default function AvailableLoadsPage() {
         setPagination(nextPagination);
         setPage(append ? pageNumber : 1);
       } catch (error: any) {
-        toast.error(extractErr(error, 'Failed to load available loads'));
+        toast.error(userErrorMessage(error, "load available loads"));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -470,7 +468,7 @@ export default function AvailableLoadsPage() {
       setRequestTarget(null);
       await fetchLoads();
     } catch (error: any) {
-      toast.error(extractErr(error, 'Failed to request load'));
+      toast.error(userErrorMessage(error, "request this load"));
     } finally {
       setRequesting(false);
     }
@@ -491,7 +489,7 @@ export default function AvailableLoadsPage() {
         });
         await fetchLoads();
       } catch (error: any) {
-        toast.error(extractErr(error, 'Failed to cancel load request'));
+        toast.error(userErrorMessage(error, "cancel your load request"));
         await fetchLoads();
       } finally {
         setCancellingRequestId(null);
@@ -527,10 +525,7 @@ export default function AvailableLoadsPage() {
         setChatOpen(true);
       } catch (error: any) {
         toast.error(
-          extractErr(
-            error,
-            'The creator of this load is unavailable for Suprah Dispatch Chat',
-          ),
+          userErrorMessage(error, "open Dispatch Chat for this load"),
         );
       } finally {
         setChatOpeningLoadId(null);

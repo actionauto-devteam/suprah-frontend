@@ -25,6 +25,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useUser, useAuthActions } from "@/providers/AuthProvider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -469,7 +470,19 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { organization } = useOrg();
+  const { setOpenMobile } = useSidebar();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+
+  // On mobile the sidebar is a Sheet; close it once the driver picks a page.
+  // Only the mobile open state changes, so the desktop sidebar is unaffected.
+  const closeMobileSidebar = React.useCallback(() => {
+    setOpenMobile(false);
+  }, [setOpenMobile]);
+
+  // Route-change fallback for programmatic navigation (e.g. the footer menu).
+  React.useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
 
   return (
     <Sidebar
@@ -520,7 +533,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                 tooltip={item.title}
                 isActive={pathname === item.url}
               >
-                <Link href={item.url}>
+                <Link href={item.url} onClick={closeMobileSidebar}>
                   <item.icon />
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 </Link>
@@ -545,7 +558,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
                 tooltip={item.title}
                 isActive={pathname === item.url}
               >
-                <Link href={item.url}>
+                <Link href={item.url} onClick={closeMobileSidebar}>
                   <item.icon />
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 </Link>

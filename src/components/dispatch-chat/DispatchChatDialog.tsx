@@ -44,6 +44,7 @@ import { initializeSocket } from "@/lib/socket.client";
 import { toast } from "sonner";
 import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 export interface DispatchChatAttachment {
   // Empty when the backend cannot safely produce a signed private URL.
@@ -1690,9 +1691,7 @@ export function DispatchChatDialog({
       });
     } catch (error: any) {
       toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Could not load dispatcher conversations",
+        userErrorMessage(error, "load your conversations"),
       );
     } finally {
       setThreadsLoading(false);
@@ -2017,9 +2016,7 @@ export function DispatchChatDialog({
 
       if (requestIsStillCurrent && !cached) {
         toast.error(
-          error.response?.data?.message ||
-            error.message ||
-            "Could not load Suprah Dispatch Chat",
+          userErrorMessage(error, "load Suprah Dispatch Chat"),
         );
       }
     } finally {
@@ -2136,9 +2133,7 @@ export function DispatchChatDialog({
     } catch (error: any) {
       if (detailsRequestKeyRef.current !== conversationKey || cached) return;
       toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Could not load conversation details",
+        userErrorMessage(error, "load this conversation"),
       );
     } finally {
       if (detailsRequestKeyRef.current === conversationKey) {
@@ -2967,9 +2962,7 @@ export function DispatchChatDialog({
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error: any) {
       toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Could not send Dispatch Chat message",
+        userErrorMessage(error, "send your message"),
       );
     } finally {
       setIsSending(false);

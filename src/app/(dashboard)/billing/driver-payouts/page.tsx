@@ -19,6 +19,7 @@ import {
   FileCheck,
   Eye,
 } from "lucide-react";
+import { userErrorMessage } from "@/lib/user-error";
 
 function ProofLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   const [zoom, setZoom] = React.useState(1);
@@ -310,7 +311,7 @@ function PayoutModal({
       }, { headers });
       onCreated(); onClose();
     } catch (e: any) {
-      setError(e.response?.data?.message || "Failed to create payout.");
+      setError(userErrorMessage(e, "create this payout"));
     } finally {
       setLoading(false);
     }

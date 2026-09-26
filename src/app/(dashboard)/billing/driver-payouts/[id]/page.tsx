@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
-import { apiClient } from "@/lib/api-client";
 import { getLoadById, confirmLoadDelivery } from "@/lib/api/loads";
 import { Load } from "@/types/load";
 import { formatCurrency } from "@/utils/format";
@@ -14,6 +13,7 @@ import {
   MapPin, Calendar, Package, AlertCircle, Info, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
+import { userErrorMessage } from "@/lib/user-error";
 
 const ORANGE = "#E55A00";
 const PAGE_BG = "#07070a";
@@ -22,40 +22,25 @@ const BORDER = "rgba(255,255,255,0.07)";
 const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
 const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
 
-function PayoutActionCard({ load, onAction }: { load: Load; onAction: () => void }) {
-  const { getToken } = useAuth();
+const PAYOUT_IN_DEVELOPMENT_MESSAGE =
+  "Driver payouts are still being built. No payout was sent. Delivery confirmation is recorded separately.";
+
+function PayoutActionCard({ load }: { load: Load }) {
   const [amount, setAmount] = React.useState(load.pricing?.carrierPayAmount || 0);
   const [notes, setNotes] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [showNotice, setShowNotice] = React.useState(false);
 
-  const handleSubmit = async () => {
-    if (amount <= 0) { setError("Amount must be greater than 0."); return; }
-    setLoading(true); setError(null);
-    try {
-      const token = await getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
-      const driverId = typeof load.assignedDriverId === 'object' 
-        ? load.assignedDriverId._id 
-        : load.assignedDriverId;
-
-      await apiClient.post("/api/driver-payouts", {
-        loadId: load._id,
-        driverId,
-        amount, 
-        notes,
-      }, { headers });
-      
-      toast.success("Payout sent successfully");
-      onAction();
-    } catch (e: any) {
-      setError(e.response?.data?.message || "Failed to create payout.");
-      toast.error(e.response?.data?.message || "Failed to create payout.");
-    } finally { setLoading(false); }
+  // Billing and payout processing are still in development, so this button
+  // must never move money yet. It only explains that to the dispatcher.
+  const handleSubmit = () => {
+    setShowNotice(true);
+    toast.info("Payout feature is still in development", {
+      description: PAYOUT_IN_DEVELOPMENT_MESSAGE,
+    });
   };
 
-  const isConfirmed = !!load.proofOfDelivery?.confirmedAt || load.status === "Delivered";
+  // A payout follows Dispatch confirming the delivery proof.
+  const isConfirmed = !!load.proofOfDelivery?.confirmedAt;
 
   if (!isConfirmed) {
     return (
@@ -113,20 +98,19 @@ function PayoutActionCard({ load, onAction }: { load: Load; onAction: () => void
           />
         </div>
 
-        {error && (
-          <div style={{ display: "flex", gap: 8, color: "#f87171", alignItems: "center" }}>
-            <AlertCircle style={{ width: 14, height: 14 }} />
-            <p style={{ fontFamily: DISPLAY, fontSize: 13, margin: 0 }}>{error}</p>
+        {showNotice && (
+          <div role="status" style={{ display: "flex", gap: 8, color: "#facc15", alignItems: "flex-start" }}>
+            <Info style={{ width: 14, height: 14, flexShrink: 0, marginTop: 3 }} />
+            <p style={{ fontFamily: DISPLAY, fontSize: 13, margin: 0 }}>{PAYOUT_IN_DEVELOPMENT_MESSAGE}</p>
           </div>
         )}
 
         <button 
           onClick={handleSubmit} 
-          disabled={loading}
-          style={{ width: "100%", padding: "14px 0", background: loading ? "rgba(229,90,0,0.5)" : ORANGE, border: "none", borderRadius: 12, color: "#fff", fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, transition: "all 0.2s ease" }}
+          style={{ width: "100%", padding: "14px 0", background: ORANGE, border: "none", borderRadius: 12, color: "#fff", fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, transition: "all 0.2s ease" }}
         >
-          {loading ? <Loader2 style={{ width: 18, height: 18, animation: "spin 1s linear infinite" }} /> : <DollarSign style={{ width: 18, height: 18 }} />}
-          {loading ? "Processing..." : "Approve & Send Payout"}
+          <DollarSign style={{ width: 18, height: 18 }} />
+          Approve & Send Payout
         </button>
       </div>
     </div>
@@ -150,7 +134,7 @@ export default function PayoutDetailPage() {
       setLoad(data);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load payout details");
+      toast.error("We couldn't load payout details. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -163,11 +147,15 @@ export default function PayoutDetailPage() {
   const handleConfirmDelivery = async () => {
     setActionLoading(true);
     try {
-      await confirmLoadDelivery(id);
-      toast.success("Delivery proof confirmed");
+      const { message } = await confirmLoadDelivery(id);
+      if (/already confirmed/i.test(message)) {
+        toast.info("Delivery already confirmed");
+      } else {
+        toast.success("Delivery confirmed. The driver has been notified.");
+      }
       fetchData();
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed to confirm delivery");
+      toast.error(userErrorMessage(e, "confirm this delivery"));
     } finally {
       setActionLoading(false);
     }
@@ -352,18 +340,22 @@ export default function PayoutDetailPage() {
           </div>
 
           {/* Approval Action */}
-          {!load.proofOfDelivery?.confirmedAt && load.status !== "Delivered" && (
+          {/* Delivery confirmation is separate from payout: the driver
+              completes delivery, then Dispatch confirms the proof here. */}
+          {load.proofOfDelivery?.imageUrl && (
             <div style={{ background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 16, padding: 20 }}>
               <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
                 <CheckCircle2 style={{ width: 16, height: 16, color: "#4ade80" }} />
-                Verify Proof
+                {load.proofOfDelivery.confirmedAt ? "Delivery Confirmed" : "Verify Proof"}
               </h4>
               <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 20, lineHeight: 1.5 }}>
-                Confirm that the proof of delivery is valid and the vehicle has been received by the customer.
+                {load.proofOfDelivery.confirmedAt
+                  ? `Confirmed on ${new Date(load.proofOfDelivery.confirmedAt).toLocaleString()}.`
+                  : "Confirm that the proof of delivery is valid and the vehicle has been received by the customer."}
               </p>
               <button 
                 onClick={handleConfirmDelivery}
-                disabled={actionLoading || !load.proofOfDelivery?.imageUrl}
+                disabled={actionLoading}
                 style={{ width: "100%", padding: "12px 0", background: "#4ade80", color: "#000", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: actionLoading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               >
                 {actionLoading ? <Loader2 style={{ width: 16, height: 16, animation: "spin 1s linear infinite" }} /> : <CheckCircle2 style={{ width: 16, height: 16 }} />}
@@ -373,7 +365,7 @@ export default function PayoutDetailPage() {
           )}
 
           {/* Payout Action */}
-          <PayoutActionCard load={load} onAction={fetchData} />
+          <PayoutActionCard load={load} />
 
           {/* Quick Links */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

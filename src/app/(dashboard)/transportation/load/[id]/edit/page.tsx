@@ -21,6 +21,12 @@ export default function EditLoadPage() {
     queryKey: ["load", id],
     queryFn: () => getLoadById(id),
     enabled: !!id,
+    // Always edit the latest saved version. With the default 60s cache, a
+    // second edit shortly after saving opened the previous values, and saving
+    // that form would silently revert the first edit.
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   })
 

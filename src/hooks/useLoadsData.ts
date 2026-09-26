@@ -11,6 +11,7 @@ import { Load } from "@/types/load";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import { PER_PAGE_OPTIONS, PerPageOption } from "./useTransportationData";
+import { userErrorMessage } from "@/lib/user-error";
 
 const LOADS_LIMIT_STORAGE_KEY = "transportation:loads:limit";
 
@@ -309,9 +310,7 @@ export function useLoadsData(
       } catch (err: any) {
         if (requestId !== requestIdRef.current) return false;
         setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load loads",
+          userErrorMessage(err, "load your loads"),
         );
         return false;
       }
@@ -568,9 +567,7 @@ export function useLoadsData(
         }
 
         toast.error(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to delete load. Please try again.",
+          userErrorMessage(err, "delete this load"),
         );
       } finally {
         setDeletingId(null);

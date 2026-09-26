@@ -47,6 +47,7 @@ import { containsCurseWord } from "@/components/profile/profile-constants";
 import { DriverOverviewTab } from "./DriverOverviewTab";
 import { driverStatusOptions } from "./driver-profile-constants";
 import { DriverProfile } from "@/types/driver-profile";
+import { userErrorMessage } from "@/lib/user-error";
 
 export const DriverProfileView: React.FC = () => {
   const { user: authUser } = useUser();
@@ -137,7 +138,7 @@ export const DriverProfileView: React.FC = () => {
     } catch {
       if (!toastShownRef.current) {
         toastShownRef.current = true;
-        toast.error("Failed to load profile data");
+        toast.error("We couldn't load your profile. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -325,12 +326,12 @@ export const DriverProfileView: React.FC = () => {
   const handleSavePersonalInfo = async () => {
     setShowSaveConfirmDialog(false);
     if (personalInfo.bio && personalInfo.bio.length > 500) {
-      toast.error("Bio must be 500 characters or less");
+      toast.error("Your bio can be up to 500 characters. Shorten it and try again.");
       return;
     }
     const phone = personalInfo.phone?.replace(/\D/g, "") || "";
     if (phone && phone.length !== 10) {
-      toast.error("Phone number must be a valid 10-digit US number");
+      toast.error("Enter a 10-digit US phone number (numbers only).");
       return;
     }
     for (const link of socialLinks) {
@@ -341,7 +342,7 @@ export const DriverProfileView: React.FC = () => {
         return;
       }
       if (link.label && link.label.length > 30) {
-        toast.error("Link labels must be 30 characters or less");
+        toast.error("Link names can be up to 30 characters.");
         return;
       }
     }
@@ -353,7 +354,7 @@ export const DriverProfileView: React.FC = () => {
     ].filter(Boolean);
     for (const field of fieldsToCheck) {
       if (field && containsCurseWord(field)) {
-        toast.error("Please remove inappropriate language");
+        toast.error("Please remove inappropriate language from your profile before saving.");
         return;
       }
     }
@@ -376,7 +377,7 @@ export const DriverProfileView: React.FC = () => {
       fetchProfile();
     } catch (error: any) {
       toast.error(
-        error.response?.data?.message || "Failed to save information",
+        userErrorMessage(error, "save your information"),
       );
     } finally {
       setIsSaving(false);
@@ -405,7 +406,7 @@ export const DriverProfileView: React.FC = () => {
       setShowStatusDialog(false);
       fetchProfile();
     } catch {
-      toast.error("Failed to update status");
+      toast.error("We couldn't update your status. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -422,7 +423,7 @@ export const DriverProfileView: React.FC = () => {
       signOut();
       router.push("/");
     } catch {
-      toast.error("Failed to delete account. Contact support.");
+      toast.error("We couldn't delete your account. Please contact support for help.");
     }
   };
 

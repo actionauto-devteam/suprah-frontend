@@ -58,6 +58,11 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   driver_assigned: { icon: Truck, gradient: 'from-violet-500 to-purple-500', bg: 'bg-violet-500' },
   load_accepted: { icon: CheckCircle2, gradient: 'from-emerald-500 to-green-600', bg: 'bg-emerald-500' },
   load_amendment_acknowledged: { icon: CheckCircle2, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
+  load_amendment_required: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
+  load_details_changed: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
+  load_picked_up: { icon: Truck, gradient: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500' },
+  load_in_transit: { icon: Truck, gradient: 'from-cyan-500 to-blue-500', bg: 'bg-cyan-500' },
+  load_delivered: { icon: CheckCircle2, gradient: 'from-green-500 to-emerald-600', bg: 'bg-green-500' },
   driver_location_update: { icon: MapPin, gradient: 'from-blue-500 to-sky-500', bg: 'bg-blue-500' },
   driver_dispatch_alert: { icon: AlertTriangle, gradient: 'from-red-500 to-orange-500', bg: 'bg-red-500' },
   driver_dispatch_message: { icon: MessageSquare, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
@@ -177,6 +182,11 @@ const TYPE_LABELS: Record<string, string> = {
   driver_assigned: 'Driver Assigned',
   load_accepted: 'Load Accepted',
   load_amendment_acknowledged: 'Load Update Acknowledged',
+  load_amendment_required: 'Load Updated by Dispatch',
+  load_details_changed: 'Load Details Changed',
+  load_picked_up: 'Load Picked Up',
+  load_in_transit: 'Load In Transit',
+  load_delivered: 'Load Delivered',
   driver_location_update: 'Driver Location Update',
   driver_payout: 'Driver Payout',
   payment_received: 'Payment Received',
@@ -265,6 +275,8 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type.startsWith('quote_') || type.startsWith('shipment_') || type === 'proof_of_delivery'
     || type === 'proof_submitted' || type === 'delivery_confirmed' || type.startsWith('driver_request')
     || type === 'driver_assigned' || type === 'load_accepted' || type === 'load_amendment_acknowledged'
+    || type === 'load_amendment_required' || type === 'load_details_changed' || type === 'load_picked_up'
+    || type === 'load_in_transit' || type === 'load_delivered'
     || type === 'driver_payout') return 'transportation';
   if (type.startsWith('vehicle_') || type.startsWith('inventory_') || type === 'new_inventory_alert') return 'inventory';
   if (type.startsWith('appointment_') || type === 'guest_response') return 'appointments';
@@ -346,6 +358,8 @@ const ROUTE_MAP: Record<string, string> = {
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   driver_request: '/driver-tracker', driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', load_accepted: '/driver-tracker', load_amendment_acknowledged: '/transportation',
+  load_amendment_required: '/driver/loads', load_details_changed: '/driver-tracker',
+  load_picked_up: '/transportation', load_in_transit: '/transportation', load_delivered: '/transportation',
   driver_payout: '/driver/earnings',
   message_received: '/crm/supra-space',
   aftermarket_inquiry: '/crm/support-center?tab=aftermarket', aftermarket_invoice: '/customer/payments', aftermarket_order: '/crm/aftermarket',

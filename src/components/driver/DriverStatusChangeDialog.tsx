@@ -26,6 +26,7 @@ import { AlertTriangle, FileText, FileUp, Loader2, ShieldAlert, Wrench, PauseCir
 import { toast } from "sonner";
 import type { DriverStatusRequestSnapshot } from "@/hooks/useDriverWorkEligibility";
 import { useCloseOnBack } from "@/hooks/useCloseOnBack";
+import { userErrorMessage } from "@/lib/user-error";
 
 type RequestedStatus = "on_leave" | "maintenance";
 type Priority = "standard" | "emergency";
@@ -193,7 +194,7 @@ export function DriverStatusChangeDialog({
       toast.info("You can attach up to 5 files per request");
     }
     if (rejectedSize) {
-      toast.error("Each attachment must be 10 MB or smaller");
+      toast.error("Each attachment can be up to 10 MB. Choose a smaller file.");
     }
     if (rejectedType) {
       toast.error("Only JPG, PNG, WebP, and PDF files are supported");
@@ -258,9 +259,7 @@ export function DriverStatusChangeDialog({
       onOpenChange(false);
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Unable to submit the Work Availability request",
+        userErrorMessage(error, "submit your Work Availability request"),
       );
     } finally {
       setSubmitting(false);

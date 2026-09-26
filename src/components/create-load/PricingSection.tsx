@@ -40,7 +40,7 @@ export function PricingSection({ pickupZip, deliveryZip, vehicles, trailerType }
         vehicles.map((v) => ({ condition: v.condition }))
       )
         .then((data) => { if (!cancelled) { setResult(data); setLoading(false) } })
-        .catch(() => { if (!cancelled) { setError("Could not calculate rate for these ZIPs"); setLoading(false) } })
+        .catch(() => { if (!cancelled) { setError("We couldn't calculate a rate for these ZIP codes. Check the pickup and delivery ZIP codes and try again."); setLoading(false) } })
     }, 600)
     return () => { cancelled = true; clearTimeout(timeout) }
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { DriverTrackingItem } from "@/types/driver-tracking";
+import { userErrorMessage } from "@/lib/user-error";
 
 interface Props {
   open: boolean;
@@ -125,7 +126,7 @@ export function DriverStatusRequestReviewDialog({
       }
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || "Unable to load the Work Availability request",
+        userErrorMessage(error, "load this Work Availability request"),
       );
     } finally {
       setLoading(false);
@@ -193,7 +194,7 @@ export function DriverStatusRequestReviewDialog({
       await onUpdated?.();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || `Unable to ${nextAction} request`,
+        userErrorMessage(error, `${nextAction} this request`),
       );
     } finally {
       setAction(null);
@@ -245,7 +246,7 @@ export function DriverStatusRequestReviewDialog({
   const beginReassign = React.useCallback((load: any) => {
     const id = String(load?._id ?? load?.id ?? "");
     if (!id) {
-      toast.error("This load does not have a valid ID for reassignment");
+      toast.error("This load can't be reassigned from here. Refresh the page and try again.");
       return;
     }
     setDriverSearch("");
