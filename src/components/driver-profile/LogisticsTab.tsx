@@ -45,7 +45,7 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
       });
       toast.success('Logistics saved');
     } catch {
-      toast.error('Failed to save logistics');
+      toast.error("We couldn't save your logistics details. Please try again.");
     } finally {
       setSaving(false);
     }

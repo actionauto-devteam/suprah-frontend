@@ -952,7 +952,7 @@ function InventoryContent() {
         })
         .catch(() => {
           if (sequence !== viewSwitchSequenceRef.current) return;
-          setError("Failed to switch inventory view. Please try again.");
+          setError("We couldn't switch the inventory view. Please try again.");
         })
         .finally(() => {
           if (sequence === viewSwitchSequenceRef.current) setPendingInventoryView(null);
@@ -1074,7 +1074,7 @@ function InventoryContent() {
       setShippingOpen(false);
     } catch (error) {
       console.error("[Quote] Error creating quote:", error);
-      toast.error("Failed to create quote");
+      toast.error("We couldn't create this draft. Please try again.");
     }
   };
 

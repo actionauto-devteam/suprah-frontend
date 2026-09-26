@@ -34,6 +34,7 @@ import {
 } from "@/lib/driver-load-compatibility"
 import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview"
 import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges"
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Centralized driver directory types ──────────────────────────────────────
 // Mirrors GET /api/driver-tracking/org-drivers — the single source of truth
@@ -266,9 +267,7 @@ export function DriverPickerSection({
       setDrivers(data?.drivers ?? [])
     } catch (err: any) {
       setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to load drivers",
+        userErrorMessage(err, "load the driver list"),
       )
     } finally {
       setIsLoading(false)

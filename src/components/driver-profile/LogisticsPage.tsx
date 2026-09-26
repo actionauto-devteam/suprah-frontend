@@ -57,7 +57,7 @@ export const LogisticsPage: React.FC = () => {
         setDays(data.availableDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
       }
     } catch {
-      toast.error('Failed to load logistics data');
+      toast.error("We couldn't load your logistics details. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export const LogisticsPage: React.FC = () => {
       if (res.data?.data) setProfile(res.data.data);
       toast.success('Logistics saved successfully');
     } catch {
-      toast.error('Failed to save logistics');
+      toast.error("We couldn't save your logistics details. Please try again.");
     } finally {
       setSaving(false);
     }

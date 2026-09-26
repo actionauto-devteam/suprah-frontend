@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { getEquipmentReadiness } from '@/lib/driver-readiness';
 import Link from 'next/link';
+import { userErrorMessage } from "@/lib/user-error";
 
 interface EquipmentForm {
   truckMake: string; truckModel: string; truckYear: number | undefined;
@@ -199,7 +200,7 @@ export const EquipmentPage: React.FC = () => {
         if (match) setDialogCategory(match.category);
       }
       loadedRef.current = true;
-    } catch { setLoadError(true); toast.error('Failed to load equipment data'); }
+    } catch { setLoadError(true); toast.error("We couldn't load your equipment details. Please try again."); }
     finally { setLoading(false); }
   }, [getToken]);
 
@@ -284,8 +285,7 @@ export const EquipmentPage: React.FC = () => {
         return true;
       } catch (error: any) {
         toast.error(
-          error?.response?.data?.message ||
-            'Failed to save equipment progress',
+          userErrorMessage(error, "save your equipment details"),
         );
         return false;
       } finally {

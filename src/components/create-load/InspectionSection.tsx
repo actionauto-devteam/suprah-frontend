@@ -7,6 +7,7 @@ import { LoadVehicle } from "./types"
 import { uploadVehicleInspectionPhoto } from "@/lib/api/loads"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Inspect step ─────────────────────────────────────────────────────────────
 // Per-vehicle condition photo (or a photo of a QR/inventory tag — this is a
@@ -83,7 +84,7 @@ export function InspectionSection({
       toast.success("Inspection photo uploaded.")
     } catch (err: any) {
       toast.error(
-        err?.response?.data?.message || err?.message || "Failed to upload photo.",
+        userErrorMessage(err, "upload this photo"),
       )
     } finally {
       setUploadingIndex(null)

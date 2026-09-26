@@ -50,7 +50,7 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
       });
       toast.success('Equipment saved');
     } catch {
-      toast.error('Failed to save equipment');
+      toast.error("We couldn't save your equipment details. Please try again.");
     } finally {
       setSaving(false);
     }

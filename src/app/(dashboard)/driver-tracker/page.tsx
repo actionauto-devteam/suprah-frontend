@@ -28,6 +28,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useUser } from "@/providers/AuthProvider";
 import { DriverTrackingItem, DriverStatus, DriverLoadCompatibility } from "@/types/driver-tracking";
 import { useOptionalDriverLocationSharing } from "@/context/DriverLocationSharingContext";
+import { userErrorMessage } from "@/lib/user-error";
 
 export interface AvailableItem {
   _id: string;
@@ -69,6 +70,7 @@ import { DriverTrackerRequestsCard } from "@/components/driver-tracker/DriverTra
 import { DriverDispatchAlertDialog } from "@/components/driver-tracker/DriverDispatchAlertDialog";
 import { DriverComplianceDocumentsDialog } from "@/components/driver-tracker/DriverComplianceDocumentsDialog";
 import { DriverStatusRequestReviewDialog } from "@/components/driver-tracker/DriverStatusRequestReviewDialog";
+import { AssignmentReconfirmDialog } from "@/components/driver-tracker/AssignmentReconfirmDialog";
 import {
   DriverLoadCompatibilityReviewDialog,
   type DriverActiveLoadSummary,
@@ -228,6 +230,10 @@ export default function DriverTrackerPage() {
     React.useState<DriverTrackingItem | null>(null);
   const [statusRequestDialogOpen, setStatusRequestDialogOpen] =
     React.useState(false);
+  // "Load Details Changed" notifications deep-link to
+  // /driver-tracker?driverId=<id>&reviewLoadId=<loadId>
+  const [reviewLoadId, setReviewLoadId] = React.useState<string | null>(null);
+  const handledReviewLoadDeepLinkRef = React.useRef<string | null>(null);
   const [compatibilityReview, setCompatibilityReview] = React.useState<{
     endpoint: string;
     payload: Record<string, unknown>;
@@ -484,6 +490,35 @@ export default function DriverTrackerPage() {
     router.replace(cleanedUrl, { scroll: false });
   }, [pathname, router, searchParams]);
 
+  React.useEffect(() => {
+    const targetLoadId = searchParams.get("reviewLoadId");
+    if (!targetLoadId) {
+      handledReviewLoadDeepLinkRef.current = null;
+      return;
+    }
+    // Single use per link, like the Dispatch Chat deep link above.
+    if (handledReviewLoadDeepLinkRef.current === targetLoadId) return;
+    handledReviewLoadDeepLinkRef.current = targetLoadId;
+    if (!/^[a-f0-9]{24}$/i.test(targetLoadId)) {
+      toast.error("The load linked to this notification is not valid.");
+      return;
+    }
+    setReviewLoadId(targetLoadId);
+  }, [searchParams]);
+
+  const clearReviewLoadDeepLink = React.useCallback(() => {
+    if (!searchParams.get("reviewLoadId")) return;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("reviewLoadId");
+    if (nextParams.get("openDispatchChat") !== "1") {
+      nextParams.delete("driverId");
+    }
+    router.replace(
+      nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname,
+      { scroll: false },
+    );
+  }, [pathname, router, searchParams]);
+
   const clearStatusRequestDeepLink = React.useCallback(() => {
     if (!searchParams.get("statusRequestId")) return;
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -608,7 +643,7 @@ export default function DriverTrackerPage() {
       if (!request.isCurrent()) return;
       if ([401, 403].includes(err.response?.status)) setDrivers([]);
       setError(
-        err.response?.data?.message || err.message || "Failed to load drivers",
+        userErrorMessage(err, "load the driver list"),
       );
     } finally {
       if (request.isCurrent()) { setIsLoading(false); request.finish(); }
@@ -717,7 +752,7 @@ export default function DriverTrackerPage() {
         }
 
         toast.error(
-          err.response?.data?.message || "Unable to complete the load action",
+          userErrorMessage(err, "complete this load action"),
         );
         return false;
       }
@@ -809,8 +844,7 @@ export default function DriverTrackerPage() {
       }
 
       toast.error(
-        err.response?.data?.message ||
-          "The pending-request assignment could not be completed",
+        userErrorMessage(err, "assign this load"),
       );
     } finally {
       setPendingRequestAssignmentSubmitting(false);
@@ -896,8 +930,7 @@ export default function DriverTrackerPage() {
       }
 
       toast.error(
-        err.response?.data?.message ||
-          "The compatibility override could not be applied",
+        userErrorMessage(err, "apply the compatibility override"),
       );
     } finally {
       setCompatibilityOverrideSubmitting(false);
@@ -969,7 +1002,7 @@ export default function DriverTrackerPage() {
         fetchDrivers();
         fetchAvailableLoads();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to remove load");
+        toast.error(userErrorMessage(err, "remove the driver from this load"));
       }
     },
     [getToken, isSignedIn, fetchDrivers, fetchAvailableLoads, drivers],
@@ -1015,7 +1048,7 @@ export default function DriverTrackerPage() {
         toast.success("Release request declined — load remains assigned");
         await fetchDrivers();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to keep load assigned");
+        toast.error(userErrorMessage(err, "keep this load assigned"));
       }
     },
     [getToken, isSignedIn, fetchDrivers],
@@ -1084,7 +1117,7 @@ export default function DriverTrackerPage() {
         toast.success("Load request rejected");
         fetchLoadRequests();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to reject request");
+        toast.error(userErrorMessage(err, "decline this request"));
       } finally {
         setRejectingId(null);
       }
@@ -1262,9 +1295,7 @@ export default function DriverTrackerPage() {
         toast.error(
           status === 404
             ? "The load linked to this request no longer exists in this organization."
-            : err?.response?.data?.message ||
-                err?.message ||
-                "Could not resolve the current load location.",
+            : userErrorMessage(err, "find this load's current location"),
         );
       });
     },
@@ -1320,9 +1351,7 @@ export default function DriverTrackerPage() {
         toast.error(
           status === 404
             ? "The load linked to this inquiry no longer exists in this organization."
-            : err?.response?.data?.message ||
-                err?.message ||
-                "Could not resolve the current load location.",
+            : userErrorMessage(err, "find this load's current location"),
         );
       })
       .finally(() => {
@@ -1355,7 +1384,7 @@ export default function DriverTrackerPage() {
     (driver: DriverTrackingItem) => {
       const driverId = driver.driver?.id;
       if (!driverId) {
-        toast.error("Dispatch Chat is unavailable for this driver");
+        toast.error("Dispatch Chat isn't available for this driver right now. Their account may be inactive.");
         return;
       }
 
@@ -2489,6 +2518,18 @@ export default function DriverTrackerPage() {
         activeDrivers={eligibleDrivers}
         onReassignLoad={handleStatusRequestReassignLoad}
         onUpdated={fetchDrivers}
+      />
+
+      <AssignmentReconfirmDialog
+        open={reviewLoadId !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setReviewLoadId(null);
+            clearReviewLoadDeepLink();
+          }
+        }}
+        loadId={reviewLoadId}
+        onConfirmed={fetchDrivers}
       />
 
       <PendingLoadRequestAssignmentDialog

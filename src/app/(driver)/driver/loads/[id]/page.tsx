@@ -26,6 +26,18 @@ import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDi
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 import { initializeSocket } from '@/lib/socket.client';
+import { userErrorMessage } from "@/lib/user-error";
+
+// Readable phrases for driver load actions in error messages ("We couldn't …").
+const DRIVER_ACTION_LABELS: Record<string, string> = {
+  "accept-load": "accept this load",
+  "mark-picked-up": "mark this load Picked Up",
+  "start-route": "start the route",
+  "cancel-request": "cancel your load request",
+  "reject-assignment": "reject this assignment",
+  "cancel-release-request": "cancel your release request",
+  "drop-load": "send your release request",
+};
 
 // Real driver-tracking endpoints — accept/request/pickup/start-route/drop
 // all live under /loads/:id/*, not the flat /api/driver-tracking/{action}
@@ -51,7 +63,6 @@ const SIGNATURE_ACTIONS = new Set(['accept-load', 'request-load']);
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
 const fmtDateTime = (d?: string) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver' }) : '';
 const trailerLabel = (val?: string) => trailerTypeOptions.find(t => t.value === val)?.label || val || 'Any';
-const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.message || fb;
 
 const STATUS_THEME: Record<LoadStatus, { bg: string; text: string; border: string }> = {
   Draft: { bg: 'bg-slate-500/10', text: 'text-slate-600 dark:text-slate-300', border: 'border-slate-500/20' },
@@ -109,7 +120,7 @@ export default function LoadDetailPage() {
         setData(loadData);
       }
     } catch (err: any) {
-      const msg = extractErr(err, 'Failed to load details');
+      const msg = userErrorMessage(err, "load this load's details");
       // A dispatcher action can remove this driver's object-level access while
       // the detail screen is already open. Clear stale data immediately.
       if (err.response?.status === 403 || err.response?.status === 404) {
@@ -178,7 +189,7 @@ export default function LoadDetailPage() {
         setReleaseDialogLoad(null);
         await fetchDetail();
       } catch (err: any) {
-        toast.error(extractErr(err, 'Failed to request load release'));
+        toast.error(userErrorMessage(err, "send your release request"));
         await fetchDetail();
       } finally {
         setActionLoading(null);
@@ -189,7 +200,7 @@ export default function LoadDetailPage() {
 
   const executeAction = async (action: string, signature?: DriverSignedContract) => {
     if (!loadId) {
-      toast.error(`Cannot ${action}: Load ID is missing from URL`);
+      toast.error("This load couldn't be opened. Go back to your loads and open it again.");
       return;
     }
     setActionLoading(action);
@@ -226,7 +237,7 @@ export default function LoadDetailPage() {
       setConfirmState(prev => ({ ...prev, isOpen: false }));
       setContractAction(null);
     } catch (err: any) {
-      toast.error(extractErr(err, `Failed to ${action}`));
+      toast.error(userErrorMessage(err, (DRIVER_ACTION_LABELS[action] ?? "complete this action")));
       if (action === 'cancel-request' || action === 'reject-assignment' || action === 'cancel-release-request') {
         await fetchDetail();
       }

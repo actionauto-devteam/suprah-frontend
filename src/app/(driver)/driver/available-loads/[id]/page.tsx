@@ -42,6 +42,7 @@ import type { DriverLoadCompatibility } from '@/types/driver-tracking';
 import { titleCaseDay } from '@/lib/driver-load-compatibility';
 import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
 import { initializeSocket } from '@/lib/socket.client';
+import { userErrorMessage } from "@/lib/user-error";
 
 const FALLBACK = '/vehicle-placeholder.jpg';
 
@@ -57,9 +58,6 @@ const fmtDate = (value?: string) =>
 
 const trailerLabel = (value?: string) =>
   trailerTypeOptions.find((item) => item.value === value)?.label || value || 'Any';
-
-const extractErr = (error: any, fallback: string) =>
-  error?.response?.data?.message || error?.message || fallback;
 
 function locationLabel(location: any, fallback?: string) {
   if (fallback) return fallback;
@@ -228,7 +226,7 @@ export default function AvailableLoadDetailPage() {
       // expected authorization/not-found response as state reconciliation, not
       // as a noisy network failure.
       if (error?.response?.status !== 403 && error?.response?.status !== 404) {
-        toast.error(extractErr(error, 'Failed to load details'));
+        toast.error(userErrorMessage(error, "load this load's details"));
       }
       setData(null);
     } finally {
@@ -409,7 +407,7 @@ export default function AvailableLoadDetailPage() {
       setShowContract(false);
       await fetchDetail();
     } catch (error: any) {
-      toast.error(extractErr(error, 'Failed to request load'));
+      toast.error(userErrorMessage(error, "request this load"));
     } finally {
       setRequesting(false);
     }
@@ -430,7 +428,7 @@ export default function AvailableLoadDetailPage() {
       });
       await fetchDetail();
     } catch (error: any) {
-      toast.error(extractErr(error, 'Failed to cancel load request'));
+      toast.error(userErrorMessage(error, "cancel your load request"));
       await fetchDetail();
     } finally {
       setCancellingRequest(false);

@@ -74,6 +74,7 @@ import {
 import { cn } from '@/lib/utils';
 import { DocumentRequirementCard, type DocStatus } from './DocumentRequirementCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { userErrorMessage } from "@/lib/user-error";
 
 const STEPS = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -726,8 +727,7 @@ export const DocumentsPage: React.FC = () => {
       // Navigation is the driver's choice and is persisted below.
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message ||
-          'Failed to load Driver Verification data',
+        userErrorMessage(error, "load your Driver Verification details"),
       );
     } finally {
       setLoading(false);
@@ -861,8 +861,7 @@ export const DocumentsPage: React.FC = () => {
       (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message ||
-          'Failed to save Driver Verification information',
+        userErrorMessage(error, "save your Driver Verification details"),
       );
     } finally {
       setSavingPersonal(false);
@@ -914,7 +913,7 @@ export const DocumentsPage: React.FC = () => {
       (document.querySelector('[data-driver-scroll]') || window).scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || 'Failed to submit Driver Verification',
+        userErrorMessage(error, "submit your Driver Verification"),
       );
     } finally {
       setSavingIdentity(false);
@@ -1007,7 +1006,7 @@ export const DocumentsPage: React.FC = () => {
 
   const startUploadWithFile = (type: string, file: File) => {
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File must be under 5MB');
+      toast.error("This file is larger than 5 MB. Choose a smaller file.");
       return;
     }
     setReplaceTarget(null);
@@ -1039,17 +1038,17 @@ export const DocumentsPage: React.FC = () => {
 
   const handleUpload = async () => {
     if (!uploadFile || !uploadLabel.trim()) {
-      toast.error('Please select a file and provide a label');
+      toast.error("Choose a file and enter a name for the document.");
       return;
     }
     if (uploadFile.size > 5 * 1024 * 1024) {
-      toast.error('File must be under 5MB');
+      toast.error("This file is larger than 5 MB. Choose a smaller file.");
       return;
     }
 
     const uploadRequiresExpiry = DOCUMENT_EXPIRY_TYPES.has(uploadType);
     if (uploadRequiresExpiry && !uploadExpiry) {
-      toast.error('Expiration date is required for this document');
+      toast.error("Enter the expiration date for this document.");
       return;
     }
 
@@ -1131,7 +1130,7 @@ export const DocumentsPage: React.FC = () => {
       // Deliberately preserve activeStep so the driver can continue uploading
       // optional/supporting documents without being forced into Agreement.
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to upload document');
+      toast.error(userErrorMessage(error, "upload this document"));
     } finally {
       setUploading(false);
     }
@@ -1160,7 +1159,7 @@ export const DocumentsPage: React.FC = () => {
       setShowDeleteConfirm(null);
       // Preserve the current step after document deletion as well.
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to delete document');
+      toast.error(userErrorMessage(error, "delete this document"));
     } finally {
       setDeletingId(null);
     }

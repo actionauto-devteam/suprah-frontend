@@ -45,6 +45,7 @@ import { generateLoadPDF } from "@/utils/pdfGenerator"
 import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
+import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy"
 import { formatScheduleDate } from "@/utils/calendar.utils"
 
 interface LoadCardProps {
@@ -387,9 +388,9 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   const theme = getStatusTheme(load.status)
   const schedulePresentation = getSchedulePresentation(load)
 
-  // Server only blocks deleting In-Transit loads — the UI must match,
-  // otherwise the delete button reads as broken on Delivered loads.
-  const deleteBlocked = load.status === "In-Transit"
+  // Mirrors the server rule: active loads with a driver can't be deleted.
+  const deleteBlockReason = getLoadDeleteBlockReason(load)
+  const deleteBlocked = deleteBlockReason !== null
 
   const handleExportPDF = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -573,11 +574,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                                 setIsDeleteDialogOpen(true)
                               }}
                               disabled={isDeleting || deleteBlocked}
-                              aria-label={
-                                deleteBlocked
-                                  ? "In-Transit loads can't be deleted"
-                                  : "Delete load"
-                              }
+                              aria-label={deleteBlockReason ?? "Delete load"}
                             >
                               {isDeleting ? (
                                 <Loader2 className="size-4 animate-spin" />
@@ -587,7 +584,7 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {deleteBlocked ? "In-Transit loads can't be deleted" : "Delete"}
+                            {deleteBlockReason ?? "Delete"}
                           </TooltipContent>
                         </Tooltip>
                       )}

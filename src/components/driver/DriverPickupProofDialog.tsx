@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { userErrorMessage } from "@/lib/user-error";
 
 type PickupLoad = Pick<Load, "_id" | "loadNumber">;
 
@@ -26,9 +27,7 @@ interface DriverPickupProofDialogProps {
 
 function extractMessage(error: any) {
   return (
-    error?.response?.data?.message ||
-    error?.message ||
-    "Failed to submit pickup proof."
+    userErrorMessage(error, "submit your pickup photo")
   );
 }
 

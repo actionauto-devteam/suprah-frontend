@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { DriverTrackingItem } from "@/types/driver-tracking";
+import { userErrorMessage } from "@/lib/user-error";
 
 interface DriverReviewAccess {
   level:
@@ -483,9 +484,7 @@ export function DriverComplianceDocumentsDialog({
         setProfile(null);
       } else {
         toast.error(
-          error?.response?.data?.message ||
-            error?.message ||
-            "Could not load Driver Review Center",
+          userErrorMessage(error, "load the Driver Review Center"),
         );
       }
     } finally {
@@ -565,7 +564,7 @@ export function DriverComplianceDocumentsDialog({
       toast.success("Document approved");
       await fetchProfile();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Unable to approve document");
+      toast.error(userErrorMessage(error, "approve this document"));
     } finally {
       setActionLoading(null);
     }
@@ -593,7 +592,7 @@ export function DriverComplianceDocumentsDialog({
       setRejectReason("");
       await fetchProfile();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Unable to reject document");
+      toast.error(userErrorMessage(error, "reject this document"));
     } finally {
       setActionLoading(null);
     }
@@ -614,7 +613,7 @@ export function DriverComplianceDocumentsDialog({
       await fetchProfile();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || "Unable to complete final approval",
+        userErrorMessage(error, "complete the final approval"),
       );
     } finally {
       setActionLoading(null);

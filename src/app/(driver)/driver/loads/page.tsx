@@ -57,6 +57,18 @@ import { DriverContractModal, DriverSignedContract } from '@/components/create-l
 import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDialog';
 import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
+import { userErrorMessage } from "@/lib/user-error";
+
+// Readable phrases for driver load actions in error messages ("We couldn't …").
+const DRIVER_ACTION_LABELS: Record<string, string> = {
+  "accept-load": "accept this load",
+  "mark-picked-up": "mark this load Picked Up",
+  "start-route": "start the route",
+  "cancel-request": "cancel your load request",
+  "reject-assignment": "reject this assignment",
+  "cancel-release-request": "cancel your release request",
+  "drop-load": "send your release request",
+};
 
 // Real driver-tracking endpoint — accept/pickup/start-route/drop all live
 // under /loads/:id/*, not the flat /api/driver-tracking/{action} shape this
@@ -103,7 +115,6 @@ const getStepIdx = (load: Load) => {
 };
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
-const extractErr = (e: any, fb: string) => e?.response?.data?.message || e?.message || fb;
 
 type Tab = "active" | "requests" | "completed" | "all";
 
@@ -215,7 +226,7 @@ export default function DriverLoadsPage() {
 
       setRequests(reqRes.data?.data || []);
     } catch (err: any) {
-      toast.error(extractErr(err, 'Failed to fetch loads'));
+      toast.error(userErrorMessage(err, "load your loads"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -288,7 +299,7 @@ export default function DriverLoadsPage() {
         setReleaseDialogLoad(null);
         await fetchLoads();
       } catch (err: any) {
-        toast.error(extractErr(err, "Failed to request load release"));
+        toast.error(userErrorMessage(err, "send your release request"));
         await fetchLoads();
       } finally {
         setActionLoading(null);
@@ -299,7 +310,7 @@ export default function DriverLoadsPage() {
 
   const executeAction = async (action: string, id: string, signature?: DriverSignedContract) => {
     if (!id) {
-      toast.error(`Cannot ${action}: Load ID is missing`);
+      toast.error("This load couldn't be opened. Go back to your loads and open it again.");
       return;
     }
     setActionLoading(id);
@@ -329,7 +340,7 @@ export default function DriverLoadsPage() {
       setConfirmState(prev => ({ ...prev, isOpen: false }));
       setContractState(null);
     } catch (err: any) {
-      toast.error(extractErr(err, `Failed to ${action}`));
+      toast.error(userErrorMessage(err, (DRIVER_ACTION_LABELS[action] ?? "complete this action")));
       // Cancellation/rejection can race with a dispatcher action. Refresh so
       // the page immediately reflects the backend's authoritative state.
       if (action === 'cancel-request' || action === 'reject-assignment' || action === 'cancel-release-request') {
@@ -1206,7 +1217,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
 
       onSuccess();
     } catch (err: any) {
-      setError(extractErr(err, "Failed to submit proof."));
+      setError(userErrorMessage(err, "submit your proof of delivery"));
     } finally {
       setSubmitting(false);
     }

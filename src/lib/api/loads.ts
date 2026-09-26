@@ -317,9 +317,19 @@ export async function getLoadById(
   return load;
 }
 
-export async function confirmLoadDelivery(loadId: string): Promise<Load> {
-  const res = await apiClient.post<{ data: Load }>(`/api/loads/${loadId}/confirm-delivery`, {});
-  return res.data.data;
+export interface ConfirmLoadDeliveryResult {
+  load: Load;
+  // Server message, e.g. "Delivery confirmed successfully" or
+  // "Delivery already confirmed" for a repeat confirmation.
+  message: string;
+}
+
+export async function confirmLoadDelivery(loadId: string): Promise<ConfirmLoadDeliveryResult> {
+  const res = await apiClient.post<{ data: Load; message?: string }>(
+    `/api/loads/${loadId}/confirm-delivery`,
+    {},
+  );
+  return { load: res.data.data, message: res.data.message ?? "" };
 }
 
 export interface ActiveDriver {

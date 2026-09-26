@@ -8,6 +8,7 @@ import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadStats } from "@/lib/api/loads";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
+import { userErrorMessage } from "@/lib/user-error";
 
 export interface TransportationPagination {
   page: number;
@@ -1158,9 +1159,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setLoadsPage(page);
       } catch (err: any) {
         setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load the selected shipments page",
+          userErrorMessage(err, "load that page of loads"),
         );
       }
     },
@@ -1182,9 +1181,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setLoadsPage(1);
       } catch (err: any) {
         setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to update shipment page size",
+          userErrorMessage(err, "change how many loads are shown"),
         );
       }
     },
@@ -1203,9 +1200,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setQuotesPage(page);
       } catch (err: any) {
         setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load the selected quotes page",
+          userErrorMessage(err, "load that page of drafts"),
         );
       }
     },
@@ -1227,9 +1222,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         setQuotesPage(1);
       } catch (err: any) {
         setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Failed to update quote page size",
+          userErrorMessage(err, "change how many drafts are shown"),
         );
       }
     },
@@ -1294,10 +1287,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          "Failed to create quote: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+          userErrorMessage(axiosError, "create this draft"),
         );
       }
     },
@@ -1350,10 +1340,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          "Failed to convert quote to load: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+          userErrorMessage(axiosError, "convert this draft into a load"),
         );
       }
     },
@@ -1434,10 +1421,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
           });
 
           throw new Error(
-            "Failed to delete quote: " +
-            ((axiosError.response?.data as any)?.message ||
-              axiosError.message ||
-              "Unknown error"),
+            userErrorMessage(axiosError, "delete this draft"),
           );
         }
 
@@ -1557,10 +1541,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          "Failed to update quote: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+          userErrorMessage(axiosError, "update this draft"),
         );
       }
     },
@@ -1593,10 +1574,7 @@ export function useTransportationData(filters: TransportationFilters = {}) {
       } catch (err) {
         const axiosError = err as AxiosError;
         throw new Error(
-          "Failed to update load: " +
-          ((axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Unknown error"),
+          userErrorMessage(axiosError, "update this load"),
         );
       }
     },

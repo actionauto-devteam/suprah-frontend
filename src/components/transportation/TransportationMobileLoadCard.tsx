@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { cn } from "@/lib/utils";
+import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy";
 import { generateLoadPDF } from "@/utils/pdfGenerator";
 import { useOrg } from "@/hooks/useOrg";
 import type { Load, LoadStatus } from "@/types/load";
@@ -333,7 +334,8 @@ export function TransportationMobileLoadCard({
   const pricingEnabled = load.pricing?.isPricingEnabled !== false;
   const schedule = getMobileLoadSchedulePresentation(load);
   const currentJourney = normalizeJourney(load.status);
-  const deleteBlocked = load.status === "In-Transit";
+  const deleteBlockReason = getLoadDeleteBlockReason(load);
+  const deleteBlocked = deleteBlockReason !== null;
 
   const stop = (event: React.SyntheticEvent) => {
     event.stopPropagation();
@@ -489,13 +491,13 @@ export function TransportationMobileLoadCard({
                           setDeleteOpen(true);
                         }}
                         disabled={isDeleting || deleteBlocked}
-                        aria-label={deleteBlocked ? "In-Transit loads can't be deleted" : "Delete load"}
+                        aria-label={deleteBlockReason ?? "Delete load"}
                       >
                         {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {deleteBlocked ? "In-Transit loads can't be deleted" : "Delete"}
+                      {deleteBlockReason ?? "Delete"}
                     </TooltipContent>
                   </Tooltip>
                 ) : null}
