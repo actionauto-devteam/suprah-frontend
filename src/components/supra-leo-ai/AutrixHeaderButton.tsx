@@ -1,7 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
 
@@ -22,18 +22,15 @@ type AutrixHeaderButtonProps = {
 
 export function AutrixHeaderButton({ className }: AutrixHeaderButtonProps) {
   const pathname = usePathname() || '/crm/dashboard'
-  const router = useRouter()
 
   if (pathname.startsWith('/crm/supra-leo')) return null
 
   const isSupraSpacePwa = typeof window !== 'undefined' && window.location.hostname === SUPRASPACE_SUBDOMAIN
   const featureModule = isSupraSpacePwa ? 'supraspace' : getModule(pathname)
-  const from = isSupraSpacePwa ? '/' : pathname.startsWith('/crm/') ? pathname : '/crm/dashboard'
-
   return (
     <button
       type="button"
-      onClick={() => router.push(`/crm/supra-leo?module=${featureModule}&from=${encodeURIComponent(from)}`)}
+      onClick={() => window.dispatchEvent(new CustomEvent('suprah-autrix:open', { detail: { module: featureModule } }))}
       className={cn(
         'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-2 text-emerald-700 transition-colors hover:bg-emerald-500/14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:text-emerald-300',
         className,

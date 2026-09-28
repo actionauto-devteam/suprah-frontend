@@ -59,6 +59,7 @@ import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
+import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
@@ -16119,6 +16120,7 @@ export default function SupraSpacePage() {
           </div>
         )}
       </div>
+      <SupraLeoAI hideTrigger />
     </>
   );
 }

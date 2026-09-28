@@ -59,6 +59,7 @@ import { CrmHeader } from "@/components/layout/CrmHeader";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
 import { AutrixHeaderButton } from "@/components/supra-leo-ai/AutrixHeaderButton";
+import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import { apiClient } from "@/lib/api-client";
@@ -475,6 +476,7 @@ function DashboardLayoutContent({
 
       { }
       <ChatPopupManager />
+      <SupraLeoAI hideTrigger />
       <React.Suspense fallback={null}>
         <DebugConsole />
       </React.Suspense>

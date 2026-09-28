@@ -12,6 +12,7 @@ import {
 import { SupraLeoAvatar, type LeoState } from './SupraLeoAvatar'
 import { apiClient } from '@/lib/api-client'
 import { useRouter } from 'next/navigation'
+import { useSupraLeoChat, type ChatModule as PersistentChatModule } from '@/hooks/useSupraLeoChat'
 
 export type SpeakState =
   | 'idle' | 'fetching' | 'speaking' | 'paused'
@@ -1094,7 +1095,6 @@ const AI_TIMEOUT_MESSAGE =
 const AI_CREDIT_MESSAGE =
   'Low Suprah Autrix credits — contact admin to upgrade.'
 const AI_REQUEST_TIMEOUT_MS = 45_000
-const AI_RETRY_COOLDOWN_MS = 30_000
 
 function normalizeAiErrorMessage(message: string, status?: number): string {
   if (status === 429 || /\b429\b/i.test(message)) {
@@ -1110,10 +1110,6 @@ function normalizeAiErrorMessage(message: string, status?: number): string {
   }
 
   return message || 'Something went wrong. Please try again.'
-}
-
-function isAiRateLimitMessage(message: string): boolean {
-  return message === AI_RATE_LIMIT_MESSAGE || /\b429\b|too many AI requests|rate limit/i.test(message)
 }
 
 async function aiGenerate(prompt: string, module: string): Promise<string> {
@@ -1145,115 +1141,26 @@ async function aiGenerate(prompt: string, module: string): Promise<string> {
 }
 
 // ─── Chat Tab ──────────────────────────────────────────────────────────────────
-interface ChatMsg { id: string; role: 'user' | 'leo'; text: string; streaming?: boolean }
-
 function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
-  const [messages, setMessages] = React.useState<ChatMsg[]>([])
   const [input, setInput] = React.useState('')
-  const [loading, setLoading] = React.useState(false)
-  const [cooldownUntil, setCooldownUntil] = React.useState(0)
-  const [now, setNow] = React.useState(() => Date.now())
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  const abortRef = React.useRef<AbortController | null>(null)
-  const cooldownRemaining = Math.max(0, Math.ceil((cooldownUntil - now) / 1000))
+  const chatModule = (['general', 'appointments', 'timeproof', 'supraspace', 'biometrics', 'feeds'].includes(activeModule)
+    ? activeModule
+    : 'general') as PersistentChatModule
+  const { messages, isLoading, isLoadingHistory, sendMessage, stopGeneration } = useSupraLeoChat({
+    module: chatModule,
+    autoLoadHistory: true,
+  })
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
-  React.useEffect(() => {
-    if (!cooldownUntil) return
-    const intervalId = window.setInterval(() => setNow(Date.now()), 500)
-    return () => window.clearInterval(intervalId)
-  }, [cooldownUntil])
-
   const send = async (overrideText?: string) => {
     const text = (overrideText || input).trim()
-    if (!text || loading || cooldownRemaining > 0) return
-    const uid = Date.now().toString()
-    const lid = (Date.now() + 1).toString()
-    setMessages(prev => [
-      ...prev,
-      { id: uid, role: 'user', text },
-      { id: lid, role: 'leo', text: '', streaming: true },
-    ])
+    if (!text || isLoading) return
     setInput('')
-    setLoading(true)
-    let requestTimedOut = false
-    let timeoutId: number | null = null
-
-    try {
-      abortRef.current = new AbortController()
-      timeoutId = window.setTimeout(() => {
-        requestTimedOut = true
-        abortRef.current?.abort()
-      }, AI_REQUEST_TIMEOUT_MS)
-      const res = await fetch(apiUrl('/api/supraleo/chat'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({ message: text, module: activeModule, stream: true }),
-        signal: abortRef.current.signal,
-      })
-
-      if (!res.ok || !res.body) {
-        const errBody = await res.json().catch(() => ({}))
-        throw new Error(normalizeAiErrorMessage(errBody?.message || 'API error', res.status))
-      }
-
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let acc = ''
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += dec.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (!raw) continue
-          let p: any
-          try {
-            p = JSON.parse(raw)
-          } catch {
-            continue
-          }
-          if (p.type === 'delta') {
-            acc += p.text
-            setMessages(prev => prev.map(m => m.id === lid ? { ...m, text: acc } : m))
-          } else if (p.type === 'done') {
-            setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
-          } else if (p.type === 'error') {
-            throw new Error(normalizeAiErrorMessage(p.message || 'Stream error'))
-          }
-        }
-      }
-
-      setMessages(prev => prev.map(m => m.id === lid ? { ...m, streaming: false } : m))
-    } catch (err: any) {
-      const errMsg = err.name === 'AbortError' && !requestTimedOut
-        ? ''
-        : requestTimedOut
-          ? AI_TIMEOUT_MESSAGE
-          : normalizeAiErrorMessage(err.message || 'Something went wrong.')
-      if (isAiRateLimitMessage(errMsg)) {
-        setCooldownUntil(Date.now() + AI_RETRY_COOLDOWN_MS)
-        setNow(Date.now())
-      }
-      setMessages(prev => prev.map(m =>
-        m.id === lid ? { ...m, text: errMsg || m.text, streaming: false } : m
-      ))
-    } finally {
-      if (timeoutId) window.clearTimeout(timeoutId)
-      setLoading(false)
-    }
+    await sendMessage(text)
   }
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1265,7 +1172,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
   return (
     <div className="axp-chat-wrap">
       <div ref={scrollRef} className="axp-chat-scroll">
-        {messages.length === 0 && (
+        {messages.length === 0 && !isLoadingHistory && (
           <div className="axp-empty">
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               <SupraLeoAvatar state="idle" size={46} animate />
@@ -1293,7 +1200,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
                   key={p}
                   className="axp-quick-btn"
                   onClick={() => send(p)}
-                  disabled={loading || cooldownRemaining > 0}
+                  disabled={isLoading}
                 >
                   {p}
                   <ChevronRight size={11} style={{ opacity: 0.4, flexShrink: 0 }} />
@@ -1303,9 +1210,9 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
           </div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`axp-msg-row ${msg.role === 'user' ? 'usr' : ''}`}>
-            {msg.role === 'leo' && (
+        {messages.map((msg, index) => (
+          <div key={msg._id || `${msg.createdAt}-${index}`} className={`axp-msg-row ${msg.role === 'user' ? 'usr' : ''}`}>
+            {msg.role === 'assistant' && (
               <SupraLeoAvatar
                 state={msg.streaming ? 'thinking' : 'idle'}
                 size={24}
@@ -1313,7 +1220,7 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
               />
             )}
             <div className={`axp-bubble ${msg.role === 'user' ? 'usr' : 'leo'}`}>
-              {msg.role === 'leo' && msg.text === '' && msg.streaming ? (
+              {msg.role === 'assistant' && msg.content === '' && msg.streaming ? (
                 <div className="axp-typing">
                   {[0, 1, 2].map(i => (
                     <div key={i} className="axp-typing-dot" style={{ animationDelay: `${i * 0.18}s` }} />
@@ -1321,8 +1228,8 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
                 </div>
               ) : (
                 <>
-                  {msg.text}
-                  {msg.streaming && msg.text && <span className="axp-cur" />}
+                  {msg.content}
+                  {msg.streaming && msg.content && <span className="axp-cur" />}
                 </>
               )}
             </div>
@@ -1337,16 +1244,16 @@ function ChatTab({ activeModule = 'general' }: { activeModule?: string }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder={cooldownRemaining > 0 ? `Autrix cooldown: retry in ${cooldownRemaining}s` : "Ask Autrix AI…"}
+            placeholder={isLoadingHistory ? 'Loading your conversation…' : 'Ask Autrix AI…'}
             rows={1}
-            disabled={loading || cooldownRemaining > 0}
+            disabled={isLoading || isLoadingHistory}
           />
-          {loading ? (
-            <button className="axp-send" onClick={() => abortRef.current?.abort()}>
+          {isLoading ? (
+            <button className="axp-send" onClick={stopGeneration}>
               <Square size={11} />
             </button>
           ) : (
-            <button className="axp-send" onClick={() => send()} disabled={!input.trim() || cooldownRemaining > 0}>
+            <button className="axp-send" onClick={() => send()} disabled={!input.trim() || isLoadingHistory}>
               <Send size={11} />
             </button>
           )}
