@@ -8,7 +8,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { useLeads, Lead } from "@/hooks/useLeads";
 import { cn } from "@/lib/utils";
 import { getDashboardSocket } from "@/lib/dashboardSocket";
-import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import {
   Select,
   SelectContent,
@@ -333,7 +332,6 @@ export function CommunicationHub() {
 
   const [isHubSummaryExpanded, setIsHubSummaryExpanded] =
     React.useState(false);
-  const [isAutrixOpen, setIsAutrixOpen] = React.useState(false);
   const [isChatHovered, setIsChatHovered] = React.useState(false);
   const [logs, setLogs] = React.useState<CommLog[]>([]);
   const [loadingLogs, setLoadingLogs] = React.useState(false);
@@ -1013,7 +1011,6 @@ export function CommunicationHub() {
       className="cw-module-shell flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-(--bg-base) text-(--text-primary)"
       data-viewport-mode={viewportMode}
       data-has-selected-lead={selectedLead ? "true" : "false"}
-      data-autrix-open={isAutrixOpen ? "true" : "false"}
     >
       <header
         className={cn(
@@ -1125,12 +1122,6 @@ export function CommunicationHub() {
               )}
             </button>
 
-            <div className="shrink-0 max-[380px]:origin-right max-[380px]:scale-90">
-              <SupraLeoAI
-                variant="toolbar"
-                onOpenChange={setIsAutrixOpen}
-              />
-            </div>
           </div>
         </div>
 

@@ -58,6 +58,7 @@ import { DashboardSearch } from "@/components/layout/DashboardSearch";
 import { CrmHeader } from "@/components/layout/CrmHeader";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
+import { AutrixHeaderButton } from "@/components/supra-leo-ai/AutrixHeaderButton";
 import { DebugConsole } from "@/components/pwa/DebugConsole";
 import { useCrmWebPush } from "@/hooks/useCrmWebPush";
 import { apiClient } from "@/lib/api-client";
@@ -372,13 +373,17 @@ function DashboardLayoutContent({
                 </React.Suspense>
               </div>
 
-              <div className="flex items-center gap-1 sm:gap-3">
-                <MountainTimeClock compact />
+              <div className="flex items-center gap-1 max-[420px]:gap-0.5 sm:gap-3">
+                <MountainTimeClock compact className="max-[420px]:hidden" />
 
                 <ThemeModeToggle compact />
 
+                <AutrixHeaderButton className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-2" />
+
                 { }
-                <Pulse360Bell open={activeHeaderDrawer === "pulse360"} onOpenChange={(open) => updateHeaderDrawer("pulse360", open)} />
+                <div className="max-[420px]:hidden">
+                  <Pulse360Bell open={activeHeaderDrawer === "pulse360"} onOpenChange={(open) => updateHeaderDrawer("pulse360", open)} />
+                </div>
 
                 { }
                 <NotificationBell
@@ -387,7 +392,9 @@ function DashboardLayoutContent({
                 />
 
                 { }
-                <MessengerDropdown open={activeHeaderDrawer === "messenger"} onOpenChange={(open) => updateHeaderDrawer("messenger", open)} />
+                <div className="max-[420px]:hidden">
+                  <MessengerDropdown open={activeHeaderDrawer === "messenger"} onOpenChange={(open) => updateHeaderDrawer("messenger", open)} />
+                </div>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

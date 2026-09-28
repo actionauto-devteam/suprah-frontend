@@ -58,7 +58,6 @@ import {
 
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
-import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 
 
@@ -171,7 +170,6 @@ export function LeadsTab({
     React.useState<LeadsViewportMode>("wide");
   const [isInboxSummaryExpanded, setIsInboxSummaryExpanded] =
     React.useState(false);
-  const [isAutrixOpen, setIsAutrixOpen] = React.useState(false);
 
   React.useEffect(() => {
     const updateViewportMode = () => {
@@ -1519,7 +1517,6 @@ export function LeadsTab({
       data-viewport-mode={viewportMode}
       data-has-active-lead={selectedLead ? "true" : "false"}
       data-details-expanded={showLeadDetails ? "true" : "false"}
-      data-autrix-open={isAutrixOpen ? "true" : "false"}
     >
       <ToastStack
         toasts={toasts}
@@ -1668,9 +1665,6 @@ export function LeadsTab({
               )}
             </button>
 
-            <div className="shrink-0 max-[380px]:scale-90 max-[380px]:origin-right">
-              <SupraLeoAI variant="toolbar" onOpenChange={setIsAutrixOpen} />
-            </div>
           </div>
         </div>
 

@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { apiClient } from "@/lib/api-client";
-import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { DashboardNotifications } from "@/components/crm/DashboardNotifications";
 import { AutrixWelcomeGate } from "@/components/supra-leo-ai/AutrixWelcomeSystem";
 import { CrmPushPrompt } from "@/components/crm/CrmPushPrompt";
@@ -308,7 +307,6 @@ export default function CrmDashboardPage() {
         </main>
       </div>
 
-      <SupraLeoAI />
       <DashboardNotifications user={user} token={token} hasClockedIn={true} />
       <AutrixWelcomeGate userName={user.fullName} isReady={!isLoading && !!user} />
       <CrmPushPrompt role={user.role} />

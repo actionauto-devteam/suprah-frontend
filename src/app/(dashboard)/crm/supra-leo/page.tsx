@@ -1072,6 +1072,10 @@ export default function SupraLeoPage() {
   }
 
   const handleBack = React.useCallback(() => {
+    if (window.location.hostname === 'space.suprah-app.com' && fromPath === '/') {
+      router.push('/')
+      return
+    }
     router.push(fromPath.startsWith('/crm/') ? fromPath : '/crm/dashboard')
   }, [fromPath, router])
 

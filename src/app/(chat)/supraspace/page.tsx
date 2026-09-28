@@ -58,6 +58,7 @@ import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
+import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
@@ -13628,7 +13629,7 @@ export default function SupraSpacePage() {
             </div>
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               {isStandaloneApp ? (
-                <MountainTimeClock compact />
+                <MountainTimeClock compact className="max-[420px]:hidden" />
               ) : (
                 <>
                   <div className="hidden lg:flex items-center gap-2">
@@ -13653,6 +13654,7 @@ export default function SupraSpacePage() {
                   )}
                 </>
               )}
+              <AutrixHeaderButton className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-2" />
               <button onClick={toggleTheme} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Toggle theme">{theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}</button>
               {!isStandaloneApp && (
                 <button onClick={() => setAppSettingsOpen(true)} className="ss4-theme-btn h-8 w-8 flex items-center justify-center" title="Settings">
@@ -14367,6 +14369,9 @@ export default function SupraSpacePage() {
                       </div>
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="lg:hidden">
+                        <AutrixHeaderButton className="h-11 w-11 px-0" />
+                      </div>
                       <button onClick={() => setThreadReportOpen(true)} className="hidden lg:flex ss4-icon-btn h-8 w-8" title="Download thread report">
                         <FileText className="h-5 w-5 lg:h-4 lg:w-4" />
                       </button>

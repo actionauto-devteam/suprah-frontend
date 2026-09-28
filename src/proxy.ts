@@ -18,7 +18,7 @@ const publicRoutes = [
 // (chat)/supraspace page.tsx, just reached through a different hostname.
 const SUPRASPACE_SUBDOMAIN = 'space.suprah-app.com';
 
-export async function proxy(request: any) {
+export async function proxy(request: NextRequest) {
     const hostname: string = (request.headers.get('host') || '').split(':')[0];
 
     if (hostname === SUPRASPACE_SUBDOMAIN) {
@@ -43,6 +43,7 @@ export async function proxy(request: any) {
         if (
             !url.pathname.startsWith('/api')
             && !url.pathname.startsWith('/supraspace')
+            && url.pathname !== '/crm/supra-leo'
             && !url.pathname.startsWith('/_next')
             && !isStaticAssetPath
             && !isPublicRoute
