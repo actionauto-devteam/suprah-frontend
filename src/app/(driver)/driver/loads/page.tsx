@@ -199,7 +199,6 @@ export default function DriverLoadsPage() {
   const [releaseDialogLoad, setReleaseDialogLoad] = React.useState<Load | null>(null);
 
   const [refreshing, setRefreshing] = React.useState(false);
-  const [maxLoadCapacity, setMaxLoadCapacity] = React.useState(12);
 
   const fetchLoads = React.useCallback(async (pageNum = 1, append = false) => {
     try {
@@ -212,7 +211,6 @@ export default function DriverLoadsPage() {
       const loadsData = loadsRes.data?.data;
       const newLoads = loadsData?.loads || loadsData || [];
       const newPagination = loadsData?.pagination || null;
-      const newCapacity = loadsData?.maxLoadCapacity || 12;
 
       if (append) {
         setLoads(prev => [...prev, ...newLoads]);
@@ -220,7 +218,6 @@ export default function DriverLoadsPage() {
         setLoads(newLoads);
       }
       setPagination(newPagination);
-      setMaxLoadCapacity(newCapacity);
       if (!append) setPage(1);
       else setPage(pageNum);
 
@@ -436,6 +433,10 @@ export default function DriverLoadsPage() {
     (l) => l.status !== "Delivered" && l.status !== "Cancelled",
   ).length;
   const completedCount = loads.filter((l) => l.status === "Delivered").length;
+  // Every load this driver has: Assigned, Accepted, Picked Up, In Transit and Delivered.
+  const totalLoadCount = loads.filter((l) =>
+    ["Assigned", "Accepted", "Picked Up", "In-Transit", "Delivered"].includes(l.status),
+  ).length;
 
   const filtered = React.useMemo(() => {
     let result: Load[] = [];
@@ -465,7 +466,7 @@ export default function DriverLoadsPage() {
   }[] = [
       {
         key: "active",
-        label: `Active (${activeCount}/${maxLoadCapacity})`,
+        label: `Active (${activeCount})`,
         count: undefined,
         icon: Navigation2,
       },
@@ -518,7 +519,8 @@ export default function DriverLoadsPage() {
                       "Loading..."
                     ) : (
                       <>
-                        {activeCount}/{maxLoadCapacity} active
+                        {totalLoadCount} {totalLoadCount === 1 ? "load" : "loads"}
+                        {" "}· {activeCount} in progress
                         {completedCount > 0 && (
                           <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                             {" "}

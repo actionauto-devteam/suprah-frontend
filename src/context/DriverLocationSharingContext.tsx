@@ -122,6 +122,11 @@ export function DriverLocationSharingProvider({
   const dispatchRetainedGpsRequiredRef = React.useRef(false);
   const autoReloadTimerRef = React.useRef<number | null>(null);
   const mountedRef = React.useRef(true);
+  // Only the newest load-state refresh may apply its result, so a slow older
+  // response can't undo a newer one (for example right after Accept).
+  const loadStateSeqRef = React.useRef(0);
+  // The driver's current load ids, to ignore organization events about other loads.
+  const knownLoadIdsRef = React.useRef<Set<string>>(new Set());
 
   React.useEffect(() => {
     statusRef.current = shareStatus;
@@ -186,7 +191,7 @@ export function DriverLocationSharingProvider({
     ) => {
       if (!isSignedIn) return;
       if (!coords.recordedAt || Date.now() - coords.recordedAt > 60_000) {
-        throw new Error("Waiting for a fresh GPS reading. Keep the driver page visible and location enabled.");
+        throw new Error("Waiting for your phone to find your location. Keep this page open with location turned on.");
       }
 
       const token = await getToken();
@@ -207,7 +212,7 @@ export function DriverLocationSharingProvider({
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (response.data?.data?.locationAccepted === false) {
-        throw new Error("Location was not accepted. Refresh the page to check your tracking requirements.");
+        throw new Error("Your location couldn't be saved. Refresh the page and try again.");
       }
     },
     [getToken, isSignedIn],
@@ -413,13 +418,15 @@ export function DriverLocationSharingProvider({
 
   const refreshActiveLoadState = React.useCallback(async () => {
     if (!isSignedIn) return;
+    const seq = ++loadStateSeqRef.current;
 
     try {
       const token = await getToken();
       if (!token) return;
 
       const [loadsResponse, profileResponse, requestResponse] = await Promise.all([
-        apiClient.get("/api/driver-tracking/my-loads", {
+        // Only current loads are needed to decide the GPS requirement.
+        apiClient.get("/api/driver-tracking/my-loads?view=active", {
           headers: { Authorization: `Bearer ${token}` },
         }),
         apiClient.get("/api/driver-profile", {
@@ -430,12 +437,17 @@ export function DriverLocationSharingProvider({
         }).catch(() => null),
       ]);
 
+      if (seq !== loadStateSeqRef.current) return;
+
       const data = loadsResponse.data?.data;
       const loads = Array.isArray(data)
         ? data
         : Array.isArray(data?.loads)
           ? data.loads
           : [];
+      knownLoadIdsRef.current = new Set(
+        loads.map((load: { _id?: unknown }) => String(load?._id ?? "")).filter(Boolean),
+      );
 
       const nextHasActiveLoad = loads.some((load: any) =>
         ACTIVE_LOAD_STATUSES.has(String(load?.status)),
@@ -473,6 +485,7 @@ export function DriverLocationSharingProvider({
 
       if (mountedRef.current) setIsLoadPolicyResolved(true);
     } catch (error: any) {
+      if (seq !== loadStateSeqRef.current) return;
       if (mountedRef.current && isLocationEnforcementRequired()) {
         setShareError(
           error?.response?.data?.message ||
@@ -486,7 +499,7 @@ export function DriverLocationSharingProvider({
   const startSharing = React.useCallback(() => {
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
-      setShareError("Geolocation is not supported on this device");
+      setShareError("This device can't share its location.");
       setIsSharing(false);
       setIsStarting(false);
       return;
@@ -510,8 +523,8 @@ export function DriverLocationSharingProvider({
       setShareError(
         dispatchRetainedGpsRequiredRef.current &&
           operationalStatusRef.current !== "active"
-          ? "Dispatch requires GPS while your retained load remains assigned. Location sharing cannot be turned off until that requirement ends."
-          : "GPS tracking is required after accepting an active load and cannot be turned off.",
+          ? "You can't turn off location yet. Dispatch kept a load with you and needs your location until that load is finished."
+          : "You can't turn off location while you have an accepted load. It turns off by itself after delivery.",
       );
       setSharingEnabled(true);
       return;
@@ -560,6 +573,17 @@ export function DriverLocationSharingProvider({
     const handleLoadsUpdated = () => {
       if (!cancelled) void refreshActiveLoadState();
     };
+    // Organization-wide load events: refresh only for this driver's own loads.
+    // New assignments reach the driver directly as "driver:loads_updated".
+    const handleOrgLoadChange = (payload?: { loadId?: unknown }) => {
+      const loadId = String(payload?.loadId ?? "");
+      if (loadId && knownLoadIdsRef.current.has(loadId)) handleLoadsUpdated();
+    };
+    // Fallback polling only while the page is visible; catch up on return.
+    const pollIfVisible = () => {
+      if (document.visibilityState === "visible") handleLoadsUpdated();
+    };
+    document.addEventListener("visibilitychange", pollIfVisible);
 
     const connect = async () => {
       try {
@@ -568,17 +592,17 @@ export function DriverLocationSharingProvider({
 
         socket = initializeSocket(token);
         socket.on("driver:loads_updated", handleLoadsUpdated);
-        socket.on("load:change", handleLoadsUpdated);
+        socket.on("load:change", handleOrgLoadChange);
         socket.on("driver:operational_status_updated", handleLoadsUpdated);
         socket.on("driver:status_request_updated", handleLoadsUpdated);
 
         interval = window.setInterval(
-          handleLoadsUpdated,
+          pollIfVisible,
           LOAD_STATE_POLL_MS,
         );
       } catch {
         interval = window.setInterval(
-          handleLoadsUpdated,
+          pollIfVisible,
           LOAD_STATE_POLL_MS,
         );
       }
@@ -589,8 +613,9 @@ export function DriverLocationSharingProvider({
     return () => {
       cancelled = true;
       if (interval !== null) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", pollIfVisible);
       socket?.off("driver:loads_updated", handleLoadsUpdated);
-      socket?.off("load:change", handleLoadsUpdated);
+      socket?.off("load:change", handleOrgLoadChange);
       socket?.off("driver:operational_status_updated", handleLoadsUpdated);
       socket?.off("driver:status_request_updated", handleLoadsUpdated);
     };
@@ -773,9 +798,9 @@ export function DriverLocationSharingProvider({
         isLocationEnforcementRequired()
           ? dispatchRetainedGpsRequiredRef.current &&
               operationalStatusRef.current !== "active"
-            ? "Dispatch requires location sharing for your retained load, but geolocation is not supported on this device."
-            : "Location access is required after accepting an active load, but geolocation is not supported on this device."
-          : "Geolocation is not supported on this device.",
+            ? "This device can't share its location. Dispatch kept a load with you, so use a phone or browser with location (GPS)."
+            : "This device can't share its location. You have an accepted load, so use a phone or browser with location (GPS)."
+          : "This device can't share its location.",
       );
       setSharingEnabled(false);
       setIsStarting(false);
@@ -832,7 +857,7 @@ export function DriverLocationSharingProvider({
           setShareError(
             error?.response?.data?.message ||
               error?.message ||
-              "Failed to broadcast driver location",
+              "Your location couldn't be sent. Check your internet connection. We'll keep trying.",
           );
         }
       });
@@ -857,14 +882,20 @@ export function DriverLocationSharingProvider({
           isLocationEnforcementRequired()
             ? dispatchRetainedGpsRequiredRef.current &&
                 operationalStatusRef.current !== "active"
-              ? "Dispatch requires GPS for your retained load. Enable location access for this site."
-              : "Location permission is required after accepting an active load. Enable location access for this site."
-            : "Location permission is blocked. Enable it if you want to share your location.",
+              ? "Location is blocked for this site. Dispatch kept a load with you and needs your location. Allow location for this site in your browser settings."
+              : "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings."
+            : "Location is blocked for this site. Allow it in your browser settings if you want to share your location.",
         );
         return;
       }
 
-      setShareError(error.message || "Unable to read your location");
+      setShareError(
+        error.code === error.TIMEOUT
+          ? "Finding your location is taking longer than usual. Check that location (GPS) is on, and move somewhere with a clearer view of the sky. We'll keep trying."
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "Your phone can't find your location right now. Check that location (GPS) is on in your phone's settings. We'll keep trying."
+            : "We couldn't read your location. Check that location is turned on for this site. We'll keep trying.",
+      );
     };
 
     const refreshWhenVisible = () => {
@@ -939,9 +970,9 @@ export function DriverLocationSharingProvider({
           isLocationEnforcementRequired()
             ? dispatchRetainedGpsRequiredRef.current &&
                 operationalStatusRef.current !== "active"
-              ? "Dispatch requires GPS for your retained load. Enable location access for this site."
-              : "Location permission is required after accepting an active load. Enable location access for this site."
-            : "Location permission is blocked. Enable it if you want to share your location.",
+              ? "Location is blocked for this site. Dispatch kept a load with you and needs your location. Allow location for this site in your browser settings."
+              : "Location is blocked for this site. You have an accepted load, so Dispatch needs your location. Allow location for this site in your browser settings."
+            : "Location is blocked for this site. Allow it in your browser settings if you want to share your location.",
         );
       } else {
         locationPermissionStateRef.current =

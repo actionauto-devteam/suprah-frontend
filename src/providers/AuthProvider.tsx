@@ -7,9 +7,11 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
+import { setSocketTokenProvider } from "@/lib/socket.client";
 import { toast } from "sonner";
 import { UpdateProfileRequest } from "@/types/user";
 import { sanitizeRedirectUrl } from "@/lib/navigation";
@@ -112,6 +114,23 @@ const BOOTSTRAP_RETRY_DELAYS_MS = [1500, 4000, 8000];
 
 /** How long to wait before re-attempting bootstrap after all retries fail. */
 const BACKGROUND_RETRY_MS = 20_000;
+
+/** Minimum time between role re-checks when the user returns to the tab. */
+const ACCESS_RECHECK_MS = 60_000;
+
+type AccessSnapshot = AuthUser & { dispatcherOrganizationIds?: string[] };
+
+const idOf = (value: unknown) =>
+  String((value as { _id?: unknown } | null)?._id ?? value ?? "");
+
+/** Where each kind of account lands, matching the redirects below. */
+const homePathFor = (user: Pick<AuthUser, "role" | "organizationId">) => {
+  if (user.role === "customer") return "/customer";
+  if (user.role === "driver") return "/driver";
+  if (user.role === "super_admin") return "/admin/dashboard";
+  if (user.role === "admin" && !user.organizationId) return "/org-selection";
+  return "/";
+};
 
 // --- PROVIDER COMPONENT ---
 
@@ -445,6 +464,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return null;
   }, [accessToken, setAccessToken]);
+
+  // Lets the shared socket refresh an expired token when it reconnects.
+  useEffect(() => {
+    setSocketTokenProvider(getToken);
+    return () => setSocketTokenProvider(null);
+  }, [getToken]);
+
+  // Pick up role / organization changes an admin makes while this tab is open:
+  // right away when the server drops the live connection (it does that on
+  // access changes), and when the user comes back to the tab.
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let lastCheck = Date.now();
+    let checking = false;
+
+    const recheckAccess = async (force: boolean) => {
+      const current = userRef.current as AccessSnapshot | null;
+      if (!current || checking) return;
+      if (!force && Date.now() - lastCheck < ACCESS_RECHECK_MS) return;
+      checking = true;
+      lastCheck = Date.now();
+      try {
+        const response = await apiClient.get("/api/users/me");
+        let fresh = (response.data?.data || response.data) as AccessSnapshot | undefined;
+        if (!fresh || typeof fresh !== "object" || !fresh.role) return;
+        if (process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS === "true") {
+          const devRoleOverride = localStorage.getItem("dev_role_override");
+          if (devRoleOverride) fresh = { ...fresh, role: devRoleOverride };
+        }
+        if (
+          fresh.role !== current.role ||
+          idOf(fresh.organizationId) !== idOf(current.organizationId)
+        ) {
+          // A different kind of account: reload so no screen keeps the old access.
+          window.location.assign(homePathFor(fresh));
+          return;
+        }
+        if (
+          fresh.organizationRole !== current.organizationRole ||
+          JSON.stringify(fresh.dispatcherOrganizationIds ?? []) !==
+            JSON.stringify(current.dispatcherOrganizationIds ?? [])
+        ) {
+          setUser(fresh);
+          setBootstrapProfile({ user: fresh, updatedAt: Date.now() });
+        }
+      } catch {
+        // The server still enforces the current role; the next signal retries.
+      } finally {
+        checking = false;
+      }
+    };
+
+    const onAccessChanged = () => void recheckAccess(true);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void recheckAccess(false);
+    };
+    window.addEventListener("suprah:access-changed", onAccessChanged);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("suprah:access-changed", onAccessChanged);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // 3. Sign Out
   const signOut = useCallback(

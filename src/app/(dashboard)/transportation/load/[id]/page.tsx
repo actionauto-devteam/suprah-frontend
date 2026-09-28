@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History } from "lucide-react"
+import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
@@ -146,7 +147,14 @@ type LoadTimeline = {
   pickedUpAt?: string;
   inTransitAt?: string;
   deliveredAt?: string;
+  gpsGapEvents?: Array<{ step: string; recordedAt?: string; lastGpsAt?: string | null }>;
 };
+
+const GPS_GAP_LABELS: Record<string, string> = {
+  picked_up: "Marked Picked Up",
+  in_transit: "Started the route",
+  delivered: "Marked Delivered",
+}
 
 const LOAD_JOURNEY_STATUSES = [
   "Assigned",
@@ -269,7 +277,9 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
     },
   ]
 
-  const formatTimelineDate = (value?: string) => {
+  const gpsGaps = Array.isArray(load.gpsGapEvents) ? load.gpsGapEvents : []
+
+  const formatTimelineDate = (value?: string | null) => {
     if (!value) return null
 
     try {
@@ -371,6 +381,26 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
             )
           })}
         </div>
+
+        {gpsGaps.length > 0 && (
+          <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+            <p className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
+              <AlertCircle className="size-3.5" />
+              Steps taken without a recent GPS location
+            </p>
+            <ul className="mt-1.5 space-y-1 text-muted-foreground">
+              {gpsGaps.map((gap, index) => (
+                <li key={`${gap.step}-${index}`}>
+                  {GPS_GAP_LABELS[gap.step] ?? gap.step} · {formatTimelineDate(gap.recordedAt) ?? "time not recorded"}
+                  {" · "}
+                  {gap.lastGpsAt
+                    ? `last GPS ${formatTimelineDate(gap.lastGpsAt) ?? "earlier"}`
+                    : "no GPS location on record"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -383,6 +413,12 @@ export default function LoadDetailsPage() {
   const rawId = params?.id
   const id = Array.isArray(rawId) ? rawId[0] : rawId
   const [mobileBolPreviewOpen, setMobileBolPreviewOpen] = React.useState(false)
+  const [historyOpen, setHistoryOpen] = React.useState(false)
+
+  // "Driver Changed Mid-Trip" notifications link here with ?history=1.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("history") === "1") setHistoryOpen(true)
+  }, [])
   const [mobileBolPreviewScale, setMobileBolPreviewScale] = React.useState(1)
   const [mobileBolPreviewHeight, setMobileBolPreviewHeight] = React.useState(1056)
   const mobileBolPreviewRef = React.useRef<HTMLIFrameElement | null>(null)
@@ -555,6 +591,7 @@ export default function LoadDetailsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
+          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setHistoryOpen(true)}><History className="size-4 mr-2 text-muted-foreground" /> Assignment history</Button>
           <Button
             variant="default"
             size="sm"
@@ -1087,6 +1124,12 @@ export default function LoadDetailsPage() {
           </div>,
           document.body,
         )}
+
+      <LoadAssignmentHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        loadId={load._id}
+      />
     </div>
   )
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, Loader2, MapPin, RefreshCw, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, History, Loader2, MapPin, RefreshCw, Truck } from "lucide-react";
+import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
@@ -66,6 +67,7 @@ export function AssignmentReconfirmDialog({
   const [loading, setLoading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const fetchLoad = React.useCallback(async () => {
     if (!loadId) return;
@@ -298,6 +300,14 @@ export function AssignmentReconfirmDialog({
         <DialogFooter>
           <Button
             variant="outline"
+            onClick={() => setHistoryOpen(true)}
+            disabled={!loadId}
+          >
+            <History className="mr-2 h-4 w-4" />
+            Assignment history
+          </Button>
+          <Button
+            variant="outline"
             onClick={fetchLoad}
             disabled={loading || submitting || !loadId}
           >
@@ -323,6 +333,11 @@ export function AssignmentReconfirmDialog({
           )}
         </DialogFooter>
       </DialogContent>
+      <LoadAssignmentHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        loadId={loadId}
+      />
     </Dialog>
   );
 }

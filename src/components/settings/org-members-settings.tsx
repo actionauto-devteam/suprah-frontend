@@ -40,6 +40,7 @@ import {
 import { Loader2, Mail, Trash2, UserPlus, Shield, User as UserIcon, Briefcase, Check, X } from "lucide-react"
 import { toast } from "sonner"
 import { useAlert } from "@/components/AlertDialog"
+import { userErrorMessage } from "@/lib/user-error"
 
 
 export function OrganizationMembersSettings() {
@@ -158,12 +159,13 @@ export function OrganizationMembersSettings() {
                 headers: { Authorization: `Bearer ${token}` }
             })
         },
-        onSuccess: () => {
+        onSuccess: (response: any) => {
             queryClient.invalidateQueries({ queryKey: ['org-members', organizationId] })
-            toast.success("Member removed")
+            // The server says which active loads were transferred to you.
+            toast.success(response?.data?.message || "Member removed")
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.message || "Failed to remove member")
+            toast.error(userErrorMessage(error, "remove this member"))
         }
     })
 

@@ -47,6 +47,7 @@ import { userErrorMessage } from "@/lib/user-error";
 interface DriverReviewAccess {
   level:
     | "ADMIN_REVIEW"
+    | "DISPATCH_REVIEW"
     | "DISPATCH_ACTIVE_LOAD"
     | "DISPATCH_LIMITED"
     | "OPERATIONAL_ONLY"
@@ -355,6 +356,7 @@ function reviewStatusClass(status?: string) {
 
 function accessLabel(level?: DriverReviewAccess["level"]) {
   if (level === "ADMIN_REVIEW") return "Administrative Review";
+  if (level === "DISPATCH_REVIEW") return "Dispatcher Review";
   if (level === "DISPATCH_ACTIVE_LOAD") return "Active Load Access";
   if (level === "DISPATCH_LIMITED") return "Limited Dispatcher View";
   if (level === "OPERATIONAL_ONLY") return "Operational Load Access";
@@ -621,7 +623,9 @@ export function DriverComplianceDocumentsDialog({
   };
 
   const access = profile?.access;
-  const isAdminReview = access?.level === "ADMIN_REVIEW";
+  // Admins and designated Dispatchers get the full review (documents,
+  // final approval, history); the server decides who that is.
+  const hasFullReview = Boolean(access?.canReviewDocuments);
   const hasProtectedOperationalAccess =
     access?.level === "DISPATCH_ACTIVE_LOAD" || access?.level === "OPERATIONAL_ONLY";
   const documents = Array.isArray(profile?.documents) ? profile.documents : [];
@@ -811,7 +815,7 @@ export function DriverComplianceDocumentsDialog({
                       </div>
                     )}
 
-                    {isAdminReview && (
+                    {hasFullReview && (
                       <section className="rounded-2xl border border-border/70 p-4 sm:p-5">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                           <div>
@@ -887,7 +891,7 @@ export function DriverComplianceDocumentsDialog({
 
                 {activeTab === "information" && (
                   <div className="space-y-4">
-                    {isAdminReview ? (
+                    {hasFullReview ? (
                       <>
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           <Field label="First Name" value={profile.information?.firstName} />
@@ -922,13 +926,13 @@ export function DriverComplianceDocumentsDialog({
                         </div>
                       </>
                     ) : (
-                      <RestrictedPanel message="Personal, credential and identity-verification information is not returned without an exact active-load relationship or administrative review authorization." />
+                      <RestrictedPanel message="Personal, credential and identity-verification information is not returned unless you are an admin, a dispatcher for this organization, or handling this driver's current load." />
                     )}
                   </div>
                 )}
 
                 {activeTab === "documents" && (
-                  isAdminReview ? (
+                  hasFullReview ? (
                     <div className="space-y-3">
                       {documents.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-border/70 p-10 text-center text-sm text-muted-foreground">
@@ -1006,7 +1010,7 @@ export function DriverComplianceDocumentsDialog({
                       )}
                     </div>
                   ) : (
-                    <RestrictedPanel message="Uploaded verification documents and document review controls are restricted to authorized administrative reviewers. Dispatch receives verified operational facts instead of raw document contents." />
+                    <RestrictedPanel message="Uploaded verification documents and document review controls are restricted to admins and dispatchers for this organization." />
                   )
                 )}
 
@@ -1019,7 +1023,7 @@ export function DriverComplianceDocumentsDialog({
                       <Field label="Compliance" value={complianceLabel(profile.complianceState)} />
                     </div>
 
-                    {(hasProtectedOperationalAccess || isAdminReview) && (
+                    {(hasProtectedOperationalAccess || hasFullReview) && (
                       <div className="grid gap-3 lg:grid-cols-3">
                         <CredentialCard title="Commercial Driver License" fact={profile.credentialFacts?.cdl} />
                         <CredentialCard title="DOT Medical Card" fact={profile.credentialFacts?.medicalCard} />
@@ -1027,7 +1031,7 @@ export function DriverComplianceDocumentsDialog({
                       </div>
                     )}
 
-                    {isAdminReview && (
+                    {hasFullReview && (
                       <>
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                           <Field label="VIN" value={profile.equipment?.vin} />
@@ -1069,7 +1073,7 @@ export function DriverComplianceDocumentsDialog({
                 )}
 
                 {activeTab === "history" && (
-                  isAdminReview && access?.canViewReviewHistory ? (
+                  hasFullReview && access?.canViewReviewHistory ? (
                     <div className="space-y-3">
                       {history.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-border/70 p-10 text-center text-sm text-muted-foreground">
@@ -1102,7 +1106,7 @@ export function DriverComplianceDocumentsDialog({
                       )}
                     </div>
                   ) : (
-                    <RestrictedPanel message="Administrative verification history and reviewer reasoning are not returned to dispatch or other operational users." />
+                    <RestrictedPanel message="Verification history and reviewer notes are only shown to admins and dispatchers for this organization." />
                   )
                 )}
               </div>

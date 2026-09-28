@@ -56,6 +56,19 @@ interface DriverTrackerListCardProps {
   onViewCompliance?: (driver: DriverTrackingItem) => void;
   onViewStatusRequest?: (driver: DriverTrackingItem) => void;
   unreadMessageCounts?: Record<string, number>;
+  /** Paging for the shared driver pool; without it the list is treated as complete. */
+  directory?: DriverDirectoryPaging;
+}
+
+export interface DriverDirectoryPaging {
+  /** Drivers matching the current search and Work Availability filter, platform-wide. */
+  totalMatching: number;
+  /** Platform-wide totals for the Work Availability filter buttons. */
+  totals: { totalDrivers: number; active: number; onLeave: number; inShop: number } | null;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  onQueryChange: (next: { search?: string; status?: string }) => void;
 }
 
 const trailerLabel = (val?: string) =>
@@ -100,6 +113,7 @@ export function DriverTrackerListCard({
   onViewCompliance,
   onViewStatusRequest,
   unreadMessageCounts = {},
+  directory,
 }: DriverTrackerListCardProps) {
   const activeFiltersId = React.useId();
   const [operationalFilter, setOperationalFilter] = React.useState<OperationalFilter>("all");
@@ -109,6 +123,10 @@ export function DriverTrackerListCard({
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = React.useState<Record<string, string>>({});
   const listScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const onDirectoryQueryChange = directory?.onQueryChange;
+  React.useEffect(() => {
+    onDirectoryQueryChange?.({ search: query, status: operationalFilter });
+  }, [onDirectoryQueryChange, query, operationalFilter]);
   React.useEffect(() => {
     if (!selectedDriverId) return;
     if (!window.matchMedia("(min-width: 768px)").matches) return;
@@ -187,24 +205,42 @@ export function DriverTrackerListCard({
       });
   }, [drivers, operationalFilter, activeSubFilter, gpsFilter, query, expandedId, trackingNow, attentionOnly, pendingRequestDriverIds]);
 
+  const totals = directory?.totals ?? null;
   const counts = React.useMemo(() => {
     const activeDrivers = drivers.filter(isWorkAvailable);
+    const sharing = drivers.filter((driver) => trackingState(driver, trackingNow).kind === "live").length;
+    const activeStatus = {
+      "on-route": activeDrivers.filter((driver) => driver.status === "on-route").length,
+      idle: activeDrivers.filter((driver) => driver.status === "idle").length,
+      waiting: activeDrivers.filter((driver) => driver.status === "waiting").length,
+      "on-break": activeDrivers.filter((driver) => driver.status === "on-break").length,
+      offline: activeDrivers.filter((driver) => driver.status === "offline").length,
+    } as Record<DriverStatus, number>;
+    if (!totals) {
+      return {
+        all: drivers.length,
+        active: activeDrivers.length,
+        on_leave: drivers.filter((driver) => opStatusOf(driver) === "on_leave").length,
+        maintenance: drivers.filter((driver) => opStatusOf(driver) === "maintenance").length,
+        sharing,
+        notSharing: drivers.length - sharing,
+        activeStatus,
+      };
+    }
+    // Paged directory: Work Availability counts are platform-wide. Live
+    // activity only exists for this organization's working drivers (all of
+    // them are loaded), so every other Active driver counts as Offline.
+    const onDuty = activeStatus["on-route"] + activeStatus.idle + activeStatus.waiting + activeStatus["on-break"];
     return {
-      all: drivers.length,
-      active: activeDrivers.length,
-      on_leave: drivers.filter((driver) => opStatusOf(driver) === "on_leave").length,
-      maintenance: drivers.filter((driver) => opStatusOf(driver) === "maintenance").length,
-      sharing: drivers.filter((driver) => trackingState(driver, trackingNow).kind === "live").length,
-      notSharing: drivers.filter((driver) => trackingState(driver, trackingNow).kind !== "live").length,
-      activeStatus: {
-        "on-route": activeDrivers.filter((driver) => driver.status === "on-route").length,
-        idle: activeDrivers.filter((driver) => driver.status === "idle").length,
-        waiting: activeDrivers.filter((driver) => driver.status === "waiting").length,
-        "on-break": activeDrivers.filter((driver) => driver.status === "on-break").length,
-        offline: activeDrivers.filter((driver) => driver.status === "offline").length,
-      } as Record<DriverStatus, number>,
+      all: totals.totalDrivers,
+      active: totals.active,
+      on_leave: totals.onLeave,
+      maintenance: totals.inShop,
+      sharing,
+      notSharing: Math.max(0, totals.totalDrivers - sharing),
+      activeStatus: { ...activeStatus, offline: Math.max(0, totals.active - onDuty) },
     };
-  }, [drivers, trackingNow]);
+  }, [drivers, totals, trackingNow]);
 
   return (
     <Card className="flex h-auto min-h-0 max-h-none w-full min-w-0 flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-120 md:min-h-80 md:max-h-120 md:rounded-xl md:border-x lg:h-150 lg:max-h-none xl:absolute xl:inset-0 xl:h-full xl:min-h-0 xl:max-h-none">
@@ -216,8 +252,9 @@ export function DriverTrackerListCard({
               <span>Driver Directory</span>
             </CardTitle>
             <p className="mt-0.5 text-xs font-medium text-muted-foreground/80 sm:mt-1 sm:text-sm">
-              {filtered.length} of {drivers.length} driver
-              {drivers.length !== 1 ? "s" : ""}
+              {directory
+                ? `Showing ${filtered.length} of ${directory.totalMatching} driver${directory.totalMatching !== 1 ? "s" : ""}`
+                : `${filtered.length} of ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <Badge
@@ -290,7 +327,7 @@ export function DriverTrackerListCard({
 
         <div className="grid grid-cols-1 gap-2 min-[375px]:grid-cols-3 md:flex md:gap-1">
           {([
-            ["all", `All GPS (${drivers.length})`],
+            ["all", `All GPS (${counts.all})`],
             ["sharing", `Fresh GPS (${counts.sharing})`],
             ["not-sharing", `Not fresh (${counts.notSharing})`],
           ] as const).map(([key, label]) => (
@@ -849,6 +886,21 @@ export function DriverTrackerListCard({
             </div>
           );
         })}
+
+        {directory?.hasMore && (
+          <div className="flex justify-center py-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-11"
+              disabled={directory.loadingMore}
+              onClick={directory.onLoadMore}
+            >
+              {directory.loadingMore ? "Loading more drivers…" : "Load more drivers"}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
