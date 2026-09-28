@@ -2,6 +2,38 @@
 
 const STORAGE_KEY = 'ss_sound_enabled';
 const SUPRASPACE_NOTIFICATION_HOST = 'space.suprah-app.com';
+const NOTIFICATION_AVATAR_COLORS = [
+  ['#075985', '#f0f9ff'],
+  ['#3730a3', '#eef2ff'],
+  ['#9f1239', '#fff1f2'],
+  ['#166534', '#f0fdf4'],
+  ['#9a3412', '#fff7ed'],
+  ['#6b21a8', '#faf5ff'],
+] as const;
+
+function notificationAvatarHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function createNotificationAvatarFallback(identity?: string, displayName?: string): string {
+  const normalizedIdentity = String(identity || displayName || 'suprah').trim();
+  const initials = String(displayName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'S';
+  const [background, foreground] = NOTIFICATION_AVATAR_COLORS[notificationAvatarHash(normalizedIdentity) % NOTIFICATION_AVATAR_COLORS.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="${background}"/><text x="48" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="${foreground}">${initials.replace(/[&<>]/g, '')}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 
 export function isSoundEnabled(): boolean {
   if (typeof window === 'undefined') return false;
@@ -241,7 +273,7 @@ function normalizeNotificationTargetUrl(url: string): string {
 // mode where the SW is disabled).
 export async function showNotificationViaSW(
   title: string,
-  options: { body?: string; tag?: string; url?: string; conversationId?: string; messageId?: string } = {}
+  options: { body?: string; tag?: string; url?: string; conversationId?: string; messageId?: string; icon?: string } = {}
 ): Promise<void> {
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
@@ -260,7 +292,7 @@ export async function showNotificationViaSW(
         await reg.showNotification(title, {
           body: options.body,
           tag: options.tag,
-          icon: '/icon-192x192.png',
+          icon: options.icon || '/icon-192x192.png',
           badge: '/icon-192x192.png',
           silent: false,
           vibrate: [200, 100, 200],
@@ -278,7 +310,7 @@ export async function showNotificationViaSW(
   // Fallback: direct Notification API (desktop browser without SW)
   try {
     const notif = new Notification(title, {
-      icon: '/favicon.ico',
+      icon: options.icon || '/favicon.ico',
       body: options.body,
       tag: options.tag,
       silent: false,
