@@ -58,7 +58,7 @@ import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
-import { normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
 const SS4_MAX_UPLOAD_FILES = 10;
@@ -1101,7 +1101,7 @@ const SS4_REACTIONS = [
   '\u{1f525}', '\u{1f389}', '\u{1f44f}', '\u{1f60d}', '\u{1f914}', '\u{1f440}',
   '\u{1f4af}', '\u{1f64c}', '\u{1f60e}', '\u{1f480}',
 ];
-const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+const GIPHY_FALLBACK_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
 const SS4_TEXT_COLORS = ['#ffffff', '#f87171', '#fb923c', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'];
 const SS4_MORE_TEXT_COLORS = [
   '#ffffff', '#f3f4f6', '#94a3b8', '#64748b', '#111827',
@@ -3421,7 +3421,7 @@ function stripOrphanedBoldMarker(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   const normalized = normalizeListExitLineSpacing(
-    stripCopiedTextArtifacts(text)
+    normalizeSupraSpaceBoldMarkerRuns(stripCopiedTextArtifacts(text))
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   );
@@ -7528,28 +7528,53 @@ function MobileFilePicker({ files, maxFiles, onBrowse, onRemove, onClear, onClos
 
 function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick: (g: { url: string; width?: number; height?: number; title?: string }) => void; onClose: () => void; mobile?: boolean; inline?: boolean }) {
   const [q, setQ] = React.useState('');
-  const [gifs, setGifs] = React.useState<any[]>([]);
+  const [gifs, setGifs] = React.useState<Array<{ url: string; width?: number; height?: number; title?: string }>>([]);
   const [loading, setLoading] = React.useState(false);
+  const [unavailable, setUnavailable] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const gifGridRef = React.useRef<HTMLDivElement | null>(null);
   const [gifTileSize, setGifTileSize] = React.useState(0);
+  const initialGifQueryRef = React.useRef(true);
   const mobileInline = inline && mobile;
   const gifTopics = React.useMemo(() => ['Whatever', 'Hungry', 'Dance', 'Annoyed', 'Omg'], []);
   const run = React.useCallback(async (query: string) => {
-    if (!GIPHY_KEY) return;
     setLoading(true);
+    setUnavailable(false);
     try {
       const limit = mobileInline ? 45 : 24;
-      const endpoint = query.trim()
-        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
-        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=${limit}&rating=pg-13`;
-      const r = await fetch(endpoint);
-      const d = await r.json();
-      setGifs(d?.data || []);
-    } catch { setGifs([]); } finally { setLoading(false); }
+      try {
+        const r = await apiClient.get('/api/supraspace/gifs', { params: { q: query.trim(), limit } });
+        setGifs(Array.isArray(r.data?.data) ? r.data.data : []);
+      } catch (error) {
+        const status = typeof error === 'object' && error !== null && 'response' in error
+          ? Number((error as { response?: { status?: unknown } }).response?.status)
+          : 0;
+        if (status !== 503 || !GIPHY_FALLBACK_KEY) throw error;
+        const endpoint = query.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_FALLBACK_KEY}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_FALLBACK_KEY}&limit=${limit}&rating=pg-13`;
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error('GIF search is unavailable');
+        const payload = await response.json() as { data?: any[] };
+        setGifs((Array.isArray(payload.data) ? payload.data : []).flatMap(item => {
+          const preview = item?.images?.fixed_width_small || item?.images?.fixed_height_small || item?.images?.fixed_width || item?.images?.fixed_height;
+          const url = item?.images?.original?.url || preview?.url;
+          return typeof url === 'string' && /^https:\/\//i.test(url)
+            ? [{ url, width: Number(preview?.width) || undefined, height: Number(preview?.height) || undefined, title: typeof item?.title === 'string' ? item.title : undefined }]
+            : [];
+        }));
+      }
+    } catch {
+      setGifs([]);
+      setUnavailable(true);
+    } finally { setLoading(false); }
   }, [mobileInline]);
-  React.useEffect(() => { run(''); }, [run]);
-  React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
+  React.useEffect(() => {
+    const delay = initialGifQueryRef.current ? 0 : 350;
+    initialGifQueryRef.current = false;
+    const t = setTimeout(() => run(q), delay);
+    return () => clearTimeout(t);
+  }, [q, run]);
   React.useEffect(() => {
     if (!mobileInline) return;
     const node = gifGridRef.current;
@@ -7584,7 +7609,7 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
           <div className="pb-3">
             <div className="relative h-10">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
-              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={GIPHY_KEY ? 'Search GIFs...' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'} className="w-full h-10 rounded-full pl-11 pr-12 text-sm ss4-search-input" />
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search GIFs..." className="w-full h-10 rounded-full pl-11 pr-12 text-sm ss4-search-input" />
               {q && (
                 <button type="button" onClick={() => setQ('')} className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full" style={{ color: 'var(--text-primary)' }}>
                   <X className="h-5 w-5" />
@@ -7621,13 +7646,11 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y', gridAutoFlow: 'row', gridAutoRows: gifTileSize ? `${gifTileSize}px` : 'auto' }}
         >
           {loading && <div className="col-span-3 flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-          {!loading && gifs.length === 0 && <p className="col-span-3 text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{GIPHY_KEY ? 'No results' : 'GIPHY key not configured'}</p>}
-          {!loading && gifs.map((g: any) => {
-            const img = g.images?.fixed_width_small || g.images?.fixed_height_small || g.images?.fixed_width || g.images?.fixed_height;
-            if (!img?.url) return null;
+          {!loading && gifs.length === 0 && <p className="col-span-3 text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>}
+          {!loading && gifs.map(g => {
             return (
-              <button key={g.id} type="button" onClick={() => { onPick({ url: g.images?.original?.url || img.url, width: Number(img.width), height: Number(img.height), title: g.title }); onClose(); }} className="relative block w-full overflow-hidden rounded-md" style={{ background: 'var(--bg-hover)', contain: 'layout paint', height: gifTileSize ? `${gifTileSize}px` : undefined, minHeight: gifTileSize ? `${gifTileSize}px` : undefined, maxHeight: gifTileSize ? `${gifTileSize}px` : undefined, aspectRatio: '1 / 1', transform: 'translateZ(0)' }}>
-                <img src={img.url} alt={g.title || 'GIF'} draggable={false} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+              <button key={g.url} type="button" onClick={() => { onPick(g); onClose(); }} className="relative block w-full overflow-hidden rounded-md" style={{ background: 'var(--bg-hover)', contain: 'layout paint', height: gifTileSize ? `${gifTileSize}px` : undefined, minHeight: gifTileSize ? `${gifTileSize}px` : undefined, maxHeight: gifTileSize ? `${gifTileSize}px` : undefined, aspectRatio: '1 / 1', transform: 'translateZ(0)' }}>
+                <img src={g.url} alt={g.title || 'GIF'} draggable={false} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
               </button>
             );
           })}
@@ -7653,17 +7676,16 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
       <div className="p-2" style={{ borderBottom: '1px solid var(--border-1)' }}>
         <div className="relative">
           <Search className="ss4-search-icon absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
-          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={GIPHY_KEY ? 'Search GIPHY...' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'} className="w-full h-8 rounded-lg pl-8 pr-3 text-xs ss4-search-input" />
+          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search GIFs..." className="w-full h-8 rounded-lg pl-8 pr-3 text-xs ss4-search-input" />
         </div>
       </div>
       <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto ss4-scroll">
         {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-        {!loading && gifs.length === 0 && <p className="col-span-2 text-center py-6" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{GIPHY_KEY ? 'No results' : 'GIPHY key not configured'}</p>}
-        {gifs.map((g: any) => {
-          const img = g.images?.fixed_height_small || g.images?.fixed_height;
+        {!loading && gifs.length === 0 && <p className="col-span-2 text-center py-6" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>}
+        {gifs.map(g => {
           return (
-            <button key={g.id} onClick={() => { onPick({ url: g.images?.original?.url || img?.url, width: Number(img?.width), height: Number(img?.height), title: g.title }); onClose(); }} className="rounded-lg overflow-hidden" style={{ aspectRatio: '1', background: 'var(--bg-hover)' }}>
-              <img src={img?.url} alt={g.title} className="w-full h-full object-cover" />
+            <button key={g.url} onClick={() => { onPick(g); onClose(); }} className="rounded-lg overflow-hidden" style={{ aspectRatio: '1', background: 'var(--bg-hover)' }}>
+              <img src={g.url} alt={g.title || 'GIF'} className="w-full h-full object-cover" />
             </button>
           );
         })}
@@ -14378,7 +14400,6 @@ export default function SupraSpacePage() {
                       onScroll={handleMessageScroll}
                       onWheel={markUserScrollGesture}
                       onTouchMove={markUserScrollGesture}
-                      onMouseDown={markUserScrollGesture}
                       data-supraspace-message-scroll="true"
                       className="ss4-chat-messages h-full overflow-y-auto py-2 space-y-2 ss4-scroll sm:py-3 sm:space-y-2.5"
                       style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
