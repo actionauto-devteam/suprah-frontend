@@ -935,8 +935,10 @@ const MEDIA_LABELS: Record<string, string> = {
 const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) =>
-    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  return text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) =>
+    inner.includes('\n') && !inner.includes('**')
+      ? inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+      : match
   );
 }
 

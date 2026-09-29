@@ -3241,9 +3241,9 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
   const perLine = (inner: string, marker: string) =>
     inner.split('\n').map(line => line ? `${marker}${line}${marker}` : '').join('\n');
   let normalized = text
-    .replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) => perLine(inner, '**'))
-    .replace(/__([\s\S]*?)__/g, (_match, inner: string) => perLine(inner, '__'))
-    .replace(/~~([\s\S]*?)~~/g, (_match, inner: string) => perLine(inner, '~~'));
+    .replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) => inner.includes('\n') && !inner.includes('**') ? perLine(inner, '**') : match)
+    .replace(/__([\s\S]*?)__/g, (match, inner: string) => inner.includes('\n') && !inner.includes('__') ? perLine(inner, '__') : match)
+    .replace(/~~([\s\S]*?)~~/g, (match, inner: string) => inner.includes('\n') && !inner.includes('~~') ? perLine(inner, '~~') : match);
   normalized = normalized.replace(/(^|[^\w_])_(?!_)([\s\S]*?)(?<!_)_(?![\w_])/g, (match, prefix: string, inner: string) =>
     inner.includes('\n') ? `${prefix}${perLine(inner, '_')}` : match
   );
@@ -3609,7 +3609,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
         const start = text.indexOf(marker, from);
         if (start < 0) return;
         const end = text.indexOf(marker, start + marker.length);
-        if (end > start + marker.length) candidates.push({ start, end: end + marker.length, type });
+        if (end > start + marker.length && !text.slice(start + marker.length, end).includes('\n')) candidates.push({ start, end: end + marker.length, type });
       });
       const italicRe = /(?<!\w)_([^_\n]+)_(?!\w)/g;
       italicRe.lastIndex = from;
