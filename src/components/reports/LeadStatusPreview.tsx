@@ -41,6 +41,7 @@ interface LeadStatusSummary {
   pending: number;
   appointment: number;
   closed: number;
+  other: number;
 }
 
 interface StatusItem {
@@ -67,38 +68,43 @@ function statusMatches(status: unknown, expected: string[]): boolean {
 }
 
 function buildLeadSummary(leads: Lead[]): LeadStatusSummary {
-  return {
-    total: leads.length,
+  const total = leads.length;
 
-    new: leads.filter((lead) =>
-      statusMatches(lead.status, ["new"]),
-    ).length,
+  const newCount = leads.filter((lead) =>
+    statusMatches(lead.status, ["new"]),
+  ).length;
 
-    contacted: leads.filter((lead) =>
-      statusMatches(lead.status, ["contacted"]),
-    ).length,
+  const contacted = leads.filter((lead) =>
+    statusMatches(lead.status, ["contacted"]),
+  ).length;
 
-    pending: leads.filter((lead) =>
-      statusMatches(lead.status, ["pending"]),
-    ).length,
+  const pending = leads.filter((lead) =>
+    statusMatches(lead.status, ["pending"]),
+  ).length;
 
-    appointment: leads.filter((lead) =>
-      statusMatches(lead.status, [
-        "appointment set",
-        "appointment",
-        "scheduled",
-      ]),
-    ).length,
+  const appointment = leads.filter((lead) =>
+    statusMatches(lead.status, [
+      "appointment set",
+      "appointment",
+      "scheduled",
+    ]),
+  ).length;
 
-    closed: leads.filter((lead) =>
-      statusMatches(lead.status, [
-        "closed",
-        "converted",
-        "won",
-        "completed",
-      ]),
-    ).length,
-  };
+  const closed = leads.filter((lead) =>
+    statusMatches(lead.status, [
+      "closed",
+      "converted",
+      "won",
+      "completed",
+    ]),
+  ).length;
+
+  // Any status outside the 5 named buckets above (e.g. the newer, more granular
+  // Podium-style pipeline statuses) is counted here instead of silently
+  // vanishing from the breakdown.
+  const other = Math.max(0, total - newCount - contacted - pending - appointment - closed);
+
+  return { total, new: newCount, contacted, pending, appointment, closed, other };
 }
 
 function formatLeadName(lead: Lead): string {
@@ -242,7 +248,7 @@ export function LeadStatusPreview({
   );
 
   const statusItems = React.useMemo<StatusItem[]>(
-    () => [
+    () => ([
       {
         key: "new",
         label: "New",
@@ -283,7 +289,15 @@ export function LeadStatusPreview({
         backgroundClass: "bg-emerald-50 dark:bg-emerald-950/40",
         barClass: "bg-emerald-500",
       },
-    ],
+      {
+        key: "other",
+        label: "Other",
+        count: summary.other,
+        textClass: "text-slate-600 dark:text-slate-400",
+        backgroundClass: "bg-slate-50 dark:bg-slate-800/40",
+        barClass: "bg-slate-400",
+      },
+    ] satisfies StatusItem[]).filter((item) => item.key !== "other" || item.count > 0),
     [summary],
   );
 

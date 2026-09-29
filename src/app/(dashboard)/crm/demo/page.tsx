@@ -28,6 +28,14 @@ interface DemoScenario {
   } | null
   optedOut: boolean
   nurtureCount: number
+  reengagement: {
+    status: "blocked" | "sent" | "failed" | "skipped"
+    finalMessage: string | null
+    blockedReason: string | null
+    failureReason: string | null
+    classifierVerdict: "SAFE" | "UNSAFE" | "ERROR" | null
+    createdAt: string
+  } | null
 }
 
 interface ThreadMessage {
@@ -349,6 +357,34 @@ function DemoScenarioCard({
             </Button>
           </div>
 
+          <div className="space-y-2.5">
+            <StepHeading
+              number={6}
+              title="A matching vehicle just arrived"
+              hint="Simulates a new vehicle in inventory that matches this lead's stored interest. Autrix writes the text, then two safety checks decide sent or blocked."
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={anyBusy}
+              onClick={() => onAction(leadId, "vehicle-reengagement", "vehicle-reengagement")}
+            >
+              {isBusy("vehicle-reengagement") && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              Simulate vehicle arrival
+            </Button>
+            {scenario.reengagement && (
+              <p className="text-xs">
+                {scenario.reengagement.status === "sent"
+                  ? `Sent: "${scenario.reengagement.finalMessage}"`
+                  : scenario.reengagement.status === "blocked"
+                    ? `Blocked: ${scenario.reengagement.blockedReason || "safety check"}${scenario.reengagement.classifierVerdict ? ` (${scenario.reengagement.classifierVerdict})` : ""}`
+                    : scenario.reengagement.status === "skipped"
+                      ? `Skipped: ${scenario.reengagement.failureReason || "opted out"}`
+                      : `Failed: ${scenario.reengagement.failureReason || "could not generate"}`}
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-xs">
             <span className="text-muted-foreground">See it in the real screens:</span>
             <Link href="/crm/leads" className="font-medium text-primary hover:underline">
@@ -356,6 +392,9 @@ function DemoScenarioCard({
             </Link>
             <Link href="/crm/appointments" className="font-medium text-primary hover:underline">
               Appointments (open it, then look for the Conversation box)
+            </Link>
+            <Link href="/crm/vehicle-reengagement" className="font-medium text-primary hover:underline">
+              Re-engagement review queue
             </Link>
             <span className="text-muted-foreground">Staff alerts appear in the bell icon.</span>
           </div>

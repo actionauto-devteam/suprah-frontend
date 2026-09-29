@@ -12,6 +12,10 @@ import {
 import type { WorkspaceActivityItem } from "@/components/conversation-workspace/workspace-types";
 import { useCustomerTimeline, type CustomerTimelineItem } from "@/hooks/useCustomerTimeline";
 import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
+import { LEAD_STATUS_SELECT_OPTIONS } from "@/lib/leadStatus";
+import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/providers/AuthProvider";
+import { AiAgentTasksSection } from "./AiAgentTasksSection";
 
 function timelineItemKind(item: CustomerTimelineItem): WorkspaceActivityItem["kind"] {
   if (item.id.endsWith(":created") && item.id.startsWith("lead:")) return "inquiry";
@@ -72,12 +76,7 @@ interface LeadDetailsPanelProps {
   onAssign?: (userId: string | null) => void | Promise<void>;
 }
 
-const STATUS_OPTIONS = [
-  { value: "New", label: "New" },
-  { value: "Pending", label: "Pending" },
-  { value: "Contacted", label: "Contacted" },
-  { value: "Appointment Set", label: "Appointment Set" },
-];
+const STATUS_OPTIONS = LEAD_STATUS_SELECT_OPTIONS;
 
 const fieldClass =
   "h-9 w-full min-w-0 rounded-md border bg-(--input-bg) px-2.5 text-xs outline-none focus:border-emerald-500/60";
@@ -94,11 +93,42 @@ export function LeadDetailsPanel({
   onUpdateDetails,
   onAssign,
 }: LeadDetailsPanelProps) {
+  const { getToken } = useAuth();
   const [noteIntent, setNoteIntent] = React.useState(0);
   const [editingContact, setEditingContact] = React.useState(false);
   const [editingLead, setEditingLead] = React.useState(false);
   const [savingContact, setSavingContact] = React.useState(false);
   const [savingLead, setSavingLead] = React.useState(false);
+  const [summaryLoading, setSummaryLoading] = React.useState(false);
+  const [summaryOverride, setSummaryOverride] = React.useState<{
+    summary: string;
+    generatedAt: string | null;
+  } | null>(null);
+
+  React.useEffect(() => {
+    setSummaryOverride(null);
+  }, [lead?._id]);
+
+  const handleRegenerateSummary = React.useCallback(async () => {
+    if (!lead?._id) return;
+    setSummaryLoading(true);
+    try {
+      const t = await getToken();
+      const res = await apiClient.post(
+        `/api/leads/${lead._id}/ai-summary/regenerate`,
+        {},
+        { headers: { Authorization: `Bearer ${t}` } },
+      );
+      const data = res.data?.data || res.data;
+      if (data?.summary) {
+        setSummaryOverride({ summary: data.summary, generatedAt: data.generatedAt || null });
+      }
+    } catch (error) {
+      console.error("Failed to regenerate AI summary:", error);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [lead?._id, getToken]);
 
   const initialContact = React.useMemo(
     () => ({
@@ -218,6 +248,7 @@ export function LeadDetailsPanel({
       contact={contact}
       contactTypeLabel="Contact type: Lead"
       summary={
+        summaryOverride?.summary ||
         lead?.aiSummary ||
         `This lead submitted an inquiry about ${[
           lead?.vehicle?.year,
@@ -227,6 +258,10 @@ export function LeadDetailsPanel({
           .filter(Boolean)
           .join(" ") || "a vehicle"}. Review the conversation and follow up with the next best action.`
       }
+      summaryUpdatedAt={summaryOverride?.generatedAt || lead?.aiSummaryGeneratedAt}
+      summaryLoading={summaryLoading}
+      onRegenerateSummary={handleRegenerateSummary}
+      belowSummary={<AiAgentTasksSection leadId={lead?._id} />}
       quickActions={actions}
       detailSections={details}
       activities={activities}

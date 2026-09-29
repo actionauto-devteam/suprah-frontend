@@ -6,13 +6,14 @@ import {
     Loader2, ArrowLeft,
     Users, ShieldCheck, ChevronRight, Lock, Mail, Link as LinkIcon, Replace, CheckCircle2,
 
-    AlertTriangle, Copy, Key, RefreshCw, HeartHandshake, Building2, Star, Plus, X, MapPin, MessageCircle
+    AlertTriangle, Copy, Key, RefreshCw, HeartHandshake, Building2, Star, Plus, X, MapPin, MessageCircle, Bot
 
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
@@ -70,6 +71,11 @@ export default function IntegrationsSettingsPage() {
   const [webchatGreeting, setWebchatGreeting] = React.useState("");
   const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
+  const [aiAgentEnabled, setAiAgentEnabled] = React.useState(false);
+  const [savedAiAgentEnabled, setSavedAiAgentEnabled] = React.useState(false);
+  const [aiAgentName, setAiAgentName] = React.useState("Alex");
+  const [savedAiAgentName, setSavedAiAgentName] = React.useState("Alex");
+  const [isSavingAiAgent, setIsSavingAiAgent] = React.useState(false);
   const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
@@ -115,6 +121,12 @@ export default function IntegrationsSettingsPage() {
           setSavedWebchatEnabled(enabled);
           setWebchatGreeting(greeting);
           setSavedWebchatGreeting(greeting);
+          const agentEnabled = settingsData?.aiAgentEnabled === true;
+          const agentName = settingsData?.aiAgentName || "Alex";
+          setAiAgentEnabled(agentEnabled);
+          setSavedAiAgentEnabled(agentEnabled);
+          setAiAgentName(agentName);
+          setSavedAiAgentName(agentName);
         } catch (settingsError) {
           console.error("Failed to fetch organization settings:", settingsError);
         }
@@ -330,6 +342,39 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSavingWebchat(false)
+        }
+    }
+
+    const aiAgentSettingsDirty =
+        aiAgentEnabled !== savedAiAgentEnabled || aiAgentName.trim() !== savedAiAgentName
+
+    const handleSaveAiAgentSettings = async () => {
+        if (!isAdmin) return
+        setIsSavingAiAgent(true)
+        try {
+            const t = await getToken()
+            const name = aiAgentName.trim() || "Alex"
+            await apiClient.patch(
+                "/api/crm/org-settings",
+                { aiAgentEnabled, aiAgentName: name },
+                { headers: { Authorization: `Bearer ${t}` } },
+            )
+            setSavedAiAgentEnabled(aiAgentEnabled)
+            setAiAgentName(name)
+            setSavedAiAgentName(name)
+            toast.success("AI agent settings saved", {
+                description: aiAgentEnabled
+                    ? `${name} will now reply live to webchat and text messages.`
+                    : `${name} is now turned off — conversations wait for your team.`
+            })
+        } catch (error) {
+            console.error("Failed to save AI agent settings:", error)
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+            toast.error("Save failed", {
+                description: message || "Could not save the AI agent settings. Please try again."
+            })
+        } finally {
+            setIsSavingAiAgent(false)
         }
     }
 
@@ -846,6 +891,70 @@ export default function IntegrationsSettingsPage() {
                                             className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
                                         >
                                             {isSavingWebchat ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save webchat settings"}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        { }
+                        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center shrink-0">
+                                        <Bot className="h-5 w-5 text-fuchsia-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold truncate">AI Agent</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Replies live to webchat and text conversations until a teammate steps in.</p>
+                                    </div>
+                                </div>
+                                <Badge className={aiAgentEnabled ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
+                                    {aiAgentEnabled ? "Live" : "Off"}
+                                </Badge>
+                            </div>
+
+                            <div className="p-4 sm:p-6 space-y-4">
+                                {!isAdmin && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can modify AI agent settings.</p>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between gap-3 max-w-xl">
+                                    <div className="min-w-0">
+                                        <label className="text-sm font-semibold text-foreground">Let the AI agent reply live</label>
+                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md mt-0.5">While on, it answers webchat and text messages the moment they arrive, and keeps chatting until someone on your team pauses it. Anything it can&apos;t handle gets flagged to your team automatically.</p>
+                                    </div>
+                                    <Switch
+                                        checked={aiAgentEnabled}
+                                        onCheckedChange={setAiAgentEnabled}
+                                        disabled={!isAdmin || isSavingAiAgent}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Agent name</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">The name customers see on every reply it sends.</p>
+                                    <Input
+                                        disabled={!isAdmin || isSavingAiAgent}
+                                        value={aiAgentName}
+                                        onChange={e => setAiAgentName(e.target.value)}
+                                        maxLength={40}
+                                        placeholder="Alex"
+                                        className="max-w-xs"
+                                    />
+                                </div>
+
+                                {isAdmin && (
+                                    <div className="pt-2">
+                                        <Button
+                                            onClick={handleSaveAiAgentSettings}
+                                            disabled={isSavingAiAgent || !aiAgentSettingsDirty}
+                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                                        >
+                                            {isSavingAiAgent ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save AI agent settings"}
                                         </Button>
                                     </div>
                                 )}
