@@ -1,5 +1,6 @@
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { trackingState } from "@/lib/driver-tracking-view";
+import { isGpsTrackingLoadStatus } from "@/lib/load-status";
 
 /** Reasons come only from the already-authorized directory and requests. */
 export function driverAttentionReasons(driver: DriverTrackingItem, now: number, pendingRequestDriverIds: readonly string[] = []): string[] {
@@ -7,7 +8,7 @@ export function driverAttentionReasons(driver: DriverTrackingItem, now: number, 
   if (driver.statusRequest) reasons.push(driver.statusRequest.priority === "emergency" ? "Emergency request" : driver.statusRequest.status === "approved_awaiting_reassignment" ? "Awaiting reassignment" : "Work availability request");
   if (driver.shipments.some(load => load.releaseRequest?.status === "pending")) reasons.push("Load release pending");
   if (pendingRequestDriverIds.includes(String(driver.driver?.id ?? driver.id))) reasons.push("Load request pending");
-  const trackingExpected = driver.shipments.some(load => ["Accepted", "Picked Up", "In-Transit"].includes(load.status ?? ""));
+  const trackingExpected = driver.shipments.some(load => isGpsTrackingLoadStatus(load.status));
   // A driver who is not obliged to share, or whose location we cannot access,
   // must not be presented as a tracking failure to this dispatcher.
   if (trackingExpected && driver.canViewExactGps === true) {

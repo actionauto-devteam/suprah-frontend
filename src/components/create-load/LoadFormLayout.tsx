@@ -362,6 +362,7 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
           additionalInfo: additionalInfo as any,
           contract: contract as any,
           pricing: pricing as any,
+          expectedUpdatedAt: initialLoad!.updatedAt,
         })
         toast.success(`Load ${initialLoad!.loadNumber} updated.`)
         router.push(`/transportation/load/${initialLoad!._id}`)

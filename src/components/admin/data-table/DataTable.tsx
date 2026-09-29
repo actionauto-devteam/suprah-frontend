@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import {
-  ColumnDef, ColumnFiltersState, RowSelectionState, SortingState, Table as TanstackTable,
-  flexRender, getCoreRowModel, getFacetedRowModel, getFacetedUniqueValues,
+  ColumnDef, ColumnFiltersState, PaginationState, RowSelectionState, SortingState, Table as TanstackTable,
+  Updater, flexRender, getCoreRowModel, getFacetedRowModel, getFacetedUniqueValues,
   getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
 import {
@@ -25,6 +25,18 @@ import { cn } from '@/lib/utils';
 
 export type Density = 'compact' | 'comfortable';
 
+/** What the server needs to fetch one page (server mode only). */
+export type DataTableServerState = {
+  pageIndex: number;
+  pageSize: number;
+  search: string;
+  columnFilters: ColumnFiltersState;
+  sorting: SortingState;
+};
+
+const resolveUpdater = <T,>(updater: Updater<T>, current: T): T =>
+  typeof updater === 'function' ? (updater as (old: T) => T)(current) : updater;
+
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -40,6 +52,16 @@ interface DataTableProps<TData> {
   emptyTitle?: string;
   emptyDescription?: string;
   storageKey?: string;
+  /**
+   * Optional server mode: the server searches, filters, sorts and pages, and
+   * `data` is the current page. Tables without it work entirely in the browser.
+   */
+  server?: {
+    /** Rows matching the current search and filters, across all pages. */
+    total: number;
+    pagination: PaginationState;
+    onStateChange: (state: DataTableServerState) => void;
+  };
 }
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -47,7 +69,7 @@ const PAGE_SIZES = [10, 25, 50, 100];
 export function DataTable<TData>({
   columns, data, isLoading, getRowId, searchPlaceholder = 'Search…', searchFn,
   filters, toolbarActions, bulkBar, onRowClick, renderMobileRow,
-  emptyTitle = 'Nothing here yet', emptyDescription, storageKey,
+  emptyTitle = 'Nothing here yet', emptyDescription, storageKey, server,
 }: DataTableProps<TData>) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = React.useState('');
@@ -75,19 +97,65 @@ export function DataTable<TData>({
     }
   };
 
-  const table = useReactTable({
+  // Server mode: tell the page what to fetch. A new search, filter or sort
+  // starts again at the first page and clears the selection.
+  const notifyServer = (change: Partial<DataTableServerState>) => {
+    if (!server) return;
+    const restart = 'search' in change || 'columnFilters' in change || 'sorting' in change;
+    if (restart) setRowSelection({});
+    server.onStateChange({
+      pageIndex: restart ? 0 : server.pagination.pageIndex,
+      pageSize: server.pagination.pageSize,
+      search: globalFilter,
+      columnFilters,
+      sorting,
+      ...change,
+    });
+  };
+
+  const changeSearch = (value: string) => {
+    setGlobalFilter(value);
+    notifyServer({ search: value });
+  };
+
+  const table = useReactTable<TData>({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    onColumnFiltersChange: setColumnFilters,
-    onSortingChange: setSorting,
+    ...(server
+      ? {
+          manualPagination: true,
+          manualFiltering: true,
+          manualSorting: true,
+          pageCount: Math.max(1, Math.ceil(server.total / Math.max(1, server.pagination.pageSize))),
+          onPaginationChange: (updater: Updater<PaginationState>) => {
+            const next = resolveUpdater(updater, server.pagination);
+            notifyServer({ pageIndex: next.pageIndex, pageSize: next.pageSize });
+          },
+        }
+      : {
+          getPaginationRowModel: getPaginationRowModel(),
+          getSortedRowModel: getSortedRowModel(),
+          getFilteredRowModel: getFilteredRowModel(),
+          getFacetedRowModel: getFacetedRowModel(),
+          getFacetedUniqueValues: getFacetedUniqueValues(),
+        }),
+    onColumnFiltersChange: server
+      ? (updater: Updater<ColumnFiltersState>) => {
+          const next = resolveUpdater(updater, columnFilters);
+          setColumnFilters(next);
+          notifyServer({ columnFilters: next });
+        }
+      : setColumnFilters,
+    onSortingChange: server
+      ? (updater: Updater<SortingState>) => {
+          const next = resolveUpdater(updater, sorting);
+          setSorting(next);
+          notifyServer({ sorting: next });
+        }
+      : setSorting,
     onRowSelectionChange: setRowSelection,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: server ? (updater: Updater<string>) => changeSearch(resolveUpdater(updater, globalFilter)) : setGlobalFilter,
     getRowId: (row) => getRowId(row),
     globalFilterFn: searchFn
       ? (row, _id, value: string) => {
@@ -95,14 +163,23 @@ export function DataTable<TData>({
           return term ? searchFn(row.original as TData, term) : true;
         }
       : 'includesString',
-    state: { columnFilters, sorting, rowSelection, globalFilter },
+    state: {
+      columnFilters,
+      sorting,
+      rowSelection,
+      globalFilter,
+      ...(server ? { pagination: server.pagination } : {}),
+    },
     initialState: { pagination: { pageSize: 25 } },
   });
 
-  const selectedIds = table.getFilteredSelectedRowModel().rows.map((row) => row.id);
+  // Server mode keeps a selection made on other pages.
+  const selectedIds = server
+    ? Object.keys(rowSelection).filter((id) => rowSelection[id])
+    : table.getFilteredSelectedRowModel().rows.map((row) => row.id);
   const activeFilters = columnFilters.length + (globalFilter ? 1 : 0);
   const rows = table.getRowModel().rows;
-  const total = table.getFilteredRowModel().rows.length;
+  const total = server ? server.total : table.getFilteredRowModel().rows.length;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageSize = table.getState().pagination.pageSize;
   const firstRow = total === 0 ? 0 : pageIndex * pageSize + 1;
@@ -117,7 +194,7 @@ export function DataTable<TData>({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
+            onChange={(event) => changeSearch(event.target.value)}
             placeholder={searchPlaceholder}
             className="h-8 pl-8 text-sm"
           />
@@ -130,7 +207,11 @@ export function DataTable<TData>({
             variant="ghost"
             size="sm"
             className="h-8 gap-1 px-2 text-xs text-muted-foreground"
-            onClick={() => { setColumnFilters([]); setGlobalFilter(''); }}
+            onClick={() => {
+              setColumnFilters([]);
+              setGlobalFilter('');
+              notifyServer({ columnFilters: [], search: '' });
+            }}
           >
             Clear <X className="size-3" />
           </Button>

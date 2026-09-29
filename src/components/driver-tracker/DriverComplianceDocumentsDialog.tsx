@@ -83,6 +83,8 @@ interface DriverReviewDocument {
   rejectedAt?: string;
   fileAvailable?: boolean;
   fileEndpoint?: string;
+  /** Saved at a public link before private storage; only admins can open it. */
+  legacyPublicFile?: boolean;
 }
 
 interface CredentialFact {
@@ -542,8 +544,19 @@ export function DriverComplianceDocumentsDialog({
         setPreviewMimeType(contentType);
         setPreviewUrl(URL.createObjectURL(blob));
       } catch (error: any) {
+        // The file is requested as raw data, so an error reply arrives as raw
+        // data too; read its message so the reason is shown.
+        let serverMessage = error?.response?.data?.message as string | undefined;
+        const raw = error?.response?.data;
+        if (!serverMessage && raw instanceof Blob) {
+          try {
+            serverMessage = JSON.parse(await raw.text())?.message;
+          } catch {
+            serverMessage = undefined;
+          }
+        }
         setPreviewError(
-          error?.response?.data?.message ||
+          serverMessage ||
             "This document could not be opened with your current authorization.",
         );
       } finally {
@@ -972,7 +985,17 @@ export function DriverComplianceDocumentsDialog({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    disabled={!document.fileAvailable || !document._id || previewLoading}
+                                    disabled={
+                                      !document.fileAvailable ||
+                                      !document._id ||
+                                      previewLoading ||
+                                      (document.legacyPublicFile === true && access?.level !== "ADMIN_REVIEW")
+                                    }
+                                    title={
+                                      document.legacyPublicFile === true && access?.level !== "ADMIN_REVIEW"
+                                        ? "Older document saved before secure storage. Only an admin can open it."
+                                        : undefined
+                                    }
                                     onClick={() => void openPreview(document)}
                                     className="gap-1.5"
                                   >

@@ -11,6 +11,7 @@ import {
     Crown,
     FolderKanban,
     Gift,
+    Hash,
     HeartHandshake,
     LayoutDashboard,
     Mail,
@@ -93,6 +94,7 @@ export const driverNav: BottomNavItem[] = [
     { label: "Loads", href: "/driver/loads", icon: Truck },
     { label: "Available", href: "/driver/available-loads", icon: Package, isCenter: true },
     { label: "Schedule", href: "/driver/schedule", icon: Calendar },
+    { label: "Channels", href: "/driver/channels", icon: Hash },
     { label: "Profile", href: "/driver/profile", icon: User },
 ];
 

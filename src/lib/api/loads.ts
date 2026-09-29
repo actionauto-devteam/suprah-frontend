@@ -228,7 +228,9 @@ export async function assignDriverToLoad(
 
 export async function updateLoad(
   loadId: string,
-  payload: Partial<Load>
+  // expectedUpdatedAt: the version of the load the edit started from. The
+  // server refuses the save if the load changed meanwhile.
+  payload: Partial<Load> & { expectedUpdatedAt: string }
 ): Promise<Load> {
   const res = await apiClient.put<{ data: Load }>(
     `/api/loads/${loadId}`,

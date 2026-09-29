@@ -105,6 +105,7 @@ export type NotificationType =
   | 'driver_tracker_place_visit'
   | 'driver_dispatch_alert'
   | 'driver_dispatch_message'
+  | 'dispatch_channel'
   | 'wallet_low_balance'
   | 'wallet_payout_failed'
   | 'admin_broadcast'

@@ -12,6 +12,7 @@
   } from "@/components/ui/dialog";
   import { Button } from "@/components/ui/button";
   import { useCloseOnBack } from "@/hooks/useCloseOnBack";
+  import { hasVehiclesOnBoard, isGpsTrackingLoadStatus } from "@/lib/load-status";
 
   const REASONS = [
     ["vehicle_issue", "Vehicle / equipment issue"],
@@ -49,9 +50,7 @@
 
     useCloseOnBack(open, () => !isSubmitting && onOpenChange(false));
 
-    const isEmergencyLifecycle = ["Picked Up", "In-Transit"].includes(
-      String(load?.status ?? ""),
-    );
+    const isEmergencyLifecycle = hasVehiclesOnBoard(load?.status);
     const loadLabel =
       load?.loadNumber || load?.trackingNumber || (load?._id ? String(load._id) : "this load");
 
@@ -99,7 +98,7 @@
               </div>
             </div>
 
-            {["Accepted", "Picked Up", "In-Transit"].includes(String(load?.status ?? "")) && (
+            {isGpsTrackingLoadStatus(load?.status) && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3.5 text-xs leading-relaxed text-muted-foreground">
                 <div className="flex items-start gap-2.5">
                   <Navigation2 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />

@@ -8,6 +8,7 @@ import { driverAttentionReasons } from "@/lib/driver-tracker-mobile";
 import { createTrackerRequestOwner, requireTrackerArray } from "@/lib/tracker-request-owner";
 import { createDriverFleetLayer, type DriverFleetLayer } from "@/components/driver-tracker/driver-fleet-layer";
 import { trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
+import { isActiveLoadStatus } from "@/lib/load-status";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -143,10 +144,13 @@ const statusText: Record<DriverStatus, string> = {
 };
 
 
-// Background re-sync of the full (platform-wide) driver directory. Live GPS,
-// status and load changes arrive over the socket; this only catches missed
-// events, and the page also re-syncs when the tab regains focus.
+// Background re-sync of the working set and the directory pages already
+// loaded. Live GPS, status and load changes arrive over the socket; this only
+// catches missed events, and the page also re-syncs when the tab regains focus.
 const LOCATION_INTERVAL_MS = 30000;
+// Pause before re-reading the assign list after a driver's status changes, so
+// a burst of changes sends one request.
+const ASSIGNABLE_LIVE_REFRESH_DELAY_MS = 2000;
 // Driver directory page size (the shared driver pool is loaded a page at a time).
 const DIRECTORY_PAGE_SIZE = 50;
 // Assign / reassign candidates are refreshed on this cadence while visible.
@@ -287,6 +291,15 @@ export default function DriverTrackerPage() {
   const [directorySummary, setDirectorySummary] = React.useState<{ totalDrivers: number; active: number; onLeave: number; inShop: number } | null>(null);
   // Everyone who can take work, for the assign / reassign pickers.
   const [assignableDrivers, setAssignableDrivers] = React.useState<DriverTrackingItem[]>([]);
+  // Read by the live-event handlers, which are registered once.
+  const directoryDriversRef = React.useRef<DriverTrackingItem[]>([]);
+  const directoryPageRef = React.useRef(directoryPage);
+  const assignableIdsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    directoryDriversRef.current = directoryDrivers;
+    directoryPageRef.current = directoryPage;
+    assignableIdsRef.current = new Set(assignableDrivers.map((driver) => driver.id));
+  }, [directoryDrivers, directoryPage, assignableDrivers]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
@@ -792,6 +805,99 @@ export default function DriverTrackerPage() {
     }
   }, [getToken, isSignedIn, user?.id]);
   driverLookupRef.current = fetchDriversByIds;
+
+  // Re-reads drivers already shown from the directory pages (outside the
+  // working set), so a status change shows without paging again.
+  const refreshShownDirectoryDrivers = React.useCallback(async (ids: string[]) => {
+    const shown = new Set(directoryDriversRef.current.map((driver) => driver.id));
+    const wanted = [...new Set(ids)].filter((id) => shown.has(id));
+    if (!wanted.length || !isSignedIn || !user?.id) return;
+    try {
+      const token = await getToken();
+      if (!token) return;
+      for (let index = 0; index < wanted.length; index += DIRECTORY_PAGE_SIZE) {
+        const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+          params: { scope: "ids", ids: wanted.slice(index, index + DIRECTORY_PAGE_SIZE).join(",") },
+          timeout: 15000,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const fresh = new Map(
+          requireTrackerArray<unknown>(response.data?.data?.drivers, "the driver")
+            .map(toDriverTrackingItem)
+            .map((driver) => [driver.id, driver] as const),
+        );
+        setDirectoryDrivers((previous) => previous.map((driver) => fresh.get(driver.id) ?? driver));
+      }
+    } catch {
+      // The next background refresh retries.
+    }
+  }, [getToken, isSignedIn, user?.id]);
+
+  // Re-reads the directory pages already loaded, so Work Availability and
+  // warnings stay current there too (the working set is re-read separately).
+  const refreshLoadedDirectoryPages = React.useCallback(async () => {
+    const loaded = directoryPageRef.current;
+    if (!loaded.page || loaded.loading || !isSignedIn || !user?.id) return;
+    const seqAtStart = directorySeqRef.current;
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const items: DriverTrackingItem[] = [];
+      let total = loaded.total;
+      let hasMore = loaded.hasMore;
+      for (let page = 1; page <= loaded.page; page += 1) {
+        const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+          params: {
+            scope: "directory",
+            page,
+            limit: DIRECTORY_PAGE_SIZE,
+            status: directoryQuery.status,
+            ...(directoryQuery.search.trim() ? { search: directoryQuery.search.trim() } : {}),
+          },
+          timeout: 15000,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        // The search, filter or pages changed meanwhile: that request wins.
+        if (seqAtStart !== directorySeqRef.current) return;
+        const data = response.data?.data ?? {};
+        items.push(...requireTrackerArray<unknown>(data.drivers, "the driver directory").map(toDriverTrackingItem));
+        total = Number(data.total ?? 0);
+        hasMore = Boolean(data.hasMore);
+        if (!hasMore) break;
+      }
+      setDirectoryDrivers((previous) => {
+        const pageIds = new Set(items.map((driver) => driver.id));
+        // Drivers opened from a notification link aren't on these pages; keep them.
+        const lookedUp = previous.filter(
+          (driver) => lookedUpDriverIdsRef.current.has(driver.id) && !pageIds.has(driver.id),
+        );
+        const seen = new Set<string>();
+        return [...items, ...lookedUp].filter((driver) => {
+          if (seen.has(driver.id)) return false;
+          seen.add(driver.id);
+          return true;
+        });
+      });
+      setDirectoryPage((previous) => ({ ...previous, total, hasMore }));
+    } catch {
+      // Keep the current list; the next refresh retries.
+    }
+  }, [directoryQuery, getToken, isSignedIn, user?.id]);
+
+  // Latest refresh functions for the timers and live-event handlers.
+  const liveRefreshRef = React.useRef({
+    shownDrivers: refreshShownDirectoryDrivers,
+    pages: refreshLoadedDirectoryPages,
+    assignable: fetchAssignableDrivers,
+  });
+  React.useEffect(() => {
+    liveRefreshRef.current = {
+      shownDrivers: refreshShownDirectoryDrivers,
+      pages: refreshLoadedDirectoryPages,
+      assignable: fetchAssignableDrivers,
+    };
+  }, [refreshShownDirectoryDrivers, refreshLoadedDirectoryPages, fetchAssignableDrivers]);
+  const assignableRefreshTimerRef = React.useRef<number | null>(null);
 
   const fetchAvailableLoads = React.useCallback(async () => {
     if (!isSignedIn || !user?.id) return;
@@ -1331,8 +1437,7 @@ export default function DriverTrackerPage() {
       ).trim();
       const status = String(load.status ?? "");
       const isActiveAssignment =
-        Boolean(assignedDriverId) &&
-        ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(status);
+        Boolean(assignedDriverId) && isActiveLoadStatus(status);
       const pendingRequests = Array.isArray(load.driverRequests)
         ? load.driverRequests
         : [];
@@ -1695,7 +1800,11 @@ export default function DriverTrackerPage() {
 
   React.useEffect(() => {
     fetchDrivers();
-    const refreshVisible = () => { if (document.visibilityState === "visible") void fetchDrivers(); };
+    const refreshVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetchDrivers();
+      void liveRefreshRef.current.pages();
+    };
     const interval = setInterval(refreshVisible, LOCATION_INTERVAL_MS);
     window.addEventListener("online", refreshVisible);
     window.addEventListener("focus", refreshVisible);
@@ -1808,6 +1917,23 @@ export default function DriverTrackerPage() {
         // tab counts and currently rendered destination stay in sync.
         listen("load:change", refreshLoadManagement);
         listen("connect", refreshLoadManagement);
+
+        // Any driver's Work Availability change, from any organization: the
+        // shared pool means this list may show them too.
+        const joinDriverPool = () => sock.emit("join_driver_pool");
+        listen("connect", joinDriverPool);
+        if (sock.connected) joinDriverPool();
+        listen("driver:directory_changed", (payload: { driverId?: string }) => {
+          const driverId = String(payload?.driverId ?? "");
+          if (cancelled || !driverId) return;
+          void liveRefreshRef.current.shownDrivers([driverId]);
+          if (assignableIdsRef.current.has(driverId) && assignableRefreshTimerRef.current === null) {
+            assignableRefreshTimerRef.current = window.setTimeout(() => {
+              assignableRefreshTimerRef.current = null;
+              void liveRefreshRef.current.assignable();
+            }, ASSIGNABLE_LIVE_REFRESH_DELAY_MS);
+          }
+        });
         cleanupLoadListeners = () => {
           sock.off("load:change", refreshLoadManagement);
           sock.off("connect", refreshLoadManagement);
@@ -1923,6 +2049,11 @@ export default function DriverTrackerPage() {
       cancelled = true;
       driverListenerCleanups.forEach(cleanup => cleanup());
       cleanupLoadListeners?.();
+      socketRef.current?.emit("leave_driver_pool");
+      if (assignableRefreshTimerRef.current !== null) {
+        window.clearTimeout(assignableRefreshTimerRef.current);
+        assignableRefreshTimerRef.current = null;
+      }
       socketRef.current = null;
     };
   }, [

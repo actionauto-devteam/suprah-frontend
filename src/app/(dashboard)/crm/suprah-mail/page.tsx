@@ -36,6 +36,7 @@ import { useAuth, useUser } from "@/providers/AuthProvider";
 import { useTheme } from "@/context/ThemeContext";
 import { useMailRealtime } from "@/hooks/useMailRealtime";
 import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
+import { useDispatchChannels } from "@/hooks/useDispatchChannels";
 
 import { ensureMailStyles } from "@/components/suprah-mail/theme";
 import { ConnectGmailScreen } from "@/components/suprah-mail/Shared";
@@ -451,6 +452,10 @@ export default function SuprahMailPage() {
     enabled: dispatchChatEnabled,
   });
 
+  // The Dispatch Chat badge counts unread channel messages too.
+  const { unreadTotal: channelUnreadTotal } = useDispatchChannels(dispatchChatEnabled);
+  const dispatchBadgeTotal = dispatchUnreadTotal + channelUnreadTotal;
+
   const focusedPane =
     panes.find((pane) => pane.id === focusedPaneId) ?? panes[0];
   const focusedChannel = focusedPane?.channel ?? "overview";
@@ -754,6 +759,13 @@ export default function SuprahMailPage() {
   }, [router]);
 
   const mailParam = searchParams.get("mail");
+  const dispatchChannelParam = searchParams.get("dispatchChannelId");
+
+  // A channel notification link: show Dispatch Chat, which opens the channel.
+  React.useEffect(() => {
+    if (!dispatchChannelParam || panes.some((pane) => pane.channel === "dispatch")) return;
+    changeChannel("dispatch");
+  }, [changeChannel, dispatchChannelParam, panes]);
 
   React.useEffect(() => {
     if (!mailParam) return;
@@ -1214,13 +1226,13 @@ export default function SuprahMailPage() {
         );
       }
       if (channel === "dispatch") {
-        return Math.max(0, dispatchUnreadTotal);
+        return Math.max(0, dispatchBadgeTotal);
       }
       return 0;
     },
     [
       convUnreadBump,
-      dispatchUnreadTotal,
+      dispatchBadgeTotal,
       emailUnreadTotal,
       inboxUnreadTotal,
     ],
@@ -1310,7 +1322,7 @@ export default function SuprahMailPage() {
             dispatchEnabled={dispatchChatEnabled}
             inboxUnread={inboxUnreadTotal}
             emailUnread={emailUnreadTotal + convUnreadBump}
-            dispatchUnread={dispatchUnreadTotal}
+            dispatchUnread={dispatchBadgeTotal}
             onSelectChannel={changeChannel}
           />
         );
@@ -1376,6 +1388,7 @@ export default function SuprahMailPage() {
           <DispatchChatTab
             unreadTotal={dispatchUnreadTotal}
             onUnreadRefresh={refreshDispatchUnread}
+            openChannelId={dispatchChannelParam}
             refreshSignal={
               paneManualRefreshSignals[paneId] || 0
             }
@@ -1395,6 +1408,7 @@ export default function SuprahMailPage() {
       convPushes,
       convUnreadBump,
       conversationRefreshSignal,
+      dispatchBadgeTotal,
       dispatchChatEnabled,
       dispatchUnreadTotal,
       emailUnreadTotal,
@@ -1482,7 +1496,7 @@ export default function SuprahMailPage() {
             onChange={changeChannel}
             inboxUnread={inboxUnreadTotal}
             emailUnread={emailUnreadTotal + convUnreadBump}
-            dispatchUnread={dispatchUnreadTotal}
+            dispatchUnread={dispatchBadgeTotal}
             smsUnread={0}
             callUnread={0}
             disabledKeys={unavailableForFocusedSelector}

@@ -5,28 +5,22 @@ import { apiClient } from "@/lib/api-client";
 import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
+import { ACTIVE_LOAD_STATUSES as SHARED_ACTIVE_LOAD_STATUSES, GPS_TRACKING_LOAD_STATUSES } from "@/lib/load-status";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
+// Another open tab sent a GPS update this recently: skip this tab's duplicate.
+const OTHER_TAB_GPS_WINDOW_MS = 10_000;
 const POSITION_SEND_THROTTLE_MS = 5_000;
 const LOAD_STATE_POLL_MS = 15_000;
 
 const STATUS_KEY_PREFIX = "driver-gps-sharing-status";
 const MANUAL_ENABLED_KEY_PREFIX = "driver-gps-sharing-enabled";
 
-const ACTIVE_LOAD_STATUSES = new Set([
-  "Assigned",
-  "Accepted",
-  "Picked Up",
-  "In-Transit",
-]);
+const ACTIVE_LOAD_STATUSES = new Set<string>(SHARED_ACTIVE_LOAD_STATUSES);
 
 // Assignment alone does not create a live-GPS tracking relationship.
 // Exact/required GPS starts only after the driver explicitly accepts the load.
-const GPS_REQUIRED_LOAD_STATUSES = new Set([
-  "Accepted",
-  "Picked Up",
-  "In-Transit",
-]);
+const GPS_REQUIRED_LOAD_STATUSES = new Set<string>(GPS_TRACKING_LOAD_STATUSES);
 
 interface DriverLocationSharingContextValue {
   isSharing: boolean;
@@ -184,6 +178,26 @@ export function DriverLocationSharingProvider({
     [userId],
   );
 
+  // Several open tabs would each send the same GPS updates. Tabs tell each
+  // other when they send; a tab skips its own update if another tab just sent
+  // one with the same activity. At least one tab (whichever is active) keeps sending.
+  const otherTabSentRef = React.useRef<{ at: number; status: DriverStatus | null }>({ at: 0, status: null });
+  const gpsTabChannelRef = React.useRef<BroadcastChannel | null>(null);
+  React.useEffect(() => {
+    if (!isSignedIn || !userId || typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(`suprah-driver-gps:${userId}`);
+    channel.onmessage = (event: MessageEvent) => {
+      if (event.data?.type === "sent") {
+        otherTabSentRef.current = { at: Date.now(), status: event.data.status ?? null };
+      }
+    };
+    gpsTabChannelRef.current = channel;
+    return () => {
+      channel.close();
+      gpsTabChannelRef.current = null;
+    };
+  }, [isSignedIn, userId]);
+
   const postLocation = React.useCallback(
     async (
       coords: { lat: number; lng: number; recordedAt?: number; accuracy?: number },
@@ -192,6 +206,10 @@ export function DriverLocationSharingProvider({
       if (!isSignedIn) return;
       if (!coords.recordedAt || Date.now() - coords.recordedAt > 60_000) {
         throw new Error("Waiting for your phone to find your location. Keep this page open with location turned on.");
+      }
+      const otherTab = otherTabSentRef.current;
+      if (Date.now() - otherTab.at < OTHER_TAB_GPS_WINDOW_MS && otherTab.status === status) {
+        return;
       }
 
       const token = await getToken();
@@ -214,6 +232,7 @@ export function DriverLocationSharingProvider({
       if (response.data?.data?.locationAccepted === false) {
         throw new Error("Your location couldn't be saved. Refresh the page and try again.");
       }
+      gpsTabChannelRef.current?.postMessage({ type: "sent", status });
     },
     [getToken, isSignedIn],
   );

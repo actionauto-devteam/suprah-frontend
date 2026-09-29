@@ -39,6 +39,7 @@ import type {
 } from "@/types/driver-tracking";
 import { trailerTypeOptions } from "@/components/driver-profile/driver-profile-constants";
 import { AssignmentReconfirmDialog } from "@/components/driver-tracker/AssignmentReconfirmDialog";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 export type DriverTrackerMobileDrawerTab = "overview" | "chat" | "loads";
 
@@ -72,20 +73,6 @@ const trailerLabel = (value?: string) =>
   trailerTypeOptions.find((option) => option.value === value)?.label ??
   value ??
   "Not provided";
-
-function formatMountainTime(value: string | Date | null | undefined) {
-  if (!value) return "Never";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Never";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Denver",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
-}
 
 function statusTone(status: DriverStatus) {
   switch (status) {
@@ -629,7 +616,7 @@ export function DriverTrackerMobileDrawer({
                               </p>
                               <p className="mt-0.5 break-words text-[11px] font-bold text-foreground [overflow-wrap:anywhere]">
                                 {shipment.pickupDate
-                                  ? formatMountainTime(shipment.pickupDate)
+                                  ? formatScheduleDate(shipment.pickupDate)
                                   : "Not scheduled"}
                               </p>
                             </div>

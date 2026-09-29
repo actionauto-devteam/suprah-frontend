@@ -17,6 +17,7 @@ import {
   XCircle,
   TrendingUp,
 } from "lucide-react";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 type TransactionRow =
   | { kind: "payout"; data: DriverPayout; sortDate: string }
@@ -299,9 +300,9 @@ export default function DriverEarningsPage() {
                             </p>
                           )}
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {(l.dates?.deliveryDeadline || l.deliveredAt || l.delivered)
-                              ? new Date(l.dates?.deliveryDeadline || l.deliveredAt || l.delivered).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })
-                              : new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
+                            {l.dates?.deliveryDeadline
+                              ? formatScheduleDate(l.dates.deliveryDeadline)
+                              : new Date(l.deliveredAt || l.delivered || l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" })}
                           </p>
                         </div>
                       </div>

@@ -5,6 +5,7 @@ import {
   Loader2,
   MessageSquare,
   MessageSquarePlus,
+  Plus,
   Navigation2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -23,6 +24,10 @@ import { subscribeToDispatchChatRealtime } from "@/hooks/useDispatchChatUnread";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { fmtListDate } from "@/components/suprah-mail/utils";
 import { useAuth } from "@/providers/AuthProvider";
+import { useDispatchChannels } from "@/hooks/useDispatchChannels";
+import { ChannelListRow } from "@/components/dispatch-channels/ChannelList";
+import { ChannelConversation } from "@/components/dispatch-channels/ChannelConversation";
+import { CreateChannelDialog } from "@/components/dispatch-channels/CreateChannelDialog";
 
 type DriverFilter = "all" | "active-load" | "sharing" | "offline";
 type DriverOperationalStatus = "active" | "on_leave" | "maintenance";
@@ -58,6 +63,11 @@ type DispatchThreadMeta = {
   lastMessagePreview: string;
   unreadCount: number;
 };
+
+// Drivers looked up per request (the server's scope=ids limit).
+const DRIVER_LOOKUP_BATCH = 50;
+// Matches shown per New Chat search of the whole driver pool.
+const DIRECTORY_SEARCH_LIMIT = 20;
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -328,20 +338,53 @@ function DriverRow({
 function NewDispatchChatModal({
   drivers,
   threadMetaByDriver,
+  searchDirectory,
   onClose,
   onSelect,
 }: {
   drivers: DirectoryDriver[];
   threadMetaByDriver: Record<string, DispatchThreadMeta>;
+  searchDirectory: (search: string) => Promise<DirectoryDriver[]>;
   onClose: () => void;
-  onSelect: (driverId: string) => void;
+  onSelect: (driver: DirectoryDriver) => void;
 }) {
   const [query, setQuery] = React.useState("");
+  const [remote, setRemote] = React.useState<{
+    search: string;
+    drivers: DirectoryDriver[];
+    loading: boolean;
+    failed: boolean;
+  }>({ search: "", drivers: [], loading: false, failed: false });
 
-  const visibleDrivers = React.useMemo(
-    () => drivers.filter((driver: DirectoryDriver) => driverMatchesSearch(driver, query)),
-    [drivers, query],
-  );
+  // The list above only holds drivers you work or chat with. Typing searches
+  // every driver on the platform by name or email.
+  const trimmedQuery = query.trim();
+  React.useEffect(() => {
+    if (trimmedQuery.length < 2) {
+      setRemote({ search: "", drivers: [], loading: false, failed: false });
+      return;
+    }
+    let cancelled = false;
+    setRemote((current) => ({ ...current, loading: true, failed: false }));
+    const timer = window.setTimeout(async () => {
+      try {
+        const found = await searchDirectory(trimmedQuery);
+        if (!cancelled) setRemote({ search: trimmedQuery, drivers: found, loading: false, failed: false });
+      } catch {
+        if (!cancelled) setRemote({ search: trimmedQuery, drivers: [], loading: false, failed: true });
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchDirectory, trimmedQuery]);
+
+  const visibleDrivers = React.useMemo(() => {
+    const local = drivers.filter((driver: DirectoryDriver) => driverMatchesSearch(driver, query));
+    const shown = new Set(local.map((driver) => driver.id));
+    return [...local, ...remote.drivers.filter((driver) => !shown.has(driver.id))];
+  }, [drivers, query, remote.drivers]);
 
   return (
     <div
@@ -387,6 +430,17 @@ function NewDispatchChatModal({
               className="sm5-input h-10 w-full pl-9 pr-3 text-sm"
             />
           </div>
+          <p className="mt-2 px-1 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+            {remote.loading
+              ? "Searching all drivers…"
+              : remote.failed
+                ? "Couldn't search all drivers right now. Showing drivers you work or chat with."
+                : trimmedQuery.length < 2
+                  ? "Type at least 2 letters of a name or email to search every driver."
+                  : remote.drivers.length >= DIRECTORY_SEARCH_LIMIT
+                    ? `Showing the first ${DIRECTORY_SEARCH_LIMIT} matches. Type more of the name to narrow it down.`
+                    : "Searched every driver."}
+          </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2 sm5-scroll">
@@ -410,7 +464,7 @@ function NewDispatchChatModal({
                   <button
                     key={driver.id}
                     type="button"
-                    onClick={() => onSelect(driver.id)}
+                    onClick={() => onSelect(driver)}
                     className={cn(
                       "sm5-conv-row group flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 text-left",
                       unread > 0 && "bg-emerald-500/5",
@@ -492,10 +546,13 @@ export function DispatchChatTab({
   unreadTotal,
   onUnreadRefresh,
   refreshSignal = 0,
+  openChannelId = null,
 }: {
   unreadTotal: number;
   onUnreadRefresh: () => void | Promise<void>;
   refreshSignal?: number;
+  /** Channel to open, for example from a notification link. */
+  openChannelId?: string | null;
 }) {
   const { getToken, isSignedIn } = useAuth();
   const [drivers, setDrivers] = React.useState<DirectoryDriver[]>([]);
@@ -507,6 +564,20 @@ export function DispatchChatTab({
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [newOpen, setNewOpen] = React.useState(false);
   const [railCollapsed, setRailCollapsed] = React.useState(false);
+
+  // Group channels (drivers and staff from any organization).
+  const channelList = useDispatchChannels(Boolean(isSignedIn));
+  const [selectedChannelId, setSelectedChannelId] = React.useState<string | null>(openChannelId);
+  const [createChannelOpen, setCreateChannelOpen] = React.useState(false);
+  // A new link while this tab stays open (for example a second notification).
+  const [linkedChannelId, setLinkedChannelId] = React.useState(openChannelId);
+  if (openChannelId !== linkedChannelId) {
+    setLinkedChannelId(openChannelId);
+    if (openChannelId) {
+      setSelectedChannelId(openChannelId);
+      setSelectedId(null);
+    }
+  }
 
   React.useEffect(() => {
     setRailCollapsed(
@@ -530,6 +601,12 @@ export function DispatchChatTab({
   >({});
 
   const driversRef = React.useRef<DirectoryDriver[]>([]);
+  // The list is built from two sources: drivers working with this
+  // organization (reloaded every minute, with live activity), and drivers
+  // you've chatted with or opened from New Chat (looked up once).
+  const workingDriversRef = React.useRef<DirectoryDriver[]>([]);
+  const extraDriversRef = React.useRef<Map<string, DirectoryDriver>>(new Map());
+  const lookedUpIdsRef = React.useRef<Set<string>>(new Set());
   const selectedIdRef = React.useRef<string | null>(selectedId);
   const requestInFlightRef = React.useRef(false);
   const driversPendingRef = React.useRef(false);
@@ -682,6 +759,20 @@ export function DispatchChatTab({
     return request;
   }, [getToken, isSignedIn]);
 
+  const publishDrivers = React.useCallback(() => {
+    const working = workingDriversRef.current;
+    const workingIds = new Set(working.map((driver) => driver.id));
+    const next = [
+      ...working,
+      ...[...extraDriversRef.current.values()].filter(
+        (driver) => !workingIds.has(driver.id),
+      ),
+    ];
+    driversRef.current = next;
+    setDrivers(next);
+    return next;
+  }, []);
+
   const fetchDrivers = React.useCallback(
     async (silent = false) => {
       if (!isSignedIn) return;
@@ -705,6 +796,7 @@ export function DispatchChatTab({
         if (!token) throw new Error("Your session is not available.");
 
         const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+          params: { scope: "working" },
           headers: { Authorization: `Bearer ${token}` },
           timeout: 30_000,
         });
@@ -717,13 +809,26 @@ export function DispatchChatTab({
           .map((item: unknown) => normalizeDriver(item))
           .filter((driver: DirectoryDriver) => Boolean(driver.id));
 
-        driversRef.current = nextDrivers;
-        setDrivers(nextDrivers);
+        // A driver who stops working with this organization (for example
+        // after delivery) stays in the list, without load activity or GPS.
+        const nextIds = new Set(nextDrivers.map((driver) => driver.id));
+        for (const previous of workingDriversRef.current) {
+          if (nextIds.has(previous.id)) continue;
+          extraDriversRef.current.set(previous.id, {
+            ...previous,
+            activeLoadCount: 0,
+            shipments: [],
+            isSharing: false,
+            status: "offline",
+          });
+        }
+        workingDriversRef.current = nextDrivers;
+        const merged = publishDrivers();
         setError(null);
         setRefreshWarning(null);
         setSelectedId((current: string | null) =>
           current &&
-          nextDrivers.some(
+          merged.some(
             (driver: DirectoryDriver) => driver.id === current,
           )
             ? current
@@ -756,7 +861,7 @@ export function DispatchChatTab({
         void fetchDrivers(true);
       }
     },
-    [fetchThreadMeta, getToken, isSignedIn],
+    [fetchThreadMeta, getToken, isSignedIn, publishDrivers],
   );
 
   const patchThreadMeta = React.useCallback(
@@ -845,6 +950,17 @@ export function DispatchChatTab({
       if (!changed) return;
       driversRef.current = nextDrivers;
       setDrivers(nextDrivers);
+
+      // Keep the sources in step so the next rebuild doesn't undo the patch.
+      const patched = nextDrivers.find((driver) => driver.id === driverId);
+      if (patched) {
+        if (extraDriversRef.current.has(driverId)) {
+          extraDriversRef.current.set(driverId, patched);
+        }
+        workingDriversRef.current = workingDriversRef.current.map((driver) =>
+          driver.id === driverId ? patched : driver,
+        );
+      }
     },
     [],
   );
@@ -881,6 +997,65 @@ export function DispatchChatTab({
     [fetchThreadMeta],
   );
 
+  // Drivers you've chatted with who aren't working with this organization
+  // right now, looked up by id (not by loading every driver).
+  const lookUpDrivers = React.useCallback(
+    async (ids: string[]) => {
+      if (!ids.length || !isSignedIn) return;
+      try {
+        const token = await getToken();
+        if (!token) return;
+        for (let index = 0; index < ids.length; index += DRIVER_LOOKUP_BATCH) {
+          const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+            params: {
+              scope: "ids",
+              ids: ids.slice(index, index + DRIVER_LOOKUP_BATCH).join(","),
+            },
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 30_000,
+          });
+          const found: DirectoryDriver[] = (
+            Array.isArray(response.data?.data?.drivers) ? response.data.data.drivers : []
+          )
+            .map((item: unknown) => normalizeDriver(item))
+            .filter((driver: DirectoryDriver) => Boolean(driver.id));
+          for (const driver of found) extraDriversRef.current.set(driver.id, driver);
+          if (found.length) publishDrivers();
+        }
+      } catch {
+        // Retried on the next manual refresh.
+      }
+    },
+    [getToken, isSignedIn, publishDrivers],
+  );
+
+  React.useEffect(() => {
+    if (!isSignedIn) return;
+    const known = new Set(drivers.map((driver) => driver.id));
+    const missing = Object.keys(threadMetaByDriver).filter(
+      (id) => !known.has(id) && !lookedUpIdsRef.current.has(id),
+    );
+    if (!missing.length) return;
+    missing.forEach((id) => lookedUpIdsRef.current.add(id));
+    void lookUpDrivers(missing);
+  }, [drivers, isSignedIn, lookUpDrivers, threadMetaByDriver]);
+
+  const searchDirectory = React.useCallback(
+    async (search: string): Promise<DirectoryDriver[]> => {
+      const token = await getToken();
+      if (!token) throw new Error("Your session is not available.");
+      const response = await apiClient.get("/api/driver-tracking/org-drivers", {
+        params: { scope: "directory", search, limit: DIRECTORY_SEARCH_LIMIT },
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30_000,
+      });
+      return (Array.isArray(response.data?.data?.drivers) ? response.data.data.drivers : [])
+        .map((item: unknown) => normalizeDriver(item))
+        .filter((driver: DirectoryDriver) => Boolean(driver.id));
+    },
+    [getToken],
+  );
+
   // One global header Refresh button controls this panel. Initializing the ref
   // from the prop avoids an extra request when the channel is remounted.
   React.useEffect(() => {
@@ -890,7 +1065,8 @@ export function DispatchChatTab({
     void fetchDrivers(true);
     void fetchThreadMeta();
     void onUnreadRefresh();
-  }, [fetchDrivers, fetchThreadMeta, onUnreadRefresh, refreshSignal]);
+    void lookUpDrivers([...extraDriversRef.current.keys()]);
+  }, [fetchDrivers, fetchThreadMeta, lookUpDrivers, onUnreadRefresh, refreshSignal]);
 
   React.useEffect(() => {
     if (!isSignedIn) {
@@ -900,6 +1076,9 @@ export function DispatchChatTab({
       optimisticUnreadMessageIdsRef.current.clear();
       selectedIdRef.current = null;
       driversRef.current = [];
+      workingDriversRef.current = [];
+      extraDriversRef.current.clear();
+      lookedUpIdsRef.current.clear();
       setDrivers([]);
       setThreadMetaByDriver({});
       setLoading(false);
@@ -1233,6 +1412,7 @@ export function DispatchChatTab({
     (driverId: string) => {
       selectedIdRef.current = driverId;
       setSelectedId(driverId);
+      setSelectedChannelId(null);
       optimisticUnreadMessageIdsRef.current.delete(driverId);
 
       // Opening the exact conversation is an immediate read-intent. The
@@ -1249,8 +1429,19 @@ export function DispatchChatTab({
     setNewOpen(true);
   };
 
-  const selectNewConversation = (driverId: string) => {
-    selectDriverConversation(driverId);
+  const selectChannel = (channelId: string) => {
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    setSelectedChannelId(channelId);
+  };
+  const conversationOpen = Boolean(selectedDriver || selectedChannelId);
+
+  const selectNewConversation = (driver: DirectoryDriver) => {
+    if (!driversRef.current.some((known) => known.id === driver.id)) {
+      extraDriversRef.current.set(driver.id, driver);
+      publishDrivers();
+    }
+    selectDriverConversation(driver.id);
     setFilter("all");
     setQuery("");
     setNewOpen(false);
@@ -1262,7 +1453,7 @@ export function DispatchChatTab({
         className={cn(
           "relative min-h-0 w-full flex-col border-r-0 border-border/60 bg-[var(--bg-elevated)] transition-[width] duration-200 @lg:flex @lg:shrink-0 @lg:border-r",
           railCollapsed ? "@lg:w-16" : "@lg:w-[min(21rem,100%)]",
-          selectedDriver ? "hidden" : "flex",
+          conversationOpen ? "hidden" : "flex",
         )}
       >
         <div className={cn(
@@ -1336,6 +1527,39 @@ export function DispatchChatTab({
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto sm5-scroll">
+          <div className={cn("border-b border-border/50", railCollapsed && "@lg:hidden")}>
+            <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                Channels
+              </p>
+              <button
+                type="button"
+                onClick={() => setCreateChannelOpen(true)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+              >
+                <Plus className="size-3" /> New channel
+              </button>
+            </div>
+            {channelList.channels.length === 0 ? (
+              <p className="px-3 pb-2.5 text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                {channelList.loading
+                  ? "Loading channels…"
+                  : channelList.error ?? "No channels yet. Create one to chat with several drivers and staff at once."}
+              </p>
+            ) : (
+              channelList.channels.map((channel) => (
+                <ChannelListRow
+                  key={channel.id}
+                  channel={channel}
+                  selected={channel.id === selectedChannelId}
+                  onSelect={() => selectChannel(channel.id)}
+                />
+              ))
+            )}
+            <p className="px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+              Drivers
+            </p>
+          </div>
           {loading ? (
             <div className="flex items-center justify-center gap-2 px-4 py-12 text-xs" style={{ color: "var(--text-tertiary)" }}>
               <Loader2 className="size-4 animate-spin text-emerald-500" />
@@ -1366,7 +1590,8 @@ export function DispatchChatTab({
                 No matching drivers
               </p>
               <p className="max-w-64 text-[10px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                Change the search or filter to view another driver.
+                This list shows drivers you work or chat with. Change the search
+                or filter, or use New Chat to search every driver.
               </p>
             </div>
           ) : (
@@ -1431,10 +1656,20 @@ export function DispatchChatTab({
       <section
         className={cn(
           "min-h-0 min-w-0 flex-1 overflow-hidden",
-          selectedDriver ? "flex" : "hidden @lg:flex",
+          conversationOpen ? "flex" : "hidden @lg:flex",
         )}
       >
-        {selectedDriver ? (
+        {selectedChannelId ? (
+          <ChannelConversation
+            key={selectedChannelId}
+            channelId={selectedChannelId}
+            onBack={() => setSelectedChannelId(null)}
+            onGone={() => {
+              setSelectedChannelId(null);
+              void channelList.refresh();
+            }}
+          />
+        ) : selectedDriver ? (
           <DispatchChatInlinePane
             key={selectedDriver.id}
             driver={selectedDriver}
@@ -1453,20 +1688,30 @@ export function DispatchChatTab({
                 style={{ color: "var(--text-disabled)" }}
               />
               <p className="mt-3 text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                Select a driver
+                Select a driver or channel
               </p>
               <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                Choose a driver to open the existing private dispatcher-driver conversation directly in this workspace.
+                Choose a driver to open your private conversation, or a channel to chat with a group of drivers and staff.
               </p>
             </div>
           </div>
         )}
       </section>
 
+      <CreateChannelDialog
+        open={createChannelOpen}
+        onOpenChange={setCreateChannelOpen}
+        onCreated={(channel) => {
+          void channelList.refresh();
+          selectChannel(channel.id);
+        }}
+      />
+
       {newOpen && (
         <NewDispatchChatModal
           drivers={drivers}
           threadMetaByDriver={threadMetaByDriver}
+          searchDirectory={searchDirectory}
           onClose={() => setNewOpen(false)}
           onSelect={selectNewConversation}
         />
