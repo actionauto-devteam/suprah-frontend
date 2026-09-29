@@ -79,7 +79,7 @@ function repairSingleSidedBoldMarkerLine(line: string): string {
   return line;
 }
 
-function repairSingleSidedBoldMarkers(content: string): string {
+export function repairSingleSidedBoldMarkers(content: string): string {
   return content
     .replace(/\r\n?/g, '\n')
     .split('\n')
@@ -154,7 +154,7 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
     );
 
   normalized = normalized.replace(FORMAT_ONLY_LINE, '$1');
-  return repairSingleSidedBoldMarkers(normalized);
+  return normalized;
 }
 
 /**

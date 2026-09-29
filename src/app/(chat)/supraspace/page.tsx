@@ -2313,23 +2313,10 @@ function applyFontSizeToRichEditorSelection(
 }
 
 function serializeVisibleRichText(el: HTMLElement): string {
-  const visibleText = stripCopiedTextArtifacts(el.innerText);
   const serializedText = stripCopiedTextArtifacts(htmlToMarkdown(el));
 
   return normalizeMessageMarkdownText(
-    canonicalizeColorMarkup(
-      restoreMissingSerialsFromSources(
-        preserveVisiblePayloadLines(
-          preserveVisibleVinLines(serializedText, visibleText),
-          visibleText,
-        ),
-        [
-          visibleText,
-          stripCopiedTextArtifacts(el.textContent || ''),
-          serializedText,
-        ],
-      ),
-    ),
+    canonicalizeColorMarkup(serializedText),
   );
 }
 
@@ -4889,10 +4876,11 @@ function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: stri
   };
 }
 
-function SS4RemoteImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: React.CSSProperties }) {
+function SS4RemoteImage({ src, alt, className, style, onRecover }: { src: string; alt: string; className?: string; style?: React.CSSProperties; onRecover?: () => void }) {
   const previewUrl = src;
   const [loadedUrl, setLoadedUrl] = React.useState<string | null>(null);
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  const recoveredUrlRef = React.useRef<string | null>(null);
   const loading = loadedUrl !== previewUrl && failedUrl !== previewUrl;
   const failed = failedUrl === previewUrl;
 
@@ -4913,19 +4901,26 @@ function SS4RemoteImage({ src, alt, className, style }: { src: string; alt: stri
         <img
           src={previewUrl}
           alt={alt}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
           style={{ display: 'block' }}
           decoding="async"
           onLoad={() => setLoadedUrl(previewUrl)}
-          onError={() => setFailedUrl(previewUrl)}
+          onError={() => {
+            if (onRecover && recoveredUrlRef.current !== previewUrl) {
+              recoveredUrlRef.current = previewUrl;
+              onRecover();
+              return;
+            }
+            setFailedUrl(previewUrl);
+          }}
         />
       )}
     </div>
   );
 }
 
-function SS4AttachmentImage({ attachment, alt, className, style }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties }) {
-  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} />;
+function SS4AttachmentImage({ attachment, alt, className, style, onRecover }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties; onRecover?: () => void }) {
+  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} onRecover={onRecover} />;
 }
 
 function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
@@ -6878,7 +6873,7 @@ const Bubble = React.memo(function Bubble({
               if (images.length === 1) return (
                 <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
                   className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="h-full w-full rounded-xl object-cover" style={{ display: 'block' }} />
+                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="h-full w-full rounded-xl" style={{ display: 'block' }} onRecover={onRefreshMedia} />
                 </button>
               );
               return (
@@ -6886,7 +6881,7 @@ const Bubble = React.memo(function Bubble({
                   {images.map(({ attachment, attachmentIndex }, i) => (
                     <button key={`img-${i}`} data-ss4-attachment-url={attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(attachment, attachmentIndex); }}
                       className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full object-cover rounded-xl" style={{ display: 'block' }} />
+                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full rounded-xl" style={{ display: 'block' }} onRecover={onRefreshMedia} />
                     </button>
                   ))}
                 </div>
@@ -9329,8 +9324,7 @@ export default function SupraSpacePage() {
     }
     const viewport = window.visualViewport;
     let raf = 0;
-    let lastViewportCss: { height: number; safeBottom: number; keyboardOpen: boolean } | null = null;
-    let keyboardViewportTop = 0;
+    let lastViewportCss: { height: number; top: number; safeBottom: number; keyboardOpen: boolean } | null = null;
     let baselineVisualHeight = Math.round(viewport.height || window.innerHeight);
     let baselineWidth = window.innerWidth;
     const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -9362,27 +9356,22 @@ export default function SupraSpacePage() {
         // expanding the fixed app shell to window.screen.height on cold launches.
         const height = visualHeight;
         const safeBottom = keyboardOpen ? 0 : readSafeAreaInsetBottom();
-        if (!lastViewportCss || lastViewportCss.keyboardOpen !== keyboardOpen) {
-          // WebKit positions fixed elements in the layout viewport while the
-          // keyboard uses the visual viewport. Capture that offset once when
-          // the keyboard opens; following later swipe offsets moves the whole
-          // chat instead of just its message timeline, leaving a visible gap.
-          keyboardViewportTop = keyboardOpen ? top : 0;
-          document.documentElement.style.setProperty('--ss4-vv-top', `${keyboardViewportTop}px`);
-        }
+        const shellTop = keyboardOpen ? top : 0;
         if (
           !lastViewportCss
           || lastViewportCss.keyboardOpen !== keyboardOpen
           || Math.abs(lastViewportCss.height - height) >= 3
+          || lastViewportCss.top !== shellTop
           || lastViewportCss.safeBottom !== safeBottom
         ) {
+          document.documentElement.style.setProperty('--ss4-vv-top', `${shellTop}px`);
           if (keyboardOpen) {
             document.documentElement.style.setProperty('--ss4-vvh', `${height}px`);
           } else {
             document.documentElement.style.removeProperty('--ss4-vvh');
           }
           document.documentElement.style.setProperty('--ss4-safe-bottom', `${safeBottom}px`);
-          lastViewportCss = { height, safeBottom, keyboardOpen };
+          lastViewportCss = { height, top: shellTop, safeBottom, keyboardOpen };
         }
       });
     };
@@ -11086,23 +11075,7 @@ export default function SupraSpacePage() {
     const conversationId = activeId;
     const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
     const serializedComposerText = stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
-    const serializedContent = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(
-        restoreMissingSerialsFromSources(
-          preserveVisiblePayloadLines(
-            preserveVisibleVinLines(serializedComposerText, visibleComposerText),
-            visibleComposerText,
-          ),
-          [
-            visibleComposerText,
-            stripCopiedTextArtifacts(inputTextRef.current),
-            stripCopiedTextArtifacts(pastedPlainTextRef.current),
-            stripCopiedTextArtifacts(textareaRef.current?.textContent || ''),
-            serializedComposerText,
-          ],
-        ),
-      ),
-    );
+    const serializedContent = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
     const content = serializedContent || (hasText
       ? normalizeMessageMarkdownText(visibleComposerText)
       : '');

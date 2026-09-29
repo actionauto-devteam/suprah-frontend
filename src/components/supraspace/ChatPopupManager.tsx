@@ -3968,6 +3968,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string; type?: 'image' | 'video' } | null>(null);
   const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
+  const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
+  const [failedPopupImages, setFailedPopupImages] = React.useState<Set<string>>(() => new Set());
 
   // Reaction tooltip
   const [whoReactedPop, setWhoReactedPop] = React.useState<{ id: string; emoji: string; names: string[]; top: number; left?: number; right?: number } | null>(null);
@@ -4550,15 +4552,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const syncEditDraft = React.useCallback(() => {
     const editor = editAreaRef.current;
     const serialized = editor ? htmlToMarkdown(editor) : editDraft;
-    const visibleText = editor?.innerText || editDraft;
-    const next = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(
-        preserveVisiblePayloadLines(
-          preserveVisibleVinLines(serialized, visibleText),
-          visibleText,
-        ),
-      ),
-    );
+    const next = normalizeMessageMarkdownText(canonicalizeColorMarkup(serialized));
     setEditDraft(next);
     return next;
   }, [editDraft]);
@@ -5277,6 +5271,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setFetchError(true);
     } finally { setLoading(false); }
   }, [conv._id, crmToken, syncPinnedMessageIds]);
+  const recoverPopupImage = React.useCallback((imageKey: string) => {
+    if (retryingPopupImages.has(imageKey)) {
+      setFailedPopupImages(previous => new Set(previous).add(imageKey));
+      return;
+    }
+    setRetryingPopupImages(previous => new Set(previous).add(imageKey));
+    void fetchMessages();
+  }, [fetchMessages, retryingPopupImages]);
 
   React.useEffect(() => { fetchMessages(); }, [fetchMessages]);
   React.useEffect(() => {
@@ -5413,24 +5415,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const handleSend = async () => {
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
-    const serializedText = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(
-        restoreMissingSerialsFromSources(
-          preserveVisiblePayloadLines(
-            preserveVisibleVinLines(serializedComposerText, visibleComposerText),
-            visibleComposerText,
-          ),
-          [
-            visibleComposerText,
-            inputTextRef.current,
-            pastedPlainTextRef.current,
-            inputRef.current?.textContent || '',
-            serializedComposerText,
-            pendingAttachments.map(item => item.file.name).join('\n'),
-          ],
-        ),
-      ),
-    );
+    const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
     const text = serializedText || normalizeMessageMarkdownText(visibleComposerText);
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
@@ -6677,6 +6662,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
+                                  const imageKey = `${msg._id}:${i}:${src}`;
                                   return (
                                     <button
                                       key={i}
@@ -6688,18 +6674,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       )}
                                       title="Preview image"
                                     >
-                                      {imageAttachments.length === 1 ? (
+                                      {failedPopupImages.has(imageKey) ? (
+                                        <span className="flex h-32 items-center justify-center px-3 text-center text-[11px] text-muted-foreground">Image unavailable</span>
+                                      ) : imageAttachments.length === 1 ? (
                                         <img
+                                          key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
                                           src={src}
                                           alt={a.originalName || 'photo'}
                                           className="block rounded-2xl"
                                           style={{ maxWidth: '100%', maxHeight: 240, width: 'auto', height: 'auto' }}
+                                          onError={() => recoverPopupImage(imageKey)}
                                         />
                                       ) : (
                                         <img
+                                          key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
                                           src={src}
                                           alt={a.originalName || 'photo'}
                                           className="h-full w-full object-contain"
+                                          onError={() => recoverPopupImage(imageKey)}
                                         />
                                       )}
                                     </button>
