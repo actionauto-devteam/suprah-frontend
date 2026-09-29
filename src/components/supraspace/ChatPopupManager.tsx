@@ -7,7 +7,7 @@ import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smil
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
-import { normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -28,7 +28,7 @@ const POPUP_LIST_INDENT_STEP = '  ';
 const popupBulletGlyphForDepth = (depth: number) => POPUP_BULLET_GLYPHS[((depth % POPUP_BULLET_GLYPHS.length) + POPUP_BULLET_GLYPHS.length) % POPUP_BULLET_GLYPHS.length];
 const HEADER_H = 44;
 const MAX_VISIBLE_POPUPS = 3;
-const GIPHY_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
+const GIPHY_FALLBACK_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || '';
 
 function fmtDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds || 0));
@@ -710,6 +710,16 @@ function insertSoftLineBreakWithCaretFormatting(
   range.deleteContents();
   const br = document.createElement('br');
   range.insertNode(br);
+  const boldAncestor = br.parentElement?.closest<HTMLElement>('strong, b');
+  if (boldAncestor && root.contains(boldAncestor)) {
+    const trailingRange = document.createRange();
+    trailingRange.setStartAfter(br);
+    trailingRange.setEnd(boldAncestor, boldAncestor.childNodes.length);
+    if (!stripSupraSpaceTypingMarkers(trailingRange.toString()).trim()) {
+      boldAncestor.parentNode?.insertBefore(br, boldAncestor.nextSibling);
+      inlineFormats = { ...inlineFormats, bold: false };
+    }
+  }
   const typingSpan = br.parentElement?.closest<HTMLElement>(
     'span[data-ss4-typing-style="true"]',
   );
@@ -935,8 +945,10 @@ const MEDIA_LABELS: Record<string, string> = {
 const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
-  return text.replace(/\*\*([\s\S]+?)\*\*/g, (_match, inner: string) =>
-    inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+  return text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) =>
+    inner.includes('\n') && !inner.includes('**')
+      ? inner.split('\n').map(line => line ? `**${line}**` : '').join('\n')
+      : match
   );
 }
 
@@ -1052,7 +1064,7 @@ function normalizePastedListArtifacts(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   return normalizeListExitLineSpacing(
-    text
+    normalizeSupraSpaceBoldMarkerRuns(text)
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   ).trim();
@@ -2975,8 +2987,10 @@ function PinnedMessagesModal({
 // ─── GIF picker (Giphy) ─────────────────────────────────────────────────────────
 function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (g: SSGif) => void; onClose: () => void; anchorRef: React.RefObject<HTMLElement | null>; boundaryRef?: React.RefObject<HTMLElement | null> }) {
   const [q, setQ] = React.useState('');
-  const [gifs, setGifs] = React.useState<any[]>([]);
+  const [gifs, setGifs] = React.useState<SSGif[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [unavailable, setUnavailable] = React.useState(false);
+  const initialGifQueryRef = React.useRef(true);
   const PICKER_W = 280;
   const PICKER_H = 320;
   const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
@@ -2995,19 +3009,42 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
   }, [anchorRef, boundaryRef]);
 
   const run = React.useCallback(async (query: string) => {
-    if (!GIPHY_KEY) return;
     setLoading(true);
+    setUnavailable(false);
     try {
-      const endpoint = query.trim()
-        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
-        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
-      const r = await fetch(endpoint);
-      const d = await r.json();
-      setGifs(d?.data || []);
-    } catch { setGifs([]); } finally { setLoading(false); }
+      try {
+        const r = await apiClient.get('/api/supraspace/gifs', { params: { q: query.trim(), limit: 24 } });
+        setGifs(Array.isArray(r.data?.data) ? r.data.data : []);
+      } catch (error) {
+        const status = typeof error === 'object' && error !== null && 'response' in error
+          ? Number((error as { response?: { status?: unknown } }).response?.status)
+          : 0;
+        if (status !== 503 || !GIPHY_FALLBACK_KEY) throw error;
+        const endpoint = query.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_FALLBACK_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_FALLBACK_KEY}&limit=24&rating=pg-13`;
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error('GIF search is unavailable');
+        const payload = await response.json() as { data?: any[] };
+        setGifs((Array.isArray(payload.data) ? payload.data : []).flatMap(item => {
+          const preview = item?.images?.fixed_height_small || item?.images?.fixed_width_small || item?.images?.fixed_height || item?.images?.fixed_width;
+          const url = item?.images?.original?.url || preview?.url;
+          return typeof url === 'string' && /^https:\/\//i.test(url)
+            ? [{ url, width: Number(preview?.width) || undefined, height: Number(preview?.height) || undefined, title: typeof item?.title === 'string' ? item.title : undefined }]
+            : [];
+        }));
+      }
+    } catch {
+      setGifs([]);
+      setUnavailable(true);
+    } finally { setLoading(false); }
   }, []);
-  React.useEffect(() => { run(''); }, [run]);
-  React.useEffect(() => { const t = setTimeout(() => run(q), 350); return () => clearTimeout(t); }, [q, run]);
+  React.useEffect(() => {
+    const delay = initialGifQueryRef.current ? 0 : 350;
+    initialGifQueryRef.current = false;
+    const t = setTimeout(() => run(q), delay);
+    return () => clearTimeout(t);
+  }, [q, run]);
 
   const panelRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -3035,7 +3072,7 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
             autoFocus
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder={GIPHY_KEY ? 'Search GIPHY...' : 'GIPHY key not configured'}
+            placeholder="Search GIFs..."
             className="w-full h-8 pl-7 pr-3 rounded-lg text-[12px] outline-none border border-border/60 bg-muted/40 text-foreground placeholder:text-muted-foreground focus:border-blue-500/50"
           />
         </div>
@@ -3043,19 +3080,18 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
       <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto">
         {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>}
         {!loading && gifs.length === 0 && (
-          <p className="col-span-2 text-center py-6 text-[11px] text-muted-foreground">{GIPHY_KEY ? 'No results' : 'Set NEXT_PUBLIC_GIPHY_API_KEY'}</p>
+          <p className="col-span-2 text-center py-6 text-[11px] text-muted-foreground">{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>
         )}
-        {gifs.map((g: any) => {
-          const img = g.images?.fixed_height_small || g.images?.fixed_height;
+        {gifs.map(g => {
           return (
             <button
-              key={g.id}
+              key={g.url}
               type="button"
-              onClick={() => onPick({ url: g.images?.original?.url || img?.url, width: Number(img?.width) || undefined, height: Number(img?.height) || undefined, title: g.title })}
+              onClick={() => onPick(g)}
               className="rounded-lg overflow-hidden bg-muted/40"
               style={{ aspectRatio: '1' }}
             >
-              <img src={img?.url} alt={g.title || 'GIF'} className="w-full h-full object-cover" />
+              <img src={g.url} alt={g.title || 'GIF'} className="w-full h-full object-cover" />
             </button>
           );
         })}
@@ -3944,6 +3980,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string; type?: 'image' | 'video' } | null>(null);
   const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
+  const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
+  const [failedPopupImages, setFailedPopupImages] = React.useState<Set<string>>(() => new Set());
 
   // Reaction tooltip
   const [whoReactedPop, setWhoReactedPop] = React.useState<{ id: string; emoji: string; names: string[]; top: number; left?: number; right?: number } | null>(null);
@@ -4526,15 +4564,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const syncEditDraft = React.useCallback(() => {
     const editor = editAreaRef.current;
     const serialized = editor ? htmlToMarkdown(editor) : editDraft;
-    const visibleText = editor?.innerText || editDraft;
-    const next = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(
-        preserveVisiblePayloadLines(
-          preserveVisibleVinLines(serialized, visibleText),
-          visibleText,
-        ),
-      ),
-    );
+    const next = normalizeMessageMarkdownText(canonicalizeColorMarkup(serialized));
     setEditDraft(next);
     return next;
   }, [editDraft]);
@@ -5253,6 +5283,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setFetchError(true);
     } finally { setLoading(false); }
   }, [conv._id, crmToken, syncPinnedMessageIds]);
+  const recoverPopupImage = React.useCallback((imageKey: string) => {
+    if (retryingPopupImages.has(imageKey)) {
+      setFailedPopupImages(previous => new Set(previous).add(imageKey));
+      return;
+    }
+    setRetryingPopupImages(previous => new Set(previous).add(imageKey));
+    void fetchMessages();
+  }, [fetchMessages, retryingPopupImages]);
 
   React.useEffect(() => { fetchMessages(); }, [fetchMessages]);
   React.useEffect(() => {
@@ -5389,24 +5427,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const handleSend = async () => {
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
-    const serializedText = normalizeMessageMarkdownText(
-      canonicalizeColorMarkup(
-        restoreMissingSerialsFromSources(
-          preserveVisiblePayloadLines(
-            preserveVisibleVinLines(serializedComposerText, visibleComposerText),
-            visibleComposerText,
-          ),
-          [
-            visibleComposerText,
-            inputTextRef.current,
-            pastedPlainTextRef.current,
-            inputRef.current?.textContent || '',
-            serializedComposerText,
-            pendingAttachments.map(item => item.file.name).join('\n'),
-          ],
-        ),
-      ),
-    );
+    const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
     const text = serializedText || normalizeMessageMarkdownText(visibleComposerText);
     if (pendingAttachments.length > 0) {
       await sendPendingAttachments(text);
@@ -6653,6 +6674,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
+                                  const imageKey = `${msg._id}:${i}:${src}`;
                                   return (
                                     <button
                                       key={i}
@@ -6664,18 +6686,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       )}
                                       title="Preview image"
                                     >
-                                      {imageAttachments.length === 1 ? (
+                                      {failedPopupImages.has(imageKey) ? (
+                                        <span className="flex h-32 items-center justify-center px-3 text-center text-[11px] text-muted-foreground">Image unavailable</span>
+                                      ) : imageAttachments.length === 1 ? (
                                         <img
+                                          key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
                                           src={src}
                                           alt={a.originalName || 'photo'}
                                           className="block rounded-2xl"
                                           style={{ maxWidth: '100%', maxHeight: 240, width: 'auto', height: 'auto' }}
+                                          onError={() => recoverPopupImage(imageKey)}
                                         />
                                       ) : (
                                         <img
+                                          key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
                                           src={src}
                                           alt={a.originalName || 'photo'}
                                           className="h-full w-full object-contain"
+                                          onError={() => recoverPopupImage(imageKey)}
                                         />
                                       )}
                                     </button>

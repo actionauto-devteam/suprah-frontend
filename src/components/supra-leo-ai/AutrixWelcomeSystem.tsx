@@ -364,9 +364,11 @@ function speak(text: string, rate = 0.91, pitch = 1): SpeechSynthesisUtterance {
     if (v) utt.voice = v
     window.speechSynthesis.speak(utt)
   }
-  window.speechSynthesis.getVoices().length === 0
-    ? (window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; go() })
-    : go()
+  if (window.speechSynthesis.getVoices().length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; go() }
+  } else {
+    go()
+  }
   return utt
 }
 
@@ -480,14 +482,14 @@ function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
     const t = setTimeout(() => {
       const firstName = userName.split(' ')[0]
       setSpeaking(true)
-      const msg = `Welcome to ${dealerName} CRM, ${firstName}. I'm Autrix, your AI co-pilot. I help you manage leads, schedule appointments, track attendance, and keep your team connected. You'll find me in the bottom right — tap anytime. The Appointments module handles your full lead pipeline. Supra Space is your team messaging hub. Timeproof logs your shifts. Biometrics keeps you secure. And Team Feeds keeps everyone connected. Let's close some deals.`
+      const msg = `Welcome to ${dealerName} CRM, ${firstName}. I'm Autrix, your AI co-pilot. I help you manage leads, schedule appointments, track attendance, and keep your team connected. You'll find me in the header — tap anytime. The Appointments module handles your full lead pipeline. Supra Space is your team messaging hub. Timeproof logs your shifts. Biometrics keeps you secure. And Team Feeds keeps everyone connected. Let's close some deals.`
       const utt = speak(msg, 0.9)
       utt.onend = () => setSpeaking(false)
       utt.onerror = () => setSpeaking(false)
     }, 800)
     const closeTimer = setTimeout(handleClose, 20000)
     return () => { clearTimeout(t); clearTimeout(closeTimer); window.speechSynthesis.cancel() }
-  }, [userName, handleClose])
+  }, [userName, dealerName, handleClose])
 
   const pills = ['Lead Pipeline', 'AI Analysis', 'Voice Assist', 'Smart Reminders', 'Quick Actions']
 
@@ -559,7 +561,7 @@ function DashboardWelcomeModal({ userName, onClose }: DashboardWelcomeProps) {
 
           {/* Message */}
           <div className="aw-message">
-            Welcome, <strong>{userName.split(' ')[0]}</strong>. I'm your AI co-pilot for the {dealerName} CRM — here to help you close more deals, stay on schedule, and keep your team running at full throttle.
+            Welcome, <strong>{userName.split(' ')[0]}</strong>. I&apos;m your AI co-pilot for the {dealerName} CRM — here to help you close more deals, stay on schedule, and keep your team running at full throttle.
           </div>
 
           {/* Pills */}

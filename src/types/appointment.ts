@@ -73,6 +73,8 @@ export interface Appointment {
   reviewRequestEmailLastAttemptAt?: string;
   reviewRequestEmailNextRetryAt?: string;
   reviewRequestEmailFailureReason?: string;
+  rescheduleAwaitingReplyAt?: string;
+  rescheduleStatedPreference?: string;
   googleCalendarEventId?: string;
   meetingLink?: string;
   notes?: string;

@@ -9,8 +9,11 @@ import {
   X,
   ChevronDown,
   ClipboardList,
+  Bot,
+  Pause,
+  Play,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
 
@@ -22,6 +25,8 @@ interface ConversationViewProps {
   sourceEmail: string;
   siblingCount?: number;
   onReplyToSiblings?: () => void;
+  aiAgentStatus?: { paused: boolean; pausedBy?: string } | null;
+  onToggleAiAgent?: () => void;
 }
 
 interface InquiryField {
@@ -291,7 +296,7 @@ const extractCustomerComments = (
   lead: any,
   message: any,
 ): string => {
-  const direct = cleanValue(lead?.comments);
+  const direct = decodeHtmlEntities(cleanValue(lead?.comments));
   if (direct) return cleanAggregatorText(direct);
 
   const text = getMessageText(message);
@@ -531,6 +536,8 @@ export function ConversationView({
   sourceEmail,
   siblingCount = 0,
   onReplyToSiblings,
+  aiAgentStatus = null,
+  onToggleAiAgent,
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
@@ -594,8 +601,45 @@ export function ConversationView({
     return groups;
   }, [threads, sourceEmail]);
 
+  const aiToggleButton = aiAgentStatus && (
+    <button
+      type="button"
+      onClick={onToggleAiAgent}
+      title={
+        aiAgentStatus.paused
+          ? "AI agent is paused — click to resume"
+          : "AI agent is replying live — click to pause"
+      }
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition",
+        aiAgentStatus.paused
+          ? "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
+          : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-600 hover:bg-fuchsia-100 dark:border-fuchsia-400/20 dark:bg-fuchsia-400/10 dark:text-fuchsia-300",
+      )}
+    >
+      <Bot className="h-3.5 w-3.5 shrink-0" />
+      <span className="hidden sm:inline">
+        {aiAgentStatus.paused
+          ? aiAgentStatus.pausedBy
+            ? `Paused by ${aiAgentStatus.pausedBy}`
+            : "AI paused"
+          : "AI live"}
+      </span>
+      {aiAgentStatus.paused ? (
+        <Play className="h-3 w-3 shrink-0" />
+      ) : (
+        <Pause className="h-3 w-3 shrink-0" />
+      )}
+    </button>
+  );
+
   return (
-    <section className="suprah-conversation-shell suprah-center-conversation-content flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
+    <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
+      {hideConversationChrome && aiAgentStatus && (
+        <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2">
+          {aiToggleButton}
+        </div>
+      )}
       {!hideConversationChrome && (
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
           <Avatar first={lead?.firstName} last={lead?.lastName} size="sm" />
@@ -625,6 +669,8 @@ export function ConversationView({
               </span>
             </p>
           </div>
+
+          {aiToggleButton}
 
           <button
             type="button"
@@ -743,6 +789,7 @@ export function ConversationView({
                 }
 
                 const text = cleanAggregatorText(getMessageText(message));
+                const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
                 const senderLabel = outbound
                   ? message?.sentBy?.name ||
                     message?.senderName ||
@@ -785,9 +832,15 @@ export function ConversationView({
                           {text || "Message content unavailable"}
                         </div>
 
-                        <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                        <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
                           {senderLabel} · {formatTimestamp(stamp)}
                           {countBadge}
+                          {isAiAgentMessage && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-300">
+                              <Bot className="h-2.5 w-2.5" />
+                              AI
+                            </span>
+                          )}
                         </span>
                       </div>
 

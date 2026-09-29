@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import type { Lead } from "@/types/lead";
+import { LEAD_STATUS_VALUES } from "@/lib/leadStatus";
 
 interface LeadAnalyticsOverviewProps {
   leads: Lead[];
@@ -75,14 +76,7 @@ const MONTHS = [
   "December",
 ] as const;
 
-const STATUS_ORDER = [
-  "New",
-  "Contacted",
-  "Pending",
-  "Appointment Set",
-  "Closed",
-  "Other",
-] as const;
+const STATUS_ORDER = [...LEAD_STATUS_VALUES, "Other"];
 
 function normalizeCssColor(rawValue: string, fallback: string): string {
   const value = rawValue.trim();
@@ -187,15 +181,11 @@ function parseSelectedMonth(
 }
 
 function normalizedStatus(status: unknown): string {
-  const value = String(status ?? "").trim().toLowerCase();
-  if (value === "new") return "New";
-  if (value === "contacted") return "Contacted";
-  if (value === "pending") return "Pending";
-  if (value === "appointment set" || value === "appointment") {
-    return "Appointment Set";
-  }
-  if (value === "closed") return "Closed";
-  return "Other";
+  const raw = String(status ?? "").trim();
+  if (LEAD_STATUS_VALUES.includes(raw)) return raw;
+  const lower = raw.toLowerCase();
+  const match = LEAD_STATUS_VALUES.find((value) => value.toLowerCase() === lower);
+  return match || "Other";
 }
 
 function normalizedSource(source: unknown): string {

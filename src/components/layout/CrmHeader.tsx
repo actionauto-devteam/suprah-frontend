@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Car, ChevronDown, User, Fingerprint, Settings, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/Stat
 import { CrmNotificationBell } from '@/components/notifications';
 import { MessengerDropdown } from '@/components/supraspace/MessengerDropdown';
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
+import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 
 function ini(n: string) {
   return n.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -42,6 +43,7 @@ export function CrmHeader({
   onNotificationDrawerOpenChange,
 }: CrmHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, token } = useCrmUser();
   const { organization } = useOrg();
 
@@ -75,15 +77,21 @@ export function CrmHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-          <MountainTimeClock />
+        <div className="flex items-center gap-1 max-[420px]:gap-0.5 sm:gap-3 shrink-0">
+          <MountainTimeClock className="max-[420px]:hidden" />
+
+          {pathname !== '/crm' && <AutrixHeaderButton className="h-11 w-11 px-0 sm:h-9 sm:w-auto sm:px-2" />}
 
           <CrmNotificationBell
             open={notificationDrawerOpen}
             onOpenChange={onNotificationDrawerOpenChange}
           />
 
-          {showMessenger && <MessengerDropdown open={messengerDrawerOpen} onOpenChange={onMessengerDrawerOpenChange} />}
+          {showMessenger && (
+            <div className="max-[420px]:hidden">
+              <MessengerDropdown open={messengerDrawerOpen} onOpenChange={onMessengerDrawerOpenChange} />
+            </div>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -2,9 +2,18 @@ const DOUBLE_BRACE_CONTROL_TAG = /\{\{\s*(\/?)\s*(color|font|size)(?:\s*:\s*([^{
 const SINGLE_BRACE_CONTROL_TAG = /\{\s*(?:color|font|size)\s*:\s*[^{}\n]+\s*\}|\{\s*\/\s*(?:color|font|size)\s*\}/gi;
 const STYLE_CONTROL_TAG = /\{\s*(\/?)\s*(color|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}/gi;
 const EMPTY_CONTROL_WRAPPER = /\{\s*(color|font|size)\s*:\s*([^{}\n]+?)\s*\}([\s*_~`]*)\{\s*\/\s*\1\s*\}/gi;
-const FORMAT_ONLY_LINE = /(^|\n)[ \t]*(?:\*{2,}|_{2,}|~{2,})[ \t]*(?=\n|$)/g;
+const FORMAT_ONLY_LINE = /(^|\n)[ \t]*(?:\*{2,3}|_{2,}|~{2,})[ \t]*(?=\n|$)/g;
 
 const BOLD_MARKER = '**';
+
+export function normalizeSupraSpaceBoldMarkerRuns(content: string): string {
+  if (!content) return '';
+
+  return content.replace(
+    /(^|[^*])\*{4,}([^*\n]*[^\s*\n][^*\n]*)\*{4,}(?!\*)/g,
+    (_match, prefix: string, inner: string) => `${prefix}${BOLD_MARKER}${inner}${BOLD_MARKER}`,
+  );
+}
 
 /**
  * Repairs the specific legacy bold-marker shape produced by older rich-editor
@@ -70,7 +79,7 @@ function repairSingleSidedBoldMarkerLine(line: string): string {
   return line;
 }
 
-function repairSingleSidedBoldMarkers(content: string): string {
+export function repairSingleSidedBoldMarkers(content: string): string {
   return content
     .replace(/\r\n?/g, '\n')
     .split('\n')
@@ -118,7 +127,7 @@ function canonicalizeDoubleBraceControlTag(
 export function normalizeSupraSpaceLegacyMarkup(content: string): string {
   if (!content) return '';
 
-  let normalized = content
+  let normalized = normalizeSupraSpaceBoldMarkerRuns(content)
     .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag);
 
   // Remove wrappers that contain formatting controls only. Repeat so nested
@@ -145,7 +154,7 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
     );
 
   normalized = normalized.replace(FORMAT_ONLY_LINE, '$1');
-  return repairSingleSidedBoldMarkers(normalized);
+  return normalized;
 }
 
 /**
@@ -233,7 +242,7 @@ export function prepareSupraSpaceMarkupForDisplay(content: string): string {
 export function stripResidualSupraSpaceInlineControlMarkers(value: string): string {
   if (!value) return '';
   return value
-    .replace(/\*\*/g, '')
+    .replace(/\*{2,}/g, marker => marker.length >= 4 ? marker : '')
     .replace(/__/g, '')
     .replace(/~~/g, '');
 }

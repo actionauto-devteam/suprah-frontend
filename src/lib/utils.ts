@@ -24,6 +24,26 @@ export function withMinDuration<T>(promise: Promise<T>, minMs = 500): Promise<T>
   return Promise.all([promise, delay]).then(([result]) => result);
 }
 
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+}
+
+export function decodeHtmlEntities(text: string | null | undefined): string {
+  return (text || "").replace(/&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity[0] === "#") {
+      const isHex = entity[1] === "x" || entity[1] === "X"
+      const code = isHex ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10)
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
+    }
+    return NAMED_HTML_ENTITIES[entity.toLowerCase()] ?? match
+  })
+}
+
 export function resolveImageUrl(url?: string | null): string | undefined {
   if (!url) return undefined;
   const trimmed = url.trim();

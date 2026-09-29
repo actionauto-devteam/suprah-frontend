@@ -11,12 +11,8 @@ export interface Appointment {
   location?: string;
 }
 
-export type LeadStatus =
-  | "New"
-  | "Contacted"
-  | "Pending"
-  | "Appointment Set"
-  | "Closed";
+import type { LeadStatus } from "@/lib/leadStatus";
+export type { LeadStatus } from "@/lib/leadStatus";
 
 export interface Lead {
   _id: string;

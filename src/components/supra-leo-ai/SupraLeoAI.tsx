@@ -282,6 +282,7 @@ export interface SupraLeoAIProps {
   onSendReply?: (t: string) => void
   onSetTranscript?: (t: string) => void
   onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
 }
 
 interface LoadedPanelProps {
@@ -302,6 +303,7 @@ interface LoadedPanelProps {
   onStartReplyListening: () => void
   onSetTranscript: (t: string) => void
   onSendReply: () => Promise<void>
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
 function detectModule(pathname: string): string {
@@ -421,15 +423,17 @@ export function SupraLeoAI({
   onSendReply = () => {},
   onSetTranscript = () => {},
   onOpenChange,
+  hideTrigger = false,
 }: SupraLeoAIProps) {
   const [open, setOpen] = useState(false)
   const [Panel, setPanel] = useState<React.ComponentType<LoadedPanelProps> | null>(null)
+  const [moduleOverride, setModuleOverride] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement | null>(null)
   const { setNode, style: dragStyle, handleProps, positioned } = useDraggableWidget('autrix-widget-pos')
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
   const pathname = usePathname()
-  const currentModule = detectModule(pathname || '')
+  const currentModule = moduleOverride || detectModule(pathname || '')
   const isLeft = position === 'bottom-left'
   const floatingStyles = {
     bottom: 'var(--supra-leo-bottom, var(--leo-bottom, 22px))',
@@ -439,6 +443,10 @@ export function SupraLeoAI({
   }
 
   useEffect(() => { injectBadgeCSS() }, [])
+
+  useEffect(() => {
+    setModuleOverride(null)
+  }, [pathname])
 
   // Notify parent layout so it can reserve space for the panel instead of
   // letting this absolutely-positioned dropdown overlap sibling content.
@@ -470,6 +478,16 @@ export function SupraLeoAI({
     return () => window.removeEventListener('supraleo:read-message', h)
   }, [])
 
+  useEffect(() => {
+    const h = (e: Event) => {
+      const requestedModule = (e as CustomEvent<{ module?: string }>).detail?.module
+      if (requestedModule) setModuleOverride(requestedModule)
+      setOpen(true)
+    }
+    window.addEventListener('suprah-autrix:open', h)
+    return () => window.removeEventListener('suprah-autrix:open', h)
+  }, [])
+
   // Auto-open on active state
   useEffect(() => {
     if (state !== 'idle' && state !== 'error') setOpen(true)
@@ -492,6 +510,7 @@ export function SupraLeoAI({
     onStartReplyListening: onVoiceReply,
     onSetTranscript,
     onSendReply: async () => onSendReply(transcript),
+    dragHandleProps: handleProps,
   } : null
 
   if (variant === 'toolbar') {
@@ -531,7 +550,7 @@ export function SupraLeoAI({
           <div className="axb-panel-wrap"><Panel {...panelProps} /></div>
         </div>
       )}
-      {!open && (
+      {!open && !hideTrigger && (
         <div {...handleProps} title="Drag to reposition" style={{ ...handleProps.style, pointerEvents: 'auto' }}>
           <AutrixBadge state={state} module={currentModule} onClick={() => setOpen(p => !p)} />
         </div>

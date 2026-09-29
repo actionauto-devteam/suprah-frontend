@@ -10,7 +10,7 @@ import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
 import { resolveImageUrl } from '@/lib/utils';
 import { stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
-import { playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
+import { createNotificationAvatarFallback, playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -218,6 +218,17 @@ function defaultNotifPref(): NotifPref {
 // cleanPreviewContent — kept local since this file has no shared chat-text util).
 function stripChatFormatting(content?: string | null): string {
   return stripSupraSpaceFormattingForPreview(content);
+}
+
+function notificationMessagePreview(message: SSLastMessage): string {
+  const text = stripChatFormatting(message.content).slice(0, 120);
+  if (text) return text;
+  if (message.type === 'image') return 'Sent an image';
+  if (message.type === 'file') return 'Sent an attachment';
+  if (message.type === 'gif') return 'Sent a GIF';
+  if (message.type === 'poll') return 'Started a poll';
+  if (message.type === 'event') return 'Created an event';
+  return 'New message';
 }
 
 // In-app "pop up" for a new message while the tab is focused but the user
@@ -491,14 +502,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
             const isGroup = conv?.type === 'group';
             const nextUnreadCount = (conv?.unreadCount || 0) + 1;
             const title = isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message');
-            const preview = stripChatFormatting(message.content).slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
-            const body = nextUnreadCount >= 2 ? `${nextUnreadCount} new messages` : isGroup ? `${message.sender?.fullName}: ${preview}` : preview;
+            const senderName = message.sender?.fullName || 'Someone';
+            const preview = notificationMessagePreview(message);
+            const body = isGroup
+              ? `${senderName}\n${nextUnreadCount >= 2 ? `${nextUnreadCount} new messages\n` : ''}${preview}`
+              : `${nextUnreadCount >= 2 ? `${nextUnreadCount} new messages\n` : ''}${preview}`;
             showNotificationViaSW(title, {
               body,
               tag: conversationId,
               url: `/crm/supra-space?conversationId=${encodeURIComponent(conversationId)}&messageId=${encodeURIComponent(message._id)}`,
               conversationId,
               messageId: message._id,
+              icon: message.sender?.avatar || createNotificationAvatarFallback(message.sender?._id, senderName),
             });
           } else if (typeof window !== 'undefined' && !['/crm/supra-space', '/supraspace', '/'].includes(window.location.pathname)) {
             // Tab is focused but the user is on a different dashboard page —
@@ -507,12 +522,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
             // Suprah Space themselves.
             const conv = conversationsRef.current.find(c => c._id === conversationId);
             const isGroup = conv?.type === 'group';
-            const preview = stripChatFormatting(message.content).slice(0, 120) || (isGroup ? `${message.sender?.fullName} sent a message` : 'New message');
+            const senderName = message.sender?.fullName || 'Someone';
+            const preview = notificationMessagePreview(message);
             showInAppMessageToast({
               conversationId,
               title: isGroup ? (conv?.name || 'New message') : (message.sender?.fullName || 'New message'),
-              body: isGroup ? `${message.sender?.fullName}: ${preview}` : preview,
-              avatar: isGroup ? (conv?.avatar || undefined) : message.sender?.avatar,
+              body: isGroup ? `${senderName}: ${preview}` : preview,
+              avatar: message.sender?.avatar || createNotificationAvatarFallback(message.sender?._id, senderName),
               onOpen: (conversationId) => openChatPopupRef.current(conversationId),
             });
           }

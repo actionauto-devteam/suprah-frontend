@@ -33,7 +33,7 @@ import { useTheme } from "@/context/ThemeContext"
 import { injectLeadDetailsPanelStyles, injectSS4Styles } from "@/lib/ss4-styles"
 import { ConversationWorkspace } from "@/components/conversation-workspace/ConversationWorkspace"
 import { injectConversationWorkspaceStyles } from "@/components/conversation-workspace/workspace-styles"
-import { cn } from "@/lib/utils"
+import { cn, decodeHtmlEntities } from "@/lib/utils"
 import type { CreatePaymentData } from "@/types/billing"
 import {
   Dialog,
@@ -46,6 +46,13 @@ import {
 import { SyncStatus } from "./leads/atomic/SyncStatus";
 import { ToastStack, Toast } from "./leads/atomic/ToastStack";
 import { StatusFilterPills } from "./leads/atomic/StatusFilterPills";
+import {
+  LEAD_STATUS_CATEGORY_ORDER,
+  LEAD_STATUS_CATEGORY_LABEL,
+  LEAD_STATUS_CATEGORIES,
+  getLeadStatusStyle,
+  type LeadStatusCategory,
+} from "@/lib/leadStatus";
 import { LeadsList } from "./leads/LeadsList";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
@@ -58,7 +65,6 @@ import {
 
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
-import { SupraLeoAI } from "@/components/supra-leo-ai/SupraLeoAI";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
 
 
@@ -114,13 +120,12 @@ const buildDraftThreadContext = (
     })
     .filter((message) => message.text.length > 0);
 
-const TABS = [
+const CATEGORY_TABS = [
   { key: null, label: "All" },
-  { key: "New", label: "New" },
-  { key: "Pending", label: "Pending" },
-  { key: "Contacted", label: "Contacted" },
-  { key: "Appointment Set", label: "Appt. Set" },
-  { key: "Closed", label: "Closed" },
+  ...LEAD_STATUS_CATEGORY_ORDER.map((category) => ({
+    key: category as string,
+    label: LEAD_STATUS_CATEGORY_LABEL[category],
+  })),
   { key: "Inbound Calls", label: "Inbound Calls" },
 ] as const;
 
@@ -163,6 +168,7 @@ export function LeadsTab({
 
   // -- Filters & Pagination --
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
+  const [activeStatusCategory, setActiveStatusCategory] = React.useState<LeadStatusCategory | null>(null);
   const [sortBy, setSortBy] = React.useState<LeadSortOption>("newest");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -171,7 +177,6 @@ export function LeadsTab({
     React.useState<LeadsViewportMode>("wide");
   const [isInboxSummaryExpanded, setIsInboxSummaryExpanded] =
     React.useState(false);
-  const [isAutrixOpen, setIsAutrixOpen] = React.useState(false);
 
   React.useEffect(() => {
     const updateViewportMode = () => {
@@ -232,6 +237,17 @@ export function LeadsTab({
   });
 
   const { counts: leadStatusCounts } = useLeadStatusCounts();
+
+  const categoryTabCounts = React.useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const category of LEAD_STATUS_CATEGORY_ORDER) {
+      totals[category] = LEAD_STATUS_CATEGORIES[category].reduce(
+        (sum, status) => sum + (leadStatusCounts?.[status] || 0),
+        0,
+      );
+    }
+    return totals;
+  }, [leadStatusCounts]);
 
   // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
   const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null);
@@ -318,6 +334,30 @@ export function LeadsTab({
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [isClosed, setIsClosed] = React.useState(false);
   const [threads, setThreads] = React.useState<Record<string, any[]>>({});
+  const [aiAgentStatus, setAiAgentStatus] = React.useState<
+    Record<string, { paused: boolean; pausedBy?: string } | undefined>
+  >({});
+
+  const toggleAiAgent = React.useCallback(
+    async (lead: Lead | null) => {
+      if (!lead) return;
+      const isWebchat = isWebchatLead(lead);
+      const isSms = isSmsLead(lead);
+      if (!isWebchat && !isSms) return;
+
+      const currentlyPaused = aiAgentStatus[lead._id]?.paused ?? false;
+      const base = isWebchat ? "/api/crm/webchat" : "/api/crm/communications";
+      const action = currentlyPaused ? "ai-resume" : "ai-pause";
+      try {
+        const res = await apiClient.post(`${base}/leads/${lead._id}/${action}`, {});
+        const paused = Boolean(res.data?.data?.paused);
+        setAiAgentStatus((previous) => ({ ...previous, [lead._id]: { paused } }));
+      } catch (error) {
+        console.error("Failed to toggle AI agent:", error);
+      }
+    },
+    [aiAgentStatus],
+  );
 
 
   const loadedThreadIdsRef = React.useRef<Set<string>>(new Set());
@@ -616,6 +656,17 @@ export function LeadsTab({
         refetch();
         setSelectedLead(null);
       });
+
+      const handleAiPaused = (data: { leadId?: string; paused?: boolean; pausedBy?: string }) => {
+        const leadId = data?.leadId;
+        if (!leadId) return;
+        setAiAgentStatus((previous) => ({
+          ...previous,
+          [leadId]: { paused: Boolean(data?.paused), pausedBy: data?.pausedBy },
+        }));
+      };
+      socket.on("webchat:ai_paused", handleAiPaused);
+      socket.on("comm:ai_paused", handleAiPaused);
     };
     setupSocket();
     return () => {
@@ -626,6 +677,8 @@ export function LeadsTab({
         socket.off("comm:message:status");
         socket.off("webchat:message");
         socket.off("lead:delete");
+        socket.off("webchat:ai_paused");
+        socket.off("comm:ai_paused");
       }
     };
   }, [getToken, currentPage, refetch]);
@@ -719,12 +772,14 @@ export function LeadsTab({
 
     if (!content) return [];
 
+    const decodedContent = decodeHtmlEntities(content);
+
     return [
       {
         _id: `lead-inquiry-${lead._id}`,
         direction: "inbound",
-        body: content,
-        text: content,
+        body: decodedContent,
+        text: decodedContent,
         subject: lead.subject,
         createdAt: lead.createdAt,
         from: lead.senderEmail || lead.email,
@@ -772,6 +827,13 @@ export function LeadsTab({
             ...previous,
             [lead._id]: chatMessages,
           }));
+          setAiAgentStatus((previous) => ({
+            ...previous,
+            [lead._id]: {
+              paused: Boolean(chatResponse.data?.data?.aiPausedAt),
+              pausedBy: chatResponse.data?.data?.aiPausedBy?.name,
+            },
+          }));
         } catch (error) {
           console.error("Failed to load web chat thread:", error);
         }
@@ -794,6 +856,14 @@ export function LeadsTab({
           );
           const smsMessages =
             smsResponse.data?.data?.messages || [];
+          const smsConversation = smsResponse.data?.data?.conversation;
+          setAiAgentStatus((previous) => ({
+            ...previous,
+            [lead._id]: {
+              paused: Boolean(smsConversation?.aiPausedAt),
+              pausedBy: smsConversation?.aiPausedBy?.name,
+            },
+          }));
           if (smsMessages.length > 0) {
             loadedThreadIdsRef.current.add(lead._id);
             /*
@@ -1493,16 +1563,6 @@ export function LeadsTab({
     }
   };
 
-  // ── Dot colour per lead status ─────────────────────────────────────────────
-  const TAB_DOTS: Record<string, string> = {
-    New: "bg-emerald-500",
-    Pending: "bg-amber-500",
-    Contacted: "bg-sky-500",
-    "Appointment Set": "bg-violet-500",
-    Closed: "bg-muted-foreground/40",
-    "Inbound Calls": "bg-teal-500",
-  };
-
   const showLeadsPanel =
     !selectedLead || viewportMode === "wide";
 
@@ -1519,7 +1579,6 @@ export function LeadsTab({
       data-viewport-mode={viewportMode}
       data-has-active-lead={selectedLead ? "true" : "false"}
       data-details-expanded={showLeadDetails ? "true" : "false"}
-      data-autrix-open={isAutrixOpen ? "true" : "false"}
     >
       <ToastStack
         toasts={toasts}
@@ -1618,7 +1677,16 @@ export function LeadsTab({
               title="SMS Campaigns"
             >
               <Megaphone className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">Campaigns</span>
+              <span className="hidden sm:inline">SMS Campaigns</span>
+            </button>
+
+            <button
+              onClick={() => router.push("/crm/email-campaigns")}
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              title="Email Campaigns"
+            >
+              <Mail className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Email Campaigns</span>
             </button>
 
             <button
@@ -1668,9 +1736,6 @@ export function LeadsTab({
               )}
             </button>
 
-            <div className="shrink-0 max-[380px]:scale-90 max-[380px]:origin-right">
-              <SupraLeoAI variant="toolbar" onOpenChange={setIsAutrixOpen} />
-            </div>
           </div>
         </div>
 
@@ -1796,15 +1861,44 @@ export function LeadsTab({
                       ) : null}
 
                       <StatusFilterPills
-                        tabs={TABS}
-                        active={statusFilter}
-                        counts={leadStatusCounts}
+                        tabs={CATEGORY_TABS}
+                        active={
+                          statusFilter === "Inbound Calls"
+                            ? "Inbound Calls"
+                            : activeStatusCategory
+                        }
+                        counts={categoryTabCounts}
                         onChange={(key) => {
-                          setStatusFilter(key);
+                          if (key === "Inbound Calls") {
+                            setActiveStatusCategory(null);
+                            setStatusFilter("Inbound Calls");
+                          } else if (key === null) {
+                            setActiveStatusCategory(null);
+                            setStatusFilter(null);
+                          } else {
+                            setActiveStatusCategory(key as LeadStatusCategory);
+                            setStatusFilter(null);
+                          }
                           setCurrentPage(1);
                           setSelectedLead(null);
                         }}
                       />
+
+                      {activeStatusCategory && (
+                        <StatusFilterPills
+                          tabs={LEAD_STATUS_CATEGORIES[activeStatusCategory].map((status) => ({
+                            key: status,
+                            label: getLeadStatusStyle(status).label,
+                          }))}
+                          active={statusFilter}
+                          counts={leadStatusCounts}
+                          onChange={(key) => {
+                            setStatusFilter(key);
+                            setCurrentPage(1);
+                            setSelectedLead(null);
+                          }}
+                        />
+                      )}
 
                       <label className="relative min-w-0">
                         <ArrowUpDown
@@ -1939,6 +2033,12 @@ export function LeadsTab({
                         selectedLead._id,
                       )
                     }
+                    aiAgentStatus={
+                      isSmsLead(selectedLead) || isWebchatLead(selectedLead)
+                        ? aiAgentStatus[selectedLead._id] || { paused: false }
+                        : null
+                    }
+                    onToggleAiAgent={() => toggleAiAgent(selectedLead)}
                   />
 
                   <ReplySection

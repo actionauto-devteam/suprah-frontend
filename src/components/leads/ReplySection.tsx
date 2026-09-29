@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   Send,
   Circle,
-  ChevronDown,
   Calendar,
   XCircle,
   Lock,
@@ -18,13 +17,8 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { STATUS_CONFIG } from "./atomic/StatusPill";
+import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
+import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
 import { StatusReasonModal } from "./StatusReasonModal";
 import { CannedReplyPicker } from "./CannedReplyPicker";
 import { apiClient } from "@/lib/api-client";
@@ -137,7 +131,7 @@ export const ReplySection = React.memo(
     threadContext,
   }: ReplySectionProps) => {
     const [reasonModal, setReasonModal] = React.useState<
-      null | "close" | "reopen"
+      null | { kind: "status"; status: string } | "reopen"
     >(null);
 
     const [attachments, setAttachments] = React.useState<File[]>([]);
@@ -255,8 +249,8 @@ export const ReplySection = React.memo(
     }, [resizeTextarea]);
 
     const handleReasonConfirm = (reason: string) => {
-      if (reasonModal === "close") {
-        onStatusChange("Closed", reason);
+      if (reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status") {
+        onStatusChange(reasonModal.status, reason);
       } else if (reasonModal === "reopen") {
         onReopen(reason);
       }
@@ -265,12 +259,12 @@ export const ReplySection = React.memo(
     };
 
     const reasonModalProps =
-      reasonModal === "close"
+      reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status"
         ? {
-          title: "Close this ticket",
+          title: `Move to "${reasonModal.status}"`,
           description:
-            "Why is this inquiry being closed? This is logged on the ticket for the team to see later.",
-          confirmLabel: "Close ticket",
+            "Why is this lead moving to this status? This is logged on the ticket for the team to see later.",
+          confirmLabel: "Confirm",
         }
         : {
           title: "Reopen this ticket",
@@ -533,46 +527,17 @@ export const ReplySection = React.memo(
 
           <div className="grid select-none grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 px-2.5 py-2 dark:border-emerald-400/10 sm:flex sm:flex-wrap sm:items-center">
             <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex sm:flex-1 sm:flex-wrap sm:items-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
-                  >
-                    <Circle className="h-3 w-3" />
-                    Status
-                    <ChevronDown className="h-2.5 w-2.5 opacity-50" />
-                  </button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent
-                  align="start"
-                  className="z-50 min-w-40 rounded-xl border border-border bg-popover p-1 shadow-lg"
-                >
-                  {Object.entries(STATUS_CONFIG)
-                    .filter(
-                      ([status]) =>
-                        status !== selectedLeadStatus &&
-                        status !== "Inbound Calls",
-                    )
-                    .map(([status, config]) => (
-                      <DropdownMenuItem
-                        key={status}
-                        onClick={() =>
-                          status === "Closed"
-                            ? setReasonModal("close")
-                            : onStatusChange(status)
-                        }
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-muted-foreground focus:bg-muted focus:text-foreground"
-                      >
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`}
-                        />
-                        {config.label}
-                      </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <LeadStatusSelect
+                value={selectedLeadStatus}
+                excludeCurrent
+                triggerLabel="Status"
+                triggerIcon={<Circle className="h-3 w-3" />}
+                onChange={(status) =>
+                  REASON_REQUIRED_STATUSES.includes(status)
+                    ? setReasonModal({ kind: "status", status })
+                    : onStatusChange(status)
+                }
+              />
 
               <button
                 type="button"
@@ -594,7 +559,7 @@ export const ReplySection = React.memo(
 
               <button
                 type="button"
-                onClick={() => setReasonModal("close")}
+                onClick={() => setReasonModal({ kind: "status", status: "Closed" })}
                 className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] font-medium text-red-500/80 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
               >
                 <XCircle className="h-3 w-3" />
@@ -683,7 +648,7 @@ export const ReplySection = React.memo(
         </div>
 
         <StatusReasonModal
-          open={reasonModal === "close"}
+          open={Boolean(reasonModal && typeof reasonModal === "object" && reasonModal.kind === "status")}
           onOpenChange={(open) => {
             if (!open) setReasonModal(null);
           }}
