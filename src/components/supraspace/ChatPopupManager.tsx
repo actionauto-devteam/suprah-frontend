@@ -710,6 +710,16 @@ function insertSoftLineBreakWithCaretFormatting(
   range.deleteContents();
   const br = document.createElement('br');
   range.insertNode(br);
+  const boldAncestor = br.parentElement?.closest<HTMLElement>('strong, b');
+  if (boldAncestor && root.contains(boldAncestor)) {
+    const trailingRange = document.createRange();
+    trailingRange.setStartAfter(br);
+    trailingRange.setEnd(boldAncestor, boldAncestor.childNodes.length);
+    if (!stripSupraSpaceTypingMarkers(trailingRange.toString()).trim()) {
+      boldAncestor.parentNode?.insertBefore(br, boldAncestor.nextSibling);
+      inlineFormats = { ...inlineFormats, bold: false };
+    }
+  }
   const typingSpan = br.parentElement?.closest<HTMLElement>(
     'span[data-ss4-typing-style="true"]',
   );
