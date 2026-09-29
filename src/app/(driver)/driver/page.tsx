@@ -85,6 +85,7 @@ import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
 import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";
+import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from "@/lib/load-status";
 
 function formatDashboardLoadLocation(
   location: { city?: string; state?: string; address?: string } | null | undefined,
@@ -483,9 +484,7 @@ export default function DriverDashboardPage() {
         setHasFreshLoads(true);
         setKpiSnapshot((previous) => ({
           activeLoads: nextLoads.filter((load: any) =>
-            ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(
-              load.status,
-            ),
+            isActiveLoadStatus(load.status),
           ).length,
           completedLoads:
             previous?.completedLoads ??
@@ -675,9 +674,7 @@ export default function DriverDashboardPage() {
     return id ? `Load ${id.slice(-8)}` : "Load reference unavailable";
   }, []);
 
-  const activeLoads = loads.filter((l) =>
-    ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(l.status),
-  );
+  const activeLoads = loads.filter((l) => isActiveLoadStatus(l.status));
   const completedCount = loads.filter((l) => l.status === "Delivered").length;
   const activeLoadIdsKey = activeLoads.map((load) => String(load._id)).join("|");
   const currentLoad =
@@ -2541,7 +2538,7 @@ export default function DriverDashboardPage() {
                       </div>
                     )}
 
-                    {(currentLoadHasPendingRelease || ["Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status)) && (
+                    {(currentLoadHasPendingRelease || isGpsTrackingLoadStatus(currentLoad.status)) && (
                       currentLoadHasPendingRelease ? (
                         <div className="space-y-2.5">
                           <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-3 text-xs leading-relaxed text-muted-foreground">
@@ -2557,7 +2554,7 @@ export default function DriverDashboardPage() {
                                 <p className="mt-1.5">
                                   {getLoadReference(currentLoad)} remains assigned to you until Dispatch approves the release. Forward load progression is paused while this request is pending.
                                 </p>
-                                {["Accepted", "Picked Up", "In-Transit"].includes(currentLoad.status) && (
+                                {isGpsTrackingLoadStatus(currentLoad.status) && (
                                   <p className="mt-1.5">
                                     Required location sharing remains active while this accepted load is still assigned to you.
                                   </p>
@@ -2596,7 +2593,7 @@ export default function DriverDashboardPage() {
                           {dropping === currentLoad._id ? (
                             <><Loader2 className="size-3.5 mr-2 animate-spin" />Sending Request...</>
                           ) : (
-                            <><XCircle className="size-3.5 mr-2" />{["Picked Up", "In-Transit"].includes(currentLoad.status) ? "Request Emergency Release" : "Request Release"}</>
+                            <><XCircle className="size-3.5 mr-2" />{hasVehiclesOnBoard(currentLoad.status) ? "Request Emergency Release" : "Request Release"}</>
                           )}
                         </Button>
                       )

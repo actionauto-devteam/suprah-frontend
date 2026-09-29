@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { columns, AdminDriver } from '@/app/(admin)/admin/drivers/columns';
-import { DataTable } from '@/components/admin/data-table/DataTable';
+import { DataTable, type DataTableServerState } from '@/components/admin/data-table/DataTable';
 import { DataTableFacetedFilter } from '@/components/admin/DataTableFacetedFilter';
 import { AdminErrorState } from '@/components/admin/AdminErrorState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -47,12 +47,20 @@ const initials = (name?: string) => {
 
 export function DriverDirectoryPanel({
   data,
+  total,
+  pagination,
+  onQueryChange,
   isLoading,
   isError,
   error,
   refetch,
 }: {
+  /** The current page of drivers. */
   data?: AdminDriver[];
+  /** Drivers matching the search and filters, across all pages. */
+  total: number;
+  pagination: { pageIndex: number; pageSize: number };
+  onQueryChange: (query: DataTableServerState) => void;
   isLoading: boolean;
   isError: boolean;
   error: unknown;
@@ -102,9 +110,7 @@ export function DriverDirectoryPanel({
         getRowId={(row) => row.id}
         storageKey="drivers"
         searchPlaceholder="Search name or email…"
-        searchFn={(row, term) =>
-          row.name?.toLowerCase().includes(term) || row.email?.toLowerCase().includes(term)
-        }
+        server={{ total, pagination, onStateChange: onQueryChange }}
         emptyTitle="No drivers yet"
         emptyDescription="Invite a driver to get the first application moving."
         onRowClick={(row) => router.push(`/admin/drivers/${row.id}`)}

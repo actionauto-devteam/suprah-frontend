@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";
+import { createRetrySafeId } from "@/lib/client-request-id";
 
 export interface DispatchChatAttachment {
   // Empty when the backend cannot safely produce a signed private URL.
@@ -1487,6 +1488,15 @@ export function DispatchChatDialog({
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const [messages, setMessages] = React.useState<DispatchChatMessage[]>([]);
+  // Newest message on screen: "mark as read" covers only what the reader has seen.
+  const latestShownMessageAtRef = React.useRef<string | null>(null);
+  latestShownMessageAtRef.current = messages.reduce<string | null>(
+    (latest, message) =>
+      !latest || new Date(message.createdAt).getTime() > new Date(latest).getTime()
+        ? message.createdAt
+        : latest,
+    null,
+  );
   const [systemEvents, setSystemEvents] = React.useState<
     DispatchChatSystemEvent[]
   >([]);
@@ -1708,9 +1718,13 @@ export function DispatchChatDialog({
     try {
       const token = await getToken();
       if (!token) return;
+      const readUpTo = latestShownMessageAtRef.current;
       await apiClient.post(
         `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/read`,
-        threadId ? { threadId } : {},
+        {
+          ...(threadId ? { threadId } : {}),
+          ...(readUpTo ? { readUpTo } : {}),
+        },
         { headers: { Authorization: `Bearer ${token}` } },
       );
       updateUnread(0);
@@ -1957,9 +1971,18 @@ export function DispatchChatDialog({
       // The user sees the conversation immediately after the history GET; the
       // read receipt completes quietly in the background.
       if (!currentUserIsDriver || normalizedResolvedThreadId) {
-        const readBody = normalizedResolvedThreadId
-          ? { threadId: normalizedResolvedThreadId }
-          : {};
+        // Read only up to the newest message this load returned (on screen now).
+        const newestLoadedAt = nextMessages.reduce<string | null>(
+          (latest, message) =>
+            !latest || new Date(message.createdAt).getTime() > new Date(latest).getTime()
+              ? message.createdAt
+              : latest,
+          null,
+        );
+        const readBody = {
+          ...(normalizedResolvedThreadId ? { threadId: normalizedResolvedThreadId } : {}),
+          ...(newestLoadedAt ? { readUpTo: newestLoadedAt } : {}),
+        };
 
         if (
           !currentUserIsDriver ||
@@ -2072,6 +2095,7 @@ export function DispatchChatDialog({
       const messageMap = new Map<string, DispatchChatMessage>();
       const systemEventMap = new Map<string, DispatchChatSystemEvent>();
       let before: string | undefined;
+      let beforeId: string | undefined;
       let hasMore = true;
       let pages = 0;
       const maxPages = 20;
@@ -2085,6 +2109,7 @@ export function DispatchChatDialog({
               limit: 100,
               threadId: activeThreadId,
               ...(before ? { before } : {}),
+              ...(before && beforeId ? { beforeId } : {}),
             },
           },
         );
@@ -2110,6 +2135,8 @@ export function DispatchChatDialog({
         const oldestCreatedAt = pageMessages[0]?.createdAt;
         if (!hasMore || !oldestCreatedAt || pageMessages.length === 0) break;
         before = oldestCreatedAt;
+        // With the id too, messages sharing that exact time aren't skipped.
+        beforeId = pageMessages[0]?.id;
       }
 
       const nextMessages = [...messageMap.values()].sort(
@@ -2898,6 +2925,10 @@ export function DispatchChatDialog({
     ],
   );
 
+  // Same id when the same message is sent again after an error, so a send
+  // that actually reached the server isn't posted twice.
+  const messageSendIdRef = React.useRef(createRetrySafeId());
+
   const submitMessage = React.useCallback(async () => {
     const content = draft.trim();
     const requestThreadId = currentUserIsDriver
@@ -2941,11 +2972,15 @@ export function DispatchChatDialog({
           `/api/driver-tracking/dispatch-chat/${encodeURIComponent(driverId)}/messages`,
           {
             content,
+            clientMessageId: messageSendIdRef.current.idFor(
+              `${driverId}|${requestThreadId ?? ""}|${content}`,
+            ),
             ...(requestThreadId ? { threadId: requestThreadId } : {}),
           },
           { headers: { Authorization: `Bearer ${token}` } },
         );
         message = response.data?.data as DispatchChatMessage | undefined;
+        messageSendIdRef.current.clear();
       }
 
       if (message?.id) {

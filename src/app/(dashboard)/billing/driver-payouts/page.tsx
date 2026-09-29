@@ -704,7 +704,7 @@ export default function DriverPayoutsPage() {
               <div style={{ textAlign: "center", padding: "60px 20px", background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14 }}>
                 <Package style={{ width: 36, height: 36, color: "rgba(255,255,255,0.1)", display: "block", margin: "0 auto 14px" }} />
                 <p style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>No deliverable loads</p>
-                <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Completed loads awaiting payout will appear here.</p>
+                <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Delivered loads appear here once you confirm their proof of delivery (Pending Proofs).</p>
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>

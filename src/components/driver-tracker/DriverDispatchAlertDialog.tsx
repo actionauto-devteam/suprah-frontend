@@ -40,6 +40,8 @@ import type {
   DriverDispatchQuickPreset,
 } from '@/types/notification';
 import { userErrorMessage } from "@/lib/user-error";
+import { formatScheduleDate } from "@/utils/calendar.utils";
+import { createRetrySafeId } from "@/lib/client-request-id";
 
 interface DriverDispatchAlertDialogProps {
   open: boolean;
@@ -221,18 +223,11 @@ function locationAddress(location: DriverDispatchAlertLoadContext['pickup']) {
   return [location.address, cityStateZip].filter(Boolean).join(', ');
 }
 
+// Pickup / delivery deadlines are calendar days with no time of day.
 function formatDate(value: string | Date | null | undefined) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/Denver',
-  });
+  const formatted = formatScheduleDate(value);
+  return formatted === '—' ? '' : formatted;
 }
 
 export function DriverDispatchAlertDialog({
@@ -241,6 +236,7 @@ export function DriverDispatchAlertDialog({
   driver,
 }: DriverDispatchAlertDialogProps) {
   const { getToken } = useAuth();
+  const alertSendIdRef = React.useRef(createRetrySafeId());
   const [mode, setMode] = React.useState<ComposeMode>('quick');
   const [alertType, setAlertType] = React.useState<AlertOption['type']>('proceed_to_pickup');
   const [priority, setPriority] = React.useState<DriverDispatchAlertPriority>('important');
@@ -369,11 +365,17 @@ export function DriverDispatchAlertDialog({
               message: message.trim() || undefined,
             };
 
+      // Same id when the same alert is sent again after an error, so an alert
+      // that actually reached the driver isn't delivered twice.
+      const clientRequestId = alertSendIdRef.current.idFor(
+        `${driverId}|${JSON.stringify(payload)}`,
+      );
       await apiClient.post(
         `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/alert`,
-        payload,
+        { ...payload, clientRequestId },
         { headers: { Authorization: `Bearer ${token}` } },
       );
+      alertSendIdRef.current.clear();
       toast.success(
         mode === 'quick'
           ? `Attention alert sent to ${driver.driver?.name || 'driver'}`

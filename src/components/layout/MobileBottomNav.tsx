@@ -35,6 +35,8 @@ export type BottomNavItem = {
     href: string;
     icon: LucideIcon;
     isCenter?: boolean;
+    /** Unread count shown on the icon (driver bar: Channels). */
+    badgeCount?: number;
 };
 
 type MobileBottomNavProps = {
@@ -1661,6 +1663,14 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
                                                     )}
                                                     strokeWidth={active ? 2.45 : pending ? 2.1 : 1.8}
                                                 />
+                                                {item.badgeCount ? (
+                                                    <span
+                                                        aria-label={`${item.badgeCount} unread`}
+                                                        className="absolute -right-0.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black leading-none text-white"
+                                                    >
+                                                        {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <span
                                                 className={cn(

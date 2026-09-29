@@ -58,6 +58,7 @@ import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDi
 import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { userErrorMessage } from "@/lib/user-error";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 // Readable phrases for driver load actions in error messages ("We couldn't …").
 const DRIVER_ACTION_LABELS: Record<string, string> = {
@@ -114,7 +115,8 @@ const getStepIdx = (load: Load) => {
   return 0;
 };
 
-const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '';
+// Load dates are calendar days (see formatScheduleDate), not moments in time.
+const fmtDate = (d?: string) => d ? formatScheduleDate(d) : '';
 
 type Tab = "active" | "requests" | "completed" | "all";
 

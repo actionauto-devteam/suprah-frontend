@@ -37,8 +37,10 @@ import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/Driv
 import { userErrorMessage } from "@/lib/user-error";
 
 // ─── Centralized driver directory types ──────────────────────────────────────
-// Mirrors GET /api/driver-tracking/org-drivers — the single source of truth
-// for org drivers, merged from User + DriverProfile + DriverLocation.
+// Mirrors GET /api/driver-tracking/org-drivers?scope=assignable: every driver
+// who can take work right now (the same rule as the Driver Tracker's Assign
+// button), merged from User + DriverProfile, with this organization's
+// active-load count.
 
 export interface OrgDriver {
   id: string
@@ -257,14 +259,38 @@ export function DriverPickerSection({
   const [drivers, setDrivers] = React.useState<OrgDriver[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [unselectedNotice, setUnselectedNotice] = React.useState<string | null>(null)
+
+  // Read inside fetchDrivers without re-creating it on every selection.
+  const selectionRef = React.useRef({ selectedDriverId, onSelectDriver, onSelectDriverInfo })
+  React.useEffect(() => {
+    selectionRef.current = { selectedDriverId, onSelectDriver, onSelectDriverInfo }
+  })
 
   const fetchDrivers = React.useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await apiClient.get("/api/driver-tracking/org-drivers")
+      const res = await apiClient.get("/api/driver-tracking/org-drivers", {
+        params: { scope: "assignable" },
+      })
       const data = res.data?.data ?? res.data
-      setDrivers(data?.drivers ?? [])
+      const nextDrivers: OrgDriver[] = data?.drivers ?? []
+      setDrivers(nextDrivers)
+
+      // A driver chosen earlier who can no longer take work would make the
+      // assignment fail after the load is created, so unselect them.
+      const selection = selectionRef.current
+      if (
+        selection.selectedDriverId &&
+        !nextDrivers.some((driver) => driver.id === selection.selectedDriverId)
+      ) {
+        selection.onSelectDriver(null)
+        selection.onSelectDriverInfo?.(null)
+        setUnselectedNotice(
+          "The driver you chose can't take a load right now, so they were unselected. Choose another driver.",
+        )
+      }
     } catch (err: any) {
       setError(
         userErrorMessage(err, "load the driver list"),
@@ -334,6 +360,7 @@ export function DriverPickerSection({
 
   const handleMakeAvailable = (value: boolean) => {
     onMakeAvailableChange(value)
+    setUnselectedNotice(null)
     if (value) {
       onSelectDriver(null)
       onSelectDriverInfo?.(null)
@@ -407,6 +434,11 @@ export function DriverPickerSection({
                 </span>
               )}
             </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
+              Only drivers who can take a load right now are listed. Drivers who
+              are On Leave, In Shop, inactive, or waiting on a Work Availability
+              request aren&apos;t shown.
+            </p>
             {loadPreview && (
               <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
                 Drivers are ordered by eligibility, capacity, schedule, equipment,
@@ -433,6 +465,15 @@ export function DriverPickerSection({
           </div>
         </div>
 
+        {unselectedNotice && (
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5">
+            <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              {unselectedNotice}
+            </p>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center rounded-xl border border-border/60 bg-background/40 h-32">
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -445,16 +486,17 @@ export function DriverPickerSection({
           <div className="rounded-xl border border-border/60 bg-background/40 p-6 text-center">
             <Truck className="size-5 text-muted-foreground/50 mx-auto mb-2" />
             <p className="text-xs font-bold text-muted-foreground">
-              No drivers in this organization yet
+              No drivers can take a load right now
             </p>
             <p className="text-[10px] text-muted-foreground/70 mt-1">
-              Drivers created in Driver's Account appear here automatically.
+              Choose &ldquo;Make it Available Load&rdquo; to let drivers request it, or check
+              Driver Tracker for drivers who are On Leave or In Shop.
             </p>
           </div>
         ) : (
           <div className="space-y-1.5 max-h-96 overflow-y-auto overscroll-contain pr-1">
-            {/* Every org driver remains visible. Matching changes order and adds
-                context only; Dispatch keeps the final assignment decision. */}
+            {/* Every driver who can take work is listed. Matching changes order
+                and adds context only; Dispatch keeps the final assignment decision. */}
             {sortedDrivers.map((driver) => {
               const isSelected = selectedDriverId === driver.id
               const dot =
@@ -468,6 +510,7 @@ export function DriverPickerSection({
                   type="button"
                   onClick={() => {
                     const next = isSelected ? null : driver.id
+                    setUnselectedNotice(null)
                     onSelectDriver(next)
                     onSelectDriverInfo?.(next ? driver : null)
                   }}

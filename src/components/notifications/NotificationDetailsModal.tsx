@@ -25,6 +25,7 @@ import {
   getNotificationCategoryLabel,
   getNotificationMeta,
 } from './notification-utils';
+import { formatScheduleDate } from '@/utils/calendar.utils';
 
 interface NotificationDetailsModalProps {
   notification: Notification | null;
@@ -95,19 +96,6 @@ function locationAddress(location: DriverDispatchAlertLoadContext['pickup']) {
   return [location.address, cityStateZip].filter(Boolean).join(', ');
 }
 
-function formatAlertDate(value: string | Date | null | undefined) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/Denver',
-  });
-}
 
 function priorityClass(priority?: string) {
   if (priority === 'urgent') return 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-300';
@@ -168,19 +156,19 @@ function DriverAlertLoadDetails({ load }: { load: DriverDispatchAlertLoadContext
           {load.dates?.firstAvailable && (
             <div className="rounded-lg border border-border/50 bg-background/60 p-2">
               <p className="font-black uppercase tracking-[0.1em] text-muted-foreground">First available</p>
-              <p className="mt-1">{formatAlertDate(load.dates.firstAvailable)}</p>
+              <p className="mt-1">{formatScheduleDate(load.dates.firstAvailable)}</p>
             </div>
           )}
           {load.dates?.pickupDeadline && (
             <div className="rounded-lg border border-border/50 bg-background/60 p-2">
               <p className="font-black uppercase tracking-[0.1em] text-muted-foreground">Pickup deadline</p>
-              <p className="mt-1">{formatAlertDate(load.dates.pickupDeadline)}</p>
+              <p className="mt-1">{formatScheduleDate(load.dates.pickupDeadline)}</p>
             </div>
           )}
           {load.dates?.deliveryDeadline && (
             <div className="rounded-lg border border-border/50 bg-background/60 p-2">
               <p className="font-black uppercase tracking-[0.1em] text-muted-foreground">Delivery deadline</p>
-              <p className="mt-1">{formatAlertDate(load.dates.deliveryDeadline)}</p>
+              <p className="mt-1">{formatScheduleDate(load.dates.deliveryDeadline)}</p>
             </div>
           )}
         </div>

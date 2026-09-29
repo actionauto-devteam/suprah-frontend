@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { userErrorMessage } from "@/lib/user-error";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 type ReviewLoad = Load & {
   acceptanceMaterialVersion?: string;
@@ -32,16 +33,11 @@ interface AssignmentReconfirmDialogProps {
   onConfirmed?: () => Promise<void> | void;
 }
 
+// Load schedule fields are calendar days, not moments in time.
 function formatDate(value?: string) {
   if (!value) return "Not provided";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Denver",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  const formatted = formatScheduleDate(value);
+  return formatted === "—" ? value : formatted;
 }
 
 function locationText(location: Load["pickupLocation"] | Load["deliveryLocation"] | undefined) {

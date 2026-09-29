@@ -5,6 +5,9 @@ import { apiClient } from "@/lib/api-client";
 import type { DriverLoadCompatibility } from "@/types/driver-tracking";
 import type { DriverLoadLike } from "@/lib/driver-load-compatibility";
 
+// Matches the per-request driver limit in POST /compatibility-preview.
+const PREVIEW_BATCH_SIZE = 100;
+
 interface Options {
   load: DriverLoadLike | null | undefined;
   driverIds: string[];
@@ -48,16 +51,22 @@ export function useDriverLoadCompatibilityPreview({
     const timer = window.setTimeout(async () => {
       setIsLoading(true);
       try {
-        const response = await apiClient.post(
-          "/api/driver-tracking/compatibility-preview",
-          {
-            driverIds: normalizedDriverIds,
-            load,
-          },
-        );
-        if (cancelled) return;
-        const data = response.data?.data ?? response.data;
-        setCompatibilityByDriverId(data?.compatibilityByDriverId ?? {});
+        // The server checks at most PREVIEW_BATCH_SIZE drivers per request, so
+        // larger lists go in batches, one after another, to keep its load bounded.
+        const merged: Record<string, DriverLoadCompatibility> = {};
+        for (let index = 0; index < normalizedDriverIds.length; index += PREVIEW_BATCH_SIZE) {
+          const response = await apiClient.post(
+            "/api/driver-tracking/compatibility-preview",
+            {
+              driverIds: normalizedDriverIds.slice(index, index + PREVIEW_BATCH_SIZE),
+              load,
+            },
+          );
+          if (cancelled) return;
+          const data = response.data?.data ?? response.data;
+          Object.assign(merged, data?.compatibilityByDriverId ?? {});
+          setCompatibilityByDriverId({ ...merged });
+        }
       } catch {
         // Preview is advisory only. Existing backend assignment enforcement is
         // still authoritative, so a preview failure must not break the page.

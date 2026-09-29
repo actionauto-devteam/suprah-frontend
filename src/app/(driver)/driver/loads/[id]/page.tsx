@@ -27,6 +27,7 @@ import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { DriverHeroGlow } from '@/components/driver/DriverHeroGlow';
 import { initializeSocket } from '@/lib/socket.client';
 import { userErrorMessage } from "@/lib/user-error";
+import { formatScheduleDate } from "@/utils/calendar.utils";
 
 // Readable phrases for driver load actions in error messages ("We couldn't …").
 const DRIVER_ACTION_LABELS: Record<string, string> = {
@@ -513,8 +514,8 @@ export default function LoadDetailPage() {
               <div className="flex items-center gap-2"><Calendar className="size-4 text-primary" /><h3 className="text-sm font-black uppercase tracking-wider">Schedule</h3></div>
             </div>
             <CardContent className="p-4 space-y-3">
-              <DateRow label="Scheduled Pickup" value={data.dates?.pickupDeadline} />
-              <DateRow label="Scheduled Delivery" value={data.dates?.deliveryDeadline} />
+              <DateRow label="Scheduled Pickup" value={data.dates?.pickupDeadline} dateOnly />
+              <DateRow label="Scheduled Delivery" value={data.dates?.deliveryDeadline} dateOnly />
               {data.assignedAt && <DateRow label="Assigned" value={data.assignedAt} />}
               {acceptedAt && <DateRow label="Accepted" value={acceptedAt} />}
               {data.pickedUpAt && <DateRow label="Picked Up" value={data.pickedUpAt} />}
@@ -671,9 +672,10 @@ export default function LoadDetailPage() {
   );
 }
 
-function DateRow({ label, value }: { label: string; value?: string }) {
+function DateRow({ label, value, dateOnly = false }: { label: string; value?: string; dateOnly?: boolean }) {
   if (!value) return null;
-  return <div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{fmtDate(value)}</span></div>;
+  // Schedule fields are calendar days; converting them to Denver time showed the day before.
+  return <div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{dateOnly ? formatScheduleDate(value) : fmtDate(value)}</span></div>;
 }
 
 function FinRow({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {

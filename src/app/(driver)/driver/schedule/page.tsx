@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatScheduleDate, scheduleDateKey } from "@/utils/calendar.utils";
 
 const statusThemes: Record<string, string> = {
   Posted:
@@ -72,11 +73,14 @@ export default function DriverSchedulePage() {
     upcoming.forEach((load) => {
       const deadline =
         load.dates?.pickupDeadline || load.dates?.firstAvailable;
-      const dateStr = deadline
-        ? new Date(deadline).toLocaleDateString("en-US", {
+      // Calendar day, the same on every device (no timezone conversion).
+      const dayKey = deadline ? scheduleDateKey(deadline) : "";
+      const dateStr = dayKey
+        ? new Date(`${dayKey}T12:00:00Z`).toLocaleDateString("en-US", {
             weekday: "long",
             month: "short",
             day: "numeric",
+            timeZone: "UTC",
           })
         : "Unscheduled";
 
@@ -98,7 +102,7 @@ export default function DriverSchedulePage() {
       grouped[b][0].dates?.pickupDeadline ||
       grouped[b][0].dates?.firstAvailable;
 
-    return new Date(dateA).getTime() - new Date(dateB).getTime();
+    return scheduleDateKey(dateA).localeCompare(scheduleDateKey(dateB));
   });
 
   if (isLoading) {
@@ -224,12 +228,7 @@ export default function DriverSchedulePage() {
                               <Clock className="size-3.5 text-emerald-500" />
                               <span className="font-mono">
                                 {load.dates?.pickupDeadline
-                                  ? new Date(
-                                      load.dates.pickupDeadline,
-                                    ).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
+                                  ? `Pickup by ${formatScheduleDate(load.dates.pickupDeadline)}`
                                   : "Flexible"}
                               </span>
                             </div>

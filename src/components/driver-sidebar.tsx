@@ -40,6 +40,7 @@ import {
 import { LogOut, User as UserIcon, Settings as SettingsIcon } from "lucide-react";
 import { useOrg } from "@/hooks/useOrg";
 import { DriverDispatchChatSidebarItem } from "@/components/dispatch-chat/DriverDispatchChatSidebarItem";
+import { DriverChannelsSidebarItem } from "@/components/dispatch-channels/DriverChannelsSidebarItem";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -542,6 +543,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           ))}
 
           <DriverDispatchChatSidebarItem />
+          <DriverChannelsSidebarItem />
         </SidebarMenu>
 
         <div className="dsb-hr mx-4 mt-4 group-data-[collapsible=icon]:hidden" />
