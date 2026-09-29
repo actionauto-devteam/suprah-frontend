@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useRef, useCallback } from "react";
+import type { LeadStatus } from "@/lib/leadStatus";
 
 export interface Lead {
   _id: string;
@@ -26,7 +27,7 @@ export interface Lead {
 
   // Lead Information
   source: string;
-  status: "New" | "Contacted" | "Pending" | "Appointment Set" | "Closed";
+  status: LeadStatus;
   vehicle: {
     year: string;
     make: string;
@@ -38,6 +39,7 @@ export interface Lead {
   birthday?: string;
   tags?: string[];
   aiSummary?: string;
+  aiSummaryGeneratedAt?: string;
   opportunityValue?: number;
   appointment?: any;
   statusHistory?: {

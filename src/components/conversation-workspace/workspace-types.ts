@@ -84,4 +84,5 @@ export interface WorkspaceContactEditor {
 export interface WorkspaceStatusOption {
   value: string;
   label: string;
+  group?: string;
 }

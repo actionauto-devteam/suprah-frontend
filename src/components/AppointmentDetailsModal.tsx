@@ -756,6 +756,13 @@ export function AppointmentDetailsModal({
                 ? `Reminder sent: ${fmtLongDateTimeMDT(appointment.reminderSentAt || appointment.updatedAt)}`
                 : "Reminder not yet sent"}
             </p>
+            {appointment.rescheduleStatedPreference ? (
+              <p className="text-foreground/80">
+                <span className="font-semibold">Customer&apos;s stated reschedule preference:</span> &quot;{appointment.rescheduleStatedPreference}&quot;
+              </p>
+            ) : appointment.rescheduleAwaitingReplyAt ? (
+              <p>Waiting on the customer&apos;s preferred reschedule time…</p>
+            ) : null}
             {appointment.status === "no-show" && appointment.customerBooking?.phone && (
               <p>
                 {appointment.noShowFollowUpStatus === "processing"

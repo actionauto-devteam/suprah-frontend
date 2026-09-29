@@ -16,6 +16,7 @@ import {
   Star,
   Copy,
   Check,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -215,6 +216,7 @@ export default function CrmDashboardPage() {
 
     { icon: <Tag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Finance Line", route: "/crm/aftermarket" },
     { icon: <Car className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Garage Review", route: "/crm/garage-review" },
+    { icon: <RefreshCw className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Re-engagement", route: "/crm/vehicle-reengagement" },
     { icon: <Headset className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Support Center", route: "/crm/support-center" },
     { icon: <Star className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />, label: "Reviews", route: "/crm/reviews" },
     { icon: <Trophy className="h-5 w-5 text-amber-500 dark:text-amber-400" />, label: "Leaderboard", route: "/crm/leaderboard", accent: "amber" as const },

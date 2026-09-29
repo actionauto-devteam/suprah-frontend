@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { LEAD_STATUS_SELECT_OPTIONS } from "@/lib/leadStatus";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/context/ThemeContext";
 import { useLeads, Lead } from "@/hooks/useLeads";
@@ -1798,12 +1799,7 @@ export function CommunicationHub() {
               onDetailsTabChange={setDetailsTab}
               onClose={() => setShowDetails(false)}
               status={selectedLead.status}
-              statusOptions={[
-                { value: "New", label: "New" },
-                { value: "Pending", label: "Pending" },
-                { value: "Contacted", label: "Contacted" },
-                { value: "Appointment Set", label: "Appointment Set" },
-              ]}
+              statusOptions={LEAD_STATUS_SELECT_OPTIONS}
               onStatusChange={(status) => {
                 void (async () => {
                   try {

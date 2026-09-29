@@ -7,7 +7,9 @@ import {
   ChevronUp,
   Copy,
   Edit3,
+  Loader2,
   PanelRightClose,
+  RefreshCw,
   Save,
   StickyNote,
   X,
@@ -32,6 +34,19 @@ import {
 
 type ActivityFilter = "all" | "notes" | "status" | "calls";
 
+function formatRelativeTimeShort(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  if (Number.isNaN(diffMs)) return "";
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 function actionTone(tone: WorkspaceQuickAction["tone"]) {
   if (tone === "warning") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
   if (tone === "danger") return "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300";
@@ -43,6 +58,10 @@ export interface ContactDetailsPanelProps {
   contact: WorkspaceContact;
   contactTypeLabel?: string;
   summary?: string;
+  summaryUpdatedAt?: string | Date | null;
+  summaryLoading?: boolean;
+  onRegenerateSummary?: () => void;
+  belowSummary?: React.ReactNode;
   quickActions?: WorkspaceQuickAction[];
   detailSections: WorkspaceDetailSection[];
   activities: WorkspaceActivityItem[];
@@ -64,6 +83,10 @@ export function ContactDetailsPanel({
   contact,
   contactTypeLabel = "Contact type: Lead",
   summary,
+  summaryUpdatedAt,
+  summaryLoading = false,
+  onRegenerateSummary,
+  belowSummary,
   quickActions = [],
   detailSections,
   activities,
@@ -200,14 +223,41 @@ export function ContactDetailsPanel({
           {contactTypeLabel}
         </p>
 
-        {summary ? (
+        {summary || onRegenerateSummary ? (
           <div className="mt-3 rounded-xl border p-3" style={{ borderColor: "var(--border-1)", background: "var(--bg-subtle)" }}>
-            <strong className="text-xs">Conversation summary</strong>
-            <p className="mt-1.5 break-words text-[11px] leading-relaxed [overflow-wrap:anywhere]" style={{ color: "var(--text-secondary)" }}>
-              {summary}
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-xs">Conversation summary</strong>
+              {onRegenerateSummary && (
+                <button
+                  type="button"
+                  onClick={onRegenerateSummary}
+                  disabled={summaryLoading}
+                  className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition hover:bg-(--bg-hover) disabled:opacity-50"
+                  style={{ color: "var(--text-tertiary)" }}
+                  title="Regenerate summary"
+                >
+                  {summaryLoading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  {summaryUpdatedAt ? formatRelativeTimeShort(summaryUpdatedAt) : "Generate"}
+                </button>
+              )}
+            </div>
+            {summary ? (
+              <p className="mt-1.5 break-words text-[11px] leading-relaxed [overflow-wrap:anywhere]" style={{ color: "var(--text-secondary)" }}>
+                {summary}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] italic" style={{ color: "var(--text-tertiary)" }}>
+                No summary yet.
+              </p>
+            )}
           </div>
         ) : null}
+
+        {belowSummary}
 
         {quickActions.length > 0 ? (
           <div className="cw-quick-actions mt-3 grid grid-cols-5 gap-1.5">
@@ -243,9 +293,19 @@ export function ContactDetailsPanel({
               className="h-9 w-full rounded-lg border px-3 text-xs outline-none"
               style={{ background: "var(--input-bg)", borderColor: "var(--input-border)", color: "var(--text-primary)" }}
             >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
+              {statusOptions.some((option) => option.group)
+                ? Array.from(new Set(statusOptions.map((option) => option.group || ""))).map((group) => (
+                    <optgroup key={group || "_"} label={group || "Other"}>
+                      {statusOptions
+                        .filter((option) => (option.group || "") === group)
+                        .map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                    </optgroup>
+                  ))
+                : statusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
             </select>
           </div>
         ) : null}

@@ -1,3 +1,5 @@
+import { LEAD_STATUS_VALUES, getLeadStatusStyle } from "@/lib/leadStatus";
+
 export type ReportId =
   | "load-report"
   | "quote-report"
@@ -230,13 +232,10 @@ const QUOTE_STATUS_OPTIONS: ReportFilterOption[] = [
   { label: "Rejected", value: "rejected" },
 ];
 
-const LEAD_STATUS_OPTIONS: ReportFilterOption[] = [
-  { label: "New", value: "New" },
-  { label: "Contacted", value: "Contacted" },
-  { label: "Pending", value: "Pending" },
-  { label: "Appointment Set", value: "Appointment Set" },
-  { label: "Closed", value: "Closed" },
-];
+const LEAD_STATUS_OPTIONS: ReportFilterOption[] = LEAD_STATUS_VALUES.map((status) => ({
+  label: getLeadStatusStyle(status).label,
+  value: status,
+}));
 
 const PAYMENT_STATUS_OPTIONS: ReportFilterOption[] = [
   { label: "Pending", value: "pending" },
