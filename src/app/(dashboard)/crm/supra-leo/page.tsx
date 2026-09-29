@@ -153,14 +153,19 @@ const PAGE_CSS = `
 [data-axp-page] *, [data-axp-page] *::before, [data-axp-page] *::after { box-sizing: border-box; }
 
 /* ── Page entrance — smooth fade-slide in from bottom ── */
-[data-axp-page] { animation: axpg-enter .32s cubic-bezier(.16,1,.3,1) both; }
+[data-axp-page] {
+  animation: axpg-enter .32s cubic-bezier(.16,1,.3,1) both;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
 
 /* ── Layout shell ── */
 .apg-shell {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
-  max-height: 100%;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -388,6 +393,122 @@ const PAGE_CSS = `
 .apg-messages::-webkit-scrollbar { width: 3px; }
 .apg-messages::-webkit-scrollbar-track { background: transparent; }
 .apg-messages::-webkit-scrollbar-thumb { background: var(--p-bd); border-radius: 2px; }
+
+.apg-workspace {
+  flex: 1;
+  min-height: 0;
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.apg-workspace .apg-messages {
+  padding: 20px 0;
+  border: 1px solid var(--p-bd2);
+  border-radius: 18px;
+  background: var(--p-surf);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .12);
+}
+
+.apg-message-column {
+  width: min(100%, 920px);
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.apg-context {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.apg-context-card {
+  border: 1px solid var(--p-bd2);
+  border-radius: 16px;
+  background: var(--p-surf);
+  padding: 16px;
+}
+
+.apg-context-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--p-tx3);
+}
+
+.apg-context-title {
+  margin-top: 7px;
+  color: var(--p-acc2);
+  font-family: 'Exo 2', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.apg-context-copy {
+  margin: 9px 0 0;
+  color: var(--p-tx2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.apg-context-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.apg-context-stat {
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  background: var(--p-surf2);
+  padding: 9px;
+}
+
+.apg-context-stat span {
+  display: block;
+  color: var(--p-tx3);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  letter-spacing: .14em;
+}
+
+.apg-context-stat strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--p-tx);
+  font-size: 13px;
+}
+
+.apg-context-action {
+  width: 100%;
+  border: 1px solid var(--p-bd2);
+  border-radius: 10px;
+  background: var(--p-surf2);
+  color: var(--p-tx2);
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px;
+  text-align: left;
+  transition: border-color .18s, background .18s, color .18s;
+}
+
+.apg-context-action + .apg-context-action { margin-top: 7px; }
+.apg-context-action:hover { border-color: var(--p-bd); background: var(--p-acc-dim); color: var(--p-acc2); }
 
 /* ── Message rows ── */
 .apg-msg-row {
@@ -685,6 +806,8 @@ const PAGE_CSS = `
 
 .apg-input-inner {
   padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
 .apg-input-wrap {
@@ -850,6 +973,9 @@ const PAGE_CSS = `
 
 /* ── Responsive ── */
 @media (max-width: 640px) {
+  .apg-workspace { display: block; padding: 0; }
+  .apg-workspace .apg-messages { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+  .apg-message-column { width: 100%; }
   .apg-topbar-inner { padding: 10px 14px; }
   .apg-modules { padding: 0 14px 10px; }
   .apg-msg-row { padding: 0 14px; }
@@ -860,6 +986,11 @@ const PAGE_CSS = `
   .apg-status-badge { display: none !important; }
   .apg-msg-count { display: none !important; }
   .apg-brand-name { font-size: 15px; }
+}
+
+@media (max-width: 1180px) {
+  .apg-workspace { grid-template-columns: minmax(0, 1fr); }
+  .apg-context { display: none; }
 }
 `
 
@@ -895,7 +1026,15 @@ interface SupraLeoStatus {
 }
 
 function renderMarkdown(text: string): string {
-  return text
+  const escaped = text.replace(/[&<>'"]/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[char] || char)
+
+  return escaped
     .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
@@ -1172,7 +1311,9 @@ export default function SupraLeoPage() {
         </div>
 
         {/* ── Messages area ── */}
-        <div ref={scrollRef} className="apg-messages">
+        <div className="apg-workspace">
+          <div ref={scrollRef} className="apg-messages">
+            <div className="apg-message-column">
 
           {/* Load more */}
           {hasMore && !isLoadingHistory && (
@@ -1244,7 +1385,49 @@ export default function SupraLeoPage() {
             </div>
           )}
 
-          <div style={{ height: 8 }} />
+              <div style={{ height: 8 }} />
+            </div>
+          </div>
+
+          <aside className="apg-context" aria-label="Autrix workspace">
+            <section className="apg-context-card">
+              <div className="apg-context-eyebrow">Private workspace</div>
+              <div className="apg-context-title">{activeModuleData?.label}</div>
+              <p className="apg-context-copy">
+                Your Autrix history is private to your user and organization. Ask for planning, writing, summaries, or help with the active module.
+              </p>
+              <div className="apg-context-stats">
+                <div className="apg-context-stat">
+                  <span>History</span>
+                  <strong>{status?.context?.chatMessages ?? messages.length} messages</strong>
+                </div>
+                <div className="apg-context-stat">
+                  <span>Focus</span>
+                  <strong>{activeModuleData?.label}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className="apg-context-card">
+              <div className="apg-context-eyebrow">Start here</div>
+              <div className="apg-context-title">Useful prompts</div>
+              <p className="apg-context-copy">Choose a starting point, then tailor it before sending.</p>
+              <div style={{ marginTop: 12 }}>
+                {quickPrompts.slice(0, 2).map(prompt => (
+                  <button
+                    key={prompt}
+                    className="apg-context-action"
+                    onClick={() => {
+                      setInputText(prompt)
+                      requestAnimationFrame(() => textareaRef.current?.focus())
+                    }}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </aside>
         </div>
 
         {/* ── Input Bar ── */}

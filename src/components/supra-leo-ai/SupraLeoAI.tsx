@@ -303,6 +303,7 @@ interface LoadedPanelProps {
   onStartReplyListening: () => void
   onSetTranscript: (t: string) => void
   onSendReply: () => Promise<void>
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
 function detectModule(pathname: string): string {
@@ -509,6 +510,7 @@ export function SupraLeoAI({
     onStartReplyListening: onVoiceReply,
     onSetTranscript,
     onSendReply: async () => onSendReply(transcript),
+    dragHandleProps: handleProps,
   } : null
 
   if (variant === 'toolbar') {

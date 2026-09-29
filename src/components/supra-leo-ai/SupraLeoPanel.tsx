@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import {
-  X, Square, Pause, Play, Volume2, Mic, Send, Edit3,
+  X, Square, Pause, Play, Volume2, Mic, Send, Edit3, GripVertical,
   RotateCcw, Loader2, CheckCircle2, AlertCircle, MessageSquare,
   ChevronRight, Calendar, Clock, Fingerprint, Rss, Maximize2,
   RefreshCw, AlertTriangle, Zap, BookOpen, FileText, CalendarPlus,
@@ -40,6 +40,7 @@ interface PanelProps {
   onStop: () => void
   onPause: () => void
   onResume: () => void
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
   onClose: () => void
   onReplay: () => void
   onStartListeningForCommand: () => void
@@ -249,6 +250,21 @@ export const UPDATED_PANEL_CSS = `
   position: relative;
   z-index: 2;
 }
+
+.axp-drag-handle {
+  width: 24px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--p-tx3);
+  border-radius: 7px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.axp-drag-handle:hover { background: var(--p-acc-dim); color: var(--p-acc2); }
 
 /* Diagonal accent in header */
 .axp-hdr::before {
@@ -981,6 +997,7 @@ export const UPDATED_PANEL_CSS = `
 
 /* Responsive */
 @media (max-width: 767px) {
+  .axp-drag-handle { display: none; }
   .axp-panel {
     width: min(400px, calc(100vw - 20px));
     max-height: calc(100dvh - var(--supra-leo-bottom, 6.5rem) - 14px);
@@ -2213,7 +2230,7 @@ export function SupraLeoPanel({
   state, module, fromPath, email, message, errorMsg, voiceName, transcript,
   onStop, onPause, onResume, onClose, onReplay,
   onStartListeningForCommand, onStartReplyListening,
-  onSetTranscript, onSendReply,
+  onSetTranscript, onSendReply, dragHandleProps,
 }: PanelProps) {
   const [tab, setTab] = React.useState<'chat' | 'assistant' | 'reminder'>('chat')
   const [activeModule, setActiveModule] = React.useState('general')
@@ -2265,6 +2282,10 @@ export function SupraLeoPanel({
               </div>
               <Waveform active={waveActive} />
             </div>
+          </div>
+
+          <div {...dragHandleProps} className="axp-drag-handle" title="Drag to reposition Autrix">
+            <GripVertical size={14} aria-hidden="true" />
           </div>
 
           <button
