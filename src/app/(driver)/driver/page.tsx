@@ -451,7 +451,13 @@ export default function DriverDashboardPage() {
     writeDriverKpiSnapshot(user.id, kpiSnapshot);
   }, [kpiSnapshot, user?.id]);
 
+  // Only the newest refresh may apply its results, so a slow older response
+  // (for example a timer tick that started before Accept) can't show stale data.
+  const fetchSeqRef = React.useRef(0);
+
   const fetchData = React.useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
+    const isLatest = () => seq === fetchSeqRef.current;
     const token = await getToken();
     if (!token) {
       setIsLoading(false);
@@ -468,6 +474,7 @@ export default function DriverDashboardPage() {
     const loadsTask = apiClient
       .get("/api/driver-tracking/my-loads", { headers })
       .then((loadsRes) => {
+        if (!isLatest()) return;
         const loadsData = loadsRes.data?.data;
         const nextLoads =
           loadsData?.loads ?? (Array.isArray(loadsData) ? loadsData : []);
@@ -489,12 +496,14 @@ export default function DriverDashboardPage() {
         }));
       })
       .catch((err: any) => {
+        if (!isLatest()) return;
         toast.error(userErrorMessage(err, "load your dashboard"));
       });
 
     const requestsTask = apiClient
       .get("/api/driver-tracking/my-requests", { headers })
       .then((requestsRes) => {
+        if (!isLatest()) return;
         const requestData = requestsRes.data?.data;
         const nextRequests = Array.isArray(requestData) ? requestData : [];
         setPendingLoadRequests(nextRequests);
@@ -515,7 +524,7 @@ export default function DriverDashboardPage() {
       .get("/api/driver-tracking/dashboard-stats", { headers })
       .then((statsRes) => {
         const stats = statsRes?.data?.data;
-        if (!stats) return;
+        if (!stats || !isLatest()) return;
 
         setDashStats(stats);
         setKpiSnapshot((previous) => ({
@@ -538,7 +547,7 @@ export default function DriverDashboardPage() {
       .get("/api/driver-profile", { headers })
       .then((profileRes) => {
         const profile = profileRes?.data?.data;
-        if (!profile) return;
+        if (!profile || !isLatest()) return;
 
         setOpStatus(profile.operationalStatus || "active");
 
@@ -609,6 +618,12 @@ export default function DriverDashboardPage() {
       if (cancelled) return;
       void fetchData();
     };
+    // The fallback refresh runs only while the page is visible, and catches up
+    // as soon as the driver returns to it.
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") refreshFromRealtimeEvent();
+    };
+    document.addEventListener("visibilitychange", refreshIfVisible);
 
     const connect = async () => {
       try {
@@ -622,14 +637,14 @@ export default function DriverDashboardPage() {
         // protects the dashboard from becoming stale after a temporary socket
         // reconnect or a missed event.
         fallbackTimer = window.setInterval(
-          refreshFromRealtimeEvent,
+          refreshIfVisible,
           15_000,
         );
       } catch {
         // If the socket cannot connect temporarily, keep the dashboard usable
         // and synchronized through the fallback until the component remounts.
         fallbackTimer = window.setInterval(
-          refreshFromRealtimeEvent,
+          refreshIfVisible,
           15_000,
         );
       }
@@ -639,6 +654,7 @@ export default function DriverDashboardPage() {
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", refreshIfVisible);
 
       if (fallbackTimer !== null) {
         window.clearInterval(fallbackTimer);
@@ -2129,21 +2145,21 @@ export default function DriverDashboardPage() {
                     <div className="min-w-0">
                       <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
                         {locationRequirementReason === "dispatch_retained_load"
-                          ? "GPS Required by Dispatch"
-                          : "GPS Required After Load Acceptance"}
+                          ? "Dispatch needs your location"
+                          : "Your location is needed for your load"}
                       </p>
                       <p className="mt-1 break-words text-sm leading-relaxed text-muted-foreground/90 [overflow-wrap:anywhere]">
                         {locationRequirementReason === "dispatch_retained_load"
                           ? isSharing
-                            ? "Dispatch requires GPS while retained active loads remain assigned."
+                            ? "Dispatch kept a load with you, so they can see your location until that load is finished."
                             : isStarting
-                              ? "Connecting GPS for your retained load…"
-                              : "Location permission is required for your retained load."
+                              ? "Turning on your location for the load Dispatch kept with you…"
+                              : "Your location is off. Dispatch kept a load with you and needs to see where you are. Turn on location for this site."
                           : isSharing
-                            ? "Location sharing stays automatic while you have an Accepted, Picked Up, or In-Transit load."
+                            ? "Dispatch can see your location while you have a load that is Accepted, Picked Up or In Transit. It turns off by itself after delivery."
                             : isStarting
-                              ? "Connecting automatically because you accepted an active load…"
-                              : "Location permission is required after accepting an active load."}
+                              ? "Turning on your location because you accepted a load…"
+                              : "Your location is off. You accepted a load, so Dispatch needs to see where you are. Turn on location for this site."}
                       </p>
                     </div>
                   </div>

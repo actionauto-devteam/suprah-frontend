@@ -578,7 +578,18 @@ export function DriverTrackerLoadsCard({
                         size="sm"
                         variant="outline"
                         className="min-h-11 h-auto w-full sm:min-h-0 gap-1 border-destructive/20 px-2.5 text-xs sm:text-[10px] font-semibold text-destructive hover:bg-destructive/10 sm:h-8 sm:w-auto"
-                        disabled={keepingAssigned === shipment.id || removing === shipment.id || reassigning === shipment.id}
+                        disabled={
+                          keepingAssigned === shipment.id ||
+                          removing === shipment.id ||
+                          reassigning === shipment.id ||
+                          // Vehicles are on the truck after pickup: Reassign instead.
+                          ["Picked Up", "In-Transit", "In-Route"].includes(String(shipment.status ?? ""))
+                        }
+                        title={
+                          ["Picked Up", "In-Transit", "In-Route"].includes(String(shipment.status ?? ""))
+                            ? "This load is already picked up, so it can't go back to the load board. Use Reassign to hand it to another driver."
+                            : undefined
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
                           void handleRemove(shipment.id);

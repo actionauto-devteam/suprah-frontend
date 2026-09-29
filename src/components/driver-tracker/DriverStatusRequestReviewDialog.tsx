@@ -376,6 +376,13 @@ export function DriverStatusRequestReviewDialog({
                 </div>
               )}
 
+              {request.notesHidden && (
+                <p className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                  The driver&apos;s reason, message and attachments are only shown to admins and the dispatcher
+                  handling one of this driver&apos;s active loads.
+                </p>
+              )}
+
               {!emergency &&
                 request.status === "pending" &&
                 currentLoads.length > 0 && (
@@ -556,7 +563,7 @@ export function DriverStatusRequestReviewDialog({
                           </span>
                           {load.status && (
                             <Badge variant="outline" className="text-[10px]">
-                              **************************{load.status}
+                              {load.status}
                             </Badge>
                           )}
                         </div>

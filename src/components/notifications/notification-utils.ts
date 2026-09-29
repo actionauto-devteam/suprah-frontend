@@ -455,6 +455,23 @@ function getProjectManagementNotificationRoute(notification: Notification): stri
   return query ? `/project?${query}` : '/project';
 }
 
+const GENERIC_DRIVER_ROUTES = new Set(['', '/driver', '/driver/', '/driver/loads', '/driver/loads/']);
+
+function getLegacyDriverLoadRoute(notification: Notification, metadataRoute: string): string | null {
+  if (!GENERIC_DRIVER_ROUTES.has(metadataRoute.trim())) return null;
+  const loadId = String(notification.metadata?.loadId ?? '').trim();
+  // Account-application approvals share these types but carry no load.
+  if (!/^[a-f0-9]{24}$/i.test(loadId)) return null;
+
+  if (notification.type === 'driver_request_rejected') return '/driver/available-loads';
+  if (notification.type === 'driver_assigned' || notification.type === 'driver_request_approved') {
+    // "Load Reassigned" / release approvals mean the load left this driver.
+    if (/reassigned$|release request approved/i.test(String(notification.title ?? ''))) return '/driver/loads';
+    return `/driver/loads/${encodeURIComponent(loadId)}`;
+  }
+  return null;
+}
+
 function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'dashboard' {
   if (pathname.startsWith('/driver')) return 'driver';
   if (pathname.startsWith('/customer')) return 'customer';
@@ -528,6 +545,12 @@ export function getNotificationRoute(notification: Notification, pathname?: stri
 
     return metadataRoute;
   }
+
+  // Driver load notifications created before exact routes were stored point
+  // at a generic page (or nowhere). Open the specific load when the driver
+  // still has it, otherwise the list where they can act next.
+  const driverLoadRoute = getLegacyDriverLoadRoute(notification, metadataRoute);
+  if (driverLoadRoute) return driverLoadRoute;
 
   // Prefer the contextual route embedded in metadata for all other types.
   if (metadataRoute) return metadataRoute;

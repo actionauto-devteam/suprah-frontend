@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/context/NotificationContext';
 import { useCrmNotifications } from '@/hooks/useCrmNotifications';
-import { resolveNotificationCategory } from './notification-utils';
 import { NotificationDrawer } from './NotificationDrawer';
 
 interface CrmNotificationBellProps {
@@ -19,12 +18,10 @@ export function CrmNotificationBell({ open, onOpenChange }: CrmNotificationBellP
   const general = useNotifications();
   const crm = useCrmNotifications();
 
-  const generalUnread = React.useMemo(
-    () => general.notifications.filter(
-      (notification) => !notification.isRead && resolveNotificationCategory(notification) !== 'crm',
-    ).length,
-    [general.notifications],
-  );
+  // Both counts come from the server, so the badge doesn't change with how many
+  // notifications are loaded (the drawer loads all of them, the bell the latest 50).
+  // CRM-category notifications are counted by the CRM badge instead.
+  const generalUnread = Math.max(0, general.unreadCount - general.unreadCrmCount);
   const unreadCount = generalUnread + crm.unreadCount;
 
   return (

@@ -1,6 +1,8 @@
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 
 export const LOCATION_FRESH_MS = 90_000;
+/** Positions less precise than this (e.g. cell-tower fixes) are labelled approximate. */
+export const LOW_ACCURACY_M = 1_000;
 export function validCoordinates(value: unknown): value is { lat: number; lng: number } {
   if (!value || typeof value !== "object") return false;
   const { lat, lng } = value as { lat: unknown; lng: unknown };
@@ -12,7 +14,7 @@ function timestamp(value: string | null | undefined) {
   return value ? new Date(value).getTime() : NaN;
 }
 
-export function trackingState(driver: Pick<DriverTrackingItem, "coords" | "isSharing" | "locationRecordedAt" | "lastSeenAt">, now: number) {
+export function trackingState(driver: Pick<DriverTrackingItem, "coords" | "isSharing" | "locationRecordedAt" | "lastSeenAt"> & { accuracy?: number | null }, now: number) {
   if (!validCoordinates(driver.coords)) return { kind: "unavailable", label: "Location unavailable" } as const;
   const measured = timestamp(driver.locationRecordedAt);
   const received = timestamp(driver.lastSeenAt);
@@ -24,6 +26,9 @@ export function trackingState(driver: Pick<DriverTrackingItem, "coords" | "isSha
     return { kind: "outdated", label: "Outdated location" } as const;
   }
   if (!driver.isSharing) return { kind: "stopped", label: "Sharing stopped" } as const;
+  if (typeof driver.accuracy === "number" && Number.isFinite(driver.accuracy) && driver.accuracy > LOW_ACCURACY_M) {
+    return { kind: "live", label: `Approximate GPS (±${(driver.accuracy / 1000).toFixed(1)} km)` } as const;
+  }
   return { kind: "live", label: "Fresh GPS" } as const;
 }
 

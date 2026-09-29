@@ -5,6 +5,7 @@ import { Notification } from '@/types/notification';
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from '@/lib/socket.client';
 import { playShiftAlertSound, playPingSound } from '@/lib/notification-sound';
+import { resolveNotificationCategory } from '@/components/notifications/notification-utils';
 
 interface FetchNotificationsOptions {
     limit?: number;
@@ -15,6 +16,8 @@ interface FetchNotificationsOptions {
 interface NotificationContextType {
     notifications: Notification[];
     unreadCount: number;
+    /** Unread CRM-category notifications (the CRM badge counts these). */
+    unreadCrmCount: number;
     totalCount: number;
     isLoading: boolean;
     error: string | null;
@@ -35,7 +38,12 @@ const DEFAULT_FETCH_OPTIONS: FetchNotificationsOptions = { limit: 50, skip: 0 };
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [unreadCrmCount, setUnreadCrmCount] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
+    // Timed refreshes, live events and the drawer (which loads every
+    // notification) can overlap. Only the newest request may apply its result,
+    // otherwise the list and counts flip between an older and a newer answer.
+    const fetchSeqRef = useRef(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -52,10 +60,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (options?.isRead !== undefined) nextOptions.isRead = options.isRead;
 
         activeFetchOptionsRef.current = nextOptions;
+        const seq = ++fetchSeqRef.current;
 
         if (!isSignedIn) {
             setNotifications([]);
             setUnreadCount(0);
+            setUnreadCrmCount(0);
             setTotalCount(0);
             setIsLoading(false);
             return;
@@ -63,9 +73,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         try {
             const token = await getToken();
+            if (seq !== fetchSeqRef.current) return;
             if (!token) {
                 setNotifications([]);
                 setUnreadCount(0);
+                setUnreadCrmCount(0);
                 setTotalCount(0);
                 setIsLoading(false);
                 return;
@@ -87,8 +99,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 },
             });
 
+            if (seq !== fetchSeqRef.current) return;
             if (res.ok) {
                 const data = await res.json();
+                if (seq !== fetchSeqRef.current) return;
                 const payload = data?.data ?? {};
                 const nextNotifications = Array.isArray(payload.notifications) ? payload.notifications : [];
                 const nextUnreadCount = typeof payload.unreadCount === 'number'
@@ -98,8 +112,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     ? payload.total
                     : nextNotifications.length;
 
+                const nextUnreadCrmCount = typeof payload.unreadCrmCount === 'number'
+                    ? payload.unreadCrmCount
+                    : nextNotifications.filter((n: Notification) => !n.isRead && resolveNotificationCategory(n) === 'crm').length;
+
                 setNotifications(nextNotifications);
                 setUnreadCount(nextUnreadCount);
+                setUnreadCrmCount(nextUnreadCrmCount);
                 setTotalCount(nextTotalCount);
                 setError(null);
                 backoffRef.current = POLL_INTERVAL;
@@ -108,16 +127,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             } else if (res.status === 404) {
                 setNotifications([]);
                 setUnreadCount(0);
+                setUnreadCrmCount(0);
                 setTotalCount(0);
                 setError(null);
             } else {
                 throw new Error(`HTTP ${res.status}`);
             }
         } catch {
+            if (seq !== fetchSeqRef.current) return;
             setError('Failed to load notifications');
             backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF);
         } finally {
-            setIsLoading(false);
+            if (seq === fetchSeqRef.current) setIsLoading(false);
         }
     }, [getToken, isSignedIn]);
 
@@ -129,6 +150,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
+        if (resolveNotificationCategory(target) === 'crm') setUnreadCrmCount(prev => Math.max(0, prev - 1));
 
         try {
             const token = await getToken();
@@ -145,8 +167,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const markAllAsRead = useCallback(async () => {
         const snapshot = [...notifications];
         const prevCount = unreadCount;
+        const prevCrmCount = unreadCrmCount;
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         setUnreadCount(0);
+        setUnreadCrmCount(0);
 
         try {
             const token = await getToken();
@@ -158,8 +182,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch {
             setNotifications(snapshot);
             setUnreadCount(prevCount);
+            setUnreadCrmCount(prevCrmCount);
         }
-    }, [notifications, unreadCount, getToken]);
+    }, [notifications, unreadCount, unreadCrmCount, getToken]);
 
     const deleteNotification = useCallback(async (id: string) => {
         const target = notifications.find(n => n._id === id);
@@ -168,10 +193,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const snapshot = [...notifications];
         const prevCount = unreadCount;
         const prevTotal = totalCount;
+        const prevCrmCount = unreadCrmCount;
         const wasUnread = !target.isRead;
+        const wasUnreadCrm = wasUnread && resolveNotificationCategory(target) === 'crm';
 
         setNotifications(prev => prev.filter(n => n._id !== id));
         if (wasUnread) setUnreadCount(prev => Math.max(0, prev - 1));
+        if (wasUnreadCrm) setUnreadCrmCount(prev => Math.max(0, prev - 1));
         setTotalCount(prev => Math.max(0, prev - 1));
 
         try {
@@ -184,9 +212,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } catch {
             setNotifications(snapshot);
             setUnreadCount(prevCount);
+            setUnreadCrmCount(prevCrmCount);
             setTotalCount(prevTotal);
         }
-    }, [notifications, unreadCount, totalCount, getToken]);
+    }, [notifications, unreadCount, unreadCrmCount, totalCount, getToken]);
 
     const deleteAllRead = useCallback(async () => {
         const snapshot = [...notifications];
@@ -222,6 +251,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (!isLoaded || !isSignedIn) {
             setNotifications([]);
             setUnreadCount(0);
+            setUnreadCrmCount(0);
             setTotalCount(0);
             activeFetchOptionsRef.current = DEFAULT_FETCH_OPTIONS;
             setIsLoading(false);
@@ -303,6 +333,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             const onReadAll = () => {
                 setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                 setUnreadCount(0);
+                setUnreadCrmCount(0);
                 fetchRef.current?.();
             };
 
@@ -363,6 +394,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             value={{
                 notifications,
                 unreadCount,
+                unreadCrmCount,
                 totalCount,
                 isLoading,
                 error,

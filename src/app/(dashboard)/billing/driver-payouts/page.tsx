@@ -290,31 +290,14 @@ function PayoutModal({
 }) {
   const [amount, setAmount] = React.useState(0);
   const [notes, setNotes] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
-  const handleSubmit = async () => {
-    if (amount <= 0) {
-      setError("Amount must be greater than 0.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-
-    try {
-      const token = await getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      await apiClient.post("/api/driver-payouts", {
-        loadId: target._id,
-        driverId: target.assignedDriverId._id,
-        amount, notes,
-      }, { headers });
-      onCreated(); onClose();
-    } catch (e: any) {
-      setError(userErrorMessage(e, "create this payout"));
-    } finally {
-      setLoading(false);
-    }
+  // Billing and payout processing are still in development, so this window
+  // must never move money yet. It only explains that to the user.
+  const handleSubmit = () => {
+    setNotice(
+      "Driver payouts are still being built. No payout was sent. Delivery confirmation is recorded separately on the load.",
+    );
   };
 
   return (
@@ -411,7 +394,7 @@ function PayoutModal({
             />
           </div>
 
-          {error && <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "#f87171" }}>{error}</p>}
+          {notice && <p role="status" style={{ fontFamily: DISPLAY, fontSize: 13, color: "#facc15" }}>{notice}</p>}
 
           <div style={{ display: "flex", gap: 10 }}>
             <button
@@ -433,26 +416,25 @@ function PayoutModal({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={loading}
               style={{
                 flex: 2,
                 padding: "11px 0",
-                background: loading ? "rgba(229,90,0,0.5)" : ORANGE,
+                background: ORANGE,
                 border: "none",
                 borderRadius: 10,
                 color: "#fff",
                 fontFamily: DISPLAY,
                 fontSize: 14,
                 fontWeight: 700,
-                cursor: loading ? "not-allowed" : "pointer",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
               }}
             >
-              {loading ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <DollarSign style={{ width: 14, height: 14 }} />}
-              {loading ? "Sending..." : "Send Payout"}
+              <DollarSign style={{ width: 14, height: 14 }} />
+              Send Payout
             </button>
           </div>
         </div>

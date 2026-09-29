@@ -478,12 +478,10 @@ function NotificationDrawerBody({
 
   const displayedEntries = filteredEntries.slice(0, DRAWER_RENDER_LIMIT);
 
-  const scopedGeneralUnread = React.useMemo(
-    () => general.notifications.filter(
-      (notification) => !notification.isRead && resolveNotificationCategory(notification) !== 'crm',
-    ).length,
-    [general.notifications],
-  );
+  // Both counts come from the server, so the badge doesn't change with how many
+  // notifications are loaded (the drawer loads all of them, the bell the latest 50).
+  // CRM-category notifications are counted by the CRM badge instead.
+  const scopedGeneralUnread = Math.max(0, general.unreadCount - general.unreadCrmCount);
   const combinedUnread = scopedGeneralUnread + (crmToken && crm ? crm.unreadCount : 0);
 
   const anyGeneralSelected = FILTER_BRANCHES[0].leaves.some((leaf) => selectedFilters.has(leaf.id));
