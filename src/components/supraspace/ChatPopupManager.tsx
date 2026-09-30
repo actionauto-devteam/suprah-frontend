@@ -14,6 +14,7 @@ import {
 } from '@/context/SupraSpaceMessengerContext';
 import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
+import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -6221,7 +6222,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const gifOnly = msg.type === 'gif' && !!msg.gif?.url;
                   const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
                   const isRichCard = !!voiceAtt || (msg.type === 'poll' && !!msg.poll) || (msg.type === 'event' && !!msg.event);
-                  const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard;
+                  const operationalKind = getOperationalMessageKind(msg, conv.name);
+                  const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard || !!operationalKind;
                   const editableAttachmentCount = (msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
                   const canSaveThisEdit = !editSaving
                     && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
@@ -6230,12 +6232,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
                     <div key={msg._id}
-                      className={cn('flex gap-2', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end', showName && 'mt-2')}
+                      className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
                     >
                       {/* Sender avatar for non-own messages */}
-                      {!isOwn && (
+                      {!isOwn && !operationalKind && (
                         <div className="shrink-0 self-end mb-0.5">
                           {showName ? (
                             <div className="h-5 w-5 rounded-full overflow-hidden flex items-center justify-center text-white ring-1 ring-white/10"
@@ -6255,13 +6257,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           'min-w-0 flex flex-col',
                           editingMsgId === msg._id
                             ? 'w-[94%] max-w-[94%]'
-                            : imageOnly || gifOnly || isRichCard
+                            : operationalKind
+                              ? 'w-full max-w-full'
+                              : imageOnly || gifOnly || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
                         )}
                         style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
                       >
-                        {showName && !isOwn && (
+                        {showName && !isOwn && !operationalKind && (
                           <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: senderColor }}>
                             {senderDisplayName}
                           </span>
@@ -6711,7 +6715,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 })}
                               </div>
                             )}
-                            {gifOnly ? (
+                            {operationalKind ? (
+                              <OperationalMessageCard kind={operationalKind} content={msg.content} createdAt={msg.createdAt} attachments={msg.attachments} compact />
+                            ) : gifOnly ? (
                               <button type="button" onClick={() => setMediaPreview({ src: msg.gif!.url, name: msg.gif?.title || 'GIF' })} className="block">
                                 <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto' }} />
                               </button>
@@ -6748,7 +6754,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               </div>
                             )}
                             {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
-                            {!hideTime && (
+                            {!hideTime && !operationalKind && (
                               <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
                                 <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
                                 {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}

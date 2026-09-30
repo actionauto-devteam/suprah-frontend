@@ -57,6 +57,7 @@ import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT, todayStrMDT } from '@/l
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
+import { getOperationalMessageKind, OperationalMessageCard, type OperationalMessageKind } from '@/components/supraspace/OperationalMessageCard';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
@@ -5080,7 +5081,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5100,6 +5101,7 @@ const Bubble = React.memo(function Bubble({
   onEditSave?: (id: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => Promise<void>;
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
+  operationalKind?: OperationalMessageKind | null;
 }) {
   const renderedContent = React.useMemo(
     () => renderMessageContent(message.content, isOwn),
@@ -6067,6 +6069,16 @@ const Bubble = React.memo(function Bubble({
       <div className={cn('flex gap-2 px-4 sm:gap-2.5 sm:px-5', isOwn && 'flex-row-reverse')}>
         <div className="w-7 sm:w-8 shrink-0" />
         <p className="text-xs italic py-1" style={{ color: 'var(--text-disabled)' }}>This message was deleted</p>
+      </div>
+    );
+  }
+
+  if (operationalKind) {
+    return (
+      <div id={`ss4-msg-${message._id}`} className="px-4 py-2 sm:px-5">
+        <div className="mx-auto w-full" style={{ maxWidth: 760 }}>
+          <OperationalMessageCard kind={operationalKind} content={message.content} createdAt={message.createdAt} attachments={message.attachments} />
+        </div>
       </div>
     );
   }
@@ -13231,8 +13243,9 @@ export default function SupraSpacePage() {
       onForward={setForwardMsg}
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
+      operationalKind={getOperationalMessageKind(message, activeConv?.name)}
     />
-  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;

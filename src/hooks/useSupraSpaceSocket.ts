@@ -39,6 +39,7 @@ export interface SSMessage {
   readBy: string[];
   pinnedBy?: string[];
   pinnedAt?: string | null;
+  metadata?: { source?: string | null; dayPulseReportId?: string | null } | null;
   isEdited: boolean;
   isDeleted: boolean;
   createdAt: string;
