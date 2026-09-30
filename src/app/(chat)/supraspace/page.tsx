@@ -2331,6 +2331,39 @@ function serializeVisibleRichText(el: HTMLElement): string {
   );
 }
 
+function insertTextAtRichEditorSelection(
+  root: HTMLElement,
+  text: string,
+  fallbackRange?: Range | null,
+): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : fallbackRange
+      && root.contains(fallbackRange.startContainer)
+      && root.contains(fallbackRange.endContainer)
+      ? fallbackRange.cloneRange()
+      : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const inserted = document.createTextNode(text);
+  range.deleteContents();
+  range.insertNode(inserted);
+  range.setStartAfter(inserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
 function canonicalizeColorMarkup(value: string): string {
   const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
   let result = '';
@@ -5126,6 +5159,7 @@ const Bubble = React.memo(function Bubble({
   const actionHoverLockRef = React.useRef(false);
   const [editMode, setEditMode] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState('');
+  const [editEmojiOpen, setEditEmojiOpen] = React.useState(false);
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
@@ -5419,6 +5453,21 @@ const Bubble = React.memo(function Bubble({
   const focusEditComposer = React.useCallback(() => {
     editAreaRef.current?.focus();
   }, []);
+
+  const insertEditEmoji = React.useCallback((emoji: string) => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    restoreEditSelection();
+    editSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      root,
+      emoji,
+      editSelectionRangeRef.current,
+    );
+    syncEditDraft();
+    rememberEditSelection();
+    setEditEmojiOpen(false);
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [refreshEditActiveFormats, rememberEditSelection, restoreEditSelection, syncEditDraft]);
 
   React.useEffect(() => {
     if (!editMode) return;
@@ -5775,6 +5824,7 @@ const Bubble = React.memo(function Bubble({
     editSelectionRangeRef.current = null;
     setEditMode(false);
     setEditDraft('');
+    setEditEmojiOpen(false);
     setEditWidth(null);
     setEditColorPickerOpen(false);
     setEditReplacementFiles([]);
@@ -6241,6 +6291,30 @@ const Bubble = React.memo(function Bubble({
                   <Copy className="h-3.5 w-3.5" />
                   <span style={{ fontSize: 10 }}>{editPasteMode === 'formatted' ? 'Format' : 'Text'}</span>
                 </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); rememberEditSelection(); }}
+                    onClick={() => setEditEmojiOpen(open => !open)}
+                    className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+                    title="Emoji"
+                    aria-expanded={editEmojiOpen}
+                  >
+                    <Smile className="h-3.5 w-3.5" />
+                  </button>
+                  {editEmojiOpen && (
+                    <div className="absolute bottom-full left-0 z-50 mb-2">
+                      <EmojiPicker
+                        onEmojiClick={(data: EmojiClickData) => insertEditEmoji(data.emoji)}
+                        width={300}
+                        height={360}
+                        searchDisabled={false}
+                        skinTonesDisabled
+                        lazyLoadEmojis
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
                 <div className="relative flex items-center gap-2">
                   <button
@@ -11676,30 +11750,26 @@ export default function SupraSpacePage() {
       return;
     }
     if (insertText.length < text.length) showMessageLimitNotice();
-    const fallbackOffset = currentText.length;
     const savedOffset = composerCaretOffsetRef.current;
-    let safeOffset = Math.max(0, Math.min(savedOffset ?? fallbackOffset, currentText.length));
-    if (options?.preferEndOnZero && safeOffset === 0 && currentText.length > 0) {
-      safeOffset = currentText.length;
+    if (
+      options?.preferEndOnZero
+      && savedOffset === 0
+      && currentText.length > 0
+    ) {
+      composerSelectionRangeRef.current = rangeFromTextOffset(el, currentText.length);
     }
-    const nextText = `${currentText.slice(0, safeOffset)}${insertText}${currentText.slice(safeOffset)}`;
-    const nextOffset = safeOffset + insertText.length;
 
-    el.textContent = nextText;
-    el.focus();
-
-    const range = rangeFromTextOffset(el, nextOffset);
-    range.collapse(true);
-
-    const selection = window.getSelection();
-    if (selection) {
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-    composerCaretOffsetRef.current = nextOffset;
+    composerSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      el,
+      insertText,
+      composerSelectionRangeRef.current,
+    );
+    const nextText = el.innerText.replace(/\n$/, '');
+    composerCaretOffsetRef.current = getCaretOffset(el);
     syncComposerText(nextText, true);
+    saveComposerSelection();
     refreshActiveFormats();
-  }, [rangeFromTextOffset, refreshActiveFormats, showMessageLimitNotice, syncComposerText]);
+  }, [getCaretOffset, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const prepareMobileEmojiPicker = React.useCallback(() => {
     saveComposerSelection();
