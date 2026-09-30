@@ -3865,14 +3865,8 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       continue;
     }
 
-    const renderLine = (() => {
-      if (/\*\*\s*$/.test(raw) && !/^\s*\*\*/.test(raw)) return `**${raw.replace(/\*\*\s*$/, '').trimEnd()}**`;
-      if (/^\s*\*\*/.test(raw) && !/\*\*.*\*\*/.test(raw)) return `**${raw.replace(/^\s*\*\*/, '').trimStart()}**`;
-      return raw;
-    })();
-
     addSeparation('line');
-    result.push(...renderInline(renderLine, `line-${blockIdx++}`));
+    result.push(...renderInline(raw, `line-${blockIdx++}`));
     hasRenderedContent = true;
     lineIndex++;
   }

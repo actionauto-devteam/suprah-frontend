@@ -1218,15 +1218,9 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           );
         }
 
-        const renderLine = (() => {
-          if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
-          if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
-          return line;
-        })();
-
         return (
           <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 4 : 0 }}>
-            {renderInlineMd(renderLine, isOwn, `line-${index}`)}
+            {renderInlineMd(line, isOwn, `line-${index}`)}
           </span>
         );
       })}
