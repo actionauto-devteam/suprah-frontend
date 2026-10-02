@@ -37,6 +37,7 @@ export function useDriverLocationSharing() {
       isLocationRequired: false,
       locationRequirementReason: null,
       isLoadPolicyResolved: true,
+      locationPermissionState: "unknown" as const,
       startSharing: noopStart,
       stopSharing: noopStop,
       updateStatus: noopStatus,
@@ -54,6 +55,8 @@ export function useDriverLocationSharing() {
     isLocationRequired: sharing.isLocationRequired,
     locationRequirementReason: sharing.locationRequirementReason,
     isLoadPolicyResolved: sharing.isLoadPolicyResolved,
+    // "denied" when the browser blocks location (Driver Page GPS status chip).
+    locationPermissionState: sharing.locationPermissionState,
     startSharing: sharing.startSharing,
     stopSharing: sharing.stopSharing,
     updateStatus: sharing.setShareStatus,

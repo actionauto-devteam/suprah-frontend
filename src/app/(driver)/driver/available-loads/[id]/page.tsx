@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createGoogleMap, googleMapsConfig, loadGoogleMaps, type MapCamera } from '@/lib/google-maps';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -197,6 +198,11 @@ function CompatibilityPanel({ compatibility }: { compatibility?: DriverLoadCompa
   );
 }
 
+// Google Maps once its browser settings are present; Mapbox until then.
+const GOOGLE_MAPS = googleMapsConfig();
+
+type PlacePosition = { lat: number; lng: number };
+
 export default function AvailableLoadDetailPage() {
   const { getToken } = useAuth();
   const { theme } = useTheme();
@@ -268,7 +274,7 @@ export default function AvailableLoadDetailPage() {
   }, [getToken, fetchDetail]);
 
   React.useEffect(() => {
-    if (!data || !mapboxToken || !mapRef.current) return;
+    if (GOOGLE_MAPS || !data || !mapboxToken || !mapRef.current) return;
     let cancelled = false;
 
     const init = async () => {
@@ -373,6 +379,105 @@ export default function AvailableLoadDetailPage() {
       mapInstanceRef.current = null;
     };
   }, [data, mapboxToken, theme]);
+
+  // Google Maps version. Pickup/delivery positions come from the backend
+  // (Google Geocoding with the server key); without it the map shows no pins.
+  const routeOrigin: string = data?.origin ?? '';
+  const routeDestination: string = data?.destination ?? '';
+  React.useEffect(() => {
+    const config = GOOGLE_MAPS;
+    if (!config || !mapRef.current || (!routeOrigin && !routeDestination)) return;
+    let cancelled = false;
+    let camera: MapCamera | null = null;
+
+    const lookup = async (query: string, token: string | null): Promise<PlacePosition | null> => {
+      if (!query || !token) return null;
+      try {
+        const response = await apiClient.get('/api/driver-tracking/places/lookup', {
+          params: { q: query },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const position = response.data?.data?.position;
+        return position && Number.isFinite(position.lat) && Number.isFinite(position.lng) ? position : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const init = async () => {
+      const token = await getToken();
+      let libraries;
+      let originPosition: PlacePosition | null;
+      let destinationPosition: PlacePosition | null;
+      try {
+        [libraries, originPosition, destinationPosition] = await Promise.all([
+          loadGoogleMaps(config),
+          lookup(routeOrigin, token),
+          lookup(routeDestination, token),
+        ]);
+      } catch {
+        return; // The card keeps its empty map; the load details still show below.
+      }
+      if (cancelled || !mapRef.current) return;
+
+      const created = createGoogleMap(libraries, mapRef.current, {
+        config,
+        theme: theme === 'dark' ? 'dark' : 'light',
+        center: originPosition ? [originPosition.lng, originPosition.lat] : [-98.58, 39.83],
+        zoom: 5,
+        // Inside a scrolling page: one finger scrolls the page, two move the map.
+        gestureHandling: 'cooperative',
+      });
+      camera = created.camera;
+      const map = created.map;
+      const infoWindow = new libraries.maps.InfoWindow({ maxWidth: 240 });
+
+      const addPin = (position: PlacePosition | null, label: string, color: string) => {
+        if (!position) return;
+        const element = document.createElement('div');
+        element.style.cssText = `width:16px;height:16px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer`;
+        const pin = new libraries.marker.AdvancedMarkerElement({ map, position, content: element, title: label, gmpClickable: true });
+        pin.addEventListener('gmp-click', () => {
+          // Text only: the label comes from load data.
+          const content = document.createElement('div');
+          content.style.cssText = 'font:12px/1.5 system-ui;color:inherit';
+          content.textContent = label;
+          infoWindow.setContent(content);
+          infoWindow.open({ anchor: pin, map });
+        });
+      };
+      addPin(originPosition, `Pickup: ${routeOrigin}`, '#10b981');
+      addPin(destinationPosition, `Delivery: ${routeDestination}`, '#ef4444');
+
+      if (originPosition && destinationPosition) {
+        // A dashed straight line between the stops (not a driving route).
+        new libraries.maps.Polyline({
+          map,
+          path: [originPosition, destinationPosition],
+          strokeOpacity: 0,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#3b82f6', scale: 3 }, offset: '0', repeat: '14px' }],
+        });
+        map.fitBounds(
+          {
+            north: Math.max(originPosition.lat, destinationPosition.lat),
+            south: Math.min(originPosition.lat, destinationPosition.lat),
+            east: Math.max(originPosition.lng, destinationPosition.lng),
+            west: Math.min(originPosition.lng, destinationPosition.lng),
+          },
+          60,
+        );
+      } else if (originPosition || destinationPosition) {
+        const only = (originPosition ?? destinationPosition)!;
+        camera.easeTo({ center: [only.lng, only.lat], zoom: 8 });
+      }
+    };
+
+    void init();
+    return () => {
+      cancelled = true;
+      camera?.remove();
+    };
+  }, [routeOrigin, routeDestination, theme, getToken]);
 
   const handleRequest = async (contract: DriverSignedContract) => {
     if (!data) return;
@@ -561,7 +666,7 @@ export default function AvailableLoadDetailPage() {
 
         <Card className="overflow-hidden rounded-2xl border-border/40 shadow-xl">
           <CardContent className="p-0">
-            {mapboxToken ? (
+            {GOOGLE_MAPS || mapboxToken ? (
               <div ref={mapRef} className="h-75 w-full" />
             ) : (
               <div className="flex h-75 items-center justify-center bg-muted/30 text-center">

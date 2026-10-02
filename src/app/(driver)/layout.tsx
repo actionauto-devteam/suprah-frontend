@@ -30,6 +30,8 @@ import { ProfileToastProvider } from "@/components/ProfileToast";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { driverNav } from "@/components/layout/mobile-nav-config";
 import { useDispatchChannels } from "@/hooks/useDispatchChannels";
+import { useDispatchChatUnread } from "@/hooks/useDispatchChatUnread";
+import { useDriverBottomNavHidden } from "@/hooks/useDriverBottomNav";
 import { ThemeModeToggle } from "@/components/layout/ThemeModeToggle";
 import { resolveImageUrl } from "@/lib/utils";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
@@ -57,12 +59,17 @@ function DriverLayoutContent({
   const [guardPassed, setGuardPassed] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
-  // Unread channel messages on the bottom bar's Channels button.
+  // Unread Dispatch Chat messages (dispatchers and channels) on the bottom bar's Chat button.
   const { unreadTotal: channelUnread } = useDispatchChannels(guardPassed && user?.role === "driver");
+  const { unreadTotal: chatUnread } = useDispatchChatUnread({ enabled: guardPassed && user?.role === "driver" });
+  const dispatchChatUnread = channelUnread + chatUnread;
   const bottomNavItems = React.useMemo(
-    () => driverNav.map((item) => (item.href === "/driver/channels" ? { ...item, badgeCount: channelUnread } : item)),
-    [channelUnread],
+    () =>
+      driverNav.map((item) => (item.href === "/driver/channels" ? { ...item, badgeCount: dispatchChatUnread } : item)),
+    [dispatchChatUnread],
   );
+  // An open Dispatch Chat conversation uses the whole phone screen.
+  const bottomNavHidden = useDriverBottomNavHidden();
 
   React.useEffect(() => {
     const checkApproval = async () => {
@@ -193,10 +200,15 @@ function DriverLayoutContent({
             </DropdownMenu>
           </div>
         </header>
-        <main data-driver-scroll className="driver-workspace flex-1 min-h-0 min-w-0 overflow-y-auto bg-background p-0 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
+        <main
+          data-driver-scroll
+          className={`driver-workspace flex-1 min-h-0 min-w-0 overflow-y-auto bg-background p-0 ${
+            bottomNavHidden ? "pb-[env(safe-area-inset-bottom)]" : "pb-[calc(7rem+env(safe-area-inset-bottom))]"
+          } md:pb-8`}
+        >
           {children}
         </main>
-        <MobileBottomNav items={bottomNavItems} />
+        {!bottomNavHidden && <MobileBottomNav items={bottomNavItems} />}
       </SidebarInset>
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">

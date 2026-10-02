@@ -136,10 +136,10 @@ export const dispatchChannelsApi = {
       ),
     );
   },
-  async messages(getToken: TokenGetter, channelId: string, before?: { createdAt: string; id: string }) {
+  async messages(getToken: TokenGetter, channelId: string, before?: { createdAt: string; id: string }, limit?: number) {
     return data<{ messages: ChannelMessage[]; hasMore: boolean }>(
       await apiClient.get(path(channelId, "/messages"), {
-        params: before ? { before: before.createdAt, beforeId: before.id } : {},
+        params: { ...(before ? { before: before.createdAt, beforeId: before.id } : {}), ...(limit ? { limit } : {}) },
         headers: await headers(getToken),
       }),
     );

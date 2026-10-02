@@ -39,8 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User as UserIcon, Settings as SettingsIcon } from "lucide-react";
 import { useOrg } from "@/hooks/useOrg";
-import { DriverDispatchChatSidebarItem } from "@/components/dispatch-chat/DriverDispatchChatSidebarItem";
-import { DriverChannelsSidebarItem } from "@/components/dispatch-channels/DriverChannelsSidebarItem";
+import { DriverDispatchInboxSidebarItem } from "@/components/dispatch-chat/DriverDispatchInboxSidebarItem";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,7 +197,10 @@ const DSB_FX_CSS = `
 }
 
 /* ============ SHELL ============ */
-.dsb-root [data-sidebar="sidebar"] {
+/* .dsb-mobile: on phones the sidebar opens as a sheet that doesn't get the
+   Sidebar's className, so its content is wrapped in .dsb-root.dsb-mobile. */
+.dsb-root [data-sidebar="sidebar"],
+.dsb-root.dsb-mobile {
   position: relative;
   overflow: hidden;
   background:
@@ -208,7 +210,8 @@ const DSB_FX_CSS = `
 }
 
 /* energy rail running down the right border */
-.dsb-root [data-sidebar="sidebar"]::after {
+.dsb-root [data-sidebar="sidebar"]::after,
+.dsb-root.dsb-mobile::after {
   content: "";
   position: absolute;
   top: -60%;
@@ -290,7 +293,8 @@ const DSB_FX_CSS = `
 
 /* ============ MOTION (reduced-motion safe) ============ */
 @media (prefers-reduced-motion: no-preference) {
-  .dsb-root [data-sidebar="sidebar"]::after { animation: dsb-rail-run 4.5s linear infinite; }
+  .dsb-root [data-sidebar="sidebar"]::after,
+  .dsb-root.dsb-mobile::after { animation: dsb-rail-run 4.5s linear infinite; }
   .dsb-sweep { animation: dsb-sweep 8s ease-in-out infinite; }
   .dsb-ping { animation: dsb-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite; }
   .dsb-status-dot::after { animation: dsb-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
@@ -471,7 +475,7 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
   const { user } = useUser();
   const { signOut } = useAuthActions();
   const { organization } = useOrg();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   // On mobile the sidebar is a Sheet; close it once the driver picks a page.
@@ -485,13 +489,12 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
     setOpenMobile(false);
   }, [pathname, setOpenMobile]);
 
-  return (
-    <Sidebar
-      variant="inset"
-      collapsible="icon"
-      className="dsb-root dsb-edge border-r"
-      {...props}
-    >
+  // Everything inside the sidebar. On phones and narrow windows the sidebar
+  // opens as a sheet, which doesn't receive the Sidebar's className, so there
+  // it's wrapped in its own .dsb-root (below). Without it the HUD styling and
+  // its color variables are missing in the sheet.
+  const sidebarBody = (
+    <>
       <style dangerouslySetInnerHTML={{ __html: DSB_FX_CSS }} />
 
       {/* animated background layers */}
@@ -542,8 +545,8 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
             </SidebarMenuItem>
           ))}
 
-          <DriverDispatchChatSidebarItem />
-          <DriverChannelsSidebarItem />
+          {/* Private chats with dispatchers and group channels, on one page. */}
+          <DriverDispatchInboxSidebarItem onNavigate={closeMobileSidebar} />
         </SidebarMenu>
 
         <div className="dsb-hr mx-4 mt-4 group-data-[collapsible=icon]:hidden" />
@@ -663,6 +666,21 @@ export function DriverSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+
+  return (
+    <Sidebar
+      variant="inset"
+      collapsible="icon"
+      className="dsb-root dsb-edge border-r"
+      {...props}
+    >
+      {isMobile ? (
+        <div className="dsb-root dsb-mobile flex h-full w-full flex-col">{sidebarBody}</div>
+      ) : (
+        sidebarBody
+      )}
     </Sidebar>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DriverPhoneTrackingReviewSection } from "@/components/driver-tracker/DriverPhoneTrackingReviewSection";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -826,6 +827,10 @@ export function DriverComplianceDocumentsDialog({
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    {driverId && (
+                      <DriverPhoneTrackingReviewSection driverId={driverId} canManage={hasFullReview} />
                     )}
 
                     {hasFullReview && (

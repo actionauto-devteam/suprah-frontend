@@ -3,12 +3,15 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
+import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
+import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
+import { useAuth, useUser } from "@/providers/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
@@ -414,6 +417,11 @@ export default function LoadDetailsPage() {
   const id = Array.isArray(rawId) ? rawId[0] : rawId
   const [mobileBolPreviewOpen, setMobileBolPreviewOpen] = React.useState(false)
   const [historyOpen, setHistoryOpen] = React.useState(false)
+  const [tripHistoryOpen, setTripHistoryOpen] = React.useState(false)
+  const [markDeliveredOpen, setMarkDeliveredOpen] = React.useState(false)
+  const queryClient = useQueryClient()
+  const { userId, orgRole } = useAuth()
+  const { user: currentUser } = useUser()
 
   // "Driver Changed Mid-Trip" notifications link here with ?history=1.
   React.useEffect(() => {
@@ -562,6 +570,18 @@ export default function LoadDetailsPage() {
     }
   }
 
+  // Dispatch override: the responsible dispatcher and organization admins can
+  // mark an active load with a driver as Delivered (the server checks too).
+  const dispatchOwner = load.dispatchOwnerId
+  const dispatchOwnerId = typeof dispatchOwner === "string" ? dispatchOwner : dispatchOwner?._id ?? ""
+  const isOrgAdmin =
+    ["admin", "super_admin"].includes(String(currentUser?.role ?? "")) ||
+    ["admin", "super_admin"].includes(String(orgRole ?? ""))
+  const canMarkDelivered =
+    ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
+    Boolean(load.assignedDriverId) &&
+    (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+
   return (
     <div
       key={id}
@@ -592,6 +612,12 @@ export default function LoadDetailsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setHistoryOpen(true)}><History className="size-4 mr-2 text-muted-foreground" /> Assignment history</Button>
+          <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setTripHistoryOpen(true)}><Route className="size-4 mr-2 text-muted-foreground" /> Trip history</Button>
+          {canMarkDelivered && (
+            <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setMarkDeliveredOpen(true)}>
+              <CheckCircle2 className="size-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Mark as delivered
+            </Button>
+          )}
           <Button
             variant="default"
             size="sm"
@@ -602,6 +628,19 @@ export default function LoadDetailsPage() {
           </Button>
         </div>
       </div>
+
+      {load.deliveryOverride && (
+        <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+          <p className="min-w-0 break-words">
+            <span className="font-semibold">Marked delivered by dispatch</span>
+            {load.deliveryOverride.byName ? ` · ${load.deliveryOverride.byName}` : ""}
+            {load.deliveryOverride.at ? ` · ${formatDate(load.deliveryOverride.at)}` : ""}
+            {load.deliveryOverride.previousStatus ? ` · was ${load.deliveryOverride.previousStatus}` : ""}
+            {load.deliveryOverride.reason ? <><br />Reason: {load.deliveryOverride.reason}</> : null}
+          </p>
+        </div>
+      )}
 
       {/* ── Route Card ── */}
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">
@@ -1128,6 +1167,20 @@ export default function LoadDetailsPage() {
       <LoadAssignmentHistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        loadId={load._id}
+      />
+      <MarkDeliveredDialog
+        open={markDeliveredOpen}
+        onOpenChange={setMarkDeliveredOpen}
+        loadId={load._id}
+        loadNumber={load.loadNumber}
+        status={load.status}
+        hasDriverPhoto={Boolean(load.proofOfDelivery?.imageUrl)}
+        onDelivered={() => void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })}
+      />
+      <LoadTripHistoryDialog
+        open={tripHistoryOpen}
+        onOpenChange={setTripHistoryOpen}
         loadId={load._id}
       />
     </div>

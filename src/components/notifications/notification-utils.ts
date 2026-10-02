@@ -391,7 +391,7 @@ const ROUTE_MAP: Record<string, string> = {
 
 const DRIVER_ROUTE_MAP: Record<string, string> = {
   driver_dispatch_alert: '/driver/notifications',
-  driver_dispatch_message: '/driver',
+  driver_dispatch_message: '/driver/channels',
   dispatch_channel: '/driver/channels',
   driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',

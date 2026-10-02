@@ -86,7 +86,7 @@ function getPickupDay(date: Date | null): string | null {
   ][date.getUTCDay()] ?? null;
 }
 
-function distanceMiles(
+export function distanceMiles(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number },
 ): number {
