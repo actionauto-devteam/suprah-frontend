@@ -102,6 +102,10 @@ function mapLocationFromLoad(loc: any): LocationBlock {
     contactName: loc.contactName ?? "",
     locationType: (loc.locationType as LocationType) ?? "",
     notes: loc.notes ?? "",
+    ...(Number.isFinite(Number(loc.coordinates?.lat)) && Number.isFinite(Number(loc.coordinates?.lng))
+      ? { coordinates: { lat: Number(loc.coordinates.lat), lng: Number(loc.coordinates.lng) } }
+      : {}),
+    ...(typeof loc.placeId === "string" && loc.placeId ? { placeId: loc.placeId } : {}),
   }
 }
 
@@ -316,6 +320,8 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
         pricing,
         selectedDriverId,
         makeAvailable: postType === "assign-carrier" && !isEdit ? makeAvailable : false,
+        // Editing has no Driver step, so it never asks for a driver.
+        requireDriver: !isEdit,
       }),
     [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit],
   )
@@ -633,11 +639,13 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
                 city: pickup.city || null,
                 state: pickup.state || null,
                 zip: pickup.zip || null,
+                coordinates: pickup.coordinates ?? null,
               },
               deliveryLocation: {
                 city: delivery.city || null,
                 state: delivery.state || null,
                 zip: delivery.zip || null,
+                coordinates: delivery.coordinates ?? null,
               },
             }}
           />

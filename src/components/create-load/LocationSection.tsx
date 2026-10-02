@@ -1,6 +1,8 @@
 import * as React from "react"
 import {
   MapPin,
+  MapPinned,
+  Crosshair,
   Building2,
   User,
   Phone,
@@ -9,6 +11,7 @@ import {
   Globe2,
   FileText,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
@@ -18,6 +21,7 @@ import {
   STATE_ZIP_MAP,
 } from "./types"
 import type { ValidationIssue } from "./validation"
+import { LocationMapPicker, mapPickerAvailable, type PickedLocation } from "./LocationMapPicker"
 
 // ─── Route step: pickup + delivery ───────────────────────────────────────────
 // This is the Location component rendered by LoadFormLayout.
@@ -175,6 +179,27 @@ function LocationCard({
     onChange({ ...value, zip: e.target.value })
   }
 
+  // "Pick on map": fills the address fields from Google (only where Google
+  // found a value; everything stays editable) and saves the exact pin.
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+  const pinned = value.coordinates ?? null
+  const applyPicked = (picked: PickedLocation) => {
+    const samePin = pinned?.lat === picked.coordinates.lat && pinned?.lng === picked.coordinates.lng
+    onChange({
+      ...value,
+      name: picked.name || value.name || "",
+      address: picked.address || value.address,
+      city: picked.city || value.city,
+      state: US_STATES.includes(picked.state) ? picked.state : value.state,
+      zip: /^\d{5}$/.test(picked.zip) ? picked.zip : value.zip,
+      country: picked.country || value.country || "",
+      coordinates: picked.coordinates,
+      placeId: picked.placeId ?? (samePin ? value.placeId : undefined),
+    })
+    setPickerOpen(false)
+  }
+  const removePin = () => onChange({ ...value, coordinates: undefined, placeId: undefined })
+
   const errorFor = (field: keyof LocationBlock): string | undefined =>
     errors[`${prefix}.${String(field)}`]
 
@@ -214,7 +239,46 @@ function LocationCard({
         >
           {title}
         </span>
+
+        {mapPickerAvailable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto h-9 shrink-0 gap-1.5 rounded-lg text-xs font-semibold"
+            onClick={() => setPickerOpen(true)}
+          >
+            <MapPinned className="size-3.5" />
+            {pinned ? "Adjust pin" : "Pick on map"}
+          </Button>
+        )}
       </div>
+
+      {pinned && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2 text-xs">
+          <Crosshair className="size-3.5 shrink-0 text-emerald-500" />
+          <span className="min-w-0 flex-1">
+            Exact spot pinned on the map. The driver&apos;s navigation goes here. If you change the address, adjust
+            or remove the pin too.
+          </span>
+          <button
+            type="button"
+            className="min-h-8 font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={removePin}
+          >
+            Remove pin
+          </button>
+        </div>
+      )}
+
+      {pickerOpen && (
+        <LocationMapPicker
+          title={prefix === "pickup" ? "Pick the pickup spot" : "Pick the delivery spot"}
+          initialPosition={pinned}
+          onClose={() => setPickerOpen(false)}
+          onApply={applyPicked}
+        />
+      )}
 
       <Field label="Location Name" importance="optional">
         <IconInput

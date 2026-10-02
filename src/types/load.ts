@@ -115,6 +115,8 @@ export interface Load {
     email?: string;
     avatar?: string | null;
   };
+  /** The dispatcher responsible for the load (an id, or the populated user). */
+  dispatchOwnerId?: string | { _id: string; name?: string } | null;
   assignedAt?: string;
   acceptedAt?: string;
   driverAcceptedAt?: string;
@@ -133,6 +135,15 @@ export interface Load {
     note?: string;
     confirmedAt?: string;
     confirmedBy?: string;
+  };
+  /** Set when Dispatch marked the load Delivered instead of the driver. */
+  deliveryOverride?: {
+    by?: string;
+    byName?: string;
+    at?: string;
+    reason?: string;
+    previousStatus?: string;
+    proofAdded?: boolean;
   };
   createdAt: string;
   updatedAt: string;

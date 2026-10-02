@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowLeft,
   BellRing,
   CheckCheck,
   Download,
@@ -46,6 +47,13 @@ import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/A
 import { CALENDAR_TZ, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";
 import { createRetrySafeId } from "@/lib/client-request-id";
+import { SupraStyleComposer } from "@/components/dispatch-chat/SupraStyleComposer";
+import {
+  ChatDetailsMemberRow,
+  ChatDetailsPanel,
+  type ChatDetailsMessage,
+  type ChatDetailsTab,
+} from "@/components/dispatch-chat/ChatDetailsPanel";
 
 export interface DispatchChatAttachment {
   // Empty when the backend cannot safely produce a signed private URL.
@@ -163,6 +171,59 @@ interface DispatchChatDialogProps {
   // Optional Driver Tracker navigation hook. It is intentionally scoped to
   // the exact load + driver carried by the persisted request system event.
   onReviewLoadRequest?: (loadId: string, driverId: string) => void;
+  /**
+   * Show the conversation inside a page instead of a pop-up window (the
+   * driver's Dispatch Chat page). The page lists the conversations, so the
+   * built-in list is hidden and the conversation never switches by itself.
+   */
+  embedded?: boolean;
+  /** Embedded only: a back button on phones, returning to the page's list. */
+  onBack?: () => void;
+}
+
+/** The pop-up window, or a plain panel when the chat sits inside a page. */
+function DispatchChatShell({
+  embedded,
+  open,
+  onOpenChange,
+  children,
+}: {
+  embedded: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+}) {
+  if (embedded) {
+    return <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">{children}</div>;
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        onOpenAutoFocus={(event) => {
+          // Prevent Radix autofocus from scrolling the freshly-opened dialog
+          // toward its first focusable element before latest-position setup.
+          event.preventDefault();
+        }}
+        className="z-[80] flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0 sm:h-[calc(100dvh-2rem)] sm:max-h-[820px] sm:w-[94vw] sm:max-w-[94vw] lg:w-[92vw] lg:max-w-[76rem] xl:max-w-[82rem]"
+        overlayClassName="z-[80] bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
+      >
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Radix titles only work inside the pop-up window.
+function DispatchChatTitle({ embedded, className, children }: { embedded: boolean; className: string; children: React.ReactNode }) {
+  return embedded ? <h2 className={className}>{children}</h2> : <DialogTitle className={className}>{children}</DialogTitle>;
+}
+
+function DispatchChatDescription({ embedded, className, children }: { embedded: boolean; className: string; children: React.ReactNode }) {
+  return embedded ? (
+    <p className={className}>{children}</p>
+  ) : (
+    <DialogDescription className={className}>{children}</DialogDescription>
+  );
 }
 
 const EMOJIS = [
@@ -246,7 +307,7 @@ function mergeSystemEvent(
   );
 }
 
-function nameInitials(name: string) {
+export function nameInitials(name: string) {
   const parts = String(name || "")
     .trim()
     .split(/\s+/)
@@ -261,7 +322,7 @@ function nameInitials(name: string) {
     .toUpperCase();
 }
 
-function participantAvatarSrc(
+export function participantAvatarSrc(
   raw: string | null | undefined,
 ): string | undefined {
   const value = String(raw ?? "").trim();
@@ -1484,6 +1545,8 @@ export function DispatchChatDialog({
   initialThread,
   initialThreadId,
   onReviewLoadRequest,
+  embedded = false,
+  onBack,
 }: DispatchChatDialogProps) {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -1503,7 +1566,9 @@ export function DispatchChatDialog({
   const [threadContext, setThreadContext] =
     React.useState<DispatchChatContext | null>(null);
   const [threads, setThreads] = React.useState<DispatchChatThreadSummary[]>([]);
-  const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = React.useState<string | null>(() =>
+    embedded ? String(initialThread?.id ?? initialThreadId ?? "").trim() || null : null,
+  );
   const [threadsLoading, setThreadsLoading] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
@@ -1518,6 +1583,8 @@ export function DispatchChatDialog({
   const [conversationDrawerMobileOpen, setConversationDrawerMobileOpen] = React.useState(false);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [detailsTab, setDetailsTab] = React.useState<ConversationDetailsTab>("search");
+  // Embedded (driver's Dispatch Chat page): Suprah Space–style Details tabs.
+  const [embeddedDetailsTab, setEmbeddedDetailsTab] = React.useState<ChatDetailsTab>("members");
   const [detailsQuery, setDetailsQuery] = React.useState("");
   const [detailsMessages, setDetailsMessages] = React.useState<DispatchChatMessage[]>([]);
   const [detailsSystemEvents, setDetailsSystemEvents] = React.useState<DispatchChatSystemEvent[]>([]);
@@ -1695,6 +1762,8 @@ export function DispatchChatDialog({
         }
 
         if (current) return current;
+        // Inside the Dispatch Chat page, never switch to another conversation.
+        if (embedded) return current;
         const nextId = nextThreads[0]?.id ?? null;
         selectedThreadIdRef.current = nextId;
         return nextId;
@@ -1706,7 +1775,7 @@ export function DispatchChatDialog({
     } finally {
       setThreadsLoading(false);
     }
-  }, [currentUserIsDriver, getToken, initialThreadId, isSignedIn]);
+  }, [currentUserIsDriver, embedded, getToken, initialThreadId, isSignedIn]);
 
   const markRead = React.useCallback(async () => {
     if (!driverId || !isSignedIn) return;
@@ -3067,32 +3136,129 @@ export function DispatchChatDialog({
     !currentUserIsDriver ||
     (Boolean(selectedThreadId) && selectedDispatcherIsActive);
 
+  const embeddedDetailsMessages: ChatDetailsMessage[] =
+    embedded && detailsOpen
+      ? [
+          ...detailsMessages.map((message) => ({
+            id: `message:${message.id}`,
+            author:
+              String(message.sender?.id ?? "") === String(currentUserId ?? "")
+                ? "You"
+                : message.sender?.name || (message.senderRole === "driver" ? "Driver" : "Dispatch"),
+            createdAt: message.createdAt,
+            text: message.content || message.systemEvent?.message || message.systemEvent?.title || "",
+            attachments: message.attachments ?? [],
+          })),
+          ...detailsSystemEvents.map((event) => ({
+            id: `event:${event.id}`,
+            author: "Dispatch update",
+            createdAt: event.createdAt,
+            text: [event.title, event.message].filter(Boolean).join(" — "),
+            attachments: [],
+          })),
+        ]
+      : [];
+
+  const detailsPerson = (name: string, avatarSrc: string | undefined, rounded: string, size: string) => (
+    <Avatar className={`${size} ${rounded} shrink-0 border border-emerald-500/25`}>
+      {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
+      <AvatarFallback className={`${rounded} bg-emerald-500/10 font-black text-emerald-600 dark:text-emerald-400`}>
+        {nameInitials(name)}
+      </AvatarFallback>
+    </Avatar>
+  );
+
+  const composerPlaceholder = currentUserIsDriver
+    ? selectedThread
+      ? selectedDispatcherIsActive
+        ? `Message ${selectedThread.dispatcher.name || "dispatcher"}…`
+        : "This dispatcher is inactive. Conversation history remains available."
+      : embedded
+        ? `Message ${counterpartName}…`
+        : "Select a dispatcher conversation…"
+    : `Message ${driverName}…`;
+
+  const addSelectedFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
+    setSelectedFiles((current) => {
+      const next = [...current, ...incoming].slice(0, 5);
+      if (current.length + incoming.length > 5) {
+        toast.error("You can attach up to 5 files at once");
+      }
+      return next;
+    });
+  };
+
+  const selectedFilesPreview = selectedFiles.length > 0 ? (
+    <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
+      {selectedFiles.map((file, index) => (
+        <div
+          key={`${file.name}:${file.size}:${index}`}
+          className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 sm:w-auto sm:max-w-full"
+          style={{ background: "var(--bg-base)" }}
+        >
+          {file.type.startsWith("image/") ? (
+            <ImageIcon className="size-3.5 shrink-0 text-emerald-500" />
+          ) : (
+            <FileText className="size-3.5 shrink-0 text-emerald-500" />
+          )}
+          <span className="min-w-0 max-w-full break-all text-[10px] font-semibold [overflow-wrap:anywhere]">
+            {file.name}
+          </span>
+          <span className="shrink-0 text-[9px] text-muted-foreground">
+            {bytesLabel(file.size)}
+          </span>
+          <button
+            type="button"
+            aria-label={`Remove ${file.name}`}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() =>
+              setSelectedFiles((current) =>
+                current.filter((_, fileIndex) => fileIndex !== index),
+              )
+            }
+          >
+            <X className="size-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <>
-      <Dialog
+      <DispatchChatShell
+        embedded={embedded}
         open={open}
-      onOpenChange={(nextOpen) => {
-        onOpenChange(nextOpen);
-        if (nextOpen) void markRead();
-        if (!nextOpen) {
-          setEmojiOpen(false);
-          setDetailsOpen(false);
-          setConversationDrawerMobileOpen(false);
-        }
-      }}
-    >
-      <DialogContent
-        onOpenAutoFocus={(event) => {
-          // Prevent Radix autofocus from scrolling the freshly-opened dialog
-          // toward its first focusable element before latest-position setup.
-          event.preventDefault();
+        onOpenChange={(nextOpen) => {
+          onOpenChange(nextOpen);
+          if (nextOpen) void markRead();
+          if (!nextOpen) {
+            setEmojiOpen(false);
+            setDetailsOpen(false);
+            setConversationDrawerMobileOpen(false);
+          }
         }}
-        className="z-[80] flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden border-border/70 p-0 shadow-2xl duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0 sm:h-[calc(100dvh-2rem)] sm:max-h-[820px] sm:w-[94vw] sm:max-w-[94vw] lg:w-[92vw] lg:max-w-[76rem] xl:max-w-[82rem]"
-        overlayClassName="z-[80] bg-black/70 backdrop-blur-[3px] duration-300 ease-out data-[state=closed]:duration-200 data-[state=closed]:ease-in motion-reduce:duration-0"
       >
-        <DialogHeader className="relative shrink-0 border-b border-border/60 bg-gradient-to-r from-emerald-500/[0.07] via-background to-background px-3 py-2.5 pr-11 sm:px-4 sm:py-3 sm:pr-12">
+        <DialogHeader
+          className={`relative shrink-0 border-b border-border/60 bg-gradient-to-r from-emerald-500/[0.07] via-background to-background px-3 py-2.5 sm:px-4 sm:py-3 ${
+            embedded ? "pr-3 sm:pr-4" : "pr-11 sm:pr-12"
+          }`}
+        >
           <div className="flex min-w-0 items-center gap-2.5">
-            {currentUserIsDriver && (
+            {embedded && onBack && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 shrink-0"
+                onClick={onBack}
+                aria-label="Back to all conversations"
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+            )}
+            {currentUserIsDriver && !embedded && (
               <Button
                 type="button"
                 variant="ghost"
@@ -3119,20 +3285,31 @@ export function DispatchChatDialog({
             </Avatar>
 
             <div className="min-w-0 flex-1 text-left">
+              {embedded && (
+                <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                  Suprah AI · Dispatch Chat
+                </p>
+              )}
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                <DialogTitle className="truncate text-sm font-black tracking-tight sm:text-base">
-                  Suprah Dispatch Chat
-                </DialogTitle>
+                <DispatchChatTitle embedded={embedded} className="truncate text-sm font-black tracking-tight sm:text-base">
+                  {embedded ? counterpartName : "Suprah Dispatch Chat"}
+                </DispatchChatTitle>
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                   <ShieldCheck className="size-2.5" /> Private
                 </span>
               </div>
 
               <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px]">
-                <span className="truncate font-black text-foreground">
-                  {counterpartName}
-                </span>
-                <span className="text-muted-foreground">· {counterpartRole}</span>
+                {embedded ? (
+                  <span className="font-black text-foreground">{counterpartRole}</span>
+                ) : (
+                  <>
+                    <span className="truncate font-black text-foreground">
+                      {counterpartName}
+                    </span>
+                    <span className="text-muted-foreground">· {counterpartRole}</span>
+                  </>
+                )}
                 {currentUserIsDriver && selectedThread?.dispatcher?.isActive === false && (
                   <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold uppercase text-muted-foreground">
                     Inactive
@@ -3172,6 +3349,20 @@ export function DispatchChatDialog({
               </div>
             </div>
 
+            {embedded ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`size-9 shrink-0 text-muted-foreground hover:text-foreground ${detailsOpen ? "bg-muted text-foreground" : ""}`}
+                disabled={!activeThreadId}
+                onClick={() => setDetailsOpen(true)}
+                aria-label="Conversation details"
+                title="Details"
+              >
+                <Info className="size-[18px]" />
+              </Button>
+            ) : (
             <Button
               type="button"
               variant={detailsOpen ? "secondary" : "outline"}
@@ -3184,14 +3375,15 @@ export function DispatchChatDialog({
               <Info className="size-3.5" />
               <span className="hidden sm:inline">Details</span>
             </Button>
+            )}
           </div>
-          <DialogDescription className="sr-only">
+          <DispatchChatDescription embedded={embedded} className="sr-only">
             Private operational communication between this driver and dispatcher, isolated from Suprah Space.
-          </DialogDescription>
+          </DispatchChatDescription>
         </DialogHeader>
 
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
-          {currentUserIsDriver && (
+          {currentUserIsDriver && !embedded && (
             <aside
               className={`hidden min-h-0 shrink-0 border-r border-border/60 transition-[width] duration-200 md:block ${
                 conversationDrawerCollapsed ? "w-16" : "w-60"
@@ -3208,7 +3400,7 @@ export function DispatchChatDialog({
             </aside>
           )}
 
-          {currentUserIsDriver && conversationDrawerMobileOpen && (
+          {currentUserIsDriver && !embedded && conversationDrawerMobileOpen && (
             <>
               <button
                 type="button"
@@ -3435,44 +3627,27 @@ export function DispatchChatDialog({
         </div>
 
         <div
-          className="relative shrink-0 border-t border-border/60 p-3 sm:p-4"
+          className={`relative shrink-0 border-t border-border/60 ${embedded ? "px-3 py-2 sm:px-4 md:py-3" : "p-3 sm:p-4"}`}
           style={{ background: "var(--bg-elevated)" }}
         >
-          {selectedFiles.length > 0 && (
-            <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
-              {selectedFiles.map((file, index) => (
-                <div
-                  key={`${file.name}:${file.size}:${index}`}
-                  className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 sm:w-auto sm:max-w-full"
-                  style={{ background: "var(--bg-base)" }}
-                >
-                  {file.type.startsWith("image/") ? (
-                    <ImageIcon className="size-3.5 shrink-0 text-emerald-500" />
-                  ) : (
-                    <FileText className="size-3.5 shrink-0 text-emerald-500" />
-                  )}
-                  <span className="min-w-0 max-w-full break-all text-[10px] font-semibold [overflow-wrap:anywhere]">
-                    {file.name}
-                  </span>
-                  <span className="shrink-0 text-[9px] text-muted-foreground">
-                    {bytesLabel(file.size)}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${file.name}`}
-                    className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() =>
-                      setSelectedFiles((current) =>
-                        current.filter((_, fileIndex) => fileIndex !== index),
-                      )
-                    }
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          {embedded ? (
+            <SupraStyleComposer
+              draft={draft}
+              onDraftChange={setDraft}
+              onSubmit={() => void submitMessage()}
+              placeholder={composerPlaceholder}
+              disabled={!canCompose}
+              sending={isSending}
+              canSend={(Boolean(draft.trim()) || selectedFiles.length > 0) && !isSending && Boolean(driverId) && canCompose}
+              maxLength={4000}
+              emojis={EMOJIS}
+              onFiles={addSelectedFiles}
+              attachDisabled={!canCompose || selectedFiles.length >= 5}
+              attachments={selectedFilesPreview}
+            />
+          ) : (
+          <>
+          {selectedFilesPreview}
 
           {emojiOpen && (
             <div
@@ -3505,18 +3680,7 @@ export function DispatchChatDialog({
             type="file"
             multiple
             className="hidden"
-            onChange={(event) => {
-              const incoming = Array.from(event.target.files ?? []);
-              if (!incoming.length) return;
-
-              setSelectedFiles((current) => {
-                const next = [...current, ...incoming].slice(0, 5);
-                if (current.length + incoming.length > 5) {
-                  toast.error("You can attach up to 5 files at once");
-                }
-                return next;
-              });
-            }}
+            onChange={(event) => addSelectedFiles(Array.from(event.target.files ?? []))}
           />
 
           <div className="flex min-w-0 items-end gap-2">
@@ -3555,15 +3719,7 @@ export function DispatchChatDialog({
                   void submitMessage();
                 }
               }}
-              placeholder={
-                currentUserIsDriver
-                  ? selectedThread
-                    ? selectedDispatcherIsActive
-                      ? `Message ${selectedThread.dispatcher.name || "dispatcher"}…`
-                      : "This dispatcher is inactive. Conversation history remains available."
-                    : "Select a dispatcher conversation…"
-                  : `Message ${driverName}…`
-              }
+              placeholder={composerPlaceholder}
               disabled={!canCompose}
               maxLength={4000}
               rows={2}
@@ -3597,11 +3753,13 @@ export function DispatchChatDialog({
             </span>
             <span>{draft.length}/4000</span>
           </div>
+          </>
+          )}
         </div>
 
           </div>
 
-          {detailsOpen && activeThreadId && (
+          {!embedded && detailsOpen && activeThreadId && (
             <aside className="hidden min-h-0 w-80 shrink-0 border-l border-border/60 xl:block">
               <ConversationDetailsPanel
                 counterpartName={counterpartName}
@@ -3620,7 +3778,7 @@ export function DispatchChatDialog({
             </aside>
           )}
 
-          {detailsOpen && activeThreadId && (
+          {!embedded && detailsOpen && activeThreadId && (
             <>
               <button
                 type="button"
@@ -3647,8 +3805,72 @@ export function DispatchChatDialog({
             </>
           )}
         </div>
-      </DialogContent>
-      </Dialog>
+
+        {embedded && detailsOpen && activeThreadId && (
+          <div className="absolute inset-0 z-30">
+            <ChatDetailsPanel
+              onClose={() => setDetailsOpen(false)}
+              avatar={detailsPerson(counterpartName, counterpartAvatarSrc, "rounded-2xl", "size-[88px] text-2xl")}
+              name={counterpartName}
+              subtitle={`${counterpartRole} · Private chat`}
+              description={primaryLoad ? `Load ${primaryLoad.loadNumber} · ${primaryLoad.status}` : undefined}
+              members={
+                <section className="space-y-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">2 members</h3>
+                  <ul className="space-y-0.5">
+                    {[
+                      {
+                        id: String(threadContext?.dispatcher?.id ?? selectedThread?.dispatcher?.id ?? ""),
+                        name: dispatcherName,
+                        avatar: dispatcherAvatarSrc,
+                        note: selectedThread?.dispatcher?.isActive === false ? "Dispatcher · Inactive" : "Dispatcher",
+                      },
+                      {
+                        id: String(threadContext?.driver?.id ?? driverId ?? ""),
+                        name: driverName,
+                        avatar: driverAvatarSrc,
+                        note: "Driver",
+                      },
+                    ].map((person) => (
+                      <ChatDetailsMemberRow
+                        key={person.note}
+                        avatar={detailsPerson(person.name, person.avatar, "rounded-full", "size-10 text-[11px]")}
+                        name={
+                          <>
+                            {person.name}
+                            {person.id && person.id === String(currentUserId ?? "") && (
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">(you)</span>
+                            )}
+                          </>
+                        }
+                        note={person.note}
+                        noteTone={person.note.startsWith("Dispatcher") ? "accent" : "muted"}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              }
+              messages={embeddedDetailsMessages}
+              loading={detailsLoading}
+              truncated={detailsTruncated}
+              tab={embeddedDetailsTab}
+              onTabChange={setEmbeddedDetailsTab}
+              query={detailsQuery}
+              onQueryChange={setDetailsQuery}
+              onSearchResultSelect={(item) => {
+                setDetailsOpen(false);
+                void jumpToConversationSearchResult({
+                  id: item.id,
+                  author: item.author,
+                  createdAt: item.createdAt,
+                  body: item.text,
+                  attachments: item.attachments as DispatchChatAttachment[],
+                });
+              }}
+            />
+          </div>
+        )}
+      </DispatchChatShell>
       <AttachmentLightbox
         attachment={lightboxAttachment}
         onClose={() => setLightboxAttachment(null)}

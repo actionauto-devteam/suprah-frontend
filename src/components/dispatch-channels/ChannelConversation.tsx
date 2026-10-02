@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   ArrowLeft,
+  Info,
   FileText,
   Hash,
   Image as ImageIcon,
@@ -46,8 +47,11 @@ import {
   type ChannelMessage,
 } from "@/lib/api/dispatch-channels";
 import { PersonAvatar, personLabel } from "@/components/dispatch-channels/channel-people";
-import { ChannelMembersSheet } from "@/components/dispatch-channels/ChannelMembersSheet";
+import { ChannelMembersSheet, ChannelPeopleManager } from "@/components/dispatch-channels/ChannelMembersSheet";
+import { ChannelLetterAvatar } from "@/components/dispatch-channels/ChannelLetterAvatar";
+import { ChatDetailsPanel, type ChatDetailsMessage, type ChatDetailsTab } from "@/components/dispatch-chat/ChatDetailsPanel";
 import { AttachmentView } from "@/components/dispatch-chat/DispatchChatDialog";
+import { SupraStyleComposer } from "@/components/dispatch-chat/SupraStyleComposer";
 import { AttachmentLightbox, type LightboxAttachment } from "@/components/chat/AttachmentLightbox";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -89,6 +93,10 @@ function mergeMessages(current: ChannelMessage[], incoming: ChannelMessage[]) {
   );
 }
 
+// Details (Media, Files, Search) look through at most this many recent messages.
+const DETAILS_HISTORY_LIMIT = 2000;
+const DETAILS_PAGE_SIZE = 100;
+
 function viewerRoleLabel(channel: ChannelDetail) {
   if (channel.isCreator) return "You created this channel";
   return channel.myRole === "admin" ? "You're an administrator" : "You're a member";
@@ -98,11 +106,17 @@ function viewerRoleLabel(channel: ChannelDetail) {
 export function ChannelConversation({
   channelId,
   onBack,
+  variant = "classic",
   onGone,
   className,
 }: {
   channelId: string;
   onBack?: () => void;
+  /**
+   * "supraspace" (the driver's Dispatch Chat page): Suprah Space's message box
+   * and a Details view (Members, Media, Files, Search) instead of the people panel.
+   */
+  variant?: "classic" | "supraspace";
   /** The viewer left or was removed, or the channel isn't available. */
   onGone: () => void;
   className?: string;
@@ -124,6 +138,13 @@ export function ChannelConversation({
   const [confirmDelete, setConfirmDelete] = React.useState<ChannelMessage | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [lightbox, setLightbox] = React.useState<LightboxAttachment | null>(null);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [detailsTab, setDetailsTab] = React.useState<ChatDetailsTab>("members");
+  const [detailsQuery, setDetailsQuery] = React.useState("");
+  const [history, setHistory] = React.useState<{ messages: ChannelMessage[]; truncated: boolean } | null>(null);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [highlightId, setHighlightId] = React.useState<string | null>(null);
+  const historyRequest = React.useRef(0);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const stickToBottom = React.useRef(true);
@@ -236,6 +257,72 @@ export function ChannelConversation({
     };
   }, [channelId, getToken, markShownRead, reloadChannel, scrollToBottom]);
 
+  // Details: the channel's recent history, newest pages first.
+  const loadHistory = async () => {
+    const request = ++historyRequest.current;
+    setHistoryLoading(true);
+    try {
+      let collected: ChannelMessage[] = [];
+      let before: { createdAt: string; id: string } | undefined;
+      let more = true;
+      while (more && collected.length < DETAILS_HISTORY_LIMIT) {
+        const page = await dispatchChannelsApi.messages(getToken, channelId, before, DETAILS_PAGE_SIZE);
+        if (request !== historyRequest.current) return;
+        collected = mergeMessages(collected, page.messages);
+        const oldest = page.messages[0];
+        more = page.hasMore && Boolean(oldest);
+        before = oldest ? { createdAt: oldest.createdAt, id: oldest.id } : undefined;
+      }
+      setHistory({ messages: collected, truncated: more });
+    } catch (error) {
+      if (request === historyRequest.current) toast.error(userErrorMessage(error, "load this channel's photos and files"));
+    } finally {
+      if (request === historyRequest.current) setHistoryLoading(false);
+    }
+  };
+
+  const openDetails = () => {
+    setDetailsOpen(true);
+    void loadHistory();
+  };
+
+  const detailsMessages = React.useMemo<ChatDetailsMessage[]>(() => {
+    if (!detailsOpen) return [];
+    return mergeMessages(history?.messages ?? [], messages)
+      .filter((message) => !message.deletedAt)
+      .map((message) => ({
+        id: message.id,
+        author: message.messageType === "system" ? "Channel update" : message.sender.id === viewerId ? "You" : message.sender.name,
+        createdAt: message.createdAt,
+        text: message.content,
+        attachments: message.attachments,
+      }));
+  }, [detailsOpen, history, messages, viewerId]);
+
+  // A search result: show it in the conversation, loading the messages in between if needed.
+  const showInConversation = (target: ChatDetailsMessage) => {
+    setDetailsOpen(false);
+    stickToBottom.current = false;
+    if (history && !messages.some((message) => message.id === target.id)) {
+      setMessages((current) => mergeMessages(current, history.messages.filter((message) => message.createdAt >= target.createdAt)));
+      setHasMore(history.truncated || history.messages.some((message) => message.createdAt < target.createdAt));
+    }
+    setHighlightId(target.id);
+  };
+
+  React.useEffect(() => {
+    if (!highlightId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const row = scrollRef.current?.querySelector(`[data-channel-message-id="${CSS.escape(highlightId)}"]`);
+      row?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    const timer = window.setTimeout(() => setHighlightId(null), 2500);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [highlightId]);
+
   const loadOlder = async () => {
     const oldest = messages[0];
     if (!oldest || loadingOlder) return;
@@ -339,9 +426,41 @@ export function ChannelConversation({
   const viewerIsAdmin = channel?.myRole === "admin";
   const confirmingOther = confirmDelete ? confirmDelete.sender.id !== viewerId : false;
   const canCompose = !loading && Boolean(channel) && !closed;
+  const composerPlaceholder = files.length
+    ? "Add a message (optional)…"
+    : `Message ${channel?.name ? `#${channel.name}` : "the channel"}…`;
+
+  const filesPreview = files.length > 0 ? (
+    <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
+      {files.map((file, index) => (
+        <div
+          key={`${file.name}:${file.size}:${index}`}
+          className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 sm:w-auto sm:max-w-full"
+          style={{ background: SURFACE_BASE }}
+        >
+          {file.type.startsWith("image/") ? (
+            <ImageIcon className="size-3.5 shrink-0 text-emerald-500" />
+          ) : (
+            <FileText className="size-3.5 shrink-0 text-emerald-500" />
+          )}
+          <span className="min-w-0 max-w-full break-all text-[11px] font-semibold [overflow-wrap:anywhere]">{file.name}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">{sizeLabel(file.size)}</span>
+          <button
+            type="button"
+            aria-label={`Remove ${file.name}`}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+            disabled={sending}
+          >
+            <X className="size-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)} style={{ background: SURFACE_BASE }}>
+    <div className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", className)} style={{ background: SURFACE_BASE }}>
       <header className="relative shrink-0 border-b border-border/60 bg-gradient-to-r from-emerald-500/[0.07] via-background to-background px-3 py-2.5 sm:px-4 sm:py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {onBack && (
@@ -350,13 +469,17 @@ export function ChannelConversation({
             </Button>
           )}
 
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10">
-            {closed ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <Hash className="size-4 text-emerald-600 dark:text-emerald-400" />
-            )}
-          </span>
+          {variant === "supraspace" ? (
+            <ChannelLetterAvatar name={channel?.name ?? ""} closed={closed} className="size-10 text-base" />
+          ) : (
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10">
+              {closed ? (
+                <Lock className="size-4 text-muted-foreground" />
+              ) : (
+                <Hash className="size-4 text-emerald-600 dark:text-emerald-400" />
+              )}
+            </span>
+          )}
 
           <div className="min-w-0 flex-1 text-left">
             <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
@@ -395,18 +518,33 @@ export function ChannelConversation({
             )}
           </div>
 
-          <Button
-            type="button"
-            variant={membersOpen ? "secondary" : "outline"}
-            size="sm"
-            className="h-9 shrink-0 gap-1.5 px-2.5 text-[10px] font-bold sm:px-3"
-            onClick={() => setMembersOpen(true)}
-            disabled={!channel}
-            aria-label="Open people in this channel"
-          >
-            <Users className="size-3.5" />
-            <span className="hidden sm:inline">People</span>
-          </Button>
+          {variant === "supraspace" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn("size-9 shrink-0 text-muted-foreground hover:text-foreground", detailsOpen && "bg-muted text-foreground")}
+              onClick={openDetails}
+              disabled={!channel}
+              aria-label="Channel details"
+              title="Details"
+            >
+              <Info className="size-[18px]" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant={membersOpen ? "secondary" : "outline"}
+              size="sm"
+              className="h-9 shrink-0 gap-1.5 px-2.5 text-[10px] font-bold sm:px-3"
+              onClick={() => setMembersOpen(true)}
+              disabled={!channel}
+              aria-label="Open people in this channel"
+            >
+              <Users className="size-3.5" />
+              <span className="hidden sm:inline">People</span>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -450,7 +588,11 @@ export function ChannelConversation({
             {messages.map((message) => {
               if (message.messageType === "system") {
                 return (
-                  <div key={message.id} className="flex justify-center px-4">
+                  <div
+                    key={message.id}
+                    data-channel-message-id={message.id}
+                    className={cn("flex justify-center px-4", highlightId === message.id && "rounded-full ring-2 ring-emerald-500/60")}
+                  >
                     <p className="max-w-full rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1 text-center text-[10.5px] font-medium text-emerald-800 dark:text-emerald-200">
                       {message.content}
                       <span className="text-emerald-700/60 dark:text-emerald-300/60"> · {messageTime(message.createdAt)}</span>
@@ -465,7 +607,15 @@ export function ChannelConversation({
               const canEdit = mine && !deleted && !closed;
               const canDelete = !deleted && (mine || viewerIsAdmin);
               return (
-                <div key={message.id} className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+                <div
+                  key={message.id}
+                  data-channel-message-id={message.id}
+                  className={cn(
+                    "group flex items-end gap-2 rounded-2xl transition-shadow",
+                    mine ? "justify-end" : "justify-start",
+                    highlightId === message.id && "ring-2 ring-emerald-500/60 ring-offset-4 ring-offset-background",
+                  )}
+                >
                   {!mine && <PersonAvatar person={message.sender} className="mb-5 size-8 border-emerald-500/20" />}
                   <div className={cn("flex min-w-0 max-w-[88%] flex-col sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
                     <div className="mb-1 flex min-w-0 items-center gap-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
@@ -582,7 +732,13 @@ export function ChannelConversation({
         )}
       </div>
 
-      <footer className="relative z-10 shrink-0 border-t border-border/60 p-3 sm:p-4" style={{ background: SURFACE_RAISED }}>
+      <footer
+        className={cn(
+          "relative z-10 shrink-0 border-t border-border/60",
+          variant === "supraspace" && !closed ? "px-3 py-2 sm:px-4 md:py-3" : "p-3 sm:p-4",
+        )}
+        style={{ background: SURFACE_RAISED }}
+      >
         {closed ? (
           <div
             className="flex items-center justify-center gap-2 rounded-xl border border-border/60 px-3 py-3 text-xs text-muted-foreground"
@@ -590,36 +746,25 @@ export function ChannelConversation({
           >
             <Lock className="size-3.5" /> This channel is closed. You can still read its history.
           </div>
+        ) : variant === "supraspace" ? (
+          <SupraStyleComposer
+            draft={draft}
+            onDraftChange={setDraft}
+            onSubmit={() => void send()}
+            placeholder={composerPlaceholder}
+            disabled={!canCompose}
+            sending={sending}
+            canSend={canCompose && !sending && (Boolean(draft.trim()) || files.length > 0)}
+            maxLength={MAX_MESSAGE_LENGTH}
+            emojis={EMOJIS}
+            onFiles={addFiles}
+            fileAccept={ACCEPTED_FILES}
+            attachDisabled={!canCompose || sending || files.length >= MAX_FILES}
+            attachments={filesPreview}
+          />
         ) : (
           <>
-            {files.length > 0 && (
-              <div className="mb-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                {files.map((file, index) => (
-                  <div
-                    key={`${file.name}:${file.size}:${index}`}
-                    className="flex w-full min-w-0 items-start gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 sm:w-auto sm:max-w-full"
-                    style={{ background: SURFACE_BASE }}
-                  >
-                    {file.type.startsWith("image/") ? (
-                      <ImageIcon className="size-3.5 shrink-0 text-emerald-500" />
-                    ) : (
-                      <FileText className="size-3.5 shrink-0 text-emerald-500" />
-                    )}
-                    <span className="min-w-0 max-w-full break-all text-[11px] font-semibold [overflow-wrap:anywhere]">{file.name}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{sizeLabel(file.size)}</span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${file.name}`}
-                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
-                      disabled={sending}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {filesPreview}
 
             {emojiOpen && (
               <div
@@ -687,11 +832,7 @@ export function ChannelConversation({
                 value={draft}
                 maxLength={MAX_MESSAGE_LENGTH}
                 rows={2}
-                placeholder={
-                  files.length
-                    ? "Add a message (optional)…"
-                    : `Message ${channel?.name ? `#${channel.name}` : "the channel"}…`
-                }
+                placeholder={composerPlaceholder}
                 className="min-h-[44px] min-w-0 max-h-32 w-full flex-1 resize-y rounded-xl border border-border/70 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 style={{ background: SURFACE_BASE }}
                 onChange={(event) => setDraft(event.target.value)}
@@ -722,6 +863,35 @@ export function ChannelConversation({
           </>
         )}
       </footer>
+
+      {variant === "supraspace" && detailsOpen && channel && (
+        <div className="absolute inset-0 z-30">
+          <ChatDetailsPanel
+            onClose={() => setDetailsOpen(false)}
+            avatar={<ChannelLetterAvatar name={channel.name} closed={closed} className="size-[88px] rounded-2xl text-4xl" />}
+            name={channel.name}
+            subtitle={`${channel.memberCount} ${channel.memberCount === 1 ? "member" : "members"}${closed ? " · Closed" : ""}`}
+            description={channel.description || undefined}
+            members={
+              <ChannelPeopleManager
+                layout="details"
+                channel={channel}
+                viewerId={viewerId}
+                onChanged={setChannel}
+                onLeft={() => onGoneRef.current()}
+              />
+            }
+            messages={detailsMessages}
+            loading={historyLoading && !history}
+            truncated={Boolean(history?.truncated)}
+            tab={detailsTab}
+            onTabChange={setDetailsTab}
+            query={detailsQuery}
+            onQueryChange={setDetailsQuery}
+            onSearchResultSelect={showInConversation}
+          />
+        </div>
+      )}
 
       {channel && (
         <ChannelMembersSheet

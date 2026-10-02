@@ -10,6 +10,18 @@ const POINTS = "suprah-driver-points";
 const LABELS = "suprah-driver-labels";
 const COLORS: Record<string, string> = { "on-route": "#059669", idle: "#d97706", waiting: "#2563eb", "on-break": "#64748b", offline: "#64748b" };
 
+/** Marker color: the activity color while GPS is fresh, gray otherwise. Shared with the Google map layer. */
+export function driverMarkerColor(driver: DriverTrackingItem, now: number) {
+  return trackingState(driver, now).kind === "live" ? COLORS[driver.status] ?? "#64748b" : "#64748b";
+}
+
+/** The popup lines for a selected driver. Shared with the Google map layer. */
+export function driverPopupLines(driver: DriverTrackingItem, now: number, placeName: string) {
+  return [driver.driver?.name || "Driver", trackingState(driver, now).label, `Activity: ${driver.status}`, placeName,
+    `GPS: ${formatTrackingTime(driver.locationRecordedAt)}`, `${driver.shipments.length} active load(s)`,
+    driver.equipment?.trailerType?.replace(/_/g, " ")].filter((text): text is string => Boolean(text));
+}
+
 export function driverFeatureCollection(state: FleetState) {
   return {
     type: "FeatureCollection" as const,

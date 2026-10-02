@@ -83,6 +83,30 @@ const privateDataBypass: RuntimeCaching[] = [
   },
 ];
 
+// Map providers (Google Maps scripts, tiles and place data; Mapbox tiles and
+// geocoding) go straight to the network and are never stored here. Google's
+// and Mapbox's terms limit storing their map content, and hundreds of tiles
+// would only churn defaultCache's 32-entry cross-origin cache. Google web fonts
+// keep their existing cache.
+function isMapProviderRequest(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  if (host === "fonts.googleapis.com" || host === "fonts.gstatic.com") return false;
+  return (
+    host.endsWith(".googleapis.com")
+    || host.endsWith(".gstatic.com")
+    || host.endsWith(".ggpht.com")
+    || host === "mapbox.com"
+    || host.endsWith(".mapbox.com")
+  );
+}
+
+const mapProviderBypass: RuntimeCaching[] = [
+  {
+    matcher: ({ url }) => isMapProviderRequest(url),
+    handler: new NetworkOnly(),
+  },
+];
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   // Was `true` (new SW takes over the instant it finishes installing), which
@@ -97,7 +121,7 @@ const serwist = new Serwist({
   // navigations; defaultCache's (broken) pages route becomes unreachable
   // dead code, harmlessly, and everything else in defaultCache (fonts,
   // images, RSC, JS/CSS chunks, API routes, etc.) is untouched.
-  runtimeCaching: [...privateDataBypass, ...navigationFix, ...defaultCache],
+  runtimeCaching: [...privateDataBypass, ...mapProviderBypass, ...navigationFix, ...defaultCache],
   fallbacks: {
     entries: [
       {

@@ -151,15 +151,20 @@ export interface DriverTrackingItem {
     trailerType?: string | null;
     pickupDate?: string | Date | null;
     pickupLocation?: {
+      name?: string | null;
+      address?: string | null;
       city?: string | null;
       state?: string | null;
       zip?: string | null;
       coordinates?: { lat: number; lng: number } | null;
     };
     deliveryLocation?: {
+      name?: string | null;
+      address?: string | null;
       city?: string | null;
       state?: string | null;
       zip?: string | null;
+      coordinates?: { lat: number; lng: number } | null;
     };
     releaseRequest?: LoadReleaseRequestSummary | null;
     requiresDispatchReconfirmation?: boolean;

@@ -7,27 +7,49 @@ import { Button } from "@/components/ui/button";
 import type { DriverStatus, DriverTrackingItem } from "@/types/driver-tracking";
 import { formatTrackingTime, trackingState, validCoordinates } from "@/lib/driver-tracking-view";
 
+/**
+ * Follow keeps the map on the driver. Moving the map yourself pauses it
+ * (Resume brings it back); Stop, another selection, or losing sight of the
+ * driver's location turns it off.
+ */
+export type FollowMode = "off" | "following" | "paused";
+
 interface Props {
   driver: DriverTrackingItem;
   now: number;
   following: boolean;
+  /** Takes precedence over `following` when given. */
+  followMode?: FollowMode;
   mapReady: boolean;
   activityLabels?: Record<DriverStatus, string>;
+  /** Follow when off, stop when following, resume when paused. */
   onFollow?: () => void;
+  onStopFollowing?: () => void;
   onClear?: () => void;
   onDetails?: () => void;
   onChat?: () => void;
 }
 
-export function DriverTrackerSelectedDriver({ driver, now, following, mapReady, activityLabels, onFollow, onClear, onDetails, onChat }: Props) {
+export function DriverTrackerSelectedDriver({ driver, now, following, followMode, mapReady, activityLabels, onFollow, onStopFollowing, onClear, onDetails, onChat }: Props) {
   const tracking = trackingState(driver, now);
   const fresh = tracking.kind === "live";
   const name = driver.driver?.name || "Driver";
   const load = driver.shipments[0];
   const accuracy = driver.accuracy;
-  const followClass = following
+  const mode: FollowMode = followMode ?? (following ? "following" : "off");
+  const followClass = mode === "following"
     ? "border-emerald-500 bg-emerald-700 text-white hover:bg-emerald-800 hover:text-white ring-2 ring-emerald-500/25"
-    : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 disabled:border-border disabled:bg-muted disabled:text-muted-foreground";
+    : mode === "paused"
+      ? "border-amber-500/60 bg-amber-500/10 text-amber-800 hover:bg-amber-500/15 dark:text-amber-300 ring-2 ring-amber-500/20"
+      : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 disabled:border-border disabled:bg-muted disabled:text-muted-foreground";
+  const followLabel = mode === "following" ? "Stop following" : mode === "paused" ? "Resume following" : "Follow driver";
+  const followDisabled = mode !== "following" && (!validCoordinates(driver.coords) || !mapReady);
+  const followStatus = mode === "following"
+    ? (fresh ? "Following confirmed updates. Moving the map pauses it." : "Waiting for a fresh confirmed location. Moving the map pauses it.")
+    : mode === "paused" ? "Following is paused because you moved the map." : null;
+  const stopWhilePaused = mode === "paused" && onStopFollowing
+    ? <Button type="button" variant="link" className="h-auto min-h-11 px-1 py-0 text-xs" onClick={onStopFollowing}>Stop following</Button>
+    : null;
 
   return (
     <>
@@ -35,8 +57,8 @@ export function DriverTrackerSelectedDriver({ driver, now, following, mapReady, 
       <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-base font-bold">{name}</h3><p className="mt-1 text-xs text-muted-foreground">{activityLabels?.[driver.status] ?? driver.status} · {tracking.label}</p></div><Button type="button" variant="ghost" size="icon" className="size-11 shrink-0" onClick={onClear} aria-label="Clear selected driver"><X className="size-4" /></Button></div>
       <p className="mt-1 text-xs text-muted-foreground">Location: {relativeLocationTime(driver.locationRecordedAt, now)}</p>
       <p className="mt-2 break-words text-sm font-semibold">{load?.trackingNumber || load?.id || (driver.activeLoadCount ? "Load details unavailable" : "No active load")}{driver.shipments.length > 1 ? ` · +${driver.shipments.length - 1} more` : ""}</p>
-      <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" className={"min-h-11 text-xs " + followClass} aria-pressed={following} disabled={!following && (!validCoordinates(driver.coords) || !mapReady)} onClick={onFollow}>{following ? "Stop following" : "Follow driver"}</Button><Button type="button" variant="outline" className="min-h-11 text-xs" onClick={onChat}><MessageCircle className="size-4" />Chat</Button><Button type="button" className="col-span-2 min-h-11 text-sm" onClick={onDetails}>Open driver workspace</Button></div>
-      {following && <p role="status" className="mt-2 text-xs text-muted-foreground">{fresh ? "Following confirmed updates. Pan to stop." : "Waiting for a fresh confirmed location."}</p>}
+      <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" className={"min-h-11 text-xs " + followClass} aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}>{followLabel}</Button><Button type="button" variant="outline" className="min-h-11 text-xs" onClick={onChat}><MessageCircle className="size-4" />Chat</Button><Button type="button" className="col-span-2 min-h-11 text-sm" onClick={onDetails}>Open driver workspace</Button></div>
+      {followStatus && <p role="status" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">{followStatus}{stopWhilePaused}</p>}
       <details className="mt-2 text-xs text-muted-foreground"><summary className="flex min-h-11 cursor-pointer items-center font-semibold">Location details</summary><p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p><p className="mt-1">Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>{accuracy != null && Number.isFinite(accuracy) && <p className="mt-1">Accuracy ±{Math.round(accuracy)} m</p>}{!fresh && <p className="mt-1">This may be a last known position.</p>}</details>
     </section>
     <section aria-label="Selected driver" className="relative hidden min-w-0 md:block overflow-hidden rounded-xl border border-primary/25 bg-linear-to-br from-primary/[0.08] via-card to-card p-3 text-card-foreground shadow-sm sm:p-4">
@@ -77,11 +99,11 @@ export function DriverTrackerSelectedDriver({ driver, now, following, mapReady, 
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
-        <Button type="button" className={"min-h-11 gap-2 rounded-lg text-xs font-semibold " + followClass} variant="outline" aria-pressed={following} disabled={!following && (!validCoordinates(driver.coords) || !mapReady)} onClick={onFollow}><Crosshair className="size-4 shrink-0" />{following ? "Stop following" : "Follow driver"}</Button>
+        <Button type="button" className={"min-h-11 gap-2 rounded-lg text-xs font-semibold " + followClass} variant="outline" aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}><Crosshair className="size-4 shrink-0" />{followLabel}</Button>
         <Button type="button" className="min-h-11 gap-2 rounded-lg border-border/60 bg-background/50 text-xs font-semibold" variant="outline" onClick={onDetails}><Package className="size-4 shrink-0" />Details & loads</Button>
         <Button type="button" className="min-h-11 gap-2 rounded-lg border-border/60 bg-background/50 text-xs font-semibold" variant="outline" onClick={onChat}><MessageCircle className="size-4 shrink-0" />Chat</Button>
       </div>
-      {following && <p role="status" className="mt-2 text-xs leading-relaxed text-muted-foreground">{fresh ? "Following confirmed updates. Pan the map to stop." : "Waiting for a fresh confirmed location. Pan the map to stop."}</p>}
+      {followStatus && <p role="status" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-muted-foreground">{followStatus}{stopWhilePaused}</p>}
     </section>
     </>
   );

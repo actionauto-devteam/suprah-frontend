@@ -1,6 +1,27 @@
 "use client";
 
 import * as React from "react";
+import { OpenInGoogleMapsButton } from "@/components/driver/OpenInGoogleMapsButton";
+import {
+  createGoogleNextStopLayer,
+  createMapboxNextStopLayer,
+  NEXT_STOP_COLORS,
+  type NextStopLayer,
+  type NextStopMapState,
+} from "@/components/driver/driver-next-stop-layer";
+import { describeStopDistance, formatShortAge, resolveStopPosition, type StopPosition } from "@/lib/driver-next-stop";
+import { nextStopForMap, placeAddressText, placePin } from "@/lib/load-navigation";
+import {
+  createGoogleMap,
+  GOOGLE_MAPS_KEY_REJECTED,
+  googleMapsConfig,
+  loadGoogleMaps,
+  onGoogleMapsAuthFailure,
+  type GoogleMapsLibraries,
+  type LngLatTuple,
+  type MapCamera,
+} from "@/lib/google-maps";
+import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
@@ -165,6 +186,9 @@ const LIVE_STATUS_LABEL: Record<DriverStatus, string> = {
 };
 
 const MAP_CENTER: [number, number] = [-98.5795, 39.8283];
+// Google Maps once its browser settings are present; Mapbox until then.
+const GOOGLE_MAPS = googleMapsConfig();
+const OWN_LOCATION_MARKER_HTML = `<div style="width:22px;height:22px;border-radius:50%;background:#10b981;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);position:relative"><div style="position:absolute;inset:-4px;border-radius:50%;border:2px solid #10b981;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></div></div>`;
 const MAP_STYLE_BY_THEME = {
   dark: "mapbox://styles/mapbox/navigation-night-v1",
   light: "mapbox://styles/mapbox/streets-v12",
@@ -386,6 +410,7 @@ export default function DriverDashboardPage() {
     lastCoords,
     isLocationRequired,
     locationRequirementReason,
+    locationPermissionState,
   } = useDriverLocationSharing();
   const workEligibility = useDriverWorkEligibility();
 
@@ -434,6 +459,11 @@ export default function DriverDashboardPage() {
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim();
   const [mapNotice, setMapNotice] = React.useState<string | null>(null);
+  const googleMapRef = React.useRef<google.maps.Map | null>(null);
+  const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
+  const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
+  const centeredOnOwnLocationRef = React.useRef(false);
+  const [googleMapGeneration, setGoogleMapGeneration] = React.useState(0);
 
   const [currentTime, setCurrentTime] = React.useState(new Date());
   React.useEffect(() => {
@@ -683,6 +713,82 @@ export default function DriverDashboardPage() {
   const currentLoadId = currentLoad ? String(currentLoad._id) : null;
   const currentLoadHasPendingRelease =
     currentLoad?.releaseRequest?.status === "pending";
+
+  // ── Next stop on the map: the pickup, then the delivery ──
+  const nextStop = React.useMemo(() => nextStopForMap(currentLoad), [currentLoad]);
+  const nextStopPin = nextStop ? placePin(nextStop.place) : null;
+  const nextStopAddress = nextStop ? placeAddressText(nextStop.place) : "";
+  const nextStopKey = nextStop && currentLoadId
+    ? `${currentLoadId}:${nextStop.kind}:${nextStopPin ? `${nextStopPin.lat},${nextStopPin.lng}` : nextStopAddress}`
+    : null;
+  // Positions by stop key: undefined while looking up, null when it can't be placed.
+  const [stopPositions, setStopPositions] = React.useState<Record<string, StopPosition | null>>({});
+  const nextStopPosition = nextStopKey ? stopPositions[nextStopKey] : undefined;
+  const stopLookupsRef = React.useRef(new Map<string, Promise<StopPosition | null>>());
+  React.useEffect(() => {
+    if (!nextStop || !nextStopKey) return;
+    let cancelled = false;
+    let lookup = stopLookupsRef.current.get(nextStopKey);
+    if (!lookup) {
+      lookup = resolveStopPosition(nextStop.place, { getToken, mapboxToken }).catch(() => null);
+      stopLookupsRef.current.set(nextStopKey, lookup);
+    }
+    void lookup.then((position) => {
+      if (cancelled) return;
+      setStopPositions((previous) => (nextStopKey in previous ? previous : { ...previous, [nextStopKey]: position }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [nextStop, nextStopKey, getToken, mapboxToken]);
+
+  const nextStopMapState = React.useMemo<NextStopMapState>(() => ({
+    stop: nextStop && nextStopKey && nextStopPosition
+      ? {
+          key: nextStopKey,
+          kind: nextStop.kind,
+          position: nextStopPosition,
+          title: `${nextStop.kind === "pickup" ? "Pickup" : "Delivery"}: ${nextStop.place?.name || nextStopAddress}`,
+        }
+      : null,
+    driver: lastCoords ? { lat: lastCoords.lat, lng: lastCoords.lng } : null,
+  }), [nextStop, nextStopKey, nextStopPosition, nextStopAddress, lastCoords]);
+  const nextStopLayerRef = React.useRef<NextStopLayer | null>(null);
+  const nextStopStateRef = React.useRef(nextStopMapState);
+  // Stops already framed once, kept across map rebuilds (theme changes).
+  const framedStopsRef = React.useRef(new Set<string>());
+  React.useEffect(() => {
+    nextStopStateRef.current = nextStopMapState;
+    nextStopLayerRef.current?.update(nextStopMapState);
+  }, [nextStopMapState]);
+  React.useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    let cancelled = false;
+    let layer: NextStopLayer | null = null;
+    const attach = (created: NextStopLayer) => {
+      layer = created;
+      nextStopLayerRef.current = created;
+      created.update(nextStopStateRef.current);
+    };
+    if (GOOGLE_MAPS) {
+      const googleMap = googleMapRef.current;
+      const libraries = googleLibrariesRef.current;
+      if (!googleMap || !libraries) return;
+      attach(createGoogleNextStopLayer(googleMap, libraries, framedStopsRef.current));
+    } else {
+      void import("mapbox-gl")
+        .then(({ default: mapboxgl }) => {
+          if (!cancelled && mapRef.current === map) attach(createMapboxNextStopLayer(map, mapboxgl, framedStopsRef.current));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+      layer?.dispose();
+      if (nextStopLayerRef.current === layer) nextStopLayerRef.current = null;
+    };
+  }, [mapReady, googleMapGeneration]);
   const pendingRequestsByRecency = React.useMemo(
     () =>
       [...pendingLoadRequests].sort(
@@ -802,7 +908,7 @@ export default function DriverDashboardPage() {
   }, [currentLoadId, currentLoadHasPendingRelease]);
 
   React.useEffect(() => {
-    if (!mapboxToken || !mapContainerRef.current || mapRef.current) return;
+    if (GOOGLE_MAPS || !mapboxToken || !mapContainerRef.current || mapRef.current) return;
 
     let cancelled = false;
 
@@ -831,6 +937,8 @@ export default function DriverDashboardPage() {
           center: MAP_CENTER,
           zoom: 4,
           attributionControl: false,
+          // One world when zoomed far out, not copies side by side.
+          renderWorldCopies: false,
         });
 
         mapRef.current = map;
@@ -882,6 +990,100 @@ export default function DriverDashboardPage() {
     };
   }, [mapboxToken]);
 
+  // Google Maps. The color scheme is fixed when a Google map is created, so a
+  // theme change creates the map again at the same place and zoom.
+  React.useEffect(() => {
+    const config = GOOGLE_MAPS;
+    if (!config || !mapContainerRef.current) return;
+    let cancelled = false;
+    let camera: MapCamera | null = null;
+    let loadTimeout = 0;
+
+    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
+      if (cancelled) return;
+      setMapNotice(null);
+      setMapError(GOOGLE_MAPS_KEY_REJECTED);
+    });
+
+    const initGoogleMap = async () => {
+      let libraries: GoogleMapsLibraries;
+      try {
+        libraries = await loadGoogleMaps(config);
+      } catch {
+        if (cancelled) return;
+        setMapNotice(null);
+        setMapError("Google Maps couldn't load. Check the connection, then reopen the page.");
+        return;
+      }
+      if (cancelled || !mapContainerRef.current) return;
+
+      const view = googleViewRef.current;
+      setMapNotice(view ? "Applying theme..." : "Loading map tiles...");
+      const created = createGoogleMap(libraries, mapContainerRef.current, {
+        config,
+        theme: theme === "dark" ? "dark" : "light",
+        center: view?.center ?? MAP_CENTER,
+        zoom: view?.zoom ?? 4,
+      });
+      camera = created.camera;
+      googleMapRef.current = created.map;
+      googleLibrariesRef.current = libraries;
+      mapRef.current = camera;
+      markerRef.current = null;
+      // The location marker is created again on the new map.
+      setGoogleMapGeneration((generation) => generation + 1);
+
+      loadTimeout = window.setTimeout(() => {
+        if (!cancelled) setMapNotice("Map tiles are slow to load. Check the connection.");
+      }, 8000);
+      created.map.addListener("tilesloaded", () => {
+        window.clearTimeout(loadTimeout);
+        if (cancelled) return;
+        setMapReady(true);
+        setMapNotice(null);
+      });
+      // Remember the view, so a theme change reopens the map at the same place.
+      created.map.addListener("idle", () => {
+        const center = created.map.getCenter();
+        if (center) googleViewRef.current = { center: [center.lng(), center.lat()], zoom: created.map.getZoom() ?? 4 };
+      });
+    };
+    void initGoogleMap();
+
+    return () => {
+      cancelled = true;
+      stopAuthWatch();
+      window.clearTimeout(loadTimeout);
+      camera?.remove();
+      if (mapRef.current === camera) mapRef.current = null;
+      googleMapRef.current = null;
+      markerRef.current = null;
+    };
+  }, [theme]);
+
+  // The driver's own location on the Google map.
+  React.useEffect(() => {
+    const map = googleMapRef.current;
+    const libraries = googleLibrariesRef.current;
+    if (!GOOGLE_MAPS || !map || !libraries || !mapReady || !lastCoords) return;
+    const position = { lat: lastCoords.lat, lng: lastCoords.lng };
+    if (markerRef.current) {
+      markerRef.current.position = position;
+      return;
+    }
+    const element = document.createElement("div");
+    element.innerHTML = OWN_LOCATION_MARKER_HTML;
+    markerRef.current = new libraries.marker.AdvancedMarkerElement({ map, position, content: element, title: "Your location" });
+    // Center on the first position only (with the next stop when there is
+    // one); a theme change keeps the driver's view.
+    if (!centeredOnOwnLocationRef.current) {
+      centeredOnOwnLocationRef.current = true;
+      if (!nextStopLayerRef.current?.fit({ preferDriverWhenFar: true })) {
+        mapRef.current?.flyTo({ center: [lastCoords.lng, lastCoords.lat], zoom: 14, essential: true });
+      }
+    }
+  }, [lastCoords, mapReady, googleMapGeneration]);
+
   // Keep Mapbox synchronized with the responsive dashboard card height.
   // The map and Driver Status cards share the same desktop grid row, and the
   // status card can grow when GPS requirements or status requests appear.
@@ -910,7 +1112,7 @@ export default function DriverDashboardPage() {
 
   React.useEffect(() => {
     const map = mapRef.current;
-    if (!map || mapThemeRef.current === theme) return;
+    if (GOOGLE_MAPS || !map || mapThemeRef.current === theme) return;
     mapThemeRef.current = theme;
     setMapNotice("Applying theme...");
     map.setStyle(MAP_STYLE_BY_THEME[theme]);
@@ -920,7 +1122,7 @@ export default function DriverDashboardPage() {
 
   React.useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !lastCoords) return;
+    if (GOOGLE_MAPS || !map || !mapReady || !lastCoords) return;
 
     const updateMarker = async () => {
       const mapboxgl = (await import("mapbox-gl")).default;
@@ -931,11 +1133,14 @@ export default function DriverDashboardPage() {
         markerRef.current = new mapboxgl.Marker({ element: el })
           .setLngLat([lastCoords.lng, lastCoords.lat])
           .addTo(map);
-        map.flyTo({
-          center: [lastCoords.lng, lastCoords.lat],
-          zoom: 14,
-          essential: true,
-        });
+        // Frame the next stop too when there is one.
+        if (!nextStopLayerRef.current?.fit({ preferDriverWhenFar: true })) {
+          map.flyTo({
+            center: [lastCoords.lng, lastCoords.lat],
+            zoom: 14,
+            essential: true,
+          });
+        }
       } else {
         markerRef.current.setLngLat([lastCoords.lng, lastCoords.lat]);
       }
@@ -944,6 +1149,43 @@ export default function DriverDashboardPage() {
     updateMarker();
   }, [lastCoords, mapReady]);
 
+
+  // GPS status chip on the map.
+  const gpsFixAgeSeconds = lastCoords?.recordedAt
+    ? Math.max(0, (currentTime.getTime() - lastCoords.recordedAt) / 1000)
+    : null;
+  const gpsChip: { tone: "live" | "stale" | "waiting" | "blocked" | "off"; text: string } =
+    locationPermissionState === "denied"
+      ? { tone: "blocked", text: "Location blocked. Allow it in your browser settings." }
+      : isStarting
+        ? { tone: "waiting", text: "Connecting to GPS…" }
+        : isSharing && lastCoords
+          ? gpsFixAgeSeconds === null
+            ? { tone: "live", text: "Live" }
+            : gpsFixAgeSeconds <= 90
+              ? { tone: "live", text: `Live · updated ${formatShortAge(gpsFixAgeSeconds)} ago` }
+              : { tone: "stale", text: `Last update ${formatShortAge(gpsFixAgeSeconds)} ago` }
+          : isSharing
+            ? { tone: "waiting", text: "Waiting for a GPS fix…" }
+            : { tone: "off", text: "Not sharing your location" };
+  const gpsChipDot = {
+    live: "bg-emerald-500",
+    stale: "bg-amber-500",
+    waiting: "bg-amber-500 animate-pulse motion-reduce:animate-none",
+    blocked: "bg-rose-500",
+    off: "bg-slate-400",
+  }[gpsChip.tone];
+  const gpsChipText = {
+    live: "text-emerald-700 dark:text-emerald-400",
+    stale: "text-amber-700 dark:text-amber-400",
+    waiting: "text-amber-700 dark:text-amber-400",
+    blocked: "text-rose-700 dark:text-rose-400",
+    off: "text-muted-foreground",
+  }[gpsChip.tone];
+  const nextStopDistance = describeStopDistance(
+    lastCoords ? { lat: lastCoords.lat, lng: lastCoords.lng } : null,
+    nextStopPosition,
+  );
 
   const centerOnMe = () => {
     const map = mapRef.current;
@@ -1669,6 +1911,7 @@ export default function DriverDashboardPage() {
       </div>
 
       {/* ── ALERTS ── */}
+      <DriverPhoneTrackingReminder />
       {dashStats?.isComplianceExpired && (
         <div className="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3">
           <AlertTriangle className="size-4 text-red-500 shrink-0 mt-0.5" />
@@ -1765,7 +2008,7 @@ export default function DriverDashboardPage() {
         <Card className="w-full border-border/70 shadow-sm overflow-hidden bg-card p-0 gap-0">
           <CardContent className="p-0">
             <div className="relative h-[clamp(300px,38vh,360px)] sm:h-[clamp(340px,42vh,430px)] lg:h-[clamp(360px,45vh,500px)] overflow-hidden bg-muted">
-              {mapboxToken ? (
+              {GOOGLE_MAPS || mapboxToken ? (
                 <>
                   <div
                     ref={mapContainerRef}
@@ -1843,21 +2086,43 @@ export default function DriverDashboardPage() {
                       </TooltipTrigger>
                       <TooltipContent side="left" className="text-xs">Recenter on my location</TooltipContent>
                     </Tooltip>
+
+                    {nextStopMapState.stop && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Show my next stop"
+                            className="size-11 rounded-none border-0 bg-transparent text-foreground shadow-none hover:bg-muted/80 hover:text-primary focus-visible:relative focus-visible:z-10"
+                            onClick={() => nextStopLayerRef.current?.fit()}
+                          >
+                            <Route className="size-4" strokeWidth={2.1} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs">Show my next stop</TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </TooltipProvider>
               </div>
 
-              {isSharing && lastCoords && (
-                <div className="absolute bottom-3 left-3 z-10 rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex size-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
-                    </span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Broadcasting Live</span>
-                  </div>
+              <div
+                role="status"
+                aria-live="polite"
+                className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-9rem)] rounded-xl bg-background/90 backdrop-blur-sm border border-border/50 shadow-lg px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="relative flex size-2 shrink-0">
+                    {gpsChip.tone === "live" && (
+                      <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    )}
+                    <span className={cn("relative inline-flex rounded-full size-2", gpsChipDot)} />
+                  </span>
+                  <span className={cn("text-xs font-bold leading-snug", gpsChipText)}>{gpsChip.text}</span>
                 </div>
-              )}
+              </div>
 
               {mapError && !mapNotice && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-muted/80 backdrop-blur-sm">
@@ -1880,12 +2145,52 @@ export default function DriverDashboardPage() {
                     <span className="text-xs text-muted-foreground font-medium">Pickup Point</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-emerald-500" />
+                    <span className="size-2.5 rounded-full bg-rose-600" />
                     <span className="text-xs text-muted-foreground font-medium">Delivery Point</span>
                   </div>
                 </div>
               </details>
             </div>
+
+            {nextStop && (
+              <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+                <div className="flex flex-wrap items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-white shadow-sm"
+                    style={{ background: NEXT_STOP_COLORS[nextStop.kind] }}
+                  >
+                    {nextStop.kind === "pickup" ? "P" : "D"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Next stop · {nextStop.kind === "pickup" ? "Pickup" : "Delivery"}
+                    </p>
+                    <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">
+                      {nextStop.place?.name || nextStopAddress || "Address not provided"}
+                    </p>
+                    {nextStop.place?.name && nextStopAddress && (
+                      <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{nextStopAddress}</p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {nextStopPosition === undefined
+                        ? "Placing the stop on the map…"
+                        : nextStopPosition === null
+                          ? "This stop couldn't be placed on the map. Use the address above."
+                          : nextStopDistance ?? "Share your location to see how far it is."}
+                      {nextStopPin ? " · Exact spot set by dispatch" : ""}
+                    </p>
+                    {nextStop.place?.notes && (
+                      <p className="mt-1 break-words text-xs [overflow-wrap:anywhere]">
+                        <span className="font-semibold">Notes: </span>
+                        {nextStop.place.notes}
+                      </p>
+                    )}
+                  </div>
+                  <OpenInGoogleMapsButton load={currentLoad} className="w-full sm:w-auto" />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -2342,6 +2647,8 @@ export default function DriverDashboardPage() {
                         Load details <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                       </span>
                     </Link>
+
+                    <OpenInGoogleMapsButton load={currentLoad} className="w-full" withNote />
 
                     {unseenInfoChanges.length > 0 && !currentPendingAmendment ? (
                       <div className="rounded-xl border border-sky-500/35 bg-sky-500/10 p-4 shadow-sm" role="status">

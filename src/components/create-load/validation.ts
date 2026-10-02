@@ -235,6 +235,11 @@ export function validateAll(input: {
   pricing: LoadPricingInput;
   selectedDriverId: string | null;
   makeAvailable: boolean;
+  /**
+   * False when editing an existing load: the form has no Driver step then
+   * (drivers are assigned from Driver Tracker), so it can't require one.
+   */
+  requireDriver?: boolean;
 }): StepValidation {
   const parts = [
     validateLocation(input.pickup, "pickup"),
@@ -243,11 +248,13 @@ export function validateAll(input: {
     validateDates(input.dates),
     validateContract(input.contract),
     validatePricing(input.postType, input.pricing),
-    validateAssignment(
-      input.postType,
-      input.selectedDriverId,
-      input.makeAvailable,
-    ),
+    input.requireDriver === false
+      ? ok()
+      : validateAssignment(
+          input.postType,
+          input.selectedDriverId,
+          input.makeAvailable,
+        ),
   ];
   const issues = parts.flatMap((p) => p.issues);
   const warnings = parts.flatMap((p) => p.warnings);

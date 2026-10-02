@@ -7,6 +7,27 @@ import { useTrackerMobileNavigation } from "@/hooks/useTrackerMobileNavigation";
 import { driverAttentionReasons } from "@/lib/driver-tracker-mobile";
 import { createTrackerRequestOwner, requireTrackerArray } from "@/lib/tracker-request-owner";
 import { createDriverFleetLayer, type DriverFleetLayer } from "@/components/driver-tracker/driver-fleet-layer";
+import { createGoogleDriverFleetLayer, type AreaNameLookup } from "@/components/driver-tracker/google-driver-fleet-layer";
+import {
+  createGoogleDriverFocusLayer,
+  createMapboxDriverFocusLayer,
+  EMPTY_DRIVER_FOCUS,
+  type DriverFocusLayer,
+  type DriverFocusState,
+} from "@/components/driver-tracker/driver-focus-layer";
+import { useStopPositions } from "@/hooks/useStopPositions";
+import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
+import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
+import {
+  createGoogleMap,
+  GOOGLE_MAPS_KEY_REJECTED,
+  googleMapsConfig,
+  loadGoogleMaps,
+  onGoogleMapsAuthFailure,
+  type GoogleMapsLibraries,
+  type LngLatTuple,
+  type MapCamera,
+} from "@/lib/google-maps";
 import { trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
 import { isActiveLoadStatus } from "@/lib/load-status";
 import Link from "next/link";
@@ -156,6 +177,8 @@ const DIRECTORY_PAGE_SIZE = 50;
 // Assign / reassign candidates are refreshed on this cadence while visible.
 const ASSIGNABLE_REFRESH_MS = 120000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
+// Google Maps once its browser settings are present; Mapbox until then.
+const GOOGLE_MAPS = googleMapsConfig();
 
 interface DispatcherLoadActionOptions {
   endpoint: string;
@@ -385,12 +408,20 @@ export default function DriverTrackerPage() {
   const fleetLayerRef = React.useRef<DriverFleetLayer | null>(null);
   const cameraActionRef = React.useRef(0);
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
-  const [followingDriver, setFollowingDriver] = React.useState(false);
+  // Follow: moving the map yourself pauses it (Resume brings it back); Stop,
+  // another selection, or losing sight of the driver's location turns it off.
+  const [followMode, setFollowMode] = React.useState<FollowMode>("off");
+  const followingDriver = followMode === "following";
+  const googleMapRef = React.useRef<google.maps.Map | null>(null);
+  const googleLibrariesRef = React.useRef<GoogleMapsLibraries | null>(null);
+  const googleViewRef = React.useRef<{ center: LngLatTuple; zoom: number } | null>(null);
+  const [googleMapGeneration, setGoogleMapGeneration] = React.useState(0);
   const [trackingNow, setTrackingNow] = React.useState(() => Date.now());
   const mapThemeRef = React.useRef<"light" | "dark" | null>(null);
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
   const normalizedToken = mapboxToken?.trim();
+  const mapConfigured = Boolean(GOOGLE_MAPS || normalizedToken);
 
   const gpsSharingDrivers = React.useMemo(
     () => drivers.filter((d) => trackingState(d, trackingNow).kind === "live"),
@@ -451,12 +482,16 @@ export default function DriverTrackerPage() {
   }, [drivers, mapFilter, trackingNow]);
 
   const selectedDriver = listDrivers.find(driver => driver.id === selectedDriverId) ?? null;
+  // Following needs a visible position; when it's gone (access ended), Follow turns off.
+  if (followMode !== "off" && !(selectedDriver && selectedDriver.canViewExactGps !== false && validCoordinates(selectedDriver.coords))) {
+    setFollowMode("off");
+  }
   const fleetStateRef = React.useRef({ drivers: mapDrivers, selectedId: selectedDriverId, now: trackingNow });
   fleetStateRef.current = { drivers: mapDrivers, selectedId: selectedDriverId, now: trackingNow };
   React.useEffect(() => {
     if (selectedDriverId && !listDrivers.some(driver => driver.id === selectedDriverId)) {
       setSelectedDriverId(null);
-      setFollowingDriver(false);
+      setFollowMode("off");
       setMobileDriverDrawerOpen(false);
     }
   }, [listDrivers, selectedDriverId]);
@@ -677,7 +712,7 @@ export default function DriverTrackerPage() {
     setDrivers([]); setAvailableLoads([]); setLoadRequests([]); setAvailableLoadsHasMore(false);
     setDirectoryDrivers([]); setAssignableDrivers([]); setDirectorySummary(null);
     setDirectoryPage({ page: 0, total: 0, hasMore: false, loading: false });
-    setSelectedDriverId(null); setFollowingDriver(false); setSelectedLoadsDriverId(null);
+    setSelectedDriverId(null); setFollowMode("off"); setSelectedLoadsDriverId(null);
     setMobileDriverDrawerOpen(false);
     return () => { directory.reset(); available.reset(); pending.reset(); };
   }, [isSignedIn, user?.id]);
@@ -1657,7 +1692,7 @@ export default function DriverTrackerPage() {
       setSelectedDriverId(driver.id);
       cameraActionRef.current += 1;
       setMapFilter("all");
-      setFollowingDriver(false);
+      setFollowMode("off");
       if (validCoordinates(driver.coords)) {
         mapInstanceRef.current?.easeTo({ center: [driver.coords.lng, driver.coords.lat], duration: 300 });
       }
@@ -1697,7 +1732,7 @@ export default function DriverTrackerPage() {
   const focusDriverOnLiveMap = React.useCallback((driver: DriverTrackingItem, options?: { closeDrawer?: boolean }) => {
     cameraActionRef.current += 1;
     setSelectedDriverId(driver.id);
-    setFollowingDriver(false);
+    setFollowMode("off");
     setMapFilter("all");
     setMobileWorkspace("map");
     if (options?.closeDrawer) setMobileDriverDrawerOpen(false);
@@ -1710,6 +1745,23 @@ export default function DriverTrackerPage() {
 
   const selectDriverRef = React.useRef(focusDriverOnLiveMap);
   selectDriverRef.current = focusDriverOnLiveMap;
+
+  const lookupDriverAreaName = React.useCallback<AreaNameLookup>(async (driverId, signal) => {
+    const token = await getToken();
+    if (!token) return { areaName: null, available: true };
+    const response = await apiClient.get(
+      `/api/driver-tracking/drivers/${encodeURIComponent(driverId)}/area-name`,
+      { headers: { Authorization: `Bearer ${token}` }, signal },
+    );
+    return {
+      areaName: typeof response.data?.data?.areaName === "string" ? response.data.data.areaName : null,
+      available: response.data?.data?.available !== false,
+    };
+  }, [getToken]);
+  const lookupAreaNameRef = React.useRef(lookupDriverAreaName);
+  React.useEffect(() => {
+    lookupAreaNameRef.current = lookupDriverAreaName;
+  }, [lookupDriverAreaName]);
 
   const driverIdsKey = React.useMemo(
     () =>
@@ -2066,7 +2118,7 @@ export default function DriverTrackerPage() {
   ]);
 
   React.useEffect(() => {
-    if (!normalizedToken || !mapRef.current || mapInstanceRef.current) return;
+    if (GOOGLE_MAPS || !normalizedToken || !mapRef.current || mapInstanceRef.current) return;
 
     let cancelled = false;
 
@@ -2164,9 +2216,88 @@ export default function DriverTrackerPage() {
     };
   }, [normalizedToken]);
 
+  // Google Maps. The color scheme is fixed when a Google map is created, so a
+  // theme change creates the map again at the same place and zoom.
+  React.useEffect(() => {
+    const config = GOOGLE_MAPS;
+    if (!config || !mapRef.current) return;
+    let cancelled = false;
+    let camera: MapCamera | null = null;
+    let loadTimeout = 0;
+
+    const stopAuthWatch = onGoogleMapsAuthFailure(() => {
+      if (cancelled) return;
+      setIsMapReady(true);
+      setIsMapTransitioning(false);
+      setMapNotice(GOOGLE_MAPS_KEY_REJECTED);
+    });
+
+    const initGoogleMap = async () => {
+      let libraries: GoogleMapsLibraries;
+      try {
+        libraries = await loadGoogleMaps(config);
+      } catch {
+        if (cancelled) return;
+        setIsMapReady(true);
+        setMapNotice("Google Maps couldn't load. Check the connection, then reopen the page.");
+        return;
+      }
+      if (cancelled || !mapRef.current) return;
+
+      const view = googleViewRef.current;
+      if (view) {
+        setIsMapTransitioning(true);
+        setMapNotice(theme === "dark" ? "Switching to dark map…" : "Switching to light map…");
+      } else {
+        setMapNotice("Loading map tiles...");
+      }
+      const created = createGoogleMap(libraries, mapRef.current, {
+        config,
+        theme: theme === "dark" ? "dark" : "light",
+        center: view?.center ?? [MAP_CENTER.lng, MAP_CENTER.lat],
+        zoom: view?.zoom ?? 4,
+      });
+      camera = created.camera;
+      googleMapRef.current = created.map;
+      googleLibrariesRef.current = libraries;
+      mapInstanceRef.current = camera;
+      // The driver markers are created again on the new map.
+      setGoogleMapGeneration(generation => generation + 1);
+
+      loadTimeout = window.setTimeout(() => {
+        if (cancelled) return;
+        setIsMapReady(true);
+        setIsMapTransitioning(false);
+        setMapNotice("Map tiles are slow to load. Check the connection.");
+      }, 8000);
+      created.map.addListener("tilesloaded", () => {
+        window.clearTimeout(loadTimeout);
+        if (cancelled) return;
+        setIsMapReady(true);
+        setIsMapTransitioning(false);
+        setMapNotice(null);
+      });
+      // Remember the view, so a theme change reopens the map at the same place.
+      created.map.addListener("idle", () => {
+        const center = created.map.getCenter();
+        if (center) googleViewRef.current = { center: [center.lng(), center.lat()], zoom: created.map.getZoom() ?? 4 };
+      });
+    };
+    void initGoogleMap();
+
+    return () => {
+      cancelled = true;
+      stopAuthWatch();
+      window.clearTimeout(loadTimeout);
+      camera?.remove();
+      if (mapInstanceRef.current === camera) mapInstanceRef.current = null;
+      googleMapRef.current = null;
+    };
+  }, [theme]);
+
   React.useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || mapThemeRef.current === theme) return;
+    if (GOOGLE_MAPS || !map || mapThemeRef.current === theme) return;
 
     mapThemeRef.current = theme;
 
@@ -2210,9 +2341,28 @@ export default function DriverTrackerPage() {
     if (!map || !isMapReady) return;
     let cancelled = false;
     let layer: DriverFleetLayer | null = null;
+    // Moving the map yourself pauses Follow (Resume brings it back).
+    const pauseFollowOnManualMove = () => {
+      cameraActionRef.current += 1;
+      setFollowMode(mode => (mode === "following" ? "paused" : mode));
+    };
+    if (GOOGLE_MAPS) {
+      const googleMap = googleMapRef.current;
+      const libraries = googleLibrariesRef.current;
+      const container = mapRef.current;
+      if (!googleMap || !libraries || !container) return;
+      const googleLayer = createGoogleDriverFleetLayer(googleMap, container, libraries, driver => selectDriverRef.current(driver),
+        pauseFollowOnManualMove, (driverId, signal) => lookupAreaNameRef.current(driverId, signal));
+      fleetLayerRef.current = googleLayer;
+      googleLayer.update(fleetStateRef.current);
+      return () => {
+        googleLayer.dispose();
+        if (fleetLayerRef.current === googleLayer) fleetLayerRef.current = null;
+      };
+    }
     void import("mapbox-gl").then(({ default: mapboxgl }) => {
       if (cancelled || mapInstanceRef.current !== map) return;
-      layer = createDriverFleetLayer(map, mapboxgl, driver => selectDriverRef.current(driver), () => { cameraActionRef.current += 1; setFollowingDriver(false); }, normalizedToken);
+      layer = createDriverFleetLayer(map, mapboxgl, driver => selectDriverRef.current(driver), pauseFollowOnManualMove, normalizedToken);
       fleetLayerRef.current = layer;
       layer.update(fleetStateRef.current);
     }).catch(() => { if (!cancelled) setMapNotice("Driver markers could not load. Retry by reopening the page."); });
@@ -2221,11 +2371,125 @@ export default function DriverTrackerPage() {
       layer?.dispose();
       if (fleetLayerRef.current === layer) fleetLayerRef.current = null;
     };
-  }, [isMapReady, normalizedToken]);
+  }, [isMapReady, normalizedToken, googleMapGeneration]);
 
   React.useEffect(() => {
     fleetLayerRef.current?.update(fleetStateRef.current);
   }, [mapDrivers, selectedDriverId, trackingNow]);
+
+  // ── Selected driver on the map: their stops, recent route, GPS accuracy ──
+  const selectedStops = React.useMemo(() => {
+    if (!selectedDriver) return [];
+    return selectedDriver.shipments.flatMap((shipment, index) => {
+      const pickedUp = shipment.status === "Picked Up" || shipment.status === "In-Transit";
+      const stops: Array<{ key: string; kind: "pickup" | "delivery"; place: LoadPlace; title: string; next: boolean }> = [];
+      const add = (kind: "pickup" | "delivery", place: LoadPlace, next: boolean) => {
+        const pin = placePin(place);
+        const address = placeAddressText(place);
+        if (!pin && !address) return;
+        stops.push({
+          key: `${shipment.id}:${kind}:${pin ? `${pin.lat},${pin.lng}` : address}`,
+          kind,
+          place,
+          next,
+          title: `${kind === "pickup" ? "Pickup" : "Delivery"} · ${shipment.trackingNumber || "Load"} · ${place?.name || address}`,
+        });
+      };
+      // A picked-up load only has its delivery left. The first load's next
+      // stop gets the dashed line.
+      if (!pickedUp) add("pickup", shipment.pickupLocation, index === 0);
+      add("delivery", shipment.deliveryLocation, index === 0 && pickedUp);
+      return stops;
+    });
+  }, [selectedDriver]);
+  const selectedStopPositions = useStopPositions(selectedStops, getToken, normalizedToken);
+
+  const selectedDriverGpsVisible = Boolean(
+    selectedDriver && selectedDriver.canViewExactGps !== false && validCoordinates(selectedDriver.coords),
+  );
+  const [recentTrail, setRecentTrail] = React.useState<{ driverId: string; points: { lat: number; lng: number }[] } | null>(null);
+  React.useEffect(() => {
+    if (!selectedDriverId || !selectedDriverGpsVisible) return;
+    let cancelled = false;
+    const loadTrail = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const response = await apiClient.get(
+          `/api/driver-tracking/drivers/${encodeURIComponent(selectedDriverId)}/recent-trail`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const rows: unknown[] = Array.isArray(response.data?.data?.points) ? response.data.data.points : [];
+        const points = rows
+          .map((row) => ({ lat: Number((row as { lat?: unknown }).lat), lng: Number((row as { lng?: unknown }).lng) }))
+          .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+        if (!cancelled) setRecentTrail({ driverId: selectedDriverId, points });
+      } catch {
+        if (!cancelled) setRecentTrail({ driverId: selectedDriverId, points: [] });
+      }
+    };
+    void loadTrail();
+    // Live positions extend the line in between; this picks up delayed ones.
+    const timer = window.setInterval(() => void loadTrail(), 120_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedDriverId, selectedDriverGpsVisible, getToken]);
+
+  const driverFocus = React.useMemo<DriverFocusState>(() => {
+    if (!selectedDriver) return EMPTY_DRIVER_FOCUS;
+    const position = selectedDriverGpsVisible && selectedDriver.coords
+      ? { lat: selectedDriver.coords.lat, lng: selectedDriver.coords.lng }
+      : null;
+    const history = position && recentTrail?.driverId === selectedDriver.id ? recentTrail.points : [];
+    const last = history[history.length - 1];
+    const trail = position && last && (last.lat !== position.lat || last.lng !== position.lng) ? [...history, position] : history;
+    const accuracy = Number(selectedDriver.accuracy);
+    return {
+      position,
+      accuracyMeters: position && selectedDriver.accuracy != null && Number.isFinite(accuracy) ? accuracy : null,
+      trail,
+      stops: selectedStops.flatMap((stop) => {
+        const stopPosition = selectedStopPositions[stop.key];
+        return stopPosition ? [{ key: stop.key, kind: stop.kind, position: stopPosition, title: stop.title, next: stop.next }] : [];
+      }),
+    };
+  }, [selectedDriver, selectedDriverGpsVisible, recentTrail, selectedStops, selectedStopPositions]);
+  const focusLayerRef = React.useRef<DriverFocusLayer | null>(null);
+  const driverFocusRef = React.useRef(driverFocus);
+  React.useEffect(() => {
+    driverFocusRef.current = driverFocus;
+    focusLayerRef.current?.update(driverFocus);
+  }, [driverFocus]);
+  React.useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !isMapReady) return;
+    let cancelled = false;
+    let layer: DriverFocusLayer | null = null;
+    const attach = (created: DriverFocusLayer) => {
+      layer = created;
+      focusLayerRef.current = created;
+      created.update(driverFocusRef.current);
+    };
+    if (GOOGLE_MAPS) {
+      const googleMap = googleMapRef.current;
+      const libraries = googleLibrariesRef.current;
+      if (!googleMap || !libraries) return;
+      attach(createGoogleDriverFocusLayer(googleMap, libraries));
+    } else {
+      void import("mapbox-gl")
+        .then(({ default: mapboxgl }) => {
+          if (!cancelled && mapInstanceRef.current === map) attach(createMapboxDriverFocusLayer(map, mapboxgl));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+      layer?.dispose();
+      if (focusLayerRef.current === layer) focusLayerRef.current = null;
+    };
+  }, [isMapReady, normalizedToken, googleMapGeneration]);
 
   React.useEffect(() => {
     if (!followingDriver || !selectedDriver || !isMapReady) return;
@@ -2239,6 +2503,25 @@ export default function DriverTrackerPage() {
     const map = mapInstanceRef.current;
     if (!map) return;
     map.setZoom(Math.max(2, Math.min(18, map.getZoom() + delta)));
+  };
+
+  // Zooms to fit every driver shown on the map (with the current filter).
+  const showAllDrivers = () => {
+    cameraActionRef.current += 1;
+    setFollowMode("off");
+    const map = mapInstanceRef.current;
+    const points = mapDrivers.filter((driver) => validCoordinates(driver.coords)).map((driver) => driver.coords!);
+    if (!map || points.length === 0) return;
+    if (points.length === 1) {
+      map.easeTo({ center: [points[0].lng, points[0].lat], zoom: 12, duration: 400 });
+      return;
+    }
+    const lngs = points.map((point) => point.lng);
+    const lats = points.map((point) => point.lat);
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 64, maxZoom: 13, duration: 600 },
+    );
   };
 
   const centerOnMe = () => {
@@ -2485,27 +2768,32 @@ export default function DriverTrackerPage() {
         <div id="tracker-map-view" className={`${mobileWorkspace === "map" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block xl:col-start-1 xl:row-start-1`}>
           <DriverTrackerMap
             mapboxToken={normalizedToken}
+            mapConfigured={mapConfigured}
             mapRef={mapRef}
             onZoomIn={() => zoomMap(1)}
             onZoomOut={() => zoomMap(-1)}
-            onCenter={() => { setFollowingDriver(false); centerOnMe(); }}
+            onCenter={() => { setFollowMode("off"); centerOnMe(); }}
+            onShowAll={showAllDrivers}
             selectedDriver={selectedDriver}
             trackingNow={trackingNow}
             following={followingDriver}
+            followMode={followMode}
             onFollow={() => {
               cameraActionRef.current += 1;
               if (!selectedDriver || !validCoordinates(selectedDriver.coords)) return;
               setMapFilter("all");
-              setFollowingDriver(value => !value);
+              // Follow when off, stop when following, resume when paused.
+              setFollowMode(mode => (mode === "following" ? "off" : "following"));
             }}
-            onClearSelection={() => { setSelectedDriverId(null); setFollowingDriver(false); }}
+            onStopFollowing={() => { cameraActionRef.current += 1; setFollowMode("off"); }}
+            onClearSelection={() => { setSelectedDriverId(null); setFollowMode("off"); }}
             onDetails={() => { if (selectedDriver) openMobileDriverDrawer(selectedDriver); }}
             onChat={() => { if (selectedDriver) handleMessageDriver(selectedDriver); }}
             activityLabels={statusLabel}
             mapNotice={mapNotice}
             activeCount={gpsSharingDrivers.length}
             mapFilter={mapFilter}
-            onMapFilterChange={filter => { setFollowingDriver(false); setSelectedDriverId(null); setMapFilter(filter); }}
+            onMapFilterChange={filter => { setFollowMode("off"); setSelectedDriverId(null); setMapFilter(filter); }}
             isMapReady={isMapReady}
             isMapTransitioning={isMapTransitioning}
           />

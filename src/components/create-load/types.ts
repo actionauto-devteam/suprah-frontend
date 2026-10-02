@@ -62,6 +62,10 @@ export interface LocationBlock {
   contactName?: string;
   locationType?: LocationType | "";
   notes?: string;
+  /** Exact spot picked with "Pick on map"; driver navigation goes here. */
+  coordinates?: { lat: number; lng: number } | null;
+  /** Google's place ID when the spot is the searched place, not moved. */
+  placeId?: string;
 }
 
 export type VehicleCondition = "Operable" | "Inoperable";

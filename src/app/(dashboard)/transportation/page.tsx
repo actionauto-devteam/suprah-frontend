@@ -361,8 +361,10 @@ function TransportationPageInner() {
     shipmentStatus: activeTab === "shipments" ? selectedStatus : "all",
     quoteStatus: activeTab === "drafts" ? selectedQuoteStatus : "all",
     activeView: activeTab,
-    shipmentSearch:
-      isMobileViewport && activeTab === "shipments" ? mobileSearchQuery : undefined,
+    // On every screen size the load search covers all loads (the hook searches
+    // its full list, or the server beyond 100 loads), not only the page on
+    // screen, so /transportation?search=LD-20260817-001 finds a load on page 2.
+    shipmentSearch: activeTab === "shipments" ? mobileSearchQuery : undefined,
     quoteSearch:
       isMobileViewport && activeTab === "drafts" ? mobileSearchQuery : undefined,
     shipmentOrigin:

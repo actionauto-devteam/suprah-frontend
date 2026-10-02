@@ -12,6 +12,7 @@ import { Settings, Bell, MapPin, Moon, Wallet, CheckCircle2, Loader2, AlertTrian
 import { useTheme } from "@/context/ThemeContext";
 import { StripeConnectStatus } from "@/types/driver-payout";
 import { userErrorMessage } from "@/lib/user-error";
+import { DriverPhoneTrackingCard } from "@/components/driver/DriverPhoneTrackingCard";
 
 export default function DriverSettingsPage() {
   const { user } = useUser();
@@ -152,6 +153,8 @@ export default function DriverSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <DriverPhoneTrackingCard />
 
       {/* Stripe Payout Account */}
       <Card>
