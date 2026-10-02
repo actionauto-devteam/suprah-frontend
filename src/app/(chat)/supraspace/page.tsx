@@ -57,6 +57,7 @@ import { MDT_TZ, fmtTimeMDT, isTodayMDT, isYesterdayMDT, todayStrMDT } from '@/l
 import { MountainTimeClock } from '@/components/layout/MountainTimeClock';
 import { SupraSpaceLogo } from '@/components/supraspace/SupraSpaceLogo';
 import { SupraSpaceDayRail } from '@/components/supraspace/SupraSpaceDayRail';
+import { getOperationalMessageKind, OperationalMessageCard, type OperationalMessageKind } from '@/components/supraspace/OperationalMessageCard';
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
@@ -2330,6 +2331,39 @@ function serializeVisibleRichText(el: HTMLElement): string {
   );
 }
 
+function insertTextAtRichEditorSelection(
+  root: HTMLElement,
+  text: string,
+  fallbackRange?: Range | null,
+): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : fallbackRange
+      && root.contains(fallbackRange.startContainer)
+      && root.contains(fallbackRange.endContainer)
+      ? fallbackRange.cloneRange()
+      : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const inserted = document.createTextNode(text);
+  range.deleteContents();
+  range.insertNode(inserted);
+  range.setStartAfter(inserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
+}
+
 function canonicalizeColorMarkup(value: string): string {
   const tagPattern = /\{\s*(\/)?\s*color(?:\s*:\s*(#[0-9a-f]{3,8}))?\s*\}/gi;
   let result = '';
@@ -3831,14 +3865,8 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       continue;
     }
 
-    const renderLine = (() => {
-      if (/\*\*\s*$/.test(raw) && !/^\s*\*\*/.test(raw)) return `**${raw.replace(/\*\*\s*$/, '').trimEnd()}**`;
-      if (/^\s*\*\*/.test(raw) && !/\*\*.*\*\*/.test(raw)) return `**${raw.replace(/^\s*\*\*/, '').trimStart()}**`;
-      return raw;
-    })();
-
     addSeparation('line');
-    result.push(...renderInline(renderLine, `line-${blockIdx++}`));
+    result.push(...renderInline(raw, `line-${blockIdx++}`));
     hasRenderedContent = true;
     lineIndex++;
   }
@@ -5080,7 +5108,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5100,6 +5128,7 @@ const Bubble = React.memo(function Bubble({
   onEditSave?: (id: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => Promise<void>;
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
+  operationalKind?: OperationalMessageKind | null;
 }) {
   const renderedContent = React.useMemo(
     () => renderMessageContent(message.content, isOwn),
@@ -5124,6 +5153,7 @@ const Bubble = React.memo(function Bubble({
   const actionHoverLockRef = React.useRef(false);
   const [editMode, setEditMode] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState('');
+  const [editEmojiOpen, setEditEmojiOpen] = React.useState(false);
   const [editSaving, setEditSaving] = React.useState(false);
   const [editWidth, setEditWidth] = React.useState<number | null>(null);
   const editAreaRef = React.useRef<HTMLDivElement>(null);
@@ -5417,6 +5447,21 @@ const Bubble = React.memo(function Bubble({
   const focusEditComposer = React.useCallback(() => {
     editAreaRef.current?.focus();
   }, []);
+
+  const insertEditEmoji = React.useCallback((emoji: string) => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    restoreEditSelection();
+    editSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      root,
+      emoji,
+      editSelectionRangeRef.current,
+    );
+    syncEditDraft();
+    rememberEditSelection();
+    setEditEmojiOpen(false);
+    requestAnimationFrame(refreshEditActiveFormats);
+  }, [refreshEditActiveFormats, rememberEditSelection, restoreEditSelection, syncEditDraft]);
 
   React.useEffect(() => {
     if (!editMode) return;
@@ -5773,6 +5818,7 @@ const Bubble = React.memo(function Bubble({
     editSelectionRangeRef.current = null;
     setEditMode(false);
     setEditDraft('');
+    setEditEmojiOpen(false);
     setEditWidth(null);
     setEditColorPickerOpen(false);
     setEditReplacementFiles([]);
@@ -6071,6 +6117,16 @@ const Bubble = React.memo(function Bubble({
     );
   }
 
+  if (operationalKind) {
+    return (
+      <div id={`ss4-msg-${message._id}`} className="px-4 py-2 sm:px-5">
+        <div className="mx-auto w-full" style={{ maxWidth: 760 }}>
+          <OperationalMessageCard kind={operationalKind} content={message.content} createdAt={message.createdAt} attachments={message.attachments} />
+        </div>
+      </div>
+    );
+  }
+
   if (message.type === 'system') {
     return (
       <div className="px-4 py-1.5 text-center sm:px-5">
@@ -6229,6 +6285,30 @@ const Bubble = React.memo(function Bubble({
                   <Copy className="h-3.5 w-3.5" />
                   <span style={{ fontSize: 10 }}>{editPasteMode === 'formatted' ? 'Format' : 'Text'}</span>
                 </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); rememberEditSelection(); }}
+                    onClick={() => setEditEmojiOpen(open => !open)}
+                    className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+                    title="Emoji"
+                    aria-expanded={editEmojiOpen}
+                  >
+                    <Smile className="h-3.5 w-3.5" />
+                  </button>
+                  {editEmojiOpen && (
+                    <div className="absolute bottom-full left-0 z-50 mb-2">
+                      <EmojiPicker
+                        onEmojiClick={(data: EmojiClickData) => insertEditEmoji(data.emoji)}
+                        width={300}
+                        height={360}
+                        searchDisabled={false}
+                        skinTonesDisabled
+                        lazyLoadEmojis
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="w-px h-4 mx-0.5 shrink-0" style={{ background: 'rgba(255,255,255,0.16)' }} />
                 <div className="relative flex items-center gap-2">
                   <button
@@ -11664,30 +11744,26 @@ export default function SupraSpacePage() {
       return;
     }
     if (insertText.length < text.length) showMessageLimitNotice();
-    const fallbackOffset = currentText.length;
     const savedOffset = composerCaretOffsetRef.current;
-    let safeOffset = Math.max(0, Math.min(savedOffset ?? fallbackOffset, currentText.length));
-    if (options?.preferEndOnZero && safeOffset === 0 && currentText.length > 0) {
-      safeOffset = currentText.length;
+    if (
+      options?.preferEndOnZero
+      && savedOffset === 0
+      && currentText.length > 0
+    ) {
+      composerSelectionRangeRef.current = rangeFromTextOffset(el, currentText.length);
     }
-    const nextText = `${currentText.slice(0, safeOffset)}${insertText}${currentText.slice(safeOffset)}`;
-    const nextOffset = safeOffset + insertText.length;
 
-    el.textContent = nextText;
-    el.focus();
-
-    const range = rangeFromTextOffset(el, nextOffset);
-    range.collapse(true);
-
-    const selection = window.getSelection();
-    if (selection) {
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-    composerCaretOffsetRef.current = nextOffset;
+    composerSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      el,
+      insertText,
+      composerSelectionRangeRef.current,
+    );
+    const nextText = el.innerText.replace(/\n$/, '');
+    composerCaretOffsetRef.current = getCaretOffset(el);
     syncComposerText(nextText, true);
+    saveComposerSelection();
     refreshActiveFormats();
-  }, [rangeFromTextOffset, refreshActiveFormats, showMessageLimitNotice, syncComposerText]);
+  }, [getCaretOffset, rangeFromTextOffset, refreshActiveFormats, saveComposerSelection, showMessageLimitNotice, syncComposerText]);
 
   const prepareMobileEmojiPicker = React.useCallback(() => {
     saveComposerSelection();
@@ -13231,8 +13307,9 @@ export default function SupraSpacePage() {
       onForward={setForwardMsg}
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
+      operationalKind={getOperationalMessageKind(message, activeConv?.name)}
     />
-  ), [activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;

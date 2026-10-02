@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
+import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
 import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -14,6 +15,7 @@ import {
 } from '@/context/SupraSpaceMessengerContext';
 import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
+import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -1216,15 +1218,9 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           );
         }
 
-        const renderLine = (() => {
-          if (/\*\*\s*$/.test(line) && !/^\s*\*\*/.test(line)) return `**${line.replace(/\*\*\s*$/, '').trimEnd()}**`;
-          if (/^\s*\*\*/.test(line) && !/\*\*.*\*\*/.test(line)) return `**${line.replace(/^\s*\*\*/, '').trimStart()}**`;
-          return line;
-        })();
-
         return (
           <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 4 : 0 }}>
-            {renderInlineMd(renderLine, isOwn, `line-${index}`)}
+            {renderInlineMd(line, isOwn, `line-${index}`)}
           </span>
         );
       })}
@@ -1857,7 +1853,10 @@ function applyFontSizeToRichEditorSelection(
 }
 
 function htmlToMarkdown(el: HTMLElement): string {
-  const walk = (node: Node, listDepth = 0): string => {
+  type InheritedFormats = { bold: boolean; italic: boolean; underline: boolean; strike: boolean };
+  const NO_FORMATS: InheritedFormats = { bold: false, italic: false, underline: false, strike: false };
+
+  const walk = (node: Node, listDepth = 0, inherited: InheritedFormats = NO_FORMATS): string => {
     if (node.nodeType === Node.TEXT_NODE) {
       return (node.textContent || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
     }
@@ -1882,10 +1881,24 @@ function htmlToMarkdown(el: HTMLElement): string {
       return clipboardControlValue(element);
     }
 
+    const fontWeight = element.style.fontWeight;
+    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
+    const elementIsBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
+      || fontWeight === 'bold' || Number.parseInt(fontWeight || '0', 10) >= 600;
+    const elementIsItalic = tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic';
+    const elementIsUnderline = tag === 'u' || decoration.includes('underline');
+    const elementIsStrike = tag === 's' || tag === 'strike' || tag === 'del' || decoration.includes('line-through');
+    const childInherited: InheritedFormats = {
+      bold: inherited.bold || elementIsBold,
+      italic: inherited.italic || elementIsItalic,
+      underline: inherited.underline || elementIsUnderline,
+      strike: inherited.strike || elementIsStrike,
+    };
+
     if (tag === 'ul' || tag === 'ol') {
       const serializedList = Array.from(element.children)
         .filter(child => child.tagName.toLowerCase() === 'li')
-        .map(child => walk(child, listDepth))
+        .map(child => walk(child, listDepth, childInherited))
         .join('');
 
       const isNestedList = element.parentElement?.tagName.toLowerCase() === 'li';
@@ -1925,9 +1938,9 @@ function htmlToMarkdown(el: HTMLElement): string {
           child.nodeType === Node.ELEMENT_NODE
           && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())
         ) {
-          nestedContent += walk(child, visualDepth + 1);
+          nestedContent += walk(child, visualDepth + 1, childInherited);
         } else {
-          ownContent += walk(child, visualDepth);
+          ownContent += walk(child, visualDepth, childInherited);
         }
       });
 
@@ -1939,7 +1952,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     }
 
     let inner = Array.from(element.childNodes)
-      .map(child => walk(child, listDepth))
+      .map(child => walk(child, listDepth, childInherited))
       .join('');
     if (!inner.trim() && ['input', 'textarea', 'select'].includes(tag)) {
       inner = clipboardControlValue(element);
@@ -1960,31 +1973,11 @@ function htmlToMarkdown(el: HTMLElement): string {
       || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
     const isMonospace = !fontFamily
       && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
-    const fontWeight = element.style.fontWeight;
-    const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
-
     const hasInlineContent = Boolean(inner.trim());
-    if (
-      hasInlineContent
-      && (
-        tag === 'strong'
-        || tag === 'b'
-        || /^h[1-6]$/.test(tag)
-        || fontWeight === 'bold'
-        || Number.parseInt(fontWeight || '0', 10) >= 600
-      )
-    ) inner = `**${inner}**`;
-    if (hasInlineContent && (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic')) inner = `_${inner}_`;
-    if (hasInlineContent && (tag === 'u' || decoration.includes('underline'))) inner = `__${inner}__`;
-    if (
-      hasInlineContent
-      && (
-        tag === 's'
-        || tag === 'strike'
-        || tag === 'del'
-        || decoration.includes('line-through')
-      )
-    ) inner = `~~${inner}~~`;
+    if (hasInlineContent && elementIsBold && !inherited.bold) inner = `**${inner}**`;
+    if (hasInlineContent && elementIsItalic && !inherited.italic) inner = `_${inner}_`;
+    if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
+    if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
     else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = isSerialLikeText(inner)
       ? inner
@@ -2032,6 +2025,39 @@ function htmlToMarkdown(el: HTMLElement): string {
       .trim(),
   );
   return normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
+}
+
+function insertTextAtRichEditorSelection(
+  root: HTMLElement,
+  text: string,
+  fallbackRange?: Range | null,
+): Range {
+  const selection = window.getSelection();
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const range = selectedRange
+    && root.contains(selectedRange.startContainer)
+    && root.contains(selectedRange.endContainer)
+    ? selectedRange.cloneRange()
+    : fallbackRange
+      && root.contains(fallbackRange.startContainer)
+      && root.contains(fallbackRange.endContainer)
+      ? fallbackRange.cloneRange()
+      : document.createRange();
+
+  if (!range.commonAncestorContainer || !root.contains(range.commonAncestorContainer)) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+
+  const inserted = document.createTextNode(text);
+  range.deleteContents();
+  range.insertNode(inserted);
+  range.setStartAfter(inserted);
+  range.collapse(true);
+  root.focus();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range.cloneRange();
 }
 
 function htmlAppearsToContainLists(html: string): boolean {
@@ -3971,6 +3997,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // Full emoji picker
   const [emojiPickerMsg, setEmojiPickerMsg] = React.useState<string | null>(null);
+  const [composerEmojiOpen, setComposerEmojiOpen] = React.useState(false);
+  const [editEmojiOpen, setEditEmojiOpen] = React.useState(false);
   const [emojiPickerPos, setEmojiPickerPos] = React.useState<{
     top: number;
     left?: number;
@@ -4542,6 +4570,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       return [];
     });
     setEditReplaceIndex(null);
+    setEditEmojiOpen(false);
     if (editFileRef.current) editFileRef.current.value = '';
     if (editSingleFileRef.current) editSingleFileRef.current.value = '';
     setEditingMsgId(msgId);
@@ -4654,6 +4683,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       // Formatting-state detection is best effort.
     }
   }, []);
+
+  const insertEditEmoji = React.useCallback((emoji: string) => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    restoreEditSelection();
+    editSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      root,
+      emoji,
+      editSelectionRangeRef.current,
+    );
+    syncEditDraft();
+    rememberEditSelection();
+    setEditEmojiOpen(false);
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, rememberEditSelection, restoreEditSelection, syncEditDraft]);
 
   React.useEffect(() => {
     if (!editingMsgId) return;
@@ -5010,6 +5054,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const cancelEdit = React.useCallback(() => {
     editSelectionRangeRef.current = null;
     setEditingMsgId(null);
+    setEditEmojiOpen(false);
     setEditWidth(null);
     setEditColorOpen(false);
     setEditReplacementFiles(prev => {
@@ -5630,6 +5675,20 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     };
   }, [refreshComposerCaretFormats]);
 
+  const insertComposerEmoji = React.useCallback((emoji: string) => {
+    const root = inputRef.current;
+    if (!root) return;
+    inputSelectionRangeRef.current = insertTextAtRichEditorSelection(
+      root,
+      emoji,
+      inputSelectionRangeRef.current,
+    );
+    syncComposerText(root.innerText.replace(/\n$/, ''), true);
+    rememberComposerSelection();
+    setComposerEmojiOpen(false);
+    requestAnimationFrame(refreshComposerCaretFormats);
+  }, [refreshComposerCaretFormats, rememberComposerSelection, syncComposerText]);
+
   const applyComposerFontFamily = React.useCallback((fontFamily: SS4FontFamilyId) => {
     setComposerFontFamilyChosen(true);
     setComposerFontFamily(fontFamily);
@@ -6221,7 +6280,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const gifOnly = msg.type === 'gif' && !!msg.gif?.url;
                   const emojiOnly = imageAttachments.length === 0 && msg.type === 'text' && isEmojiOnlyText(msg.content);
                   const isRichCard = !!voiceAtt || (msg.type === 'poll' && !!msg.poll) || (msg.type === 'event' && !!msg.event);
-                  const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard;
+                  const operationalKind = getOperationalMessageKind(msg, conv.name);
+                  const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard || !!operationalKind;
                   const editableAttachmentCount = (msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
                   const canSaveThisEdit = !editSaving
                     && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
@@ -6230,12 +6290,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
                     <div key={msg._id}
-                      className={cn('flex gap-2', isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end', showName && 'mt-2')}
+                      className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
                     >
                       {/* Sender avatar for non-own messages */}
-                      {!isOwn && (
+                      {!isOwn && !operationalKind && (
                         <div className="shrink-0 self-end mb-0.5">
                           {showName ? (
                             <div className="h-5 w-5 rounded-full overflow-hidden flex items-center justify-center text-white ring-1 ring-white/10"
@@ -6255,13 +6315,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           'min-w-0 flex flex-col',
                           editingMsgId === msg._id
                             ? 'w-[94%] max-w-[94%]'
-                            : imageOnly || gifOnly || isRichCard
+                            : operationalKind
+                              ? 'w-full max-w-full'
+                              : imageOnly || gifOnly || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
                         )}
                         style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}
                       >
-                        {showName && !isOwn && (
+                        {showName && !isOwn && !operationalKind && (
                           <span className="px-1 mb-0.5 text-[12px] font-semibold" style={{ color: senderColor }}>
                             {senderDisplayName}
                           </span>
@@ -6323,6 +6385,31 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 <Copy className="h-3.5 w-3.5" />
                                 <span className="text-[9px] font-bold">{editPasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
                               </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onMouseDown={e => { e.preventDefault(); rememberEditSelection(); }}
+                                  onClick={() => setEditEmojiOpen(open => !open)}
+                                  className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10"
+                                  title="Emoji"
+                                  aria-expanded={editEmojiOpen}
+                                >
+                                  <Smile className="h-3.5 w-3.5" />
+                                </button>
+                                {editEmojiOpen && (
+                                  <div className="absolute bottom-full left-0 z-50 mb-2">
+                                    <EmojiPicker
+                                      onEmojiClick={(data: EmojiClickData) => insertEditEmoji(data.emoji)}
+                                      theme={EmojiTheme.DARK}
+                                      width={300}
+                                      height={340}
+                                      searchDisabled={false}
+                                      skinTonesDisabled
+                                      lazyLoadEmojis
+                                    />
+                                  </div>
+                                )}
+                              </div>
                               <div className="relative flex items-center gap-1">
                                 <button type="button" onMouseDown={e => {
                                   e.preventDefault();
@@ -6711,7 +6798,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 })}
                               </div>
                             )}
-                            {gifOnly ? (
+                            {operationalKind ? (
+                              <OperationalMessageCard kind={operationalKind} content={msg.content} createdAt={msg.createdAt} attachments={msg.attachments} compact />
+                            ) : gifOnly ? (
                               <button type="button" onClick={() => setMediaPreview({ src: msg.gif!.url, name: msg.gif?.title || 'GIF' })} className="block">
                                 <img src={msg.gif!.url} alt={msg.gif?.title || 'GIF'} className="rounded-2xl block" style={{ maxWidth: '100%', maxHeight: 220, width: 'auto', height: 'auto' }} />
                               </button>
@@ -6748,7 +6837,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               </div>
                             )}
                             {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
-                            {!hideTime && (
+                            {!hideTime && !operationalKind && (
                               <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
                                 <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
                                 {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}
@@ -7150,6 +7239,32 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
                   <ImageIcon className="h-4.5 w-4.5" />
                 </button>
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    title="Emoji"
+                    onMouseDown={e => { e.preventDefault(); rememberComposerSelection(); }}
+                    onClick={() => setComposerEmojiOpen(open => !open)}
+                    className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors"
+                    style={{ color: accentColor }}
+                    aria-expanded={composerEmojiOpen}
+                  >
+                    <Smile className="h-4.5 w-4.5" />
+                  </button>
+                  {composerEmojiOpen && (
+                    <div className="absolute bottom-full left-0 z-50 mb-2">
+                      <EmojiPicker
+                        onEmojiClick={(data: EmojiClickData) => insertComposerEmoji(data.emoji)}
+                        theme={EmojiTheme.DARK}
+                        width={300}
+                        height={340}
+                        searchDisabled={false}
+                        skinTonesDisabled
+                        lazyLoadEmojis
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="relative shrink-0" ref={gifRef}>
                   <button title="GIF" onClick={() => setGifOpen(v => !v)}
                     className="h-8 px-1.5 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[11px] tracking-tight" style={{ color: accentColor }}>
