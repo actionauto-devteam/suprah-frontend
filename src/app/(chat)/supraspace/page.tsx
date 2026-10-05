@@ -144,6 +144,10 @@ function isIOSLikeDevice(): boolean {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+function isMobileSupraSpaceViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+}
+
 function readSafeAreaInsetBottom(): number {
   if (typeof document === 'undefined' || !document.body) return 0;
   const probe = document.createElement('div');
@@ -4914,7 +4918,7 @@ function mergeLocalAttachmentPreviews(message: SSMessage, localPreviewUrls: stri
   };
 }
 
-function SS4RemoteImage({ src, alt, className, style, onRecover }: { src: string; alt: string; className?: string; style?: React.CSSProperties; onRecover?: () => void }) {
+function SS4RemoteImage({ src, alt, className, style, imageClassName, imageStyle, onRecover }: { src: string; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void }) {
   const previewUrl = src;
   const [loadedUrl, setLoadedUrl] = React.useState<string | null>(null);
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
@@ -4923,7 +4927,7 @@ function SS4RemoteImage({ src, alt, className, style, onRecover }: { src: string
   const failed = failedUrl === previewUrl;
 
   return (
-    <div className={cn('relative isolate overflow-hidden bg-black/10', className)} style={style}>
+    <div className={cn('relative isolate overflow-hidden bg-black/10', className)} style={{ ...(loading || failed ? { minWidth: 120, minHeight: 120 } : {}), ...style }}>
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -4939,8 +4943,8 @@ function SS4RemoteImage({ src, alt, className, style, onRecover }: { src: string
         <img
           src={previewUrl}
           alt={alt}
-          className="h-full w-full object-contain"
-          style={{ display: 'block' }}
+          className={cn('h-full w-full object-contain', imageClassName)}
+          style={{ display: 'block', ...imageStyle }}
           decoding="async"
           onLoad={() => setLoadedUrl(previewUrl)}
           onError={() => {
@@ -4957,8 +4961,8 @@ function SS4RemoteImage({ src, alt, className, style, onRecover }: { src: string
   );
 }
 
-function SS4AttachmentImage({ attachment, alt, className, style, onRecover }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties; onRecover?: () => void }) {
-  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} onRecover={onRecover} />;
+function SS4AttachmentImage({ attachment, alt, className, style, imageClassName, imageStyle, onRecover }: { attachment: SSAttachment; alt: string; className?: string; style?: React.CSSProperties; imageClassName?: string; imageStyle?: React.CSSProperties; onRecover?: () => void }) {
+  return <SS4RemoteImage src={getAttachmentImagePreviewUrl(attachment)} alt={alt} className={className} style={style} imageClassName={imageClassName} imageStyle={imageStyle} onRecover={onRecover} />;
 }
 
 function SS4AttachmentVideo({ attachment, className, style, onExpand, onPlaybackFailure }: { attachment: SSAttachment; className?: string; style?: React.CSSProperties; onExpand?: () => void; onPlaybackFailure?: () => void }) {
@@ -6962,16 +6966,18 @@ const Bubble = React.memo(function Bubble({
               if (images.length === 0) return null;
               if (images.length === 1) return (
                 <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
-                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', height: 220, maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="h-full w-full rounded-xl" style={{ display: 'block' }} onRecover={onRefreshMedia} />
+                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: 'fit-content', maxWidth: 'min(420px, 72vw)' }} imageStyle={{ width: 'auto', height: 'auto', maxWidth: 'min(420px, 72vw)', maxHeight: 420 }} onRecover={onRefreshMedia} />
                 </button>
               );
+              const galleryImages = images.slice(0, 4);
               return (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, width: 'min(420px, 72vw)', maxWidth: '100%' }}>
-                  {images.map(({ attachment, attachmentIndex }, i) => (
+                  {galleryImages.map(({ attachment, attachmentIndex }, i) => (
                     <button key={`img-${i}`} data-ss4-attachment-url={attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(attachment, attachmentIndex); }}
-                      className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: 150, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full rounded-xl" style={{ display: 'block' }} onRecover={onRefreshMedia} />
+                      className="relative block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ height: images.length === 2 ? 180 : 140, gridColumn: images.length === 3 && i === 2 ? 'span 2' : undefined, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                      <SS4AttachmentImage attachment={attachment} alt={attachment.originalName} className="w-full h-full rounded-xl" imageClassName="object-cover" style={{ display: 'block' }} onRecover={onRefreshMedia} />
+                      {i === 3 && images.length > galleryImages.length && <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-2xl font-semibold text-white">+{images.length - galleryImages.length}</span>}
                     </button>
                   ))}
                 </div>
@@ -10440,7 +10446,7 @@ export default function SupraSpacePage() {
         initialConversationTargetId
         || initialUrlParams.get('userId'),
       );
-      const allowSavedConversationRestore = !hasInitialConversationTarget && !isRunningAsSupraSpaceStandalone();
+      const allowSavedConversationRestore = !hasInitialConversationTarget && !isMobileSupraSpaceViewport() && !isRunningAsSupraSpaceStandalone();
       const hydratedFromCache = cachedUserId ? await hydrateSupraSpaceCache(cachedUserId, allowSavedConversationRestore) : false;
       const releaseInitialShell = () => {
         if (initDoneRef.current) return;
