@@ -89,7 +89,7 @@ import {
  * or DashboardLayoutContent mounts, so none of the auth logic ever runs for
  * these paths.
  * ──────────────────────────────────────────────────────────────────────────── */
-const PUBLIC_PATHS = ["/privacy-policy", "/terms"];
+const PUBLIC_PATHS = ["/privacy-policy", "/terms", "/meet"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
