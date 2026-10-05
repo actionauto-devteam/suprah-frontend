@@ -926,7 +926,6 @@ function clipboardElementIsHidden(element: HTMLElement): boolean {
   const style = element.style;
   return Boolean(
     element.hidden
-    || element.getAttribute('aria-hidden') === 'true'
     || style.display === 'none'
     || style.visibility === 'hidden'
     || style.opacity === '0'
@@ -2055,9 +2054,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
     if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = isSerialLikeText(inner)
-      ? inner
-      : '`' + inner.replace(/`/g, '') + '`';
+    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = '`' + inner.replace(/`/g, '') + '`';
     else if (tag === 'blockquote') inner = inner
       .split('\n')
       .map(line => line ? `> ${line}` : '>')
@@ -2408,12 +2405,15 @@ function canonicalizeColorMarkup(value: string): string {
   return result;
 }
 
-function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
+function richPasteDropsVisibleText(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
-  const tokens = serialLikeTokens(plainText).filter(token => /[A-Z]/.test(token) && /[0-9]/.test(token));
-  if (!tokens.length) return false;
-  const htmlText = clipboardHtmlToPlainText(html).toUpperCase().replace(/-/g, '');
-  return tokens.some(token => !htmlText.includes(token));
+  const normalize = (value: string): string => stripCopiedTextArtifacts(value)
+    .normalize('NFKC')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '');
+  const visiblePlainText = normalize(plainText);
+  const visibleHtmlText = normalize(clipboardHtmlToPlainText(html));
+  return Boolean(visiblePlainText && !visibleHtmlText.includes(visiblePlainText));
 }
 
 function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {
@@ -2666,7 +2666,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const isStrike = tag === 's' || tag === 'strike' || tag === 'del'
       || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
 
-    if (tag === 'code') inner = isSerialLikeText(inner) ? inner : `\`${inner.replace(/`/g, '')}\``;
+    if (tag === 'code') inner = `\`${inner.replace(/`/g, '')}\``;
     if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
     if (isBold && !/^\*\*[\s\S]*\*\*$/.test(inner)) inner = `**${inner}**`;
     if (isItalic && !/^_[\s\S]*_$/.test(inner)) inner = `_${inner}_`;
@@ -6543,7 +6543,7 @@ const Bubble = React.memo(function Bubble({
                   const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
                   const usePlainText = editPasteMode === 'plain'
                     || shortcutPlainText
-                    || richPasteDropsVinLikeToken(text, html)
+                    || richPasteDropsVisibleText(text, html)
                     || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                   document.execCommand(
                     usePlainText ? 'insertText' : 'insertHTML',
@@ -15112,7 +15112,7 @@ export default function SupraSpacePage() {
                                   }
                                   const usePlainText = pasteMode === 'plain'
                                     || shortcutPlainText
-                                    || richPasteDropsVinLikeToken(text, html)
+                                    || richPasteDropsVisibleText(text, html)
                                     || pasteHasMentionText
                                     || pasteExceededLimit
                                     || shouldPreferPlainTextLayout(plainText, richEditorHtml);

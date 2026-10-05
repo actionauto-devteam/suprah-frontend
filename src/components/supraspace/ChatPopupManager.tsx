@@ -766,7 +766,6 @@ function clipboardElementIsHidden(element: HTMLElement): boolean {
   const style = element.style;
   return Boolean(
     element.hidden
-    || element.getAttribute('aria-hidden') === 'true'
     || style.display === 'none'
     || style.visibility === 'hidden'
     || style.opacity === '0'
@@ -1450,12 +1449,16 @@ function canonicalizeColorMarkup(value: string): string {
   return result;
 }
 
-function richPasteDropsVinLikeToken(plainText: string, html: string): boolean {
+function richPasteDropsVisibleText(plainText: string, html: string): boolean {
   if (!plainText || !html) return false;
-  const tokens = serialLikeTokens(plainText);
-  if (!tokens.length) return false;
-  const htmlText = clipboardHtmlToPlainText(html).toUpperCase().replace(/-/g, '');
-  return tokens.some(token => !htmlText.includes(token));
+  const normalize = (value: string): string => value
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '');
+  const visiblePlainText = normalize(plainText);
+  const visibleHtmlText = normalize(clipboardHtmlToPlainText(html));
+  return Boolean(visiblePlainText && !visibleHtmlText.includes(visiblePlainText));
 }
 
 function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {
@@ -1979,9 +1982,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (hasInlineContent && elementIsUnderline && !inherited.underline) inner = `__${inner}__`;
     if (hasInlineContent && elementIsStrike && !inherited.strike) inner = `~~${inner}~~`;
     if (tag === 'pre' && hasInlineContent) inner = `\`\`\`\n${inner.replace(/```/g, '')}\n\`\`\``;
-    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = isSerialLikeText(inner)
-      ? inner
-      : '`' + inner.replace(/`/g, '') + '`';
+    else if ((tag === 'code' || isMonospace) && hasInlineContent) inner = '`' + inner.replace(/`/g, '') + '`';
     else if (tag === 'blockquote') inner = inner
       .split('\n')
       .map(line => line ? `> ${line}` : '>')
@@ -2252,7 +2253,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const isUnderline = tag === 'u' || /text-decoration(?:-line)?\s*:[^;]*underline/.test(style);
     const isStrike = tag === 's' || tag === 'strike' || tag === 'del' || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
 
-    if (tag === 'code') inner = isSerialLikeText(inner) ? inner : `\`${inner.replace(/`/g, '')}\``;
+    if (tag === 'code') inner = `\`${inner.replace(/`/g, '')}\``;
     if (href && /^https?:\/\//i.test(href)) inner = `[${inner || href}](${href})`;
     if (isBold && !/^\*\*[\s\S]*\*\*$/.test(inner)) inner = `**${inner}**`;
     if (isItalic && !/^_[\s\S]*_$/.test(inner)) inner = `_${inner}_`;
@@ -6597,7 +6598,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
                                 const usePlainText = editPasteMode === 'plain'
                                   || shortcutPlainText
-                                  || richPasteDropsVinLikeToken(text, html)
+                                  || richPasteDropsVisibleText(text, html)
                                   || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                                 document.execCommand(
                                   usePlainText ? 'insertText' : 'insertHTML',
@@ -7343,7 +7344,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       const pasteHasMentionText = /(^|[^\w@])@\s*\S/.test(normalizeMentionSearchText(plainText));
                       const usePlainText = pasteMode === 'plain'
                         || shortcutPlainText
-                        || richPasteDropsVinLikeToken(text, html)
+                        || richPasteDropsVisibleText(text, html)
                         || pasteHasMentionText
                         || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                       document.execCommand(
