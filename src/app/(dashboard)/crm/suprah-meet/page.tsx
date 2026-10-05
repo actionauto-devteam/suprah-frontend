@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
+  CircleDot, Clock, Copy, Globe, Link2, Lock, Pencil, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -100,6 +100,20 @@ export default function SuprahMeetLobbyPage() {
   const [showNew, setShowNew] = React.useState<false | "now" | "later">(false);
   const [confirmDelete, setConfirmDelete] = React.useState<MeetingRow | null>(null);
   const [editTarget, setEditTarget] = React.useState<MeetingRow | null>(null);
+  // Lightweight toast (the lobby had none before the guest-link action).
+  const [toast, setToast] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2800);
+    return () => clearTimeout(t);
+  }, [toast]);
+  // Shareable external-guest link (/meet/<code>) — guests join from any
+  // browser with no Suprah account; private meetings put them in the
+  // waiting room.
+  const copyGuestLink = (code: string) => {
+    void navigator.clipboard?.writeText(`${window.location.origin}/meet/${code}`).catch(() => {});
+    setToast("Guest link copied — anyone can open it, no Suprah account needed");
+  };
   const [deleting, setDeleting] = React.useState(false);
   const [upcomingPage, setUpcomingPage] = React.useState(1);
   const [missedPage, setMissedPage] = React.useState(1);
@@ -279,8 +293,15 @@ export default function SuprahMeetLobbyPage() {
                     sub={m.startedAt
                       ? <>since {mdtTime(m.startedAt)} MT · {minutesBetween(m.startedAt, new Date(nowMs).toISOString())} min</>
                       : undefined}
-                    action={<Button size="sm" className="bg-emerald-600 hover:bg-emerald-500"
-                      onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Join now</Button>} />
+                    action={<div className="flex items-center gap-1.5">
+                      <button className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-500"
+                        title="Copy guest link — invite someone outside Suprah"
+                        onClick={() => copyGuestLink(m.code)}>
+                        <Link2 className="size-4" />
+                      </button>
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500"
+                        onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Join now</Button>
+                    </div>} />
                 ))}
               </Group>
             )}
@@ -303,6 +324,12 @@ export default function SuprahMeetLobbyPage() {
                   ) : undefined}
                   action={
                     <div className="flex items-center gap-1">
+                      <Button size="icon" variant="ghost"
+                        className="size-8 text-muted-foreground hover:text-emerald-500"
+                        title="Copy guest link — invite someone outside Suprah"
+                        onClick={() => copyGuestLink(m.code)}>
+                        <Link2 className="size-4" />
+                      </Button>
                       {canDelete(m) && (
                         <>
                           <Button size="icon" variant="ghost"
@@ -381,6 +408,12 @@ export default function SuprahMeetLobbyPage() {
           </section>
         </div>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 w-max max-w-[90%] -translate-x-1/2 rounded-xl border border-emerald-500/30 bg-background px-4 py-2 text-center text-sm shadow-lg">
+          {toast}
+        </div>
+      )}
 
       {showNew && (
         <NewMeetingModal
