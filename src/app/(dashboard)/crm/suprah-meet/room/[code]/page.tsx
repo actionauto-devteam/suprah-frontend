@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useSuprahMeet";
 import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPanel";
+import { RecordingDistributionPanel } from "@/components/suprah-meet/RecordingDistributionPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
@@ -220,6 +221,10 @@ export default function SuprahMeetRoomPage() {
 
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
   const copyCode = () => { void navigator.clipboard?.writeText(code).catch(() => {}); setToast("Meeting code copied"); };
+  const copyGuestLink = () => {
+    void navigator.clipboard?.writeText(`${window.location.origin}/meet/${code}`).catch(() => {});
+    setToast("Guest link copied — anyone can open it in a browser");
+  };
 
   // Already in a different meeting → don't hijack the running session.
   if (activeCode && activeCode !== code) {
@@ -316,6 +321,9 @@ export default function SuprahMeetRoomPage() {
         <p className="mb-1 text-sm text-muted-foreground">{meet.meeting?.title} · {code}</p>
         {meet.endedReason && <p className="mb-5 text-sm text-emerald-600 dark:text-emerald-400">{meet.endedReason}</p>}
         <MeetingSummaryPanel code={code} />
+        {/* Host/admin: email the recording + AI summary to attendees. Renders
+            nothing for non-controllers or when nothing was recorded. */}
+        <RecordingDistributionPanel code={code} />
         <div className="mt-6 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => router.push("/crm/suprah-meet")}>Back to Suprah Meet</Button>
           {meet.endedReason?.includes("another device") && (
@@ -523,9 +531,13 @@ export default function SuprahMeetRoomPage() {
                 label={meet.isBackCamera ? "Front cam" : "Back cam"}
                 iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
             )}
-            <Ctl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
-              label={meet.sharing ? "Stop share" : "Share"}
-              iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
+            {/* Hidden on iOS: Safari/PWAs can't capture beyond their own tab
+                (Apple requires a native ReplayKit broadcast extension). */}
+            {meet.shareSupported && (
+              <Ctl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
+                label={meet.sharing ? "Stop share" : "Share"}
+                iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
+            )}
             <Ctl on={!meet.handRaised} accent onClick={meet.toggleHand}
               label={meet.handRaised ? "Lower hand" : "Raise hand"}
               iconOn={<Hand className="size-5" />} iconOff={<Hand className="size-5" />} />
@@ -686,6 +698,15 @@ export default function SuprahMeetRoomPage() {
                     </button>
                   </div>
                   <div>
+                    <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Guest link</p>
+                    <button onClick={copyGuestLink} className="text-left text-emerald-300 hover:text-emerald-200">
+                      Copy invite link for external guests
+                    </button>
+                    <p className="mt-0.5 text-[10px] text-emerald-200/40">
+                      Guests join from any browser — no Suprah account needed.
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Started</p>
                     <p>{startedMs
                       ? new Date(startedMs).toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" }) + " MT"
@@ -716,6 +737,9 @@ export default function SuprahMeetRoomPage() {
                     <span className="min-w-0 flex-1 truncate">
                       {p.name}{p.attendeeId === meet.selfAttendeeId ? " (you)" : ""}
                     </span>
+                    {p.isGuest && (
+                      <span className="rounded bg-sky-400/15 px-1.5 py-px text-[9px] font-medium text-sky-300">Guest</span>
+                    )}
                     {p.handRaised && <Hand className="size-3.5 text-amber-400" />}
                     {p.muted ? <MicOff className="size-3.5 text-rose-400" /> : <Mic className="size-3.5 text-emerald-400" />}
                   </div>
@@ -896,6 +920,9 @@ function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, p
       <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-full border border-emerald-400/15 bg-[#071410]/85 px-2.5 py-1 text-xs backdrop-blur">
         {person.muted ? <MicOff className="size-3 shrink-0 text-rose-400" /> : <Mic className="size-3 shrink-0 text-emerald-400" />}
         <span className="truncate">{person.name}{isSelf ? " (you)" : ""}</span>
+        {person.isGuest && (
+          <span className="rounded bg-sky-400/20 px-1 text-[9px] font-medium text-sky-200">GUEST</span>
+        )}
       </div>
     </div>
   );

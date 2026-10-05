@@ -13,18 +13,20 @@ import { apiClient } from "@/lib/api-client";
 import { meetSounds } from "@/lib/meet-sounds";
 
 export interface MeetParticipantInfo {
-  crmUserId: string;
+  crmUserId: string;               // "guest:<id>" for external guests
   fullName: string;
   avatar?: string | null;
   role: "host" | "participant";
+  isGuest?: boolean;
 }
 export interface RosterEntry {
   attendeeId: string;
-  crmUserId: string;
+  crmUserId: string;               // "guest:<id>" for external guests
   name: string;
   avatar?: string | null;
   muted: boolean;
   handRaised: boolean;
+  isGuest?: boolean;
 }
 export interface TileInfo { tileId: number; attendeeId: string; isLocal: boolean; isContent: boolean; }
 export interface ReactionEvent { id: string; emoji: string; name: string; }
@@ -157,6 +159,13 @@ export function useSuprahMeet() {
   // join() — binding at mount time would hit a null session and remote audio
   // would never play.
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  // External-guest mode: set when join() is given a guest pass. All backend
+  // calls then use the public /guest endpoints with this bearer token.
+  const guestTokenRef = useRef<string | null>(null);
+  // Screen-share hardening (mobile): wake lock while sharing + hard end
+  // detection so remote tiles never freeze on a dead share.
+  const wakeLockRef = useRef<any>(null);
+  const sharingRef = useRef(false);
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -169,9 +178,13 @@ export function useSuprahMeet() {
   const refreshNames = useCallback(async () => {
     if (!codeRef.current) return;
     try {
-      const res = await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`);
-      const info: MeetingInfo = res.data?.data;
-      info.participants.forEach((p) => namesRef.current.set(p.crmUserId, p));
+      const res = guestTokenRef.current
+        ? await apiClient.get(`/api/crm/meet/guest/${codeRef.current}/roster`,
+            { headers: { Authorization: `Bearer ${guestTokenRef.current}` } })
+        : await apiClient.get(`/api/crm/meet/meetings/${codeRef.current}`);
+      const info = res.data?.data;
+      const list: MeetParticipantInfo[] = info?.participants ?? [];
+      list.forEach((p) => namesRef.current.set(p.crmUserId, p));
       setRoster((r) => {
         const next = { ...r };
         Object.values(next).forEach((entry) => {
@@ -186,13 +199,17 @@ export function useSuprahMeet() {
     } catch { /* best-effort */ }
   }, []);
 
-  const join = useCallback(async (code: string) => {
+  const join = useCallback(async (code: string, guest?: { token: string }) => {
     setPhase("joining");
     setError(null);
     setEndedReason(null);
     codeRef.current = code.trim().toUpperCase();
+    guestTokenRef.current = guest?.token ?? null;
     try {
-      const res = await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/join`);
+      const res = guestTokenRef.current
+        ? await apiClient.post(`/api/crm/meet/guest/${codeRef.current}/join`, {},
+            { headers: { Authorization: `Bearer ${guestTokenRef.current}` } })
+        : await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/join`);
       const data = res.data?.data;
       const meetingInfo: MeetingInfo = data.meeting;
       setMeeting(meetingInfo);
@@ -222,15 +239,17 @@ export function useSuprahMeet() {
         if (attendeeId.includes("#content")) return;
         if (present) {
           const crmUserId = crmIdFrom(externalUserId);
+          const isGuestAtt = crmUserId.startsWith("guest:");
           const known = crmUserId ? namesRef.current.get(crmUserId) : undefined;
           const isSelf = attendeeId === data.chime.Attendee.AttendeeId;
           setRoster((r) => ({
             ...r,
             [attendeeId]: {
               attendeeId, crmUserId,
-              name: isSelf ? selfNameRef.current : known?.fullName || "Suprah Autrix",
+              name: isSelf ? selfNameRef.current : known?.fullName || (isGuestAtt ? "Guest" : "Joining…"),
               avatar: known?.avatar ?? null,
               muted: false, handRaised: false,
+              isGuest: isGuestAtt,
             },
           }));
           if (!known && !isSelf) void refreshNames();
@@ -280,7 +299,9 @@ export function useSuprahMeet() {
         },
       });
 
-      audioVideo.addContentShareObserver({ contentShareDidStop: () => setSharing(false) });
+      audioVideo.addContentShareObserver({
+        contentShareDidStop: () => { sharingRef.current = false; setSharing(false); releaseWakeLock(); },
+      });
 
       audioVideo.realtimeSubscribeToReceiveDataMessage(DATA_TOPIC, (msg: DataMessage) => {
         try {
@@ -464,15 +485,62 @@ export function useSuprahMeet() {
   }, [applyTogether]);
 
 
+  /** Can this browser share a screen at all? iOS Safari/PWAs cannot capture
+   *  beyond their own tab (Apple requires a native ReplayKit broadcast), so
+   *  the button is hidden there instead of failing. */
+  const shareSupported =
+    typeof navigator !== "undefined" && Boolean((navigator.mediaDevices as any)?.getDisplayMedia);
+
+  const acquireWakeLock = useCallback(async () => {
+    try { wakeLockRef.current = await (navigator as any).wakeLock?.request?.("screen") ?? null; }
+    catch { /* not granted / unsupported — share still works */ }
+  }, []);
+  const releaseWakeLock = useCallback(() => {
+    try { wakeLockRef.current?.release?.(); } catch { /* already gone */ }
+    wakeLockRef.current = null;
+  }, []);
+  // Android releases the wake lock when the app backgrounds; re-acquire when
+  // the user comes back so a long share doesn't die to the screen dimming.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && wakeLockRef.current === null && sharingRef.current) {
+        void acquireWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [acquireWakeLock]);
+
+  const markShareStopped = useCallback(() => {
+    sharingRef.current = false;
+    setSharing(false);
+    releaseWakeLock();
+  }, [releaseWakeLock]);
+
   const toggleShare = useCallback(async () => {
     const audioVideo = av();
     if (!audioVideo) return;
-    if (sharing) { audioVideo.stopContentShare(); setSharing(false); }
-    else {
-      try { await audioVideo.startContentShareFromScreenCapture(); setSharing(true); }
-      catch { /* cancelled */ }
+    if (sharing) {
+      audioVideo.stopContentShare();
+      markShareStopped();
+    } else {
+      try {
+        const stream = await audioVideo.startContentShareFromScreenCapture();
+        sharingRef.current = true;
+        setSharing(true);
+        void acquireWakeLock();
+        // The OS/browser can kill the broadcast at any time (stop button,
+        // permission revoked, device locked). Tear Chime's share down the
+        // instant the track dies so nobody is left seeing a frozen frame.
+        stream?.getVideoTracks?.().forEach((t) =>
+          t.addEventListener("ended", () => {
+            try { audioVideo.stopContentShare(); } catch { /* already stopped */ }
+            markShareStopped();
+          })
+        );
+      } catch { /* user cancelled the picker */ }
     }
-  }, [sharing]);
+  }, [sharing, acquireWakeLock, markShareStopped]);
 
   const sendData = useCallback((topic: string, payload: Record<string, unknown>, lifetimeMs = 5000) => {
     av()?.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
@@ -558,13 +626,19 @@ export function useSuprahMeet() {
         audioVideo.stop();
       } catch { /* best effort */ }
     }
+    releaseWakeLock();
     sessionRef.current = null;
-  }, [stopTransform]);
+  }, [stopTransform, releaseWakeLock]);
 
   const leave = useCallback(async () => {
     leftIntentionallyRef.current = true;
     await teardown();
-    apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/leave`).catch(() => {});
+    const leaveUrl = guestTokenRef.current
+      ? `/api/crm/meet/guest/${codeRef.current}/leave`
+      : `/api/crm/meet/meetings/${codeRef.current}/leave`;
+    apiClient.post(leaveUrl, {}, guestTokenRef.current
+      ? { headers: { Authorization: `Bearer ${guestTokenRef.current}` } }
+      : undefined).catch(() => {});
     setPhase("ended");
   }, [teardown]);
 
@@ -585,7 +659,7 @@ export function useSuprahMeet() {
   useEffect(() => () => { leftIntentionallyRef.current = true; void teardown(); }, [teardown]);
 
   return {
-    phase, error, endedReason, meeting, canControl, selfAttendeeId,
+    phase, error, endedReason, meeting, canControl, selfAttendeeId, shareSupported,
     roster, tiles: Object.values(tiles), activeSpeakerId,
     micOn, camOn, sharing, handRaised, recording, reactions,
     chatMessages, chatUnread, videoDeviceCount,
