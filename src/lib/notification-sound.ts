@@ -267,6 +267,16 @@ function normalizeNotificationTargetUrl(url: string): string {
   }
 }
 
+function safeNotificationIcon(icon: string | undefined, fallback: string): string {
+  if (!icon || typeof window === 'undefined') return fallback;
+  try {
+    const asset = new URL(icon, window.location.origin);
+    return asset.origin === window.location.origin ? asset.href : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // Primary notification path — uses ServiceWorkerRegistration.showNotification()
 // which works on mobile PWA, plays the OS notification sound, and vibrates on
 // Android. Falls back to new Notification() if no active SW is found (e.g. dev
@@ -292,7 +302,7 @@ export async function showNotificationViaSW(
         await reg.showNotification(title, {
           body: options.body,
           tag: options.tag,
-          icon: options.icon || '/icon-192x192.png',
+          icon: safeNotificationIcon(options.icon, '/icon-192x192.png'),
           badge: '/icon-192x192.png',
           silent: false,
           vibrate: [200, 100, 200],
@@ -310,7 +320,7 @@ export async function showNotificationViaSW(
   // Fallback: direct Notification API (desktop browser without SW)
   try {
     const notif = new Notification(title, {
-      icon: options.icon || '/favicon.ico',
+      icon: safeNotificationIcon(options.icon, '/favicon.ico'),
       body: options.body,
       tag: options.tag,
       silent: false,
@@ -332,7 +342,7 @@ export function showBrowserNotification(
   if (Notification.permission !== 'granted') return null;
   try {
     const notif = new Notification(title, {
-      icon: options.icon ?? '/favicon.ico',
+      icon: safeNotificationIcon(options.icon, '/favicon.ico'),
       body: options.body,
       tag: options.tag,
       requireInteraction: options.requireInteraction ?? false,

@@ -310,6 +310,16 @@ const API_BASE_URL = (
 const DEFAULT_NOTIFICATION_ICON = self.location.origin === "https://space.suprah-app.com" ? "/supra-space/icon-192.png" : "/icon-192x192.png";
 const SUMMARY_NOTIFICATION_TAG = "notification-summary";
 
+function getSafeNotificationAsset(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const asset = new URL(value, self.location.origin);
+    return asset.origin === self.location.origin ? asset.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function cleanPushNotificationText(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = typeof value === "string" ? value : String(value);
@@ -389,7 +399,7 @@ async function showBurstSummary(data: any): Promise<void> {
       // Carries the LATEST push's own icon (sender/group avatar, when this
       // is SupraSpace — see pushToConversationMembers) instead of always the
       // generic app icon, same as the standard notification path below.
-      icon: data.icon || DEFAULT_NOTIFICATION_ICON,
+      icon: getSafeNotificationAsset(data.icon) || DEFAULT_NOTIFICATION_ICON,
       badge: DEFAULT_NOTIFICATION_ICON,
       tag: SUMMARY_NOTIFICATION_TAG,
       renotify: true,
@@ -665,8 +675,8 @@ self.addEventListener("push", (event: any) => {
 
       const options = {
         body: data.body,
-        icon: data.icon || DEFAULT_NOTIFICATION_ICON,
-        image: data.image || undefined,
+        icon: getSafeNotificationAsset(data.icon) || DEFAULT_NOTIFICATION_ICON,
+        image: getSafeNotificationAsset(data.image),
         badge: DEFAULT_NOTIFICATION_ICON,
         tag: data.tag,
         data: {
