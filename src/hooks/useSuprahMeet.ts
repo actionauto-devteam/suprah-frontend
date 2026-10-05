@@ -166,6 +166,7 @@ export function useSuprahMeet() {
   // detection so remote tiles never freeze on a dead share.
   const wakeLockRef = useRef<any>(null);
   const sharingRef = useRef(false);
+  const contentStreamRef = useRef<MediaStream | null>(null);
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -485,9 +486,10 @@ export function useSuprahMeet() {
   }, [applyTogether]);
 
 
-  /** Can this browser share a screen at all? iOS Safari/PWAs cannot capture
-   *  beyond their own tab (Apple requires a native ReplayKit broadcast), so
-   *  the button is hidden there instead of failing. */
+  /** Can this browser capture a screen at all? Phone browsers (iOS Safari,
+   *  Android Chrome) cannot — OS-level capture needs a native app — so on
+   *  those, toggleShare presents the BACK CAMERA as the shared content
+   *  instead, which works everywhere today. */
   const shareSupported =
     typeof navigator !== "undefined" && Boolean((navigator.mediaDevices as any)?.getDisplayMedia);
 
@@ -499,7 +501,7 @@ export function useSuprahMeet() {
     try { wakeLockRef.current?.release?.(); } catch { /* already gone */ }
     wakeLockRef.current = null;
   }, []);
-  // Android releases the wake lock when the app backgrounds; re-acquire when
+  // The OS releases the wake lock when the app backgrounds; re-acquire when
   // the user comes back so a long share doesn't die to the screen dimming.
   useEffect(() => {
     const onVis = () => {
@@ -514,6 +516,9 @@ export function useSuprahMeet() {
   const markShareStopped = useCallback(() => {
     sharingRef.current = false;
     setSharing(false);
+    // Stop any camera track we opened for the mobile fallback presentation.
+    try { contentStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* gone */ }
+    contentStreamRef.current = null;
     releaseWakeLock();
   }, [releaseWakeLock]);
 
@@ -525,7 +530,24 @@ export function useSuprahMeet() {
       markShareStopped();
     } else {
       try {
-        const stream = await audioVideo.startContentShareFromScreenCapture();
+        let stream: MediaStream | undefined;
+        if (shareSupported) {
+          // Desktop (and any browser with getDisplayMedia): real screen capture.
+          stream = await audioVideo.startContentShareFromScreenCapture();
+        } else {
+          // Phones: no mobile browser can capture the screen (Android Chrome
+          // and iOS Safari both lack getDisplayMedia — OS-level capture needs
+          // a native app). WORKING fallback: present the BACK CAMERA as the
+          // shared content, full-screen for everyone — point the phone at the
+          // vehicle, document, or whiteboard you want to show.
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+          contentStreamRef.current = stream;
+          await audioVideo.startContentShare(stream);
+          setNotice("Phone browsers can't capture the screen, so you're presenting your BACK CAMERA instead — point it at what you want to show. (True phone screen-share needs the native app.)");
+        }
         sharingRef.current = true;
         setSharing(true);
         void acquireWakeLock();
@@ -538,16 +560,16 @@ export function useSuprahMeet() {
             markShareStopped();
           })
         );
-            } catch (err: any) {
-        // A dismissed picker throws NotAllowedError — stay quiet for that.
-        // Anything else (policy block, busy device, browser quirk) should
-        // tell the user instead of failing silently.
+      } catch (err: any) {
+        // A dismissed picker/permission prompt throws NotAllowedError — stay
+        // quiet for that. Anything else should tell the user, not fail silently.
         if (err?.name !== "NotAllowedError") {
-          setNotice(`Couldn't start screen sharing${err?.message ? `: ${err.message}` : "."}`);
+          setNotice(`Couldn't start sharing${err?.message ? `: ${err.message}` : "."}`);
         }
+        markShareStopped();
       }
     }
-  }, [sharing, acquireWakeLock, markShareStopped]);
+  }, [sharing, shareSupported, acquireWakeLock, markShareStopped]);
 
   const sendData = useCallback((topic: string, payload: Record<string, unknown>, lifetimeMs = 5000) => {
     av()?.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
