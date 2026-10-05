@@ -70,6 +70,7 @@ const PUBLIC_ROUTES = [
   "/referral",
   "/offline",
   "/support",
+  "/meet",
 ];
 
 const isPublicRoute = (path: string) => {
