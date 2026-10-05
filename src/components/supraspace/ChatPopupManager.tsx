@@ -8,6 +8,8 @@ import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smil
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
+import { createMessageId } from './composer/send-state';
 import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import {
   useSupraSpaceMessenger,
@@ -3815,9 +3817,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
   const pastePlainTextShortcutRef = React.useRef(false);
   const [sending, setSending] = React.useState(false);
+  const sendInFlightRef = React.useRef(false);
+  const failedDeliveryRef = React.useRef<{ id: string; key: string } | null>(null);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
+
+  const deliveryIdFor = React.useCallback((key: string) => {
+    if (failedDeliveryRef.current?.key === key) return failedDeliveryRef.current.id;
+    const id = createMessageId();
+    failedDeliveryRef.current = { id, key };
+    return id;
+  }, []);
 
   // GIF picker
   const [gifOpen, setGifOpen] = React.useState(false);
@@ -4258,19 +4269,39 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingAttachments = React.useCallback(async (caption: string) => {
-    if (!pendingAttachments.length || !crmToken || sending) return false;
+    if (!pendingAttachments.length || !crmToken || sending || sendInFlightRef.current) return false;
+    sendInFlightRef.current = true;
     setSending(true);
+    const deliveryKey = `files:${caption.trim()}:${replyTo?._id || ''}:${pendingAttachments.map(item => attachmentFileKey(item.file)).join('|')}`;
+    const clientMessageId = deliveryIdFor(deliveryKey);
     try {
       const fd = new FormData();
       pendingAttachments.forEach(item => fd.append('files', item.file));
       if (replyTo?._id) fd.append('replyTo', replyTo._id);
       if (caption.trim()) fd.append('content', caption.trim());
+      fd.append('clientMessageId', clientMessageId);
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/upload`, fd, {
         headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' },
       });
       const sent: SSMessage = r.data?.data;
-      if (sent) {
-        setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      if (!sent) throw new Error('Attachment delivery was not confirmed.');
+      failedDeliveryRef.current = null;
+      setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setReplyTo(null);
+      setPendingAttachments(prev => {
+        prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
+        return [];
+      });
+      syncComposerText('', true);
+      try { localStorage.removeItem(draftStorageKey); } catch { }
+      if (inputRef.current) inputRef.current.innerHTML = '';
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      return true;
+    } catch {
+      const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
+      if (reconciliation.status === 'found') {
+        failedDeliveryRef.current = null;
+        setMessages(prev => prev.find(m => m._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
         setReplyTo(null);
         setPendingAttachments(prev => {
           prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -4280,17 +4311,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         try { localStorage.removeItem(draftStorageKey); } catch { }
         if (inputRef.current) inputRef.current.innerHTML = '';
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+        toast.success('Delivery confirmed.');
+        return true;
       }
-      return true;
-    } catch {
-      toast.error('Could not upload attachment.');
+      toast.error(reconciliation.status === 'missing' ? 'Could not upload attachment. Your files are still ready to retry.' : 'Could not confirm delivery. Your files are still ready to retry.');
       return false;
     } finally {
       setSending(false);
+      sendInFlightRef.current = false;
       setDraggingAttachment(false);
       dragDepthRef.current = 0;
     }
-  }, [conv._id, crmToken, draftStorageKey, pendingAttachments, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingAttachments, replyTo?._id, sending, syncComposerText]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -4341,30 +4373,46 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingGif = React.useCallback(async (caption: string) => {
-    if (!pendingGif || !crmToken || sending) return false;
+    if (!pendingGif || !crmToken || sending || sendInFlightRef.current) return false;
+    sendInFlightRef.current = true;
     setSending(true);
     const gif = pendingGif;
+    const deliveryKey = `gif:${caption.trim()}:${replyTo?._id || ''}:${gif.url}`;
+    const clientMessageId = deliveryIdFor(deliveryKey);
     try {
-      const body: { content: string; gif: SSGif; replyTo?: string } = { content: caption.trim(), gif };
+      const body: { content: string; gif: SSGif; replyTo?: string; clientMessageId: string } = { content: caption.trim(), gif, clientMessageId };
       if (replyTo?._id) body.replyTo = replyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
-      if (sent) {
-        setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      if (!sent) throw new Error('GIF delivery was not confirmed.');
+      failedDeliveryRef.current = null;
+      setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setReplyTo(null);
+      setPendingGif(null);
+      syncComposerText('', true);
+      try { localStorage.removeItem(draftStorageKey); } catch { }
+      if (inputRef.current) inputRef.current.innerHTML = '';
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      return true;
+    } catch {
+      const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
+      if (reconciliation.status === 'found') {
+        failedDeliveryRef.current = null;
+        setMessages(prev => prev.find(m => m._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
         setReplyTo(null);
         setPendingGif(null);
         syncComposerText('', true);
         try { localStorage.removeItem(draftStorageKey); } catch { }
         if (inputRef.current) inputRef.current.innerHTML = '';
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
+        toast.success('Delivery confirmed.');
+        return true;
       }
-      return true;
-    } catch {
-      toast.error('Could not send GIF.');
+      toast.error(reconciliation.status === 'missing' ? 'Could not send GIF. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
       return false;
-    } finally { setSending(false); }
-  }, [conv._id, crmToken, draftStorageKey, pendingGif, replyTo?._id, sending, syncComposerText]);
+    } finally { setSending(false); sendInFlightRef.current = false; }
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingGif, replyTo?._id, sending, syncComposerText]);
 
   // ── Voice recording ──
   const startRecording = React.useCallback(async () => {
@@ -5483,10 +5531,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       await sendPendingGif(text);
       return;
     }
-    if (!text || sending || !crmToken) return;
+    if (!text || sending || sendInFlightRef.current || !crmToken) return;
     const currentReplyTo = replyTo;
-    const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const deliveryKey = `text:${text}:${currentReplyTo?._id || ''}`;
+    const clientMessageId = deliveryIdFor(deliveryKey);
+    const tempId = `optimistic-${clientMessageId}`;
     const member = conv.members.find(m => m._id === crmUserId);
+    sendInFlightRef.current = true;
+    setSending(true);
     setMessages(prev => [...prev, {
       _id: tempId,
       conversationId: conv._id,
@@ -5512,24 +5564,38 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (inputRef.current) inputRef.current.innerHTML = '';
     setMentionQuery(null); setMentionAnchor(-1); setReplyTo(null);
     try {
-      const body: { content: string; replyTo?: string } = { content: text };
+      const body: { content: string; replyTo?: string; clientMessageId: string } = { content: text, clientMessageId };
       if (currentReplyTo) body.replyTo = currentReplyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
-      if (sent) setMessages(prev => {
+      if (!sent) throw new Error('Message delivery was not confirmed.');
+      failedDeliveryRef.current = null;
+      setMessages(prev => {
         if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
         return prev.map(m => m._id === tempId ? sent : m);
       });
     } catch {
+      const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
+      if (reconciliation.status === 'found') {
+        failedDeliveryRef.current = null;
+        setMessages(prev => {
+          if (prev.find(m => m._id === reconciliation.message._id)) return prev.filter(m => m._id !== tempId);
+          return prev.map(m => m._id === tempId ? reconciliation.message : m);
+        });
+        toast.success('Delivery confirmed.');
+        return;
+      }
       setMessages(prev => prev.filter(m => m._id !== tempId));
       const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
       if (!currentDraft.trim()) {
         syncComposerText(text, true);
         try { localStorage.setItem(draftStorageKey, text); } catch { }
         if (inputRef.current) inputRef.current.textContent = text;
+        setReplyTo(currentReplyTo);
       }
-    } finally { setSending(false); }
+      toast.error(reconciliation.status === 'missing' ? 'Could not send. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
+    } finally { setSending(false); sendInFlightRef.current = false; }
   };
 
   const rememberComposerSelection = React.useCallback(() => {

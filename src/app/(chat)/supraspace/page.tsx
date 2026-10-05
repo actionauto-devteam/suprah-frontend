@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
+import { reconcileSupraSpaceDelivery } from '@/components/supraspace/composer/delivery-reconciliation';
 import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounter';
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
@@ -11160,17 +11161,20 @@ export default function SupraSpacePage() {
     return () => clearTimeout(t);
   }, [q, token]);
 
-  const handleSend = async (scheduledAt?: string) => {
+  const handleSend = async (scheduledAt?: string, retry?: FailedSend) => {
     if (!activeId || sending) return;
-    const currentComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
+    const draftFiles = retry?.files ?? pendingFiles;
+    const draftGif = retry?.gif ?? pendingGif;
+    const draftReply = retry?.reply ?? replyTo;
+    const currentComposerText = retry?.content ?? stripCopiedTextArtifacts(textareaRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || input);
     const hasText = Boolean(currentComposerText.trim());
-    const hasPendingFiles = pendingFiles.length > 0;
-    const hasPendingGif = !!pendingGif;
+    const hasPendingFiles = draftFiles.length > 0;
+    const hasPendingGif = !!draftGif;
     if (!hasText && !hasPendingFiles && !hasPendingGif) return;
     if (sendInFlightRef.current) return;
     const conversationId = activeId;
-    const visibleComposerText = stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
-    const serializedComposerText = stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
+    const visibleComposerText = retry?.content ?? stripCopiedTextArtifacts(textareaRef.current?.innerText || inputTextRef.current || input);
+    const serializedComposerText = retry?.content ?? stripCopiedTextArtifacts(textareaRef.current ? htmlToMarkdown(textareaRef.current) : (inputTextRef.current || input).trim());
     const serializedContent = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
     const content = serializedContent || (hasText
       ? normalizeMessageMarkdownText(visibleComposerText)
@@ -11184,19 +11188,19 @@ export default function SupraSpacePage() {
       }
       return;
     }
-    const replyMessageId = replyTo?._id;
+    const replyMessageId = draftReply?._id;
     const restoredFailedSend = restoredFailedSendRef.current;
-    const canRetryDelivery = !!restoredFailedSend
+    const canRetryDelivery = !!retry || (!!restoredFailedSend
       && restoredFailedSend.conversationId === conversationId
       && restoredFailedSend.content === content
       && restoredFailedSend.scheduledAt === scheduledAt
       && restoredFailedSend.reply?._id === replyMessageId
-      && restoredFailedSend.gif?.url === pendingGif?.url
-      && restoredFailedSend.files.length === pendingFiles.length
-      && restoredFailedSend.files.every((file, index) => file === pendingFiles[index]);
-    const deliveryId = canRetryDelivery ? restoredFailedSend.id : createMessageId();
+      && restoredFailedSend.gif?.url === draftGif?.url
+      && restoredFailedSend.files.length === draftFiles.length
+      && restoredFailedSend.files.every((file, index) => file === draftFiles[index]));
+    const deliveryId = retry?.id || (canRetryDelivery ? restoredFailedSend!.id : createMessageId());
     if (!canRetryDelivery) restoredFailedSendRef.current = null;
-    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: pendingFiles, reply: replyTo, gif: pendingGif, scheduledAt };
+    const failedDraft: FailedSend = { id: deliveryId, conversationId, content, files: draftFiles, reply: draftReply, gif: draftGif, scheduledAt };
     const isScheduledSend = Boolean(scheduledAt);
     if (content.length > SS4_MAX_MESSAGE_CHARS) {
       showUploadNotice('error', `Message is ${content.length.toLocaleString()} characters. Limit is 10,000.`);
@@ -11230,7 +11234,7 @@ export default function SupraSpacePage() {
           showUploadNotice('error', 'Send GIFs separately from file attachments.');
           return;
         }
-        const filesToUpload = pendingFiles;
+        const filesToUpload = draftFiles;
         const tempId = `optimistic-${deliveryId}`;
         optimisticAttachmentId = tempId;
         const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
@@ -11263,7 +11267,7 @@ export default function SupraSpacePage() {
           attachments: optimisticAttachments,
           reactions: [],
           readBy: [uid],
-          replyTo: replyTo || null,
+          replyTo: draftReply || null,
           isEdited: false,
           isDeleted: false,
           createdAt: new Date().toISOString(),
@@ -11284,7 +11288,7 @@ export default function SupraSpacePage() {
       } else if (hasPendingGif) {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
-          { content, gif: pendingGif, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
+          { content, gif: draftGif, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (r.status === 202) toast.success('Message scheduled');
@@ -11309,7 +11313,7 @@ export default function SupraSpacePage() {
             attachments: [],
             reactions: [],
             readBy: [uid],
-            replyTo: replyTo || null,
+            replyTo: draftReply || null,
             isEdited: false,
             isDeleted: false,
             createdAt: new Date().toISOString(),
@@ -11329,19 +11333,39 @@ export default function SupraSpacePage() {
       }
       if (restoredFailedSendRef.current?.id === deliveryId) restoredFailedSendRef.current = null;
     } catch (error) {
-      setFailedSends(previous => previous.some(item => item.id === deliveryId) ? previous : [...previous, failedDraft]);
+      setFailedSends(previous => previous.some(item => item.id === deliveryId)
+        ? previous.map(item => item.id === deliveryId ? { ...item, deliveryStatus: 'checking' } : item)
+        : [...previous, { ...failedDraft, deliveryStatus: 'checking' }]);
+      const reconciliation = await reconcileSupraSpaceDelivery(token, conversationId, deliveryId);
+      if (reconciliation.status === 'found') {
+        const deliveredMessage = reconciliation.message;
+        setFailedSends(previous => previous.filter(item => item.id !== deliveryId));
+        if (hasPendingFiles) {
+          if (optimisticAttachmentId) replaceMessageLocal(conversationId, optimisticAttachmentId, mergeLocalAttachmentPreviews(deliveredMessage, optimisticAttachmentUrls));
+          else appendMessageLocal(conversationId, deliveredMessage);
+        } else if (optimisticTextId) {
+          replaceMessageLocal(conversationId, optimisticTextId, deliveredMessage);
+        } else if (!isScheduledSend) {
+          appendMessageLocal(conversationId, deliveredMessage);
+        }
+        if (restoredFailedSendRef.current?.id === deliveryId) restoredFailedSendRef.current = null;
+        showUploadNotice('success', 'Delivery confirmed.');
+        return;
+      }
+      const deliveryStatus = reconciliation.status === 'missing' ? 'failed' : 'unknown';
+      setFailedSends(previous => previous.map(item => item.id === deliveryId ? { ...item, deliveryStatus } : item));
       if (hasPendingFiles) {
         if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
         optimisticAttachmentUrls.forEach(u => {
           URL.revokeObjectURL(u);
           localAttachmentPreviewUrlsRef.current.delete(u);
         });
-        showUploadNotice('error', getErrorMessage(error, 'Failed to send attachment.'));
+        showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm attachment delivery. Your files are kept safe.' : getErrorMessage(error, 'Failed to send attachment.'));
       }
-      else if (hasPendingGif) showUploadNotice('error', getErrorMessage(error, 'Failed to send GIF.'));
+      else if (hasPendingGif) showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm GIF delivery. Your draft is kept safe.' : getErrorMessage(error, 'Failed to send GIF.'));
       else {
         if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
-        showUploadNotice('error', getErrorMessage(error, 'Message failed to send.'));
+        showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm delivery. Your draft is kept safe.' : getErrorMessage(error, 'Message failed to send.'));
       }
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
@@ -14553,11 +14577,24 @@ export default function SupraSpacePage() {
                       : undefined}
                   >
                     {failedSends.filter(item => item.conversationId === activeId).map(item => (
-                      <div key={item.id} role="status" className="rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--danger)', color: 'var(--text-primary)' }}>
-                        <p>Delivery could not be confirmed. Your message and files are kept here.</p>
-                        <p className="truncate mt-1">{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</p>
-                        <div className="flex gap-2 mt-2">
-                          <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
+                      <div key={item.id} role="status" className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-2)', background: 'var(--bg-hover)', color: 'var(--text-primary)' }}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 font-medium" style={{ color: item.deliveryStatus === 'failed' ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                            {item.deliveryStatus === 'checking' ? 'Checking delivery…' : item.deliveryStatus === 'unknown' ? "Couldn't confirm delivery" : "Couldn't send"}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--text-tertiary)' }}>{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</span>
+                        </div>
+                        {item.deliveryStatus !== 'checking' && <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
+                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
+                              showUploadNotice('info', 'Send or save your current draft before retrying this message.');
+                              return;
+                            }
+                            restoredFailedSendRef.current = item;
+                            setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
+                            void handleSend(item.scheduledAt, item);
+                          }}>Retry safely</button>
+                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
                             if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
                               showUploadNotice('info', 'Send or save your current draft before restoring this message.');
                               return;
@@ -14569,13 +14606,13 @@ export default function SupraSpacePage() {
                             setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
                             showUploadNotice('info', 'Draft restored. It can safely retry its original delivery.');
                           }}>Restore draft</button>
-                          <button type="button" className="min-h-11 px-3 ss4-pill-btn" onClick={() => {
+                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
                             if (window.confirm('Discard this unsent message and its files?')) {
                               if (restoredFailedSendRef.current?.id === item.id) restoredFailedSendRef.current = null;
                               setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
                             }
                           }}>Discard</button>
-                        </div>
+                        </div>}
                       </div>
                     ))}
                     {replyTo && (

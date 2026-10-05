@@ -11,6 +11,7 @@ export type FailedSend = ComposerDraft & {
   id: string;
   conversationId: string;
   scheduledAt?: string;
+  deliveryStatus?: 'checking' | 'failed' | 'unknown';
 };
 
 export function createMessageId(): string {
