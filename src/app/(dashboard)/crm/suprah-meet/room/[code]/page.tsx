@@ -531,13 +531,22 @@ export default function SuprahMeetRoomPage() {
                 label={meet.isBackCamera ? "Front cam" : "Back cam"}
                 iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
             )}
-            {/* Hidden on iOS: Safari/PWAs can't capture beyond their own tab
-                (Apple requires a native ReplayKit broadcast extension). */}
-            {meet.shareSupported && (
-              <Ctl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
-                label={meet.sharing ? "Stop share" : "Share"}
-                iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
-            )}
+             {/* Always visible; on browsers that can't capture a screen
+                (iPhone/iPad — Apple only allows that in native apps) tapping
+                explains why instead of silently hiding the button. */}
+            <Ctl on={!meet.sharing} accent
+              onClick={() => {
+                if (!meet.shareSupported) {
+                  setToast(/iPad|iPhone|iPod/i.test(navigator.userAgent)
+                    ? "Screen sharing isn't available in iPhone/iPad browsers — Apple only allows it in native apps. Join from a computer or Android to share."
+                    : "This browser can't share screens — try Chrome or Edge on a computer.");
+                  return;
+                }
+                void meet.toggleShare();
+              }}
+              label={meet.sharing ? "Stop share" : "Share"}
+              iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
+              
             <Ctl on={!meet.handRaised} accent onClick={meet.toggleHand}
               label={meet.handRaised ? "Lower hand" : "Raise hand"}
               iconOn={<Hand className="size-5" />} iconOff={<Hand className="size-5" />} />

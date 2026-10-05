@@ -538,7 +538,14 @@ export function useSuprahMeet() {
             markShareStopped();
           })
         );
-      } catch { /* user cancelled the picker */ }
+            } catch (err: any) {
+        // A dismissed picker throws NotAllowedError — stay quiet for that.
+        // Anything else (policy block, busy device, browser quirk) should
+        // tell the user instead of failing silently.
+        if (err?.name !== "NotAllowedError") {
+          setNotice(`Couldn't start screen sharing${err?.message ? `: ${err.message}` : "."}`);
+        }
+      }
     }
   }, [sharing, acquireWakeLock, markShareStopped]);
 

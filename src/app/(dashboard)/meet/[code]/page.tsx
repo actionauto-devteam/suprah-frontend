@@ -118,12 +118,6 @@ export default function SuprahMeetGuestPage() {
     : "grid-cols-3 md:grid-cols-4";
 
   /* ── Pre-meeting screens ────────────────────────────────────────────── */
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#071410] p-6 text-center text-emerald-50">
-      {children}
-    </div>
-  );
-
   if (gate === "form" || gate === "checking") {
     return (
       <Shell>
@@ -268,11 +262,18 @@ export default function SuprahMeetGuestPage() {
             <GuestCtl on onClick={() => void meet.switchCamera()} label="Flip camera"
               iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
           )}
-          {meet.shareSupported && (
-            <GuestCtl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
-              label={meet.sharing ? "Stop share" : "Share screen"}
-              iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
-          )}
+          <GuestCtl on={!meet.sharing} accent
+            onClick={() => {
+              if (!meet.shareSupported) {
+                setToast(/iPad|iPhone|iPod/i.test(navigator.userAgent)
+                  ? "Screen sharing isn't available in iPhone/iPad browsers — Apple only allows it in native apps. Join from a computer to share your screen."
+                  : "This browser can't share screens — try Chrome or Edge on a computer.");
+                return;
+              }
+              void meet.toggleShare();
+            }}
+            label={meet.sharing ? "Stop share" : "Share screen"}
+            iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
           <GuestCtl on={!meet.handRaised} accent onClick={meet.toggleHand}
             label={meet.handRaised ? "Lower hand" : "Raise hand"}
             iconOn={<Hand className="size-5" />} iconOff={<Hand className="size-5" />} />
@@ -352,6 +353,18 @@ export default function SuprahMeetGuestPage() {
 }
 
 /* ── Guest building blocks ──────────────────────────────────────────────── */
+/** Centered full-page wrapper for the pre-meeting screens. Lives at module
+ *  scope: defining it inside the page component gave it a NEW identity every
+ *  render, so React remounted the whole form on each keystroke and the name
+ *  input lost focus after every character. */
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[#071410] p-6 text-center text-emerald-50">
+      {children}
+    </div>
+  );
+}
+
 function guestInitials(name: string) {
   return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "?";
 }
