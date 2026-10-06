@@ -63,6 +63,7 @@ import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/comp
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
 const SS4_MAX_UPLOAD_FILES = 10;
@@ -2092,15 +2093,9 @@ function htmlToMarkdown(el: HTMLElement): string {
       && inner.trim()
     ) inner = `{size:${fontSize}}${inner}{/size}`;
 
-    const color = cssColorToHex(
-      element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.getAttribute('color'),
-    );
+    const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    const highlight = cssColorToHex(
-      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor'),
-    );
+    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
     if (highlight && inner.trim()) inner = `{highlight:${highlight}}${inner}{/highlight}`;
 
     if (
@@ -2540,32 +2535,7 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
 }
 
 function sanitizePastedEditorHtmlForTheme(html: string): string {
-  if (!html.trim()) return html;
-
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
-    const color = cssColorToHex(element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.style.getPropertyValue('text-fill-color')
-      || element.getAttribute('color')
-      || '');
-    const highlight = cssColorToHex(
-      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor') || '',
-    );
-
-    element.removeAttribute('style');
-    element.removeAttribute('color');
-    element.removeAttribute('bgcolor');
-    if (color) element.style.color = color;
-    if (highlight) element.style.backgroundColor = highlight;
-
-    if (!element.getAttribute('style')?.trim()) {
-      element.removeAttribute('style');
-    }
-  });
-
-  return doc.body.innerHTML;
+  return sanitizeSupraSpacePastedEditorHtml(html, cssColorToHex);
 }
 
 function plainTextHasListMarkers(text: string): boolean {
@@ -2694,11 +2664,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     if (fontFamily && inner.trim()) inner = `{font:${fontFamily}}${inner}{/font}`;
     if (fontSize && inner.trim()) inner = `{size:${fontSize}}${inner}{/size}`;
 
-    const color = cssColorToHex(
-      element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.getAttribute('color'),
-    );
+    const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
     return inner;
   };
@@ -2874,14 +2840,8 @@ function clipboardHtmlToEditorHtml(html: string): string {
       styles.push(`font-size:${size}px`);
     }
 
-    const color = cssColorToHex(
-      element.style.color
-      || element.style.getPropertyValue('-webkit-text-fill-color')
-      || element.getAttribute('color'),
-    );
-    const highlight = cssColorToHex(
-      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor'),
-    );
+    const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
+    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
     if (color) styles.push(`color:${color}`);
     if (highlight) styles.push(`background-color:${highlight}`);
 
