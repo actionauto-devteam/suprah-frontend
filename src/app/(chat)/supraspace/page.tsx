@@ -6566,7 +6566,7 @@ const Bubble = React.memo(function Bubble({
                   const usePlainText = editPasteMode === 'plain'
                     || shortcutPlainText
                     || richPasteDropsVisibleText(text, html)
-                    || shouldPreferPlainTextLayout(plainText, richEditorHtml);
+                    || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                   document.execCommand(
                     usePlainText ? 'insertText' : 'insertHTML',
                     false,
@@ -15171,7 +15171,7 @@ export default function SupraSpacePage() {
                                     || shortcutPlainText
                                     || richPasteDropsVisibleText(text, html)
                                     || pasteExceededLimit
-                                    || shouldPreferPlainTextLayout(plainText, richEditorHtml);
+                                    || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                                   document.execCommand(
                                     usePlainText ? 'insertText' : 'insertHTML',
                                     false,

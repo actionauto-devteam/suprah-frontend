@@ -6662,7 +6662,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 const usePlainText = editPasteMode === 'plain'
                                   || shortcutPlainText
                                   || richPasteDropsVisibleText(text, html)
-                                  || shouldPreferPlainTextLayout(plainText, richEditorHtml);
+                                  || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                                 document.execCommand(
                                   usePlainText ? 'insertText' : 'insertHTML',
                                   false,
@@ -7407,7 +7407,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       const usePlainText = pasteMode === 'plain'
                         || shortcutPlainText
                         || richPasteDropsVisibleText(text, html)
-                        || shouldPreferPlainTextLayout(plainText, richEditorHtml);
+                        || (!hasRichFormatting(html) && shouldPreferPlainTextLayout(plainText, richEditorHtml));
                       document.execCommand(
                         usePlainText ? 'insertText' : 'insertHTML',
                         false,
