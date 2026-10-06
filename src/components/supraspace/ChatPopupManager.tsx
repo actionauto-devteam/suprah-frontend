@@ -1129,7 +1129,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
   return text.split(MD_SPLIT).map((part, i) => {
     const k = `${keyPrefix}-${i}`;
     const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
-    if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
+    if (colorMatch) return <span key={k} style={{ color: isNearBlackHexColor(colorMatch[1]) ? (isOwn ? 'rgba(255,255,255,0.95)' : 'var(--foreground)') : colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
     const highlightMatch = part.match(/^\{\s*highlight\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*highlight\s*\}$/i);
     if (highlightMatch) return <span key={k} style={{ backgroundColor: highlightMatch[1], borderRadius: 3, padding: '0 2px' }}>{renderInlineMd(highlightMatch[2], isOwn, `${k}-highlight`)}</span>;
     const fontMatch = part.match(/^\{\s*font\s*:\s*([a-z-]+)\s*\}([\s\S]*)\{\s*\/\s*font\s*\}$/i);
@@ -1512,6 +1512,16 @@ function cssColorToHex(color: string | null | undefined): string | null {
   const alpha = rgb[4] ? Number.parseFloat(rgb[4]) : 1;
   if (alpha <= 0) return null;
   return `#${rgb.slice(1, 4).map(channel).map(value => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function isNearBlackHexColor(color?: string): boolean {
+  const raw = color?.trim().replace(/^#/, '');
+  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
+  const expanded = raw.length === 3 ? raw.split('').map(ch => ch + ch).join('') : raw.slice(0, 6);
+  const r = Number.parseInt(expanded.slice(0, 2), 16);
+  const g = Number.parseInt(expanded.slice(2, 4), 16);
+  const b = Number.parseInt(expanded.slice(4, 6), 16);
+  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r <= 24 && g <= 24 && b <= 24;
 }
 
 

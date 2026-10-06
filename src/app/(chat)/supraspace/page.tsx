@@ -1236,6 +1236,7 @@ if (typeof document !== 'undefined') {
     .ss4-bubble-own { background:var(--bubble-own-bg); box-shadow:var(--bubble-own-shadow); color:#fff; border-radius:18px 18px 4px 18px; }
     .ss4-bubble-other { background:var(--bubble-other-bg); border:1px solid var(--bubble-other-border); color:var(--text-primary); border-radius:18px 18px 18px 4px; box-shadow:var(--shadow-sm); }
     .ss4[data-theme="light"] .ss4-bubble-other .ss4-readable-light-color { color:var(--text-primary)!important; }
+    .ss4[data-theme="dark"] .ss4-readable-dark-color { color:var(--text-primary)!important; }
     .ss4-msg-column { width:fit-content; max-width:min(72%,42rem); }
     .ss4-msg-bubble { width:100%; max-width:100%; overflow:hidden; font-size:16px; line-height:1.66; }
     .ss4-rich-edit { white-space:pre-wrap; }
@@ -3571,6 +3572,18 @@ function isNearWhiteHexColor(color?: string): boolean {
   return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r >= 238 && g >= 238 && b >= 238;
 }
 
+function isNearBlackHexColor(color?: string): boolean {
+  const raw = color?.trim().replace(/^#/, '');
+  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
+  const expanded = raw.length === 3
+    ? raw.split('').map(ch => ch + ch).join('')
+    : raw.slice(0, 6);
+  const r = Number.parseInt(expanded.slice(0, 2), 16);
+  const g = Number.parseInt(expanded.slice(2, 4), 16);
+  const b = Number.parseInt(expanded.slice(4, 6), 16);
+  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r <= 24 && g <= 24 && b <= 24;
+}
+
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const result: React.ReactNode[] = [];
 
@@ -3717,7 +3730,7 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       if (token.type === 'color') {
         const inner = text.slice(token.contentStart, token.contentEnd);
         nodes.push(
-          <span key={key} className={!isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
+          <span key={key} className={isNearBlackHexColor(token.color) ? 'ss4-readable-dark-color' : !isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
             {renderInline(inner, key, insideLink)}
           </span>
         );
