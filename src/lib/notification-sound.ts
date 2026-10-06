@@ -271,7 +271,10 @@ function safeNotificationIcon(icon: string | undefined, fallback: string): strin
   if (!icon || typeof window === 'undefined') return fallback;
   try {
     const asset = new URL(icon, window.location.origin);
-    return asset.origin === window.location.origin ? asset.href : fallback;
+    const isMobile = /(?:Android|iPad|iPhone|iPod|Mobile)/i.test(navigator.userAgent);
+    return asset.origin === window.location.origin || (!isMobile && asset.protocol === 'https:')
+      ? asset.href
+      : fallback;
   } catch {
     return fallback;
   }

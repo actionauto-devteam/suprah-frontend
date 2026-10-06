@@ -321,8 +321,23 @@ function getSafeNotificationAsset(value: unknown): string | undefined {
   }
 }
 
+function getDesktopNotificationAsset(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const asset = new URL(value);
+    return asset.protocol === "https:" ? asset.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function supportsRichNotificationIcons(): boolean {
+  return !/(?:Android|iPad|iPhone|iPod|Mobile)/i.test(self.navigator.userAgent || "");
+}
+
 function getNotificationIcon(data: { icon?: unknown; data?: { conversationId?: unknown } } | null | undefined): string {
   return getSafeNotificationAsset(data?.icon)
+    || (supportsRichNotificationIcons() && getDesktopNotificationAsset(data?.icon))
     || (data?.data?.conversationId ? SUPRASPACE_NOTIFICATION_ICON : DEFAULT_NOTIFICATION_ICON);
 }
 

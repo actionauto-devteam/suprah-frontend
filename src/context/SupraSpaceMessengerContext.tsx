@@ -513,7 +513,9 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
               url: `/crm/supra-space?conversationId=${encodeURIComponent(conversationId)}&messageId=${encodeURIComponent(message._id)}`,
               conversationId,
               messageId: message._id,
-              icon: '/supra-space/icon-192.png',
+              icon: isGroup
+                ? (conv?.avatar || message.sender?.avatar || createNotificationAvatarFallback(message.sender?._id, senderName))
+                : (message.sender?.avatar || createNotificationAvatarFallback(message.sender?._id, senderName)),
             });
           } else if (typeof window !== 'undefined' && !['/crm/supra-space', '/supraspace', '/'].includes(window.location.pathname)) {
             // Tab is focused but the user is on a different dashboard page —
