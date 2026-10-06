@@ -6792,7 +6792,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             'text-[15px] leading-[1.66] min-w-0',
                             bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-2 rounded-2xl',
                             !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
-                          )} data-popup-bubble-id={msg._id} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
+                          )} data-popup-bubble-id={msg._id} onCopy={event => {
+                            if (!msg.content || !event.clipboardData) return;
+                            event.preventDefault();
+                            event.clipboardData.setData('text/html', markdownTextToEditorHtml(msg.content));
+                            event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(msg.content));
+                          }} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}
                             {msg.replyTo && (
                               <button

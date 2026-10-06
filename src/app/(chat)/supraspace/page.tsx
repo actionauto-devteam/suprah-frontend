@@ -5376,6 +5376,12 @@ const Bubble = React.memo(function Bubble({
       toast.error('Could not copy message');
     }
   };
+  const copyRichMessageToClipboard = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!message.content || !event.clipboardData) return;
+    event.preventDefault();
+    event.clipboardData.setData('text/html', markdownTextToEditorHtml(message.content));
+    event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(message.content));
+  }, [message.content]);
   const syncEditDraft = React.useCallback(() => {
     const next = editAreaRef.current ? serializeVisibleRichText(editAreaRef.current) : '';
     setEditDraft(next);
@@ -6702,7 +6708,7 @@ const Bubble = React.memo(function Bubble({
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
               className={cn('ss4-msg-bubble px-3 py-2.5 text-[13px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
-              <div className="ss4-copyable-text" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderedContent}</div>
+              <div className="ss4-copyable-text" onCopy={copyRichMessageToClipboard} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderedContent}</div>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
           ) : null}
