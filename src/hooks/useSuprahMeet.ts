@@ -540,13 +540,30 @@ export function useSuprahMeet() {
           // a native app). WORKING fallback: present the BACK CAMERA as the
           // shared content, full-screen for everyone — point the phone at the
           // vehicle, document, or whiteboard you want to show.
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false,
-          });
+          //
+          // Phones usually allow only ONE camera open at a time: if the
+          // meeting camera is already running, acquiring a second one throws
+          // Chime's "Error fetching device." — so release ours first.
+          if (camOn) {
+            try {
+              audioVideo.stopLocalVideoTile();
+              await audioVideo.stopVideoInput();
+              await stopTransform();
+              setCamOn(false);
+            } catch { /* keep going — the capture below may still work */ }
+          }
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: false,
+            });
+          } catch {
+            // Some devices misreport facingMode — retry with any camera.
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
           contentStreamRef.current = stream;
           await audioVideo.startContentShare(stream);
-          setNotice("Phone browsers can't capture the screen, so you're presenting your BACK CAMERA instead — point it at what you want to show. (True phone screen-share needs the native app.)");
+          setNotice("Phone browsers can't capture the screen, so you're presenting your BACK CAMERA instead — point it at what you want to show. Your meeting camera was turned off to free the lens.");
         }
         sharingRef.current = true;
         setSharing(true);
@@ -561,15 +578,26 @@ export function useSuprahMeet() {
           })
         );
       } catch (err: any) {
-        // A dismissed picker/permission prompt throws NotAllowedError — stay
-        // quiet for that. Anything else should tell the user, not fail silently.
-        if (err?.name !== "NotAllowedError") {
-          setNotice(`Couldn't start sharing${err?.message ? `: ${err.message}` : "."}`);
+        // Chime wraps capture failures in GetUserMediaError, whose message is
+        // the unhelpful "Error fetching device." — the REAL reason sits in
+        // err.cause. A plain CANCEL of the share picker lands here too (cause
+        // NotAllowedError), and must stay silent.
+        const cause = err?.cause;
+        const name: string = cause?.name || err?.name || "";
+        if (name === "NotAllowedError") { markShareStopped(); return; }
+        if (name === "NotReadableError" || name === "AbortError") {
+          setNotice(shareSupported
+            ? "The screen couldn't be captured — the operating system is blocking it. On a Mac: System Settings → Privacy & Security → Screen Recording → allow your browser, then restart the browser."
+            : "The camera couldn't be started — it may be in use by another app. Close other camera apps and try again.");
+        } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+          setNotice("No usable camera/screen source was found on this device.");
+        } else {
+          setNotice(`Couldn't start sharing${cause?.message || err?.message ? `: ${cause?.message || err.message}` : "."}`);
         }
         markShareStopped();
       }
     }
-  }, [sharing, shareSupported, acquireWakeLock, markShareStopped]);
+  }, [sharing, shareSupported, camOn, stopTransform, acquireWakeLock, markShareStopped]);
 
   const sendData = useCallback((topic: string, payload: Record<string, unknown>, lifetimeMs = 5000) => {
     av()?.realtimeSendDataMessage(topic, JSON.stringify(payload), lifetimeMs);
