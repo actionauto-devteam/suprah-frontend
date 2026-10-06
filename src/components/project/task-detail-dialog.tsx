@@ -477,15 +477,15 @@ export function EditTaskDialog({
 
   return (
     <Dialog open={!!task} onOpenChange={(o) => !o && !saving && onClose()}>
-      <DialogContent className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-md sm:rounded-2xl sm:border">
-        <DialogHeader className="shrink-0 space-y-1 border-b border-border/40 px-6 pb-4 pt-6">
+      <DialogContent className="flex h-[100dvh] max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 md:h-auto md:max-h-[85vh] md:w-auto md:max-w-md md:rounded-2xl md:border">
+        <DialogHeader className="shrink-0 space-y-1 border-b border-border/40 px-4 pb-4 pt-5 md:px-6 md:pt-6">
           <DialogTitle className="text-sm font-bold">Edit Task</DialogTitle>
           <DialogDescription className="text-[11px] text-muted-foreground/60">
             Only the task creator, the assignee, or an admin can save changes.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 md:px-6 [scrollbar-width:thin]">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-foreground/75">Title</Label>
             <Input
@@ -519,7 +519,7 @@ export function EditTaskDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-foreground/75">Start date</Label>
               <Input
@@ -543,7 +543,7 @@ export function EditTaskDialog({
           </div>
         </div>
 
-        <div className="shrink-0 space-y-2 border-t border-border/40 px-6 py-4">
+        <div className="shrink-0 space-y-2 border-t border-border/40 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 md:px-6 md:py-4">
           {error && <p className="text-[11px] text-rose-500">{error}</p>}
           <div className="flex gap-2">
             <Button
@@ -978,7 +978,7 @@ export function TaskDetailDialog({
     <Dialog open={!!taskId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-full max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-auto sm:max-h-[85vh] sm:w-auto sm:max-w-2xl sm:rounded-2xl sm:border"
+        className="flex h-[100dvh] max-h-dvh w-full max-w-full flex-col gap-0 overflow-hidden rounded-none border-0 p-0 md:h-auto md:max-h-[85vh] md:w-auto md:max-w-2xl md:rounded-2xl md:border"
       >
         {/* Radix requires a DialogTitle as soon as DialogContent mounts.
             Keep one present during the loading state too; the visible heading
@@ -1007,6 +1007,7 @@ export function TaskDetailDialog({
                   <button
                     onClick={copyTaskText}
                     title="Copy title & description"
+                    aria-label="Copy title and description"
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
                   >
                     {copied ? (
@@ -1019,7 +1020,8 @@ export function TaskDetailDialog({
                     onClick={openEdit}
                     disabled={editLoading}
                     title="Edit task"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600"
+                    aria-label="Edit task"
+                    className="hidden h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-muted/40 hover:text-emerald-600 md:flex"
                   >
                     {editLoading ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1058,6 +1060,16 @@ export function TaskDetailDialog({
                   onChange={changeStatus}
                 />
               </div>
+
+              <Button
+                type="button"
+                onClick={openEdit}
+                disabled={editLoading}
+                className="h-10 w-full gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 md:hidden"
+              >
+                {editLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                Edit task
+              </Button>
 
               <DialogDescription asChild>
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground/70">
@@ -1330,7 +1342,7 @@ export function TaskDetailDialog({
             </div>
 
             {/* Composer */}
-            <div className="border-t border-border/40 px-4 py-3 sm:px-6 sm:py-4">
+            <div className="border-t border-border/40 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:px-6 md:py-4">
               <div className="flex items-end gap-2">
                 <input
                   ref={commentFileRef}

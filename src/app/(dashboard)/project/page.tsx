@@ -362,20 +362,29 @@ function ProjectManagementPageInner({ socket }: { socket: Socket | null }) {
         </div>
 
         {/* Tabs — horizontally scrollable so all 4 fit on narrow phones */}
-        <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border/40 bg-muted/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="grid grid-cols-4 items-center gap-1 rounded-xl border border-border/40 bg-muted/20 p-1 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all",
+                "flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1 py-2 text-[10px] font-semibold transition-all sm:shrink-0 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-[11px]",
                 tab === t.id
                   ? "bg-emerald-600 text-white shadow-sm shadow-emerald-600/20"
                   : "text-muted-foreground/70 hover:text-foreground",
               )}
+              title={t.label}
+              aria-label={t.label}
             >
-              <t.icon className="h-3.5 w-3.5" />
-              {t.label}
+              <t.icon className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+              {t.id === "done" ? (
+                <>
+                  <span className="min-[380px]:hidden">Done</span>
+                  <span className="hidden min-[380px]:inline">{t.label}</span>
+                </>
+              ) : (
+                <span className="truncate">{t.label}</span>
+              )}
             </button>
           ))}
         </div>
