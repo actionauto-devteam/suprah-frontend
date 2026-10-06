@@ -945,7 +945,7 @@ const MEDIA_LABELS: Record<string, string> = {
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
 };
 // Renders message content with markdown formatting (bold, italic, underline, strike, code, bullets, quotes, links, @mentions)
-const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*highlight\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*highlight\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
 
 function normalizeMultilineMarkdownBlocks(text: string): string {
   return text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) =>
@@ -1129,7 +1129,9 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
   return text.split(MD_SPLIT).map((part, i) => {
     const k = `${keyPrefix}-${i}`;
     const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
-    if (colorMatch) return <span key={k} style={isOwn ? undefined : { color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
+    if (colorMatch) return <span key={k} style={{ color: colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
+    const highlightMatch = part.match(/^\{\s*highlight\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*highlight\s*\}$/i);
+    if (highlightMatch) return <span key={k} style={{ backgroundColor: highlightMatch[1], borderRadius: 3, padding: '0 2px' }}>{renderInlineMd(highlightMatch[2], isOwn, `${k}-highlight`)}</span>;
     const fontMatch = part.match(/^\{\s*font\s*:\s*([a-z-]+)\s*\}([\s\S]*)\{\s*\/\s*font\s*\}$/i);
     if (fontMatch) {
       const family = fontMatch[1].toLowerCase() as SS4FontFamilyId;
@@ -1162,7 +1164,7 @@ function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.
       return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)' } : { color: '#60a5fa' }}>{part}</span>;
     return stripResidualSupraSpaceInlineControlMarkers(
       stripSupraSpaceTypographyTags(
-        part.replace(/\{\s*\/?\s*color(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
+        part.replace(/\{\s*\/?\s*(?:color|highlight)(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
       ),
     );
   });
@@ -1236,7 +1238,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 function getCopiedElementVisibleText(element: HTMLElement): string {
@@ -1474,7 +1476,7 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{color:#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
+  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
     || compatibleText.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
@@ -1488,11 +1490,28 @@ function escapeHtmlText(s: string): string {
 function cssColorToHex(color: string | null | undefined): string | null {
   if (!color) return null;
   const raw = color.trim();
-  const hex = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
-  if (hex) return hex.length === 3 ? `#${hex.split('').map(c => c + c).join('')}`.toLowerCase() : `#${hex}`.toLowerCase();
-  const rgb = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  const namedColors: Record<string, string> = {
+    black: '#000000', white: '#ffffff', red: '#ff0000', green: '#008000',
+    blue: '#0000ff', yellow: '#ffff00', orange: '#ffa500', purple: '#800080',
+    pink: '#ffc0cb', gray: '#808080', grey: '#808080', brown: '#a52a2a',
+    cyan: '#00ffff', magenta: '#ff00ff',
+  };
+  if (namedColors[raw.toLowerCase()]) return namedColors[raw.toLowerCase()];
+  const hex = raw.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i)?.[1];
+  if (hex) {
+    const expanded = hex.length <= 4 ? hex.split('').map(character => character + character).join('') : hex;
+    if (expanded.length === 8 && Number.parseInt(expanded.slice(6, 8), 16) === 0) return null;
+    return `#${expanded.slice(0, 6)}`.toLowerCase();
+  }
+  const rgb = raw.match(/^rgba?\(\s*([+-]?(?:\d*\.?\d+)%?)\s*(?:,|\s)\s*([+-]?(?:\d*\.?\d+)%?)\s*(?:,|\s)\s*([+-]?(?:\d*\.?\d+)%?)(?:\s*(?:\/|,)\s*([+-]?(?:\d*\.?\d+)%?))?\s*\)$/i);
   if (!rgb) return null;
-  return `#${[rgb[1], rgb[2], rgb[3]].map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('')}`;
+  const channel = (value: string) => {
+    const numeric = Number.parseFloat(value);
+    return Math.max(0, Math.min(255, Math.round(value.endsWith('%') ? (numeric / 100) * 255 : numeric)));
+  };
+  const alpha = rgb[4] ? Number.parseFloat(rgb[4]) : 1;
+  if (alpha <= 0) return null;
+  return `#${rgb.slice(1, 4).map(channel).map(value => value.toString(16).padStart(2, '0')).join('')}`;
 }
 
 
@@ -2010,6 +2029,10 @@ function htmlToMarkdown(el: HTMLElement): string {
       || element.getAttribute('color'),
     );
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+    const highlight = cssColorToHex(
+      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor'),
+    );
+    if (highlight && inner.trim()) inner = `{highlight:${highlight}}${inner}{/highlight}`;
 
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
@@ -2148,33 +2171,25 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
   return changed;
 }
 
-function shouldStripPastedTextColor(color: string | null | undefined): boolean {
-  return Boolean((color || '').trim());
-}
-
 function sanitizePastedEditorHtmlForTheme(html: string): string {
   if (!html.trim()) return html;
 
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
   doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
-    const rawColor = element.style.color
+    const color = cssColorToHex(element.style.color
       || element.style.getPropertyValue('-webkit-text-fill-color')
       || element.getAttribute('color')
-      || '';
+      || '');
+    const highlight = cssColorToHex(
+      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor') || '',
+    );
 
-    if (shouldStripPastedTextColor(rawColor)) {
-      element.style.removeProperty('color');
-      element.style.removeProperty('-webkit-text-fill-color');
-      element.style.removeProperty('text-fill-color');
-      element.removeAttribute('color');
-    }
-
-    element.style.removeProperty('background');
-    element.style.removeProperty('background-color');
-    element.style.removeProperty('background-image');
-    element.style.removeProperty('text-shadow');
+    element.removeAttribute('style');
+    element.removeAttribute('color');
     element.removeAttribute('bgcolor');
+    if (color) element.style.color = color;
+    if (highlight) element.style.backgroundColor = highlight;
 
     if (!element.getAttribute('style')?.trim()) {
       element.removeAttribute('style');
@@ -2359,6 +2374,8 @@ function stripRichTextMarkupForPlainPaste(value: string): string {
   return value
     .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
     .replace(/\{\s*\/\s*color\s*\}/gi, '')
+    .replace(/\{\s*highlight\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
+    .replace(/\{\s*\/\s*highlight\s*\}/gi, '')
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
@@ -2388,6 +2405,17 @@ function clipboardHtmlToEditorHtml(html: string): string {
     if (size && size !== SS4_DEFAULT_FONT_SIZE) {
       styles.push(`font-size:${size}px`);
     }
+
+    const color = cssColorToHex(
+      element.style.color
+      || element.style.getPropertyValue('-webkit-text-fill-color')
+      || element.getAttribute('color'),
+    );
+    const highlight = cssColorToHex(
+      element.style.backgroundColor || element.style.background || element.getAttribute('bgcolor'),
+    );
+    if (color) styles.push(`color:${color}`);
+    if (highlight) styles.push(`background-color:${highlight}`);
 
     return styles;
   };
@@ -2634,11 +2662,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 
     const editorHtml = clipboardHtmlToEditorHtml(html);
     if (editorHtml.trim()) {
-      return sanitizePastedEditorHtmlForTheme(
-        hasRichFormatting(html)
-          ? normalizeRichClipboardBoldArtifacts(editorHtml)
-          : editorHtml,
-      );
+      return sanitizePastedEditorHtmlForTheme(editorHtml);
     }
   }
 
@@ -2655,6 +2679,7 @@ function markdownTextToEditorHtml(text: string): string {
   );
   const lines = source.split('\n');
   let activeColor: string | null = null;
+  let activeHighlight: string | null = null;
   let activeFontFamily: SS4FontFamilyId = SS4_DEFAULT_FONT_FAMILY;
   let activeFontSize: SS4FontSize = SS4_DEFAULT_FONT_SIZE;
 
@@ -2675,7 +2700,7 @@ function markdownTextToEditorHtml(text: string): string {
       .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
 
   const renderStyledInline = (value: string): string => {
-    const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
+    const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{highlight:(#[0-9a-fA-F]{3,8})\}|\{\/highlight\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
     let result = '';
     let cursor = 0;
     let match: RegExpExecArray | null;
@@ -2684,6 +2709,7 @@ function markdownTextToEditorHtml(text: string): string {
       if (!html) return html;
       const styles: string[] = [];
       if (activeColor) styles.push(`color:${activeColor}`);
+      if (activeHighlight) styles.push(`background-color:${activeHighlight}`);
       if (activeFontFamily !== SS4_DEFAULT_FONT_FAMILY) {
         styles.push(`font-family:${ss4FontFamilyCss(activeFontFamily)}`);
       }
@@ -2699,15 +2725,17 @@ function markdownTextToEditorHtml(text: string): string {
       result += wrap(applyInlineMarkdown(value.slice(cursor, match.index)));
       if (match[1]) activeColor = match[1].toLowerCase();
       else if (match[0].toLowerCase() === '{/color}') activeColor = null;
-      else if (match[2]) {
-        const family = match[2].toLowerCase() as SS4FontFamilyId;
+      else if (match[2]) activeHighlight = match[2].toLowerCase();
+      else if (match[0].toLowerCase() === '{/highlight}') activeHighlight = null;
+      else if (match[3]) {
+        const family = match[3].toLowerCase() as SS4FontFamilyId;
         activeFontFamily = SS4_FONT_FAMILIES.some(option => option.id === family)
           ? family
           : SS4_DEFAULT_FONT_FAMILY;
       } else if (match[0].toLowerCase() === '{/font}') {
         activeFontFamily = SS4_DEFAULT_FONT_FAMILY;
-      } else if (match[3]) {
-        const size = Number.parseInt(match[3], 10) as SS4FontSize;
+      } else if (match[4]) {
+        const size = Number.parseInt(match[4], 10) as SS4FontSize;
         activeFontSize = SS4_FONT_SIZES.includes(size)
           ? size
           : SS4_DEFAULT_FONT_SIZE;
@@ -5968,9 +5996,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const textBeforeCaret = getComposerTextBeforeCaret(el);
     const cursorAfterInput = textBeforeCaret.length || getCaretOffset(el);
     const mentionCandidate = mentionCandidateFromTextBeforeCaret(textBeforeCaret);
-    const shouldRefreshMentionChips =
-      inputEvent.inputType === 'insertFromPaste' ||
-      inputEvent.inputType.startsWith('deleteContent');
+    const shouldRefreshMentionChips = inputEvent.inputType.startsWith('deleteContent');
     if (shouldRefreshMentionChips && /(^|[^\w@])@\s*[A-Za-z0-9_]/.test(val)) {
       requestAnimationFrame(() => {
         const current = inputRef.current;
@@ -7407,11 +7433,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       setMentionQuery(null);
                       setMentionAnchor(-1);
                       const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
-                      const pasteHasMentionText = /(^|[^\w@])@\s*\S/.test(normalizeMentionSearchText(plainText));
                       const usePlainText = pasteMode === 'plain'
                         || shortcutPlainText
                         || richPasteDropsVisibleText(text, html)
-                        || pasteHasMentionText
                         || shouldPreferPlainTextLayout(plainText, richEditorHtml);
                       document.execCommand(
                         usePlainText ? 'insertText' : 'insertHTML',
@@ -7422,7 +7446,6 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         const el = inputRef.current;
                         if (el) {
                           normalizeRichEditorListExitArtifacts(el);
-                          if (pasteHasMentionText) highlightMentionsInComposer(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
                         }
