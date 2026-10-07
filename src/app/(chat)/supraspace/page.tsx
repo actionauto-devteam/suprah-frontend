@@ -2423,7 +2423,7 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  if (!plainText || !html) return false;
+  if (!plainText || !html || hasRichFormatting(html)) return false;
   const normalize = (value: string): string => stripCopiedTextArtifacts(value)
     .normalize('NFKC')
     .replace(/\u00a0/g, ' ')

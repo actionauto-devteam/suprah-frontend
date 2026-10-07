@@ -1455,7 +1455,7 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  if (!plainText || !html) return false;
+  if (!plainText || !html || hasRichFormatting(html)) return false;
   const normalize = (value: string): string => value
     .normalize('NFKC')
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
