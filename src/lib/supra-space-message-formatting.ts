@@ -3,8 +3,85 @@ const SINGLE_BRACE_CONTROL_TAG = /\{\s*(?:color|highlight|font|size)\s*:\s*[^{}\
 const STYLE_CONTROL_TAG = /\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}/gi;
 const EMPTY_CONTROL_WRAPPER = /\{\s*(color|highlight|font|size)\s*:\s*([^{}\n]+?)\s*\}([\s*_~`]*)\{\s*\/\s*\1\s*\}/gi;
 const FORMAT_ONLY_LINE = /(^|\n)[ \t]*(?:\*{2,3}|_{2,}|~{2,})[ \t]*(?=\n|$)/g;
+const CONTROL_MARKUP_TAG = /\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]*?))?\s*\}/gi;
+const SUPPORTED_FONT_FAMILIES = new Set([
+  'default', 'arial', 'aptos', 'calibri', 'georgia', 'times', 'verdana', 'trebuchet', 'tahoma', 'courier',
+]);
+const SUPPORTED_FONT_SIZES = new Set([10, 12, 14, 16, 18, 20, 24, 28, 32, 36]);
 
 const BOLD_MARKER = '**';
+
+type SupraSpaceControlKind = 'color' | 'highlight' | 'font' | 'size';
+
+function canonicalSupraSpaceControlTag(
+  closingSlash: string,
+  rawKind: string,
+  rawValue?: string,
+): { kind: SupraSpaceControlKind; tag: string; closing: boolean } | null {
+  const kind = rawKind.toLowerCase() as SupraSpaceControlKind;
+  if (closingSlash) return { kind, tag: `{/${kind}}`, closing: true };
+
+  const value = (rawValue || '').trim();
+  if (!value) return null;
+  if ((kind === 'color' || kind === 'highlight') && /^#[0-9a-f]{3,8}$/i.test(value)) {
+    return { kind, tag: `{${kind}:${value.toLowerCase()}}`, closing: false };
+  }
+  if (kind === 'font' && /^[a-z-]+$/i.test(value) && SUPPORTED_FONT_FAMILIES.has(value.toLowerCase())) {
+    return { kind, tag: `{font:${value.toLowerCase()}}`, closing: false };
+  }
+  if (kind === 'size' && /^\d{1,3}$/.test(value) && SUPPORTED_FONT_SIZES.has(Number.parseInt(value, 10))) {
+    return { kind, tag: `{size:${Number.parseInt(value, 10)}}`, closing: false };
+  }
+  return null;
+}
+
+/** True when text contains Suprah's internal rich-text control dialect. */
+export function containsSupraSpaceControlMarkup(content: string): boolean {
+  CONTROL_MARKUP_TAG.lastIndex = 0;
+  return CONTROL_MARKUP_TAG.test(content);
+}
+
+/**
+ * Keeps only balanced, supported Suprah formatting controls. Invalid,
+ * unsupported, or unpaired controls are discarded without touching their text.
+ */
+export function normalizeSupraSpaceControlMarkup(content: string): string {
+  if (!content) return '';
+
+  const controls: Array<{ canonical: { kind: SupraSpaceControlKind; tag: string; closing: boolean } | null }> = [];
+  const stack: Array<{ kind: SupraSpaceControlKind; index: number }> = [];
+  const paired = new Set<number>();
+  CONTROL_MARKUP_TAG.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CONTROL_MARKUP_TAG.exec(content)) !== null) {
+    const canonical = canonicalSupraSpaceControlTag(match[1], match[2], match[3]);
+    const index = controls.length;
+    controls.push({ canonical });
+    if (!canonical) continue;
+    if (!canonical.closing) {
+      stack.push({ kind: canonical.kind, index });
+      continue;
+    }
+    const opening = stack[stack.length - 1];
+    if (opening?.kind === canonical.kind) {
+      paired.add(opening.index);
+      paired.add(index);
+      stack.pop();
+    }
+  }
+
+  let index = 0;
+  CONTROL_MARKUP_TAG.lastIndex = 0;
+  return content.replace(CONTROL_MARKUP_TAG, () => {
+    const control = controls[index++];
+    return control?.canonical && paired.has(index - 1) ? control.canonical.tag : '';
+  });
+}
+
+export function stripSupraSpaceControlMarkup(content: string): string {
+  CONTROL_MARKUP_TAG.lastIndex = 0;
+  return content.replace(CONTROL_MARKUP_TAG, '');
+}
 
 export function normalizeSupraSpaceBoldMarkerRuns(content: string): string {
   if (!content) return '';
@@ -128,13 +205,15 @@ function canonicalizeDoubleBraceControlTag(
 
 /**
  * Makes legacy/malformed Supra Space markup safe for the existing renderer.
- * Canonical, valid single-brace markup is intentionally left unchanged.
+ * Only canonical, balanced controls supported by the current editor survive.
  */
 export function normalizeSupraSpaceLegacyMarkup(content: string): string {
   if (!content) return '';
 
-  let normalized = normalizeSupraSpaceBoldMarkerRuns(content)
-    .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag);
+  let normalized = normalizeSupraSpaceControlMarkup(
+    normalizeSupraSpaceBoldMarkerRuns(content)
+      .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag),
+  );
 
   // Remove wrappers that contain formatting controls only. Repeat so nested
   // empty wrappers collapse from the inside out.
@@ -265,7 +344,7 @@ export function stripSupraSpaceFormattingForPreview(
   return normalizeSupraSpaceLegacyMarkup(content)
     .replace(/\r\n?/g, '\n')
     .replace(/\u00a0/g, ' ')
-    .replace(SINGLE_BRACE_CONTROL_TAG, '')
+    .replace(CONTROL_MARKUP_TAG, '')
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
     .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')

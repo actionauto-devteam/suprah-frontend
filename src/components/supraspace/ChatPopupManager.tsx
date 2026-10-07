@@ -10,7 +10,7 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { createMessageId } from './composer/send-state';
-import { normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import {
   useSupraSpaceMessenger,
@@ -2348,11 +2348,7 @@ function clipboardHtmlToListAwareText(html: string): string {
 }
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
-  return value
-    .replace(/\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*color\s*\}/gi, '')
-    .replace(/\{\s*highlight\s*:\s*#[0-9a-f]{3,8}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*highlight\s*\}/gi, '')
+  return stripSupraSpaceControlMarkup(value)
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
@@ -2612,6 +2608,11 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
 }
 
 function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
+  const normalizedText = normalizeSupraSpaceLegacyMarkup(text || '');
+  if (containsSupraSpaceControlMarkup(text) && normalizedText.trim()) {
+    return sanitizePastedEditorHtmlForTheme(markdownTextToEditorHtml(normalizedText));
+  }
+
   if (html.trim()) {
     const hasSemanticList = /<(?:ul|ol|li)\b/i.test(html);
     const hasOfficePseudoList = /mso-list\s*:|MsoListParagraph/i.test(html);
@@ -2637,10 +2638,10 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
     }
   }
 
-  const normalizedText = normalizeMessageMarkdownText(text || '');
-  const editorHtml = hasMarkdownSyntax(normalizedText)
-    ? markdownTextToEditorHtml(normalizedText)
-    : escapeHtmlText(normalizedText).replace(/\n/g, '<br>');
+  const normalizedMessageText = normalizeMessageMarkdownText(normalizedText);
+  const editorHtml = hasMarkdownSyntax(normalizedMessageText)
+    ? markdownTextToEditorHtml(normalizedMessageText)
+    : escapeHtmlText(normalizedMessageText).replace(/\n/g, '<br>');
   return sanitizePastedEditorHtmlForTheme(editorHtml);
 }
 
