@@ -4,6 +4,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
+import { useTheme } from '@/context/ThemeContext';
 import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
@@ -3568,6 +3569,118 @@ function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
   );
 }
 
+function PopupComposerEmojiPicker({
+  anchorRef,
+  boundaryRef,
+  onClose,
+  onPick,
+  theme,
+}: {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  boundaryRef: React.RefObject<HTMLElement | null>;
+  onClose: () => void;
+  onPick: (emoji: string) => void;
+  theme: 'light' | 'dark';
+}) {
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const [layout, setLayout] = React.useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const updateLayout = React.useCallback(() => {
+    const anchor = anchorRef.current?.getBoundingClientRect();
+    const boundary = boundaryRef.current?.getBoundingClientRect();
+    if (!anchor || !boundary) return;
+
+    const padding = 8;
+    const gap = 8;
+    const leftBoundary = Math.max(boundary.left + padding, padding);
+    const rightBoundary = Math.min(boundary.right - padding, window.innerWidth - padding);
+    const topBoundary = Math.max(boundary.top + padding, padding);
+    const bottomBoundary = Math.min(boundary.bottom - padding, window.innerHeight - padding);
+    const width = Math.min(272, Math.max(0, rightBoundary - leftBoundary));
+    const spaceAbove = anchor.top - gap - topBoundary;
+    const spaceBelow = bottomBoundary - anchor.bottom - gap;
+    const placeAbove = spaceAbove >= spaceBelow;
+    const availableHeight = Math.max(0, placeAbove ? spaceAbove : spaceBelow);
+    const height = Math.min(280, availableHeight);
+    const left = Math.max(leftBoundary, Math.min(anchor.left, rightBoundary - width));
+
+    setLayout({
+      top: placeAbove ? anchor.top - gap - height : anchor.bottom + gap,
+      left,
+      width,
+      height,
+    });
+  }, [anchorRef, boundaryRef]);
+
+  React.useLayoutEffect(() => {
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
+    if (anchorRef.current) observer.observe(anchorRef.current);
+    if (boundaryRef.current) observer.observe(boundaryRef.current);
+    window.addEventListener('resize', updateLayout);
+    window.addEventListener('scroll', updateLayout, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateLayout);
+      window.removeEventListener('scroll', updateLayout, true);
+    };
+  }, [anchorRef, boundaryRef, updateLayout]);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (anchorRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      onClose();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [anchorRef, onClose]);
+
+  if (!layout || layout.width < 160 || layout.height < 160 || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      className="fixed z-9998 overflow-hidden rounded-xl border bg-card shadow-xl"
+      style={{
+        top: layout.top,
+        left: layout.left,
+        width: layout.width,
+        height: layout.height,
+        borderColor: 'var(--border, rgba(128,128,128,0.25))',
+      }}
+      onMouseDown={event => event.stopPropagation()}
+    >
+      <EmojiPicker
+        onEmojiClick={(data: EmojiClickData) => onPick(data.emoji)}
+        theme={theme === 'dark' ? EmojiTheme.DARK : EmojiTheme.LIGHT}
+        width="100%"
+        height="100%"
+        searchDisabled={false}
+        skinTonesDisabled
+        lazyLoadEmojis
+        style={{
+          '--epr-emoji-size': '24px',
+          '--epr-emoji-padding': '3px',
+        } as React.CSSProperties}
+      />
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Channel settings — nickname, personal quick-reactions, theme color ───────
 function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onClose, onSaved }: {
   conv: SSConv;
@@ -3734,6 +3847,7 @@ interface ChatPopupProps {
 }
 
 function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
+  const { theme } = useTheme();
   const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations } = useSupraSpaceMessenger();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const router = useRouter();
@@ -3793,6 +3907,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLDivElement>(null);
   const inputSelectionRangeRef = React.useRef<Range | null>(null);
+  const composerEmojiAnchorRef = React.useRef<HTMLDivElement>(null);
+  const editEmojiAnchorRef = React.useRef<HTMLDivElement>(null);
   const [composerFontFamily, setComposerFontFamily] = React.useState<SS4FontFamilyId>(SS4_DEFAULT_FONT_FAMILY);
   const [composerFontFamilyChosen, setComposerFontFamilyChosen] = React.useState(false);
   const [composerFontSize, setComposerFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
@@ -6382,11 +6498,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 <Copy className="h-3.5 w-3.5" />
                                 <span className="text-[9px] font-bold">{editPasteMode === 'formatted' ? 'FMT' : 'TXT'}</span>
                               </button>
-                              <div className="relative">
+                              <div ref={editEmojiAnchorRef} className="relative">
                                 <button
                                   type="button"
                                   onMouseDown={e => { e.preventDefault(); rememberEditSelection(); }}
-                                  onClick={() => setEditEmojiOpen(open => !open)}
+                                  onClick={() => {
+                                    setEditColorOpen(false);
+                                    setEditEmojiOpen(open => !open);
+                                  }}
                                   className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-white/10"
                                   title="Emoji"
                                   aria-expanded={editEmojiOpen}
@@ -6394,17 +6513,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   <Smile className="h-3.5 w-3.5" />
                                 </button>
                                 {editEmojiOpen && (
-                                  <div className="absolute bottom-full left-0 z-50 mb-2">
-                                    <EmojiPicker
-                                      onEmojiClick={(data: EmojiClickData) => insertEditEmoji(data.emoji)}
-                                      theme={EmojiTheme.DARK}
-                                      width={300}
-                                      height={340}
-                                      searchDisabled={false}
-                                      skinTonesDisabled
-                                      lazyLoadEmojis
-                                    />
-                                  </div>
+                                  <PopupComposerEmojiPicker
+                                    anchorRef={editEmojiAnchorRef}
+                                    boundaryRef={popupShellRef}
+                                    onClose={() => setEditEmojiOpen(false)}
+                                    onPick={insertEditEmoji}
+                                    theme={theme}
+                                  />
                                 )}
                               </div>
                               <div className="relative flex items-center gap-1">
@@ -7242,12 +7357,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
                   <ImageIcon className="h-4.5 w-4.5" />
                 </button>
-                <div className="relative shrink-0">
+                <div ref={composerEmojiAnchorRef} className="relative shrink-0">
                   <button
                     type="button"
                     title="Emoji"
                     onMouseDown={e => { e.preventDefault(); rememberComposerSelection(); }}
-                    onClick={() => setComposerEmojiOpen(open => !open)}
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      setGifOpen(false);
+                      setComposerEmojiOpen(open => !open);
+                    }}
                     className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors"
                     style={{ color: accentColor }}
                     aria-expanded={composerEmojiOpen}
@@ -7255,21 +7374,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                     <Smile className="h-4.5 w-4.5" />
                   </button>
                   {composerEmojiOpen && (
-                    <div className="absolute bottom-full left-0 z-50 mb-2">
-                      <EmojiPicker
-                        onEmojiClick={(data: EmojiClickData) => insertComposerEmoji(data.emoji)}
-                        theme={EmojiTheme.DARK}
-                        width={300}
-                        height={340}
-                        searchDisabled={false}
-                        skinTonesDisabled
-                        lazyLoadEmojis
-                      />
-                    </div>
+                    <PopupComposerEmojiPicker
+                      anchorRef={composerEmojiAnchorRef}
+                      boundaryRef={popupShellRef}
+                      onClose={() => setComposerEmojiOpen(false)}
+                      onPick={insertComposerEmoji}
+                      theme={theme}
+                    />
                   )}
                 </div>
                 <div className="relative shrink-0" ref={gifRef}>
-                  <button title="GIF" onClick={() => setGifOpen(v => !v)}
+                  <button title="GIF" onClick={() => { setComposerEmojiOpen(false); setGifOpen(v => !v); }}
                     className="h-8 px-1.5 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[11px] tracking-tight" style={{ color: accentColor }}>
                     GIF
                   </button>
