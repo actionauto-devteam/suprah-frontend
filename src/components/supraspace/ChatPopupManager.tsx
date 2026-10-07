@@ -10,9 +10,10 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { createMessageId } from './composer/send-state';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -229,14 +230,6 @@ function normalizeRichEditorFontSizeElements(
     if (resolved) element.style.fontSize = `${resolved}px`;
     element.removeAttribute('size');
   });
-}
-
-function stripSupraSpaceTypographyTags(value: string): string {
-  return value
-    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
-    .replace(/\{\s*\/\s*font\s*\}/gi, '')
-    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*size\s*\}/gi, '');
 }
 
 function insertPreselectedTypographyText(
@@ -947,8 +940,6 @@ const MEDIA_LABELS: Record<string, string> = {
   file: '📎 File', poll: '📊 Poll', event: '📅 Event',
 };
 // Renders message content with markdown formatting (bold, italic, underline, strike, code, bullets, quotes, links, @mentions)
-const MD_SPLIT = /(\{\s*color\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*color\s*\}|\{\s*highlight\s*:\s*#[0-9a-f]{3,8}\s*\}[\s\S]*?\{\s*\/\s*highlight\s*\}|\{\s*font\s*:\s*[a-z-]+\s*\}[\s\S]*?\{\s*\/\s*font\s*\}|\{\s*size\s*:\s*\d{1,3}\s*\}[\s\S]*?\{\s*\/\s*size\s*\}|\*\*[^*\n]+\*\*|~~[^~\n]+~~|__[^_\n]+__|_[^_\n]+_|`[^`\n]+`|https?:\/\/[^\s]+|@\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
-
 function normalizeMultilineMarkdownBlocks(text: string): string {
   return text.replace(/\*\*([\s\S]+?)\*\*/g, (match, inner: string) =>
     inner.includes('\n') && !inner.includes('**')
@@ -1116,57 +1107,8 @@ function messagePreviewText(content?: string | null): string {
 }
 
 function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
-  if (text.startsWith('**') && text.endsWith('**') && text.length > 4)
-    return [<strong key={`${keyPrefix}-strong-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-strong-wrap`)}</strong>];
-  if (text.startsWith('~~') && text.endsWith('~~') && text.length > 4)
-    return [<s key={`${keyPrefix}-strike-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-strike-wrap`)}</s>];
-  if (text.startsWith('__') && text.endsWith('__') && text.length > 4)
-    return [<u key={`${keyPrefix}-underline-wrap`}>{renderInlineMd(text.slice(2, -2), isOwn, `${keyPrefix}-underline-wrap`)}</u>];
-  if (text.startsWith('_') && text.endsWith('_') && text.length > 2)
-    return [<em key={`${keyPrefix}-em-wrap`}>{renderInlineMd(text.slice(1, -1), isOwn, `${keyPrefix}-em-wrap`)}</em>];
+  return renderSupraSpaceRichTextInline(text, isOwn, keyPrefix);
 
-  return text.split(MD_SPLIT).map((part, i) => {
-    const k = `${keyPrefix}-${i}`;
-    const colorMatch = part.match(/^\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*color\s*\}$/i);
-    if (colorMatch) return <span key={k} style={{ color: isNearBlackHexColor(colorMatch[1]) ? (isOwn ? 'rgba(255,255,255,0.95)' : 'var(--foreground)') : colorMatch[1] }}>{renderInlineMd(colorMatch[2], isOwn, `${k}-color`)}</span>;
-    const highlightMatch = part.match(/^\{\s*highlight\s*:\s*(#[0-9a-f]{3,8})\s*\}([\s\S]*)\{\s*\/\s*highlight\s*\}$/i);
-    if (highlightMatch) return <span key={k} style={{ backgroundColor: highlightMatch[1], borderRadius: 3, padding: '0 2px' }}>{renderInlineMd(highlightMatch[2], isOwn, `${k}-highlight`)}</span>;
-    const fontMatch = part.match(/^\{\s*font\s*:\s*([a-z-]+)\s*\}([\s\S]*)\{\s*\/\s*font\s*\}$/i);
-    if (fontMatch) {
-      const family = fontMatch[1].toLowerCase() as SS4FontFamilyId;
-      const resolved = SS4_FONT_FAMILIES.some(option => option.id === family)
-        ? family
-        : SS4_DEFAULT_FONT_FAMILY;
-      return <span key={k} style={{ fontFamily: ss4FontFamilyCss(resolved) }}>{renderInlineMd(fontMatch[2], isOwn, `${k}-font`)}</span>;
-    }
-    const sizeMatch = part.match(/^\{\s*size\s*:\s*(\d{1,3})\s*\}([\s\S]*)\{\s*\/\s*size\s*\}$/i);
-    if (sizeMatch) {
-      const numericSize = Number.parseInt(sizeMatch[1], 10) as SS4FontSize;
-      const resolved = SS4_FONT_SIZES.includes(numericSize)
-        ? numericSize
-        : SS4_DEFAULT_FONT_SIZE;
-      return <span key={k} style={{ fontSize: `${resolved}px` }}>{renderInlineMd(sizeMatch[2], isOwn, `${k}-size`)}</span>;
-    }
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
-      return <strong key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strong`)}</strong>;
-    if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4)
-      return <s key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-strike`)}</s>;
-    if (part.startsWith('__') && part.endsWith('__') && part.length > 4)
-      return <u key={k}>{renderInlineMd(part.slice(2, -2), isOwn, `${k}-underline`)}</u>;
-    if (part.startsWith('_') && part.endsWith('_') && part.length > 2)
-      return <em key={k}>{renderInlineMd(part.slice(1, -1), isOwn, `${k}-em`)}</em>;
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
-      return <code key={k} style={{ fontFamily: 'monospace', fontSize: '0.9em', background: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderRadius: 3, padding: '0 3px' }}>{part.slice(1, -1)}</code>;
-    if (/^https?:\/\//.test(part))
-      return <a key={k} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isOwn ? 'rgba(255,255,255,0.85)' : '#60a5fa', textDecoration: 'underline' }}>{part}</a>;
-    if (/^@/.test(part))
-      return <span key={k} className="font-bold" style={isOwn ? { color: 'rgba(255,255,255,0.95)' } : { color: '#60a5fa' }}>{part}</span>;
-    return stripResidualSupraSpaceInlineControlMarkers(
-      stripSupraSpaceTypographyTags(
-        part.replace(/\{\s*\/?\s*(?:color|highlight)(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
-      ),
-    );
-  });
 }
 
 function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
@@ -1511,16 +1453,6 @@ function cssColorToHex(color: string | null | undefined): string | null {
   const alpha = rgb[4] ? Number.parseFloat(rgb[4]) : 1;
   if (alpha <= 0) return null;
   return `#${rgb.slice(1, 4).map(channel).map(value => value.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function isNearBlackHexColor(color?: string): boolean {
-  const raw = color?.trim().replace(/^#/, '');
-  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
-  const expanded = raw.length === 3 ? raw.split('').map(ch => ch + ch).join('') : raw.slice(0, 6);
-  const r = Number.parseInt(expanded.slice(0, 2), 16);
-  const g = Number.parseInt(expanded.slice(2, 4), 16);
-  const b = Number.parseInt(expanded.slice(4, 6), 16);
-  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r <= 24 && g <= 24 && b <= 24;
 }
 
 

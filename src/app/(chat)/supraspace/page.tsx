@@ -65,6 +65,7 @@ import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
 const SS4_MAX_UPLOAD_FILES = 10;
@@ -319,14 +320,6 @@ function normalizeRichEditorFontSizeElements(
     if (resolved) element.style.fontSize = `${resolved}px`;
     element.removeAttribute('size');
   });
-}
-
-function stripSupraSpaceTypographyTags(value: string): string {
-  return value
-    .replace(/\{\s*font\s*:\s*[a-z-]+\s*\}/gi, '')
-    .replace(/\{\s*\/\s*font\s*\}/gi, '')
-    .replace(/\{\s*size\s*:\s*\d{1,3}\s*\}/gi, '')
-    .replace(/\{\s*\/\s*size\s*\}/gi, '');
 }
 
 function clampSupraSpaceMessageText(value: string, maxLength = SS4_MAX_MESSAGE_CHARS): string {
@@ -3488,223 +3481,9 @@ function messagePreviewText(content?: string | null): string {
   return getSupraSpaceMessagePreviewText(content);
 }
 
-function isNearWhiteHexColor(color?: string): boolean {
-  const raw = color?.trim().replace(/^#/, '');
-  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
-  const expanded = raw.length === 3
-    ? raw.split('').map(ch => ch + ch).join('')
-    : raw.slice(0, 6);
-  const r = Number.parseInt(expanded.slice(0, 2), 16);
-  const g = Number.parseInt(expanded.slice(2, 4), 16);
-  const b = Number.parseInt(expanded.slice(4, 6), 16);
-  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r >= 238 && g >= 238 && b >= 238;
-}
-
-function isNearBlackHexColor(color?: string): boolean {
-  const raw = color?.trim().replace(/^#/, '');
-  if (!raw || (raw.length !== 3 && raw.length !== 6 && raw.length !== 8)) return false;
-  const expanded = raw.length === 3
-    ? raw.split('').map(ch => ch + ch).join('')
-    : raw.slice(0, 6);
-  const r = Number.parseInt(expanded.slice(0, 2), 16);
-  const g = Number.parseInt(expanded.slice(2, 4), 16);
-  const b = Number.parseInt(expanded.slice(4, 6), 16);
-  return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) && r <= 24 && g <= 24 && b <= 24;
-}
-
 function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
   const result: React.ReactNode[] = [];
-
-  const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false): React.ReactNode[] => {
-    const nodes: React.ReactNode[] = [];
-    let cursor = 0;
-    let index = 0;
-
-    const pushPlain = (plain: string) => {
-      if (!plain) return;
-      plain = stripSupraSpaceTypographyTags(
-        plain.replace(/\{\s*\/?\s*(?:color|highlight)(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''),
-      );
-      const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
-      let last = 0;
-      let match: RegExpExecArray | null;
-      while ((match = tokenPattern.exec(plain)) !== null) {
-        if (match.index > last) nodes.push(plain.slice(last, match.index));
-        const token = match[0];
-        const key = `${keyPrefix}-plain-${index++}`;
-        if (/^https?:\/\//i.test(token) && !insideLink) {
-          const trailing = token.match(/[),.!?]+$/)?.[0] || '';
-          const href = trailing ? token.slice(0, -trailing.length) : token;
-          nodes.push(
-            <React.Fragment key={key}>
-              <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>
-              {trailing}
-            </React.Fragment>
-          );
-        } else if (/^https?:\/\//i.test(token)) {
-          nodes.push(token);
-        } else {
-          nodes.push(isOwn
-            ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', background: 'rgba(255,255,255,0.22)', borderRadius: 4, padding: '0 3px' }}>{token}</span>
-            : <span key={key} className="font-bold" style={{ color: 'var(--accent-text)' }}>{token}</span>
-          );
-        }
-        last = match.index + token.length;
-      }
-      if (last < plain.length) nodes.push(plain.slice(last));
-    };
-
-    const findNextToken = (from: number) => {
-      const candidates: Array<{ start: number; end: number; type: 'color' | 'highlight' | 'font' | 'size' | 'bold' | 'strike' | 'underline' | 'italic' | 'code' | 'link'; color?: string; fontFamily?: SS4FontFamilyId; fontSize?: SS4FontSize; contentStart?: number; contentEnd?: number; linkText?: string; linkHref?: string }> = [];
-      const linkRe = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
-      linkRe.lastIndex = from;
-      const linkMatch = linkRe.exec(text);
-      if (linkMatch) {
-        candidates.push({
-          start: linkMatch.index, end: linkMatch.index + linkMatch[0].length,
-          type: 'link', linkText: linkMatch[1], linkHref: linkMatch[2],
-        });
-      }
-      const colorRe = /\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}/gi;
-      colorRe.lastIndex = from;
-      const colorStart = colorRe.exec(text);
-      if (colorStart) {
-        const closeRe = /\{\s*\/\s*color\s*\}/gi;
-        closeRe.lastIndex = colorStart.index + colorStart[0].length;
-        const close = closeRe.exec(text);
-        if (close) candidates.push({
-          start: colorStart.index,
-          end: close.index + close[0].length,
-          type: 'color',
-          color: colorStart[1],
-          contentStart: colorStart.index + colorStart[0].length,
-          contentEnd: close.index,
-        });
-      }
-      const highlightRe = /\{\s*highlight\s*:\s*(#[0-9a-f]{3,8})\s*\}/gi;
-      highlightRe.lastIndex = from;
-      const highlightStart = highlightRe.exec(text);
-      if (highlightStart) {
-        const closeRe = /\{\s*\/\s*highlight\s*\}/gi;
-        closeRe.lastIndex = highlightStart.index + highlightStart[0].length;
-        const close = closeRe.exec(text);
-        if (close) candidates.push({
-          start: highlightStart.index,
-          end: close.index + close[0].length,
-          type: 'highlight',
-          color: highlightStart[1],
-          contentStart: highlightStart.index + highlightStart[0].length,
-          contentEnd: close.index,
-        });
-      }
-      const fontRe = /\{\s*font\s*:\s*([a-z-]+)\s*\}/gi;
-      fontRe.lastIndex = from;
-      const fontStart = fontRe.exec(text);
-      if (fontStart) {
-        const family = fontStart[1].toLowerCase() as SS4FontFamilyId;
-        const closeRe = /\{\s*\/\s*font\s*\}/gi;
-        closeRe.lastIndex = fontStart.index + fontStart[0].length;
-        const close = closeRe.exec(text);
-        if (close && SS4_FONT_FAMILIES.some(option => option.id === family)) candidates.push({
-          start: fontStart.index,
-          end: close.index + close[0].length,
-          type: 'font',
-          fontFamily: family,
-          contentStart: fontStart.index + fontStart[0].length,
-          contentEnd: close.index,
-        });
-      }
-      const sizeRe = /\{\s*size\s*:\s*(\d{1,3})\s*\}/gi;
-      sizeRe.lastIndex = from;
-      const sizeStart = sizeRe.exec(text);
-      if (sizeStart) {
-        const fontSize = Number.parseInt(sizeStart[1], 10) as SS4FontSize;
-        const closeRe = /\{\s*\/\s*size\s*\}/gi;
-        closeRe.lastIndex = sizeStart.index + sizeStart[0].length;
-        const close = closeRe.exec(text);
-        if (close && SS4_FONT_SIZES.includes(fontSize)) candidates.push({
-          start: sizeStart.index,
-          end: close.index + close[0].length,
-          type: 'size',
-          fontSize,
-          contentStart: sizeStart.index + sizeStart[0].length,
-          contentEnd: close.index,
-        });
-      }
-      const markerDefs: Array<[string, 'bold' | 'strike' | 'underline' | 'code']> = [['**', 'bold'], ['~~', 'strike'], ['__', 'underline'], ['`', 'code']];
-      markerDefs.forEach(([marker, type]) => {
-        const start = text.indexOf(marker, from);
-        if (start < 0) return;
-        const end = text.indexOf(marker, start + marker.length);
-        if (end > start + marker.length && !text.slice(start + marker.length, end).includes('\n')) candidates.push({ start, end: end + marker.length, type });
-      });
-      const italicRe = /(?<!\w)_([^_\n]+)_(?!\w)/g;
-      italicRe.lastIndex = from;
-      const italicMatch = italicRe.exec(text);
-      if (italicMatch) {
-        candidates.push({ start: italicMatch.index, end: italicMatch.index + italicMatch[0].length, type: 'italic' });
-      }
-      return candidates.sort((a, b) => a.start - b.start || a.end - b.end)[0] || null;
-    };
-
-    while (cursor < text.length) {
-      const token = findNextToken(cursor);
-      if (!token) {
-        pushPlain(text.slice(cursor));
-        break;
-      }
-      if (token.start > cursor) pushPlain(text.slice(cursor, token.start));
-      const key = `${keyPrefix}-fmt-${index++}`;
-      if (token.type === 'color') {
-        const inner = text.slice(token.contentStart, token.contentEnd);
-        nodes.push(
-          <span key={key} className={isNearBlackHexColor(token.color) ? 'ss4-readable-dark-color' : !isOwn && isNearWhiteHexColor(token.color) ? 'ss4-readable-light-color' : undefined} style={{ color: token.color }}>
-            {renderInline(inner, key, insideLink)}
-          </span>
-        );
-      } else if (token.type === 'highlight') {
-        const inner = text.slice(token.contentStart, token.contentEnd);
-        nodes.push(
-          <span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>
-            {renderInline(inner, key, insideLink)}
-          </span>
-        );
-      } else if (token.type === 'font') {
-        const inner = text.slice(token.contentStart, token.contentEnd);
-        nodes.push(
-          <span key={key} style={{ fontFamily: ss4FontFamilyCss(token.fontFamily || SS4_DEFAULT_FONT_FAMILY) }}>
-            {renderInline(inner, key, insideLink)}
-          </span>
-        );
-      } else if (token.type === 'size') {
-        const inner = text.slice(token.contentStart, token.contentEnd);
-        nodes.push(
-          <span key={key} style={{ fontSize: `${token.fontSize || SS4_DEFAULT_FONT_SIZE}px` }}>
-            {renderInline(inner, key, insideLink)}
-          </span>
-        );
-      } else if (token.type === 'bold') {
-        nodes.push(<strong key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</strong>);
-      } else if (token.type === 'strike') {
-        nodes.push(<s key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</s>);
-      } else if (token.type === 'underline') {
-        nodes.push(<u key={key}>{renderInline(text.slice(token.start + 2, token.end - 2), key, insideLink)}</u>);
-      } else if (token.type === 'italic') {
-        nodes.push(<em key={key}>{renderInline(text.slice(token.start + 1, token.end - 1), key, insideLink)}</em>);
-      } else if (token.type === 'link') {
-        nodes.push(
-          <a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>
-            {renderInline(token.linkText || '', key, true)}
-          </a>
-        );
-      } else {
-        nodes.push(<code key={key} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{text.slice(token.start + 1, token.end - 1)}</code>);
-      }
-      cursor = token.end;
-    }
-
-    return nodes;
-  };
+  const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false) => renderSupraSpaceRichTextInline(text, isOwn, keyPrefix, insideLink);
 
   const normalized = normalizeMessageMarkdownForDisplay(content);
   const rawLines = normalized.split('\n');
