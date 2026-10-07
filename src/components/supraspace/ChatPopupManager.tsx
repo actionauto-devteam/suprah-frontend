@@ -6019,6 +6019,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [accentColor, conv.members, conv.type, crmUserId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
       pastePlainTextShortcutRef.current = true;
       window.setTimeout(() => {
@@ -6452,6 +6454,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               onMouseUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyUp={() => { rememberEditSelection(); refreshPopupEditFormats(); }}
                               onKeyDown={e => {
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                                 if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') {
                                   editPastePlainTextShortcutRef.current = true;
                                   window.setTimeout(() => { editPastePlainTextShortcutRef.current = false; }, 750);
