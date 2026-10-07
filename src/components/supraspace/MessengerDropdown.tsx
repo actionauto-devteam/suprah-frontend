@@ -9,7 +9,7 @@ import { HeaderDrawer } from "@/components/layout/HeaderDrawer";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
-import { stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { getSupraSpaceConversationPreview } from '@/lib/supra-space-conversation-preview';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -49,35 +49,15 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diff / 86_400_000)}d`;
 }
 
-function cleanPreviewContent(content?: string | null): string {
-  return stripSupraSpaceFormattingForPreview(content);
-}
-
-function shortReactionName(value?: string | null): string {
-  return (value || '').trim().split(/\s+/)[0] || 'Someone';
-}
-
-function reactionPreviewText(conv: SSConv, myId: string | null): string | null {
-  const msg = conv.lastMessage;
-  const reaction = conv.lastReaction;
-  const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
-  const messageAt = msg?.createdAt ? new Date(msg.createdAt).getTime() : 0;
-  if (!reaction?.emoji || !reactionAt || reactionAt < messageAt) return null;
-  const actor = reaction.userId === myId ? 'You' : shortReactionName(reaction.userName);
-  return `${actor} reacted ${reaction.emoji}`;
-}
-
 function previewText(conv: SSConv, myId: string | null): string {
-  const msg = conv.lastMessage;
-  const reactionPreview = reactionPreviewText(conv, myId);
-  if ((conv.unreadCount || 0) >= 2) return `${conv.unreadCount} new messages`;
-  if (reactionPreview) return reactionPreview;
-  if (!msg || msg.isDeleted) return 'No messages yet';
-  const icons: Record<string, string> = {
-    image: '📷 Photo', voice: '🎤 Voice message', gif: '🎬 GIF',
-    file: '📎 File', poll: '📊 Poll', event: '📅 Event',
-  };
-  return icons[msg.type] ?? cleanPreviewContent(msg.content) ?? '';
+  const preview = getSupraSpaceConversationPreview({
+    lastMessage: conv.lastMessage,
+    lastReaction: conv.lastReaction,
+    unreadCount: conv.unreadCount,
+    conversationType: conv.type,
+    viewerId: myId,
+  });
+  return `${preview.senderPrefix}${preview.text}`;
 }
 
 function escapeRegExp(value: string): string {
@@ -409,7 +389,6 @@ export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open
                 </div>
               ) : (
                 filteredConversations.map((conv) => {
-                  const msg = conv.lastMessage;
                   const isUnread = isConvUnread(conv, crmUserId);
                   const name = getDisplayName(conv, crmUserId);
                   const avatarSrc = getAvatarSrc(conv, crmUserId);

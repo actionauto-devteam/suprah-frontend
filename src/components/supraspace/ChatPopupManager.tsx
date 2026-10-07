@@ -10,7 +10,8 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { createMessageId } from './composer/send-state';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import {
   useSupraSpaceMessenger,
@@ -1111,10 +1112,7 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 }
 
 function messagePreviewText(content?: string | null): string {
-  if (!content) return '';
-  return stripSupraSpaceFormattingForPreview(
-    normalizeMessageMarkdownForDisplay(content),
-  );
+  return getSupraSpaceMessagePreviewText(content);
 }
 
 function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
@@ -8062,11 +8060,13 @@ function ChatOverflowDock({
               const name = getDisplayName(conv, crmUserId);
               const avatar = getAvatarSrc(conv, crmUserId);
               const unreadCount = conv.unreadCount || 0;
-              const preview = unreadCount >= 2
-                ? `${unreadCount} new messages`
-                : conv.lastMessage?.isDeleted
-                  ? 'Message deleted'
-                  : messagePreviewText(conv.lastMessage?.content) || (conv.lastMessage ? 'Attachment' : 'No messages yet');
+              const preview = getSupraSpaceConversationPreview({
+                lastMessage: conv.lastMessage,
+                lastReaction: conv.lastReaction,
+                unreadCount,
+                conversationType: conv.type,
+                viewerId: crmUserId,
+              });
               return (
                 <div
                   key={conv._id}
@@ -8084,7 +8084,7 @@ function ChatOverflowDock({
                     </Avatar>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-foreground">{name}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{preview}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">{preview.senderPrefix}{preview.text}</span>
                     </span>
                   </button>
                   <button

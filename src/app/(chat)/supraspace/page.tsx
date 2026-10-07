@@ -62,7 +62,8 @@ import { getOperationalMessageKind, OperationalMessageCard, type OperationalMess
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup, stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 
@@ -3278,12 +3279,6 @@ function normalizeMultilineMarkdownBlocks(text: string): string {
   return normalized;
 }
 
-function stripResidualSingleMarkdownMarkers(value: string): string {
-  return value
-    .replace(/(^|[^\w_])_(?=\S)/g, '$1')
-    .replace(/(?<=\S)_(?=$|[^\w_])/g, '');
-}
-
 const STRUCTURED_LEAD_LABEL_PATTERN = '(?:Age|Lead|Original Cost|Retail Price|Maxoffer|Profit)';
 
 function normalizeCopiedMarkdownArtifacts(text: string): string {
@@ -3490,31 +3485,7 @@ function normalizeMessageMarkdownForDisplay(text: string): string {
 }
 
 function messagePreviewText(content?: string | null): string {
-  if (!content) return '';
-  return stripResidualSingleMarkdownMarkers(
-    stripSupraSpaceFormattingForPreview(
-      normalizeMessageMarkdownForDisplay(content),
-    ),
-  );
-}
-
-function shortReactionName(value?: string | null): string {
-  return (value || '').trim().split(/\s+/)[0] || 'Someone';
-}
-
-function reactionActivityPreviewText(conv: SSConversation, uid: string, message?: SSMessage | null): string | null {
-  const reaction = conv.lastReaction;
-  const reactionAt = reaction?.createdAt ? new Date(reaction.createdAt).getTime() : 0;
-  const messageAt = message?.createdAt ? new Date(message.createdAt).getTime() : 0;
-  if (
-    !reaction?.emoji
-    || reaction.userId === uid
-    || message?.sender?._id !== uid
-    || !Number.isFinite(reactionAt)
-    || reactionAt <= 0
-    || reactionAt < messageAt
-  ) return null;
-  return `${shortReactionName(reaction.userName)} reacted ${reaction.emoji} to your message`;
+  return getSupraSpaceMessagePreviewText(content);
 }
 
 function isNearWhiteHexColor(color?: string): boolean {
@@ -8977,19 +8948,17 @@ const ConvRow = React.memo(function ConvRow({
   const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
     ? conv.lastMessage
     : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
-  const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
-  const lastPreview = unreadCount >= 2 ? `${unreadCount} new messages`
-    : reactionPreview ? reactionPreview
-      : !effectiveLastMsg ? 'No messages yet'
-        : effectiveLastMsg.isDeleted ? 'Message deleted'
-          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
-            : effectiveLastMsg.type === 'gif' ? 'GIF'
-              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
-                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
-                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
+  const conversationPreview = getSupraSpaceConversationPreview({
+    lastMessage: effectiveLastMsg,
+    lastReaction: conv.lastReaction,
+    unreadCount,
+    conversationType: conv.type,
+    viewerId: uid,
+  });
+  const lastPreview = conversationPreview.text;
   const draftPreview = messagePreviewText(composerDraftPreviews[conv._id]);
   const hasDraftPreview = Boolean(draftPreview);
-  const senderPrefix = !reactionPreview && conv.type === 'group' && effectiveLastMsg && !effectiveLastMsg.isDeleted && effectiveLastMsg.sender?._id !== uid ? `${(effectiveLastMsg.sender?.fullName || '').split(' ')[0]}: ` : '';
+  const senderPrefix = conversationPreview.senderPrefix;
   const [actionKeyboardFocus, setActionKeyboardFocus] = React.useState(false);
   const ddOpen = openConvMenuId === conv._id;
   const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
@@ -10804,6 +10773,18 @@ export default function SupraSpacePage() {
       if (Array.isArray(attachments)) patch.attachments = attachments;
       if (type) patch.type = type;
       patchMsg(conversationId, messageId, patch);
+      setConvos(prev => prev.map(conversation => {
+        const lastMessage = conversation.lastMessage;
+        if (conversation._id !== conversationId || !lastMessage || lastMessage._id !== messageId) return conversation;
+        const updatedLastMessage: SSMessage = {
+          ...lastMessage,
+          content,
+          isEdited: true,
+          ...(Array.isArray(attachments) ? { attachments } : {}),
+          ...(type ? { type } : {}),
+        };
+        return { ...conversation, lastMessage: updatedLastMessage };
+      }));
     };
     const onPinned = ({ conversationId, messageId, pinned, pinnedBy, pinnedAt }: { conversationId: string; messageId: string; pinned: boolean; pinnedBy?: string[]; pinnedAt?: string | null }) => {
       setPinnedMsgIds(prev => {
@@ -13583,17 +13564,14 @@ export default function SupraSpacePage() {
     const effectiveLastMsg = (conv.lastMessage && !conv.lastMessage.isDeleted)
       ? conv.lastMessage
       : (cachedConvMsgs?.length ? [...cachedConvMsgs].filter(m => !m.isDeleted).slice(-1)[0] || conv.lastMessage : conv.lastMessage);
-    const reactionPreview = reactionActivityPreviewText(conv, uid, effectiveLastMsg);
-    const preview = reactionPreview
-      ? reactionPreview
-      : !effectiveLastMsg ? 'No messages yet'
-        : effectiveLastMsg.isDeleted ? 'Message deleted'
-          : effectiveLastMsg.type === 'voice' ? '\u{1f3a4} Voice message'
-            : effectiveLastMsg.type === 'gif' ? 'GIF'
-              : effectiveLastMsg.type === 'poll' ? `\u{1f4ca} ${effectiveLastMsg.poll?.question || 'Poll'}`
-                : effectiveLastMsg.type === 'event' ? `\u{1f4c5} ${effectiveLastMsg.event?.title || 'Event'}`
-                  : messagePreviewText(effectiveLastMsg.content) || (effectiveLastMsg.attachments?.length ? '\u{1f4ce} Attachment' : 'No messages yet');
     const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+    const preview = getSupraSpaceConversationPreview({
+      lastMessage: effectiveLastMsg,
+      lastReaction: conv.lastReaction,
+      unreadCount,
+      conversationType: conv.type,
+      viewerId: uid,
+    });
     const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
     return (
       <button
@@ -13615,7 +13593,7 @@ export default function SupraSpacePage() {
             <span className="ml-auto shrink-0" style={{ fontSize: 10.5, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
           </span>
           <span className="mt-0.5 flex items-center gap-2">
-            <span className="truncate" style={{ fontSize: 12, color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400 }}>{preview}</span>
+            <span className="truncate" style={{ fontSize: 12, color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isUnread ? 600 : 400 }}>{preview.senderPrefix}{preview.text}</span>
             {unreadCount > 0 && (
               <span className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-bold" style={{ fontSize: 9, background: 'var(--accent)', color: '#fff' }}>
                 {unreadCount > 99 ? '99+' : unreadCount}

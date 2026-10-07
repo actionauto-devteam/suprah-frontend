@@ -32,6 +32,9 @@ export interface SSLastMessage {
   readBy: string[];
   isDeleted: boolean;
   createdAt: string;
+  attachments?: unknown[];
+  poll?: { question?: string } | null;
+  event?: { title?: string } | null;
 }
 
 export interface SSLastReaction {
@@ -540,6 +543,27 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
     listen('message:reaction', (payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null }) => {
       setConversations(prev => applyReactionActivityToConversations(prev, payload));
+    });
+
+    listen('message:edited', ({ conversationId, messageId, content, attachments, type }: {
+      conversationId: string;
+      messageId: string;
+      content: string;
+      attachments?: unknown[];
+      type?: string;
+    }) => {
+      setConversations(prev => prev.map(conv => {
+        if (conv._id !== conversationId || conv.lastMessage?._id !== messageId) return conv;
+        return {
+          ...conv,
+          lastMessage: {
+            ...conv.lastMessage,
+            content,
+            ...(Array.isArray(attachments) ? { attachments } : {}),
+            ...(type ? { type } : {}),
+          },
+        };
+      }));
     });
 
     listen('message:deleted', ({ conversationId, unreadUserIds = [] }: { conversationId: string; unreadUserIds?: string[] }) => {
