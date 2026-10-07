@@ -253,7 +253,7 @@ export default function SuprahMeetGuestPage() {
         )}
 
         <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur">
-          <GuestCtl on={meet.micOn} onClick={meet.toggleMic}
+          <GuestCtl on={meet.micOn} onClick={() => void meet.toggleMic()}
             label={meet.micOn ? "Mute" : "Unmute"}
             iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
           <GuestCtl on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
@@ -262,16 +262,7 @@ export default function SuprahMeetGuestPage() {
             <GuestCtl on onClick={() => void meet.switchCamera()} label="Flip camera"
               iconOn={<SwitchCamera className="size-5" />} iconOff={<SwitchCamera className="size-5" />} />
           )}
-          <GuestCtl on={!meet.sharing} accent
-            onClick={() => {
-              if (!meet.shareSupported) {
-                setToast(/iPad|iPhone|iPod/i.test(navigator.userAgent)
-                  ? "Screen sharing isn't available in iPhone/iPad browsers — Apple only allows it in native apps. Join from a computer to share your screen."
-                  : "This browser can't share screens — try Chrome or Edge on a computer.");
-                return;
-              }
-              void meet.toggleShare();
-            }}
+          <GuestCtl on={!meet.sharing} accent onClick={() => void meet.toggleShare()}
             label={meet.sharing ? "Stop share" : "Share screen"}
             iconOn={<MonitorUp className="size-5" />} iconOff={<ScreenShareOff className="size-5" />} />
           <GuestCtl on={!meet.handRaised} accent onClick={meet.toggleHand}
