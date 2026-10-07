@@ -167,6 +167,11 @@ export function useSuprahMeet() {
   const wakeLockRef = useRef<any>(null);
   const sharingRef = useRef(false);
   const contentStreamRef = useRef<MediaStream | null>(null);
+  // Whether a microphone input was ever successfully started. When mic access
+  // is blocked, we JOIN ANYWAY (listen-only) instead of failing the whole
+  // meeting with Chime's "Error fetching device." — and the mic button then
+  // retries acquisition once the user unblocks it.
+  const micStartedRef = useRef(false);
 
   const av = () => sessionRef.current?.audioVideo ?? null;
 
@@ -341,11 +346,22 @@ export function useSuprahMeet() {
         } catch { /* ignore */ }
       });
 
-      const audioInputs = await audioVideo.listAudioInputDevices();
-      if (audioInputs[0]) await audioVideo.startAudioInput(audioInputs[0].deviceId);
+      // Devices: NEVER let a blocked/busy mic or camera kill the join.
+      // (Chime throws GetUserMediaError "Error fetching device." when the
+      // browser refuses the device — e.g. permissions set to Block.)
+      micStartedRef.current = false;
+      try {
+        const audioInputs = await audioVideo.listAudioInputDevices();
+        if (audioInputs[0]) {
+          await audioVideo.startAudioInput(audioInputs[0].deviceId);
+          micStartedRef.current = true;
+        }
+      } catch { /* mic blocked or in use — join listen-only */ }
 
-      const videoInputs = await audioVideo.listVideoInputDevices();
-      videoDevicesRef.current = videoInputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
+      try {
+        const videoInputs = await audioVideo.listVideoInputDevices();
+        videoDevicesRef.current = videoInputs.map((d) => ({ deviceId: d.deviceId, label: d.label || "" }));
+      } catch { videoDevicesRef.current = []; }
       const frontIdx = videoDevicesRef.current.findIndex((d) => /front|user/i.test(d.label));
       camIndexRef.current = frontIdx >= 0 ? frontIdx : 0;
       setVideoDeviceCount(videoDevicesRef.current.length);
@@ -358,7 +374,10 @@ export function useSuprahMeet() {
 
       audioVideo.start();
       joinedAtRef.current = Date.now();
-      setMicOn(true);
+      setMicOn(micStartedRef.current);
+      if (!micStartedRef.current) {
+        setNotice("You've joined without a microphone — the browser is blocking it (or another app is using it). Allow the mic in the site permissions, then tap the mic button.");
+      }
       setPhase("in");
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Could not join the meeting.");
@@ -374,12 +393,29 @@ export function useSuprahMeet() {
     if (el) av()?.bindVideoElement(tileId, el);
   }, []);
 
-  const toggleMic = useCallback(() => {
+  const toggleMic = useCallback(async () => {
     const audioVideo = av();
     if (!audioVideo) return;
-    if (micOn) audioVideo.realtimeMuteLocalAudio();
-    else audioVideo.realtimeUnmuteLocalAudio();
-    setMicOn(!micOn);
+    if (micOn) {
+      audioVideo.realtimeMuteLocalAudio();
+      setMicOn(false);
+      return;
+    }
+    // If the mic was blocked at join time, retry acquiring it now (the user
+    // may have just allowed it in the browser's site permissions).
+    if (!micStartedRef.current) {
+      try {
+        const audioInputs = await audioVideo.listAudioInputDevices();
+        if (!audioInputs[0]) throw new Error("no mic");
+        await audioVideo.startAudioInput(audioInputs[0].deviceId);
+        micStartedRef.current = true;
+      } catch {
+        setNotice("The microphone is still blocked. Open the browser's site permissions for suprah-app.com, set Microphone to Allow, then try again.");
+        return;
+      }
+    }
+    audioVideo.realtimeUnmuteLocalAudio();
+    setMicOn(true);
   }, [micOn]);
 
   // Backgrounds need WebGL2 + WASM — probe once, hide the UI when unsupported.
@@ -486,12 +522,22 @@ export function useSuprahMeet() {
   }, [applyTogether]);
 
 
-  /** Can this browser capture a screen at all? Phone browsers (iOS Safari,
-   *  Android Chrome) cannot — OS-level capture needs a native app — so on
-   *  those, toggleShare presents the BACK CAMERA as the shared content
-   *  instead, which works everywhere today. */
+  /** Can this browser REALLY capture a screen? Phone browsers cannot — iOS
+   *  has no screen capture for web at all, and Android Chrome DEFINES
+   *  getDisplayMedia but always rejects it with NotAllowedError (a known
+   *  quirk that fools plain feature detection). So: mobile UA → treat as
+   *  unsupported and present the BACK CAMERA as the shared content instead,
+   *  which works on every phone today. True phone screen-share requires the
+   *  native companion app (ReplayKit / MediaProjection). */
+  const isMobileUA =
+    typeof navigator !== "undefined" &&
+    (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      // iPadOS reports itself as desktop Safari ("MacIntel") but has touch.
+      ((navigator as any).platform === "MacIntel" && (navigator.maxTouchPoints ?? 0) > 1));
   const shareSupported =
-    typeof navigator !== "undefined" && Boolean((navigator.mediaDevices as any)?.getDisplayMedia);
+    !isMobileUA &&
+    typeof navigator !== "undefined" &&
+    Boolean((navigator.mediaDevices as any)?.getDisplayMedia);
 
   const acquireWakeLock = useCallback(async () => {
     try { wakeLockRef.current = await (navigator as any).wakeLock?.request?.("screen") ?? null; }
@@ -532,8 +578,19 @@ export function useSuprahMeet() {
       try {
         let stream: MediaStream | undefined;
         if (shareSupported) {
-          // Desktop (and any browser with getDisplayMedia): real screen capture.
-          stream = await audioVideo.startContentShareFromScreenCapture();
+          // Desktop: capture the screen OURSELVES instead of via Chime's
+          // startContentShareFromScreenCapture. Chime wraps every failure —
+          // including a plain picker cancel — in GetUserMediaError ("Error
+          // fetching device.") and, depending on SDK version, drops the real
+          // cause, making cancels impossible to tell apart from failures.
+          // Raw getDisplayMedia keeps real DOMException names (NotAllowedError
+          // on cancel, NotReadableError when the OS blocks capture).
+          stream = await (navigator.mediaDevices as any).getDisplayMedia({
+            video: { frameRate: { ideal: 15 } },
+            audio: false,
+          });
+          contentStreamRef.current = stream ?? null;
+          if (stream) await audioVideo.startContentShare(stream);
         } else {
           // Phones: no mobile browser can capture the screen (Android Chrome
           // and iOS Safari both lack getDisplayMedia — OS-level capture needs

@@ -651,8 +651,11 @@ export default function SuprahMeetRoomPage() {
             {meet.canControl && (
               <Button variant="outline"
                 title="Ends the meeting for everyone. Host-only while the host is in the room."
-                className="hidden h-11 rounded-xl border-rose-400/40 px-4 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:inline-flex"
-                onClick={() => void meet.endMeeting()}>End for all</Button>
+                className="h-11 rounded-xl border-rose-400/40 px-3 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:px-4"
+                onClick={() => void meet.endMeeting()}>
+                <span className="sm:hidden">End all</span>
+                <span className="hidden sm:inline">End for all</span>
+              </Button>
             )}
           </footer>
         </main>
