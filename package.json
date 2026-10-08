@@ -6,7 +6,8 @@
     "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:supraspace-rich-links": "node scripts/test-supraspace-rich-links.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,3 +1,5 @@
+import { isSafeSupraSpaceLinkHref } from './supra-space-links';
+
 type CssColorNormalizer = (value: string | null | undefined) => string | null;
 
 const INLINE_STYLE_TAGS = new Set([
@@ -51,7 +53,7 @@ export function sanitizeSupraSpacePastedEditorHtml(
     const highlight = getSupraSpaceClipboardHighlight(element, normalizeColor);
     const tag = element.tagName.toLowerCase();
     const href = element.getAttribute('href') || '';
-    const safeHref = /^(?:https?:|mailto:)/i.test(href);
+    const safeHref = isSafeSupraSpaceLinkHref(href);
 
     Array.from(element.attributes).forEach(attribute => {
       const name = attribute.name.toLowerCase();

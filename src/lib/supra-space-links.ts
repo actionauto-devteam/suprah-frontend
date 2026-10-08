@@ -8,7 +8,26 @@ export type SupraSpaceMarkdownLink = {
 const AUTO_URL_RE = /https?:\/\/[^\s<]+/gi;
 
 export function isSafeSupraSpaceLinkHref(value: string): boolean {
-  return /^(?:https?:\/\/|mailto:)/i.test(value.trim());
+  const href = value.trim();
+  try {
+    const url = new URL(href);
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      ? Boolean(url.hostname)
+      : url.protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeLegacySupraSpaceMarkdownLinkLabel(label: string, href: string): string {
+  const normalizedLabel = label.trim().toLowerCase();
+  const normalizedHref = href.trim().toLowerCase();
+  if (
+    (normalizedLabel === 'http://' || normalizedLabel === 'https://')
+    && normalizedHref.startsWith(normalizedLabel)
+    && normalizedHref.length > normalizedLabel.length
+  ) return href;
+  return label;
 }
 
 export function findSupraSpaceMarkdownLink(
@@ -37,7 +56,12 @@ export function findSupraSpaceMarkdownLink(
     if (cursor >= value.length || value[cursor] !== ')') continue;
     const href = value.slice(labelEnd + 2, cursor);
     if (!isSafeSupraSpaceLinkHref(href)) continue;
-    return { start, end: cursor + 1, label, href };
+    return {
+      start,
+      end: cursor + 1,
+      label: normalizeLegacySupraSpaceMarkdownLinkLabel(label, href),
+      href,
+    };
   }
   return null;
 }
