@@ -67,6 +67,7 @@ import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } fro
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
+import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -7291,7 +7292,7 @@ function LightboxModal({ src, type, name, mimeType, poster, onClose, onPrev, onN
   );
 }
 
-function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void }) {
+function FilePreviewItem({ file, onRemove, onPreview }: { file: File; onRemove: () => void; onPreview?: () => void }) {
   const isImg = isImageFileLike(file);
   const isVid = isVideoFileLike(file);
   const [preview, setPreview] = React.useState<string | null>(null);
@@ -7300,8 +7301,8 @@ function FilePreviewItem({ file, onRemove }: { file: File; onRemove: () => void 
   }, [file, isImg, isVid]);
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden shrink-0" style={{ width: 180, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-      {preview && isImg ? <img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} />
-        : preview && isVid ? <video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted playsInline preload="metadata" />
+      {preview && isImg ? <button type="button" onClick={onPreview} disabled={!onPreview} className="block w-full disabled:cursor-default"><img src={preview} alt={file.name} className="w-full object-cover" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} /></button>
+        : preview && isVid ? <button type="button" onClick={onPreview} disabled={!onPreview} className="block w-full disabled:cursor-default"><video src={preview} className="w-full object-contain" style={{ height: 128, background: 'rgba(0,0,0,0.16)' }} muted playsInline preload="metadata" /></button>
           : <div className="flex items-center justify-center" style={{ height: 128, background: 'var(--accent-muted)' }}><FileText className="h-8 w-8" style={{ color: 'var(--accent)' }} /></div>}
       <div className="px-2 py-1.5">
         <p className="truncate" style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700 }}>{file.name}</p>
@@ -9055,6 +9056,7 @@ export default function SupraSpacePage() {
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  const [pendingMediaPreviewIndex, setPendingMediaPreviewIndex] = React.useState<number | null>(null);
   const [sharedTargetFiles, setSharedTargetFiles] = React.useState<File[]>([]);
   const [pwaUpdateAvailable, setPwaUpdateAvailable] = React.useState(false);
   const handledShareTargetIdRef = React.useRef<string | null>(null);
@@ -14400,7 +14402,7 @@ export default function SupraSpacePage() {
                     {pendingFiles.length > 0 && (
                       <div className="ss4-reply-bar flex flex-col gap-2 px-3 py-2.5">
                         <div className="flex items-center justify-between"><p className="font-semibold" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{pendingFiles.length} attachment{pendingFiles.length === 1 ? '' : 's'} ready</p><button onClick={() => setPendingFiles([])} className="ss4-icon-btn h-6 px-2" style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Clear all</button></div>
-                        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} />)}</div>
+                        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{pendingFiles.map((file, index) => <FilePreviewItem key={`${file.name}-${index}`} file={file} onRemove={() => removePendingFile(index)} onPreview={isImageFileLike(file) || isVideoFileLike(file) ? () => setPendingMediaPreviewIndex(pendingFiles.slice(0, index).filter(item => isImageFileLike(item) || isVideoFileLike(item)).length) : undefined} />)}</div>
                       </div>
                     )}
                     {pendingGif && (
@@ -15844,6 +15846,14 @@ export default function SupraSpacePage() {
             />
           );
         })()}
+
+        {pendingMediaPreviewIndex !== null && (
+          <PreSendMediaPreview
+            files={pendingFiles}
+            initialIndex={pendingMediaPreviewIndex}
+            onClose={() => setPendingMediaPreviewIndex(null)}
+          />
+        )}
 
         { }
         {convMobileSheet && (() => {

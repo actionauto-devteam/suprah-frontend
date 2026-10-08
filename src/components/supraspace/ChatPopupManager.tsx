@@ -22,6 +22,7 @@ import {
 import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
+import { PreSendMediaPreview } from './PreSendMediaPreview';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -3865,6 +3866,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const failedDeliveryRef = React.useRef<{ id: string; key: string } | null>(null);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
+  const pendingMediaFiles = React.useMemo(() => pendingAttachments.map(attachment => attachment.file), [pendingAttachments]);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
 
   const deliveryIdFor = React.useCallback((key: string) => {
@@ -4064,6 +4066,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     boundary?: { top: number; right: number; bottom: number; left: number };
   } | null>(null);
   const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string; type?: 'image' | 'video' } | null>(null);
+  const [pendingMediaPreviewIndex, setPendingMediaPreviewIndex] = React.useState<number | null>(null);
   const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
   const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
@@ -7096,7 +7099,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             {isImage ? (
                               <button
                                 type="button"
-                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'image' })}
+                                onClick={() => setPendingMediaPreviewIndex(pendingAttachments.slice(0, index).filter(attachment => attachment.file.type.startsWith('image/') || attachment.file.type.startsWith('video/')).length)}
                                 className="block h-full"
                                 title="Preview image"
                               >
@@ -7105,7 +7108,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             ) : isVideo ? (
                               <button
                                 type="button"
-                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'video' })}
+                                onClick={() => setPendingMediaPreviewIndex(pendingAttachments.slice(0, index).filter(attachment => attachment.file.type.startsWith('image/') || attachment.file.type.startsWith('video/')).length)}
                                 className="relative block h-full"
                                 title="Preview video"
                               >
@@ -7915,6 +7918,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           )}
         </div>,
         document.body
+      )}
+
+      {pendingMediaPreviewIndex !== null && (
+        <PreSendMediaPreview
+          files={pendingMediaFiles}
+          initialIndex={pendingMediaPreviewIndex}
+          onClose={() => setPendingMediaPreviewIndex(null)}
+        />
       )}
 
       {chatSettingsOpen && typeof document !== 'undefined' && createPortal(
