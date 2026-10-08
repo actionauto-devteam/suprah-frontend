@@ -65,6 +65,7 @@ import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
@@ -2983,8 +2984,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
 }
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
-  return stripSupraSpaceControlMarkup(value)
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+  return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -3129,7 +3129,8 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
+  return Boolean(findSupraSpaceMarkdownLink(compatibleText))
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|^\s*[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]\s+\S|^\s*\d+\.\s+\S|^\s*>\s?\S|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText);
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -3149,14 +3150,7 @@ function markdownTextToEditorHtml(text: string): string {
     return Math.max(indentDepth, markerDepth);
   };
 
-  const applyInlineMarkdown = (value: string): string =>
-    escapeHtmlText(value)
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+  const applyInlineMarkdown = supraSpaceMarkdownToEditorInlineHtml;
 
   const renderStyledInline = (value: string): string => {
     const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{highlight:(#[0-9a-fA-F]{3,8})\}|\{\/highlight\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
@@ -12531,11 +12525,20 @@ export default function SupraSpacePage() {
         }
 
         if (type === 'link') {
-          document.execCommand(
-            'insertText',
-            false,
-            selectedText ? `[${selectedText}](url)` : '[text](url)',
-          );
+          const href = window.prompt(
+            'Enter a web or email link',
+            /^https?:\/\//i.test(selectedText) ? selectedText : 'https://',
+          )?.trim();
+          if (!href) return;
+          if (!isSafeSupraSpaceLinkHref(href)) {
+            toast.error('Use an http(s) or mailto link.');
+            return;
+          }
+          if (selectedText) {
+            document.execCommand('createLink', false, href);
+          } else {
+            document.execCommand('insertText', false, href);
+          }
         }
       },
       {

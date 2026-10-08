@@ -14,6 +14,7 @@ import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import {
   useSupraSpaceMessenger,
@@ -1419,7 +1420,8 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
+  return Boolean(findSupraSpaceMarkdownLink(compatibleText))
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
     || compatibleText.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
@@ -2280,8 +2282,7 @@ function clipboardHtmlToListAwareText(html: string): string {
 }
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
-  return stripSupraSpaceControlMarkup(value)
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+  return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -2594,14 +2595,7 @@ function markdownTextToEditorHtml(text: string): string {
     return Math.max(indentDepth, markerDepth);
   };
 
-  const applyInlineMarkdown = (value: string): string =>
-    escapeHtmlText(value)
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+  const applyInlineMarkdown = supraSpaceMarkdownToEditorInlineHtml;
 
   const renderStyledInline = (value: string): string => {
     const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{highlight:(#[0-9a-fA-F]{3,8})\}|\{\/highlight\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
@@ -4950,6 +4944,25 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     syncEditDraft,
   ]);
 
+  const applyEditLink = React.useCallback(() => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
+    const selectedText = range.toString();
+    const href = window.prompt('Enter a web or email link', /^https?:\/\//i.test(selectedText) ? selectedText : 'https://')?.trim();
+    if (!href) return;
+    if (!isSafeSupraSpaceLinkHref(href)) {
+      toast.error('Use an http(s) or mailto link.');
+      return;
+    }
+    const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
+      document.execCommand(selectedText ? 'createLink' : 'insertText', false, href);
+    });
+    if (nextRange) editSelectionRangeRef.current = nextRange;
+    syncEditDraft();
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
+
   const applyEditColor = React.useCallback((color: string) => {
     const root = editAreaRef.current;
     if (!root) return;
@@ -5731,6 +5744,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     syncComposerText(root.innerText.replace(/\n$/, ''), true);
   }, [composerTypingFormats, syncComposerText]);
 
+  const applyComposerLink = React.useCallback(() => {
+    const root = inputRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, inputSelectionRangeRef.current);
+    const selectedText = range.toString();
+    const href = window.prompt('Enter a web or email link', /^https?:\/\//i.test(selectedText) ? selectedText : 'https://')?.trim();
+    if (!href) return;
+    if (!isSafeSupraSpaceLinkHref(href)) {
+      toast.error('Use an http(s) or mailto link.');
+      return;
+    }
+    const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
+      document.execCommand(selectedText ? 'createLink' : 'insertText', false, href);
+    });
+    if (nextRange) inputSelectionRangeRef.current = nextRange;
+    syncComposerText(htmlToMarkdown(root), true);
+  }, [syncComposerText]);
+
   const refreshComposerCaretFormats = React.useCallback(() => {
     try {
       const root = inputRef.current;
@@ -6462,6 +6493,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className={popupEditButtonClass(editActiveFormats.italic)} title="Italic" aria-pressed={editActiveFormats.italic}><Italic className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className={popupEditButtonClass(editActiveFormats.underline)} title="Underline" aria-pressed={editActiveFormats.underline}><Underline className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className={popupEditButtonClass(editActiveFormats.strike)} title="Strikethrough" aria-pressed={editActiveFormats.strike}><Strikethrough className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditLink(); }} className={popupEditButtonClass(false)} title="Add or update link"><Link2 className="h-3.5 w-3.5" /></button>
                               <select
                                 value={editFontFamily}
                                 onPointerDown={() => rememberEditSelection()}
@@ -7282,6 +7314,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   aria-pressed={composerActiveFormats.strike}
                 >
                   <Strikethrough className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerLink();
+                  }}
+                  className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted"
+                  title="Add or update link"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
                 </button>
                 {TEXT_COLORS.map(color => (
                   <button

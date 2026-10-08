@@ -1,4 +1,6 @@
 const DOUBLE_BRACE_CONTROL_TAG = /\{\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}\}/gi;
+import { stripSupraSpaceMarkdownLinksToLabels } from './supra-space-links';
+
 const SINGLE_BRACE_CONTROL_TAG = /\{\s*(?:color|highlight|font|size)\s*:\s*[^{}\n]+\s*\}|\{\s*\/\s*(?:color|highlight|font|size)\s*\}/gi;
 const STYLE_CONTROL_TAG = /\{\s*(\/?)\s*(color|highlight|font|size)(?:\s*:\s*([^{}\n]+?))?\s*\}/gi;
 const EMPTY_CONTROL_WRAPPER = /\{\s*(color|highlight|font|size)\s*:\s*([^{}\n]+?)\s*\}([\s*_~`]*)\{\s*\/\s*\1\s*\}/gi;
@@ -341,11 +343,10 @@ export function stripSupraSpaceFormattingForPreview(
 ): string {
   if (!content) return '';
 
-  return normalizeSupraSpaceLegacyMarkup(content)
+  return stripSupraSpaceMarkdownLinksToLabels(normalizeSupraSpaceLegacyMarkup(content))
     .replace(/\r\n?/g, '\n')
     .replace(/\u00a0/g, ' ')
     .replace(CONTROL_MARKUP_TAG, '')
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
     .replace(/\*\*([\s\S]*?)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
