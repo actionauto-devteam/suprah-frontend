@@ -4,11 +4,31 @@ import * as React from "react";
 import Link from "next/link";
 import { Info, Smartphone, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
-import { phoneTrackingApi, type PhoneTrackingReminder } from "@/lib/api/phone-tracking";
+import { phoneTrackingApi, type PhoneTrackingProvider, type PhoneTrackingReminder } from "@/lib/api/phone-tracking";
 
 const CHECK_INTERVAL_MS = 60_000;
 
-const MESSAGES: Record<Exclude<PhoneTrackingReminder, null | "keep_on">, { title: string; body: string; tone: "amber" | "red" | "blue" }> = {
+type Message = { title: string; body: string; tone: "amber" | "red" | "blue" };
+
+const APP_MESSAGES: Record<Exclude<PhoneTrackingReminder, null | "keep_on">, Message> = {
+  turn_on: {
+    title: "Start on duty in the Suprah Driver Tracker app",
+    body: "Open the app and tap Start on duty so Dispatch can follow your trip, even while you use Google Maps or lock your screen.",
+    tone: "amber",
+  },
+  not_receiving: {
+    title: "The tracker app isn't sending your location",
+    body: "Suprah hasn't received your location from the Suprah Driver Tracker app for a few minutes. Open the app and check that you're on duty and location is allowed all the time.",
+    tone: "red",
+  },
+  turn_off: {
+    title: "You can go off duty in the tracker app",
+    body: "You have no active loads, so Dispatch doesn't need your location. Tap Go off duty in the Suprah Driver Tracker app until your next load.",
+    tone: "blue",
+  },
+};
+
+const MESSAGES: Record<Exclude<PhoneTrackingReminder, null | "keep_on">, Message> = {
   turn_on: {
     title: "Turn on Traccar Client",
     body: "Turn tracking on in Traccar Client so Dispatch can follow your trip, even while you use Google Maps or lock your screen.",
@@ -40,6 +60,7 @@ const TONES = {
 export function DriverPhoneTrackingReminder() {
   const { getToken } = useAuth();
   const [reminder, setReminder] = React.useState<PhoneTrackingReminder>(null);
+  const [provider, setProvider] = React.useState<PhoneTrackingProvider | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -47,7 +68,10 @@ export function DriverPhoneTrackingReminder() {
       if (document.visibilityState !== "visible") return;
       try {
         const state = await phoneTrackingApi.mine(getToken);
-        if (!cancelled) setReminder(state.reminder);
+        if (!cancelled) {
+          setReminder(state.reminder);
+          setProvider(state.device?.provider ?? null);
+        }
       } catch {
         // A reminder is a convenience; keep the last one if a check fails.
       }
@@ -64,7 +88,7 @@ export function DriverPhoneTrackingReminder() {
   }, [getToken]);
 
   if (!reminder || reminder === "keep_on") return null;
-  const message = MESSAGES[reminder];
+  const message = (provider === "app" ? APP_MESSAGES : MESSAGES)[reminder];
   const Icon = message.tone === "red" ? TriangleAlert : message.tone === "blue" ? Info : Smartphone;
   return (
     <div role="status" className={`flex items-start gap-2 rounded-xl border px-4 py-3 ${TONES[message.tone]}`}>

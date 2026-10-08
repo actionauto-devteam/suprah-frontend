@@ -102,7 +102,7 @@ import {
   type PendingLoadRequestAssignmentConflict,
 } from "@/components/driver-tracker/PendingLoadRequestAssignmentDialog";
 import { DispatchChatDialog } from "@/components/dispatch-chat/DispatchChatDialog";
-import { extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
+import { distanceMiles, extractCompatibilityFromError } from "@/lib/driver-load-compatibility";
 import { toast } from "sonner";
 import { useTheme } from "@/context/ThemeContext";
 import { getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
@@ -179,6 +179,28 @@ const ASSIGNABLE_REFRESH_MS = 120000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 // Google Maps once its browser settings are present; Mapbox until then.
 const GOOGLE_MAPS = googleMapsConfig();
+
+type LiveTrailPoint = { lat: number; lng: number; t: number };
+/** Same limits as the server's route cleaning (routeTrace.service). */
+const LIVE_TRAIL_MAX_ACCURACY_METERS = 100;
+const LIVE_TRAIL_MAX_SPEED_MPS = 50;
+const LIVE_TRAIL_MAX_POINTS = 500;
+
+/** Adds a live position for the selected driver, skipping repeats and impossible jumps. */
+function appendLiveTrailPoint(
+  prev: { driverId: string; points: LiveTrailPoint[] } | null,
+  driverId: string,
+  reading: LiveTrailPoint,
+): { driverId: string; points: LiveTrailPoint[] } {
+  const points = prev?.driverId === driverId ? prev.points : [];
+  const last = points[points.length - 1];
+  if (last) {
+    if (reading.t <= last.t) return prev ?? { driverId, points };
+    const meters = distanceMiles(last, reading) * 1609.344;
+    if (meters / ((reading.t - last.t) / 1000) > LIVE_TRAIL_MAX_SPEED_MPS) return prev ?? { driverId, points };
+  }
+  return { driverId, points: [...points, reading].slice(-LIVE_TRAIL_MAX_POINTS) };
+}
 
 interface DispatcherLoadActionOptions {
   endpoint: string;
@@ -408,6 +430,13 @@ export default function DriverTrackerPage() {
   const fleetLayerRef = React.useRef<DriverFleetLayer | null>(null);
   const cameraActionRef = React.useRef(0);
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
+  // Live positions of the selected driver since the last route refresh, so the
+  // route line grows as they drive instead of jumping straight to the marker.
+  const [liveTrail, setLiveTrail] = React.useState<{ driverId: string; points: LiveTrailPoint[] } | null>(null);
+  const selectedDriverIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    selectedDriverIdRef.current = selectedDriverId;
+  }, [selectedDriverId]);
   // Follow: moving the map yourself pauses it (Resume brings it back); Stop,
   // another selection, or losing sight of the driver's location turns it off.
   const [followMode, setFollowMode] = React.useState<FollowMode>("off");
@@ -1929,6 +1958,17 @@ export default function DriverTrackerPage() {
             accuracy?: number | null;
           }) => {
             if (cancelled) return;
+            if (data.driverId === selectedDriverIdRef.current && data.coords) {
+              const measuredMs = Date.parse(String(data.locationRecordedAt ?? data.lastSeenAt ?? ""));
+              const reading = { lat: data.coords.lat, lng: data.coords.lng, t: measuredMs };
+              if (
+                validCoordinates(reading) &&
+                Number.isFinite(measuredMs) &&
+                (data.accuracy == null || data.accuracy <= LIVE_TRAIL_MAX_ACCURACY_METERS)
+              ) {
+                setLiveTrail((prev) => appendLiveTrailPoint(prev, data.driverId, reading));
+              }
+            }
             setDrivers((prev) => {
               const idx = prev.findIndex((d) => d.driver?.id === data.driverId);
               if (idx === -1) return prev;
@@ -2407,7 +2447,12 @@ export default function DriverTrackerPage() {
   const selectedDriverGpsVisible = Boolean(
     selectedDriver && selectedDriver.canViewExactGps !== false && validCoordinates(selectedDriver.coords),
   );
-  const [recentTrail, setRecentTrail] = React.useState<{ driverId: string; points: { lat: number; lng: number }[] } | null>(null);
+  const [recentTrail, setRecentTrail] = React.useState<{
+    driverId: string;
+    points: { lat: number; lng: number }[];
+    /** Measurement time of the newest reading in the server's line. */
+    throughMs: number | null;
+  } | null>(null);
   React.useEffect(() => {
     if (!selectedDriverId || !selectedDriverGpsVisible) return;
     let cancelled = false;
@@ -2423,14 +2468,25 @@ export default function DriverTrackerPage() {
         const points = rows
           .map((row) => ({ lat: Number((row as { lat?: unknown }).lat), lng: Number((row as { lng?: unknown }).lng) }))
           .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
-        if (!cancelled) setRecentTrail({ driverId: selectedDriverId, points });
+        const throughMs = Date.parse(String(response.data?.data?.throughMeasuredAt ?? ""));
+        if (cancelled) return;
+        const through = Number.isFinite(throughMs) ? throughMs : null;
+        setRecentTrail({ driverId: selectedDriverId, points, throughMs: through });
+        // Live positions now covered by the server's (cleaned, road-matched) line are dropped.
+        setLiveTrail((prev) =>
+          prev && prev.driverId === selectedDriverId && through !== null
+            ? { driverId: prev.driverId, points: prev.points.filter((point) => point.t > through) }
+            : prev,
+        );
       } catch {
-        if (!cancelled) setRecentTrail({ driverId: selectedDriverId, points: [] });
+        if (!cancelled) setRecentTrail({ driverId: selectedDriverId, points: [], throughMs: null });
       }
     };
     void loadTrail();
-    // Live positions extend the line in between; this picks up delayed ones.
-    const timer = window.setInterval(() => void loadTrail(), 120_000);
+    // Live positions extend the line in between; this refresh replaces them with
+    // the cleaned line (matched to roads when Amazon Location is on) and picks up
+    // positions a phone sent late.
+    const timer = window.setInterval(() => void loadTrail(), 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -2442,7 +2498,13 @@ export default function DriverTrackerPage() {
     const position = selectedDriverGpsVisible && selectedDriver.coords
       ? { lat: selectedDriver.coords.lat, lng: selectedDriver.coords.lng }
       : null;
-    const history = position && recentTrail?.driverId === selectedDriver.id ? recentTrail.points : [];
+    const serverLine = position && recentTrail?.driverId === selectedDriver.id ? recentTrail.points : [];
+    const through = recentTrail?.driverId === selectedDriver.id ? recentTrail.throughMs : null;
+    const livePoints =
+      position && liveTrail?.driverId === selectedDriver.id
+        ? liveTrail.points.filter((point) => through === null || point.t > through).map(({ lat, lng }) => ({ lat, lng }))
+        : [];
+    const history = [...serverLine, ...livePoints];
     const last = history[history.length - 1];
     const trail = position && last && (last.lat !== position.lat || last.lng !== position.lng) ? [...history, position] : history;
     const accuracy = Number(selectedDriver.accuracy);
@@ -2455,7 +2517,7 @@ export default function DriverTrackerPage() {
         return stopPosition ? [{ key: stop.key, kind: stop.kind, position: stopPosition, title: stop.title, next: stop.next }] : [];
       }),
     };
-  }, [selectedDriver, selectedDriverGpsVisible, recentTrail, selectedStops, selectedStopPositions]);
+  }, [selectedDriver, selectedDriverGpsVisible, recentTrail, liveTrail, selectedStops, selectedStopPositions]);
   const focusLayerRef = React.useRef<DriverFocusLayer | null>(null);
   const driverFocusRef = React.useRef(driverFocus);
   React.useEffect(() => {

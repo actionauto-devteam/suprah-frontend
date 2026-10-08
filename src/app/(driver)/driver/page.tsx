@@ -22,6 +22,7 @@ import {
   type MapCamera,
 } from "@/lib/google-maps";
 import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
+import { LoadEtaPanel } from "@/components/driver-tracker/LoadEtaPanel";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
@@ -2186,6 +2187,13 @@ export default function DriverDashboardPage() {
                         {nextStop.place.notes}
                       </p>
                     )}
+                    <LoadEtaPanel
+                      loadId={currentLoadId}
+                      audience="driver"
+                      enabled={["Accepted", "Picked Up", "In-Transit"].includes(String(currentLoad?.status ?? ""))}
+                      variant="compact"
+                      className="mt-2"
+                    />
                   </div>
                   <OpenInGoogleMapsButton load={currentLoad} className="w-full sm:w-auto" />
                 </div>

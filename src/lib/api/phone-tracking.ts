@@ -1,28 +1,47 @@
 import { apiClient } from "@/lib/api-client";
 
-// Phone tracking with Traccar Client (suprah-backend/src/controllers/driverTrackingDevice.controller.ts).
+// Phone tracking with the Suprah Driver Tracker app or Traccar Client
+// (suprah-backend/src/controllers/driverTrackingDevice.controller.ts).
 
 export type PhoneTrackingReminder = "turn_on" | "keep_on" | "not_receiving" | "turn_off" | null;
 
+/** "app": the Suprah Driver Tracker app. "traccar": Traccar Client. */
+export type PhoneTrackingProvider = "app" | "traccar";
+
 export type DriverPhoneTracking = {
-  /** The company has switched the integration on and configured it. */
+  /** The company has switched phone tracking on. */
   available: boolean;
-  /** Address the driver enters once in Traccar Client. */
+  /** What a new setup uses. */
+  provider: PhoneTrackingProvider | null;
+  /** Traccar: address the driver enters once in Traccar Client. */
   serverUrl: string | null;
+  /** App: where to install it, if the company set a link. */
+  downloadUrl: string | null;
+  /** App: the one-time pairing code, only in the response that created it. */
+  pairingCode: string | null;
   device: {
+    provider: PhoneTrackingProvider;
     status: "pending" | "active" | "revoked";
     /** The identifier to enter in Traccar Client (only ever shown to the driver). */
     identifier: string | null;
     requestedAt: string;
     approvedAt: string | null;
     lastPositionAt: string | null;
+    /** App: the app has paired with the code. */
+    paired: boolean | null;
+    /** App: when the current pairing code stops working. */
+    pairingCodeExpiresAt: string | null;
+    /** App: the phone model it reported. */
+    deviceName: string | null;
   } | null;
   reminder: PhoneTrackingReminder;
 };
 
 export type ReviewerPhoneTracking = {
   available: boolean;
+  provider: PhoneTrackingProvider | null;
   device: {
+    provider: PhoneTrackingProvider;
     status: "pending" | "active" | "revoked";
     /** Last 4 characters, to match with what the driver sees. */
     identifierEndsWith: string;
@@ -30,7 +49,10 @@ export type ReviewerPhoneTracking = {
     approvedAt: string | null;
     approvedByName: string | null;
     lastPositionAt: string | null;
-    traccarSyncStatus: "not_synced" | "synced" | "failed";
+    paired: boolean | null;
+    deviceName: string | null;
+    appVersion: string | null;
+    traccarSyncStatus: "not_synced" | "synced" | "failed" | null;
     traccarSyncError: string | null;
   } | null;
 };
@@ -54,6 +76,10 @@ export const phoneTrackingApi = {
   },
   async start(getToken: TokenGetter) {
     return data<DriverPhoneTracking>(await apiClient.post(MINE, {}, { headers: await headers(getToken) }));
+  },
+  /** App: a fresh pairing code before the app has paired. */
+  async renewCode(getToken: TokenGetter) {
+    return data<DriverPhoneTracking>(await apiClient.post(`${MINE}/pairing-code`, {}, { headers: await headers(getToken) }));
   },
   async remove(getToken: TokenGetter) {
     return data<DriverPhoneTracking>(await apiClient.delete(MINE, { headers: await headers(getToken) }));

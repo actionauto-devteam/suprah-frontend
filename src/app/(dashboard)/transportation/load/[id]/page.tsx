@@ -11,6 +11,7 @@ import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Tru
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
+import { LoadEtaPanel } from "@/components/driver-tracker/LoadEtaPanel"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
@@ -641,6 +642,18 @@ export default function LoadDetailsPage() {
           </p>
         </div>
       )}
+
+      {/* Arrival time at the next stop: the responsible dispatcher and org admins, while the load is on the road. */}
+      <LoadEtaPanel
+        loadId={String(load._id)}
+        audience="staff"
+        enabled={
+          ["Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
+          Boolean(load.assignedDriverId) &&
+          (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+        }
+        className="bg-card shadow-sm"
+      />
 
       {/* ── Route Card ── */}
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">
