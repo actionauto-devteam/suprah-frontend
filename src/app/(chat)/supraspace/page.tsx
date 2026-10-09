@@ -8394,7 +8394,7 @@ function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
               key={c._id}
               conv={c}
               uid={uid}
-              onOpen={sharedConvRowProps.openConversation}
+              onOpen={sharedConvRowProps.openArchivedConversation || sharedConvRowProps.openConversation}
               onUnarchive={sharedConvRowProps.toggleArchiveConv}
               selectionMode={selectionMode}
               selected={selectedIds.has(c._id)}
@@ -9968,6 +9968,7 @@ export default function SupraSpacePage() {
     String((activeConv as any).createdBy) === uid
   ));
   const hasLeftChannel = !!(activeConv?.type === 'group' && (activeConv.leftBy || []).map(String).includes(uid));
+  const isArchivedActiveConv = !!activeConv && (activeConv.archivedBy || []).map(String).includes(uid);
   const isReportGroup = /^DayPulse Reports$/i.test(activeConv?.name || '');
   const isShiftAlertsGroup = /^Shift Alerts$/i.test(activeConv?.name || '');
 
@@ -10692,6 +10693,8 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     if (!socket) return;
     const onMsg = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
+      const conversation = convosRef.current.find(item => item._id === conversationId);
+      if ((conversation?.archivedBy || []).map(String).includes(uid)) return;
       appendMessageLocal(conversationId, message);
       if (conversationId === activeIdRef.current) {
         ctxMarkAsRead(conversationId);
@@ -11181,6 +11184,10 @@ export default function SupraSpacePage() {
 
   const handleSend = async (scheduledAt?: string, retry?: FailedSend) => {
     if (!activeId || sending) return;
+    if (isArchivedActiveConv) {
+      showUploadNotice('info', 'This conversation is archived. Unarchive it to send messages.');
+      return;
+    }
     const draftFiles = retry?.files ?? pendingFiles;
     const draftGif = retry?.gif ?? pendingGif;
     const draftReply = retry?.reply ?? replyTo;
@@ -11416,6 +11423,10 @@ export default function SupraSpacePage() {
 
   const handleUploadFiles = React.useCallback(async (selected: File[]) => {
     if (!activeId) return;
+    if (isArchivedActiveConv) {
+      showUploadNotice('info', 'This conversation is archived. Unarchive it to send messages.');
+      return;
+    }
     const seenIncoming = new Set<string>();
     const existingKeys = new Set(pendingFiles.map(attachmentFileKey));
     const uniqueSelected = selected.filter(file => {
@@ -11433,7 +11444,7 @@ export default function SupraSpacePage() {
     }
     setPendingFiles(prev => [...prev, ...uniqueSelected]);
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
-  }, [activeId, pendingFiles, showUploadNotice]);
+  }, [activeId, isArchivedActiveConv, pendingFiles, showUploadNotice]);
   handleUploadFilesRef.current = handleUploadFiles;
 
   const shareTargetId = searchParams.get('shareTargetId');
@@ -12118,7 +12129,7 @@ export default function SupraSpacePage() {
   };
 
   const handleReact = React.useCallback(async (msgId: string, emoji: string) => {
-    if (!activeId) return;
+    if (!activeId || isArchivedActiveConv) return;
     setMsgs(p => ({
       ...p, [activeId]: (p[activeId] || []).map(m => {
         if (m._id !== msgId) return m;
@@ -12133,19 +12144,23 @@ export default function SupraSpacePage() {
       })
     }));
     try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  }, [activeId, uid, token]);
+  }, [activeId, isArchivedActiveConv, uid, token]);
   const handleVotePoll = React.useCallback(async (msgId: string, optionId: string) => {
+    if (isArchivedActiveConv) return;
     try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch { }
-  }, [activeId, token, patchMsg]);
+  }, [activeId, isArchivedActiveConv, token, patchMsg]);
   const handleRsvp = React.useCallback(async (msgId: string, response: 'going' | 'maybe' | 'declined') => {
+    if (isArchivedActiveConv) return;
     try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/event/rsvp`, { response }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.event) patchMsg(activeId, msgId, { event: r.data.data.event }); } catch { }
-  }, [activeId, token, patchMsg]);
+  }, [activeId, isArchivedActiveConv, token, patchMsg]);
   const createPoll = async (question: string, options: string[], allowMultiple: boolean) => {
     if (!activeId) return; setPollOpen(false);
+    if (isArchivedActiveConv) return;
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/poll`, { question, options, allowMultiple }, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create poll.')); }
   };
   const createEvent = async (ev: { title: string; description: string; location: string; startTime: string; endTime: string }) => {
     if (!activeId) return; setEventOpen(false);
+    if (isArchivedActiveConv) return;
     try { const r = await apiClient.post(`/api/supraspace/conversations/${activeId}/event`, ev, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) appendMessageLocal(activeId, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to create event.')); }
   };
   const handleEdit = React.useCallback(async (msgId: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => {
@@ -13380,6 +13395,7 @@ export default function SupraSpacePage() {
       nameFor={nameFor}
       members={msgSeenByMembers[message._id] || EMPTY_MEMBERS_ARRAY}
       hideTime={hideTime}
+      disableActions={isArchivedActiveConv || hasLeftChannel}
       onEditSave={handleEdit}
       onForward={setForwardMsg}
       suppressActionsDuringScroll={messageScrollActive}
@@ -13387,7 +13403,7 @@ export default function SupraSpacePage() {
       operationalKind={getOperationalMessageKind(message, activeConv?.name)}
       messageTextSize={messageTextSize}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -13542,6 +13558,10 @@ export default function SupraSpacePage() {
     }
     setShowArchived(true);
   }, [exitConversationSelection, isStandaloneApp]);
+  const openArchivedConversation = React.useCallback((conversationId: string) => {
+    setShowArchived(false);
+    openConversation(conversationId);
+  }, [openConversation]);
   const runBulkConversationAction = React.useCallback(async (
     action: 'read' | 'unread' | 'archive' | 'unarchive',
     conversationIds = [...selectedConversationIds],
@@ -13743,7 +13763,7 @@ export default function SupraSpacePage() {
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
-    openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
+    openConversation, openArchivedConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
     selectionMode: conversationSelectionMode,
     selectedConversationIds,
@@ -13915,9 +13935,18 @@ export default function SupraSpacePage() {
             activeId ? 'hidden -translate-x-full lg:flex' : 'flex translate-x-0',
           )}>
             <div
-              className="flex-1 min-h-0 flex-col overflow-hidden"
+              className="relative flex-1 min-h-0 flex-col overflow-hidden"
               style={{ display: sidebarTab === 'chats' ? 'flex' : 'none' }}
             >
+              {!isStandaloneApp && showArchived && (
+                <div className="absolute inset-0 z-30 flex min-h-0 flex-col" style={{ background: 'var(--bg-elevated)' }}>
+                  <div className="ss4-chat-header flex shrink-0 items-center gap-2 px-3 py-3">
+                    <button type="button" onClick={() => setShowArchived(false)} className="ss4-icon-btn h-8 w-8" aria-label="Back to chats"><ChevronLeft className="h-4 w-4" /></button>
+                    <span className="ss4-display flex-1 font-bold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>Archived Chats</span>
+                  </div>
+                  <MenuArchivePanel archivedList={archivedConversationList} sharedConvRowProps={sharedConvRowProps} />
+                </div>
+              )}
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="ss4-section-label">{conversationSelectionMode ? `${selectedConversationIds.size} selected` : 'Messages'}</span>
@@ -14239,11 +14268,10 @@ export default function SupraSpacePage() {
 
               {!isStandaloneApp && archivedList.length > 0 && (
                 <div className="pt-3">
-                  <button onClick={() => setShowArchived(v => !v)} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
+                  <button type="button" onClick={openArchivedChats} className="w-full px-3 pt-2 pb-1.5 flex items-center justify-between">
                     <span className="ss4-section-label"><Archive className="h-2.5 w-2.5 mr-1" /> Archived · {archivedList.length}</span>
-                    <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: showArchived ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
+                    <ChevronLeft className="h-3.5 w-3.5" style={{ color: 'var(--text-tertiary)', transform: 'rotate(-90deg)', transition: 'transform .15s' }} />
                   </button>
-                  {showArchived && <div className="px-2 space-y-0.5">{archivedList.map(c => <ConvRow key={c._id} conv={c} compact {...sharedConvRowProps} />)}</div>}
                 </div>
               )}
               {q.trim().length >= 2 && (
@@ -14821,11 +14849,12 @@ export default function SupraSpacePage() {
                       </div>
                     )}
 
-                    {isReportGroup || isShiftAlertsGroup || hasLeftChannel ? (
+                    {isReportGroup || isShiftAlertsGroup || hasLeftChannel || isArchivedActiveConv ? (
                       <div className="ss4-input-wrap flex items-center justify-center gap-2 px-4 py-3" style={{ minHeight: 56 }}>
                         <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                          {hasLeftChannel ? 'Read-only history · You left this channel' : isShiftAlertsGroup ? 'Read-only · Shift alerts are posted here automatically' : 'Read-only · DayPulse reports are posted here automatically'}
+                          {hasLeftChannel ? 'Read-only history · You left this channel' : isArchivedActiveConv ? 'This conversation is archived. Unarchive it to send messages.' : isShiftAlertsGroup ? 'Read-only · Shift alerts are posted here automatically' : 'Read-only · DayPulse reports are posted here automatically'}
                         </span>
+                        {isArchivedActiveConv && !hasLeftChannel && <button type="button" onClick={() => activeConv && toggleArchiveConv(activeConv)} className="ss4-pill-btn h-7 px-2.5 text-xs">Unarchive</button>}
                       </div>
                     ) : recording ? (
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">

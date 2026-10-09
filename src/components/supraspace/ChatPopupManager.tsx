@@ -3848,6 +3848,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const { theme } = useTheme();
   const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations, messageTextSize } = useSupraSpaceMessenger();
   const hasLeftChannel = conv.type === 'group' && !!crmUserId && (conv.leftBy || []).map(String).includes(crmUserId);
+  const isArchivedConversation = !!crmUserId && (conv.archivedBy || []).map(String).includes(crmUserId);
+  const isReadOnlyConversation = hasLeftChannel || isArchivedConversation;
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
@@ -4190,6 +4192,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // ── Actions ──
   const handleReact = async (messageId: string, emoji: string) => {
+    if (isReadOnlyConversation) return;
     clearBar();
     try {
       const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
@@ -4317,7 +4320,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingAttachments = React.useCallback(async (caption: string) => {
-    if (!pendingAttachments.length || !crmToken || sending || sendInFlightRef.current) return false;
+    if (isReadOnlyConversation || !pendingAttachments.length || !crmToken || sending || sendInFlightRef.current) return false;
     sendInFlightRef.current = true;
     setSending(true);
     const deliveryKey = `files:${caption.trim()}:${replyTo?._id || ''}:${pendingAttachments.map(item => attachmentFileKey(item.file)).join('|')}`;
@@ -4370,7 +4373,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setDraggingAttachment(false);
       dragDepthRef.current = 0;
     }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingAttachments, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingAttachments, replyTo?._id, sending, syncComposerText]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -4402,7 +4405,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const handleSendThumbsUp = async () => {
-    if (sending || !crmToken) return;
+    if (isReadOnlyConversation || sending || !crmToken) return;
     setSending(true);
     try {
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`,
@@ -4421,7 +4424,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingGif = React.useCallback(async (caption: string) => {
-    if (!pendingGif || !crmToken || sending || sendInFlightRef.current) return false;
+    if (isReadOnlyConversation || !pendingGif || !crmToken || sending || sendInFlightRef.current) return false;
     sendInFlightRef.current = true;
     setSending(true);
     const gif = pendingGif;
@@ -4460,10 +4463,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       toast.error(reconciliation.status === 'missing' ? 'Could not send GIF. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
       return false;
     } finally { setSending(false); sendInFlightRef.current = false; }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingGif, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingGif, replyTo?._id, sending, syncComposerText]);
 
   // ── Voice recording ──
   const startRecording = React.useCallback(async () => {
+    if (isReadOnlyConversation) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
@@ -4501,7 +4505,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     } catch {
       toast.error('Microphone permission denied.');
     }
-  }, [conv._id, crmToken]);
+  }, [conv._id, crmToken, isReadOnlyConversation]);
 
   const togglePauseRecording = React.useCallback(() => {
     const mr = mediaRecorderRef.current;
@@ -5583,11 +5587,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMinimized]);
   React.useEffect(() => {
-    if (!isMinimized && !hasLeftChannel) setTimeout(() => inputRef.current?.focus(), 60);
-  }, [hasLeftChannel, isMinimized]);
+    if (!isMinimized && !isReadOnlyConversation) setTimeout(() => inputRef.current?.focus(), 60);
+  }, [isMinimized, isReadOnlyConversation]);
 
   const handleSend = async () => {
-    if (hasLeftChannel) return;
+    if (isReadOnlyConversation) return;
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
     const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
@@ -7464,7 +7468,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   )}
                   <div
                     ref={inputRef}
-                    contentEditable={!hasLeftChannel}
+                    contentEditable={!isReadOnlyConversation}
                     suppressContentEditableWarning
                     onBeforeInput={handleComposerTypographyBeforeInput}
                     onInput={event => {
@@ -7557,9 +7561,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               </div>
               </>
               )}
-              {hasLeftChannel && (
+              {isReadOnlyConversation && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-card px-4 text-center">
-                  <p className="text-[12px] font-medium text-muted-foreground">Read-only history · You left this channel</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-[12px] font-medium text-muted-foreground">{hasLeftChannel ? 'Read-only history · You left this channel' : 'This conversation is archived. Unarchive it to send messages.'}</p>
+                    {isArchivedConversation && !hasLeftChannel && <button type="button" onClick={() => archiveConversation(conv._id, false).catch(() => toast.error('Could not unarchive conversation'))} className="rounded-md px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted">Unarchive</button>}
+                  </div>
                 </div>
               )}
             </div>

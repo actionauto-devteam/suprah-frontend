@@ -514,6 +514,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     // New message → update conversation lastMessage + re-sort + sound
     listen('message:new', ({ conversationId, message }: { conversationId: string; message: SSLastMessage }) => {
       if (seenMessages.has(message._id)) return;
+      const archivedConversation = conversationsRef.current.find((conversation) => conversation._id === conversationId);
+      if ((archivedConversation?.archivedBy || []).map(String).includes(crmUserId)) return;
       seenMessages.add(message._id);
       if (seenMessages.size > 1000) seenMessages.delete(seenMessages.values().next().value!);
       setConversations((prev) => {
