@@ -6739,7 +6739,7 @@ const Bubble = React.memo(function Bubble({
               if (images.length === 0) return null;
               if (images.length === 1) return (
                 <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
-                  className="block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                  className="inline-block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'fit-content', maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
                   <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: 'fit-content', maxWidth: 'min(420px, 72vw)' }} imageStyle={{ width: 'auto', height: 'auto', maxWidth: 'min(420px, 72vw)', maxHeight: 420 }} onRecover={onRefreshMedia} />
                 </button>
               );

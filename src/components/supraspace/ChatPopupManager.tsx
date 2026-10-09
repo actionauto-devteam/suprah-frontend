@@ -6920,10 +6920,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             )}
                             {imageAttachments.length > 0 && (
                               <div className={cn(
-                                imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
+                                imageAttachments.length === 1 ? 'inline-block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : undefined}>
+                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : { width: 'fit-content', maxWidth: '100%' }}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
@@ -6934,7 +6934,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       type="button"
                                       onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
-                                        'block overflow-hidden border border-white/10 bg-black/20',
+                                        imageAttachments.length === 1 ? 'inline-block max-w-full' : 'block',
+                                        'overflow-hidden border border-white/10 bg-black/20',
                                         imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
                                       )}
                                       title="Preview image"
