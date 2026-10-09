@@ -7,6 +7,7 @@ import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounte
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
 import { MessageTimeline } from '@/components/supraspace/messages/MessageTimeline';
+import { UnreadMessagesDivider } from '@/components/supraspace/messages/UnreadMessagesDivider';
 import { EventModal, PollModal } from '@/components/supraspace/ConversationCreationModals';
 import { ThreadReportModal, type ThreadReportAction } from '@/components/supraspace/ThreadReportModal';
 import { ManageMembersModal } from '@/components/supraspace/ManageMembersModal';
@@ -48,6 +49,7 @@ import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } f
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
+import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
 import { isSoundEnabled, setSoundEnabled } from '@/lib/notification-sound';
 import { useCrmWebPush } from '@/hooks/useCrmWebPush';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -69,6 +71,9 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMa
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
+import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
+import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
+import { filterSupraSpaceConversations, recentSupraSpaceConversations } from '@/lib/supraspace-conversation-search';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -1412,7 +1417,7 @@ if (typeof document !== 'undefined') {
       .ss4 input, .ss4 textarea { font-size:16px !important; }
       .ss4-chat-header { min-height:60px; gap:8px!important; padding:10px 12px!important; }
       .ss4-msg-column { max-width:min(80%,22rem); }
-      .ss4-msg-bubble { font-size:16px !important; line-height:1.5 !important; }
+      .ss4-msg-bubble { font-size:var(--ss4-message-font-size,16px) !important; line-height:1.5 !important; }
       .ss4-msg-sender { font-size:12px !important; }
       .ss4-msg-actions { border-radius:18px!important; padding:5px!important; gap:3px!important; box-shadow:0 10px 30px rgba(0,0,0,.48)!important; }
       .ss4-msg-actions .ss4-action-emoji,
@@ -4872,7 +4877,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind, messageTextSize,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -4893,6 +4898,7 @@ const Bubble = React.memo(function Bubble({
   onForward?: (m: SSMessage) => void;
   defaultReactionEmoji?: string;
   operationalKind?: OperationalMessageKind | null;
+  messageTextSize: SupraSpaceMessageTextSize;
 }) {
   const renderedContent = React.useMemo(
     () => renderMessageContent(message.content, isOwn),
@@ -6449,7 +6455,8 @@ const Bubble = React.memo(function Bubble({
           ) : message.content ? (
             <div
               onDoubleClick={() => !disableActions && onReact(message._id, defaultReactionEmoji || SS4_REACTIONS[0])}
-              className={cn('ss4-msg-bubble px-3 py-2.5 text-[13px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}>
+              className={cn('ss4-msg-bubble px-3 py-2.5 text-[13px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm', isOwn ? 'ss4-bubble-own' : 'ss4-bubble-other')}
+              style={getSupraSpaceMessageTextStyle(messageTextSize)}>
               <div className="ss4-copyable-text" onCopy={copyRichMessageToClipboard} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderedContent}</div>
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
@@ -8252,20 +8259,114 @@ function MenuProfilePanel({ me, presence, uid, token }: {
   );
 }
 
+function ArchiveConversationRow({ conv, uid, onOpen, onUnarchive, selectionMode = false, selected = false, onToggleSelection }: {
+  conv: SSConversation;
+  uid: string;
+  onOpen: (conversationId: string) => void;
+  onUnarchive: (conversation: SSConversation) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelection?: (conversationId: string) => void;
+}) {
+  const name = getConvName(conv, uid);
+  const avatar = getConvAvatar(conv, uid);
+  const leftChannel = conv.type === 'group' && (conv.leftBy || []).map(String).includes(uid);
+  const preview = getSupraSpaceConversationPreview({
+    lastMessage: conv.lastMessage,
+    lastReaction: conv.lastReaction,
+    unreadCount: 0,
+    conversationType: conv.type,
+    viewerId: uid,
+  });
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => selectionMode ? (!leftChannel && onToggleSelection?.(conv._id)) : onOpen(conv._id)}
+      onKeyDown={event => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectionMode ? (!leftChannel && onToggleSelection?.(conv._id)) : onOpen(conv._id); }
+      }}
+      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-(--bg-hover)"
+    >
+      {selectionMode && !leftChannel && <span className="h-5 w-5 shrink-0 rounded-md border flex items-center justify-center" style={{ borderColor: selected ? 'var(--accent)' : 'var(--border-2)', background: selected ? 'var(--accent)' : 'transparent', color: '#fff' }}>{selected && <CheckIcon className="h-3.5 w-3.5" />}</span>}
+      <div className={cn('h-8 w-8 shrink-0 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(name))}>
+        {conv.type === 'group' ? <ChannelFace conv={conv} avatar={avatar} name={name} size={11} /> : avatar ? <SS4AvatarImage src={avatar} name={name} className="w-full h-full object-cover" size={10} /> : <span className="text-white font-semibold" style={{ fontSize: 10 }}>{ini(name)}</span>}
+      </div>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate flex-1 font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{name}</span>
+          <span className="shrink-0" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+        </span>
+        <span className="mt-0.5 block truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{preview.senderPrefix}{preview.text}</span>
+        <span className="mt-1 inline-flex rounded-full px-1.5 py-0.5" style={{ fontSize: 9, color: leftChannel ? '#f59e0b' : 'var(--text-tertiary)', background: leftChannel ? 'rgba(245,158,11,0.12)' : 'var(--bg-hover)' }}>
+          {leftChannel ? 'Left channel · read-only' : 'Archived'}
+        </span>
+      </span>
+      {!leftChannel && !selectionMode && (
+        <button
+          type="button"
+          onClick={event => { event.stopPropagation(); onUnarchive(conv); }}
+          className="shrink-0 rounded-md px-2 py-1 font-semibold hover:bg-(--bg-hover)"
+          style={{ fontSize: 10, color: 'var(--accent)' }}
+        >
+          Unarchive
+        </button>
+      )}
+    </div>
+  );
+}
+
 function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
   archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
 }) {
   const [query, setQuery] = React.useState('');
+  const [selectionMode, setSelectionMode] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [working, setWorking] = React.useState(false);
   const uid = sharedConvRowProps.uid as string;
   const filtered = React.useMemo(() => {
     if (!query.trim()) return archivedList;
     const q = query.toLowerCase();
-    return archivedList.filter(c => getConvName(c, uid).toLowerCase().includes(q));
+    return archivedList.filter(c => [
+      getConvName(c, uid),
+      ...safeMembers(c).flatMap(member => [member.fullName, member.username]),
+    ].filter(Boolean).join(' ').toLowerCase().includes(q));
   }, [archivedList, query, uid]);
+  const selectableIds = filtered.filter(c => !(c.type === 'group' && (c.leftBy || []).map(String).includes(uid))).map(c => c._id);
+  const toggleSelection = (conversationId: string) => setSelectedIds(previous => {
+    const next = new Set(previous);
+    if (next.has(conversationId)) next.delete(conversationId);
+    else next.add(conversationId);
+    return next;
+  });
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+  const bulkUnarchive = async () => {
+    if (!selectedIds.size || working) return;
+    setWorking(true);
+    const result = await sharedConvRowProps.runBulkConversationAction?.('unarchive', [...selectedIds]);
+    setWorking(false);
+    if (result?.succeeded) setSelectedIds(previous => {
+      const next = new Set(previous);
+      result.succeeded.forEach((conversation: SSConversation) => next.delete(conversation._id));
+      return next;
+    });
+  };
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className="px-4 pt-4 pb-3 shrink-0">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{selectionMode ? `${selectedIds.size} selected` : 'Archived chats'}</span>
+          <button type="button" onClick={() => selectionMode ? exitSelection() : setSelectionMode(true)} className="ss4-pill-btn h-7 px-2.5 text-xs">{selectionMode ? 'Cancel' : 'Select chats'}</button>
+        </div>
+        {selectionMode && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => setSelectedIds(new Set(selectableIds))} disabled={working} className="ss4-pill-btn h-7 px-2.5 text-xs disabled:opacity-50">Select all visible</button>
+            <button type="button" onClick={() => { void bulkUnarchive(); }} disabled={!selectedIds.size || working} className="ss4-pill-btn h-7 px-2.5 text-xs disabled:opacity-50">{working ? 'Unarchiving…' : 'Unarchive'}</button>
+          </div>
+        )}
         <div className="relative">
           <Search className="ss4-search-icon absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5" />
           <input
@@ -8288,7 +8389,18 @@ function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
             {archivedList.length === 0 ? 'No archived chats' : 'No matches'}
           </p>
         ) : (
-          <div className="space-y-0.5">{filtered.map(c => <ConvRow key={c._id} conv={c} compact {...(sharedConvRowProps as any)} />)}</div>
+          <div className="space-y-0.5">{filtered.map(c => (
+            <ArchiveConversationRow
+              key={c._id}
+              conv={c}
+              uid={uid}
+              onOpen={sharedConvRowProps.openConversation}
+              onUnarchive={sharedConvRowProps.toggleArchiveConv}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(c._id)}
+              onToggleSelection={toggleSelection}
+            />
+          ))}</div>
         )}
       </div>
     </div>
@@ -8334,11 +8446,17 @@ function MenuSubView({ title, onBack, children }: { title: string; onBack: () =>
   );
 }
 
-function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvRowProps }: {
+function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvRowProps, archiveRequest, onArchiveRequestHandled }: {
   me?: CrmUser; allUsers: CrmUser[]; presence: PresenceMap; uid: string; token: string;
-  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
+  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>; archiveRequest: number; onArchiveRequestHandled: () => void;
 }) {
   const [view, setView] = React.useState<'root' | 'profile' | 'settings' | 'archive'>('root');
+
+  React.useEffect(() => {
+    if (archiveRequest === 0) return;
+    setView('archive');
+    onArchiveRequestHandled();
+  }, [archiveRequest, onArchiveRequestHandled]);
 
   if (view === 'profile') {
     return <MenuSubView title="Profile" onBack={() => setView('root')}><MenuProfilePanel me={me} presence={presence} uid={uid} token={token} /></MenuSubView>;
@@ -8411,9 +8529,11 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
   }, []);
   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = useCrmWebPush();
   const { theme, setTheme } = useTheme();
+  const { messageTextSize, updateMessageTextSize } = useSupraSpaceMessenger();
   const [soundOn, setSoundOnState] = React.useState(true);
   const [permission, setPermission] = React.useState<NotificationPermission | 'unsupported'>('default');
   const [unreadColor, setUnreadColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
+  const [savingMessageTextSize, setSavingMessageTextSize] = React.useState(false);
 
   React.useEffect(() => {
     setSoundOnState(isSoundEnabled());
@@ -8432,6 +8552,17 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
 
   const permissionLabel = permission === 'granted' ? 'Allowed' : permission === 'denied' ? 'Blocked' : permission === 'unsupported' ? 'Unsupported' : 'Not requested yet';
   const permissionColor = permission === 'granted' ? 'var(--positive)' : permission === 'denied' ? 'var(--negative, #ef4444)' : 'var(--text-tertiary)';
+  const changeMessageTextSize = async (size: SupraSpaceMessageTextSize) => {
+    if (savingMessageTextSize || size === messageTextSize) return;
+    setSavingMessageTextSize(true);
+    try {
+      await updateMessageTextSize(size);
+    } catch {
+      toast.error('Could not save message text size.');
+    } finally {
+      setSavingMessageTextSize(false);
+    }
+  };
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 sm:px-5 pt-4 pb-6">
@@ -8534,6 +8665,38 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="ss4-settings-action h-8 px-3.5 shrink-0" style={{ fontSize: 12 }}>
             Switch
           </button>
+        </div>
+
+        <div className="ss4-settings-row py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Message Text Size</p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, marginBottom: 10 }}>Choose how large message text appears across SupraSpace.</p>
+          <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Message text size">
+            {getSupraSpaceMessageTextSizeOptions().map(option => {
+              const selected = option.value === messageTextSize;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={savingMessageTextSize}
+                  onClick={() => { void changeMessageTextSize(option.value); }}
+                  className="min-w-0 rounded-lg px-1.5 py-2 font-semibold transition disabled:opacity-60"
+                  style={{
+                    fontSize: 10,
+                    color: selected ? '#fff' : 'var(--text-secondary)',
+                    background: selected ? 'var(--accent)' : 'var(--bg-hover)',
+                    border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-2)'}`,
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 rounded-lg px-3 py-2" style={{ ...getSupraSpaceMessageTextStyle(messageTextSize), lineHeight: 1.5, color: 'var(--text-primary)', background: 'var(--bg-hover)' }}>
+            Preview message text
+          </p>
         </div>
 
         <div className="ss4-settings-row py-3.5" style={{ borderBottom: '1px solid var(--border-1)' }}>
@@ -8678,6 +8841,11 @@ interface ConvRowProps {
   setDeleteConfirmConv: (c: SSConversation | null) => void;
   setActiveId: (id: string | null) => void;
   setShowInfo: (show: boolean) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  selectedConversationIds?: Set<string>;
+  selectionEligible?: boolean;
+  toggleSelection?: (conversationId: string) => void;
   // Standalone-app-only visual treatment (rounded card + numbered unread
   // badge, matching the mobile reference mock) — desktop/embedded keep the
   // plain list row untouched when this is omitted/false.
@@ -8698,7 +8866,7 @@ const ConvRow = React.memo(function ConvRow({
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
   openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
-  isStandaloneApp,
+  isStandaloneApp, selectionMode = false, isSelected = false, selectedConversationIds, selectionEligible = true, toggleSelection,
 }: ConvRowProps) {
   const [unreadDotColor, setUnreadDotColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
   React.useEffect(() => {
@@ -8715,6 +8883,9 @@ const ConvRow = React.memo(function ConvRow({
   const cAvatar = getConvAvatar(conv, uid);
   const pinned = isPinnedConv(conv);
   const archived = isArchivedConv(conv);
+  const leftChannel = conv.type === 'group' && (conv.leftBy || []).map(String).includes(uid);
+  const canSelect = selectionEligible && !archived && !leftChannel;
+  const selected = selectedConversationIds?.has(conv._id) ?? isSelected;
   const isMuted = notifPrefs[conv._id]?.muted ?? false;
   const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
   const isUnread = isConvUnreadForUser(conv, uid, manualUnread);
@@ -8737,14 +8908,25 @@ const ConvRow = React.memo(function ConvRow({
   const ddOpen = openConvMenuId === conv._id;
   const setDdOpen = (v: boolean) => setOpenConvMenuId(v ? conv._id : null);
   const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const startLongPress = () => { convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500); };
+  const startLongPress = () => {
+    if (selectionMode) return;
+    convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500);
+  };
   const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
   return (
     <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isStandaloneApp && 'ss4-conv--card', isStandaloneApp && isUnread && 'ss4-conv--unread', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
       style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+      role={selectionMode ? 'checkbox' : undefined}
+      tabIndex={selectionMode && canSelect ? 0 : undefined}
+      aria-checked={selectionMode && canSelect ? selected : undefined}
       data-conv-before={isDraggable ? conv._id : undefined}
       data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
-      onClick={() => openConversation(conv._id)}
+      onClick={() => selectionMode ? (canSelect ? toggleSelection?.(conv._id) : undefined) : openConversation(conv._id)}
+      onKeyDown={event => {
+        if (!selectionMode || !canSelect || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        toggleSelection?.(conv._id);
+      }}
       onContextMenu={e => e.preventDefault()}
       onMouseLeave={() => {
         if (!ddTriggerRef.current?.matches(':focus-visible')) {
@@ -8757,7 +8939,12 @@ const ConvRow = React.memo(function ConvRow({
       onTouchCancel={cancelLongPress}
       onTouchMove={cancelLongPress}>
       { }
-      {isDraggable && (
+      {selectionMode && canSelect && (
+        <span className="h-5 w-5 shrink-0 rounded-md border flex items-center justify-center" style={{ borderColor: selected ? 'var(--accent)' : 'var(--border-2)', background: selected ? 'var(--accent)' : 'transparent', color: '#fff' }} aria-hidden="true">
+          {selected && <CheckIcon className="h-3.5 w-3.5" />}
+        </span>
+      )}
+      {isDraggable && !selectionMode && (
         <div
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -8827,7 +9014,7 @@ const ConvRow = React.memo(function ConvRow({
           )}
         </p>
       </div>
-      {!compact && (
+      {!compact && !selectionMode && (
         <div
           className={cn(
             'hidden md:flex items-center shrink-0 transition-opacity duration-150',
@@ -8952,7 +9139,7 @@ const ConvRow = React.memo(function ConvRow({
           </DropdownMenu>
         </div>
       )}
-      {compact && (
+      {compact && !leftChannel && !selectionMode && (
         <button onClick={e => { e.stopPropagation(); toggleArchiveConv(conv); }} className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Unarchive"><ArchiveRestore className="h-3 w-3" /></button>
       )}
     </div>
@@ -9036,6 +9223,7 @@ export default function SupraSpacePage() {
   }, [activeId]);
 
   const [msgs, setMsgs] = React.useState<Record<string, SSMessage[]>>({});
+  const [unreadBoundaryMessageIds, setUnreadBoundaryMessageIds] = React.useState<Record<string, string>>({});
   const [loadingMsgs, setLoadingMsgs] = React.useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = React.useState(false);
   const [hasMore, setHasMore] = React.useState<Record<string, boolean>>({});
@@ -9102,6 +9290,9 @@ export default function SupraSpacePage() {
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
   const [notifModalConv, setNotifModalConv] = React.useState<SSConversation | null>(null);
   const [manualUnread, setManualUnread] = React.useState<Set<string>>(new Set());
+  const [conversationSelectionMode, setConversationSelectionMode] = React.useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = React.useState<Set<string>>(new Set());
+  const [bulkConversationAction, setBulkConversationAction] = React.useState<'read' | 'unread' | 'archive' | 'unarchive' | null>(null);
   const [openConvMenuId, setOpenConvMenuId] = React.useState<string | null>(null);
   const [q, setQ] = React.useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
@@ -9449,6 +9640,7 @@ export default function SupraSpacePage() {
   const avatarFileRef = React.useRef<HTMLInputElement>(null);
 
   const [showArchived, setShowArchived] = React.useState(false);
+  const [archiveRequest, setArchiveRequest] = React.useState(0);
   const [manageOpen, setManageOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
   const [appSettingsOpen, setAppSettingsOpen] = React.useState(false);
@@ -9505,6 +9697,7 @@ export default function SupraSpacePage() {
   const typingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const composerMetricsTimerRef = React.useRef<number | null>(null);
   const msgsRef = React.useRef<Record<string, SSMessage[]>>({});
+  const unreadBoundaryPendingCountsRef = React.useRef<Record<string, number>>({});
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
   const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
@@ -9699,7 +9892,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceRealtime();
-  const { markAsRead: ctxMarkAsRead, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, markConversationRead: ctxMarkConversationRead, markConversationUnread: ctxMarkConversationUnread, archiveConversation: ctxArchiveConversation, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar, messageTextSize } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
       notifPrefs[conversationId] ||
@@ -9945,7 +10138,7 @@ export default function SupraSpacePage() {
 
   const fetchConversationMessages = React.useCallback(async (
     conversationId: string,
-    options: { force?: boolean; silent?: boolean; scrollToBottom?: boolean; revalidate?: boolean } = {},
+    options: { force?: boolean; silent?: boolean; scrollToBottom?: boolean; revalidate?: boolean; markReadAfterSnapshot?: boolean } = {},
   ) => {
     const t = tokenRef.current;
     if (!conversationId || !t) return false;
@@ -9959,6 +10152,15 @@ export default function SupraSpacePage() {
     setMsgFetchState(p => ({ ...p, [conversationId]: 'loading' }));
 
     const mySeq = (fetchSeqRef.current[conversationId] = (fetchSeqRef.current[conversationId] || 0) + 1);
+    if (options.markReadAfterSnapshot && unreadBoundaryPendingCountsRef.current[conversationId] === undefined) {
+      unreadBoundaryPendingCountsRef.current[conversationId] = convosRef.current.find(conversation => conversation._id === conversationId)?.unreadCount || 0;
+      setUnreadBoundaryMessageIds(previous => {
+        if (!previous[conversationId]) return previous;
+        const next = { ...previous };
+        delete next[conversationId];
+        return next;
+      });
+    }
 
     try {
       const r = await apiClient.get(`/api/supraspace/conversations/${conversationId}/messages`, {
@@ -9974,7 +10176,16 @@ export default function SupraSpacePage() {
 
       setMsgs(p => {
         if (rejectSuspiciousEmpty) return p;
-        return { ...p, [conversationId]: mergeMessages(p[conversationId] || [], d) };
+        const nextMessages = mergeMessages(p[conversationId] || [], d);
+        const expectedUnreadCount = unreadBoundaryPendingCountsRef.current[conversationId];
+        const unreadBoundaryMessageId = findSupraSpaceUnreadBoundary(nextMessages, uid, expectedUnreadCount);
+        if (unreadBoundaryMessageId) {
+          delete unreadBoundaryPendingCountsRef.current[conversationId];
+          setUnreadBoundaryMessageIds(previous => previous[conversationId] === unreadBoundaryMessageId
+            ? previous
+            : { ...previous, [conversationId]: unreadBoundaryMessageId });
+        }
+        return { ...p, [conversationId]: nextMessages };
       });
       setHasMore(p => ({ ...p, [conversationId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
       setMsgFetchState(p => ({
@@ -9984,6 +10195,16 @@ export default function SupraSpacePage() {
       if (!rejectSuspiciousEmpty) {
         emptyHistoryRetryRef.current[conversationId] = 0;
         if (options.scrollToBottom) forceScrollToBottomRef.current = conversationId;
+        if (options.markReadAfterSnapshot && activeIdRef.current === conversationId) {
+          markRead(conversationId);
+          ctxMarkAsRead(conversationId);
+          setConvos(previous => previous.map(conversation => {
+            if (conversation._id !== conversationId || !conversation.lastMessage) return conversation;
+            const readBy = conversation.lastMessage.readBy || [];
+            if (readBy.includes(uid)) return { ...conversation, unreadCount: 0, unreadMentionCount: 0 };
+            return { ...conversation, unreadCount: 0, unreadMentionCount: 0, lastMessage: { ...conversation.lastMessage, readBy: [...readBy, uid] } };
+          }));
+        }
       } else {
         const retries = emptyHistoryRetryRef.current[conversationId] || 0;
         if (retries < 2) {
@@ -10004,7 +10225,7 @@ export default function SupraSpacePage() {
     } finally {
       if (!options.silent) setLoadingMsgs(false);
     }
-  }, [syncPinnedMessageIds]);
+  }, [ctxMarkAsRead, markRead, syncPinnedMessageIds, uid]);
 
   const openConversation = React.useCallback((conversationId: string | null) => {
     if (!conversationId) return;
@@ -10019,18 +10240,16 @@ export default function SupraSpacePage() {
     setStoredSupraSpaceConversationId(conversationId, uid);
     setActiveId(conversationId);
     setManualUnread(p => { if (!p.has(conversationId)) return p; const n = new Set(p); n.delete(conversationId); return n; });
-
-    const hasCachedMessages = conversationId in msgsRef.current;
-    const status = msgFetchStateRef.current[conversationId] || 'idle';
-    fetchConversationMessages(conversationId, {
-      force: !hasCachedMessages || status === 'error' || status === 'stale',
-      silent: hasCachedMessages && status === 'loaded',
-      scrollToBottom: true,
-      revalidate: hasCachedMessages && status === 'loaded',
+    unreadBoundaryPendingCountsRef.current[conversationId] = convosRef.current.find(conversation => conversation._id === conversationId)?.unreadCount || 0;
+    setUnreadBoundaryMessageIds(previous => {
+      if (!previous[conversationId]) return previous;
+      const next = { ...previous };
+      delete next[conversationId];
+      return next;
     });
 
     lockConversationOpenToBottom(conversationId);
-  }, [fetchConversationMessages, lockConversationOpenToBottom, uid]);
+  }, [lockConversationOpenToBottom, uid]);
 
   const refreshConvos = React.useCallback(() => {
     const t = tokenRef.current;
@@ -10522,6 +10741,25 @@ export default function SupraSpacePage() {
       } : c));
       setActiveId(prev => prev === conversationId ? null : prev);
     };
+    const onConvArchive = ({ conversationId, archived }: { conversationId: string; archived: boolean }) => {
+      setConvos(p => p.map(c => {
+        if (c._id !== conversationId) return c;
+        const archivedBy = (c.archivedBy || []).filter(id => String(id) !== uid);
+        return { ...c, archivedBy: archived ? [...archivedBy, uid] : archivedBy };
+      }));
+    };
+    const onManualUnread = ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
+      setConvos(previous => previous.map(conversation => conversation._id === conversationId ? {
+        ...conversation,
+        manualUnread: unread,
+        unreadCount: unread ? Math.max(1, conversation.unreadCount || 0) : 0,
+      } : conversation));
+      setManualUnread(previous => {
+        const next = new Set(previous);
+        unread ? next.add(conversationId) : next.delete(conversationId);
+        return next;
+      });
+    };
     const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
     const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
@@ -10576,6 +10814,8 @@ export default function SupraSpacePage() {
     socket.on('conversation:updated', onConvUpdated);
     socket.on('conversation:deleted', onConvDeleted);
     socket.on('conversation:left', onConvLeft);
+    socket.on('conversation:archive', onConvArchive);
+    socket.on('conversation:manual-unread', onManualUnread);
     socket.on('conversation:theme', onConvTheme);
     socket.on('conversation:moved', onConvMoved);
     socket.on('space:deleted', onSpaceDeleted);
@@ -10628,7 +10868,7 @@ export default function SupraSpacePage() {
     socket.on('conversations:all-read', onAllRead);
     return () => {
       socket.off('message:new', onMsg); socket.off('message:deleted', onDel); socket.off('message:edited', onEdited); socket.off('conversation:new', onNew);
-      socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted); socket.off('conversation:left', onConvLeft);
+      socket.off('conversation:updated', onConvUpdated); socket.off('conversation:deleted', onConvDeleted); socket.off('conversation:left', onConvLeft); socket.off('conversation:archive', onConvArchive); socket.off('conversation:manual-unread', onManualUnread);
       socket.off('conversation:theme', onConvTheme); socket.off('conversation:moved', onConvMoved); socket.off('space:deleted', onSpaceDeleted); socket.off('message:reaction', onReaction); socket.off('message:pinned', onPinned);
       socket.off('message:poll', onPoll); socket.off('message:event', onEvent);
       socket.off('messages:read', onMsgsRead);
@@ -10831,7 +11071,9 @@ export default function SupraSpacePage() {
       fetchConversationMessages(activeId, {
         force: true,
         scrollToBottom: forceScrollToBottomRef.current === activeId,
+        markReadAfterSnapshot: true,
       });
+      return;
     }
     markRead(activeId);
     ctxMarkAsRead(activeId);
@@ -12035,10 +12277,20 @@ export default function SupraSpacePage() {
     try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   }, [isPinnedConv, patchConv, uid, token]);
   const toggleArchiveConv = React.useCallback(async (c: SSConversation) => {
+    const leftChannel = c.type === 'group' && (c.leftBy || []).map(String).includes(uid);
+    if (leftChannel) {
+      toast.info('Left channels remain read-only in Archive.');
+      return;
+    }
     const archived = !isArchivedConv(c);
     patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) } as any);
-    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/archive`, { archived }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  }, [isArchivedConv, patchConv, uid, token]);
+    try {
+      await ctxArchiveConversation(c._id, archived);
+    } catch {
+      patchConv(c._id, { archivedBy: c.archivedBy || [] } as any);
+      toast.error('Could not update archive state.');
+    }
+  }, [ctxArchiveConversation, isArchivedConv, patchConv, uid]);
   const deleteConversation = async (c: SSConversation) => {
     setConfirmDelete(false); setShowInfo(false);
     try {
@@ -13083,12 +13335,23 @@ export default function SupraSpacePage() {
     try {
       const r = await apiClient.get(`/api/supraspace/conversations/${activeId}/messages`, { headers: { Authorization: `Bearer ${token}` }, params: { before: activeMsgs[0]?.createdAt, beforeId: activeMsgs[0]?._id, limit: SS4_MESSAGE_PAGE_SIZE } });
       const d = r.data?.data || [];
-      setMsgs(p => ({ ...p, [activeId]: mergeMessages(p[activeId] || [], d) }));
+      setMsgs(p => {
+        const nextMessages = mergeMessages(p[activeId] || [], d);
+        const expectedUnreadCount = unreadBoundaryPendingCountsRef.current[activeId];
+        const unreadBoundaryMessageId = findSupraSpaceUnreadBoundary(nextMessages, uid, expectedUnreadCount);
+        if (unreadBoundaryMessageId) {
+          delete unreadBoundaryPendingCountsRef.current[activeId];
+          setUnreadBoundaryMessageIds(previous => previous[activeId] === unreadBoundaryMessageId
+            ? previous
+            : { ...previous, [activeId]: unreadBoundaryMessageId });
+        }
+        return { ...p, [activeId]: nextMessages };
+      });
       setHasMore(p => ({ ...p, [activeId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
     } catch {
       pendingScrollRestoreRef.current = null;
     } finally { setLoadingMsgs(false); setLoadingOlderMessages(false); }
-  }, [activeId, activeMsgs, hasMore, loadingMsgs, token]);
+  }, [activeId, activeMsgs, hasMore, loadingMsgs, token, uid]);
 
   const refreshActiveMedia = React.useCallback(() => {
     if (!activeId) return;
@@ -13096,6 +13359,7 @@ export default function SupraSpacePage() {
   }, [activeId, fetchConversationMessages]);
 
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
+  const renderUnreadMessagesDivider = React.useCallback(() => <UnreadMessagesDivider />, []);
   const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
     <Bubble
       message={message}
@@ -13121,8 +13385,9 @@ export default function SupraSpacePage() {
       suppressActionsDuringScroll={messageScrollActive}
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
       operationalKind={getOperationalMessageKind(message, activeConv?.name)}
+      messageTextSize={messageTextSize}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -13232,20 +13497,106 @@ export default function SupraSpacePage() {
     return true;
   }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
   const { visibleConvos, pinnedList, archivedList, normalList, dmList } = React.useMemo(() => {
-    const visible = convos.filter(c =>
-      getConvName(c, uid).toLowerCase().includes(q.toLowerCase()) &&
-      matchesConversationFilter(c)
-    );
+    const matching = filterSupraSpaceConversations(convos, c => getConvName(c, uid), q);
+    const visible = matching.filter(matchesConversationFilter);
     const pinned = visible.filter(c => isPinnedConv(c) && !isArchivedConv(c));
-    const archived = convos.filter(c =>
-      isArchivedConv(c) &&
-      matchesConversationFilter(c) &&
-      getConvName(c, uid).toLowerCase().includes(q.toLowerCase())
-    );
+    const archived = matching.filter(c => isArchivedConv(c));
     const normal = visible.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
     const dms = normal.filter(c => c.type === 'direct');
     return { visibleConvos: visible, pinnedList: pinned, archivedList: archived, normalList: normal, dmList: dms };
   }, [convos, uid, q, matchesConversationFilter, isPinnedConv, isArchivedConv]);
+  const archivedConversationList = React.useMemo(
+    () => convos.filter(isArchivedConv),
+    [convos, isArchivedConv],
+  );
+  const archivedConversationCount = archivedConversationList.length;
+  const isBulkEligibleConversation = React.useCallback((conversation: SSConversation, allowArchived = false) => {
+    const leftChannel = conversation.type === 'group' && (conversation.leftBy || []).map(String).includes(uid);
+    const isMember = safeMembers(conversation).some(member => member._id === uid);
+    return !leftChannel && isMember && (allowArchived || !isArchivedConv(conversation));
+  }, [isArchivedConv, uid]);
+  const selectableVisibleConversationIds = React.useMemo(
+    () => visibleConvos.filter(conversation => isBulkEligibleConversation(conversation)).map(conversation => conversation._id),
+    [isBulkEligibleConversation, visibleConvos],
+  );
+  const toggleConversationSelection = React.useCallback((conversationId: string) => {
+    setSelectedConversationIds(previous => {
+      const next = new Set(previous);
+      if (next.has(conversationId)) next.delete(conversationId);
+      else next.add(conversationId);
+      return next;
+    });
+  }, []);
+  const exitConversationSelection = React.useCallback(() => {
+    setConversationSelectionMode(false);
+    setSelectedConversationIds(new Set());
+  }, []);
+  const clearArchiveRequest = React.useCallback(() => setArchiveRequest(0), []);
+  const openArchivedChats = React.useCallback(() => {
+    exitConversationSelection();
+    setQ('');
+    if (isStandaloneApp) {
+      setSidebarTab('profile');
+      setArchiveRequest(current => current + 1);
+      return;
+    }
+    setShowArchived(true);
+  }, [exitConversationSelection, isStandaloneApp]);
+  const runBulkConversationAction = React.useCallback(async (
+    action: 'read' | 'unread' | 'archive' | 'unarchive',
+    conversationIds = [...selectedConversationIds],
+  ) => {
+    if (bulkConversationAction || conversationIds.length === 0) return null;
+    const allowArchived = action === 'unarchive';
+    const selectedConversations = convos.filter(conversation =>
+      conversationIds.includes(conversation._id) && isBulkEligibleConversation(conversation, allowArchived) &&
+      (action === 'unarchive' ? isArchivedConv(conversation) : action === 'archive' ? !isArchivedConv(conversation) : true),
+    );
+    if (selectedConversations.length === 0) {
+      toast.info('No selected chats can use that action.');
+      return null;
+    }
+    setBulkConversationAction(action);
+    const result = await runSupraSpaceBulkOperation(selectedConversations, async conversation => {
+      if (action === 'read') {
+        if (!(await ctxMarkConversationRead(conversation._id))) throw new Error('Could not mark conversation read');
+        setConvos(previous => previous.map(item => item._id !== conversation._id ? item : {
+          ...item,
+          unreadCount: 0,
+          unreadMentionCount: 0,
+          manualUnread: false,
+          lastMessage: item.lastMessage ? { ...item.lastMessage, readBy: [...new Set([...(item.lastMessage.readBy || []), uid])] } : item.lastMessage,
+        }));
+        setManualUnread(previous => { const next = new Set(previous); next.delete(conversation._id); return next; });
+        return;
+      }
+      if (action === 'unread') {
+        if (!(await ctxMarkConversationUnread(conversation._id, true))) throw new Error('Could not mark conversation unread');
+        setConvos(previous => previous.map(item => item._id === conversation._id ? { ...item, manualUnread: true, unreadCount: Math.max(1, item.unreadCount || 0) } : item));
+        setManualUnread(previous => new Set([...previous, conversation._id]));
+        return;
+      }
+      const archived = action === 'archive';
+      await ctxArchiveConversation(conversation._id, archived);
+      setConvos(previous => previous.map(item => item._id !== conversation._id ? item : {
+        ...item,
+        archivedBy: archived
+          ? [...new Set([...(item.archivedBy || []), uid])]
+          : (item.archivedBy || []).filter(id => String(id) !== uid),
+      }));
+    });
+    setBulkConversationAction(null);
+    if (result.succeeded.length) {
+      setSelectedConversationIds(previous => {
+        const next = new Set(previous);
+        result.succeeded.forEach(conversation => next.delete(conversation._id));
+        return next;
+      });
+    }
+    if (result.failed.length) toast.error(`${result.succeeded.length} updated; ${result.failed.length} could not be updated.`);
+    else toast.success(`${result.succeeded.length} chat${result.succeeded.length === 1 ? '' : 's'} updated.`);
+    return result;
+  }, [bulkConversationAction, convos, ctxArchiveConversation, ctxMarkConversationRead, ctxMarkConversationUnread, isArchivedConv, isBulkEligibleConversation, selectedConversationIds, uid]);
   const channelList = React.useMemo(() => {
     const activeSpaceIds = new Set(ctxSpaces.map(s => s._id));
     const list = normalList.filter(c => {
@@ -13284,8 +13635,8 @@ export default function SupraSpacePage() {
     return out;
   }, [convos, uid, manualUnread]);
 
-  const mobileFrequentConversations = React.useMemo(() => (
-    convos.filter(c => !isArchivedConv(c)).slice(0, 8)
+  const mobileRecentConversations = React.useMemo(() => (
+    recentSupraSpaceConversations(convos.filter(c => !isArchivedConv(c)))
   ), [convos, isArchivedConv]);
   const mobileSearchConversationMatches = React.useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -13394,6 +13745,10 @@ export default function SupraSpacePage() {
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
     openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
+    selectionMode: conversationSelectionMode,
+    selectedConversationIds,
+    toggleSelection: toggleConversationSelection,
+    runBulkConversationAction,
     isStandaloneApp,
   };
 
@@ -13565,9 +13920,9 @@ export default function SupraSpacePage() {
             >
               <div className="px-4 pt-5 pb-3 shrink-0 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="ss4-section-label">Messages</span>
+                <span className="ss4-section-label">{conversationSelectionMode ? `${selectedConversationIds.size} selected` : 'Messages'}</span>
                 <div className="flex items-center gap-1.5">
-                  {convos.some(c => isConvUnreadForUser(c, uid, manualUnread)) && (
+                  {!conversationSelectionMode && convos.some(c => isConvUnreadForUser(c, uid, manualUnread)) && (
                     <button
                       onClick={() => {
                         markAllRead();
@@ -13585,6 +13940,15 @@ export default function SupraSpacePage() {
                       <CheckCheck className="h-3.5 w-3.5" />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => conversationSelectionMode ? exitConversationSelection() : setConversationSelectionMode(true)}
+                    className="ss4-icon-btn h-7 w-7"
+                    title={conversationSelectionMode ? 'Cancel chat selection' : 'Select chats'}
+                    aria-label={conversationSelectionMode ? 'Cancel chat selection' : 'Select chats'}
+                  >
+                    {conversationSelectionMode ? <X className="h-3.5 w-3.5" /> : <CheckIcon className="h-3.5 w-3.5" />}
+                  </button>
                   {!isStandaloneApp && (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
@@ -13605,6 +13969,19 @@ export default function SupraSpacePage() {
                   )}
                 </div>
               </div>
+              {conversationSelectionMode && (
+                <div className="rounded-lg p-2 space-y-2" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => setSelectedConversationIds(new Set(selectableVisibleConversationIds))} className="ss4-pill-btn h-7 px-2.5 text-xs font-semibold" disabled={bulkConversationAction !== null}>Select all visible</button>
+                    <button type="button" onClick={exitConversationSelection} className="ss4-pill-btn h-7 px-2.5 text-xs">Cancel</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button type="button" disabled={!selectedConversationIds.size || bulkConversationAction !== null} onClick={() => { void runBulkConversationAction('read'); }} className="ss4-pill-btn h-7 px-2.5 text-xs disabled:opacity-50">Mark read</button>
+                    <button type="button" disabled={!selectedConversationIds.size || bulkConversationAction !== null} onClick={() => { void runBulkConversationAction('unread'); }} className="ss4-pill-btn h-7 px-2.5 text-xs disabled:opacity-50">Mark unread</button>
+                    <button type="button" disabled={!selectedConversationIds.size || bulkConversationAction !== null} onClick={() => { void runBulkConversationAction('archive'); }} className="ss4-pill-btn h-7 px-2.5 text-xs disabled:opacity-50">{bulkConversationAction === 'archive' ? 'Archiving…' : 'Archive'}</button>
+                  </div>
+                </div>
+              )}
               <div className="relative ss4-search-field">
                 <Search className="ss4-search-icon absolute top-1/2 -translate-y-1/2" />
                 <input value={q} onFocus={() => openMobileSearch()} onClick={() => openMobileSearch()} onChange={e => setQ(e.target.value)} placeholder="Search chats & messages…" className="w-full ss4-search-input" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }} />
@@ -13655,6 +14032,19 @@ export default function SupraSpacePage() {
                   );
                 })}
               </div>
+              <button
+                type="button"
+                onClick={openArchivedChats}
+                className="mt-2 w-full rounded-lg px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-1)' }}
+              >
+                <Archive className="h-3.5 w-3.5 shrink-0" style={{ color: '#94a3b8' }} />
+                <span className="flex-1 text-xs font-semibold">Archived Chats</span>
+                {archivedConversationCount > 0 && (
+                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{archivedConversationCount}</span>
+                )}
+                <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-tertiary)' }} />
+              </button>
             </div>
             <div className="mx-4 ss4-divider" />
 
@@ -13963,11 +14353,11 @@ export default function SupraSpacePage() {
                 <div className="min-h-0 flex-1 overflow-y-auto ss4-scroll px-4 pb-10" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {q.trim().length < 2 ? (
                     <div className="pt-4">
-                      <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>Frequent</p>
+                      <p className="px-1 pb-2 font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--text-tertiary)' }}>Recent chats</p>
                       <div className="space-y-0.5">
-                        {mobileFrequentConversations.map(renderMobileSearchConversation)}
+                        {mobileRecentConversations.map(renderMobileSearchConversation)}
                       </div>
-                      {mobileFrequentConversations.length === 0 && (
+                      {mobileRecentConversations.length === 0 && (
                         <p className="px-1 py-4" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No recent conversations</p>
                       )}
                     </div>
@@ -14096,7 +14486,7 @@ export default function SupraSpacePage() {
             )}
 
             {isStandaloneApp && sidebarTab === 'profile' && (
-              <MenuTab me={me} allUsers={allUsers} presence={presence} uid={uid} token={token || ''} archivedList={archivedList} sharedConvRowProps={sharedConvRowProps} />
+              <MenuTab me={me} allUsers={allUsers} presence={presence} uid={uid} token={token || ''} archivedList={archivedConversationList} sharedConvRowProps={sharedConvRowProps} archiveRequest={archiveRequest} onArchiveRequestHandled={clearArchiveRequest} />
             )}
 
             {isStandaloneApp && !mobileSearchOpen && (
@@ -14319,8 +14709,10 @@ export default function SupraSpacePage() {
                       <MessageTimeline
                         messages={activeMsgs}
                         pinEvents={pinEvents}
+                        unreadBoundaryMessageId={activeId ? unreadBoundaryMessageIds[activeId] : null}
                         dateLabel={fmtDate}
                         renderDateSeparator={renderTimelineDateSeparator}
+                        renderUnreadSeparator={renderUnreadMessagesDivider}
                         renderMessage={renderTimelineMessage}
                       />
                       {typers.length > 0 && (
@@ -15864,6 +16256,7 @@ export default function SupraSpacePage() {
           if (!sheetConv) return null;
           const pinned = isPinnedConv(sheetConv);
           const archived = isArchivedConv(sheetConv);
+          const sheetLeftChannel = sheetConv.type === 'group' && (sheetConv.leftBy || []).map(String).includes(uid);
           const cName = getConvName(sheetConv, uid);
           const sheetIsUnread = isConvUnreadForUser(sheetConv, uid, manualUnread);
           const toggleSheetReadState = () => {
@@ -15888,7 +16281,7 @@ export default function SupraSpacePage() {
             ...(sheetConv.type === 'group' && ctxSpaces.length > 0
               ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
               : []),
-            { icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
+            ...(!sheetLeftChannel ? [{ icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } }] : []),
             { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
           ];
           return (

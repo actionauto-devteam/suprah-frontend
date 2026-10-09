@@ -11,6 +11,7 @@ import { useCrmToken } from '@/hooks/useCrmToken';
 import { resolveImageUrl } from '@/lib/utils';
 import { stripSupraSpaceFormattingForPreview } from '@/lib/supra-space-message-formatting';
 import { createNotificationAvatarFallback, playMessageSound, requestNotifPermission, showNotificationViaSW, unlockAudio } from '@/lib/notification-sound';
+import { DEFAULT_SUPRASPACE_MESSAGE_TEXT_SIZE, isSupraSpaceMessageTextSize, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 
 // ─── Minimal types (full types live in useSupraSpaceSocket.ts) ─────────────────
 
@@ -57,6 +58,8 @@ export interface SSConv {
   lastMessageAt?: string;
   lastReaction?: SSLastReaction | null;
   unreadCount?: number;
+  mentionCount?: number;
+  unreadMentionCount?: number;
   theme?: { accent?: string | null; emoji?: string | null };
   pinnedBy?: string[];
   archivedBy?: string[];
@@ -107,13 +110,16 @@ interface MessengerCtxValue {
   setNotifPrefs: React.Dispatch<React.SetStateAction<Record<string, NotifPref>>>;
   prioritySenders: string[];
   setPrioritySenders: React.Dispatch<React.SetStateAction<string[]>>;
+  messageTextSize: SupraSpaceMessageTextSize;
+  updateMessageTextSize: (size: SupraSpaceMessageTextSize) => Promise<void>;
   openChatPopup: (convId: string) => void;
   openDirectChat: (targetUserId: string) => Promise<SSConv>;
   closeChatPopup: (convId: string) => void;
   toggleMinimize: (convId: string) => void;
   markAsRead: (convId: string) => void;
+  markConversationRead: (convId: string) => Promise<boolean>;
   markAllAsRead: () => void;
-  markConversationUnread: (convId: string, unread: boolean) => void;
+  markConversationUnread: (convId: string, unread: boolean) => Promise<boolean>;
   archiveConversation: (convId: string, archived: boolean) => Promise<void>;
   deleteConversation: (convId: string) => Promise<{ permanent: boolean; left: boolean }>;
   refreshConversations: () => void;
@@ -300,6 +306,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // People this viewer wants to always be notified by, bypassing per-conversation
   // mute — see PrioritySendersModal (supraspace/page.tsx) for where it's set.
   const [prioritySenders, setPrioritySenders] = React.useState<string[]>([]);
+  const [messageTextSize, setMessageTextSize] = React.useState<SupraSpaceMessageTextSize>(DEFAULT_SUPRASPACE_MESSAGE_TEXT_SIZE);
   const resumeRefreshTimerRef             = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs so socket handlers always see current values (stale-closure safety)
@@ -376,6 +383,41 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       .then(r => { const d = r.data?.data || r.data; if (d?.avatar) setMyAvatar(d.avatar); if (d?.fullName) setMyFullName(d.fullName); })
       .catch(() => {});
   }, [crmToken]);
+
+  React.useEffect(() => {
+    if (!crmToken) {
+      setMessageTextSize(DEFAULT_SUPRASPACE_MESSAGE_TEXT_SIZE);
+      return;
+    }
+    let cancelled = false;
+    apiClient.get('/api/crm/me/supraspace-preferences', authConfig(crmToken, true))
+      .then(response => {
+        const savedSize = response.data?.data?.messageTextSize;
+        if (!cancelled && isSupraSpaceMessageTextSize(savedSize)) setMessageTextSize(savedSize);
+      })
+      .catch(() => {
+        if (!cancelled) setMessageTextSize(DEFAULT_SUPRASPACE_MESSAGE_TEXT_SIZE);
+      });
+    return () => { cancelled = true; };
+  }, [crmToken]);
+
+  const updateMessageTextSize = React.useCallback(async (size: SupraSpaceMessageTextSize) => {
+    if (!crmToken) throw new Error('Sign in to save your message text size.');
+    const previousSize = messageTextSize;
+    setMessageTextSize(size);
+    try {
+      const response = await apiClient.patch(
+        '/api/crm/me/supraspace-preferences',
+        { messageTextSize: size },
+        authConfig(crmToken, true),
+      );
+      const savedSize = response.data?.data?.messageTextSize;
+      if (isSupraSpaceMessageTextSize(savedSize)) setMessageTextSize(savedSize);
+    } catch (error) {
+      setMessageTextSize(previousSize);
+      throw error;
+    }
+  }, [crmToken, messageTextSize]);
 
   React.useEffect(() => {
     if (!crmToken) return;
@@ -625,6 +667,17 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       ));
     });
 
+    listen('conversation:archive', ({ conversationId, archived }: { conversationId: string; archived: boolean }) => {
+      setConversations(prev => prev.map(conv => {
+        if (conv._id !== conversationId) return conv;
+        const archivedBy = (conv.archivedBy || []).filter(id => String(id) !== crmUserId);
+        return {
+          ...conv,
+          archivedBy: archived ? [...archivedBy, crmUserId] : archivedBy,
+        };
+      }));
+    });
+
     listen('conversation:notification-preference', ({ conversationId, preference }: { conversationId: string; preference: NotifPref }) => {
       setNotifPrefs(prev => ({ ...prev, [conversationId]: preference }));
       setConversations(prev => prev.map(conv =>
@@ -853,6 +906,31 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     [socket, crmUserId]
   );
 
+  const markConversationRead = React.useCallback((convId: string) => {
+    if (!socket?.connected || !crmUserId) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (ok) {
+          setConversations(prev => prev.map(conv => conv._id !== convId ? conv : {
+            ...conv,
+            unreadCount: 0,
+            manualUnread: false,
+            lastMessage: conv.lastMessage
+              ? { ...conv.lastMessage, readBy: [...new Set([...(conv.lastMessage.readBy || []), crmUserId])] }
+              : conv.lastMessage,
+          }));
+        }
+        resolve(ok);
+      };
+      const timeout = setTimeout(() => finish(false), 5000);
+      socket.emit('mark:read', { conversationId: convId }, (result: { ok?: boolean }) => finish(result?.ok === true));
+    });
+  }, [socket, crmUserId]);
+
   // Emit mark:all:read and optimistically clear every conversation's unread state
   const markAllAsRead = React.useCallback(() => {
     socket?.emit('mark:all:read');
@@ -878,26 +956,43 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           : conv
       )
     );
-    if (!crmToken) return;
-    apiClient
+    if (!crmToken) return Promise.resolve(false);
+    return apiClient
       .post(`/api/supraspace/conversations/${convId}/mark-unread`, { unread }, authConfig(crmToken, true))
+      .then(() => true)
       .catch(() => {
         // Revert on failure — refetch is the simplest source of truth.
         fetchConversations();
+        return false;
       });
   }, [crmToken, fetchConversations]);
 
   // Toggle a conversation's archived state for the current user
   const archiveConversation = React.useCallback(async (convId: string, archived: boolean) => {
-    setConversations((prev) => prev.filter((conv) => (archived ? conv._id !== convId : true)));
-    if (!crmToken) return;
+    if (!crmToken || !crmUserId) return;
+    setConversations((prev) => prev.map((conv) => {
+      if (conv._id !== convId) return conv;
+      const archivedBy = (conv.archivedBy || []).filter(id => String(id) !== crmUserId);
+      return {
+        ...conv,
+        archivedBy: archived ? [...archivedBy, crmUserId] : archivedBy,
+      };
+    }));
     try {
       await apiClient.post(`/api/supraspace/conversations/${convId}/archive`, { archived }, authConfig(crmToken, true));
     } catch {
+      setConversations((prev) => prev.map((conv) => {
+        if (conv._id !== convId) return conv;
+        const archivedBy = (conv.archivedBy || []).filter(id => String(id) !== crmUserId);
+        return {
+          ...conv,
+          archivedBy: archived ? archivedBy : [...archivedBy, crmUserId],
+        };
+      }));
       fetchConversations();
       throw new Error('Could not update archive state');
     }
-  }, [crmToken, fetchConversations]);
+  }, [crmToken, crmUserId, fetchConversations]);
 
   // Delete/leave a conversation — permanent for group admins, otherwise just hides it for this user
   const deleteConversation = React.useCallback(async (convId: string) => {
@@ -944,11 +1039,14 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         setNotifPrefs,
         prioritySenders,
         setPrioritySenders,
+        messageTextSize,
+        updateMessageTextSize,
         openChatPopup,
         openDirectChat,
         closeChatPopup,
         toggleMinimize,
         markAsRead,
+        markConversationRead,
         markAllAsRead,
         markConversationUnread,
         archiveConversation,
@@ -956,7 +1054,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         refreshConversations: fetchConversations,
         refreshSpaces: fetchSpaces,
 
-  }), [conversations, spaces, totalUnread, crmUserId, crmToken, myFullName, isLoadingConversations, conversationError, isConnected, openChats, minimizedChats, socket, myAvatar, notifPrefs, setNotifPrefs, prioritySenders, setPrioritySenders, openChatPopup, openDirectChat, closeChatPopup, toggleMinimize, markAsRead, markAllAsRead, markConversationUnread, archiveConversation, deleteConversation, fetchConversations, fetchSpaces]);
+  }), [conversations, spaces, totalUnread, crmUserId, crmToken, myFullName, isLoadingConversations, conversationError, isConnected, openChats, minimizedChats, socket, myAvatar, notifPrefs, setNotifPrefs, prioritySenders, setPrioritySenders, messageTextSize, updateMessageTextSize, openChatPopup, openDirectChat, closeChatPopup, toggleMinimize, markAsRead, markConversationRead, markAllAsRead, markConversationUnread, archiveConversation, deleteConversation, fetchConversations, fetchSpaces]);
   return (
     <RealtimeContext.Provider value={realtime}>
       <MessengerContext.Provider value={value}>

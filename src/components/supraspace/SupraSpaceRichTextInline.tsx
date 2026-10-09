@@ -141,7 +141,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={{ color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'highlight') nodes.push(<span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'font') nodes.push(<span key={key} style={{ fontFamily: FONT_FAMILIES[token.fontFamily || 'default'] }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `${token.fontSize || 16}px` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
+    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'bold') nodes.push(<strong key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</strong>);
     else if (token.type === 'strike') nodes.push(<s key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</s>);
     else if (token.type === 'underline') nodes.push(<u key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</u>);

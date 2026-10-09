@@ -16,6 +16,9 @@ import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } fro
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
+import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
+import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { UnreadMessagesDivider } from './messages/UnreadMessagesDivider';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -3843,10 +3846,12 @@ interface ChatPopupProps {
 
 function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
   const { theme } = useTheme();
-  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations } = useSupraSpaceMessenger();
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations, messageTextSize } = useSupraSpaceMessenger();
+  const hasLeftChannel = conv.type === 'group' && !!crmUserId && (conv.leftBy || []).map(String).includes(crmUserId);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
+  const [unreadBoundaryMessageId, setUnreadBoundaryMessageId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [fetchError, setFetchError] = React.useState(false);
   const [input, setInput] = React.useState('');
@@ -5431,6 +5436,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       });
       const nextMessages: SSMessage[] = r.data?.data ?? [];
       syncPinnedMessageIds(nextMessages);
+      setUnreadBoundaryMessageId(findSupraSpaceUnreadBoundary(nextMessages, crmUserId || '', conv.unreadCount));
       setMessages(nextMessages);
       markAsRead(conv._id);
     } catch (err: unknown) {
@@ -5438,7 +5444,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       console.error('[ChatPopup] messages fetch failed:', e?.response?.status, e?.response?.data ?? e?.message);
       setFetchError(true);
     } finally { setLoading(false); }
-  }, [conv._id, crmToken, syncPinnedMessageIds]);
+  }, [conv._id, conv.unreadCount, crmToken, crmUserId, markAsRead, syncPinnedMessageIds]);
   const recoverPopupImage = React.useCallback((imageKey: string) => {
     if (retryingPopupImages.has(imageKey)) {
       setFailedPopupImages(previous => new Set(previous).add(imageKey));
@@ -5577,10 +5583,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMinimized]);
   React.useEffect(() => {
-    if (!isMinimized) setTimeout(() => inputRef.current?.focus(), 60);
-  }, [isMinimized]);
+    if (!isMinimized && !hasLeftChannel) setTimeout(() => inputRef.current?.focus(), 60);
+  }, [hasLeftChannel, isMinimized]);
 
   const handleSend = async () => {
+    if (hasLeftChannel) return;
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
     const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
@@ -6436,7 +6443,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const senderColor = msg.sender?._id ? stringToColor(msg.sender._id) : accentColor;
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
-                    <div key={msg._id}
+                    <React.Fragment key={msg._id}>
+                    {msg._id === unreadBoundaryMessageId && <UnreadMessagesDivider compact />}
+                    <div
                       className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
@@ -6881,7 +6890,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             event.preventDefault();
                             event.clipboardData.setData('text/html', markdownTextToEditorHtml(msg.content));
                             event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(msg.content));
-                          }} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
+                          }} style={{ ...getSupraSpaceMessageTextStyle(messageTextSize), overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}
                             {msg.replyTo && (
                               <button
@@ -7060,6 +7069,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         )}
                       </div>
                     </div>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -7067,7 +7077,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             </div>
 
             {/* Input bar */}
-            <div className="shrink-0 border-t border-border/50 bg-card">
+            <div className="relative shrink-0 border-t border-border/50 bg-card">
               {mentionQuery !== null && mentionOptions.length > 0 && (
                 <div className="px-1 pt-1 pb-0.5 border-b border-border/40 overflow-y-auto overscroll-contain" style={{ maxHeight: 'min(180px, 30vh)' }}>
                   {mentionOptions.map((opt, idx) => (
@@ -7454,7 +7464,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   )}
                   <div
                     ref={inputRef}
-                    contentEditable
+                    contentEditable={!hasLeftChannel}
                     suppressContentEditableWarning
                     onBeforeInput={handleComposerTypographyBeforeInput}
                     onInput={event => {
@@ -7546,6 +7556,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
               </div>
               </>
+              )}
+              {hasLeftChannel && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-card px-4 text-center">
+                  <p className="text-[12px] font-medium text-muted-foreground">Read-only history · You left this channel</p>
+                </div>
               )}
             </div>
           </>
@@ -8078,7 +8093,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
 
                 {/* Archive chat */}
-                <button className={row} onClick={() => {
+                {!hasLeftChannel && <button className={row} onClick={() => {
                   close();
                   onClose();
                   archiveConversation(conv._id, true)
@@ -8087,7 +8102,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 }}>
                   <Archive className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('Archive chat')}
-                </button>
+                </button>}
 
                 {sep}
 
