@@ -8,12 +8,14 @@ type PinEvent = { id: string; pinnerName: string; msgId: string };
 type MessageTimelineProps = {
   messages: SSMessage[];
   pinEvents: PinEvent[];
+  unreadBoundaryMessageId?: string | null;
   dateLabel: (date: string) => string;
   renderDateSeparator: (date: string) => React.ReactNode;
+  renderUnreadSeparator?: () => React.ReactNode;
   renderMessage: (message: SSMessage, options: { showAvatar: boolean; hideTime: boolean }) => React.ReactNode;
 };
 
-export const MessageTimeline = React.memo(function MessageTimeline({ messages, pinEvents, dateLabel, renderDateSeparator, renderMessage }: MessageTimelineProps) {
+export const MessageTimeline = React.memo(function MessageTimeline({ messages, pinEvents, unreadBoundaryMessageId, dateLabel, renderDateSeparator, renderUnreadSeparator, renderMessage }: MessageTimelineProps) {
   const entries = React.useMemo(() => {
     const pinEventsByMessageId = new Map(pinEvents.map(event => [event.msgId, event]));
     return messages.map((message, index) => {
@@ -38,6 +40,7 @@ export const MessageTimeline = React.memo(function MessageTimeline({ messages, p
     return (
       <React.Fragment key={message._id}>
         {showDate && renderDateSeparator(message.createdAt)}
+        {message._id === unreadBoundaryMessageId && renderUnreadSeparator?.()}
         <div id={`ss4-msg-${message._id}`}>
           {renderMessage(message, { showAvatar, hideTime })}
         </div>

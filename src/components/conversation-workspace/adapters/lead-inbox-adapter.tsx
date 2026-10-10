@@ -54,7 +54,7 @@ export function leadDetailSections(
     "Unknown Lead";
   const address = lead.address || "Not provided";
   const tags = lead.tags?.join(", ") || lead.labels?.join(", ") || "Not provided";
-  const source = lead.source || sourceEmail;
+  const source = lead.sourceProvider ? `${lead.source} — ${lead.sourceProvider}` : lead.source || sourceEmail;
   const opportunityValue =
     lead.opportunityValue !== undefined && lead.opportunityValue !== null
       ? `$${Number(lead.opportunityValue).toLocaleString()}`
@@ -62,6 +62,7 @@ export function leadDetailSections(
   const vehicleLabel = [lead.vehicle?.year, lead.vehicle?.make, lead.vehicle?.model]
     .filter(Boolean)
     .join(" ") || "Vehicle not specified";
+  const vin = lead.vehicle?.vin || "Not provided";
 
   return [
     {
@@ -98,6 +99,8 @@ export function leadDetailSections(
         { id: "source", label: "Source", value: source, icon: <Tag size={15} />, copyText: source },
         { id: "value", label: "Opportunity value", value: opportunityValue, icon: <CircleDollarSign size={15} />, copyText: opportunityValue === "Not provided" ? "" : opportunityValue },
         { id: "vehicle", label: "Vehicle", value: vehicleLabel, icon: <Calculator size={15} />, copyText: vehicleLabel },
+        { id: "vin", label: "VIN", value: vin, icon: <Tag size={15} />, copyText: vin === "Not provided" ? "" : vin },
+        { id: "location", label: "Location", value: lead.location || "Not specified", icon: <MapPin size={15} />, copyText: lead.location || "" },
         { id: "created", label: "Created", value: lead.createdAt, icon: <Clock3 size={15} />, copyText: String(lead.createdAt || "") },
       ],
     },
@@ -120,9 +123,16 @@ export function leadActivityItems(lead: Lead): WorkspaceActivityItem[] {
   const notes: WorkspaceActivityItem[] = (lead.notes || []).map((note, index) => ({
     id: note._id || `note-${note.createdAt}-${index}`,
     kind: "note",
-    title: "Note added",
+    title: note.milestone ? "Milestone note" : "Internal note",
     description: note.text,
     createdAt: note.createdAt,
+    metadata: {
+      authorType: note.authorType,
+      authorName: note.authorName,
+      mentionedUserIds: note.mentionedUserIds,
+      mentionedGroupIds: note.mentionedGroupIds,
+      milestone: note.milestone,
+    },
   }));
 
   const statuses: WorkspaceActivityItem[] = (lead.statusHistory || []).map((entry, index) => ({

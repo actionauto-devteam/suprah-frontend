@@ -537,9 +537,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 3. Sign Out
   const signOut = useCallback(
     async (options?: { redirectUrl?: string }) => {
-      setUser(null);
-      setAccessToken(null);
-      setAuthIndeterminate(false);
       // Also clears crm_token (localStorage) + its IndexedDB mirror via
       // useCrmToken.ts's listener — otherwise a stale CRM SSO token would
       // sit in IndexedDB (readable by the service worker) after logout.
@@ -558,10 +555,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }).catch(() => {});
         }
       }
+      try {
+        await apiClient.post("/api/auth/logout");
+      } catch (error) {
+        toast.error('Could not finish signing out. Check your connection and try again.');
+        throw error;
+      }
+      setUser(null);
+      setAccessToken(null);
+      setAuthIndeterminate(false);
       router.push(options?.redirectUrl || "/sign-in");
-      void apiClient.post("/api/auth/logout").catch(() => {});
     },
-    [router],
+    [router, setAccessToken],
   );
 
   const value = useMemo(

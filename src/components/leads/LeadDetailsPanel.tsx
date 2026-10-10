@@ -44,6 +44,7 @@ function toWorkspaceActivities(items: CustomerTimelineItem[]): WorkspaceActivity
     title: item.title,
     description: item.body,
     createdAt: item.occurredAt,
+    metadata: item.metadata as WorkspaceActivityItem["metadata"],
   }));
 }
 
@@ -55,6 +56,7 @@ interface LeadDetailsUpdate {
   address?: string;
   tags?: string[];
   source?: string;
+  location?: string;
   opportunityValue?: number | null;
   vehicle?: {
     year?: string;
@@ -97,6 +99,26 @@ export function LeadDetailsPanel({
   const [noteIntent, setNoteIntent] = React.useState(0);
   const [editingContact, setEditingContact] = React.useState(false);
   const [editingLead, setEditingLead] = React.useState(false);
+  const [vehicleLocations, setVehicleLocations] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await apiClient.get("/api/vehicles/filters", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = res.data?.data || res.data;
+        if (!cancelled && Array.isArray(data?.locations)) {
+          setVehicleLocations(data.locations);
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
   const [savingContact, setSavingContact] = React.useState(false);
   const [savingLead, setSavingLead] = React.useState(false);
   const [summaryLoading, setSummaryLoading] = React.useState(false);
@@ -145,6 +167,7 @@ export function LeadDetailsPanel({
   const initialLeadInfo = React.useMemo(
     () => ({
       source: lead?.source || sourceEmail || "",
+      location: lead?.location || "",
       opportunityValue:
         lead?.opportunityValue === undefined || lead?.opportunityValue === null
           ? ""
@@ -230,6 +253,7 @@ export function LeadDetailsPanel({
 
       await onUpdateDetails({
         source: leadDraft.source.trim(),
+        location: leadDraft.location.trim(),
         opportunityValue: parsedValue,
         vehicle: {
           year: leadDraft.vehicleYear.trim(),
@@ -307,6 +331,12 @@ export function LeadDetailsPanel({
           content: (
             <div className="space-y-2">
               <input value={leadDraft.source} onChange={(event) => setLeadDraft((current) => ({ ...current, source: event.target.value }))} placeholder="Lead source" className={fieldClass} />
+              <input value={leadDraft.location} onChange={(event) => setLeadDraft((current) => ({ ...current, location: event.target.value }))} placeholder="Location (vehicle lot)" className={fieldClass} list="lead-location-options" />
+              <datalist id="lead-location-options">
+                {vehicleLocations.map((loc) => (
+                  <option key={loc} value={loc} />
+                ))}
+              </datalist>
               <input type="number" min="0" step="0.01" value={leadDraft.opportunityValue} onChange={(event) => setLeadDraft((current) => ({ ...current, opportunityValue: event.target.value }))} placeholder="Opportunity value" className={fieldClass} />
               <div className="grid grid-cols-[0.8fr_1fr_1fr] gap-2">
                 <input value={leadDraft.vehicleYear} onChange={(event) => setLeadDraft((current) => ({ ...current, vehicleYear: event.target.value }))} placeholder="Year" className={fieldClass} />

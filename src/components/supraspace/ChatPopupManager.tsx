@@ -14,7 +14,11 @@ import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
+import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
+import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { UnreadMessagesDivider } from './messages/UnreadMessagesDivider';
 import {
   useSupraSpaceMessenger,
   SSConv,
@@ -22,6 +26,7 @@ import {
 import { SSAttachment, SSMessage, SSGif, SSPoll, SSEvent } from '@/hooks/useSupraSpaceSocket';
 import { EmojiReactionPicker } from './EmojiReactionPicker';
 import { getOperationalMessageKind, OperationalMessageCard } from './OperationalMessageCard';
+import { PreSendMediaPreview } from './PreSendMediaPreview';
 import { toast } from 'sonner';
 import type { AxiosRequestConfig } from 'axios';
 
@@ -1418,7 +1423,8 @@ function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boo
 
 function hasMarkdownSyntax(text: string): boolean {
   const compatibleText = normalizeSupraSpaceLegacyMarkup(text);
-  return /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
+  return Boolean(findSupraSpaceMarkdownLink(compatibleText))
+    || /\*\*[\s\S]+?\*\*|__[^_\n]+__|~~[^~\n]+~~|\{(?:color|highlight):#[0-9a-fA-F]{6}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}/m.test(compatibleText)
     || compatibleText.replace(/\r\n?/g, '\n').split('\n').some(line =>
       POPUP_SOURCE_BULLET_RE.test(line) || /^\s*\d+\.\s+\S/.test(line) || /^\s*>\s?\S/.test(line)
     );
@@ -2279,8 +2285,7 @@ function clipboardHtmlToListAwareText(html: string): string {
 }
 
 function stripRichTextMarkupForPlainPaste(value: string): string {
-  return stripSupraSpaceControlMarkup(value)
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+  return stripSupraSpaceMarkdownLinksToLabels(stripSupraSpaceControlMarkup(value))
     .replace(/\*\*([^*\n]+)\*\*/g, '$1')
     .replace(/__([^_\n]+)__/g, '$1')
     .replace(/~~([^~\n]+)~~/g, '$1')
@@ -2593,14 +2598,7 @@ function markdownTextToEditorHtml(text: string): string {
     return Math.max(indentDepth, markerDepth);
   };
 
-  const applyInlineMarkdown = (value: string): string =>
-    escapeHtmlText(value)
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+  const applyInlineMarkdown = supraSpaceMarkdownToEditorInlineHtml;
 
   const renderStyledInline = (value: string): string => {
     const styleTag = /\{color:(#[0-9a-fA-F]{3,8})\}|\{\/color\}|\{highlight:(#[0-9a-fA-F]{3,8})\}|\{\/highlight\}|\{font:([a-z-]+)\}|\{\/font\}|\{size:(\d{1,3})\}|\{\/size\}/g;
@@ -3848,10 +3846,14 @@ interface ChatPopupProps {
 
 function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
   const { theme } = useTheme();
-  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations } = useSupraSpaceMessenger();
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations, messageTextSize } = useSupraSpaceMessenger();
+  const hasLeftChannel = conv.type === 'group' && !!crmUserId && (conv.leftBy || []).map(String).includes(crmUserId);
+  const isArchivedConversation = !!crmUserId && (conv.archivedBy || []).map(String).includes(crmUserId);
+  const isReadOnlyConversation = hasLeftChannel || isArchivedConversation;
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const router = useRouter();
   const [messages, setMessages] = React.useState<SSMessage[]>([]);
+  const [unreadBoundaryMessageId, setUnreadBoundaryMessageId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [fetchError, setFetchError] = React.useState(false);
   const [input, setInput] = React.useState('');
@@ -3865,6 +3867,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const failedDeliveryRef = React.useRef<{ id: string; key: string } | null>(null);
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
+  const pendingMediaFiles = React.useMemo(() => pendingAttachments.map(attachment => attachment.file), [pendingAttachments]);
   const [replyTo, setReplyTo] = React.useState<SSMessage | null>(null);
 
   const deliveryIdFor = React.useCallback((key: string) => {
@@ -4064,6 +4067,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     boundary?: { top: number; right: number; bottom: number; left: number };
   } | null>(null);
   const [mediaPreview, setMediaPreview] = React.useState<{ src: string; name: string; type?: 'image' | 'video' } | null>(null);
+  const [pendingMediaPreviewIndex, setPendingMediaPreviewIndex] = React.useState<number | null>(null);
   const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
   const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
@@ -4188,6 +4192,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // ── Actions ──
   const handleReact = async (messageId: string, emoji: string) => {
+    if (isReadOnlyConversation) return;
     clearBar();
     try {
       const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
@@ -4315,7 +4320,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingAttachments = React.useCallback(async (caption: string) => {
-    if (!pendingAttachments.length || !crmToken || sending || sendInFlightRef.current) return false;
+    if (isReadOnlyConversation || !pendingAttachments.length || !crmToken || sending || sendInFlightRef.current) return false;
     sendInFlightRef.current = true;
     setSending(true);
     const deliveryKey = `files:${caption.trim()}:${replyTo?._id || ''}:${pendingAttachments.map(item => attachmentFileKey(item.file)).join('|')}`;
@@ -4368,7 +4373,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setDraggingAttachment(false);
       dragDepthRef.current = 0;
     }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingAttachments, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingAttachments, replyTo?._id, sending, syncComposerText]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -4400,7 +4405,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const handleSendThumbsUp = async () => {
-    if (sending || !crmToken) return;
+    if (isReadOnlyConversation || sending || !crmToken) return;
     setSending(true);
     try {
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`,
@@ -4419,7 +4424,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, []);
 
   const sendPendingGif = React.useCallback(async (caption: string) => {
-    if (!pendingGif || !crmToken || sending || sendInFlightRef.current) return false;
+    if (isReadOnlyConversation || !pendingGif || !crmToken || sending || sendInFlightRef.current) return false;
     sendInFlightRef.current = true;
     setSending(true);
     const gif = pendingGif;
@@ -4458,10 +4463,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       toast.error(reconciliation.status === 'missing' ? 'Could not send GIF. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
       return false;
     } finally { setSending(false); sendInFlightRef.current = false; }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, pendingGif, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingGif, replyTo?._id, sending, syncComposerText]);
 
   // ── Voice recording ──
   const startRecording = React.useCallback(async () => {
+    if (isReadOnlyConversation) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
@@ -4499,7 +4505,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     } catch {
       toast.error('Microphone permission denied.');
     }
-  }, [conv._id, crmToken]);
+  }, [conv._id, crmToken, isReadOnlyConversation]);
 
   const togglePauseRecording = React.useCallback(() => {
     const mr = mediaRecorderRef.current;
@@ -4946,6 +4952,25 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     refreshPopupEditFormats,
     syncEditDraft,
   ]);
+
+  const applyEditLink = React.useCallback(() => {
+    const root = editAreaRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, editSelectionRangeRef.current);
+    const selectedText = range.toString();
+    const href = window.prompt('Enter a web or email link', /^https?:\/\//i.test(selectedText) ? selectedText : 'https://')?.trim();
+    if (!href) return;
+    if (!isSafeSupraSpaceLinkHref(href)) {
+      toast.error('Use an http(s) or mailto link.');
+      return;
+    }
+    const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
+      document.execCommand(selectedText ? 'createLink' : 'insertText', false, href);
+    });
+    if (nextRange) editSelectionRangeRef.current = nextRange;
+    syncEditDraft();
+    requestAnimationFrame(refreshPopupEditFormats);
+  }, [refreshPopupEditFormats, syncEditDraft]);
 
   const applyEditColor = React.useCallback((color: string) => {
     const root = editAreaRef.current;
@@ -5415,6 +5440,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       });
       const nextMessages: SSMessage[] = r.data?.data ?? [];
       syncPinnedMessageIds(nextMessages);
+      setUnreadBoundaryMessageId(findSupraSpaceUnreadBoundary(nextMessages, crmUserId || '', conv.unreadCount));
       setMessages(nextMessages);
       markAsRead(conv._id);
     } catch (err: unknown) {
@@ -5422,7 +5448,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       console.error('[ChatPopup] messages fetch failed:', e?.response?.status, e?.response?.data ?? e?.message);
       setFetchError(true);
     } finally { setLoading(false); }
-  }, [conv._id, crmToken, syncPinnedMessageIds]);
+  }, [conv._id, conv.unreadCount, crmToken, crmUserId, markAsRead, syncPinnedMessageIds]);
   const recoverPopupImage = React.useCallback((imageKey: string) => {
     if (retryingPopupImages.has(imageKey)) {
       setFailedPopupImages(previous => new Set(previous).add(imageKey));
@@ -5561,10 +5587,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (!isMinimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMinimized]);
   React.useEffect(() => {
-    if (!isMinimized) setTimeout(() => inputRef.current?.focus(), 60);
-  }, [isMinimized]);
+    if (!isMinimized && !isReadOnlyConversation) setTimeout(() => inputRef.current?.focus(), 60);
+  }, [isMinimized, isReadOnlyConversation]);
 
   const handleSend = async () => {
+    if (isReadOnlyConversation) return;
     const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
     const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
     const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
@@ -5727,6 +5754,24 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     }));
     syncComposerText(root.innerText.replace(/\n$/, ''), true);
   }, [composerTypingFormats, syncComposerText]);
+
+  const applyComposerLink = React.useCallback(() => {
+    const root = inputRef.current;
+    if (!root) return;
+    const range = getRichEditorSelectionRange(root, inputSelectionRangeRef.current);
+    const selectedText = range.toString();
+    const href = window.prompt('Enter a web or email link', /^https?:\/\//i.test(selectedText) ? selectedText : 'https://')?.trim();
+    if (!href) return;
+    if (!isSafeSupraSpaceLinkHref(href)) {
+      toast.error('Use an http(s) or mailto link.');
+      return;
+    }
+    const nextRange = executeRichEditorCommandPreservingSelection(root, range, () => {
+      document.execCommand(selectedText ? 'createLink' : 'insertText', false, href);
+    });
+    if (nextRange) inputSelectionRangeRef.current = nextRange;
+    syncComposerText(htmlToMarkdown(root), true);
+  }, [syncComposerText]);
 
   const refreshComposerCaretFormats = React.useCallback(() => {
     try {
@@ -6402,7 +6447,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const senderColor = msg.sender?._id ? stringToColor(msg.sender._id) : accentColor;
                   const senderDisplayName = conv.members.find(m => m._id === msg.sender?._id)?.displayNickname || msg.sender?.fullName;
                   return (
-                    <div key={msg._id}
+                    <React.Fragment key={msg._id}>
+                    {msg._id === unreadBoundaryMessageId && <UnreadMessagesDivider compact />}
+                    <div
                       className={cn(operationalKind ? 'block' : 'flex gap-2', !operationalKind && (isOwn ? 'flex-row-reverse items-end' : 'flex-row items-end'), showName && 'mt-2')}
                       onMouseEnter={(e) => handleMsgEnter(e, msg._id, isOwn)}
                       onMouseLeave={handleMsgLeave}
@@ -6459,6 +6506,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('italic'); }} className={popupEditButtonClass(editActiveFormats.italic)} title="Italic" aria-pressed={editActiveFormats.italic}><Italic className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('underline'); }} className={popupEditButtonClass(editActiveFormats.underline)} title="Underline" aria-pressed={editActiveFormats.underline}><Underline className="h-3.5 w-3.5" /></button>
                               <button type="button" onMouseDown={e => { e.preventDefault(); applyEditCommand('strikeThrough'); }} className={popupEditButtonClass(editActiveFormats.strike)} title="Strikethrough" aria-pressed={editActiveFormats.strike}><Strikethrough className="h-3.5 w-3.5" /></button>
+                              <button type="button" onMouseDown={e => { e.preventDefault(); applyEditLink(); }} className={popupEditButtonClass(false)} title="Add or update link"><Link2 className="h-3.5 w-3.5" /></button>
                               <select
                                 value={editFontFamily}
                                 onPointerDown={() => rememberEditSelection()}
@@ -6846,7 +6894,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             event.preventDefault();
                             event.clipboardData.setData('text/html', markdownTextToEditorHtml(msg.content));
                             event.clipboardData.setData('text/plain', stripRichTextMarkupForPlainPaste(msg.content));
-                          }} style={{ overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
+                          }} style={{ ...getSupraSpaceMessageTextStyle(messageTextSize), overflowWrap: 'anywhere', background: !bareMessage && isOwn ? accentColor : undefined }}>
                             {/* Reply preview */}
                             {msg.replyTo && (
                               <button
@@ -6872,10 +6920,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             )}
                             {imageAttachments.length > 0 && (
                               <div className={cn(
-                                imageAttachments.length === 1 ? 'block' : 'grid gap-1 overflow-hidden rounded-2xl',
+                                imageAttachments.length === 1 ? 'inline-block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : undefined}>
+                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : { width: 'fit-content', maxWidth: '100%' }}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
@@ -6886,7 +6934,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       type="button"
                                       onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
-                                        'block overflow-hidden border border-white/10 bg-black/20',
+                                        imageAttachments.length === 1 ? 'inline-block max-w-full' : 'block',
+                                        'overflow-hidden border border-white/10 bg-black/20',
                                         imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
                                       )}
                                       title="Preview image"
@@ -7025,6 +7074,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                         )}
                       </div>
                     </div>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -7032,7 +7082,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             </div>
 
             {/* Input bar */}
-            <div className="shrink-0 border-t border-border/50 bg-card">
+            <div className="relative shrink-0 border-t border-border/50 bg-card">
               {mentionQuery !== null && mentionOptions.length > 0 && (
                 <div className="px-1 pt-1 pb-0.5 border-b border-border/40 overflow-y-auto overscroll-contain" style={{ maxHeight: 'min(180px, 30vh)' }}>
                   {mentionOptions.map((opt, idx) => (
@@ -7096,7 +7146,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             {isImage ? (
                               <button
                                 type="button"
-                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'image' })}
+                                onClick={() => setPendingMediaPreviewIndex(pendingAttachments.slice(0, index).filter(attachment => attachment.file.type.startsWith('image/') || attachment.file.type.startsWith('video/')).length)}
                                 className="block h-full"
                                 title="Preview image"
                               >
@@ -7105,7 +7155,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             ) : isVideo ? (
                               <button
                                 type="button"
-                                onClick={() => setMediaPreview({ src: item.previewUrl, name: item.file.name, type: 'video' })}
+                                onClick={() => setPendingMediaPreviewIndex(pendingAttachments.slice(0, index).filter(attachment => attachment.file.type.startsWith('image/') || attachment.file.type.startsWith('video/')).length)}
                                 className="relative block h-full"
                                 title="Preview video"
                               >
@@ -7280,6 +7330,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 >
                   <Strikethrough className="h-3.5 w-3.5" />
                 </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    applyComposerLink();
+                  }}
+                  className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted"
+                  title="Add or update link"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </button>
                 {TEXT_COLORS.map(color => (
                   <button
                     key={color}
@@ -7408,7 +7469,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   )}
                   <div
                     ref={inputRef}
-                    contentEditable
+                    contentEditable={!isReadOnlyConversation}
                     suppressContentEditableWarning
                     onBeforeInput={handleComposerTypographyBeforeInput}
                     onInput={event => {
@@ -7500,6 +7561,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
               </div>
               </>
+              )}
+              {isReadOnlyConversation && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-card px-4 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <p className="text-[12px] font-medium text-muted-foreground">{hasLeftChannel ? 'Read-only history · You left this channel' : 'This conversation is archived. Unarchive it to send messages.'}</p>
+                    {isArchivedConversation && !hasLeftChannel && <button type="button" onClick={() => archiveConversation(conv._id, false).catch(() => toast.error('Could not unarchive conversation'))} className="rounded-md px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted">Unarchive</button>}
+                  </div>
+                </div>
               )}
             </div>
           </>
@@ -7917,6 +7986,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         document.body
       )}
 
+      {pendingMediaPreviewIndex !== null && (
+        <PreSendMediaPreview
+          files={pendingMediaFiles}
+          initialIndex={pendingMediaPreviewIndex}
+          onClose={() => setPendingMediaPreviewIndex(null)}
+        />
+      )}
+
       {chatSettingsOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={settingsRef}
@@ -8024,7 +8101,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
 
                 {/* Archive chat */}
-                <button className={row} onClick={() => {
+                {!hasLeftChannel && <button className={row} onClick={() => {
                   close();
                   onClose();
                   archiveConversation(conv._id, true)
@@ -8033,7 +8110,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 }}>
                   <Archive className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('Archive chat')}
-                </button>
+                </button>}
 
                 {sep}
 

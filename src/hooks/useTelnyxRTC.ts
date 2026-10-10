@@ -28,7 +28,8 @@ function ensureAudioElement(): HTMLAudioElement {
 
 async function reportCall(body: Record<string, any>) {
   try {
-    await apiClient.post("/api/crm/communications/calls/log", body);
+    const response = await apiClient.post("/api/crm/communications/calls/log", body);
+    return response.data?.data;
   } catch {
     /* history logging must never break the call itself */
   }
@@ -142,7 +143,7 @@ export function useTelnyxRTC() {
         clientCallId,
       });
 
-      await reportCall({
+      const logged = await reportCall({
         clientCallId,
         event: "start",
         toPhone: phoneNumber,
@@ -150,11 +151,14 @@ export function useTelnyxRTC() {
         leadId: opts?.leadId,
       });
 
+      if (logged?.call?._id) commActions.patchActiveCall({ callLogId: logged.call._id });
+
       const call = c.newCall({
         destinationNumber: phoneNumber,
         callerNumber,
         audio: true,
         video: false,
+        ...(logged?.correlation ? { clientState: btoa(JSON.stringify({ kind: 'recording-outbound', ...logged.correlation })) } : {}),
       });
       (call as any).__clientCallId = clientCallId;
       currentCall = call;

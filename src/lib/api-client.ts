@@ -1129,7 +1129,7 @@ class ApiClient {
   async adminTimeOverride(
     data: {
       userId: string; date: string; action: "edit" | "delete" | "create";
-      logId?: string; type?: "time-in" | "time-out"; timestamp?: string; reason: string;
+      logId?: string; type?: "time-in" | "time-out" | "break-in" | "break-out"; timestamp?: string; reason: string;
     },
     config?: AxiosRequestConfig
   ) {

@@ -75,6 +75,22 @@ export default function AiTasksPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [busyId, setBusyId] = React.useState("")
+  const [agentName, setAgentName] = React.useState("Alex")
+
+  React.useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const t = await getToken()
+        const res = await apiClient.get("/api/crm/org-settings", { headers: { Authorization: `Bearer ${t}` } })
+        const data = res.data?.data || res.data
+        if (!cancelled && data?.aiAgentName) setAgentName(data.aiAgentName)
+      } catch {
+        // Keep the "Alex" fallback if settings can't be loaded.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [getToken])
 
   const loadTasks = React.useCallback(async () => {
     try {
@@ -119,7 +135,7 @@ export default function AiTasksPage() {
           AI Agent Tasks
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Things Alex flagged for a human to follow up on, oldest first.
+          Things {agentName} flagged for a human to follow up on, oldest first.
         </p>
       </div>
 

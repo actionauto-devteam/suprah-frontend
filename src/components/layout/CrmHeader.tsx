@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 import { useCrmUser } from '@/hooks/useCrmUser';
 import { useOrg } from '@/hooks/useOrg';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
@@ -48,11 +49,16 @@ export function CrmHeader({
   const { organization } = useOrg();
 
   const handleExit = async () => {
+    window.dispatchEvent(new Event('suprah:clear-private-cache'));
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.getRegistrations().then(registrations => registrations.forEach(registration => registration.active?.postMessage({ type: 'SUPRASPACE_CLEAR_PRIVATE_DATA' }))).catch(() => {});
     try {
       await apiClient.post('/api/crm/logout', {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
-    } catch { }
+    } catch {
+      toast.error('Could not finish signing out. Check your connection and try again.');
+      return;
+    }
     localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
     router.push('/');

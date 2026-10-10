@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { stripResidualSupraSpaceInlineControlMarkers } from '@/lib/supra-space-message-formatting';
+import { findSupraSpaceMarkdownLink, splitSupraSpaceTrailingUrlPunctuation } from '@/lib/supra-space-links';
 
 const FONT_FAMILIES = {
   default: 'inherit',
@@ -52,10 +53,8 @@ function stripTypographyControlTags(value: string): string {
 
 function findNextToken(text: string, from: number): FormatToken | null {
   const candidates: FormatToken[] = [];
-  const linkRe = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
-  linkRe.lastIndex = from;
-  const linkMatch = linkRe.exec(text);
-  if (linkMatch) candidates.push({ start: linkMatch.index, end: linkMatch.index + linkMatch[0].length, type: 'link', linkText: linkMatch[1], linkHref: linkMatch[2] });
+  const linkMatch = findSupraSpaceMarkdownLink(text, from);
+  if (linkMatch) candidates.push({ start: linkMatch.start, end: linkMatch.end, type: 'link', linkText: linkMatch.label, linkHref: linkMatch.href });
 
   const controlDefinitions: Array<{ kind: 'color' | 'highlight' | 'font' | 'size'; re: RegExp }> = [
     { kind: 'color', re: /\{\s*color\s*:\s*(#[0-9a-f]{3,8})\s*\}/gi },
@@ -116,8 +115,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
       const token = match[0];
       const key = `${keyPrefix}-plain-${index++}`;
       if (/^https?:\/\//i.test(token) && !insideLink) {
-        const trailing = token.match(/[),.!?]+$/)?.[0] || '';
-        const href = trailing ? token.slice(0, -trailing.length) : token;
+        const { href, trailing } = splitSupraSpaceTrailingUrlPunctuation(token);
         nodes.push(<React.Fragment key={key}><a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>{trailing}</React.Fragment>);
       } else if (/^https?:\/\//i.test(token)) {
         nodes.push(token);
@@ -143,7 +141,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={{ color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'highlight') nodes.push(<span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'font') nodes.push(<span key={key} style={{ fontFamily: FONT_FAMILIES[token.fontFamily || 'default'] }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `${token.fontSize || 16}px` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
+    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
     else if (token.type === 'bold') nodes.push(<strong key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</strong>);
     else if (token.type === 'strike') nodes.push(<s key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</s>);
     else if (token.type === 'underline') nodes.push(<u key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</u>);

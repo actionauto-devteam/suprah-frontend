@@ -8,6 +8,7 @@ export interface TestDriveBookingPayload {
   phone: string;
   startTime: string;
   notes?: string;
+  clientRequestId?: string;
 }
 
 export interface TestDriveBookingResult {

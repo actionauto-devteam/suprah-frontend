@@ -5,6 +5,7 @@ import {
   Send,
   Circle,
   Calendar,
+  CalendarClock,
   XCircle,
   Lock,
   LockOpen,
@@ -16,11 +17,13 @@ import {
   X,
   Sparkles,
   Loader2,
+  StickyNote,
 } from "lucide-react";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
 import { StatusReasonModal } from "./StatusReasonModal";
 import { CannedReplyPicker } from "./CannedReplyPicker";
+import { LeadNoteComposer } from "./LeadNoteComposer";
 import { apiClient } from "@/lib/api-client";
 
 interface ReplySectionProps {
@@ -31,6 +34,7 @@ interface ReplySectionProps {
   isSending: boolean;
   onStatusChange: (status: string, reason?: string) => void;
   onApptOpen: () => void;
+  onReschedule?: () => void;
   onReopen: (reason?: string) => void;
   onQuoteShipping: () => void;
   selectedLeadStatus: string;
@@ -38,6 +42,8 @@ interface ReplySectionProps {
   leadId?: string;
   replyChannel?: "email" | "sms";
   threadContext?: Array<{ direction: "inbound" | "outbound"; text: string }>;
+  onAddNote?: (payload: { text: string; mentionedUserIds: string[]; mentionedGroupIds: string[] }) => Promise<void>;
+  isSavingNote?: boolean;
 }
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -122,6 +128,7 @@ export const ReplySection = React.memo(
     isSending,
     onStatusChange,
     onApptOpen,
+    onReschedule,
     onReopen,
     onQuoteShipping,
     selectedLeadStatus,
@@ -129,6 +136,8 @@ export const ReplySection = React.memo(
     leadId,
     replyChannel = "email",
     threadContext,
+    onAddNote,
+    isSavingNote,
   }: ReplySectionProps) => {
     const [reasonModal, setReasonModal] = React.useState<
       null | { kind: "status"; status: string } | "reopen"
@@ -137,6 +146,32 @@ export const ReplySection = React.memo(
     const [attachments, setAttachments] = React.useState<File[]>([]);
     const [attachmentError, setAttachmentError] = React.useState("");
     const [emojiOpen, setEmojiOpen] = React.useState(false);
+
+    const [composerMode, setComposerMode] = React.useState<"reply" | "note">("reply");
+    const [noteText, setNoteText] = React.useState("");
+    const [noteMentionedUserIds, setNoteMentionedUserIds] = React.useState<string[]>([]);
+    const [noteMentionedGroupIds, setNoteMentionedGroupIds] = React.useState<string[]>([]);
+
+    React.useEffect(() => {
+      setComposerMode("reply");
+      setNoteText("");
+      setNoteMentionedUserIds([]);
+      setNoteMentionedGroupIds([]);
+    }, [leadId]);
+
+    const handleSaveNote = async () => {
+      const trimmed = noteText.trim();
+      if (!trimmed || !onAddNote || isSavingNote) return;
+      await onAddNote({
+        text: trimmed,
+        mentionedUserIds: noteMentionedUserIds,
+        mentionedGroupIds: noteMentionedGroupIds,
+      });
+      setNoteText("");
+      setNoteMentionedUserIds([]);
+      setNoteMentionedGroupIds([]);
+      setComposerMode("reply");
+    };
 
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -421,8 +456,14 @@ export const ReplySection = React.memo(
 
     return (
       <div className="suprah-reply-section shrink-0 border-t border-slate-200 bg-slate-50 px-2 py-2.5 dark:border-emerald-400/15 dark:bg-[#0a1410] sm:px-4">
-        <div className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19]">
-          {showDraftChip && (
+        <div
+          className={
+            composerMode === "note"
+              ? "relative overflow-visible rounded-2xl border border-amber-400/60 bg-amber-50/30 shadow-sm transition focus-within:border-amber-500/60 focus-within:ring-2 focus-within:ring-amber-500/15 dark:border-amber-500/30 dark:bg-amber-950/10"
+              : "relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/15 dark:border-emerald-400/15 dark:bg-[#0f1f19]"
+          }
+        >
+          {composerMode === "reply" && showDraftChip && (
             <div className="flex items-center border-b border-slate-100 px-3 pb-2 pt-2.5 dark:border-emerald-400/10">
               <button
                 type="button"
@@ -442,34 +483,51 @@ export const ReplySection = React.memo(
             </div>
           )}
 
-          <textarea
-            ref={textareaRef}
-            value={replyMessage}
-            onChange={(event) => {
-              setReplyMessage(event.target.value);
-              if (!event.target.value.trim()) setDraftedLeadId(null);
-              window.requestAnimationFrame(resizeTextarea);
-            }}
-            placeholder="Write a reply…"
-            rows={2}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                (event.metaKey || event.ctrlKey)
-              ) {
-                event.preventDefault();
-                void handleSendReply();
-              }
-            }}
-            className="suprah-composer-field suprah-composer-message suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[14px] leading-snug text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 sm:px-4"
-            style={{
-              minHeight: 56,
-              maxHeight: "34vh",
-              overflowY: "hidden",
-            }}
-          />
+          {composerMode === "note" ? (
+            <div className="px-3 pb-2 pt-3 sm:px-4">
+              <LeadNoteComposer
+                bare
+                value={noteText}
+                onChange={setNoteText}
+                mentionedUserIds={noteMentionedUserIds}
+                onMentionedUserIdsChange={setNoteMentionedUserIds}
+                mentionedGroupIds={noteMentionedGroupIds}
+                onMentionedGroupIdsChange={setNoteMentionedGroupIds}
+                onSubmit={() => void handleSaveNote()}
+                placeholder="Write an internal note — never seen by the customer…"
+                disabled={isSavingNote}
+              />
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={replyMessage}
+              onChange={(event) => {
+                setReplyMessage(event.target.value);
+                if (!event.target.value.trim()) setDraftedLeadId(null);
+                window.requestAnimationFrame(resizeTextarea);
+              }}
+              placeholder="Write a reply…"
+              rows={2}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  (event.metaKey || event.ctrlKey)
+                ) {
+                  event.preventDefault();
+                  void handleSendReply();
+                }
+              }}
+              className="suprah-composer-field suprah-composer-message suprah-reply-textarea block w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[14px] leading-snug text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 sm:px-4"
+              style={{
+                minHeight: 56,
+                maxHeight: "34vh",
+                overflowY: "hidden",
+              }}
+            />
+          )}
 
-          {attachments.length > 0 && (
+          {composerMode === "reply" && attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2 dark:border-emerald-400/10">
               {attachments.map((file, index) => (
                 <div
@@ -506,19 +564,19 @@ export const ReplySection = React.memo(
             </div>
           )}
 
-          {attachmentError && (
+          {composerMode === "reply" && attachmentError && (
             <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
               {attachmentError}
             </p>
           )}
 
-          {draftError && (
+          {composerMode === "reply" && draftError && (
             <p className="border-t border-slate-100 px-3 py-2 text-xs text-red-500 dark:border-emerald-400/10">
               {draftError}
             </p>
           )}
 
-          {aiDrafted && !draftError && (
+          {composerMode === "reply" && aiDrafted && !draftError && (
             <p className="flex items-center gap-1.5 border-t border-slate-100 px-3 py-1.5 text-[11px] text-emerald-700 dark:border-emerald-400/10 dark:text-emerald-300">
               <Sparkles className="h-3 w-3 shrink-0" />
               Drafted by Autrix — review and edit before sending.
@@ -548,6 +606,32 @@ export const ReplySection = React.memo(
                 Schedule
               </button>
 
+              {onReschedule && (
+                <button
+                  type="button"
+                  onClick={onReschedule}
+                  className="flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-emerald-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                >
+                  <CalendarClock className="h-3 w-3" />
+                  Reschedule
+                </button>
+              )}
+
+              {onAddNote && (
+                <button
+                  type="button"
+                  onClick={() => setComposerMode((mode) => (mode === "note" ? "reply" : "note"))}
+                  className={
+                    composerMode === "note"
+                      ? "flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-500/50 bg-amber-500/10 px-2 text-[11px] font-medium text-amber-700 transition dark:border-amber-400/40 dark:text-amber-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                      : "flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-2 text-[11px] font-medium text-slate-600 transition hover:border-amber-500/40 hover:bg-amber-500/[0.06] hover:text-amber-700 dark:border-emerald-400/15 dark:text-slate-300 dark:hover:text-amber-300 sm:h-7 sm:w-auto sm:shrink-0 sm:px-2.5 sm:text-[12px]"
+                  }
+                >
+                  <StickyNote className="h-3 w-3" />
+                  Note
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={onQuoteShipping}
@@ -568,81 +652,99 @@ export const ReplySection = React.memo(
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-1 self-stretch sm:ml-auto sm:self-auto">
-              <CannedReplyPicker
-                onInsert={insertTextAtCursor}
-                leadContext={leadContext}
-                disabled={isSending}
-              />
+              {composerMode === "reply" && (
+                <>
+                  <CannedReplyPicker
+                    onInsert={insertTextAtCursor}
+                    leadContext={leadContext}
+                    disabled={isSending}
+                  />
 
-              <div ref={emojiMenuRef} className="relative">
+                  <div ref={emojiMenuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setEmojiOpen((previous) => !previous)}
+                      disabled={isSending}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
+                      title="Add emoji"
+                      aria-label="Add emoji"
+                      aria-expanded={emojiOpen}
+                    >
+                      <Smile className="h-4 w-4" />
+                    </button>
+
+                    {emojiOpen && (
+                      <div
+                        className="absolute bottom-full right-0 z-100 mb-2 grid w-55 grid-cols-8 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-emerald-400/15 dark:bg-[#0f1f19]"
+                      >
+                        {EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => insertEmoji(emoji)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-slate-100 dark:hover:bg-emerald-400/15"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept={FILE_ACCEPT_VALUE}
+                    onChange={handleFileSelection}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSending}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
+                    title="Attach file (maximum 5 MB per file)"
+                    aria-label="Attach file"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSendReply()}
+                    disabled={
+                      isSending ||
+                      (!replyMessage.trim() && attachments.length === 0)
+                    }
+                    className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
+                    title={
+                      replyMessage.trim() || attachments.length > 0
+                        ? "Send reply"
+                        : "Write a reply or attach a file"
+                    }
+                    aria-label="Send reply"
+                  >
+                    <Send className="h-3.5 w-3.5 shrink-0" />
+                    <span>{isSending ? "Sending…" : "Send"}</span>
+                  </button>
+                </>
+              )}
+
+              {composerMode === "note" && (
                 <button
                   type="button"
-                  onClick={() => setEmojiOpen((previous) => !previous)}
-                  disabled={isSending}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
-                  title="Add emoji"
-                  aria-label="Add emoji"
-                  aria-expanded={emojiOpen}
+                  onClick={() => void handleSaveNote()}
+                  disabled={isSavingNote || !noteText.trim()}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-amber-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:h-7"
+                  title={noteText.trim() ? "Save internal note" : "Write a note first"}
+                  aria-label="Save internal note"
                 >
-                  <Smile className="h-4 w-4" />
+                  <StickyNote className="h-3.5 w-3.5 shrink-0" />
+                  <span>{isSavingNote ? "Saving…" : "Save note"}</span>
                 </button>
-
-                {emojiOpen && (
-                  <div
-                    className="absolute bottom-full right-0 z-100 mb-2 grid w-55 grid-cols-8 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-emerald-400/15 dark:bg-[#0f1f19]"
-                  >
-                    {EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => insertEmoji(emoji)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-base transition-colors hover:bg-slate-100 dark:hover:bg-emerald-400/15"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={FILE_ACCEPT_VALUE}
-                onChange={handleFileSelection}
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isSending}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-emerald-400/10 dark:hover:text-slate-300 sm:h-7 sm:w-7"
-                title="Attach file (maximum 5 MB per file)"
-                aria-label="Attach file"
-              >
-                <Paperclip className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleSendReply()}
-                disabled={
-                  isSending ||
-                  (!replyMessage.trim() && attachments.length === 0)
-                }
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-[12px] font-semibold text-white shadow-sm shadow-emerald-500/25 transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 dark:from-emerald-500 dark:to-cyan-600 sm:h-7"
-                title={
-                  replyMessage.trim() || attachments.length > 0
-                    ? "Send reply"
-                    : "Write a reply or attach a file"
-                }
-                aria-label="Send reply"
-              >
-                <Send className="h-3.5 w-3.5 shrink-0" />
-                <span>{isSending ? "Sending…" : "Send"}</span>
-              </button>
+              )}
             </div>
           </div>
         </div>
