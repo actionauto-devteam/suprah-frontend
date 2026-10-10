@@ -106,6 +106,13 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const openRef = React.useRef(open)
   const messagesRef = React.useRef(messages)
+  const clientRequestIdRef = React.useRef<string>("")
+  if (!clientRequestIdRef.current) {
+    clientRequestIdRef.current =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
 
   React.useEffect(() => {
     openRef.current = open
@@ -226,6 +233,7 @@ export function WebChatWidget({ vehicleId, orgKey, contextLabel, embedMode }: We
         phone: isEmail ? undefined : trimmedContact,
         message: text,
         pageUrl: window.location.href,
+        clientRequestId: clientRequestIdRef.current,
       })
 
       const stored: StoredSession = {

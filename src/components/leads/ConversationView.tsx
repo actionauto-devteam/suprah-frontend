@@ -12,10 +12,12 @@ import {
   Bot,
   Pause,
   Play,
+  AlertTriangle,
 } from "lucide-react";
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
+import { CoachAiPopover } from "./CoachAiPopover";
 
 interface ConversationViewProps {
   lead: any;
@@ -25,7 +27,7 @@ interface ConversationViewProps {
   sourceEmail: string;
   siblingCount?: number;
   onReplyToSiblings?: () => void;
-  aiAgentStatus?: { paused: boolean; pausedBy?: string } | null;
+  aiAgentStatus?: { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | null;
   onToggleAiAgent?: () => void;
 }
 
@@ -541,6 +543,7 @@ export function ConversationView({
 }: ConversationViewProps) {
   const { organization } = useOrg();
   const messageAreaRef = React.useRef<HTMLDivElement | null>(null);
+  const [expandedFailureKey, setExpandedFailureKey] = React.useState<string | null>(null);
 
   React.useLayoutEffect(() => {
     const element = messageAreaRef.current;
@@ -573,8 +576,6 @@ export function ConversationView({
     };
   }, []);
 
-  let lastDayKey = "";
-
   /*
    * Marketplace aggregators re-submit the same inquiry several times a day,
    * which used to render as a wall of identical bubbles. Consecutive
@@ -601,18 +602,59 @@ export function ConversationView({
     return groups;
   }, [threads, sourceEmail]);
 
+  const leadNotes = lead?.notes;
+  const leadCreatedAt = lead?.createdAt;
+
+  const renderItems = React.useMemo(() => {
+    const messageItems = groupedThreads.map((group) => {
+      const stamp =
+        group.message?.createdAt ||
+        group.message?.date ||
+        group.message?.timestamp ||
+        leadCreatedAt;
+      return {
+        kind: "message" as const,
+        ...group,
+        stamp,
+        sortKey: new Date(stamp || 0).getTime(),
+      };
+    });
+    const noteItems = (Array.isArray(leadNotes) ? leadNotes : []).map((note: any, noteIndex: number) => ({
+      kind: "note" as const,
+      note,
+      noteIndex,
+      stamp: note?.createdAt,
+      sortKey: new Date(note?.createdAt || 0).getTime(),
+    }));
+    const merged = [...messageItems, ...noteItems].sort((a, b) => a.sortKey - b.sortKey);
+
+    return merged.map((entry, entryIndex) => {
+      const showDayChip =
+        entryIndex === 0 ||
+        dayKeyOf(entry.stamp) !== dayKeyOf(merged[entryIndex - 1].stamp);
+      return { ...entry, showDayChip };
+    });
+  }, [groupedThreads, leadNotes, leadCreatedAt]);
+
+  const isAutoPaused =
+    Boolean(aiAgentStatus) &&
+    !aiAgentStatus!.paused &&
+    Boolean(aiAgentStatus!.autoPausedUntil) &&
+    new Date(aiAgentStatus!.autoPausedUntil as string) > new Date();
+  const isPausedForDisplay = Boolean(aiAgentStatus?.paused) || isAutoPaused;
+
   const aiToggleButton = aiAgentStatus && (
     <button
       type="button"
       onClick={onToggleAiAgent}
       title={
-        aiAgentStatus.paused
+        isPausedForDisplay
           ? "AI agent is paused — click to resume"
           : "AI agent is replying live — click to pause"
       }
       className={cn(
         "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm transition",
-        aiAgentStatus.paused
+        isPausedForDisplay
           ? "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
           : "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-600 hover:bg-fuchsia-100 dark:border-fuchsia-400/20 dark:bg-fuchsia-400/10 dark:text-fuchsia-300",
       )}
@@ -623,9 +665,11 @@ export function ConversationView({
           ? aiAgentStatus.pausedBy
             ? `Paused by ${aiAgentStatus.pausedBy}`
             : "AI paused"
-          : "AI live"}
+          : isAutoPaused
+            ? "Auto-paused"
+            : "AI live"}
       </span>
-      {aiAgentStatus.paused ? (
+      {isPausedForDisplay ? (
         <Play className="h-3 w-3 shrink-0" />
       ) : (
         <Pause className="h-3 w-3 shrink-0" />
@@ -720,7 +764,7 @@ export function ConversationView({
             </p>
           </div>
 
-          {threads.length === 0 ? (
+          {renderItems.length === 0 ? (
             <div className="mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-emerald-400/15 dark:bg-[#0f1f19]">
               <Mail className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
               <div>
@@ -734,7 +778,42 @@ export function ConversationView({
             </div>
           ) : (
             <div className="w-full space-y-4">
-              {groupedThreads.map(({ message, index, count }) => {
+              {renderItems.map((item) => {
+                if (item.kind === "note") {
+                  const { note, noteIndex, stamp, showDayChip } = item;
+                  const noteKey = note?._id || `note-${noteIndex}`;
+
+                  return (
+                    <React.Fragment key={noteKey}>
+                      {showDayChip && <DayChip label={dayChipLabel(stamp)} />}
+                      <div className="mx-auto flex w-full max-w-2xl items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+                        <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+                            <span>{note?.milestone ? "Milestone" : "Internal note"}</span>
+                            {note?.authorType === "ai" && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-amber-700 dark:text-amber-200">
+                                <Bot className="h-2.5 w-2.5" />
+                                AI
+                              </span>
+                            )}
+                            <span className="font-normal normal-case text-amber-500 dark:text-amber-400">
+                              · {note?.authorName || "Team member"} · {formatTimestamp(stamp)}
+                            </span>
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-relaxed text-amber-900 dark:text-amber-100">
+                            {note?.text}
+                          </p>
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-amber-500/80 dark:text-amber-400/70">
+                            Only visible to your team
+                          </p>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                }
+
+                const { message, index, count, stamp, showDayChip } = item;
                 const outbound = isOutboundMessage(message, sourceEmail);
                 const countBadge = count > 1 ? ` · ×${count}` : "";
                 const key =
@@ -742,15 +821,6 @@ export function ConversationView({
                   message?.id ||
                   message?.messageId ||
                   `${lead?._id}-${index}`;
-
-                const stamp =
-                  message?.createdAt ||
-                  message?.date ||
-                  message?.timestamp ||
-                  lead?.createdAt;
-                const dayKey = dayKeyOf(stamp);
-                const showDayChip = dayKey !== lastDayKey;
-                lastDayKey = dayKey;
 
                 if (!outbound && isLeadInquiryMessage(message, index)) {
                   /*
@@ -790,6 +860,11 @@ export function ConversationView({
 
                 const text = cleanAggregatorText(getMessageText(message));
                 const isAiAgentMessage = message?.sentBy?.userId === "ai-agent";
+                const aiMessageChannel =
+                  message?.channel === "webchat" ||
+                  String(lead?.channel || "").toLowerCase() === "webchat"
+                    ? "webchat"
+                    : "sms";
                 const senderLabel = outbound
                   ? message?.sentBy?.name ||
                     message?.senderName ||
@@ -833,6 +908,16 @@ export function ConversationView({
                         </div>
 
                         <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                          {isAiAgentMessage && lead?._id && (message?._id || message?.id) && (
+                            <>
+                              <CoachAiPopover
+                                leadId={String(lead._id)}
+                                messageId={String(message._id || message.id)}
+                                channel={aiMessageChannel}
+                              />
+                              <span>Â·</span>
+                            </>
+                          )}
                           {senderLabel} · {formatTimestamp(stamp)}
                           {countBadge}
                           {isAiAgentMessage && (
@@ -842,6 +927,26 @@ export function ConversationView({
                             </span>
                           )}
                         </span>
+
+                        {message?.status === "failed" && (
+                          <div className="mt-1 max-w-full">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedFailureKey((current) => (current === key ? null : key))
+                              }
+                              className="flex items-center gap-1 text-[11px] font-medium text-red-500 hover:text-red-600 dark:text-red-400"
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              {message?.smsFailureMessage || "This message could not be delivered"}
+                            </button>
+                            {expandedFailureKey === key && message?.errorDetail && (
+                              <p className="mt-0.5 max-w-full break-words text-[10px] text-slate-400 dark:text-slate-500">
+                                {String(message.errorDetail).slice(0, 300)}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {outbound && (

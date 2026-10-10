@@ -17,6 +17,22 @@ export function AiAgentTasksSection({ leadId }: { leadId?: string }) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = React.useState<AiAgentTask[]>([]);
   const [busyId, setBusyId] = React.useState("");
+  const [agentName, setAgentName] = React.useState("Alex");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const t = await getToken();
+        const res = await apiClient.get("/api/crm/org-settings", { headers: { Authorization: `Bearer ${t}` } });
+        const data = res.data?.data || res.data;
+        if (!cancelled && data?.aiAgentName) setAgentName(data.aiAgentName);
+      } catch {
+        // Keep the "Alex" fallback if settings can't be loaded.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [getToken]);
 
   const loadTasks = React.useCallback(async () => {
     if (!leadId) return;
@@ -63,7 +79,7 @@ export function AiAgentTasksSection({ leadId }: { leadId?: string }) {
           <div className="flex items-start gap-2">
             <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fuchsia-500" />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold">Alex needs help</p>
+              <p className="text-[11px] font-semibold">{agentName} needs help</p>
               <p className="mt-0.5 break-words text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                 {task.question}
               </p>

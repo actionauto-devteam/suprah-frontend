@@ -4,6 +4,21 @@ import withSerwistInit from "@serwist/next";
 process.env.SERWIST_SUPPRESS_TURBOPACK_WARNING = "1";
 const enableSwInDev = process.env.NEXT_PUBLIC_ENABLE_SW_DEV === "true";
 
+if (process.env.NODE_ENV === "production") {
+  const value = process.env.NEXT_PUBLIC_API_URL;
+  let apiUrl: URL;
+  try {
+    apiUrl = new URL(value || "");
+  } catch {
+    throw new Error("Production builds require NEXT_PUBLIC_API_URL to be an absolute HTTPS API URL");
+  }
+  if (apiUrl.protocol !== "https:" || apiUrl.username || apiUrl.password
+    || /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])$/.test(apiUrl.hostname)
+    || apiUrl.hostname.endsWith(".localhost")) {
+    throw new Error("Production builds require a non-loopback HTTPS API URL without credentials");
+  }
+}
+
 const nextConfig: NextConfig = {
   turbopack: {},
   // Lets the dev server (HTTP requests AND the webpack/turbopack HMR

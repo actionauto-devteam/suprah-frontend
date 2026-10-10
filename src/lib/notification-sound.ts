@@ -2,37 +2,28 @@
 
 const STORAGE_KEY = 'ss_sound_enabled';
 const SUPRASPACE_NOTIFICATION_HOST = 'space.suprah-app.com';
-const NOTIFICATION_AVATAR_COLORS = [
-  ['#075985', '#f0f9ff'],
-  ['#3730a3', '#eef2ff'],
-  ['#9f1239', '#fff1f2'],
-  ['#166534', '#f0fdf4'],
-  ['#9a3412', '#fff7ed'],
-  ['#6b21a8', '#faf5ff'],
-] as const;
 
-function notificationAvatarHash(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
+const NOTIFICATION_AVATAR_COLORS = ['#16a34a', '#34c97d', '#f0a855', '#e05b8a', '#5bbdf6', '#a05bf6', '#f65b5b', '#5bf6c8'];
+
+function notificationAvatarColor(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return NOTIFICATION_AVATAR_COLORS[h % NOTIFICATION_AVATAR_COLORS.length];
 }
 
-export function createNotificationAvatarFallback(identity?: string, displayName?: string): string {
-  const normalizedIdentity = String(identity || displayName || 'suprah').trim();
-  const initials = String(displayName || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'S';
-  const [background, foreground] = NOTIFICATION_AVATAR_COLORS[notificationAvatarHash(normalizedIdentity) % NOTIFICATION_AVATAR_COLORS.length];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="${background}"/><text x="48" y="58" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="${foreground}">${initials.replace(/[&<>]/g, '')}</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function notificationInitials(name?: string | null): string {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return 'AA';
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export function createNotificationAvatarFallback(userId?: string | null, name?: string | null): string {
+  const color = notificationAvatarColor(userId || name || 'AA');
+  const initials = notificationInitials(name);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" rx="64" fill="${color}"/><text x="64" y="64" dy="0.35em" text-anchor="middle" font-family="system-ui,sans-serif" font-size="52" font-weight="700" fill="#ffffff">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 export function isSoundEnabled(): boolean {

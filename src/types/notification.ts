@@ -31,6 +31,7 @@ export type NotificationType =
   | 'sms_opt_out'
   | 'vehicle_reengagement_blocked'
   | 'ai_agent_handoff_needed'
+  | 'lead_note_mention'
   | 'new_lead'
   | 'lead_assigned'
   | 'lead_status_changed'

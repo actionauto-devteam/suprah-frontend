@@ -3,7 +3,7 @@ import {
   CheckCircle2, XCircle, DollarSign, Calendar, Car, MapPin,
   CreditCard, Users, Megaphone, MessageSquare, Clock, Tag,
   TrendingUp, AlertTriangle, Shield, Award, Send, LogIn,
-  BarChart3, Boxes, Fingerprint, Timer, Bot, type LucideIcon,
+  BarChart3, Boxes, Fingerprint, Timer, Bot, StickyNote, type LucideIcon,
 } from 'lucide-react';
 import { Notification, NotificationCategory } from '@/types/notification';
 import {
@@ -47,6 +47,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   sms_opt_out: { icon: MessageSquare, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   vehicle_reengagement_blocked: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   ai_agent_handoff_needed: { icon: Bot, gradient: 'from-fuchsia-500 to-purple-500', bg: 'bg-fuchsia-500' },
+  lead_note_mention: { icon: StickyNote, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   new_lead: { icon: UserPlus, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   lead_assigned: { icon: User, gradient: 'from-indigo-500 to-purple-500', bg: 'bg-indigo-500' },
   lead_status_changed: { icon: TrendingUp, gradient: 'from-teal-500 to-green-500', bg: 'bg-teal-500' },
@@ -174,6 +175,7 @@ const TYPE_LABELS: Record<string, string> = {
   sms_opt_out: 'Text Opt-Out',
   vehicle_reengagement_blocked: 'Re-engagement Needs Review',
   ai_agent_handoff_needed: 'AI Agent Needs Help',
+  lead_note_mention: 'Mentioned in a Note',
   new_lead: 'New Lead',
   lead_assigned: 'Lead Assigned',
   lead_status_changed: 'Lead Status Changed',
@@ -361,6 +363,7 @@ const ROUTE_MAP: Record<string, string> = {
   sms_opt_out: '/crm/leads',
   vehicle_reengagement_blocked: '/crm/vehicle-reengagement',
   ai_agent_handoff_needed: '/crm/leads',
+  lead_note_mention: '/crm/leads',
   new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm',
   reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',

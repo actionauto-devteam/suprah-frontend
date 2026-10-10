@@ -19,6 +19,7 @@ import {
   Download,
   Building2,
   BellRing,
+  Phone,
 } from "lucide-react";
 import { isSoundEnabled, setSoundEnabled as setGlobalSoundEnabled } from "@/lib/notification-sound";
 import { Badge } from "@/components/ui/badge";
@@ -142,6 +143,13 @@ export default function CrmSettingsPage() {
                 </p>
               </div>
               <div className="p-2 space-y-1">
+                <button onClick={() => router.push('/crm/settings/call-recording')} className="flex h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"><span className="flex items-center gap-2.5"><Phone className="h-3.5 w-3.5" />Call Recording</span><ChevronRight className="h-3 w-3" /></button>
+                {isAdmin && (
+                  <button onClick={() => router.push('/crm/settings/call-routing')} className="flex h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                    <span className="flex items-center gap-2.5"><Phone className="h-3.5 w-3.5" />Call Routing</span>
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                )}
                 <button
                   onClick={() => router.push("/crm/settings")}
                   className="w-full flex items-center justify-between gap-2.5 rounded-xl px-3 h-9 text-xs font-semibold bg-emerald-500/10 text-emerald-600"

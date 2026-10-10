@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useLeads, useLeadStatusCounts, Lead } from "@/hooks/useLeads"
+import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
@@ -45,19 +45,26 @@ import {
 // Atomic & Modular Components
 import { SyncStatus } from "./leads/atomic/SyncStatus";
 import { ToastStack, Toast } from "./leads/atomic/ToastStack";
-import { StatusFilterPills } from "./leads/atomic/StatusFilterPills";
 import {
   LEAD_STATUS_CATEGORY_ORDER,
-  LEAD_STATUS_CATEGORY_LABEL,
   LEAD_STATUS_CATEGORIES,
-  getLeadStatusStyle,
   type LeadStatusCategory,
 } from "@/lib/leadStatus";
 import { LeadsList } from "./leads/LeadsList";
+import {
+  LeadsFiltersPopover,
+  type LeadDateFilterValue,
+  type LeadDatePreset,
+} from "./leads/LeadsFiltersPopover";
+import { LeadsLocationDropdown } from "./leads/LeadsLocationDropdown";
 import { ConversationView } from "./leads/ConversationView";
 import { LeadDetailsPanel } from "./leads/LeadDetailsPanel";
 import { ReplySection } from "./leads/ReplySection";
 import { CreateAppointmentModal } from "@/components/CreateAppointmentModal";
+import { AppointmentDetailsModal } from "@/components/AppointmentDetailsModal";
+import { ReschedulePickerDialog } from "@/components/leads/ReschedulePickerDialog";
+import { Appointment } from "@/types/appointment";
+import { AddLeadModal } from "@/components/leads/AddLeadModal";
 import {
   BulkReplyModal,
   BulkReplyRecipient,
@@ -78,19 +85,26 @@ const isMongoObjectId = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f\d]{24}$/i.test(value.trim());
 
 /*
- * SMS-channel detection: leads that came in by text or phone (or that have a
- * phone number but no email/Gmail thread) get their Reply routed through the
- * shared SMS pipeline instead of the centralized Gmail account.
+ * SMS-channel detection: a lead with any usable phone number is always an
+ * SMS lead, even when it also has an email on file — matches the backend's
+ * own channel-priority rule (phone always wins over email).
  */
 const isSmsLead = (lead: Lead | null | undefined): boolean => {
   if (!lead) return false;
   const channel = String(lead.channel || "").toLowerCase();
+  if (channel === "webchat") return false;
   if (channel === "sms" || channel === "phone") return true;
-  return Boolean(lead.phone && !lead.email && !lead.threadId);
+  return Boolean(lead.phone && lead.phone.replace(/\D/g, "").length >= 7);
 };
 
 const isWebchatLead = (lead: Lead | null | undefined): boolean =>
   String(lead?.channel || "").toLowerCase() === "webchat";
+
+const isEmailLead = (lead: Lead | null | undefined): boolean => {
+  if (!lead) return false;
+  if (isWebchatLead(lead) || isSmsLead(lead)) return false;
+  return Boolean(lead.email);
+};
 
 const buildDraftThreadContext = (
   messages: Array<Record<string, unknown>>,
@@ -120,15 +134,6 @@ const buildDraftThreadContext = (
     })
     .filter((message) => message.text.length > 0);
 
-const CATEGORY_TABS = [
-  { key: null, label: "All" },
-  ...LEAD_STATUS_CATEGORY_ORDER.map((category) => ({
-    key: category as string,
-    label: LEAD_STATUS_CATEGORY_LABEL[category],
-  })),
-  { key: "Inbound Calls", label: "Inbound Calls" },
-] as const;
-
 type LeadSortOption = "newest" | "oldest" | "waiting_longest";
 type LeadsViewportMode = "narrow" | "compact" | "wide";
 
@@ -142,6 +147,52 @@ const EMPTY_PAYMENT_FORM: LeadPaymentForm = {
   description: "",
   dueDate: "",
   notes: "",
+};
+
+const formatDateInputValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const addDays = (date: Date, days: number): Date => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const resolveLeadDateFilterRange = (
+  filter: LeadDateFilterValue,
+): { from: string | null; to: string | null } => {
+  const today = new Date();
+  switch (filter.preset) {
+    case "today": {
+      const value = formatDateInputValue(today);
+      return { from: value, to: value };
+    }
+    case "yesterday": {
+      const value = formatDateInputValue(addDays(today, -1));
+      return { from: value, to: value };
+    }
+    case "last7":
+      return { from: formatDateInputValue(addDays(today, -6)), to: formatDateInputValue(today) };
+    case "last30":
+      return { from: formatDateInputValue(addDays(today, -29)), to: formatDateInputValue(today) };
+    case "thisMonth":
+      return {
+        from: formatDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)),
+        to: formatDateInputValue(today),
+      };
+    case "custom":
+      return {
+        from: filter.from || null,
+        to: filter.to || null,
+      };
+    case "all":
+    default:
+      return { from: null, to: null };
+  }
 };
 
 export interface LeadsTabPendingNav {
@@ -210,6 +261,17 @@ export function LeadsTab({
   }, [viewportMode]);
 
   const [assignmentFilter, setAssignmentFilter] = React.useState<"mine" | "all">("all");
+  const [locationFilter, setLocationFilter] = React.useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = React.useState<string | null>(null);
+  const [dateFilter, setDateFilter] = React.useState<LeadDateFilterValue>({
+    preset: "all",
+    from: "",
+    to: "",
+  });
+  const resolvedDateFilter = React.useMemo(
+    () => resolveLeadDateFilterRange(dateFilter),
+    [dateFilter],
+  );
 
   const {
     leads,
@@ -234,9 +296,28 @@ export function LeadsTab({
     status: statusFilter,
     sortBy,
     assignedTo: assignmentFilter === "mine" ? currentUserId : null,
+    location: locationFilter,
+    source: sourceFilter,
+    dateFrom: resolvedDateFilter.from,
+    dateTo: resolvedDateFilter.to,
   });
 
   const { counts: leadStatusCounts } = useLeadStatusCounts();
+  const { counts: leadLocationCounts } = useLeadLocationCounts();
+
+  const locationFilterTabs = React.useMemo(() => {
+    const knownLocations = Object.keys(leadLocationCounts)
+      .filter((key) => key !== "Unknown Location")
+      .sort((a, b) => a.localeCompare(b));
+    const tabs = [
+      { key: null, label: "All Locations" },
+      ...knownLocations.map((loc) => ({ key: loc, label: loc })),
+    ];
+    if (leadLocationCounts["Unknown Location"]) {
+      tabs.push({ key: "Unknown Location", label: "Unknown Location" });
+    }
+    return tabs;
+  }, [leadLocationCounts]);
 
   const categoryTabCounts = React.useMemo(() => {
     const totals: Record<string, number> = {};
@@ -248,6 +329,31 @@ export function LeadsTab({
     }
     return totals;
   }, [leadStatusCounts]);
+
+  const handleSourceFilterChange = React.useCallback((source: string | null) => {
+    setSourceFilter(source);
+    setCurrentPage(1);
+  }, []);
+
+  const handleDatePresetChange = React.useCallback((preset: LeadDatePreset) => {
+    setDateFilter((current) => ({
+      preset,
+      from: preset === "custom" ? current.from : "",
+      to: preset === "custom" ? current.to : "",
+    }));
+    setCurrentPage(1);
+  }, []);
+
+  const handleCustomDateChange = React.useCallback((range: { from: string; to: string }) => {
+    if (range.from && range.to && range.from > range.to) return;
+    setDateFilter({ preset: "custom", from: range.from, to: range.to });
+    setCurrentPage(1);
+  }, []);
+
+  const handleClearDateFilter = React.useCallback(() => {
+    setDateFilter({ preset: "all", from: "", to: "" });
+    setCurrentPage(1);
+  }, []);
 
   // -- Pending deep-link lead (from ?leadId= or ?leadSearch= URL param) --
   const [pendingLeadId, setPendingLeadId] = React.useState<string | null>(null);
@@ -331,11 +437,17 @@ export function LeadsTab({
   }, []);
   const [isSending, setIsSending] = React.useState(false);
   const [apptOpen, setApptOpen] = React.useState(false);
+  const [addLeadOpen, setAddLeadOpen] = React.useState(false);
+  const [isLoadingReschedule, setIsLoadingReschedule] = React.useState(false);
+  const [reschedulePickerOpen, setReschedulePickerOpen] = React.useState(false);
+  const [rescheduleCandidates, setRescheduleCandidates] = React.useState<Appointment[]>([]);
+  const [rescheduleTarget, setRescheduleTarget] = React.useState<Appointment | null>(null);
+  const [rescheduleModalOpen, setRescheduleModalOpen] = React.useState(false);
   const [toasts, setToasts] = React.useState<Toast[]>([]);
   const [isClosed, setIsClosed] = React.useState(false);
   const [threads, setThreads] = React.useState<Record<string, any[]>>({});
   const [aiAgentStatus, setAiAgentStatus] = React.useState<
-    Record<string, { paused: boolean; pausedBy?: string } | undefined>
+    Record<string, { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | undefined>
   >({});
 
   const toggleAiAgent = React.useCallback(
@@ -343,13 +455,19 @@ export function LeadsTab({
       if (!lead) return;
       const isWebchat = isWebchatLead(lead);
       const isSms = isSmsLead(lead);
-      if (!isWebchat && !isSms) return;
+      const isEmail = !isWebchat && !isSms && isEmailLead(lead);
+      if (!isWebchat && !isSms && !isEmail) return;
 
-      const currentlyPaused = aiAgentStatus[lead._id]?.paused ?? false;
-      const base = isWebchat ? "/api/crm/webchat" : "/api/crm/communications";
+      const status = aiAgentStatus[lead._id];
+      const isAutoPausedNow =
+        Boolean(status?.autoPausedUntil) && new Date(status!.autoPausedUntil as string) > new Date();
+      const currentlyPaused = Boolean(status?.paused) || isAutoPausedNow;
       const action = currentlyPaused ? "ai-resume" : "ai-pause";
+      const url = isEmail
+        ? `/api/leads/${lead._id}/${action}`
+        : `${isWebchat ? "/api/crm/webchat" : "/api/crm/communications"}/leads/${lead._id}/${action}`;
       try {
-        const res = await apiClient.post(`${base}/leads/${lead._id}/${action}`, {});
+        const res = await apiClient.post(url, {});
         const paused = Boolean(res.data?.data?.paused);
         setAiAgentStatus((previous) => ({ ...previous, [lead._id]: { paused } }));
       } catch (error) {
@@ -657,16 +775,27 @@ export function LeadsTab({
         setSelectedLead(null);
       });
 
-      const handleAiPaused = (data: { leadId?: string; paused?: boolean; pausedBy?: string }) => {
+      const handleAiPaused = (data: {
+        leadId?: string;
+        paused?: boolean;
+        pausedBy?: string;
+        autoPausedUntil?: string;
+      }) => {
         const leadId = data?.leadId;
         if (!leadId) return;
         setAiAgentStatus((previous) => ({
           ...previous,
-          [leadId]: { paused: Boolean(data?.paused), pausedBy: data?.pausedBy },
+          [leadId]: {
+            paused: Boolean(data?.paused),
+            pausedBy: data?.pausedBy,
+            autoPausedUntil: data?.autoPausedUntil,
+          },
         }));
       };
       socket.on("webchat:ai_paused", handleAiPaused);
       socket.on("comm:ai_paused", handleAiPaused);
+      socket.on("email:ai_paused", handleAiPaused);
+      socket.on("email:message:new", () => refetch());
     };
     setupSocket();
     return () => {
@@ -679,6 +808,8 @@ export function LeadsTab({
         socket.off("lead:delete");
         socket.off("webchat:ai_paused");
         socket.off("comm:ai_paused");
+        socket.off("email:ai_paused");
+        socket.off("email:message:new");
       }
     };
   }, [getToken, currentPage, refetch]);
@@ -796,8 +927,6 @@ export function LeadsTab({
       const fallbackMessages =
         buildLeadFallbackMessage(lead);
 
-      const threadId = lead.threadId;
-
       /*
        * Immediately seed the conversation with the inquiry stored
        * on the lead. This prevents ConversationView from rendering
@@ -832,6 +961,7 @@ export function LeadsTab({
             [lead._id]: {
               paused: Boolean(chatResponse.data?.data?.aiPausedAt),
               pausedBy: chatResponse.data?.data?.aiPausedBy?.name,
+              autoPausedUntil: chatResponse.data?.data?.aiAutoPausedUntil || undefined,
             },
           }));
         } catch (error) {
@@ -862,6 +992,7 @@ export function LeadsTab({
             [lead._id]: {
               paused: Boolean(smsConversation?.aiPausedAt),
               pausedBy: smsConversation?.aiPausedBy?.name,
+              autoPausedUntil: smsConversation?.aiAutoPausedUntil || undefined,
             },
           }));
           if (smsMessages.length > 0) {
@@ -894,10 +1025,14 @@ export function LeadsTab({
         return;
       }
 
-      // Imported leads may not have a Gmail thread.
-      if (!threadId) {
-        return;
-      }
+      setAiAgentStatus((previous) => ({
+        ...previous,
+        [lead._id]: {
+          paused: Boolean(lead.aiPausedAt),
+          pausedBy: lead.aiPausedBy?.name,
+          autoPausedUntil: lead.aiAutoPausedUntil || undefined,
+        },
+      }));
 
       try {
         const token = await getToken();
@@ -1296,6 +1431,46 @@ export function LeadsTab({
     }
   };
 
+  const handleRescheduleClick = async () => {
+    if (!selectedLead?._id || isLoadingReschedule) return;
+
+    setIsLoadingReschedule(true);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Authentication required.");
+
+      const res = await apiClient.get(
+        `/api/leads/${selectedLead._id}/appointments`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const resData = res.data?.data || res.data;
+      const candidates: Appointment[] = resData?.appointments || [];
+
+      if (candidates.length === 0) {
+        addToast("info", "This lead has no upcoming appointments to reschedule.");
+      } else if (candidates.length === 1) {
+        setRescheduleTarget(candidates[0]);
+        setRescheduleModalOpen(true);
+      } else {
+        setRescheduleCandidates(candidates);
+        setReschedulePickerOpen(true);
+      }
+    } catch {
+      addToast("error", "Failed to load appointments for this lead");
+    } finally {
+      setIsLoadingReschedule(false);
+    }
+  };
+
+  const handleRescheduleUpdate = async (id: string, data: Record<string, unknown>) => {
+    const token = await getToken();
+    if (!token) throw new Error("Authentication required.");
+
+    await apiClient.put(`/api/crm/calendar/appointments/${id}`, data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  };
+
   const openQuoteModal = () => {
     if (!selectedLead) {
       addToast("error", "Please select a lead first");
@@ -1671,42 +1846,33 @@ export function LeadsTab({
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <LeadsLocationDropdown
+              value={locationFilter}
+              options={locationFilterTabs}
+              counts={leadLocationCounts}
+              onChange={(key) => {
+                setLocationFilter(key);
+                setCurrentPage(1);
+                setSelectedLead(null);
+              }}
+            />
+
+            <button
+              onClick={() => setAddLeadOpen(true)}
+              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
+              title="Add Lead"
+            >
+              <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Add Lead</span>
+            </button>
+
             <button
               onClick={() => router.push("/crm/campaigns")}
               className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
-              title="SMS Campaigns"
+              title="Campaigns"
             >
               <Megaphone className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">SMS Campaigns</span>
-            </button>
-
-            <button
-              onClick={() => router.push("/crm/email-campaigns")}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
-              title="Email Campaigns"
-            >
-              <Mail className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">Email Campaigns</span>
-            </button>
-
-            <button
-              onClick={toggleSelectMode}
-              className="ss4-pill-btn flex h-8 w-8 items-center justify-center p-0 text-[12px] font-medium transition-all sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5"
-              style={
-                selectMode
-                  ? { color: "var(--accent)", borderColor: "var(--accent)" }
-                  : undefined
-              }
-              title={selectMode ? "Cancel selection" : "Select conversations"}
-            >
-              {selectMode ? (
-                <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              ) : (
-                <CheckSquare className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              )}
-              <span className="hidden sm:inline">
-                {selectMode ? "Cancel" : "Select"}
-              </span>
+              <span className="hidden sm:inline">Campaigns</span>
             </button>
 
             <button
@@ -1860,74 +2026,84 @@ export function LeadsTab({
                         </div>
                       ) : null}
 
-                      <StatusFilterPills
-                        tabs={CATEGORY_TABS}
-                        active={
-                          statusFilter === "Inbound Calls"
-                            ? "Inbound Calls"
-                            : activeStatusCategory
-                        }
-                        counts={categoryTabCounts}
-                        onChange={(key) => {
-                          if (key === "Inbound Calls") {
-                            setActiveStatusCategory(null);
-                            setStatusFilter("Inbound Calls");
-                          } else if (key === null) {
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5 sm:gap-2">
+                        <LeadsFiltersPopover
+                          activeCategory={activeStatusCategory}
+                          statusFilter={statusFilter}
+                          statusCounts={leadStatusCounts}
+                          categoryCounts={categoryTabCounts}
+                          sourceFilter={sourceFilter}
+                          dateFilter={dateFilter}
+                          onAllStatuses={() => {
                             setActiveStatusCategory(null);
                             setStatusFilter(null);
-                          } else {
-                            setActiveStatusCategory(key as LeadStatusCategory);
-                            setStatusFilter(null);
-                          }
-                          setCurrentPage(1);
-                          setSelectedLead(null);
-                        }}
-                      />
-
-                      {activeStatusCategory && (
-                        <StatusFilterPills
-                          tabs={LEAD_STATUS_CATEGORIES[activeStatusCategory].map((status) => ({
-                            key: status,
-                            label: getLeadStatusStyle(status).label,
-                          }))}
-                          active={statusFilter}
-                          counts={leadStatusCounts}
-                          onChange={(key) => {
-                            setStatusFilter(key);
                             setCurrentPage(1);
                             setSelectedLead(null);
                           }}
-                        />
-                      )}
-
-                      <label className="relative min-w-0">
-                        <ArrowUpDown
-                          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
-                          style={{ color: "var(--text-tertiary)" }}
-                        />
-                        <select
-                          value={sortBy}
-                          onChange={(event) => {
-                            setSortBy(event.target.value as LeadSortOption);
+                          onInboundCalls={() => {
+                            setActiveStatusCategory(null);
+                            setStatusFilter("Inbound Calls");
                             setCurrentPage(1);
+                            setSelectedLead(null);
                           }}
-                          className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
-                          style={{
-                            background: "var(--input-bg)",
-                            border: "1px solid var(--input-border)",
-                            color: "var(--text-primary)",
+                          onCategory={(category) => {
+                            setActiveStatusCategory(category);
+                            setStatusFilter(null);
+                            setCurrentPage(1);
+                            setSelectedLead(null);
                           }}
-                          aria-label="Sort conversations"
-                        >
-                          <option value="newest">Newest</option>
-                          <option value="oldest">Oldest</option>
-                          <option value="waiting_longest">Longest waiting</option>
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
-                          style={{ color: "var(--text-tertiary)" }}
+                          onStatus={(status) => {
+                            setStatusFilter(status);
+                            setCurrentPage(1);
+                            setSelectedLead(null);
+                          }}
+                          onSource={(source) => {
+                            handleSourceFilterChange(source);
+                            setSelectedLead(null);
+                          }}
+                          onDatePreset={(preset) => {
+                            handleDatePresetChange(preset);
+                            setSelectedLead(null);
+                          }}
+                          onCustomDateChange={(range) => {
+                            handleCustomDateChange(range);
+                            setSelectedLead(null);
+                          }}
+                          onClearDate={() => {
+                            handleClearDateFilter();
+                            setSelectedLead(null);
+                          }}
                         />
-                      </label>
+
+                        <label className="relative min-w-0">
+                          <ArrowUpDown
+                            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:left-3"
+                            style={{ color: "var(--text-tertiary)" }}
+                          />
+                          <select
+                            value={sortBy}
+                            onChange={(event) => {
+                              setSortBy(event.target.value as LeadSortOption);
+                              setCurrentPage(1);
+                            }}
+                            className="h-9 w-full appearance-none rounded-lg pl-8 pr-7 text-[12px] font-medium outline-none sm:h-10 sm:pl-9 sm:pr-8 sm:text-[13px]"
+                            style={{
+                              background: "var(--input-bg)",
+                              border: "1px solid var(--input-border)",
+                              color: "var(--text-primary)",
+                            }}
+                            aria-label="Sort conversations"
+                          >
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="waiting_longest">Longest waiting</option>
+                          </select>
+                          <ChevronDown
+                            className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 sm:right-2.5"
+                            style={{ color: "var(--text-tertiary)" }}
+                          />
+                        </label>
+                      </div>
                     </div>
 
                     {isFetching && !isLoading ? (
@@ -2034,7 +2210,7 @@ export function LeadsTab({
                       )
                     }
                     aiAgentStatus={
-                      isSmsLead(selectedLead) || isWebchatLead(selectedLead)
+                      isSmsLead(selectedLead) || isWebchatLead(selectedLead) || isEmailLead(selectedLead)
                         ? aiAgentStatus[selectedLead._id] || { paused: false }
                         : null
                     }
@@ -2052,6 +2228,7 @@ export function LeadsTab({
                     isSending={isSending}
                     onStatusChange={handleStatus}
                     onApptOpen={() => setApptOpen(true)}
+                    onReschedule={handleRescheduleClick}
                     onQuoteShipping={openQuoteModal}
                     onReopen={(reason) =>
                       handleStatus("Pending", reason)
@@ -2077,6 +2254,16 @@ export function LeadsTab({
                         .filter(Boolean)
                         .join(" "),
                     }}
+                    onAddNote={async ({ text, mentionedUserIds, mentionedGroupIds }) => {
+                      if (!selectedLead?._id) return;
+                      await addLeadNote({
+                        id: selectedLead._id,
+                        note: text,
+                        mentionedUserIds,
+                        mentionedGroupIds,
+                      });
+                    }}
+                    isSavingNote={isAddingNote}
                   />
                 </>
               ) : (
@@ -2225,6 +2412,8 @@ export function LeadsTab({
         </ConversationWorkspace>
       )}
 
+      <AddLeadModal isOpen={addLeadOpen} onOpenChange={setAddLeadOpen} />
+
       <CreateAppointmentModal
         open={apptOpen}
         onOpenChange={setApptOpen}
@@ -2243,6 +2432,24 @@ export function LeadsTab({
         forceCustomerBooking={true}
         extraPayload={selectedLead ? { leadId: selectedLead._id } : undefined}
         entryTypeLock="appointment"
+      />
+
+      <ReschedulePickerDialog
+        open={reschedulePickerOpen}
+        onOpenChange={setReschedulePickerOpen}
+        appointments={rescheduleCandidates}
+        onSelect={(appointment) => {
+          setRescheduleTarget(appointment);
+          setReschedulePickerOpen(false);
+          setRescheduleModalOpen(true);
+        }}
+      />
+
+      <AppointmentDetailsModal
+        open={rescheduleModalOpen}
+        onOpenChange={setRescheduleModalOpen}
+        appointment={rescheduleTarget}
+        onUpdate={handleRescheduleUpdate}
       />
 
       <LeadPaymentDialog

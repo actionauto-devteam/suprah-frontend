@@ -3,9 +3,12 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useRef, useCallback } from "react";
 import type { LeadStatus } from "@/lib/leadStatus";
+import type { Lead as LinkedLead } from "@/types/lead";
 
 export interface Lead {
   _id: string;
+  customerId?: string;
+  customerLink?: LinkedLead['customerLink'];
   // Contact Information
   firstName: string;
   lastName: string;
@@ -27,19 +30,27 @@ export interface Lead {
 
   // Lead Information
   source: string;
+  sourceProvider?: string;
+  isDemoLead?: boolean;
   status: LeadStatus;
   vehicle: {
     year: string;
     make: string;
     model: string;
     stock?: string;
+    vin?: string;
   };
+  vehicleId?: string;
+  location?: string;
   comments: string;
   address?: string;
   birthday?: string;
   tags?: string[];
   aiSummary?: string;
   aiSummaryGeneratedAt?: string;
+  aiPausedAt?: string;
+  aiPausedBy?: { userId?: string; name?: string };
+  aiAutoPausedUntil?: string;
   opportunityValue?: number;
   appointment?: any;
   statusHistory?: {
@@ -62,6 +73,12 @@ export interface Lead {
     text: string;
     createdAt: string;
     createdBy?: string;
+    authorType?: "user" | "ai";
+    authorName?: string;
+    mentionedUserIds?: string[];
+    mentionedGroupIds?: string[];
+    milestone?: boolean;
+    sourceTaskId?: string;
   }[];
   createdAt: string;
   updatedAt: string;
@@ -81,6 +98,10 @@ interface UseLeadsOptions {
   status?: string | null
   sortBy?: "newest" | "oldest" | "waiting_longest"
   assignedTo?: string | null
+  location?: string | null
+  source?: string | null
+  dateFrom?: string | null
+  dateTo?: string | null
 }
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -98,6 +119,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
   status = null,
   sortBy = 'newest',
   assignedTo = null,
+  location = null,
+  source = null,
+  dateFrom = null,
+  dateTo = null,
   } = options
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
@@ -128,6 +153,10 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
       status,
       sortBy,
       assignedTo,
+      location,
+      source,
+      dateFrom,
+      dateTo,
     ],
 
     queryFn: async ({ signal }) => {
@@ -153,6 +182,22 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
 
       if (assignedTo) {
         params.append("assignedTo", assignedTo);
+      }
+
+      if (location) {
+        params.append("location", location);
+      }
+
+      if (source) {
+        params.append("source", source);
+      }
+
+      if (dateFrom) {
+        params.append("dateFrom", dateFrom);
+      }
+
+      if (dateTo) {
+        params.append("dateTo", dateTo);
       }
 
       const response = await apiClient.get(
@@ -287,9 +332,13 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
     mutationFn: async ({
       id,
       note,
+      mentionedUserIds,
+      mentionedGroupIds,
     }: {
       id: string;
       note: string;
+      mentionedUserIds?: string[];
+      mentionedGroupIds?: string[];
     }) => {
       const trimmedNote = note.trim();
 
@@ -303,6 +352,8 @@ export const useLeads = (options: UseLeadsOptions = {}) => {
         `/api/leads/${id}/notes`,
         {
           note: trimmedNote,
+          mentionedUserIds: mentionedUserIds || [],
+          mentionedGroupIds: mentionedGroupIds || [],
         },
         headers,
       );
@@ -430,6 +481,31 @@ export const useLeadStatusCounts = () => {
       const token = await getToken();
 
       const response = await apiClient.get("/api/leads/status-counts", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+
+      const resData = response.data?.data || response.data;
+      return (resData?.counts || {}) as Record<string, number>;
+    },
+
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  return { counts: data || {}, isLoading };
+};
+
+export const useLeadLocationCounts = () => {
+  const { getToken } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["leads", "location-counts"],
+
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+
+      const response = await apiClient.get("/api/leads/location-counts", {
         headers: { Authorization: `Bearer ${token}` },
         signal,
       });

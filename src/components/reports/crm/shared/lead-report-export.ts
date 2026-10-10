@@ -78,6 +78,7 @@ function leadDetailColumns(): ExcelColumn<Lead>[] {
     { label: "Subject", width: 48, value: (lead) => lead.subject },
     { label: "Status", width: 18, value: (lead) => lead.status, type: "status", align: "center" },
     { label: "Source", width: 22, value: (lead) => lead.source },
+    { label: "Vendor / Provider", width: 22, value: (lead) => lead.sourceProvider },
     { label: "Vehicle", width: 28, value: leadVehicle },
     { label: "Read Status", width: 16, value: leadReadStatus, type: "status", align: "center" },
     { label: "Reply Status", width: 18, value: leadPendingStatus, type: "status", align: "center" },

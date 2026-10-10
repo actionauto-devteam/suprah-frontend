@@ -129,6 +129,13 @@ export interface SyncResult {
   alreadySynced: number;
 }
 
+export interface CustomerLinkReconciliation {
+  organizationId: string;
+  dryRun: boolean;
+  nextCursor: string | null;
+  results: Array<{ leadId: string; status: string; reason: string; customerId?: string; candidateIds: string[] }>;
+}
+
 interface UseCustomersOptions {
   page?: number;
   limit?: number;
@@ -295,13 +302,13 @@ export function useCustomers(opts: UseCustomersOptions = {}) {
     mutateAsync: backfillFromLeads,
     isPending: isBackfilling,
   } = useMutation({
-    mutationFn: async (): Promise<SyncResult> => {
+    mutationFn: async (options: { apply?: boolean; after?: string; limit?: number } = {}): Promise<CustomerLinkReconciliation> => {
       const headers = await getHeaders();
-      const res = await apiClient.post("/api/customers/backfill-from-leads", {}, {
+      const res = await apiClient.post("/api/customers/backfill-from-leads", options, {
         ...headers,
         timeout: 300_000,
       });
-      return res.data?.data as SyncResult;
+      return res.data?.data as CustomerLinkReconciliation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });

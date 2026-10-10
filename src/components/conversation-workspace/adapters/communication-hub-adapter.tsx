@@ -96,9 +96,16 @@ export function communicationActivities(lead: Lead, logs: CommunicationWorkspace
   const noteItems: WorkspaceActivityItem[] = (lead.notes || []).map((note, index) => ({
     id: note._id || `note-${note.createdAt}-${index}`,
     kind: "note",
-    title: "Internal note added",
+    title: note.milestone ? "Milestone note" : "Internal note",
     description: note.text,
     createdAt: note.createdAt,
+    metadata: {
+      authorType: note.authorType,
+      authorName: note.authorName,
+      mentionedUserIds: note.mentionedUserIds,
+      mentionedGroupIds: note.mentionedGroupIds,
+      milestone: note.milestone,
+    },
   }));
 
   const statusItems: WorkspaceActivityItem[] = (lead.statusHistory || []).map((entry, index) => ({

@@ -19,6 +19,7 @@ export interface CommMessage {
 }
 
 export interface CommCall {
+  routing?: { selectedLabel?: string; language?: string; stage?: string; type?: string };
   _id: string;
   customerId?: string | null;
   leadId?: string | null;
@@ -27,6 +28,7 @@ export interface CommCall {
   to: string;
   status:
     | "ringing"
+    | "ivr"
     | "answering"
     | "in-progress"
     | "completed"
@@ -198,5 +200,9 @@ export function connectCommunicationSocket(socket: any, orgId: string) {
 
   socket.on("comm:call:update", (data: any) => {
     if (mine(data) && data?.call) commActions.upsertCall(data.call);
+  });
+
+  socket.on('comm:call:removed', (data: { orgId?: string; callId?: string }) => {
+    if (mine(data) && data.callId) commActions.dismissIncoming(data.callId);
   });
 }

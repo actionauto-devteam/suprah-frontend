@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
     Loader2, ArrowLeft,
@@ -18,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 import { useAlert } from "@/components/AlertDialog";
+import { useCrmLeadGroups } from "@/hooks/useCrmLeadGroups";
 
 interface CrmUserData {
   _id: string;
@@ -75,7 +77,13 @@ export default function IntegrationsSettingsPage() {
   const [savedAiAgentEnabled, setSavedAiAgentEnabled] = React.useState(false);
   const [aiAgentName, setAiAgentName] = React.useState("Alex");
   const [savedAiAgentName, setSavedAiAgentName] = React.useState("Alex");
+  const [aiHandoffFallbackGroupId, setAiHandoffFallbackGroupId] = React.useState("");
+  const [savedAiHandoffFallbackGroupId, setSavedAiHandoffFallbackGroupId] = React.useState("");
   const [isSavingAiAgent, setIsSavingAiAgent] = React.useState(false);
+  const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
+  const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
+  const [isSavingMailingAddress, setIsSavingMailingAddress] = React.useState(false);
+  const { groups: leadGroups } = useCrmLeadGroups();
   const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
@@ -127,6 +135,12 @@ export default function IntegrationsSettingsPage() {
           setSavedAiAgentEnabled(agentEnabled);
           setAiAgentName(agentName);
           setSavedAiAgentName(agentName);
+          const fallbackGroupId = settingsData?.aiHandoffFallbackGroupId || "";
+          setAiHandoffFallbackGroupId(fallbackGroupId);
+          setSavedAiHandoffFallbackGroupId(fallbackGroupId);
+          const mailingAddress = settingsData?.physicalMailingAddress || "";
+          setPhysicalMailingAddress(mailingAddress);
+          setSavedPhysicalMailingAddress(mailingAddress);
         } catch (settingsError) {
           console.error("Failed to fetch organization settings:", settingsError);
         }
@@ -346,7 +360,9 @@ export default function IntegrationsSettingsPage() {
     }
 
     const aiAgentSettingsDirty =
-        aiAgentEnabled !== savedAiAgentEnabled || aiAgentName.trim() !== savedAiAgentName
+        aiAgentEnabled !== savedAiAgentEnabled ||
+        aiAgentName.trim() !== savedAiAgentName ||
+        aiHandoffFallbackGroupId !== savedAiHandoffFallbackGroupId
 
     const handleSaveAiAgentSettings = async () => {
         if (!isAdmin) return
@@ -356,12 +372,13 @@ export default function IntegrationsSettingsPage() {
             const name = aiAgentName.trim() || "Alex"
             await apiClient.patch(
                 "/api/crm/org-settings",
-                { aiAgentEnabled, aiAgentName: name },
+                { aiAgentEnabled, aiAgentName: name, aiHandoffFallbackGroupId },
                 { headers: { Authorization: `Bearer ${t}` } },
             )
             setSavedAiAgentEnabled(aiAgentEnabled)
             setAiAgentName(name)
             setSavedAiAgentName(name)
+            setSavedAiHandoffFallbackGroupId(aiHandoffFallbackGroupId)
             toast.success("AI agent settings saved", {
                 description: aiAgentEnabled
                     ? `${name} will now reply live to webchat and text messages.`
@@ -375,6 +392,37 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSavingAiAgent(false)
+        }
+    }
+
+    const mailingAddressDirty = physicalMailingAddress.trim() !== savedPhysicalMailingAddress
+
+    const handleSaveMailingAddress = async () => {
+        if (!isAdmin) return
+        setIsSavingMailingAddress(true)
+        try {
+            const t = await getToken()
+            const address = physicalMailingAddress.trim()
+            await apiClient.patch(
+                "/api/crm/org-settings",
+                { physicalMailingAddress: address },
+                { headers: { Authorization: `Bearer ${t}` } },
+            )
+            setPhysicalMailingAddress(address)
+            setSavedPhysicalMailingAddress(address)
+            toast.success("Mailing address saved", {
+                description: address
+                    ? "Email campaigns will now include this address in the footer."
+                    : "Email campaigns are blocked until a mailing address is set."
+            })
+        } catch (error) {
+            console.error("Failed to save mailing address:", error)
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+            toast.error("Save failed", {
+                description: message || "Could not save the mailing address. Please try again."
+            })
+        } finally {
+            setIsSavingMailingAddress(false)
         }
     }
 
@@ -947,6 +995,26 @@ export default function IntegrationsSettingsPage() {
                                     />
                                 </div>
 
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Fallback group for unassigned handoffs</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">When {aiAgentName || "the agent"} needs a human on a lead with no assigned rep, it mentions this group in its note. Leave unset to skip the mention.</p>
+                                    <select
+                                        disabled={!isAdmin || isSavingAiAgent}
+                                        value={aiHandoffFallbackGroupId}
+                                        onChange={e => setAiHandoffFallbackGroupId(e.target.value)}
+                                        className="max-w-xs h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                                    >
+                                        <option value="">No fallback group</option>
+                                        {leadGroups.filter(g => g.isActive).map(g => (
+                                            <option key={g._id} value={g._id}>{g.name}</option>
+                                        ))}
+                                    </select>
+                                    <Link href="/crm/settings/lead-groups" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                                        Manage Lead Groups
+                                        <ChevronRight className="h-3 w-3" />
+                                    </Link>
+                                </div>
+
                                 {isAdmin && (
                                     <div className="pt-2">
                                         <Button
@@ -955,6 +1023,58 @@ export default function IntegrationsSettingsPage() {
                                             className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
                                         >
                                             {isSavingAiAgent ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save AI agent settings"}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-xl bg-slate-500/10 flex items-center justify-center shrink-0">
+                                        <Building2 className="h-5 w-5 text-slate-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-base font-bold truncate">Business Mailing Address</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Required in every Email Campaign footer. Sending is blocked until this is set.</p>
+                                    </div>
+                                </div>
+                                <Badge className={physicalMailingAddress ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 shadow-none border-none pointer-events-none shrink-0"}>
+                                    {physicalMailingAddress ? "Configured" : "Missing"}
+                                </Badge>
+                            </div>
+
+                            <div className="p-4 sm:p-6 space-y-4">
+                                {!isAdmin && (
+                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can modify the business mailing address.</p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Verified mailing address</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">This appears in every commercial Email Campaign footer, alongside the existing unsubscribe link. Use the dealership&apos;s real, verified business address.</p>
+                                    <Textarea
+                                        disabled={!isAdmin || isSavingMailingAddress}
+                                        value={physicalMailingAddress}
+                                        onChange={e => setPhysicalMailingAddress(e.target.value)}
+                                        maxLength={300}
+                                        rows={2}
+                                        placeholder="123 Main St, Salt Lake City, UT 84101"
+                                        className="max-w-xl resize-none"
+                                    />
+                                </div>
+
+                                {isAdmin && (
+                                    <div className="pt-2">
+                                        <Button
+                                            onClick={handleSaveMailingAddress}
+                                            disabled={isSavingMailingAddress || !mailingAddressDirty}
+                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+                                        >
+                                            {isSavingMailingAddress ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save mailing address"}
                                         </Button>
                                     </div>
                                 )}
