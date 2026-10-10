@@ -1879,7 +1879,7 @@ export default function DriverDashboardPage() {
     OP_STATUS_CONFIG.find((item) => item.key === opStatus)?.label ?? "Active";
 
   return (
-    <div className="driver-page driver-dashboard driver-sectioned-dashboard space-y-4" data-mobile-section={mobileSection}>
+    <div className="driver-page driver-dashboard driver-sectioned-dashboard space-y-4" data-mobile-section={mobileSection} data-preview-page="dashboard">
 
       {/* ── HEADER ── */}
       <div className="driver-dashboard-header flex flex-col lg:flex-row lg:items-center justify-between gap-3 animate-fade-in-up">
@@ -1963,7 +1963,7 @@ export default function DriverDashboardPage() {
 
 
       {/* ── KPI CARDS (clickable) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1" data-preview="kpis">
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}

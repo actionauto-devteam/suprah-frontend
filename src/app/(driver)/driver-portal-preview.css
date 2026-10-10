@@ -1,0 +1,159 @@
+/* Phone redesign preview for the Driver Portal (same design language as the
+ * Transportation and Driver Tracker previews).
+ *
+ * Only applies when the layout marks the workspace with data-mobile-preview
+ * (NEXT_PUBLIC_MOBILE_PREVIEW=true and the compare toggle on), only on pages
+ * marked data-preview-page (Dashboard, My Loads, Available Loads and their
+ * load pages), and only at phone width. It changes looks, never behaviour:
+ * no element is hidden except decorative glows, and dialogs (rendered outside
+ * the page) keep their current look. Colours come from the site's theme and
+ * the --mp-* tokens in components/mobile-preview/mobile-preview.module.css.
+ */
+@media (max-width: 767px) {
+  /* One 16px gutter, like the other redesigned screens. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] {
+    padding-inline: 1rem;
+  }
+
+  /* Page titles: sentence case, one size across the pages. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] h1 {
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-transform: none;
+  }
+
+  /* Headers sit on the page background instead of a glowing panel. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="hero"],
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-dashboard-header {
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="hero"] > .absolute {
+    display: none;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="hero"] > .relative,
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-dashboard-header {
+    padding: 0.25rem 0 0;
+  }
+
+  /* Dashboard kicker in mono, title in sentence case with the Suprah green word. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-eyebrow {
+    font-family: var(--mp-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    color: var(--mp-muted);
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-page-title {
+    margin-top: 0.125rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-page-title > span {
+    color: var(--mp-mint);
+  }
+
+  /* Dashboard numbers as flat stat tiles (slide 10's fleet strip). */
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] {
+    gap: 0.5rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] [data-slot="card"] {
+    border-radius: 1rem;
+    box-shadow: none;
+    transform: none;
+    translate: none;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] [data-slot="card"] > .absolute {
+    display: none;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] [data-slot="card-content"] {
+    padding: 0.75rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] [data-slot="card-content"] p:first-child {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mp-muted);
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="kpis"] .driver-metric-value {
+    font-family: var(--mp-mono);
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  /* Section switchers (Dashboard sections, My Loads tabs) as the same
+     segmented control used on Transportation and Driver Tracker. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-mobile-sections,
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="tabs"] {
+    padding: 0.25rem;
+    border: 1px solid var(--mp-hairline);
+    border-radius: 1rem;
+    background: var(--mp-surface);
+    box-shadow: none;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-mobile-sections button,
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="tabs"] > button {
+    min-height: 2.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--mp-muted);
+    box-shadow: none;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="tabs"] > button {
+    flex: 1 1 auto;
+    justify-content: center;
+    background: transparent;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] .driver-mobile-sections button[aria-pressed="true"],
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-preview="tabs"] > button[aria-pressed="true"] {
+    background: var(--mp-surface-2);
+    color: var(--mp-ink);
+    box-shadow: none;
+  }
+
+  /* Cards: 18px corners, flat. Border colours are kept, because some
+     cards use them for warnings. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="card"] {
+    border-radius: 1.125rem;
+    box-shadow: none;
+  }
+
+  /* Status pills and load IDs in mono, like slides 8 and 10. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="badge"] {
+    border-radius: 9999px;
+    font-family: var(--mp-mono);
+    letter-spacing: 0.04em;
+  }
+
+  /* 44px touch targets with the deck's rounded corners. Colours are kept,
+     because buttons use them to mean things (deliver, release, cancel).
+     Text links inside sentences keep their size. */
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="button"]:not([data-variant="link"]) {
+    min-height: 2.75rem;
+    border-radius: 0.875rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="button"][data-size^="icon"] {
+    min-width: 2.75rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="input"],
+  .driver-workspace[data-mobile-preview] [data-preview-page] select,
+  .driver-workspace[data-mobile-preview] [data-preview-page] textarea {
+    border-radius: 0.875rem;
+  }
+  .driver-workspace[data-mobile-preview] [data-preview-page] [data-slot="input"] {
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 767px) {
+  .driver-workspace[data-mobile-preview] [data-preview-page] h1 {
+    font-size: 1.625rem;
+  }
+}

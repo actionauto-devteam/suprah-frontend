@@ -616,14 +616,14 @@ export default function AvailableLoadsPage() {
     requesting || capacityBlocked || !workEligibility.canTakeNewWork;
 
   return (
-    <div className="driver-page mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8">
+    <div className="driver-page mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8" data-preview-page="available-loads">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="space-y-5"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 shadow-lg ring-1 ring-slate-200/50 dark:border-white/15 dark:shadow-2xl dark:ring-white/[0.03]">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 shadow-lg ring-1 ring-slate-200/50 dark:border-white/15 dark:shadow-2xl dark:ring-white/[0.03]" data-preview="hero">
           <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <div className="relative p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-4">

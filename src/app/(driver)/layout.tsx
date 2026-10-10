@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import "./driver-portal.css";
+import "./driver-portal-preview.css";
 import {
   SidebarProvider,
   SidebarInset,
@@ -11,8 +12,11 @@ import { DriverSidebar } from "@/components/driver-sidebar";
 import { NotificationBell } from "@/components/notifications";
 import { NotificationProvider } from "@/context/NotificationContext";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
+import { useMobilePreview } from "@/lib/mobile-preview";
+import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
+import { MobilePreviewToggle } from "@/components/mobile-preview/MobilePreviewToggle";
 import { apiClient } from "@/lib/api-client";
 import { userErrorMessage } from "@/lib/user-error";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -77,6 +81,12 @@ function DriverLayoutContent({
   );
   // An open Dispatch Chat conversation uses the whole phone screen.
   const bottomNavHidden = useDriverBottomNavHidden();
+  // Phone redesign preview (always off unless NEXT_PUBLIC_MOBILE_PREVIEW=true),
+  // only on the redesigned pages: Dashboard, My Loads, Available Loads and their load pages.
+  const { enabled: phonePreviewEnabled } = useMobilePreview();
+  const pathname = usePathname();
+  const previewRoute = /^\/driver(?:\/(?:loads|available-loads)(?:\/[^/]+)?)?\/?$/.test(pathname ?? "");
+  const phonePreview = phonePreviewEnabled && previewRoute;
 
   // useUser() builds a new `user` object on every render, so the check below
   // depends on the account's id and role instead. Depending on `user` re-ran
@@ -240,13 +250,17 @@ function DriverLayoutContent({
         </header>
         <main
           data-driver-scroll
+          data-mobile-preview={phonePreview ? "" : undefined}
           className={`driver-workspace flex-1 min-h-0 min-w-0 overflow-y-auto bg-background p-0 ${
             bottomNavHidden ? "pb-[env(safe-area-inset-bottom)]" : "pb-[calc(7rem+env(safe-area-inset-bottom))]"
-          } md:pb-8`}
+          } md:pb-8${phonePreview ? ` ${previewStyles.scope}` : ""}${
+            phonePreview && !bottomNavHidden ? " max-md:pb-[calc(10.5rem+env(safe-area-inset-bottom))]" : ""
+          }`}
         >
           {children}
         </main>
         {!bottomNavHidden && <MobileBottomNav items={bottomNavItems} />}
+        {previewRoute && !bottomNavHidden && <MobilePreviewToggle />}
       </SidebarInset>
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogContent size="sm">
