@@ -2635,7 +2635,7 @@ export default function DriverTrackerPage() {
   ];
 
   return (
-    <div className={`${contrastStyles.scope} min-h-screen w-full min-w-0 max-w-none [&_[data-driver-tracker-map-shell]]:scroll-mt-36 md:[&_[data-driver-tracker-map-shell]]:scroll-mt-0 space-y-3 overflow-x-clip px-2 pt-3 pb-[max(1rem,calc(var(--mobile-bottom-nav-offset,0px)+env(safe-area-inset-bottom)))] md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8${phonePreview ? ` ${previewStyles.scope} max-md:px-4` : ""}`}>
+    <div className={`${contrastStyles.scope} min-h-screen w-full min-w-0 max-w-none [&_[data-driver-tracker-map-shell]]:scroll-mt-36 md:[&_[data-driver-tracker-map-shell]]:scroll-mt-0 space-y-3 overflow-x-clip px-2 pt-3 pb-[max(1rem,calc(var(--mobile-bottom-nav-offset,0px)+env(safe-area-inset-bottom)))] md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8${phonePreview ? ` ${previewStyles.scope} max-md:px-4 max-md:pb-[calc(var(--mobile-bottom-nav-offset,6.25rem)+4.5rem)]` : ""}`}>
       {/* Phone redesign preview (iPhone deck slide 10): title, fresh GPS and fleet stats. */}
       {phonePreview && (
         <TrackerPreviewHeader

@@ -28,7 +28,7 @@ export function MobilePreviewToggle() {
         "fixed left-3 z-40 flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold shadow-lg md:hidden print:hidden",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400",
         enabled
-          ? "border-emerald-400/40 bg-[#0b1512] text-[#2ee6a8]"
+          ? "border-emerald-500/40 bg-card text-emerald-700 dark:text-emerald-400"
           : "border-border bg-card text-foreground",
       )}
     >

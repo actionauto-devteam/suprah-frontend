@@ -42,7 +42,7 @@ interface TrackerPreviewDriverCardProps {
 }
 
 const buttonBase =
-  "flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-[15px] font-semibold transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mp-mint)]";
+  "flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-1.5 text-center text-sm font-semibold leading-tight transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mp-mint)]";
 
 /**
  * Selected driver in the phone redesign (deck slide 10). Keeps everything the
@@ -245,11 +245,11 @@ export function TrackerPreviewDriverCard({
           <Package className="size-5" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn(previewStyles.mono, "block truncate text-base font-semibold text-[var(--mp-ink)]")}>
+          <span className={cn(previewStyles.mono, "block break-all text-base font-semibold text-[var(--mp-ink)]")}>
             {firstLoad?.trackingNumber || firstLoad?.id || (driver.activeLoadCount ? "Load details unavailable" : "No active load")}
           </span>
           {firstLoad ? (
-            <span className="block truncate text-sm text-[var(--mp-muted)]">
+            <span className="block text-sm text-[var(--mp-muted)]">
               {[
                 firstLoad.status,
                 firstLoad.trailerType,
@@ -262,11 +262,9 @@ export function TrackerPreviewDriverCard({
               {driver.shipments.length > 1 ? ` · +${driver.shipments.length - 1} more` : ""}
             </span>
           ) : null}
+          <span className="mt-1 block text-sm font-semibold text-[var(--mp-mint)]">View loads</span>
         </span>
-        <span className="flex shrink-0 items-center gap-0.5 text-[15px] font-semibold text-[var(--mp-mint)]">
-          View loads
-          <ChevronRight className="size-4" aria-hidden="true" />
-        </span>
+        <ChevronRight className="size-5 shrink-0 text-[var(--mp-mint)]" aria-hidden="true" />
       </button>
     </section>
   );

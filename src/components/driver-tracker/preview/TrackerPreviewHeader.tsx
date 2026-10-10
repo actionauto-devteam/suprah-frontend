@@ -37,9 +37,9 @@ export function TrackerPreviewHeader({
 
   return (
     <header className="pt-2 md:hidden">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
-          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-[var(--mp-ink)]">
+          <h1 className="text-[22px] font-bold leading-tight tracking-tight text-[var(--mp-ink)] min-[390px]:text-[26px]">
             Driver Tracker
           </h1>
           <p className={cn(previewStyles.mono, "mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--mp-muted)]")}>
@@ -65,12 +65,13 @@ export function TrackerPreviewHeader({
           <div
             key={stat.label}
             title={stat.title}
-            className="min-w-0 rounded-2xl border border-[var(--mp-hairline)] bg-[var(--mp-surface)] px-3 py-2.5"
+            className="flex min-w-0 flex-col-reverse gap-1.5 rounded-2xl border border-[var(--mp-hairline)] bg-[var(--mp-surface)] px-2 py-2.5 min-[390px]:px-3"
           >
-            <dd className={cn(previewStyles.mono, "text-[22px] font-semibold leading-none", stat.className)}>
+            {/* dt before dd for screen readers; shown number-first. */}
+            <dt className="text-xs leading-tight text-[var(--mp-muted)] min-[390px]:text-[13px]">{stat.label}</dt>
+            <dd className={cn(previewStyles.mono, "break-all text-xl font-semibold leading-none min-[390px]:text-[22px]", stat.className)}>
               {loading ? "…" : stat.value}
             </dd>
-            <dt className="mt-1.5 truncate text-[13px] text-[var(--mp-muted)]">{stat.label}</dt>
           </div>
         ))}
       </dl>

@@ -175,8 +175,8 @@ export function TransportationPreviewQuoteCard({
           </button>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="truncate text-[17px] font-semibold text-[var(--mp-ink)]" title={vehicleName}>
+            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+              <h3 className="line-clamp-2 min-w-0 break-words text-[17px] font-semibold text-[var(--mp-ink)]" title={vehicleName}>
                 {vehicleName}
               </h3>
               <span
@@ -216,7 +216,7 @@ export function TransportationPreviewQuoteCard({
             <span className={cn(previewStyles.mono, "block text-[11px] uppercase tracking-[0.14em] text-[var(--mp-muted)]")}>
               Origin
             </span>
-            <span className="block truncate text-[17px] font-semibold text-[var(--mp-ink)]">{originSummary}</span>
+            <span className="block line-clamp-2 break-words text-[15px] font-semibold leading-snug text-[var(--mp-ink)] min-[390px]:text-[17px]">{originSummary}</span>
           </button>
           <button
             type="button"
@@ -236,7 +236,7 @@ export function TransportationPreviewQuoteCard({
             <span className={cn(previewStyles.mono, "block text-[11px] uppercase tracking-[0.14em] text-[var(--mp-muted)]")}>
               Destination
             </span>
-            <span className="block truncate text-[17px] font-semibold text-[var(--mp-ink)]">{destinationSummary}</span>
+            <span className="block line-clamp-2 break-words text-[15px] font-semibold leading-snug text-[var(--mp-ink)] min-[390px]:text-[17px]">{destinationSummary}</span>
           </button>
         </div>
 

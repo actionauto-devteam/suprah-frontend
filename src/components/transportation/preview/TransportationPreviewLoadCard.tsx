@@ -178,9 +178,10 @@ export function TransportationPreviewLoadCard({
           </button>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
+            {/* Wraps instead of cutting the load number off on narrow phones. */}
+            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
               <h3
-                className={cn(previewStyles.mono, "truncate text-[17px] font-semibold text-[var(--mp-ink)]")}
+                className={cn(previewStyles.mono, "min-w-0 break-all text-[17px] font-semibold text-[var(--mp-ink)]")}
                 title={load.loadNumber}
               >
                 {load.loadNumber}
@@ -222,7 +223,7 @@ export function TransportationPreviewLoadCard({
             <span className={cn(previewStyles.mono, "block text-[11px] uppercase tracking-[0.14em] text-[var(--mp-muted)]")}>
               Origin
             </span>
-            <span className="block truncate text-[17px] font-semibold text-[var(--mp-ink)]">
+            <span className="block line-clamp-2 break-words text-[15px] font-semibold leading-snug text-[var(--mp-ink)] min-[390px]:text-[17px]">
               {load.pickupLocation.city}, {load.pickupLocation.state}
             </span>
           </button>
@@ -246,7 +247,7 @@ export function TransportationPreviewLoadCard({
             <span className={cn(previewStyles.mono, "block text-[11px] uppercase tracking-[0.14em] text-[var(--mp-muted)]")}>
               Destination
             </span>
-            <span className="block truncate text-[17px] font-semibold text-[var(--mp-ink)]">
+            <span className="block line-clamp-2 break-words text-[15px] font-semibold leading-snug text-[var(--mp-ink)] min-[390px]:text-[17px]">
               {load.deliveryLocation.city}, {load.deliveryLocation.state}
             </span>
           </button>

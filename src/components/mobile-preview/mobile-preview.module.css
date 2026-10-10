@@ -1,25 +1,29 @@
 /* Phone redesign tokens (iPhone deck, slide 13). Scoped to .scope so the rest
- * of the site is untouched. Dark values are the slide's; light values keep the
- * same hues with enough contrast on white. The scope only changes the page's
- * own font, text colour and background at phone width, so it can wrap a whole
- * page without touching the tablet and desktop layouts.
+ * of the site is untouched. Backgrounds, cards, borders and text use the
+ * site's own theme colours, and the brand green is the site's Suprah green
+ * (--primary). Only the other status colours (purple, amber, blue) come from
+ * the slide. The scope only changes the page's own font, text colour and
+ * background at phone width, so it can wrap a whole page without touching the
+ * tablet and desktop layouts.
  */
 .scope {
-  --mp-bg: #f6faf8;
-  --mp-surface: #ffffff;
-  --mp-surface-2: #eef5f1;
-  --mp-hairline: #d8e7e0;
-  --mp-ink: #0f1f1a;
-  --mp-muted: #4f6a61;
-  --mp-mint: #0a7d56;
+  --mp-bg: var(--background);
+  --mp-surface: var(--card);
+  --mp-surface-2: var(--muted);
+  --mp-hairline: var(--border);
+  --mp-ink: var(--foreground);
+  --mp-muted: var(--muted-foreground);
+  /* Suprah green, one step deeper in light mode so text stays readable on white. */
+  --mp-mint: oklch(0.52 0.14 153.85);
   --mp-purple: #6d4ed8;
   --mp-amber: #a16207;
   --mp-blue: #1d4ed8;
-  --mp-grey: #5b6b66;
+  --mp-grey: var(--muted-foreground);
   --mp-danger: #dc2626;
   --mp-on-accent: #ffffff;
-  --mp-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mp-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Suprah AI brand fonts (the same as the rest of the site). */
+  --mp-font: var(--font-sans);
+  --mp-mono: var(--font-mono);
 
   min-width: 0;
 }
@@ -33,19 +37,12 @@
 }
 
 :global(.dark) .scope {
-  --mp-bg: #0b1512;
-  --mp-surface: #10201b;
-  --mp-surface-2: #142a23;
-  --mp-hairline: #1e3a30;
-  --mp-ink: #eaf7f1;
-  --mp-muted: #8faba2;
-  --mp-mint: #2ee6a8;
+  --mp-mint: var(--primary);
   --mp-purple: #a78bfa;
   --mp-amber: #f5b84d;
   --mp-blue: #60a5fa;
-  --mp-grey: #8faba2;
   --mp-danger: #f87171;
-  --mp-on-accent: #0b1512;
+  --mp-on-accent: var(--primary-foreground);
 }
 
 .mono {

@@ -958,7 +958,7 @@ function TransportationPageInner() {
         />
 
         {/* Main Content */}
-        <div className={cn("flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background", phonePreview && "max-md:bg-transparent max-md:px-4")}>
+        <div className={cn("flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background", phonePreview && "max-md:bg-transparent max-md:px-4 max-md:pb-24")}>
           {activeTab === "load-board" ? (
             boardError && !isBoardLoading && boardLoads.length === 0 ? (
               <Card className="border-border">
