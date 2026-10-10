@@ -1,6 +1,7 @@
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from "serwist";
 import { NetworkFirst, NetworkOnly, Serwist, setCacheNameDetails } from "serwist";
+import { isRecordingApiUrl } from './lib/recording-network';
 
 declare global {
   interface ServiceWorkerGlobalScope extends SerwistGlobalConfig {
@@ -49,6 +50,7 @@ const navigationFix: RuntimeCaching[] = [
 // deliberately user-keyed, bounded conversation snapshot in IndexedDB for its
 // own offline shell; the service worker must never cache authenticated APIs.
 function isPrivateMediaUrl(url: URL, depth = 0): boolean {
+  if (isRecordingApiUrl(url)) return true;
   const hasSignedParameter = ["X-Amz-Signature", "X-Amz-Algorithm", "X-Amz-Credential", "signature", "token", "expires"]
     .some((key) => url.searchParams.has(key));
   if (hasSignedParameter || url.hostname.endsWith(".r2.cloudflarestorage.com")) return true;
@@ -152,6 +154,7 @@ async function deleteSS4ShareTarget(cache: Cache, id: string): Promise<void> {
 }
 
 async function clearSupraSpacePrivateData(): Promise<void> {
+  await purgeRecordingCaches();
   const cacheNames = await caches.keys();
   // These are the only default Serwist caches that could have contained
   // authenticated API or signed media before the bypass above. Leave the
@@ -173,6 +176,19 @@ async function clearSupraSpacePrivateData(): Promise<void> {
     }
   });
 }
+
+async function purgeRecordingCaches(): Promise<void> {
+  for (const name of await caches.keys()) {
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      if (isRecordingApiUrl(new URL(request.url))) await cache.delete(request);
+    }
+  }
+}
+
+self.addEventListener('activate', (event) => {
+  (event as Event & { waitUntil(promise: Promise<unknown>): void }).waitUntil(purgeRecordingCaches());
+});
 
 async function handleSS4ShareTargetPost(request: Request): Promise<Response> {
   const shareId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;

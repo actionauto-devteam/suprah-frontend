@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Phone, PhoneOff, Mic, MicOff, PhoneIncoming, Loader2 } from "lucide-react";
 import { useCommStore, commActions } from "@/lib/communicationStore";
 import { useTelnyxRTC } from "@/hooks/useTelnyxRTC";
+import { CallRecordingControls } from './CallRecordingControls';
 
 function CallTimer({ startedAt }: { startedAt?: number }) {
   const [, force] = useState(0);
@@ -89,6 +90,11 @@ export default function IncomingCallCenter() {
                   {call.customerName || "Unknown caller"}
                 </p>
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">{call.from}</p>
+                {call.routing?.selectedLabel && (
+                  <p className="break-words text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    {call.routing.selectedLabel}{call.routing.stage === 'reception' && call.routing.type !== 'language' ? ' - Reception' : ''}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 gap-2">
                 <button
@@ -123,7 +129,7 @@ export default function IncomingCallCenter() {
       {/* ------------------------- active call bar ------------------------ */}
       {activeCall && (
         <div className="fixed inset-x-0 bottom-4 z-[9991] flex justify-center px-4">
-          <div className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-cyan-400/30 bg-slate-950/95 px-4 py-3 text-white shadow-2xl shadow-cyan-500/20 backdrop-blur">
+          <div className="flex w-full max-w-md flex-wrap items-center gap-3 rounded-2xl border border-cyan-400/30 bg-slate-950/95 px-4 py-3 text-white shadow-2xl shadow-cyan-500/20 backdrop-blur">
             <span
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                 activeCall.phase === "active"
@@ -170,6 +176,7 @@ export default function IncomingCallCenter() {
             >
               <PhoneOff className="h-4 w-4" />
             </button>
+            <CallRecordingControls callId={activeCall.callLogId} />
           </div>
         </div>
       )}

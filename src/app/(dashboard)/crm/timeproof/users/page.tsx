@@ -97,6 +97,18 @@ interface MergedUser {
   totalBreakSeconds: number
 }
 
+type StatusFilter = "all" | "online" | "on-shift" | "on-break" | "idle"
+
+function matchesStatus(user: MergedUser, status: StatusFilter) {
+  switch (status) {
+    case "online": return user.isLive || user.isOnline
+    case "on-shift": return user.isLive && !user.isOnBreak && !user.isIdle
+    case "on-break": return user.isLive && user.isOnBreak
+    case "idle": return user.isLive && user.isIdle
+    default: return true
+  }
+}
+
 const DEPARTMENTS = [
   "Sales & Finance",
   "Accounting",
@@ -353,20 +365,29 @@ export default function AdminShiftBoardPage() {
   // user's profile and back — previously this reset to "all" on every remount because the
   // filter lived only in local component state, with nothing to restore it from.
   const [selectedDept, setSelectedDept] = React.useState<string>(() => searchParams.get("department") || "all")
+  const [selectedStatus, setSelectedStatus] = React.useState<StatusFilter>(() => {
+    const status = searchParams.get("status")
+    return status === "online" || status === "on-shift" || status === "on-break" || status === "idle"
+      ? status : "all"
+  })
   const [searchQuery, setSearchQuery] = React.useState<string>("")
-  const [teamTab, setTeamTab] = React.useState<"all" | "Utah" | "Philippines">("all")
+  const [teamTab, setTeamTab] = React.useState<"all" | "Utah" | "Philippines">(() => {
+    const team = searchParams.get("team")
+    return team === "Utah" || team === "Philippines" ? team : "all"
+  })
 
-  // Keep the URL in sync (replace, not push, so every filter change doesn't pile
-  // up browser history entries) — this is what makes the filter restorable via
-  // router.back() from the profile page.
   React.useEffect(() => {
     const params = new URLSearchParams(searchParams.toString())
     if (selectedDept === "all") params.delete("department")
     else params.set("department", selectedDept)
+    if (selectedStatus === "all") params.delete("status")
+    else params.set("status", selectedStatus)
+    if (teamTab === "all") params.delete("team")
+    else params.set("team", teamTab)
     const qs = params.toString()
     router.replace(qs ? `/crm/timeproof/users?${qs}` : "/crm/timeproof/users", { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDept])
+  }, [selectedDept, selectedStatus, teamTab])
 
   const fetchData = React.useCallback(async () => {
     const token = localStorage.getItem("crm_token")
@@ -492,7 +513,7 @@ export default function AdminShiftBoardPage() {
   }, [users])
 
   // selectedDept values: "all" | "role:<role>" | "dept:<dept>"
-  const filteredUsers = React.useMemo(() => {
+  const matchingUsers = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const bySearch = query
       ? users.filter((u) => u.fullName.toLowerCase().includes(query))
@@ -513,6 +534,11 @@ export default function AdminShiftBoardPage() {
     return byTeam
   }, [users, selectedDept, searchQuery, teamTab])
 
+  const filteredUsers = React.useMemo(
+    () => matchingUsers.filter((user) => matchesStatus(user, selectedStatus)),
+    [matchingUsers, selectedStatus]
+  )
+
   // Team-level total rendered hours for whatever tab/filters are currently visible
   const teamTotalSeconds = React.useMemo(
     () => filteredUsers.reduce((sum, u) => sum + (u.today?.totalSeconds || 0), 0),
@@ -522,11 +548,11 @@ export default function AdminShiftBoardPage() {
   const teamTotalMinutes = Math.floor((teamTotalSeconds % 3600) / 60)
 
   // Online = anyone on shift (any state) OR with an active tray/CRM connection
-  const onlineCount = filteredUsers.filter((u) => u.isLive || u.isOnline).length
-  const onShiftCount = filteredUsers.filter((u) => u.isLive && !u.isOnBreak && !u.isIdle).length
-  const onBreakCount = filteredUsers.filter((u) => u.isLive && u.isOnBreak).length
-  const idleCount = filteredUsers.filter((u) => u.isLive && u.isIdle).length
-  const overBreakCount = filteredUsers.filter((u) => u.isLive && u.isBreakExceeded).length
+  const onlineCount = matchingUsers.filter((u) => matchesStatus(u, "online")).length
+  const onShiftCount = matchingUsers.filter((u) => matchesStatus(u, "on-shift")).length
+  const onBreakCount = matchingUsers.filter((u) => matchesStatus(u, "on-break")).length
+  const idleCount = matchingUsers.filter((u) => matchesStatus(u, "idle")).length
+  const overBreakCount = matchingUsers.filter((u) => u.isLive && u.isBreakExceeded).length
 
   return (
     <div className="min-h-screen bg-background timeproof-scope">
@@ -685,20 +711,31 @@ export default function AdminShiftBoardPage() {
         </div>
 
         {/* ── Summary chips ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Online", value: onlineCount, color: "text-emerald-600 dark:text-emerald-400", icon: <Wifi className="h-3.5 w-3.5" /> },
-            { label: "On Shift", value: onShiftCount, color: "text-emerald-300", icon: <Zap className="h-3.5 w-3.5" /> },
-            { label: "On Break", value: onBreakCount, color: "text-amber-600 dark:text-amber-400", icon: <Coffee className="h-3.5 w-3.5" /> },
-            { label: "Idle", value: idleCount, color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
-          ].map((s) => (
-            <div key={s.label} className="rounded-2xl border border-border/60 bg-card px-4 py-3 flex items-center gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {([
+            { key: "all", label: "All Users", value: matchingUsers.length, color: "text-foreground", icon: <Users className="h-3.5 w-3.5" /> },
+            { key: "online", label: "Online", value: onlineCount, color: "text-emerald-600 dark:text-emerald-400", icon: <Wifi className="h-3.5 w-3.5" /> },
+            { key: "on-shift", label: "On Shift", value: onShiftCount, color: "text-emerald-300", icon: <Zap className="h-3.5 w-3.5" /> },
+            { key: "on-break", label: "On Break", value: onBreakCount, color: "text-amber-600 dark:text-amber-400", icon: <Coffee className="h-3.5 w-3.5" /> },
+            { key: "idle", label: "Idle", value: idleCount, color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
+          ] as const).map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setSelectedStatus((current) => current === s.key ? "all" : s.key)}
+              aria-pressed={selectedStatus === s.key}
+              aria-label={`${s.label}: ${s.value} employees`}
+              className={cn(
+                "min-w-0 rounded-2xl border bg-card px-4 py-3 flex items-center gap-3 text-left cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                selectedStatus === s.key ? "border-ring bg-muted/40 ring-1 ring-ring" : "border-border/60"
+              )}
+            >
               <span className={cn("opacity-70", s.color)}>{s.icon}</span>
               <div>
                 <p className={cn("text-xl font-black tabular-nums leading-none", s.color)}>{s.value}</p>
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{s.label}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -736,7 +773,9 @@ export default function AdminShiftBoardPage() {
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Users className="h-10 w-10 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground font-semibold">
-              {selectedDept === "all"
+              {selectedStatus !== "all"
+                ? `No ${selectedStatus === "online" ? "online" : selectedStatus === "on-shift" ? "on-shift" : selectedStatus === "on-break" ? "on-break" : "idle"} agents found`
+                : selectedDept === "all"
                 ? "No agents found"
                 : `No agents in "${selectedDept.startsWith("dept:") ? selectedDept.slice(5) : selectedDept}"`}
             </p>
@@ -750,7 +789,10 @@ export default function AdminShiftBoardPage() {
               <UserCard
                 key={u._id}
                 user={u}
-                onClick={() => router.push(`/crm/timeproof/users/${u._id}`)}
+                onClick={() => {
+                  try { sessionStorage.setItem("tp-shift-board-url", `${window.location.pathname}${window.location.search}`) } catch {}
+                  router.push(`/crm/timeproof/users/${u._id}`)
+                }}
               />
             ))}
           </div>

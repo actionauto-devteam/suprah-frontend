@@ -27,6 +27,13 @@ export interface WorkspaceActivityItem {
   title: string;
   description?: string;
   createdAt?: string | Date;
+  metadata?: {
+    authorType?: "user" | "ai";
+    authorName?: string;
+    mentionedUserIds?: string[];
+    mentionedGroupIds?: string[];
+    milestone?: boolean;
+  };
 }
 
 export interface WorkspaceDetailRow {

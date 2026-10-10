@@ -273,7 +273,8 @@ export function isActiveLeadStatus(
 export function buildLeadStatusSummary(
   leads: Lead[],
 ): LeadStatusSummaryItem[] {
-  const counts = leads.reduce<Record<string, number>>(
+  const reportableLeads = leads.filter((lead) => !lead.isDemoLead);
+  const counts = reportableLeads.reduce<Record<string, number>>(
     (result, lead) => {
       const status = getLeadStatus(lead);
 
@@ -289,8 +290,8 @@ export function buildLeadStatusSummary(
       status,
       count,
       percentage:
-        leads.length > 0
-          ? Math.round((count / leads.length) * 1000) / 10
+        reportableLeads.length > 0
+          ? Math.round((count / reportableLeads.length) * 1000) / 10
           : 0,
     }))
     .sort((first, second) => {
@@ -308,7 +309,8 @@ export function buildLeadStatusSummary(
 export function buildLeadSourceSummary(
   leads: Lead[],
 ): LeadSourceSummaryItem[] {
-  const counts = leads.reduce<Record<string, number>>(
+  const reportableLeads = leads.filter((lead) => !lead.isDemoLead);
+  const counts = reportableLeads.reduce<Record<string, number>>(
     (result, lead) => {
       const source = getLeadSource(lead);
 
@@ -324,8 +326,8 @@ export function buildLeadSourceSummary(
       source,
       count,
       percentage:
-        leads.length > 0
-          ? Math.round((count / leads.length) * 1000) / 10
+        reportableLeads.length > 0
+          ? Math.round((count / reportableLeads.length) * 1000) / 10
           : 0,
     }))
     .sort((first, second) => {

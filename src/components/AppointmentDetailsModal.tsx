@@ -298,6 +298,19 @@ export function AppointmentDetailsModal({
         participants:     editData.participants,
         guestEmails:      formattedGuestEmails,
       })
+      setAppointment((current) => current ? {
+        ...current,
+        title:        editData.title,
+        description:  editData.description || undefined,
+        startTime:    startDateTime.toISOString(),
+        endTime:      endDateTime.toISOString(),
+        location:     editData.location || undefined,
+        type:         editData.type,
+        meetingLink:  editData.meetingLink || undefined,
+        notes:        editData.notes || undefined,
+        status:       editData.status as Appointment["status"],
+        outcomeNotes: editData.outcomeNotes || undefined,
+      } : current)
       setIsEditing(false)
       setError(null)
     } catch (err: any) {

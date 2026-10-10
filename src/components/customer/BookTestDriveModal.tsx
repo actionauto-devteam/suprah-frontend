@@ -46,6 +46,16 @@ export function BookTestDriveModal({
   const [notes, setNotes] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [submitted, setSubmitted] = React.useState(false)
+  const clientRequestIdRef = React.useRef<string>("")
+
+  React.useEffect(() => {
+    if (isOpen) {
+      clientRequestIdRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    }
+  }, [isOpen])
 
   React.useEffect(() => {
     if (isOpen && user) {
@@ -90,6 +100,7 @@ export function BookTestDriveModal({
         phone: phone.trim(),
         startTime: startTime.toISOString(),
         notes: notes.trim() || undefined,
+        clientRequestId: clientRequestIdRef.current,
       })
       setSubmitted(true)
     } catch (err: any) {

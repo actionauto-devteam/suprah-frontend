@@ -86,6 +86,81 @@ interface TimeprofData {
   range: { startDate: string; endDate: string }
 }
 
+interface ShiftBoardNavUser {
+  _id: string
+  fullName: string
+  isLive: boolean
+  isOnline: boolean
+  isIdle: boolean
+  isOnBreak: boolean
+  isBreakExceeded: boolean
+  payrollLocation?: "Utah" | "Philippines"
+}
+
+interface ShiftBoardTimeproofUser {
+  email?: string
+  user: {
+    _id: string
+    fullName: string
+    payrollLocation?: "Utah" | "Philippines"
+  }
+  isLive: boolean
+}
+
+interface ShiftBoardAgentStatus {
+  email?: string
+  user: {
+    _id: string
+  }
+  isOnline: boolean
+  isIdle: boolean
+  isOnBreak: boolean
+  breakStartedAt: string | null
+}
+
+interface ShiftNavState {
+  roster: ShiftBoardNavUser[]
+  history: string[]
+  pos: number
+  boardUrl: string
+  team: "all" | "Utah" | "Philippines"
+}
+
+const SHIFT_NAV_STORAGE_KEY = "tp-shift-nav"
+const SHIFT_BOARD_URL_KEY = "tp-shift-board-url"
+const DEFAULT_SHIFT_BOARD_URL = "/crm/timeproof/users"
+
+const readShiftBoardUrl = (fallback: string): string => {
+  try { return sessionStorage.getItem(SHIFT_BOARD_URL_KEY) || fallback } catch { return fallback }
+}
+
+const parseShiftBoardTeam = (boardUrl: string): "all" | "Utah" | "Philippines" => {
+  const team = boardUrl.includes("?") ? new URLSearchParams(boardUrl.split("?")[1]).get("team") : null
+  return team === "Utah" || team === "Philippines" ? team : "all"
+}
+
+// Survives across Prev/Next navigations (the page remounts on every userId
+// change, but this module stays loaded for the whole SPA session) so a
+// recently-viewed or prefetched employee shows instantly instead of
+// re-running the full 365-day calendar fetch every click.
+const timeprofDataCache = new Map<string, { data: TimeprofData; fetchedAt: number }>()
+const TIMEPROOF_CACHE_FRESH_MS = 45_000
+const TIMEPROOF_FETCH_RANGE = 365
+
+async function fetchTimeprofData(userId: string, token: string): Promise<TimeprofData | null> {
+  try {
+    const res = await apiClient.get(`/api/crm/timeproof/user/${userId}?range=${TIMEPROOF_FETCH_RANGE}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const fresh = res.data?.data as TimeprofData | undefined
+    if (!fresh) return null
+    timeprofDataCache.set(userId, { data: fresh, fetchedAt: Date.now() })
+    return fresh
+  } catch {
+    return null
+  }
+}
+
 const MDT_OFFSET_MS = -6 * 60 * 60 * 1000
 const toMDTDate = (d: Date) => new Date(d.getTime() + MDT_OFFSET_MS)
 
@@ -97,6 +172,14 @@ const roleBadgeClass = (role: string) => {
   if (role === "manager") return "bg-blue-500/10 text-blue-500 border-blue-500/20"
   return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
 }
+
+const OVERRIDE_TYPE_LABELS: Record<string, string> = {
+  "time-in": "Time In",
+  "time-out": "Time Out",
+  "break-in": "Break In",
+  "break-out": "Break Out",
+}
+const logTypeLabel = (type: string) => OVERRIDE_TYPE_LABELS[type] ?? type
 
 /* ─────────────────────────────────────────────────────────────────────────
    Main Page
@@ -113,6 +196,7 @@ export default function AdminUserTimeprofPage() {
   const [data, setData] = React.useState<TimeprofData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
+  const [shiftNav, setShiftNav] = React.useState<ShiftNavState | null>(null)
 
   const now = toMDTDate(new Date())
   const [viewYear, setViewYear] = React.useState(now.getUTCFullYear())
@@ -227,7 +311,7 @@ export default function AdminUserTimeprofPage() {
   // The full entry being edited/deleted (not just its id) — shown back to the admin in the
   // confirmation step so it's unambiguous which one is about to be changed/removed.
   const [overrideSelectedLog, setOverrideSelectedLog] = React.useState<{ type: string; timestamp: string } | null>(null)
-  const [overrideNewType, setOverrideNewType] = React.useState<"time-in" | "time-out">("time-in")
+  const [overrideNewType, setOverrideNewType] = React.useState<"time-in" | "time-out" | "break-in" | "break-out">("time-in")
   const [overrideTime, setOverrideTime] = React.useState("")
   const [overrideReason, setOverrideReason] = React.useState("")
   const [overrideSubmitting, setOverrideSubmitting] = React.useState(false)
@@ -478,24 +562,203 @@ export default function AdminUserTimeprofPage() {
     return () => clearInterval(id)
   }, [data?.isLive])
 
-  /* ── Fetch user timeproof ── */
+  /* ── Fetch user timeproof — serves a fresh cache entry instantly (no skeleton),
+     silently revalidating in the background, so Prev/Next through recently-seen
+     or prefetched employees feels immediate instead of refetching 365 days of
+     calendar data on every click. ── */
   React.useEffect(() => {
     if (!userId) return
     const token = localStorage.getItem("crm_token")
     if (!token) { router.replace("/crm"); return }
 
-    setLoading(true)
-    apiClient
-      .get(`/api/crm/timeproof/user/${userId}?range=365`, {
-        headers: { Authorization: `Bearer ${token}` },
+    let cancelled = false
+    setError("")
+
+    const cached = timeprofDataCache.get(userId)
+    const isFresh = !!cached && Date.now() - cached.fetchedAt < TIMEPROOF_CACHE_FRESH_MS
+    if (cached) {
+      setData(cached.data)
+      setLoading(false)
+    } else {
+      setData(null)
+      setLoading(true)
+    }
+    if (isFresh) return () => { cancelled = true }
+
+    fetchTimeprofData(userId, token)
+      .then((fresh) => {
+        if (cancelled) return
+        if (fresh) setData(fresh)
+        else if (!cached) setError("Failed to load timeproof data.")
       })
-      .then((res) => setData(res.data?.data))
-      .catch((e: unknown) => {
-        const err = e as { response?: { data?: { message?: string } } }
-        setError(err?.response?.data?.message || "Failed to load timeproof data.")
-      })
-      .finally(() => setLoading(false))
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
   }, [userId, router])
+
+  // Admin Prev/Next navigation between employees. The roster order is fetched
+  // and sorted ONCE per tab (sessionStorage), not on every click — the page
+  // remounts on every userId change (dynamic route segment), so re-fetching
+  // live agent/online/break status on each click let the sort order drift
+  // between clicks (someone's status changes mid-browse), which made "Back"
+  // land on the wrong person. The actual back/forward target is a real
+  // visited-history stack, not just "neighbor in the roster" — Back always
+  // returns to whoever was actually viewed before, Forward redoes a step
+  // already taken or, once at the edge of history, advances to the next
+  // employee in the stable roster snapshot.
+  React.useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+
+    const readStored = (): ShiftNavState | null => {
+      try {
+        const raw = sessionStorage.getItem(SHIFT_NAV_STORAGE_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed?.roster) || !Array.isArray(parsed?.history) || typeof parsed?.pos !== "number") return null
+        return parsed as ShiftNavState
+      } catch {
+        return null
+      }
+    }
+
+    const persist = (next: ShiftNavState) => {
+      try { sessionStorage.setItem(SHIFT_NAV_STORAGE_KEY, JSON.stringify(next)) } catch {}
+      if (!cancelled) setShiftNav(next)
+    }
+
+    const fetchRoster = async (team: "all" | "Utah" | "Philippines"): Promise<ShiftBoardNavUser[]> => {
+      const token = localStorage.getItem("crm_token")
+      if (!token) return []
+      try {
+        const [timeproofRes, agentRes] = await Promise.all([
+          apiClient.get("/api/crm/timeproof/users", { headers: { Authorization: `Bearer ${token}` } }),
+          apiClient.get("/api/crm/timeproof/agent-status", { headers: { Authorization: `Bearer ${token}` } }),
+        ])
+        const timeproofUsers: ShiftBoardTimeproofUser[] = timeproofRes.data?.data?.users ?? []
+        const agentStatuses: ShiftBoardAgentStatus[] = agentRes.data?.data?.agents ?? []
+        const agentById = new Map(agentStatuses.map((agent) => [agent.user._id.toString(), agent]))
+        const agentByEmail = new Map(
+          agentStatuses.filter((agent) => agent.email).map((agent) => [agent.email!.toLowerCase(), agent])
+        )
+        const nowMs = Date.now()
+        const BREAK_LIMIT_MS = 65 * 60 * 1000
+        const scoped = team === "all" ? timeproofUsers : timeproofUsers.filter((item) => item.user.payrollLocation === team)
+        const merged = scoped.map((item) => {
+          const agent = (item.email && agentByEmail.get(item.email.toLowerCase())) || agentById.get(item.user._id.toString())
+          const breakStartedAt = agent?.isOnBreak ? (agent.breakStartedAt ?? null) : null
+          const isBreakExceeded = !!breakStartedAt && (nowMs - new Date(breakStartedAt).getTime()) > BREAK_LIMIT_MS
+          return {
+            _id: item.user._id.toString(),
+            fullName: item.user.fullName,
+            isLive: item.isLive,
+            isOnline: agent?.isOnline ?? false,
+            isIdle: agent?.isIdle ?? false,
+            isOnBreak: agent?.isOnBreak ?? false,
+            isBreakExceeded,
+            payrollLocation: item.user.payrollLocation,
+          }
+        })
+        merged.sort((a, b) => {
+          const score = (user: ShiftBoardNavUser) => {
+            if (user.isLive && !user.isIdle && !user.isOnBreak && user.isOnline) return 7
+            if (user.isLive && !user.isIdle && !user.isOnBreak) return 6
+            if (user.isLive && user.isBreakExceeded) return 5
+            if (user.isLive && user.isOnBreak) return 4
+            if (user.isLive && user.isIdle) return 3
+            if (user.isOnline) return 2
+            return 0
+          }
+          const diff = score(b) - score(a)
+          return diff !== 0 ? diff : a.fullName.localeCompare(b.fullName)
+        })
+        return merged
+      } catch {
+        return []
+      }
+    }
+
+    void (async () => {
+      const stored = readStored()
+
+      if (stored && stored.history[stored.pos] === userId) {
+        if (!cancelled) setShiftNav(stored)
+        return
+      }
+
+      const boardUrl = readShiftBoardUrl(stored?.boardUrl ?? DEFAULT_SHIFT_BOARD_URL)
+      const team = parseShiftBoardTeam(boardUrl)
+
+      if (stored && stored.team === team && stored.roster.some((u) => u._id === userId)) {
+        const history = stored.history.slice(0, stored.pos + 1)
+        history.push(userId)
+        persist({ roster: stored.roster, history, pos: history.length - 1, boardUrl, team })
+        return
+      }
+
+      const roster = await fetchRoster(team)
+      if (cancelled) return
+      const history = stored && stored.team === team ? stored.history.slice(0, stored.pos + 1) : []
+      history.push(userId)
+      persist({ roster, history, pos: history.length - 1, boardUrl, team })
+    })()
+
+    return () => { cancelled = true }
+  }, [userId])
+
+  const shiftRoster = shiftNav?.roster ?? []
+  const shiftHistory = shiftNav?.history ?? []
+  const shiftPos = shiftNav?.pos ?? 0
+  const canGoBackUser = shiftPos > 0
+  const backUserId = canGoBackUser ? shiftHistory[shiftPos - 1] : null
+  const backUserName = backUserId ? shiftRoster.find((u) => u._id === backUserId)?.fullName ?? null : null
+
+  const forwardRedoUserId = shiftPos < shiftHistory.length - 1 ? shiftHistory[shiftPos + 1] : null
+  const currentRosterIndex = shiftRoster.findIndex((u) => u._id === userId)
+  const forwardFrontierUser = !forwardRedoUserId && currentRosterIndex >= 0 && shiftRoster.length > 1
+    ? shiftRoster[(currentRosterIndex + 1) % shiftRoster.length]
+    : null
+  const forwardUserId = forwardRedoUserId ?? forwardFrontierUser?._id ?? null
+  const forwardUserName = forwardRedoUserId
+    ? shiftRoster.find((u) => u._id === forwardRedoUserId)?.fullName ?? null
+    : forwardFrontierUser?.fullName ?? null
+
+  const goToPreviousShiftUser = () => {
+    if (!shiftNav || !canGoBackUser || !backUserId) return
+    const nextState = { ...shiftNav, pos: shiftNav.pos - 1 }
+    try { sessionStorage.setItem(SHIFT_NAV_STORAGE_KEY, JSON.stringify(nextState)) } catch {}
+    router.push(`/crm/timeproof/users/${backUserId}`)
+  }
+
+  const goToNextShiftUser = () => {
+    if (!shiftNav || !forwardUserId) return
+    if (forwardRedoUserId) {
+      const nextState = { ...shiftNav, pos: shiftNav.pos + 1 }
+      try { sessionStorage.setItem(SHIFT_NAV_STORAGE_KEY, JSON.stringify(nextState)) } catch {}
+      router.push(`/crm/timeproof/users/${forwardRedoUserId}`)
+      return
+    }
+    if (forwardFrontierUser) {
+      const history = shiftNav.history.slice(0, shiftNav.pos + 1)
+      history.push(forwardFrontierUser._id)
+      const nextState = { roster: shiftNav.roster, history, pos: history.length - 1 }
+      try { sessionStorage.setItem(SHIFT_NAV_STORAGE_KEY, JSON.stringify(nextState)) } catch {}
+      router.push(`/crm/timeproof/users/${forwardFrontierUser._id}`)
+    }
+  }
+
+  // Warms the cache for whoever Back/Next would go to next, so clicking
+  // through a run of employees rarely shows the skeleton at all.
+  React.useEffect(() => {
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    for (const id of [backUserId, forwardUserId]) {
+      if (!id) continue
+      const cached = timeprofDataCache.get(id)
+      if (cached && Date.now() - cached.fetchedAt < TIMEPROOF_CACHE_FRESH_MS) continue
+      fetchTimeprofData(id, token)
+    }
+  }, [backUserId, forwardUserId])
 
   /* ── Month navigation ── */
   const prevMonth = () => {
@@ -716,25 +979,6 @@ export default function AdminUserTimeprofPage() {
     setTimeout(() => setCopied(false), 2500)
   }
 
-  /* ── Loading ── */
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="h-14 w-14 rounded-2xl bg-emerald-600/10 flex items-center justify-center">
-              <Shield className="h-6 w-6 text-emerald-600" />
-            </div>
-            <div className="absolute inset-0 rounded-2xl ring-2 ring-emerald-500/20 ring-offset-2 ring-offset-background animate-ping" />
-          </div>
-          <p className="text-[11px] text-muted-foreground/40 tracking-[0.2em] uppercase font-semibold">
-            Loading Timeproof…
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   /* ── Page ── */
   return (
     <div className="min-h-screen bg-background timeproof-scope">
@@ -746,15 +990,7 @@ export default function AdminUserTimeprofPage() {
       >
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
-            onClick={() => {
-              // router.back() so the roster's department filter (kept in its URL query
-              // string) is restored automatically — a hardcoded push here always landed
-              // on the bare, filter-less roster URL, resetting the selection every time.
-              // Falls back to a plain push only if there's no in-app history to go back to
-              // (e.g. this profile was opened directly via a shared link).
-              if (window.history.length > 1) router.back()
-              else router.push("/crm/timeproof/users")
-            }}
+            onClick={() => router.push(shiftNav?.boardUrl || DEFAULT_SHIFT_BOARD_URL)}
             className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center hover:bg-muted/50 transition-colors text-muted-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -797,6 +1033,26 @@ export default function AdminUserTimeprofPage() {
           )}
 
           <div className="ml-auto shrink-0 flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-muted/10 p-0.5">
+              <button
+                onClick={goToPreviousShiftUser}
+                disabled={!canGoBackUser}
+                title={backUserName ? `Back to ${backUserName}` : "No previous employee"}
+                aria-label={backUserName ? `Back to previous employee, ${backUserName}` : "No previous employee"}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={goToNextShiftUser}
+                disabled={!forwardUserId}
+                title={forwardUserName ? `View ${forwardUserName}` : "No next employee"}
+                aria-label={forwardUserName ? `View next employee, ${forwardUserName}` : "No next employee"}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
             <div className="hidden xs:block"><LiveClock /></div>
             <button
               onClick={copyProof}
@@ -818,6 +1074,25 @@ export default function AdminUserTimeprofPage() {
         {error && (
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-xs text-rose-600">
             {error}
+          </div>
+        )}
+
+        {loading && !data && (
+          <div className="animate-pulse space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 rounded-2xl bg-muted/40 border border-border/30" />
+              ))}
+            </div>
+            <div className="rounded-2xl border border-border/30 bg-card overflow-hidden">
+              <div className="h-14 border-b border-border/20 bg-muted/20" />
+              <div className="h-7 border-b border-border/10 bg-muted/10" />
+              <div className="grid grid-cols-7 gap-px bg-border/10 p-px">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-card" />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1393,7 +1668,7 @@ export default function AdminUserTimeprofPage() {
                         overrideDayLogs.map((log) => (
                           <div key={log._id} className="flex items-center justify-between gap-2 rounded-lg border border-border/30 bg-background px-2.5 py-1.5">
                             <div className="text-[11px]">
-                              <span className="font-bold">{log.type === "time-in" ? "Time In" : log.type === "time-out" ? "Time Out" : log.type}</span>
+                              <span className="font-bold">{logTypeLabel(log.type)}</span>
                               <span className="text-muted-foreground/50 ml-1.5">
                                 {toMDTDate(new Date(log.timestamp)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
                               </span>
@@ -1445,7 +1720,7 @@ export default function AdminUserTimeprofPage() {
                             right row before deleting/editing it. */}
                         {overrideSelectedLog && (overrideAction === "edit" || overrideAction === "delete") && (
                           <div className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${overrideAction === "delete" ? "border-rose-500/30 bg-rose-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
-                            <span className="font-bold">{overrideSelectedLog.type === "time-in" ? "Time In" : overrideSelectedLog.type === "time-out" ? "Time Out" : overrideSelectedLog.type}</span>
+                            <span className="font-bold">{logTypeLabel(overrideSelectedLog.type)}</span>
                             <span className="text-muted-foreground/60 ml-1.5">
                               {toMDTDate(new Date(overrideSelectedLog.timestamp)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })}
                             </span>
@@ -1453,19 +1728,16 @@ export default function AdminUserTimeprofPage() {
                         )}
 
                         {overrideAction === "create" && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setOverrideNewType("time-in")}
-                              className={`flex-1 h-8 rounded-lg text-[11px] font-bold transition-colors ${overrideNewType === "time-in" ? "bg-amber-600 text-white" : "border border-border/40 text-muted-foreground/60"}`}
-                            >
-                              Time In
-                            </button>
-                            <button
-                              onClick={() => setOverrideNewType("time-out")}
-                              className={`flex-1 h-8 rounded-lg text-[11px] font-bold transition-colors ${overrideNewType === "time-out" ? "bg-amber-600 text-white" : "border border-border/40 text-muted-foreground/60"}`}
-                            >
-                              Time Out
-                            </button>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["time-in", "time-out", "break-in", "break-out"] as const).map((type) => (
+                              <button
+                                key={type}
+                                onClick={() => setOverrideNewType(type)}
+                                className={`h-8 rounded-lg text-[11px] font-bold transition-colors ${overrideNewType === type ? "bg-amber-600 text-white" : "border border-border/40 text-muted-foreground/60"}`}
+                              >
+                                {logTypeLabel(type)}
+                              </button>
+                            ))}
                           </div>
                         )}
 

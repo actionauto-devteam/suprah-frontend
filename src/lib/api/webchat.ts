@@ -16,6 +16,7 @@ export interface StartWebChatPayload {
   phone?: string;
   message: string;
   pageUrl?: string;
+  clientRequestId?: string;
 }
 
 export interface StartWebChatResult {

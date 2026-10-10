@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Bot,
   Check,
   FileText,
   Mail,
@@ -13,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatWorkspaceFullDate } from "./workspace-utils";
 import type { WorkspaceActivityItem } from "./workspace-types";
+import { CallRecordingPlayer } from '@/components/communications/CallRecordingPlayer';
 
 const COLLAPSED_DESCRIPTION_LENGTH = 180;
 
@@ -178,9 +180,17 @@ export function ActivityTimeline({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <strong className="block min-w-0 break-words text-[13px] font-semibold leading-[1.3] [overflow-wrap:anywhere]">
-                    {item.title}
-                  </strong>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <strong className="block min-w-0 break-words text-[13px] font-semibold leading-[1.3] [overflow-wrap:anywhere]">
+                      {item.title}
+                    </strong>
+                    {item.metadata?.authorType === "ai" && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                        <Bot className="h-2.5 w-2.5" />
+                        AI
+                      </span>
+                    )}
+                  </div>
 
                   {item.description ? (
                     <ActivityDescription text={item.description} />
@@ -192,6 +202,7 @@ export function ActivityTimeline({
                   >
                     {formatWorkspaceFullDate(item.createdAt)}
                   </time>
+                  {item.kind === 'call' && item.id.startsWith('call:') && <CallRecordingPlayer callId={item.id.slice(5)} />}
                 </div>
               </div>
             </div>
