@@ -25,6 +25,7 @@ import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrac
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
+import { sharedGet } from "@/lib/shared-get";
 import { initializeSocket } from "@/lib/socket.client";
 import { useDriverLocationSharing } from "@/hooks/useDriverLocationSharing";
 import { useTheme } from "@/context/ThemeContext";
@@ -285,6 +286,8 @@ export default function DriverDashboardPage() {
     totalEarnings: number;
     profileCompletionScore: number;
     isComplianceExpired: boolean;
+    /** Which of the driver's credentials have expired (label + YYYY-MM-DD). */
+    complianceExpiredItems?: { label: string; date: string }[];
     completedLoads: number;
   } | null>(null);
   const [kpiSnapshot, setKpiSnapshot] = React.useState<DriverKpiSnapshot | null>(
@@ -485,10 +488,19 @@ export default function DriverDashboardPage() {
   // Only the newest refresh may apply its results, so a slow older response
   // (for example a timer tick that started before Accept) can't show stale data.
   const fetchSeqRef = React.useRef(0);
+  const fullFetchSeqRef = React.useRef(0);
 
-  const fetchData = React.useCallback(async () => {
+  const fetchData = React.useCallback(async (options?: { loadsOnly?: boolean }) => {
     const seq = ++fetchSeqRef.current;
     const isLatest = () => seq === fetchSeqRef.current;
+    // The 15-second background refresh only needs loads and requests (what
+    // Dispatch changes). Stats and the profile change rarely and are reloaded
+    // on every live update and driver action. They keep their own "newest"
+    // counter, so a background refresh never discards a full refresh's stats
+    // or profile.
+    const loadsOnly = options?.loadsOnly === true;
+    const fullSeq = loadsOnly ? fullFetchSeqRef.current : ++fullFetchSeqRef.current;
+    const isLatestFull = () => fullSeq === fullFetchSeqRef.current;
     const token = await getToken();
     if (!token) {
       setIsLoading(false);
@@ -549,11 +561,11 @@ export default function DriverDashboardPage() {
       setIsLoading(false);
     });
 
-    const statsTask = apiClient
+    const statsTask = loadsOnly ? Promise.resolve() : apiClient
       .get("/api/driver-tracking/dashboard-stats", { headers })
       .then((statsRes) => {
         const stats = statsRes?.data?.data;
-        if (!stats || !isLatest()) return;
+        if (!stats || !isLatestFull()) return;
 
         setDashStats(stats);
         setKpiSnapshot((previous) => ({
@@ -572,11 +584,12 @@ export default function DriverDashboardPage() {
         // unavailable. The normal realtime/fallback refresh will try again.
       });
 
-    const profileTask = apiClient
-      .get("/api/driver-profile", { headers })
+    // Shared with the work-availability check and location sharing, which load
+    // the same profile when the page opens (lib/shared-get.ts).
+    const profileTask = loadsOnly ? Promise.resolve() : sharedGet("/api/driver-profile", token)
       .then((profileRes) => {
         const profile = profileRes?.data?.data;
-        if (!profile || !isLatest()) return;
+        if (!profile || !isLatestFull()) return;
 
         setOpStatus(profile.operationalStatus || "active");
 
@@ -652,6 +665,13 @@ export default function DriverDashboardPage() {
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") refreshFromRealtimeEvent();
     };
+    // The timer guards against a missed live update, which only ever changes
+    // loads and requests, so it skips the stats and profile requests.
+    const pollLoadsIfVisible = () => {
+      if (!cancelled && document.visibilityState === "visible") {
+        void fetchData({ loadsOnly: true });
+      }
+    };
     document.addEventListener("visibilitychange", refreshIfVisible);
 
     const connect = async () => {
@@ -666,14 +686,14 @@ export default function DriverDashboardPage() {
         // protects the dashboard from becoming stale after a temporary socket
         // reconnect or a missed event.
         fallbackTimer = window.setInterval(
-          refreshIfVisible,
+          pollLoadsIfVisible,
           15_000,
         );
       } catch {
         // If the socket cannot connect temporarily, keep the dashboard usable
         // and synchronized through the fallback until the component remounts.
         fallbackTimer = window.setInterval(
-          refreshIfVisible,
+          pollLoadsIfVisible,
           15_000,
         );
       }
@@ -1916,9 +1936,15 @@ export default function DriverDashboardPage() {
         <div className="flex items-start gap-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3">
           <AlertTriangle className="size-4 text-red-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-base font-semibold text-red-700 dark:text-red-400">Compliance Expired</p>
+            <p className="text-base font-semibold text-red-700 dark:text-red-400">
+              {expiredCredentialsText(dashStats.complianceExpiredItems)}
+            </p>
             <p className="text-sm leading-relaxed text-red-600 dark:text-red-500">
-              Update documents in your <Link href="/driver/documents" className="underline font-bold">Documents page</Link> to keep accepting loads.
+              {(dashStats.complianceExpiredItems?.length ?? 0) > 1
+                ? "Upload the renewed documents and update their expiration dates on your "
+                : "Upload the renewed document and update its expiration date on your "}
+              <Link href="/driver/documents" className="underline font-bold">Documents page</Link>. Until
+              then, Dispatch sees a compliance warning on your profile.
             </p>
           </div>
         </div>
@@ -3375,6 +3401,22 @@ export default function DriverDashboardPage() {
 }
 
 
+/** "Your CDL expired on Oct 1, 2026" for the Driver Page's compliance banner. */
+function expiredCredentialsText(items?: { label: string; date: string }[]): string {
+  if (!items?.length) return "One of your documents has expired";
+  const described = items.map((item) => {
+    const day = new Date(`${item.date}T00:00:00Z`).toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return `${item.label} expired on ${day}`;
+  });
+  const last = described.pop();
+  return `Your ${described.length ? `${described.join(", ")} and ${last}` : last}`;
+}
+
 function DriverDeliveryProofDialog({
   load,
   loadReference,
@@ -3395,8 +3437,13 @@ function DriverDeliveryProofDialog({
   const [error, setError] = React.useState<string | null>(null);
   const cameraRef = React.useRef<HTMLInputElement>(null);
   const galleryRef = React.useRef<HTMLInputElement>(null);
+  // Whether submit-proof already succeeded for the current photo, so a retry
+  // after a failed /deliver doesn't upload the same photo again (same as the
+  // Loads page's delivery dialog).
+  const proofSubmittedRef = React.useRef(false);
 
   React.useEffect(() => {
+    proofSubmittedRef.current = false;
     if (!load) {
       setFile(null);
       setNote("");
@@ -3420,6 +3467,7 @@ function DriverDeliveryProofDialog({
     if (!nextFile) return;
 
     if (preview) URL.revokeObjectURL(preview);
+    proofSubmittedRef.current = false;
     setFile(nextFile);
     setPreview(URL.createObjectURL(nextFile));
     setError(null);
@@ -3432,25 +3480,32 @@ function DriverDeliveryProofDialog({
     setSubmitting(true);
     setError(null);
 
+    // Which step failed tells the driver whether the photo was saved.
+    let step: "proof" | "deliver" = "proof";
+
     try {
       const token = await getToken();
-      if (!token) throw new Error("Authentication token is unavailable");
+      if (!token) throw new Error("Your sign-in has expired. Sign in again, then submit the delivery photo again.");
 
       // Use the Driver Tracking proof route so shared/standalone drivers do
       // not need a home organization just to submit POD. The backend reuses
       // the existing private-bucket proof controller and validates that this
       // authenticated driver is the exact assigned driver.
       // Delivery is only advanced after the proof upload succeeds.
-      const formData = new FormData();
-      formData.append("proof", file);
-      if (note.trim()) formData.append("note", note.trim());
+      if (!proofSubmittedRef.current) {
+        const formData = new FormData();
+        formData.append("proof", file);
+        if (note.trim()) formData.append("note", note.trim());
 
-      await apiClient.post(
-        `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/submit-proof`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+        await apiClient.post(
+          `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/submit-proof`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        proofSubmittedRef.current = true;
+      }
 
+      step = "deliver";
       await apiClient.post(
         `/api/driver-tracking/loads/${encodeURIComponent(load._id)}/deliver`,
         {},
@@ -3459,8 +3514,11 @@ function DriverDeliveryProofDialog({
 
       await onDelivered();
     } catch (err: any) {
+      const message = userErrorMessage(err, "complete this delivery");
       setError(
-        userErrorMessage(err, "complete this delivery"),
+        step === "deliver"
+          ? `Your delivery photo was saved, but the delivery couldn't be completed. ${message}`
+          : message,
       );
     } finally {
       setSubmitting(false);

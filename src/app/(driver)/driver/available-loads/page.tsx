@@ -400,8 +400,19 @@ export default function AvailableLoadsPage() {
 
   React.useEffect(() => {
     void fetchLoads();
-    const poll = window.setInterval(() => void fetchLoads(), 30000);
-    return () => window.clearInterval(poll);
+    // Refresh every 30 seconds only while the page is on screen, and catch up
+    // when the driver comes back to it.
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchLoads();
+    }, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchLoads();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [fetchLoads]);
 
   React.useEffect(() => {

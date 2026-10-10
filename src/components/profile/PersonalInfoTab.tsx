@@ -153,7 +153,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
                         </div>
                         {personalInfo.phone && personalInfo.phone.replace(/\D/g, '').length > 0 && personalInfo.phone.replace(/\D/g, '').length < 10 && editingPersonalInfo && (
                             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <AlertCircle className="size-3" /> Enter a valid 10-digit US number
+                                <AlertCircle className="size-3" /> Enter all 10 digits of your US number
                             </p>
                         )}
                     </div>

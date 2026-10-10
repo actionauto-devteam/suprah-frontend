@@ -328,6 +328,17 @@ function isExpectedAppointmentPollingNotFound(
   return /^\/api\/appointments\/[^/]+$/.test(requestPath);
 }
 
+// When a request that can change data (anything but GET) last finished. Shared
+// reads (lib/shared-get.ts) never reuse a request that started before it, so a
+// screen refreshed after an action always gets the changed data.
+let lastWriteFinishedAt = 0;
+const noteFinished = (config?: { method?: string }) => {
+  if (String(config?.method ?? "get").toLowerCase() !== "get") {
+    lastWriteFinishedAt = Date.now();
+  }
+};
+export const lastWriteAt = () => lastWriteFinishedAt;
+
 class ApiClient {
   private client: AxiosInstance;
   private refreshRequest: Promise<AxiosResponse> | null = null;
@@ -385,8 +396,13 @@ class ApiClient {
 
     // ── Response interceptor ─────────────────────────────────────────────
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        noteFinished(response.config);
+        return response;
+      },
       async (error) => {
+        // A failed write may still have changed something on the server.
+        noteFinished(error?.config);
         if (
           axios.isCancel(error) ||
           error?.code === "ERR_CANCELED" ||

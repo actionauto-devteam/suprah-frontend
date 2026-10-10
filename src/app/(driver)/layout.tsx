@@ -14,6 +14,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
 import { useUser, useAuthActions, useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api-client";
+import { userErrorMessage } from "@/lib/user-error";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,12 @@ function DriverLayoutContent({
   const { avatarUrl } = useProfileContext();
   const router = useRouter();
   const [guardPassed, setGuardPassed] = React.useState(false);
+  // The approval check failed (no connection, a server problem, or the server
+  // refused, e.g. a suspended account). That's not "waiting for approval", so
+  // the driver sees what went wrong and can retry instead of being sent to the
+  // "pending approval" page.
+  const [approvalCheckError, setApprovalCheckError] = React.useState<string | null>(null);
+  const [approvalCheckAttempt, setApprovalCheckAttempt] = React.useState(0);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   // Unread Dispatch Chat messages (dispatchers and channels) on the bottom bar's Chat button.
@@ -71,19 +78,26 @@ function DriverLayoutContent({
   // An open Dispatch Chat conversation uses the whole phone screen.
   const bottomNavHidden = useDriverBottomNavHidden();
 
+  // useUser() builds a new `user` object on every render, so the check below
+  // depends on the account's id and role instead. Depending on `user` re-ran
+  // the approval check (and its request) every time the layout redrew.
+  const userId = user?.id ?? null;
+  const userRole = user?.role ?? null;
+
   React.useEffect(() => {
     const checkApproval = async () => {
       if (!isLoaded) return;
 
       // Wait until the user object has resolved
-      if (!user) return;
+      if (!userId) return;
 
       // If not a driver role, redirect to dealer dashboard
-      if (user.role !== "driver") {
+      if (userRole !== "driver") {
         router.push("/");
         return;
       }
 
+      setApprovalCheckError(null);
       try {
         const token = await getToken();
         // The backend now creates the DriverRequest automatically in authService.completeOnboarding
@@ -101,16 +115,40 @@ function DriverLayoutContent({
         // Driver is approved — grant access
         setGuardPassed(true);
       } catch (err) {
+        // my-status always answers with a status for a signed-in user, so an
+        // error here is never "not approved". Show the server's reason when
+        // there is one (e.g. a suspended account), otherwise the likely cause.
         console.error("[DriverLayout] Approval check failed:", err);
-        router.push("/driver/pending");
+        setApprovalCheckError(userErrorMessage(err, "check your account"));
       }
     };
 
     checkApproval();
-  }, [isLoaded, user, router, getToken]);
+  }, [isLoaded, userId, userRole, router, getToken, approvalCheckAttempt]);
 
   const { isSignedIn } = useAuth();
   if (isLoaded && !isSignedIn) return null;
+
+  if (!guardPassed && approvalCheckError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div role="alert" className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <p className="text-base font-semibold text-foreground">
+            We couldn&apos;t open the Driver Portal
+          </p>
+          <p className="text-sm text-muted-foreground">{approvalCheckError}</p>
+          <div className="flex gap-2">
+            <Button onClick={() => setApprovalCheckAttempt((attempt) => attempt + 1)}>
+              Try again
+            </Button>
+            <Button variant="outline" onClick={() => signOut()}>
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading while guard is checking
   if (!guardPassed) {

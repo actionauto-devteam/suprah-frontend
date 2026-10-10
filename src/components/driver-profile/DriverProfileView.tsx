@@ -331,7 +331,7 @@ export const DriverProfileView: React.FC = () => {
     }
     const phone = personalInfo.phone?.replace(/\D/g, "") || "";
     if (phone && phone.length !== 10) {
-      toast.error("Enter a 10-digit US phone number (numbers only).");
+      toast.error("Enter your 10-digit US phone number using numbers only. The +1 is added for you.");
       return;
     }
     for (const link of socialLinks) {
