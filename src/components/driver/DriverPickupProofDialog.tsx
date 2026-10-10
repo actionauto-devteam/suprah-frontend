@@ -31,6 +31,11 @@ function extractMessage(error: any) {
   );
 }
 
+// The proof upload accepts JPG and PNG only (same as delivery photos). Listing
+// them in `accept` also makes iPhones convert HEIC photos to JPG on the way in.
+const PROOF_PHOTO_TYPES = ["image/jpeg", "image/png"];
+const PROOF_PHOTO_ACCEPT = PROOF_PHOTO_TYPES.join(",");
+
 export function DriverPickupProofDialog({
   load,
   getToken,
@@ -71,7 +76,16 @@ export function DriverPickupProofDialog({
   const handleFileChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFile = event.target.files?.[0] || null;
+      // Let the driver pick the same file again after fixing a problem.
+      event.target.value = "";
+      if (selectedFile && !PROOF_PHOTO_TYPES.includes(selectedFile.type)) {
+        setError(
+          "This photo's format can't be uploaded. Choose a JPG or PNG photo, or use Take Photo instead."
+        );
+        return;
+      }
       if (selectedFile) {
+        setError(null);
         proofSubmittedRef.current = false;
         setFile(selectedFile);
         setPreview((previous) => {
@@ -93,7 +107,7 @@ export function DriverPickupProofDialog({
 
     try {
       const token = await getToken();
-      if (!token) throw new Error("Authentication token not available.");
+      if (!token) throw new Error("Your sign-in has expired. Sign in again, then submit the pickup photo again.");
       const authHeaders = { Authorization: `Bearer ${token}` };
       const loadPath = `/api/driver-tracking/loads/${encodeURIComponent(load._id)}`;
 
@@ -175,7 +189,7 @@ export function DriverPickupProofDialog({
               </Button>
               <input
                 type="file"
-                accept="image/*"
+                accept={PROOF_PHOTO_ACCEPT}
                 capture="environment"
                 ref={cameraRef}
                 className="hidden"
@@ -190,7 +204,7 @@ export function DriverPickupProofDialog({
               </Button>
               <input
                 type="file"
-                accept="image/*"
+                accept={PROOF_PHOTO_ACCEPT}
                 ref={galleryRef}
                 className="hidden"
                 onChange={handleFileChange}

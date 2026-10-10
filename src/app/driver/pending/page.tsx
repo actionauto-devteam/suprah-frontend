@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, CheckCircle2, XCircle, LogOut, RefreshCw } from "lucide-react";
 import { DriverVerificationForm } from "@/components/driver-profile/DriverVerificationForm";
+import { SUPPORT_EMAIL } from "@/lib/support-contact";
 
 export default function DriverPendingPage() {
   const { getToken, signOut, isLoaded } = useAuth();
@@ -15,15 +16,14 @@ export default function DriverPendingPage() {
   const [status, setStatus] = React.useState<
     "loading" | "needs-application" | "pending" | "approved" | "rejected" | "no-request"
   >("loading");
-  const [orgName, setOrgName] = React.useState<string>("");
   const [checking, setChecking] = React.useState(false);
 
-  const checkStatus = React.useCallback(async function attempt(): Promise<void> {
+  const checkStatus = React.useCallback(async function attempt(afterCreate = false): Promise<void> {
     try {
       const token = await getToken();
       if (!token) {
         // Token not ready yet — retry after a short delay
-        setTimeout(() => attempt(), 1000);
+        setTimeout(() => attempt(afterCreate), 1000);
         return;
       }
       const response = await apiClient.getDriverRequestStatus({
@@ -31,30 +31,23 @@ export default function DriverPendingPage() {
       });
       const data = response.data?.data;
 
-      if (!data) {
-        // No request yet — driver navigated here before createDriverRequest ran.
-        // Create it now, then re-check.
+      // The server answers { status: "no-request" } (never an empty answer)
+      // when the driver has no application yet. Create it here (that's what
+      // alerts the Suprah team to review them), then check again so the
+      // driver sees the application form if they haven't finished it.
+      if (!data || data.status === "no-request") {
+        if (afterCreate) {
+          setStatus("no-request");
+          return;
+        }
         try {
           await apiClient.createDriverRequest({}, { headers: { Authorization: `Bearer ${token}` } });
-          // Re-check after creating
-          const recheck = await apiClient.getDriverRequestStatus({ headers: { Authorization: `Bearer ${token}` } });
-          const recheckData = recheck.data?.data;
-          if (recheckData?.status === "pending") {
-            setStatus("pending");
-          } else {
-            setStatus("no-request");
-          }
         } catch {
           setStatus("no-request");
+          return;
         }
-        return;
+        return attempt(true);
       }
-
-      setOrgName(
-        typeof data.organizationId === "object"
-          ? data.organizationId?.name || ""
-          : "",
-      );
 
       if (data.status === "approved") {
         setStatus("approved");
@@ -93,11 +86,21 @@ export default function DriverPendingPage() {
     }
   }, [isLoaded, checkStatus]);
 
-  // Poll every 15 seconds when pending
+  // Check every 15 seconds while pending and the page is on screen; catch up
+  // when the driver comes back to it.
   React.useEffect(() => {
     if (status !== "pending") return;
-    const interval = setInterval(checkStatus, 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void checkStatus();
+    }, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void checkStatus();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [status, checkStatus]);
 
   const handleRefresh = async () => {
@@ -115,8 +118,8 @@ export default function DriverPendingPage() {
               Finish Your Application
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Complete these steps so {orgName || "your organization's admin"}{" "}
-              can review and approve your account.
+              Complete these steps so the Suprah team can review and approve
+              your account.
             </p>
           </div>
           <Button
@@ -166,9 +169,10 @@ export default function DriverPendingPage() {
                   Pending Approval
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your driver account request has been sent
-                  {orgName ? ` to ${orgName}` : ""}. Please wait for the dealer
-                  to approve your request.
+                  Your driver application has been sent to the Suprah team for
+                  review. We&apos;ll let you know as soon as you&apos;re
+                  approved, and this page updates by itself. You don&apos;t
+                  need to do anything else.
                 </p>
               </div>
               <Button
@@ -214,11 +218,15 @@ export default function DriverPendingPage() {
               </div>
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">
-                  Request Rejected
+                  Application Not Approved
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your driver request has been rejected. Please contact the
-                  dealer for more information.
+                  Your driver application wasn&apos;t approved. To find out why,
+                  or if you think this is a mistake, email{" "}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-foreground underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
                 </p>
               </div>
             </>
@@ -233,19 +241,26 @@ export default function DriverPendingPage() {
               </div>
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">
-                  No Request Found
+                  We Couldn&apos;t Start Your Application
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  You don&apos;t have a driver request yet. Please register as a
-                  driver from the login page.
+                  Tap Try Again. If it still doesn&apos;t work, sign out, sign
+                  in again, and come back to this page. If the problem stays,
+                  email{" "}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-foreground underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                  .
                 </p>
               </div>
               <Button
                 variant="outline"
-                className="h-11"
-                onClick={() => router.push("/sign-in")}
+                className="h-11 gap-1.5"
+                onClick={handleRefresh}
+                disabled={checking}
               >
-                Go to Login
+                <RefreshCw className={`size-3.5 ${checking ? "animate-spin" : ""}`} />
+                Try Again
               </Button>
             </>
           )}

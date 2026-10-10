@@ -207,7 +207,7 @@ export const ProfileView: React.FC = () => {
 
     const phone = personalInfo.phone?.replace(/\D/g, "") || "";
     if (phone && phone.length !== 10) {
-      toast.error("Phone number must be a valid 10-digit US number");
+      toast.error("Enter your 10-digit US phone number using numbers only. The +1 is added for you.");
       return;
     }
 

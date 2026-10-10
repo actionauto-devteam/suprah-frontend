@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { apiClient } from "@/lib/api-client";
+import { sharedGet } from "@/lib/shared-get";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
 import type {
@@ -76,12 +76,10 @@ export function useDriverWorkEligibility() {
       const token = await getToken();
       if (!token) return;
       const [profileRes, requestRes] = await Promise.all([
-        apiClient.get("/api/driver-profile", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        apiClient.get("/api/driver-profile/status-requests/my-current", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null),
+        // Shared with the Driver Page and location sharing when they load at
+        // the same moment (lib/shared-get.ts).
+        sharedGet("/api/driver-profile", token),
+        sharedGet("/api/driver-profile/status-requests/my-current", token).catch(() => null),
       ]);
 
       const profileStatus = profileRes.data?.data?.operationalStatus;

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { apiClient } from "@/lib/api-client";
+import { sharedGet } from "@/lib/shared-get";
 import { initializeSocket } from "@/lib/socket.client";
 import { useAuth, useUser } from "@/providers/AuthProvider";
 import type { DriverStatus } from "@/types/driver-tracking";
@@ -213,7 +214,7 @@ export function DriverLocationSharingProvider({
       }
 
       const token = await getToken();
-      if (!token) throw new Error("Authentication token is unavailable");
+      if (!token) throw new Error("Your sign-in has expired, so your location wasn't shared. Sign in again to keep sharing it with Dispatch.");
 
       const response = await apiClient.post(
         "/api/driver-tracking/heartbeat",
@@ -448,12 +449,10 @@ export function DriverLocationSharingProvider({
         apiClient.get("/api/driver-tracking/my-loads?view=active", {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        apiClient.get("/api/driver-profile", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        apiClient.get("/api/driver-profile/status-requests/my-current", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null),
+        // Shared with the Driver Page and the work-availability check when they
+        // load at the same moment (lib/shared-get.ts).
+        sharedGet("/api/driver-profile", token),
+        sharedGet("/api/driver-profile/status-requests/my-current", token).catch(() => null),
       ]);
 
       if (seq !== loadStateSeqRef.current) return;

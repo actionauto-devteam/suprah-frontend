@@ -273,6 +273,28 @@ function formatDocumentType(type?: string) {
   );
 }
 
+/**
+ * Expiration dates are calendar days (saved as midnight UTC), so they're shown
+ * as entered. Formatting them in Mountain Time showed the day before.
+ */
+function formatCalendarDay(value?: string | null) {
+  if (!value) return "Not provided";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not provided";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+/** Same rule as the server: expired once the date has passed. */
+function isPastDate(value?: string | null) {
+  const time = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isFinite(time) && time < Date.now();
+}
+
 function formatDate(value?: string | null, withTime = false) {
   if (!value) return "Not provided";
   const date = new Date(value);
@@ -413,7 +435,10 @@ function CredentialCard({
         {fact?.state && <p>State: <span className="font-semibold text-foreground">{fact.state}</span></p>}
         {fact?.provider && <p>Provider: <span className="font-semibold text-foreground">{fact.provider}</span></p>}
         <p>
-          Expiration: <span className="font-semibold text-foreground">{formatDate(fact?.expiresAt)}</span>
+          Expiration: <span className="font-semibold text-foreground">{formatCalendarDay(fact?.expiresAt)}</span>
+          {isPastDate(fact?.expiresAt) && (
+            <span className="ml-1.5 font-semibold text-red-600 dark:text-red-400">Expired</span>
+          )}
         </p>
       </div>
     </div>
@@ -978,7 +1003,15 @@ export function DriverComplianceDocumentsDialog({
                                     {document.uploadedAt ? ` · Uploaded ${formatDate(document.uploadedAt)}` : ""}
                                   </p>
                                   {document.expiresAt && (
-                                    <p className="mt-1 text-xs text-muted-foreground">Expires {formatDate(document.expiresAt)}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {isPastDate(document.expiresAt) ? (
+                                        <span className="font-semibold text-red-600 dark:text-red-400">
+                                          Expired {formatCalendarDay(document.expiresAt)}
+                                        </span>
+                                      ) : (
+                                        <>Expires {formatCalendarDay(document.expiresAt)}</>
+                                      )}
+                                    </p>
                                   )}
                                   {document.reviewStatus === "rejected" && document.rejectionReason && (
                                     <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-sm text-red-700 dark:text-red-300">

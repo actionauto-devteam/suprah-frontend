@@ -235,8 +235,19 @@ export default function DriverLoadsPage() {
 
   React.useEffect(() => {
     fetchLoads();
-    const poll = setInterval(fetchLoads, 30000);
-    return () => clearInterval(poll);
+    // Refresh every 30 seconds only while the page is on screen (a hidden tab
+    // re-downloaded the whole load list for nothing), and catch up on return.
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") void fetchLoads();
+    }, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchLoads();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [fetchLoads]);
 
   React.useEffect(() => {
@@ -1221,7 +1232,13 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
 
       onSuccess();
     } catch (err: any) {
-      setError(userErrorMessage(err, "submit your proof of delivery"));
+      const message = userErrorMessage(err, "submit your proof of delivery");
+      // Same wording as the Driver Page's delivery dialog: say whether the photo was kept.
+      setError(
+        proofSubmittedRef.current
+          ? `Your delivery photo was saved, but the delivery couldn't be completed. ${message}`
+          : message,
+      );
     } finally {
       setSubmitting(false);
     }
