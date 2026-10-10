@@ -43,6 +43,16 @@ import {
 } from "@/components/transportation/TransportationMobileDetailsDrawer";
 import { TransportationMobileViewSwitcher } from "@/components/transportation/TransportationMobileViewSwitcher";
 import { TransportationMobilePagination } from "@/components/transportation/TransportationMobilePagination";
+import { cn } from "@/lib/utils";
+import { useMobilePreview } from "@/lib/mobile-preview";
+import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
+import { MobilePreviewToggle } from "@/components/mobile-preview/MobilePreviewToggle";
+import { TransportationPreviewHeader } from "@/components/transportation/preview/TransportationPreviewHeader";
+import { TransportationPreviewViewSwitcher } from "@/components/transportation/preview/TransportationPreviewViewSwitcher";
+import { TransportationPreviewStatusChips } from "@/components/transportation/preview/TransportationPreviewStatusChips";
+import { TransportationPreviewFilterPanel } from "@/components/transportation/preview/TransportationPreviewFilterPanel";
+import { TransportationPreviewLoadCard } from "@/components/transportation/preview/TransportationPreviewLoadCard";
+import { TransportationPreviewQuoteCard } from "@/components/transportation/preview/TransportationPreviewQuoteCard";
 
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
@@ -270,6 +280,11 @@ function TransportationPageInner() {
     null,
   );
   const isMobileViewport = useIsTransportationMobileViewport();
+  // Phone redesign preview; always off unless NEXT_PUBLIC_MOBILE_PREVIEW=true.
+  const { enabled: phonePreview } = useMobilePreview();
+  const [previewFiltersOpen, setPreviewFiltersOpen] = React.useState(false);
+  const MobileLoadCard = phonePreview ? TransportationPreviewLoadCard : TransportationMobileLoadCard;
+  const MobileQuoteCard = phonePreview ? TransportationPreviewQuoteCard : TransportationMobileQuoteCard;
   const [mobileFilters, setMobileFilters] = React.useState<
     Record<TransportationView, MobileFilterState>
   >({
@@ -328,6 +343,7 @@ function TransportationPageInner() {
     setInspectedMobileLoadTab("overview");
     setInspectedMobileQuote(null);
     setInspectedMobileQuoteTab("overview");
+    setPreviewFiltersOpen(false);
   }, [activeTab]);
 
   const {
@@ -536,6 +552,18 @@ function TransportationPageInner() {
     setInspectedMobileQuote(null);
   }, [activeTab]);
 
+  const goToCreateLoad = () => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("search", searchQuery);
+    if (selectedStatus !== "all")
+      params.set("status", selectedStatus);
+    if (activeTab !== "shipments") params.set("tab", activeTab);
+    const query = params.toString();
+    router.push(
+      `/transportation/create-load${query ? `?${query}` : ""}`,
+    );
+  };
+
   const currentMobileTotal =
     activeTab === "load-board"
       ? boardPagination?.total ?? boardLoads.length
@@ -606,7 +634,7 @@ function TransportationPageInner() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={cn("min-h-screen bg-background", phonePreview && previewStyles.scope)}>
       <AlertDialog {...alert} onOpenChange={hideAlert} />
 
       { }
@@ -631,7 +659,7 @@ function TransportationPageInner() {
       {/* Transportation identity panel — intentionally mirrors the visual
           hierarchy used by All Inventory and Driver Tracker while preserving
           Transportation's own actions, live state, and vehicle context. */}
-      <div className="shrink-0 px-2 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+      <div className={cn("shrink-0 px-2 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6", phonePreview && "max-md:hidden")}>
         <section
           aria-labelledby="transportation-page-title"
           className="relative overflow-hidden rounded-2xl border border-border/40 bg-card shadow-sm dark:bg-zinc-900/60"
@@ -689,17 +717,7 @@ function TransportationPageInner() {
                   variant="outline"
                   size="sm"
                   className="h-11 min-w-0 gap-1.5 rounded-xl border-border px-3 text-[11px] font-black touch-manipulation sm:min-w-32 sm:text-xs md:h-10 md:px-4"
-                  onClick={() => {
-                    const params = new URLSearchParams();
-                    if (searchQuery) params.set("search", searchQuery);
-                    if (selectedStatus !== "all")
-                      params.set("status", selectedStatus);
-                    if (activeTab !== "shipments") params.set("tab", activeTab);
-                    const query = params.toString();
-                    router.push(
-                      `/transportation/create-load${query ? `?${query}` : ""}`,
-                    );
-                  }}
+                  onClick={goToCreateLoad}
                 >
                   <Plus className="size-3.5 shrink-0 sm:size-4" />
                   <span>CREATE LOAD</span>
@@ -768,7 +786,7 @@ function TransportationPageInner() {
 
       {/* Search remains outside the identity panel, while Refresh now lives
           with the panel actions like the All Inventory header. */}
-      <div className="shrink-0 px-2 pt-2.5 sm:px-4 md:px-6">
+      <div className={cn("shrink-0 px-2 pt-2.5 sm:px-4 md:px-6", phonePreview && "max-md:hidden")}>
         <div className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -784,8 +802,82 @@ function TransportationPageInner() {
         </div>
       </div>
 
+      {/* Phone redesign preview (iPhone deck slide 8): header, search, views,
+          status chips and filters, wired to the same state as the blocks below. */}
+      {phonePreview ? (
+        <div className="md:hidden">
+          <TransportationPreviewHeader
+            activeView={activeTab as TransportationView}
+            total={currentMobileTotal}
+            vehiclesAvailable={vehicles.length}
+            refreshing={
+              activeTab === "load-board"
+                ? isBoardLoading
+                : isLoading || isSilentRefreshing
+            }
+            searchQuery={searchQuery}
+            searchPlaceholder={
+              activeTab === "load-board"
+                ? "Load #, city, state, make, model, or VIN"
+                : "Name, VIN, stock, or tracking number"
+            }
+            onSearchChange={setSearchQuery}
+            onCreateLoad={goToCreateLoad}
+            onNewQuote={() => setIsQuoteModalOpen(true)}
+            onRefresh={handleManualRefresh}
+          />
+          <TransportationPreviewViewSwitcher
+            activeView={activeTab as TransportationView}
+            onViewChange={(view) => {
+              setActiveTab(view);
+              setInspectedMobileLoad(null);
+              setInspectedMobileQuote(null);
+            }}
+          />
+          <TransportationPreviewStatusChips
+            activeTab={activeTab as TransportationView}
+            selectedStatus={selectedStatus}
+            onStatusChange={(status) => {
+              setSelectedStatus(status);
+              setInspectedMobileLoad(null);
+              setInspectedMobileQuote(null);
+            }}
+            selectedQuoteStatus={selectedQuoteStatus}
+            onQuoteStatusChange={(status) => {
+              setSelectedQuoteStatus(status);
+              setInspectedMobileLoad(null);
+              setInspectedMobileQuote(null);
+            }}
+            stats={stats}
+            boardStats={boardStats}
+            quoteStats={quoteStats}
+            filterCount={
+              (currentMobileFilters.origin.trim() ? 1 : 0) +
+              (currentMobileFilters.destination.trim() ? 1 : 0) +
+              (activeTab !== "drafts" && currentMobileFilters.visibility !== "all" ? 1 : 0)
+            }
+            filtersOpen={previewFiltersOpen}
+            onToggleFilters={() => setPreviewFiltersOpen((open) => !open)}
+          />
+          {previewFiltersOpen ? (
+            <TransportationPreviewFilterPanel
+              activeTab={activeTab as TransportationView}
+              origin={currentMobileFilters.origin}
+              destination={currentMobileFilters.destination}
+              visibility={currentMobileFilters.visibility}
+              resultCount={currentMobileTotal}
+              onOriginChange={(origin) => updateCurrentMobileFilters({ origin })}
+              onDestinationChange={(destination) => updateCurrentMobileFilters({ destination })}
+              onVisibilityChange={(visibility) => updateCurrentMobileFilters({ visibility })}
+              onClearFilters={clearCurrentMobileFilters}
+              onClose={() => setPreviewFiltersOpen(false)}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Mobile-only Inventory-style view switcher. The existing md+ web navigation is preserved below. */}
-      <div className="md:hidden border-b border-border bg-card px-3 py-2.5">
+      <div className={cn("md:hidden border-b border-border bg-card px-3 py-2.5", phonePreview && "hidden")}>
         <TransportationMobileViewSwitcher
           activeView={activeTab as TransportationView}
           onViewChange={(view) => {
@@ -796,7 +888,7 @@ function TransportationPageInner() {
         />
       </div>
 
-      <div className="md:hidden border-b border-border bg-card/70 px-3 py-3">
+      <div className={cn("md:hidden border-b border-border bg-card/70 px-3 py-3", phonePreview && "hidden")}>
         <TransportationMobileFilters
           activeTab={activeTab as TransportationView}
           selectedStatus={selectedStatus}
@@ -866,7 +958,7 @@ function TransportationPageInner() {
         />
 
         {/* Main Content */}
-        <div className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background">
+        <div className={cn("flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-background", phonePreview && "max-md:bg-transparent max-md:px-4")}>
           {activeTab === "load-board" ? (
             boardError && !isBoardLoading && boardLoads.length === 0 ? (
               <Card className="border-border">
@@ -970,7 +1062,7 @@ function TransportationPageInner() {
               <>
                 <div className="md:hidden space-y-2.5">
                   {boardLoads.map((load) => (
-                    <TransportationMobileLoadCard
+                    <MobileLoadCard
                       key={load._id}
                       load={load}
                       presentation="load-board"
@@ -1088,7 +1180,7 @@ function TransportationPageInner() {
               <>
                 <div className="md:hidden space-y-2.5">
                   {filteredLoads.map((load) => (
-                    <TransportationMobileLoadCard
+                    <MobileLoadCard
                       key={load._id}
                       load={load}
                       presentation="shipments"
@@ -1206,7 +1298,7 @@ function TransportationPageInner() {
             <>
               <div className="md:hidden space-y-2.5">
                 {filteredQuotes.map((quote) => (
-                  <TransportationMobileQuoteCard
+                  <MobileQuoteCard
                     key={quote._id}
                     quote={quote}
                     onDelete={handleDeleteQuote}
@@ -1270,6 +1362,8 @@ function TransportationPageInner() {
       />
 
       <TransportationMobileSupportCenter />
+
+      <MobilePreviewToggle />
 
       <ShippingQuoteModal
         open={isQuoteModalOpen}

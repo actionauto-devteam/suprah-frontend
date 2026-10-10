@@ -1,0 +1,88 @@
+/* Phone redesign tokens (iPhone deck, slide 13). Scoped to .scope so the rest
+ * of the site is untouched. Dark values are the slide's; light values keep the
+ * same hues with enough contrast on white. The scope only changes the page's
+ * own font, text colour and background at phone width, so it can wrap a whole
+ * page without touching the tablet and desktop layouts.
+ */
+.scope {
+  --mp-bg: #f6faf8;
+  --mp-surface: #ffffff;
+  --mp-surface-2: #eef5f1;
+  --mp-hairline: #d8e7e0;
+  --mp-ink: #0f1f1a;
+  --mp-muted: #4f6a61;
+  --mp-mint: #0a7d56;
+  --mp-purple: #6d4ed8;
+  --mp-amber: #a16207;
+  --mp-blue: #1d4ed8;
+  --mp-grey: #5b6b66;
+  --mp-danger: #dc2626;
+  --mp-on-accent: #ffffff;
+  --mp-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mp-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .scope {
+    font-family: var(--mp-font);
+    color: var(--mp-ink);
+    background: var(--mp-bg);
+  }
+}
+
+:global(.dark) .scope {
+  --mp-bg: #0b1512;
+  --mp-surface: #10201b;
+  --mp-surface-2: #142a23;
+  --mp-hairline: #1e3a30;
+  --mp-ink: #eaf7f1;
+  --mp-muted: #8faba2;
+  --mp-mint: #2ee6a8;
+  --mp-purple: #a78bfa;
+  --mp-amber: #f5b84d;
+  --mp-blue: #60a5fa;
+  --mp-grey: #8faba2;
+  --mp-danger: #f87171;
+  --mp-on-accent: #0b1512;
+}
+
+.mono {
+  font-family: var(--mp-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status tones: set --tone, then use the helpers below. */
+.toneMint { --tone: var(--mp-mint); }
+.tonePurple { --tone: var(--mp-purple); }
+.toneAmber { --tone: var(--mp-amber); }
+.toneBlue { --tone: var(--mp-blue); }
+.toneGrey { --tone: var(--mp-grey); }
+
+.toneText { color: var(--tone); }
+.toneFill { background: var(--tone); }
+.toneSoft {
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  border-color: color-mix(in srgb, var(--tone) 32%, transparent);
+}
+.toneLine { border-color: color-mix(in srgb, var(--tone) 30%, var(--mp-hairline)); }
+
+/* Solid pill in dark mode (as on the slide), tinted pill in light mode. */
+.tonePill {
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+  color: var(--tone);
+}
+:global(.dark) .tonePill {
+  background: var(--tone);
+  border-color: transparent;
+  color: var(--mp-on-accent);
+}
+
+.hideScrollbar {
+  scrollbar-width: none;
+}
+.hideScrollbar::-webkit-scrollbar {
+  display: none;
+}

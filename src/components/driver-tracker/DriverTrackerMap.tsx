@@ -21,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
 
 type MapFilter = "all" | "sharing" | "on-route" | "with-loads";
 
@@ -86,6 +87,13 @@ interface DriverTrackerMapProps {
    * Mapbox styles. The previous map remains visible underneath a subtle tint.
    */
   isMapTransitioning?: boolean;
+
+  /**
+   * Phone redesign preview (iPhone deck slide 10). Only changes the phone
+   * layout: a shorter rounded map card with the fleet label on the map; the
+   * page shows the fresh GPS count and the selected driver card itself.
+   */
+  previewDesign?: boolean;
 }
 
 export function DriverTrackerMap({
@@ -103,6 +111,7 @@ export function DriverTrackerMap({
   onMapFilterChange,
   isMapReady = false,
   isMapTransitioning = false,
+  previewDesign = false,
 }: DriverTrackerMapProps) {
   const hasMap = mapConfigured ?? Boolean(mapboxToken);
   const isInitialLoading = hasMap && !isMapReady;
@@ -120,6 +129,10 @@ export function DriverTrackerMap({
     let animationFrame = 0;
     const measure = () => {
       if (!mobile.matches || !frame.getClientRects().length) return;
+      if (previewDesign) {
+        frame.style.setProperty("--driver-map-height", "clamp(320px, 44vh, 400px)");
+        return;
+      }
       const viewport = window.visualViewport;
       const bottom = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0);
       const top = Math.max(0, frame.getBoundingClientRect().top);
@@ -149,7 +162,7 @@ export function DriverTrackerMap({
       window.visualViewport?.removeEventListener("resize", schedule);
       mobile.removeEventListener("change", schedule);
     };
-  }, []);
+  }, [previewDesign]);
 
   const [legendOpen, setLegendOpen] = React.useState(false);
 
@@ -215,9 +228,9 @@ export function DriverTrackerMap({
   return (
     <Card
       data-driver-tracker-map-shell
-      className="w-full min-w-0 max-w-full [&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:border [&_.mapboxgl-popup-content]:border-border [&_.mapboxgl-popup-content]:bg-card [&_.mapboxgl-popup-content]:text-card-foreground [&_.mapboxgl-popup-close-button]:size-8 gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:min-h-120 md:rounded-2xl md:border-x lg:min-h-150"
+      className={`w-full min-w-0 max-w-full [&_.mapboxgl-popup-content]:rounded-xl [&_.mapboxgl-popup-content]:border [&_.mapboxgl-popup-content]:border-border [&_.mapboxgl-popup-content]:bg-card [&_.mapboxgl-popup-content]:text-card-foreground [&_.mapboxgl-popup-close-button]:size-8 gap-0 overflow-hidden rounded-none border-x-0 border-border/50 bg-card p-0 text-card-foreground shadow-sm transition-colors duration-300 md:min-h-120 md:rounded-2xl md:border-x lg:min-h-150${previewDesign ? " max-md:rounded-[18px] max-md:border-x max-md:border-[var(--mp-hairline)] max-md:bg-[var(--mp-surface)]" : ""}`}
     >
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4 md:min-h-20 md:shrink-0 md:gap-4 md:px-5 md:py-4">
+      <div className={`flex min-w-0 items-center justify-between gap-3 border-b border-border/45 bg-card/95 px-3 py-2.5 sm:px-4 md:min-h-20 md:shrink-0 md:gap-4 md:px-5 md:py-4${previewDesign ? " max-md:hidden" : ""}`}>
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/[0.08]">
             <MapPinned className="size-4 text-primary" />
@@ -401,6 +414,14 @@ export function DriverTrackerMap({
             </div>
           )}
 
+          {previewDesign && (
+            <span
+              className={`map-ui-control pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-[var(--mp-hairline)] bg-[var(--mp-bg)]/85 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--mp-mint)] backdrop-blur-sm md:hidden ${previewStyles.mono}`}
+            >
+              Suprah fleet
+            </span>
+          )}
+
           {/* Desktop filters overlay; mobile filters have their own row. */}
           {onMapFilterChange && isMapReady && (
             <div className="map-ui-control absolute top-4 left-4 z-10 hidden items-center gap-1 rounded-xl border border-border/50 bg-background/90 p-1.5 shadow-lg backdrop-blur-sm md:flex">
@@ -492,7 +513,7 @@ export function DriverTrackerMap({
             </details>
           )}
         </div>
-        <div ref={footerRef}>
+        <div ref={footerRef} className={previewDesign && selectedDriver ? "max-md:hidden" : undefined}>
         {selectedDriver ? (
           <div className="p-3 md:p-0 md:pt-3">
             <DriverTrackerSelectedDriver driver={selectedDriver} now={trackingNow} following={following} followMode={followMode} mapReady={isMapReady}

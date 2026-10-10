@@ -51,6 +51,12 @@ import { useUser } from "@/providers/AuthProvider";
 import { DriverTrackingItem, DriverStatus, DriverLoadCompatibility } from "@/types/driver-tracking";
 import { useOptionalDriverLocationSharing } from "@/context/DriverLocationSharingContext";
 import { userErrorMessage } from "@/lib/user-error";
+import { useMobilePreview } from "@/lib/mobile-preview";
+import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
+import { MobilePreviewToggle } from "@/components/mobile-preview/MobilePreviewToggle";
+import { TrackerPreviewHeader } from "@/components/driver-tracker/preview/TrackerPreviewHeader";
+import { TrackerPreviewNav } from "@/components/driver-tracker/preview/TrackerPreviewNav";
+import { TrackerPreviewDriverCard } from "@/components/driver-tracker/preview/TrackerPreviewDriverCard";
 
 export interface AvailableItem {
   _id: string;
@@ -395,6 +401,8 @@ export default function DriverTrackerPage() {
     "all" | "sharing" | "on-route" | "with-loads"
   >("all");
   const { mobileWorkspace, setMobileWorkspace, mobileNavigationRef } = useTrackerMobileNavigation();
+  // Phone redesign preview; always off unless NEXT_PUBLIC_MOBILE_PREVIEW=true.
+  const { enabled: phonePreview } = useMobilePreview();
   const [attentionOnly, setAttentionOnly] = React.useState(false);
   const [mobileDrawerDriverId, setMobileDrawerDriverId] = React.useState<string | null>(null);
   const [mobileDriverDrawerOpen, setMobileDriverDrawerOpen] = React.useState(false);
@@ -2583,6 +2591,18 @@ export default function DriverTrackerPage() {
   const pendingRequestDriverIds = React.useMemo(() => loadRequests.map((request: any) => String(request.driverId ?? "")), [loadRequests]);
   const attentionCount = drivers.filter(driver => driverAttentionReasons(driver, trackingNow, pendingRequestDriverIds).length > 0).length;
 
+  // Follow / stop / clear for the selected driver, shared by the map card and
+  // the phone redesign's driver card.
+  const followSelectedDriver = () => {
+    cameraActionRef.current += 1;
+    if (!selectedDriver || !validCoordinates(selectedDriver.coords)) return;
+    setMapFilter("all");
+    // Follow when off, stop when following, resume when paused.
+    setFollowMode(mode => (mode === "following" ? "off" : "following"));
+  };
+  const stopFollowingSelectedDriver = () => { cameraActionRef.current += 1; setFollowMode("off"); };
+  const clearSelectedDriver = () => { setSelectedDriverId(null); setFollowMode("off"); };
+
   const kpis = [
     {
       label: "Total Drivers",
@@ -2615,8 +2635,30 @@ export default function DriverTrackerPage() {
   ];
 
   return (
-    <div className={`${contrastStyles.scope} min-h-screen w-full min-w-0 max-w-none [&_[data-driver-tracker-map-shell]]:scroll-mt-36 md:[&_[data-driver-tracker-map-shell]]:scroll-mt-0 space-y-3 overflow-x-clip px-2 pt-3 pb-[max(1rem,calc(var(--mobile-bottom-nav-offset,0px)+env(safe-area-inset-bottom)))] md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8`}>
-      <div ref={mobileNavigationRef} className="sticky top-0 z-30 rounded-xl border border-border/60 bg-background p-2 shadow-sm md:hidden">
+    <div className={`${contrastStyles.scope} min-h-screen w-full min-w-0 max-w-none [&_[data-driver-tracker-map-shell]]:scroll-mt-36 md:[&_[data-driver-tracker-map-shell]]:scroll-mt-0 space-y-3 overflow-x-clip px-2 pt-3 pb-[max(1rem,calc(var(--mobile-bottom-nav-offset,0px)+env(safe-area-inset-bottom)))] md:space-y-6 md:px-6 md:py-6 lg:container lg:mx-auto lg:px-8 lg:py-8${phonePreview ? ` ${previewStyles.scope} max-md:px-4` : ""}`}>
+      {/* Phone redesign preview (iPhone deck slide 10): title, fresh GPS and fleet stats. */}
+      {phonePreview && (
+        <TrackerPreviewHeader
+          freshCount={gpsSharingDrivers.length}
+          totalDrivers={kpis[0].value}
+          activeDrivers={kpis[1].value}
+          onRoute={kpis[2].value}
+          assignedLoads={kpis[3].value}
+          loading={isLoading && !drivers.length}
+          attentionCount={attentionCount}
+          onShowAttention={() => { setAttentionOnly(true); setMobileWorkspace("drivers"); }}
+        />
+      )}
+      <div ref={mobileNavigationRef} className={phonePreview ? "sticky top-0 z-30 -mx-4 bg-[var(--mp-bg)] px-4 py-2 md:hidden" : "sticky top-0 z-30 rounded-xl border border-border/60 bg-background p-2 shadow-sm md:hidden"}>
+        {phonePreview ? (
+          <TrackerPreviewNav
+            view={mobileWorkspace}
+            onViewChange={setMobileWorkspace}
+            selectedDriverName={selectedDriver ? selectedDriver.driver?.name || "Driver" : null}
+            onOpenSelectedDriver={() => { if (selectedDriver) openMobileDriverDrawer(selectedDriver); }}
+            onViewSelectedOnMap={() => { if (selectedDriver) focusDriverOnLiveMap(selectedDriver); }}
+          />
+        ) : (<>
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-2">
           <h1 className="text-base font-bold">Driver Tracker</h1>
           <button type="button" className="min-h-11 rounded-lg px-2 text-xs font-semibold text-primary focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setAttentionOnly(true); setMobileWorkspace("drivers"); }}>
@@ -2632,6 +2674,7 @@ export default function DriverTrackerPage() {
           <button type="button" className="min-h-11 min-w-0 flex-1 rounded-lg px-2 text-left focus-visible:ring-2 focus-visible:ring-ring" onClick={() => openMobileDriverDrawer(selectedDriver)}><span className="block text-xs text-muted-foreground">Selected driver · Open workspace</span><span className="block truncate text-sm font-semibold">{selectedDriver.driver?.name || "Driver"}</span></button>
           <button type="button" className="min-h-11 rounded-lg border border-border px-3 text-xs font-semibold" onClick={() => focusDriverOnLiveMap(selectedDriver)}>View map</button>
         </div>}
+        </>)}
       </div>
 
       {/* Desktop identity and fleet context share one application panel. */}
@@ -2765,7 +2808,7 @@ export default function DriverTrackerPage() {
 
       <div className="grid w-full min-w-0 grid-cols-1 items-start gap-0 md:gap-4 xl:items-stretch xl:grid-cols-[minmax(0,1fr)_400px]">
 
-        <div id="tracker-map-view" className={`${mobileWorkspace === "map" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block xl:col-start-1 xl:row-start-1`}>
+        <div id="tracker-map-view" className={`${mobileWorkspace === "map" ? "block" : "hidden"} ${phonePreview ? "mx-0" : "-mx-2"} min-w-0 md:mx-0 md:block xl:col-start-1 xl:row-start-1`}>
           <DriverTrackerMap
             mapboxToken={normalizedToken}
             mapConfigured={mapConfigured}
@@ -2778,15 +2821,9 @@ export default function DriverTrackerPage() {
             trackingNow={trackingNow}
             following={followingDriver}
             followMode={followMode}
-            onFollow={() => {
-              cameraActionRef.current += 1;
-              if (!selectedDriver || !validCoordinates(selectedDriver.coords)) return;
-              setMapFilter("all");
-              // Follow when off, stop when following, resume when paused.
-              setFollowMode(mode => (mode === "following" ? "off" : "following"));
-            }}
-            onStopFollowing={() => { cameraActionRef.current += 1; setFollowMode("off"); }}
-            onClearSelection={() => { setSelectedDriverId(null); setFollowMode("off"); }}
+            onFollow={followSelectedDriver}
+            onStopFollowing={stopFollowingSelectedDriver}
+            onClearSelection={clearSelectedDriver}
             onDetails={() => { if (selectedDriver) openMobileDriverDrawer(selectedDriver); }}
             onChat={() => { if (selectedDriver) handleMessageDriver(selectedDriver); }}
             activityLabels={statusLabel}
@@ -2796,10 +2833,34 @@ export default function DriverTrackerPage() {
             onMapFilterChange={filter => { setFollowMode("off"); setSelectedDriverId(null); setMapFilter(filter); }}
             isMapReady={isMapReady}
             isMapTransitioning={isMapTransitioning}
+            previewDesign={phonePreview}
           />
+          {phonePreview && selectedDriver && (
+            <div className="mt-3 md:hidden">
+              <TrackerPreviewDriverCard
+                driver={selectedDriver}
+                now={trackingNow}
+                followMode={followMode}
+                mapReady={isMapReady}
+                activityLabels={statusLabel}
+                attentionReasons={driverAttentionReasons(selectedDriver, trackingNow, pendingRequestDriverIds)}
+                unreadCount={Number(unreadMessageCounts[selectedDriver.driver?.id ?? selectedDriver.id] ?? 0)}
+                onFollow={followSelectedDriver}
+                onStopFollowing={stopFollowingSelectedDriver}
+                onClear={clearSelectedDriver}
+                onOpenWorkspace={() => openMobileDriverDrawer(selectedDriver)}
+                onViewLoads={() => openMobileDriverDrawer(selectedDriver, "loads")}
+                onMessage={() => handleMessageDriver(selectedDriver)}
+                onAlert={() => {
+                  setAlertDriver(selectedDriver);
+                  setAlertDialogOpen(true);
+                }}
+              />
+            </div>
+          )}
         </div>
 
-        <div id="tracker-drivers-view" className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} -mx-2 min-w-0 md:mx-0 md:block md:[&>div]:rounded-2xl xl:relative xl:min-h-0 xl:self-stretch xl:col-start-2 xl:row-start-1`}>
+        <div id="tracker-drivers-view" className={`${mobileWorkspace === "drivers" ? "block" : "hidden"} ${phonePreview ? "-mx-4" : "-mx-2"} min-w-0 md:mx-0 md:block md:[&>div]:rounded-2xl xl:relative xl:min-h-0 xl:self-stretch xl:col-start-2 xl:row-start-1`}>
         <DriverTrackerListCard
           attentionOnly={attentionOnly}
           onAttentionOnlyChange={setAttentionOnly}
@@ -2852,7 +2913,7 @@ export default function DriverTrackerPage() {
         tabIndex={-1}
         id="tracker-loads-view"
         aria-label="Load Management"
-        className={`${mobileWorkspace === "loads" ? "block" : "hidden"} -mx-2 scroll-mt-56 md:scroll-mt-4 md:mx-0 md:block`}
+        className={`${mobileWorkspace === "loads" ? "block" : "hidden"} ${phonePreview ? "-mx-4" : "-mx-2"} scroll-mt-56 md:scroll-mt-4 md:mx-0 md:block`}
       >
       <Card className="flex h-auto min-h-0 max-h-none flex-col gap-0 overflow-hidden rounded-none border-x-0 border-border/50 p-0 shadow-sm md:h-auto md:min-h-0 md:max-h-none md:rounded-2xl md:border-x">
         <CardHeader className="shrink-0 space-y-3 border-b border-border/30 px-3 py-3 sm:px-5 md:bg-muted/[0.12] md:py-4">
@@ -3155,6 +3216,8 @@ export default function DriverTrackerPage() {
         onUnreadChange={handleChatUnreadChange}
         onReviewLoadRequest={handleReviewLoadRequest}
       />
+
+      <MobilePreviewToggle />
     </div>
   );
 }
