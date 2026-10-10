@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
 import type { TrackerMobileView } from "@/hooks/useTrackerMobileNavigation";
 
 const VIEWS: { key: TrackerMobileView; label: string }[] = [
@@ -44,7 +45,7 @@ export function TrackerPreviewNav({
               className={cn(
                 "min-h-11 rounded-xl px-2 text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mp-mint)]",
                 active
-                  ? "bg-[var(--mp-surface-2)] text-[var(--mp-ink)] shadow-sm"
+                  ? previewStyles.segmentActive
                   : "text-[var(--mp-muted)] hover:text-[var(--mp-ink)]",
               )}
             >

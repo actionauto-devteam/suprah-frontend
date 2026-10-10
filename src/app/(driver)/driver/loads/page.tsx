@@ -511,7 +511,7 @@ export default function DriverLoadsPage() {
         transition={{ duration: 0.4 }}
         className="space-y-5"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]" data-preview="hero">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-300/80 dark:border-white/15 shadow-lg dark:shadow-2xl ring-1 ring-slate-200/50 dark:ring-white/[0.03]">
           <div className="absolute inset-0 bg-linear-to-br from-white via-slate-50 to-emerald-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
           <DriverHeroGlow />
           <div className="relative p-4 sm:p-5">

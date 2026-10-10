@@ -77,6 +77,61 @@
   color: var(--mp-on-accent);
 }
 
+/* Active segment: the Suprah green highlight the Driver Portal already uses. */
+.segmentActive {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 15%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/* Branded header panel, as on the current Transportation and Driver Portal headers. */
+.brandPanel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 8%, var(--card)), var(--card) 70%);
+}
+.brandPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, #10b981, #22d3ee, color-mix(in srgb, #10b981 20%, transparent));
+}
+.brandEyebrow {
+  color: #047857;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+:global(.dark) .brandEyebrow {
+  color: #6ee7b7;
+}
+
+/* Tappable stat tile: same lift and press feedback as the Driver Portal cards. */
+.tile {
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.tile:active {
+  transform: scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .tile:hover,
+  .tile:active {
+    transform: none;
+    transition: none;
+  }
+}
+
 .hideScrollbar {
   scrollbar-width: none;
 }

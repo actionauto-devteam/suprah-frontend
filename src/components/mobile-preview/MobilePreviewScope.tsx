@@ -43,4 +43,8 @@ export const previewStyles = {
   scope: styles.scope,
   mono: styles.mono,
   hideScrollbar: styles.hideScrollbar,
+  segmentActive: styles.segmentActive,
+  brandPanel: styles.brandPanel,
+  brandEyebrow: styles.brandEyebrow,
+  tile: styles.tile,
 };

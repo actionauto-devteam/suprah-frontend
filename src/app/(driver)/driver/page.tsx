@@ -1963,7 +1963,7 @@ export default function DriverDashboardPage() {
 
 
       {/* ── KPI CARDS (clickable) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1" data-preview="kpis">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fade-in-up stagger-1">
         {kpis.map((kpi) => (
           <Card
             key={kpi.label}

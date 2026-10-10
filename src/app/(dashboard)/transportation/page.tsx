@@ -47,7 +47,6 @@ import { cn } from "@/lib/utils";
 import { useMobilePreview } from "@/lib/mobile-preview";
 import { previewStyles } from "@/components/mobile-preview/MobilePreviewScope";
 import { MobilePreviewToggle } from "@/components/mobile-preview/MobilePreviewToggle";
-import { TransportationPreviewHeader } from "@/components/transportation/preview/TransportationPreviewHeader";
 import { TransportationPreviewViewSwitcher } from "@/components/transportation/preview/TransportationPreviewViewSwitcher";
 import { TransportationPreviewStatusChips } from "@/components/transportation/preview/TransportationPreviewStatusChips";
 import { TransportationPreviewFilterPanel } from "@/components/transportation/preview/TransportationPreviewFilterPanel";
@@ -659,7 +658,7 @@ function TransportationPageInner() {
       {/* Transportation identity panel — intentionally mirrors the visual
           hierarchy used by All Inventory and Driver Tracker while preserving
           Transportation's own actions, live state, and vehicle context. */}
-      <div className={cn("shrink-0 px-2 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6", phonePreview && "max-md:hidden")}>
+      <div className={cn("shrink-0 px-2 pt-3 sm:px-4 sm:pt-4 md:px-6 md:pt-6", phonePreview && "max-md:px-4")}>
         <section
           aria-labelledby="transportation-page-title"
           className="relative overflow-hidden rounded-2xl border border-border/40 bg-card shadow-sm dark:bg-zinc-900/60"
@@ -786,7 +785,7 @@ function TransportationPageInner() {
 
       {/* Search remains outside the identity panel, while Refresh now lives
           with the panel actions like the All Inventory header. */}
-      <div className={cn("shrink-0 px-2 pt-2.5 sm:px-4 md:px-6", phonePreview && "max-md:hidden")}>
+      <div className={cn("shrink-0 px-2 pt-2.5 sm:px-4 md:px-6", phonePreview && "max-md:px-4")}>
         <div className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -802,30 +801,11 @@ function TransportationPageInner() {
         </div>
       </div>
 
-      {/* Phone redesign preview (iPhone deck slide 8): header, search, views,
-          status chips and filters, wired to the same state as the blocks below. */}
+      {/* Phone redesign preview (iPhone deck slide 8): views, status chips and
+          filters, wired to the same state as the blocks below. The branded
+          header and search above stay as they are. */}
       {phonePreview ? (
-        <div className="md:hidden">
-          <TransportationPreviewHeader
-            activeView={activeTab as TransportationView}
-            total={currentMobileTotal}
-            vehiclesAvailable={vehicles.length}
-            refreshing={
-              activeTab === "load-board"
-                ? isBoardLoading
-                : isLoading || isSilentRefreshing
-            }
-            searchQuery={searchQuery}
-            searchPlaceholder={
-              activeTab === "load-board"
-                ? "Load #, city, state, make, model, or VIN"
-                : "Name, VIN, stock, or tracking number"
-            }
-            onSearchChange={setSearchQuery}
-            onCreateLoad={goToCreateLoad}
-            onNewQuote={() => setIsQuoteModalOpen(true)}
-            onRefresh={handleManualRefresh}
-          />
+        <div className="pt-3 md:hidden">
           <TransportationPreviewViewSwitcher
             activeView={activeTab as TransportationView}
             onViewChange={(view) => {

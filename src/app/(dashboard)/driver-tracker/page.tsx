@@ -2647,6 +2647,8 @@ export default function DriverTrackerPage() {
           loading={isLoading && !drivers.length}
           attentionCount={attentionCount}
           onShowAttention={() => { setAttentionOnly(true); setMobileWorkspace("drivers"); }}
+          onOpenDrivers={() => setMobileWorkspace("drivers")}
+          onOpenLoads={() => setMobileWorkspace("loads")}
         />
       )}
       <div ref={mobileNavigationRef} className={phonePreview ? "sticky top-0 z-30 -mx-4 bg-[var(--mp-bg)] px-4 py-2 md:hidden" : "sticky top-0 z-30 rounded-xl border border-border/60 bg-background p-2 shadow-sm md:hidden"}>
