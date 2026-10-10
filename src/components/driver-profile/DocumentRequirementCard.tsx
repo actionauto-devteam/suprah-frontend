@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Upload, Camera, Eye, RotateCcw, Trash2, FileWarning, CheckCircle2, Clock,
-  AlertTriangle, FileText,
+  AlertTriangle, FileText, Plus,
 } from 'lucide-react';
 import { ComplianceDocument } from '@/types/driver-profile';
 import { cn } from '@/lib/utils';
@@ -186,8 +186,13 @@ export function DocumentRequirementCard({
                   <Button size="icon" variant="ghost" className="size-10" onClick={() => onView(doc)} aria-label="View document">
                     <Eye className="size-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="size-10" onClick={() => onReplace(doc)} aria-label="Replace document">
-                    <RotateCcw className="size-4" />
+                  <Button
+                    size="sm" variant="ghost" className="h-10 gap-1.5 px-2.5 text-xs"
+                    onClick={() => onReplace(doc)}
+                    disabled={disabled}
+                    aria-label={`Replace ${doc.label || doc.fileName || 'document'}`}
+                  >
+                    <RotateCcw className="size-4" /> Replace
                   </Button>
                   <Button
                     size="icon" variant="ghost"
@@ -204,10 +209,21 @@ export function DocumentRequirementCard({
         </div>
       )}
 
+      {/* Renewing swaps the file in place (Replace); a second file, such as
+          the back of a CDL or a trailer registration, is added separately. */}
       {status !== 'missing' && !rejected && (
-        <div className="border-t border-border px-4 py-2">
-          <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => onBrowse(item.type)} disabled={disabled}>
-            <Upload className="size-3.5" /> Upload another version
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2">
+          {latest && (
+            <Button
+              size="sm" variant="outline" className="h-9 gap-1.5 text-xs"
+              onClick={() => onReplace(latest)}
+              disabled={disabled}
+            >
+              <RotateCcw className="size-3.5" /> Replace
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-xs text-muted-foreground" onClick={() => onBrowse(item.type)} disabled={disabled}>
+            <Plus className="size-3.5" /> Add another file
           </Button>
         </div>
       )}

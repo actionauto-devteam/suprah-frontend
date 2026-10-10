@@ -2739,8 +2739,13 @@ export function DispatchChatDialog({
     return Math.abs(distanceFromBottom) <= 2;
   }, []);
 
+  // Positions the history at the newest item, then reveals it. Runs whenever
+  // the history is hidden (isLatestPositionReady false), not only when the
+  // thread or item count changes: a background refresh from the thread cache
+  // (for example when the sign-in token renews) hides the history with the
+  // same item count, and without this the open chat stayed blank.
   React.useLayoutEffect(() => {
-    if (!open || isLoading) return;
+    if (!open || isLoading || isLatestPositionReady) return;
 
     if (searchJumpActiveRef.current) {
       setIsLatestPositionReady(true);
@@ -2807,6 +2812,7 @@ export function DispatchChatDialog({
   }, [
     activeThreadId,
     driverId,
+    isLatestPositionReady,
     isLoading,
     open,
     scrollToLatest,

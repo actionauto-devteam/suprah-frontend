@@ -12,6 +12,7 @@ import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAss
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
 import { useAuth, useUser } from "@/providers/AuthProvider"
+import { initializeSocket } from "@/lib/socket.client"
 import { Button } from "@/components/ui/button"
 import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
@@ -420,7 +421,7 @@ export default function LoadDetailsPage() {
   const [tripHistoryOpen, setTripHistoryOpen] = React.useState(false)
   const [markDeliveredOpen, setMarkDeliveredOpen] = React.useState(false)
   const queryClient = useQueryClient()
-  const { userId, orgRole } = useAuth()
+  const { userId, orgRole, getToken } = useAuth()
   const { user: currentUser } = useUser()
 
   // "Driver Changed Mid-Trip" notifications link here with ?history=1.
@@ -460,6 +461,35 @@ export default function LoadDetailsPage() {
     refetchOnWindowFocus: false,
     retry: 1,
   })
+
+  // Live updates: the driver's pickup and delivery photos, status steps,
+  // edits and delivery confirmation for this load show without a manual
+  // refresh. Reconnecting after a lost connection also catches up.
+  React.useEffect(() => {
+    if (!id) return
+    let active = true
+    let socket: ReturnType<typeof initializeSocket> | null = null
+    const refresh = () => {
+      if (active) void queryClient.invalidateQueries({ queryKey: ["transportation-load-detail", id] })
+    }
+    const onLoadChange = (payload?: { loadId?: string }) => {
+      if (String(payload?.loadId ?? "") === String(id)) refresh()
+    }
+
+    void (async () => {
+      const token = await getToken()
+      if (!token || !active) return
+      socket = initializeSocket(token)
+      socket.on("load:change", onLoadChange)
+      socket.on("connect", refresh)
+    })()
+
+    return () => {
+      active = false
+      socket?.off("load:change", onLoadChange)
+      socket?.off("connect", refresh)
+    }
+  }, [getToken, id, queryClient])
 
   const syncMobileBolPreview = React.useCallback(() => {
     const viewport = mobileBolPreviewViewportRef.current

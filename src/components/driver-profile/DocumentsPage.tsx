@@ -988,7 +988,13 @@ export const DocumentsPage: React.FC = () => {
     setReplaceTarget(doc);
     setUploadType(doc.type);
     setUploadLabel(doc.label || doc.fileName || '');
-    setUploadExpiry(toDateInputValue(doc.expiresAt));
+    // A renewal comes with a new date: don't pre-fill one that has already passed.
+    const previousExpiry = toDateInputValue(doc.expiresAt);
+    setUploadExpiry(
+      previousExpiry && previousExpiry >= new Date().toISOString().slice(0, 10)
+        ? previousExpiry
+        : '',
+    );
     setUploadFile(null);
     setDragOver(false);
     setShowUploadDialog(true);
@@ -2021,11 +2027,15 @@ export const DocumentsPage: React.FC = () => {
                 value={uploadExpiry}
                 onChange={(e) => setUploadExpiry(e.target.value)}
               />
-              {getInformationExpirationForDocument(uploadType) && (
+              {replaceTarget ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Enter the expiration date shown on the new document.
+                </p>
+              ) : getInformationExpirationForDocument(uploadType) ? (
                 <p className="text-[11px] text-muted-foreground">
                   Reused from Information. You can edit it for this uploaded document before upload.
                 </p>
-              )}
+              ) : null}
             </div>
             <input
               ref={fileInputRef}

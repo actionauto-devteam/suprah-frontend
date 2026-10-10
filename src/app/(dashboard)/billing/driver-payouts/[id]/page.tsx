@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/user-error";
+import { initializeSocket } from "@/lib/socket.client";
 
 const ORANGE = "#E55A00";
 const PAGE_BG = "#07070a";
@@ -127,16 +128,19 @@ export default function PayoutDetailPage() {
   const [actionLoading, setActionLoading] = React.useState(false);
   const [zoomImage, setZoomImage] = React.useState(false);
 
-  const fetchData = React.useCallback(async () => {
-    setLoading(true);
+  // A silent refresh (live update) keeps the page on screen instead of
+  // showing the full-page loader, and stays quiet if it fails.
+  const fetchData = React.useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
     try {
       const data = await getLoadById(id);
       setLoad(data);
     } catch (e) {
       console.error(e);
-      toast.error("We couldn't load payout details. Please try again.");
+      if (!silent) toast.error("We couldn't load payout details. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
@@ -144,7 +148,42 @@ export default function PayoutDetailPage() {
     fetchData();
   }, [fetchData]);
 
+  // Live updates: a new pickup or delivery photo, a load edit or a delivery
+  // confirmation (by anyone) shows here without a manual refresh. Also
+  // catches up after a lost connection and when the tab is shown again.
+  React.useEffect(() => {
+    let active = true;
+    let socket: ReturnType<typeof initializeSocket> | null = null;
+    const refresh = () => {
+      if (active) void fetchData({ silent: true });
+    };
+    const onLoadChange = (payload?: { loadId?: string }) => {
+      if (String(payload?.loadId ?? "") === String(id)) refresh();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    void (async () => {
+      const token = await getToken();
+      if (!token || !active) return;
+      socket = initializeSocket(token);
+      socket.on("load:change", onLoadChange);
+      socket.on("connect", refresh);
+    })();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      active = false;
+      socket?.off("load:change", onLoadChange);
+      socket?.off("connect", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchData, getToken, id]);
+
   const handleConfirmDelivery = async () => {
+    // Already confirmed: nothing to do (the button is disabled too).
+    if (actionLoading || load?.proofOfDelivery?.confirmedAt) return;
     setActionLoading(true);
     try {
       const { message } = await confirmLoadDelivery(id);
@@ -153,7 +192,7 @@ export default function PayoutDetailPage() {
       } else {
         toast.success("Delivery confirmed. The driver has been notified.");
       }
-      fetchData();
+      void fetchData({ silent: true });
     } catch (e: any) {
       toast.error(userErrorMessage(e, "confirm this delivery"));
     } finally {
@@ -353,13 +392,22 @@ export default function PayoutDetailPage() {
                   ? `Confirmed on ${new Date(load.proofOfDelivery.confirmedAt).toLocaleString()}.`
                   : "Confirm that the proof of delivery is valid and the vehicle has been received by the customer."}
               </p>
+              {/* Once confirmed, the button turns grey and can't be pressed
+                  again, so Dispatch can see at a glance it's done. */}
               <button 
                 onClick={handleConfirmDelivery}
-                disabled={actionLoading}
-                style={{ width: "100%", padding: "12px 0", background: "#4ade80", color: "#000", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: actionLoading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                disabled={actionLoading || Boolean(load.proofOfDelivery.confirmedAt)}
+                aria-disabled={actionLoading || Boolean(load.proofOfDelivery.confirmedAt)}
+                style={{
+                  width: "100%", padding: "12px 0", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  ...(load.proofOfDelivery.confirmedAt
+                    ? { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", cursor: "not-allowed" }
+                    : { background: "#4ade80", color: "#000", cursor: actionLoading ? "wait" : "pointer" }),
+                }}
               >
                 {actionLoading ? <Loader2 style={{ width: 16, height: 16, animation: "spin 1s linear infinite" }} /> : <CheckCircle2 style={{ width: 16, height: 16 }} />}
-                Confirm Delivery
+                {load.proofOfDelivery.confirmedAt ? "Delivery Confirmed" : "Confirm Delivery"}
               </button>
             </div>
           )}

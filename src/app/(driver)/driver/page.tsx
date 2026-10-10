@@ -1941,10 +1941,11 @@ export default function DriverDashboardPage() {
             </p>
             <p className="text-sm leading-relaxed text-red-600 dark:text-red-500">
               {(dashStats.complianceExpiredItems?.length ?? 0) > 1
-                ? "Upload the renewed documents and update their expiration dates on your "
-                : "Upload the renewed document and update its expiration date on your "}
-              <Link href="/driver/documents" className="underline font-bold">Documents page</Link>. Until
-              then, Dispatch sees a compliance warning on your profile.
+                ? "Press Replace on each one on your "
+                : "Press Replace on it on your "}
+              <Link href="/driver/documents" className="underline font-bold">Documents page</Link> and
+              upload the renewed document with its new expiration date. This warning goes away once the
+              Suprah team approves it. Until then, Dispatch sees a compliance warning on your profile.
             </p>
           </div>
         </div>
