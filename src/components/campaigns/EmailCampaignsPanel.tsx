@@ -48,6 +48,7 @@ interface Campaign {
   sentCount: number
   failedCount: number
   skippedCount: number
+  uncertainCount: number
   createdByName: string
   createdAt: string
   completedAt?: string
@@ -79,12 +80,15 @@ function getCampaignStatusDisplay(campaign: Campaign): { label: string; style: s
   if (campaign.status === "completed" && campaign.failedCount > 0) {
     return { label: "Completed with failures", style: COMPLETED_WITH_FAILURES_STYLE }
   }
+  if (campaign.status === "completed" && campaign.uncertainCount > 0) {
+    return { label: "Completed, some uncertain", style: COMPLETED_WITH_FAILURES_STYLE }
+  }
   return { label: STATUS_LABEL[campaign.status], style: STATUS_STYLE[campaign.status] }
 }
 
 function CampaignRow({ campaign, onCancel, busy, isAdmin }: { campaign: Campaign; onCancel: (id: string) => void; busy: boolean; isAdmin: boolean }) {
   const progress = campaign.totalRecipients > 0
-    ? Math.round(((campaign.sentCount + campaign.failedCount + campaign.skippedCount) / campaign.totalRecipients) * 100)
+    ? Math.round(((campaign.sentCount + campaign.failedCount + campaign.skippedCount + campaign.uncertainCount) / campaign.totalRecipients) * 100)
     : 0
   const canCancel = isAdmin && (campaign.status === "queued" || campaign.status === "sending")
   const statusDisplay = getCampaignStatusDisplay(campaign)
@@ -110,6 +114,7 @@ function CampaignRow({ campaign, onCancel, busy, isAdmin }: { campaign: Campaign
             <p className="font-semibold">{campaign.sentCount}/{campaign.totalRecipients} sent</p>
             {campaign.failedCount > 0 && <p className="text-red-600 dark:text-red-400">{campaign.failedCount} failed</p>}
             {campaign.skippedCount > 0 && <p className="text-muted-foreground">{campaign.skippedCount} skipped (opted out)</p>}
+            {campaign.uncertainCount > 0 && <p className="text-amber-600 dark:text-amber-400">{campaign.uncertainCount} uncertain (needs review)</p>}
           </div>
           {canCancel && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => onCancel(campaign._id)}>
@@ -640,7 +645,7 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
                 <img src={bannerImageUrl} alt="" className="h-32 w-full object-cover" />
               )}
               <div className="space-y-2 p-4">
-                <p className="text-xs font-semibold text-muted-foreground">{subject || "Subject line"}</p>
+                <p className="text-xs font-semibold text-muted-foreground">{previewFor(subject) || "Subject line"}</p>
                 <p className="text-sm">{previewFor(greetingText) || "Hi Jordan,"}</p>
                 <p className="whitespace-pre-line text-sm text-muted-foreground">{previewFor(bodyText) || "Your message will appear here."}</p>
                 {signOffText && <p className="text-sm text-muted-foreground">{previewFor(signOffText)}</p>}

@@ -79,6 +79,8 @@ export default function IntegrationsSettingsPage() {
   const [savedAiAgentName, setSavedAiAgentName] = React.useState("Alex");
   const [aiHandoffFallbackGroupId, setAiHandoffFallbackGroupId] = React.useState("");
   const [savedAiHandoffFallbackGroupId, setSavedAiHandoffFallbackGroupId] = React.useState("");
+  const [aiFollowUpIntervalHours, setAiFollowUpIntervalHours] = React.useState(24);
+  const [savedAiFollowUpIntervalHours, setSavedAiFollowUpIntervalHours] = React.useState(24);
   const [isSavingAiAgent, setIsSavingAiAgent] = React.useState(false);
   const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
   const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
@@ -138,6 +140,9 @@ export default function IntegrationsSettingsPage() {
           const fallbackGroupId = settingsData?.aiHandoffFallbackGroupId || "";
           setAiHandoffFallbackGroupId(fallbackGroupId);
           setSavedAiHandoffFallbackGroupId(fallbackGroupId);
+          const followUpIntervalHours = [24, 48, 72].includes(settingsData?.aiFollowUpIntervalHours) ? settingsData.aiFollowUpIntervalHours : 24;
+          setAiFollowUpIntervalHours(followUpIntervalHours);
+          setSavedAiFollowUpIntervalHours(followUpIntervalHours);
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
           setSavedPhysicalMailingAddress(mailingAddress);
@@ -362,7 +367,8 @@ export default function IntegrationsSettingsPage() {
     const aiAgentSettingsDirty =
         aiAgentEnabled !== savedAiAgentEnabled ||
         aiAgentName.trim() !== savedAiAgentName ||
-        aiHandoffFallbackGroupId !== savedAiHandoffFallbackGroupId
+        aiHandoffFallbackGroupId !== savedAiHandoffFallbackGroupId ||
+        aiFollowUpIntervalHours !== savedAiFollowUpIntervalHours
 
     const handleSaveAiAgentSettings = async () => {
         if (!isAdmin) return
@@ -370,15 +376,18 @@ export default function IntegrationsSettingsPage() {
         try {
             const t = await getToken()
             const name = aiAgentName.trim() || "Alex"
+            const intervalHours = [24, 48, 72].includes(aiFollowUpIntervalHours) ? aiFollowUpIntervalHours : 24
             await apiClient.patch(
                 "/api/crm/org-settings",
-                { aiAgentEnabled, aiAgentName: name, aiHandoffFallbackGroupId },
+                { aiAgentEnabled, aiAgentName: name, aiHandoffFallbackGroupId, aiFollowUpIntervalHours: intervalHours },
                 { headers: { Authorization: `Bearer ${t}` } },
             )
             setSavedAiAgentEnabled(aiAgentEnabled)
             setAiAgentName(name)
             setSavedAiAgentName(name)
             setSavedAiHandoffFallbackGroupId(aiHandoffFallbackGroupId)
+            setAiFollowUpIntervalHours(intervalHours)
+            setSavedAiFollowUpIntervalHours(intervalHours)
             toast.success("AI agent settings saved", {
                 description: aiAgentEnabled
                     ? `${name} will now reply live to webchat and text messages.`
@@ -990,7 +999,7 @@ export default function IntegrationsSettingsPage() {
                                         value={aiAgentName}
                                         onChange={e => setAiAgentName(e.target.value)}
                                         maxLength={40}
-                                        placeholder="Alex"
+                                        placeholder="AI Agent Name"
                                         className="max-w-xs"
                                     />
                                 </div>
@@ -1013,6 +1022,21 @@ export default function IntegrationsSettingsPage() {
                                         Manage Lead Groups
                                         <ChevronRight className="h-3 w-3" />
                                     </Link>
+                                </div>
+
+                                <div className="space-y-1.5 max-w-xl">
+                                    <label className="text-sm font-semibold text-foreground">Follow-up frequency</label>
+                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">How often {aiAgentName || "the agent"} checks in on a silent lead. It keeps going at this pace automatically, and stops on its own the moment the customer replies or opts out — no fixed limit on how many times.</p>
+                                    <select
+                                        disabled={!isAdmin || isSavingAiAgent}
+                                        value={aiFollowUpIntervalHours}
+                                        onChange={e => setAiFollowUpIntervalHours(parseInt(e.target.value, 10))}
+                                        className="max-w-xs h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                                    >
+                                        <option value={24}>Daily</option>
+                                        <option value={48}>Every other day</option>
+                                        <option value={72}>Every 3 days</option>
+                                    </select>
                                 </div>
 
                                 {isAdmin && (
