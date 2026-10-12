@@ -33,8 +33,29 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
   const [vehicleYear, setVehicleYear] = React.useState("")
   const [vehicleMake, setVehicleMake] = React.useState("")
   const [vehicleModel, setVehicleModel] = React.useState("")
+  const [location, setLocation] = React.useState("")
   const [comments, setComments] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [vehicleLocations, setVehicleLocations] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = await getToken()
+        const res = await apiClient.get("/api/vehicles/filters", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = res.data?.data || res.data
+        if (!cancelled && Array.isArray(data?.locations)) {
+          setVehicleLocations(data.locations)
+        }
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [getToken])
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -46,6 +67,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
         setVehicleYear("")
         setVehicleMake("")
         setVehicleModel("")
+        setLocation("")
         setComments("")
         setIsSubmitting(false)
       }, 300)
@@ -71,6 +93,7 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
             vehicleYear.trim() || vehicleMake.trim() || vehicleModel.trim()
               ? { year: vehicleYear.trim(), make: vehicleMake.trim(), model: vehicleModel.trim() }
               : undefined,
+          location: location.trim() || undefined,
           comments: comments.trim() || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } },
@@ -164,6 +187,22 @@ export function AddLeadModal({ isOpen, onOpenChange }: AddLeadModalProps) {
                 placeholder="Camry"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="add-lead-location">Location</Label>
+            <Input
+              id="add-lead-location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Orem"
+              list="add-lead-location-options"
+            />
+            <datalist id="add-lead-location-options">
+              {vehicleLocations.map((loc) => (
+                <option key={loc} value={loc} />
+              ))}
+            </datalist>
           </div>
 
           <div className="space-y-1.5">
