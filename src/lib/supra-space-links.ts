@@ -6,6 +6,10 @@ export type SupraSpaceMarkdownLink = {
 };
 
 const AUTO_URL_RE = /https?:\/\/[^\s<]+/gi;
+const SPLIT_BOLD_WRAPPED_MARKDOWN_LINK_RE = /\[(https?:\/\/)\]\(\1\)\*{2,}([a-z0-9][^\s*\[\]<>]*)(\*{2,})/gi;
+const SPLIT_BOLD_MARKDOWN_LINK_RE = /\[(https?:\/\/)\*{2,}\]\(\1\*{2,}\)([^\s*\[\]<>]+)(\*{2,})/gi;
+const SPLIT_MARKDOWN_LINK_RE = /\[(https?:\/\/)\]\(\1\)([a-z0-9][^\s*\[\]<>]*)/gi;
+const SPLIT_BOLD_URL_RE = /(https?:\/\/)\*{2,}([a-z0-9][^\s*\[\]<>]*)(\*{2,})/gi;
 
 export function isSafeSupraSpaceLinkHref(value: string): boolean {
   const href = value.trim();
@@ -17,6 +21,52 @@ export function isSafeSupraSpaceLinkHref(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Repairs a malformed rich-paste shape where bold markers were inserted
+ * between a URL scheme and hostname, for example:
+ *   **Join: [https://**](https://**)meet.google.com/abc**
+ *   **Join: [https://](https://)**meet.google.com/abc**
+ *
+ * The repair is deliberately limited to candidates that form a valid HTTP(S)
+ * URL after the markers are removed, so literal marker runs are preserved.
+ */
+export function normalizeSupraSpaceSplitUrlFormatting(value: string): string {
+  if (!/https?:\/\//i.test(value)) return value;
+
+  const restoreMarkdownLink = (
+    match: string,
+    scheme: string,
+    suffix: string,
+  ): string => {
+    const href = `${scheme}${suffix}`;
+    return isSafeSupraSpaceLinkHref(href) ? `[${href}](${href})` : match;
+  };
+
+  const restoreUrl = (
+    _match: string,
+    scheme: string,
+    suffix: string,
+    closingMarkers: string,
+  ): string => {
+    const href = `${scheme}${suffix}`;
+    return isSafeSupraSpaceLinkHref(href)
+      ? `[${href}](${href})${closingMarkers}`
+      : _match;
+  };
+
+  return value
+    .replace(SPLIT_BOLD_WRAPPED_MARKDOWN_LINK_RE, (match, scheme: string, suffix: string, closingMarkers: string) => {
+      const repairedLink = restoreMarkdownLink(match, scheme, suffix);
+      return repairedLink === match ? match : `${repairedLink}${closingMarkers}`;
+    })
+    .replace(SPLIT_BOLD_MARKDOWN_LINK_RE, restoreUrl)
+    .replace(SPLIT_MARKDOWN_LINK_RE, restoreMarkdownLink)
+    .replace(SPLIT_BOLD_URL_RE, (_match, scheme: string, suffix: string, closingMarkers: string) => {
+      const href = `${scheme}${suffix}`;
+      return isSafeSupraSpaceLinkHref(href) ? `${href}${closingMarkers}` : _match;
+    });
 }
 
 function normalizeLegacySupraSpaceMarkdownLinkLabel(label: string, href: string): string {
@@ -107,6 +157,7 @@ function formatSimpleMarkdown(value: string): string {
 }
 
 export function supraSpaceMarkdownToEditorInlineHtml(value: string): string {
+  value = normalizeSupraSpaceSplitUrlFormatting(value);
   const links: string[] = [];
   let source = '';
   let cursor = 0;
@@ -136,6 +187,7 @@ export function supraSpaceMarkdownToEditorInlineHtml(value: string): string {
 }
 
 export function stripSupraSpaceMarkdownLinksToLabels(value: string): string {
+  value = normalizeSupraSpaceSplitUrlFormatting(value);
   let result = '';
   let cursor = 0;
   let link = findSupraSpaceMarkdownLink(value, cursor);

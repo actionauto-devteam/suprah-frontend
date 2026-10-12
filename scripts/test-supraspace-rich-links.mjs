@@ -27,6 +27,9 @@ const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatti
 });
 
 const meetUrl = 'https://meet.google.com/esg-zidk-mhv';
+const malformedExternalLink = '**➡️ Video call link: [https://**](https://**)meet.google.com/nbk-phfw-uxs**';
+const repairedExternalLink = '**➡️ Video call link: [https://meet.google.com/nbk-phfw-uxs](https://meet.google.com/nbk-phfw-uxs)**';
+const splitWrappedExternalLink = '**➡️ Video call link: [https://](https://)**meet.google.com/nbk-phfw-uxs**';
 const legacyMeet = links.findSupraSpaceMarkdownLink(`[https://](${meetUrl})`);
 assert.equal(legacyMeet?.start, 0);
 assert.equal(legacyMeet?.end, `[https://](${meetUrl})`.length);
@@ -51,6 +54,30 @@ assert.equal(links.findSupraSpaceMarkdownLink('[Unsafe](javascript:alert(1))'), 
 assert.equal(links.isSafeSupraSpaceLinkHref('https://example.com'), true);
 assert.equal(links.isSafeSupraSpaceLinkHref('https://'), false);
 assert.equal(links.isSafeSupraSpaceLinkHref('javascript:alert(1)'), false);
+
+assert.equal(
+  links.normalizeSupraSpaceSplitUrlFormatting(malformedExternalLink),
+  repairedExternalLink,
+);
+assert.equal(
+  links.normalizeSupraSpaceSplitUrlFormatting(splitWrappedExternalLink),
+  repairedExternalLink,
+);
+assert.equal(
+  links.normalizeSupraSpaceSplitUrlFormatting('[https://](https://)meet.google.com/nbk-phfw-uxs'),
+  '[https://meet.google.com/nbk-phfw-uxs](https://meet.google.com/nbk-phfw-uxs)',
+);
+assert.equal(
+  links.normalizeSupraSpaceSplitUrlFormatting('**Video call: https://**meet.google.com/nbk-phfw-uxs**'),
+  '**Video call: https://meet.google.com/nbk-phfw-uxs**',
+);
+assert.equal(
+  links.normalizeSupraSpaceSplitUrlFormatting('Keep literal ** markers with https://** but no host'),
+  'Keep literal ** markers with https://** but no host',
+);
+const repairedExternalHtml = links.supraSpaceMarkdownToEditorInlineHtml(malformedExternalLink);
+assert.match(repairedExternalHtml, /href="https:\/\/meet\.google\.com\/nbk-phfw-uxs"/);
+assert.doesNotMatch(repairedExternalHtml, /href="https:\/\/\*\*"/);
 
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****Applicant****'), '**Applicant**');
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****'), '****');

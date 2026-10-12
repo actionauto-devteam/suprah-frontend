@@ -67,7 +67,7 @@ import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
-import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
+import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
 import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview';
@@ -3426,7 +3426,7 @@ function stripOrphanedBoldMarker(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   const normalized = normalizeListExitLineSpacing(
-    normalizeSupraSpaceBoldMarkerRuns(stripCopiedTextArtifacts(text))
+    normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceSplitUrlFormatting(stripCopiedTextArtifacts(text)))
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   );
