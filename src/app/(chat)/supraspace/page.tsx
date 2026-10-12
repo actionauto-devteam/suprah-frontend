@@ -9892,7 +9892,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceRealtime();
-  const { markAsRead: ctxMarkAsRead, markConversationRead: ctxMarkConversationRead, markConversationUnread: ctxMarkConversationUnread, archiveConversation: ctxArchiveConversation, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, notifPrefs, setNotifPrefs, myFullName, myAvatar, messageTextSize } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, markConversationRead: ctxMarkConversationRead, markConversationUnread: ctxMarkConversationUnread, archiveConversation: ctxArchiveConversation, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, patchConversation: ctxPatchConversation, notifPrefs, setNotifPrefs, myFullName, myAvatar, messageTextSize } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
       notifPrefs[conversationId] ||
@@ -12328,8 +12328,18 @@ export default function SupraSpacePage() {
     } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to delete.')); }
   };
   const addMembers = async (ids: string[]) => {
-    if (!activeConv) return; setManageOpen(false);
-    try { const r = await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { addMembers: ids }, { headers: { Authorization: `Bearer ${token}` } }); if (r.data?.data) patchConv(activeConv._id, r.data.data); } catch (e) { showUploadNotice('error', getErrorMessage(e, 'Failed to add members.')); }
+    if (!activeConv) return;
+    try {
+      const r = await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}`, { addMembers: ids }, { headers: { Authorization: `Bearer ${token}` } });
+      const updatedConversation = r.data?.data as SSConversation | undefined;
+      if (!updatedConversation?._id) throw new Error('The updated member list was unavailable.');
+      patchConv(activeConv._id, updatedConversation);
+      ctxPatchConversation(updatedConversation);
+      setManageOpen(false);
+      showUploadNotice('success', `${ids.length} ${ids.length === 1 ? 'member' : 'members'} added.`);
+    } catch (e) {
+      showUploadNotice('error', getErrorMessage(e, 'Failed to add members.'));
+    }
   };
   const removeMember = async (memberId: string) => {
     if (!activeConv) return;

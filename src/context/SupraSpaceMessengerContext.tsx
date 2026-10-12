@@ -122,6 +122,7 @@ interface MessengerCtxValue {
   markConversationUnread: (convId: string, unread: boolean) => Promise<boolean>;
   archiveConversation: (convId: string, archived: boolean) => Promise<void>;
   deleteConversation: (convId: string) => Promise<{ permanent: boolean; left: boolean }>;
+  patchConversation: (update: Partial<SSConv> & { _id: string }) => void;
   refreshConversations: () => void;
   refreshSpaces: () => void;
 }
@@ -1023,6 +1024,12 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     }
   }, [crmToken, crmUserId, fetchConversations]);
 
+  const patchConversation = React.useCallback((update: Partial<SSConv> & { _id: string }) => {
+    setConversations((prev) => sortByLastMessage(prev.map((conversation) =>
+      conversation._id === update._id ? { ...conversation, ...update } : conversation
+    )));
+  }, []);
+
   const value = React.useMemo(() => ({
         conversations,
         spaces,
@@ -1053,10 +1060,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         markConversationUnread,
         archiveConversation,
         deleteConversation,
+        patchConversation,
         refreshConversations: fetchConversations,
         refreshSpaces: fetchSpaces,
 
-  }), [conversations, spaces, totalUnread, crmUserId, crmToken, myFullName, isLoadingConversations, conversationError, isConnected, openChats, minimizedChats, socket, myAvatar, notifPrefs, setNotifPrefs, prioritySenders, setPrioritySenders, messageTextSize, updateMessageTextSize, openChatPopup, openDirectChat, closeChatPopup, toggleMinimize, markAsRead, markConversationRead, markAllAsRead, markConversationUnread, archiveConversation, deleteConversation, fetchConversations, fetchSpaces]);
+  }), [conversations, spaces, totalUnread, crmUserId, crmToken, myFullName, isLoadingConversations, conversationError, isConnected, openChats, minimizedChats, socket, myAvatar, notifPrefs, setNotifPrefs, prioritySenders, setPrioritySenders, messageTextSize, updateMessageTextSize, openChatPopup, openDirectChat, closeChatPopup, toggleMinimize, markAsRead, markConversationRead, markAllAsRead, markConversationUnread, archiveConversation, deleteConversation, patchConversation, fetchConversations, fetchSpaces]);
   return (
     <RealtimeContext.Provider value={realtime}>
       <MessengerContext.Provider value={value}>

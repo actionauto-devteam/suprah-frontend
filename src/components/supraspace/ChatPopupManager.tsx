@@ -3395,12 +3395,12 @@ function PopupEventModal({ accentColor, onClose, onCreate }: {
 }
 
 // ─── Invite people modal ─────────────────────────────────────────────────────────
-function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
+function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onUpdated }: {
   conv: SSConv;
   crmToken: string | null;
   crmUserId: string | null;
   onClose: () => void;
-  onInvited: () => void;
+  onUpdated: (conversation: SSConv) => void;
 }) {
   const [view, setView] = React.useState<'list' | 'invite'>('list');
   const [users, setUsers] = React.useState<{ _id: string; fullName: string; username?: string; avatar?: string }[]>([]);
@@ -3440,10 +3440,12 @@ function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
     if (selected.size === 0 || saving || !crmToken) return;
     setSaving(true);
     try {
-      await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { addMembers: [...selected] },
+      const response = await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { addMembers: [...selected] },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+      const updatedConversation = response.data?.data as SSConv | undefined;
+      if (!updatedConversation?._id) throw new Error('The updated member list was unavailable.');
+      onUpdated(updatedConversation);
       toast.success(`Invited ${selected.size} teammate${selected.size === 1 ? '' : 's'}`);
-      onInvited();
       setSelected(new Set());
       setView('list');
     } catch {
@@ -3457,9 +3459,11 @@ function PopupInviteModal({ conv, crmToken, crmUserId, onClose, onInvited }: {
     if (!crmToken || removingId) return;
     setRemovingId(memberId);
     try {
-      await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [memberId] },
+      const response = await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [memberId] },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
-      onInvited();
+      const updatedConversation = response.data?.data as SSConv | undefined;
+      if (!updatedConversation?._id) throw new Error('The updated member list was unavailable.');
+      onUpdated(updatedConversation);
     } catch {
       toast.error('Could not remove member');
     } finally {
@@ -3846,7 +3850,7 @@ interface ChatPopupProps {
 
 function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
   const { theme } = useTheme();
-  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, refreshConversations, messageTextSize } = useSupraSpaceMessenger();
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, patchConversation, messageTextSize } = useSupraSpaceMessenger();
   const hasLeftChannel = conv.type === 'group' && !!crmUserId && (conv.leftBy || []).map(String).includes(crmUserId);
   const isArchivedConversation = !!crmUserId && (conv.archivedBy || []).map(String).includes(crmUserId);
   const isReadOnlyConversation = hasLeftChannel || isArchivedConversation;
@@ -7892,7 +7896,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           crmToken={crmToken}
           crmUserId={crmUserId}
           onClose={() => setInviteOpen(false)}
-          onInvited={() => refreshConversations()}
+          onUpdated={patchConversation}
         />
       )}
 
