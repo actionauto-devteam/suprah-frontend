@@ -137,7 +137,7 @@ export function normalizeSupraSpaceExternalQuoteArtifacts(content: string): stri
     if (hasVisibleContent && (hasEscapedEmptyLine || emptyCount >= 3)) {
       const unwrapped = quoteLines
         .filter(line => !isEmptyArtifact(line))
-        .map(line => line.content.replace(/^\\>\s?/, ''));
+        .map(line => line.content.replace(/^(?:\\>|>)\s?/, ''));
       output.push(...unwrapped);
       continue;
     }

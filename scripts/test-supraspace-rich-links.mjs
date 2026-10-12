@@ -41,6 +41,17 @@ const externalQuoteArtifacts = [
   escapedQuoteBlank,
   '>',
 ].join('\n');
+const nestedExternalQuoteArtifacts = [
+  '>',
+  '>',
+  '>',
+  '> > overbreak alert marker',
+  '> **Overbreak alert**',
+  '> *@Krizza Pepito*',
+  '>',
+  '>',
+  '>',
+].join('\n');
 const legacyMeet = links.findSupraSpaceMarkdownLink(`[https://](${meetUrl})`);
 assert.equal(legacyMeet?.start, 0);
 assert.equal(legacyMeet?.end, `[https://](${meetUrl})`.length);
@@ -97,6 +108,10 @@ assert.equal(
 assert.equal(
   formatting.normalizeSupraSpaceExternalQuoteArtifacts('> First\n>\n> Second'),
   '> First\n>\n> Second',
+);
+assert.equal(
+  formatting.normalizeSupraSpaceExternalQuoteArtifacts(nestedExternalQuoteArtifacts),
+  'overbreak alert marker\n**Overbreak alert**\n*@Krizza Pepito*',
 );
 
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****Applicant****'), '**Applicant**');

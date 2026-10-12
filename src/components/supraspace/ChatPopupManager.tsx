@@ -3850,7 +3850,7 @@ interface ChatPopupProps {
 
 function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onToggleMinimize }: ChatPopupProps) {
   const { theme } = useTheme();
-  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, patchConversation, messageTextSize } = useSupraSpaceMessenger();
+  const { crmUserId, crmToken, socket, markAsRead, notifPrefs, setNotifPrefs, archiveConversation, markConversationUnread, deleteConversation, patchConversation, refreshConversations, messageTextSize } = useSupraSpaceMessenger();
   const hasLeftChannel = conv.type === 'group' && !!crmUserId && (conv.leftBy || []).map(String).includes(crmUserId);
   const isArchivedConversation = !!crmUserId && (conv.archivedBy || []).map(String).includes(crmUserId);
   const isReadOnlyConversation = hasLeftChannel || isArchivedConversation;
