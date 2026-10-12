@@ -13,7 +13,7 @@ import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation'
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
@@ -1401,15 +1401,13 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  if (!plainText || !html || hasRichFormatting(html)) return false;
-  const normalize = (value: string): string => value
-    .normalize('NFKC')
-    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, '');
-  const visiblePlainText = normalize(plainText);
-  const visibleHtmlText = normalize(clipboardHtmlToPlainText(html));
-  return Boolean(visiblePlainText && !visibleHtmlText.includes(visiblePlainText));
+  return Boolean(
+    html
+    && supraSpaceClipboardTextLosesPlainText(
+      plainText,
+      clipboardHtmlToPlainText(html),
+    ),
+  );
 }
 
 function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {

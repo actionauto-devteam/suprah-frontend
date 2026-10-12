@@ -8,6 +8,26 @@ const INLINE_STYLE_TAGS = new Set([
 const BLOCK_STYLE_DESCENDANTS = 'address,article,aside,blockquote,div,dl,fieldset,footer,form,h1,h2,h3,h4,h5,h6,header,li,main,ol,p,pre,section,table,ul';
 const DISALLOWED_TAGS = 'embed,frame,iframe,link,meta,object,script,style';
 
+export function supraSpaceClipboardTextLosesPlainText(
+  plainText: string,
+  convertedHtmlText: string,
+): boolean {
+  if (!plainText) return false;
+
+  const normalize = (value: string): string => value
+    .normalize('NFC')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '');
+  const normalizedPlainText = normalize(plainText);
+  const normalizedHtmlText = normalize(convertedHtmlText);
+
+  return Boolean(
+    normalizedPlainText
+    && !normalizedHtmlText.includes(normalizedPlainText),
+  );
+}
+
 export function isSupraSpaceInlineClipboardStyle(element: HTMLElement): boolean {
   return INLINE_STYLE_TAGS.has(element.tagName.toLowerCase())
     && !element.querySelector(BLOCK_STYLE_DESCENDANTS);

@@ -66,7 +66,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -2424,14 +2424,13 @@ function canonicalizeColorMarkup(value: string): string {
 }
 
 function richPasteDropsVisibleText(plainText: string, html: string): boolean {
-  if (!plainText || !html || hasRichFormatting(html)) return false;
-  const normalize = (value: string): string => stripCopiedTextArtifacts(value)
-    .normalize('NFKC')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, '');
-  const visiblePlainText = normalize(plainText);
-  const visibleHtmlText = normalize(clipboardHtmlToPlainText(html));
-  return Boolean(visiblePlainText && !visibleHtmlText.includes(visiblePlainText));
+  return Boolean(
+    html
+    && supraSpaceClipboardTextLosesPlainText(
+      plainText,
+      clipboardHtmlToPlainText(html),
+    ),
+  );
 }
 
 function shouldPreferPlainTextLayout(plainText: string, editorHtml: string): boolean {

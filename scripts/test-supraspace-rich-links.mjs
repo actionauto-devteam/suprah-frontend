@@ -22,6 +22,9 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
 }
 
 const links = loadTypeScriptModule('../src/lib/supra-space-links.ts');
+const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
+  './supra-space-links': links,
+});
 const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatting.ts', {
   './supra-space-links': links,
 });
@@ -117,4 +120,19 @@ assert.equal(
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****Applicant****'), '**Applicant**');
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****'), '****');
 
-console.log('SupraSpace rich-link and bold-marker regression checks passed.');
+assert.equal(
+  richPaste.supraSpaceClipboardTextLosesPlainText(
+    'Long text 😀 caf\u00e9 \u2014 symbols \u2713\u2122\nSecond line',
+    'Long text 😀 cafe\u0301 \u2014 symbols \u2713\u2122 Second line',
+  ),
+  false,
+);
+assert.equal(
+  richPaste.supraSpaceClipboardTextLosesPlainText(
+    'Long text 😀 caf\u00e9 \u2014 symbols \u2713\u2122\nSecond line',
+    'Long text 😀 caf\u00e9',
+  ),
+  true,
+);
+
+console.log('SupraSpace rich-text regression checks passed.');
