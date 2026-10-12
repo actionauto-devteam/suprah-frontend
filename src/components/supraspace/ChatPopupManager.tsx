@@ -11,7 +11,7 @@ import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
 import { createMessageId } from './composer/send-state';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
@@ -1066,7 +1066,7 @@ function normalizePastedListArtifacts(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   return normalizeListExitLineSpacing(
-    normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceSplitUrlFormatting(text))
+    normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceExternalQuoteArtifacts(normalizeSupraSpaceSplitUrlFormatting(text)))
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   ).trim();

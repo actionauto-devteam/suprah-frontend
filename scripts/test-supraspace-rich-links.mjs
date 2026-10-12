@@ -30,6 +30,17 @@ const meetUrl = 'https://meet.google.com/esg-zidk-mhv';
 const malformedExternalLink = '**➡️ Video call link: [https://**](https://**)meet.google.com/nbk-phfw-uxs**';
 const repairedExternalLink = '**➡️ Video call link: [https://meet.google.com/nbk-phfw-uxs](https://meet.google.com/nbk-phfw-uxs)**';
 const splitWrappedExternalLink = '**➡️ Video call link: [https://](https://)**meet.google.com/nbk-phfw-uxs**';
+const escapedQuoteBlank = `> ${'\\'}`;
+const externalQuoteArtifacts = [
+  escapedQuoteBlank,
+  '>',
+  escapedQuoteBlank,
+  '> \\> 🚨🚨🚨',
+  '> **❗OVERBREAK ALERT ❗**',
+  '> *@Krizza Pepito*',
+  escapedQuoteBlank,
+  '>',
+].join('\n');
 const legacyMeet = links.findSupraSpaceMarkdownLink(`[https://](${meetUrl})`);
 assert.equal(legacyMeet?.start, 0);
 assert.equal(legacyMeet?.end, `[https://](${meetUrl})`.length);
@@ -78,6 +89,15 @@ assert.equal(
 const repairedExternalHtml = links.supraSpaceMarkdownToEditorInlineHtml(malformedExternalLink);
 assert.match(repairedExternalHtml, /href="https:\/\/meet\.google\.com\/nbk-phfw-uxs"/);
 assert.doesNotMatch(repairedExternalHtml, /href="https:\/\/\*\*"/);
+
+assert.equal(
+  formatting.normalizeSupraSpaceExternalQuoteArtifacts(externalQuoteArtifacts),
+  '🚨🚨🚨\n**❗OVERBREAK ALERT ❗**\n*@Krizza Pepito*',
+);
+assert.equal(
+  formatting.normalizeSupraSpaceExternalQuoteArtifacts('> First\n>\n> Second'),
+  '> First\n>\n> Second',
+);
 
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****Applicant****'), '**Applicant**');
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****'), '****');

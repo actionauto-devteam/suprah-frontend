@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { AlertTriangle, BellRing, Clock3, FileText, MapPin } from 'lucide-react';
+import { AlertTriangle, BellRing, Check, Clock3, Copy, FileText, MapPin } from 'lucide-react';
+import { normalizeSupraSpaceExternalQuoteArtifacts } from '@/lib/supra-space-message-formatting';
 
 export type OperationalMessageKind = 'daypulse' | 'shift-alert';
 
@@ -126,6 +127,13 @@ function ShiftAlertBody({ content }: { content: string }) {
   return <div className="space-y-1" style={{ color: 'var(--text-primary)', fontSize: 16, lineHeight: 1.65 }}><ReportLines lines={content.replace(/\r\n?/g, '\n').split('\n')} prefix="alert" /></div>;
 }
 
+function operationalMessageCopyText(kind: OperationalMessageKind, content: string): string {
+  const normalized = kind === 'daypulse' ? normalizeDayPulseContent(content) : content;
+  return normalizeSupraSpaceExternalQuoteArtifacts(normalized)
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
 export function getOperationalMessageKind(message: { metadata?: { source?: string | null } | null }, conversationName?: string | null): OperationalMessageKind | null {
   if (message.metadata?.source === 'daypulse') return 'daypulse';
   if (message.metadata?.source === 'shift-alert') return 'shift-alert';
@@ -135,15 +143,31 @@ export function getOperationalMessageKind(message: { metadata?: { source?: strin
 }
 
 export function OperationalMessageCard({ kind, content, createdAt, attachments = [], compact = false }: OperationalMessageCardProps) {
+  const [copied, setCopied] = React.useState(false);
   const shiftAlert = kind === 'shift-alert' ? shiftAlertPresentation(content) : null;
   const Icon = shiftAlert?.Icon || FileText;
   const title = shiftAlert?.label || 'Daily report';
   const accent = shiftAlert?.accent || 'var(--accent)';
   const timestamp = timeLabel(createdAt);
+  const copyMessage = async () => {
+    const text = operationalMessageCopyText(kind, content);
+    if (!text || !navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
   return <article className="w-full rounded-xl border px-4 py-3.5 sm:px-5 sm:py-4" style={{ maxWidth: compact ? '100%' : 760, background: 'var(--surface-2)', borderColor: 'var(--border-2)', boxShadow: 'var(--shadow-sm)' }}>
     <header className="mb-3 flex items-start gap-3" style={{ borderBottom: '1px solid var(--border-2)', paddingBottom: 10 }}>
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: 'var(--surface-1)', color: accent }} aria-hidden="true"><Icon className="h-4 w-4" /></span>
       <div className="min-w-0 flex-1"><h2 className="font-semibold uppercase" style={{ color: 'var(--text-primary)', fontSize: compact ? 12 : 13, letterSpacing: '0.07em' }}>{title}</h2><p style={{ color: 'var(--text-secondary)', fontSize: compact ? 11 : 12 }}>{kind === 'daypulse' ? 'Operational daily report' : 'Operational shift monitoring'}</p></div>
+      <button type="button" onClick={copyMessage} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ background: 'var(--surface-1)', color: copied ? 'var(--accent-text)' : 'var(--text-secondary)', fontSize: compact ? 11 : 12 }} aria-label="Copy message" title="Copy message">
+        {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+        {!compact && <span>{copied ? 'Copied' : 'Copy'}</span>}
+      </button>
       {timestamp && <time className="shrink-0" dateTime={createdAt} style={{ color: 'var(--text-secondary)', fontSize: compact ? 11 : 12 }}>{timestamp}</time>}
     </header>
     {kind === 'daypulse' ? <DayPulseBody content={content} /> : <ShiftAlertBody content={content} />}

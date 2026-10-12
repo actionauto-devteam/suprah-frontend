@@ -64,7 +64,7 @@ import { getOperationalMessageKind, OperationalMessageCard, type OperationalMess
 import { InstallSupraSpaceButton, isRunningAsSupraSpaceStandalone } from '@/components/supraspace/InstallSupraSpaceButton';
 import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton';
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
-import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
+import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
@@ -3426,7 +3426,7 @@ function stripOrphanedBoldMarker(text: string): string {
 
 function normalizeMessageMarkdownText(text: string): string {
   const normalized = normalizeListExitLineSpacing(
-    normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceSplitUrlFormatting(stripCopiedTextArtifacts(text)))
+    normalizeSupraSpaceBoldMarkerRuns(normalizeSupraSpaceExternalQuoteArtifacts(normalizeSupraSpaceSplitUrlFormatting(stripCopiedTextArtifacts(text))))
       .replace(/\r\n?/g, '\n')
       .replace(/\u00a0/g, ' '),
   );

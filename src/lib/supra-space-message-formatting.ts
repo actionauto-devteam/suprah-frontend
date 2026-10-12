@@ -12,6 +12,7 @@ const SUPPORTED_FONT_FAMILIES = new Set([
 const SUPPORTED_FONT_SIZES = new Set([10, 12, 14, 16, 18, 20, 24, 28, 32, 36]);
 
 const BOLD_MARKER = '**';
+const QUOTE_LINE = /^(\s*>\s?)(.*)$/;
 
 type SupraSpaceControlKind = 'color' | 'highlight' | 'font' | 'size';
 
@@ -92,6 +93,59 @@ export function normalizeSupraSpaceBoldMarkerRuns(content: string): string {
     /(^|[^*])\*{4,}([^*\n]*[^\s*\n][^*\n]*)\*{4,}(?!\*)/g,
     (_match, prefix: string, inner: string) => `${prefix}${BOLD_MARKER}${inner}${BOLD_MARKER}`,
   );
+}
+
+/**
+ * Removes the empty quote scaffolding emitted by some external rich-text
+ * copies. Those payloads wrap ordinary text in several `> \\`/`>` rows,
+ * which otherwise becomes a tall blockquote in SupraSpace.
+ *
+ * A genuine quote remains intact. We only unwrap a quote block when it has
+ * escaped-empty rows or three or more empty quote rows around visible text.
+ */
+export function normalizeSupraSpaceExternalQuoteArtifacts(content: string): string {
+  if (!content.includes('>')) return content;
+
+  const lines = content.replace(/\r\n?/g, '\n').split('\n');
+  const output: string[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const first = lines[index].match(QUOTE_LINE);
+    if (!first) {
+      output.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    const quoteLines: Array<{ prefix: string; content: string }> = [];
+    while (index < lines.length) {
+      const match = lines[index].match(QUOTE_LINE);
+      if (!match) break;
+      quoteLines.push({ prefix: match[1], content: match[2] });
+      index += 1;
+    }
+
+    const isEmptyArtifact = (line: { content: string }) => {
+      const trimmed = line.content.trim();
+      return !trimmed || trimmed === '\\';
+    };
+    const emptyCount = quoteLines.filter(isEmptyArtifact).length;
+    const hasEscapedEmptyLine = quoteLines.some(line => line.content.trim() === '\\');
+    const hasVisibleContent = quoteLines.some(line => !isEmptyArtifact(line));
+
+    if (hasVisibleContent && (hasEscapedEmptyLine || emptyCount >= 3)) {
+      const unwrapped = quoteLines
+        .filter(line => !isEmptyArtifact(line))
+        .map(line => line.content.replace(/^\\>\s?/, ''));
+      output.push(...unwrapped);
+      continue;
+    }
+
+    output.push(...quoteLines.map(line => `${line.prefix}${line.content}`));
+  }
+
+  return output.join('\n');
 }
 
 /**
@@ -240,7 +294,8 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
       '$1\n$3',
     );
 
-  normalized = normalized.replace(FORMAT_ONLY_LINE, '$1');
+  normalized = normalizeSupraSpaceExternalQuoteArtifacts(normalized)
+    .replace(FORMAT_ONLY_LINE, '$1');
   return normalized;
 }
 
