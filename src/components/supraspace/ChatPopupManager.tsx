@@ -5475,7 +5475,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const handler = ({ conversationId, message }: { conversationId: string; message: SSMessage }) => {
       if (conversationId !== conv._id) return;
       setMessages(prev => {
-        if (prev.find(m => m._id === message._id)) return prev;
+        if (prev.find(m => m._id === message._id)) {
+          return prev.map(m => m._id === message._id ? message : m);
+        }
         const withoutMatchingOptimistic = prev.filter(m => !(
           m._id.startsWith('optimistic-') &&
           m.sender?._id === message.sender?._id &&
@@ -5610,7 +5612,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const currentReplyTo = replyTo;
     const deliveryKey = `text:${text}:${currentReplyTo?._id || ''}`;
     const clientMessageId = deliveryIdFor(deliveryKey);
-    const tempId = `optimistic-${clientMessageId}`;
+    const tempId = clientMessageId;
     const member = conv.members.find(m => m._id === crmUserId);
     sendInFlightRef.current = true;
     setSending(true);
@@ -5647,6 +5649,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       if (!sent) throw new Error('Message delivery was not confirmed.');
       failedDeliveryRef.current = null;
       setMessages(prev => {
+        if (tempId === sent._id) return prev.map(m => m._id === tempId ? sent : m);
         if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
         return prev.map(m => m._id === tempId ? sent : m);
       });
@@ -5655,6 +5658,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
         setMessages(prev => {
+          if (tempId === reconciliation.message._id) return prev.map(m => m._id === tempId ? reconciliation.message : m);
           if (prev.find(m => m._id === reconciliation.message._id)) return prev.filter(m => m._id !== tempId);
           return prev.map(m => m._id === tempId ? reconciliation.message : m);
         });

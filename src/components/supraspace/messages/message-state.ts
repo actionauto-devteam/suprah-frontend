@@ -13,6 +13,5 @@ export function mergeMessages(current: SSMessage[], incoming: SSMessage[]): SSMe
 }
 
 export function reconcileMessage(current: SSMessage[], message: SSMessage): SSMessage[] {
-  if (current.some(item => item._id === message._id)) return current;
   return mergeMessages(current.filter(item => item._id !== `optimistic-${message._id}`), [message]);
 }

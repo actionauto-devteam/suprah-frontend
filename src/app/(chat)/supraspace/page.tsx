@@ -10066,7 +10066,6 @@ export default function SupraSpacePage() {
     if (alreadyLoaded) {
       setMsgs(p => {
         const ex = p[conversationId] || [];
-        if (ex.find(m => m._id === message._id)) return p;
         const next = reconcileMessage(ex, message);
         return next === ex ? p : { ...p, [conversationId]: next };
       });
@@ -10092,6 +10091,9 @@ export default function SupraSpacePage() {
   const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
     setMsgs(p => {
       const ex = p[conversationId] || [];
+      if (tempId === message._id) {
+        return { ...p, [conversationId]: ex.map(item => item._id === tempId ? message : item) };
+      }
       if (ex.find(m => m._id === message._id)) return { ...p, [conversationId]: ex.filter(m => m._id !== tempId) };
       return { ...p, [conversationId]: ex.map(m => m._id === tempId ? message : m) };
     });
@@ -11319,7 +11321,7 @@ export default function SupraSpacePage() {
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
         else throw new Error('GIF delivery was not confirmed.');
       } else {
-        const tempId = scheduledAt ? null : `optimistic-${deliveryId}`;
+        const tempId = scheduledAt ? null : deliveryId;
         if (tempId) {
           optimisticTextId = tempId;
           const member = activeConv?.members.find(m => m._id === uid);
