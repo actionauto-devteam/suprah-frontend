@@ -7863,16 +7863,16 @@ function PrioritySendersModal({ users, selfId, onClose }: {
   };
 
   return (
-    <div className="ss4-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="ss4-modal w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
+    <div className="ss4-overlay fixed inset-0 z-200 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="ss4-modal flex max-h-[calc(var(--ss4-vvh,100dvh)-2rem)] w-full max-w-sm flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex shrink-0 items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border-1)' }}>
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4" style={{ color: 'var(--accent)' }} />
             <h2 className="ss4-display font-bold" style={{ fontSize: 16, color: 'var(--text-primary)' }}>Always notify me</h2>
           </div>
           <button onClick={onClose} className="ss4-icon-btn h-7 w-7"><X className="h-4 w-4" /></button>
         </div>
-        <div className="px-4 py-4 space-y-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-3 ss4-scroll">
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
             Messages from people you pick here always notify you — even in a group or DM you&apos;ve muted, set to &quot;for you,&quot; or turned off.
           </p>
