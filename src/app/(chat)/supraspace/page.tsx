@@ -12157,18 +12157,28 @@ export default function SupraSpacePage() {
     setMsgs(p => ({
       ...p, [activeId]: (p[activeId] || []).map(m => {
         if (m._id !== msgId) return m;
-        const reactions = [...(m.reactions || [])];
-        const idx = reactions.findIndex(r => r.emoji === emoji);
-        if (idx >= 0) {
-          const has = reactions[idx].users.includes(uid);
-          const users = has ? reactions[idx].users.filter(u => u !== uid) : [...reactions[idx].users, uid];
-          if (users.length === 0) reactions.splice(idx, 1); else reactions[idx] = { ...reactions[idx], users };
-        } else reactions.push({ emoji, users: [uid] } as any);
+        const selected = (m.reactions || []).find(r => r.emoji === emoji);
+        const alreadySelected = Boolean(selected?.users.includes(uid));
+        const reactions = (m.reactions || []).map(reaction => ({
+          ...reaction,
+          users: reaction.users.filter(userId => userId !== uid),
+        })).filter(reaction => reaction.users.length > 0);
+        if (!alreadySelected) {
+          const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
+          if (selectedIndex >= 0) reactions[selectedIndex] = { ...reactions[selectedIndex], users: [...reactions[selectedIndex].users, uid] };
+          else reactions.push({ emoji, users: [uid] });
+        }
         return { ...m, reactions };
       })
     }));
-    try { await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
-  }, [activeId, isArchivedActiveConv, uid, token]);
+    try {
+      const response = await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } });
+      if (Array.isArray(response.data?.data?.reactions)) patchMsg(activeId, msgId, { reactions: response.data.data.reactions });
+    } catch {
+      toast.error('Could not update reaction. Please try again.');
+      void fetchConversationMessages(activeId, { force: true, silent: true });
+    }
+  }, [activeId, isArchivedActiveConv, uid, token, patchMsg, fetchConversationMessages]);
   const handleVotePoll = React.useCallback(async (msgId: string, optionId: string) => {
     if (isArchivedActiveConv) return;
     try { const r = await apiClient.post(`/api/supraspace/messages/${msgId}/poll/vote`, { optionId }, { headers: { Authorization: `Bearer ${token}` } }); if (activeId && r.data?.data?.poll) patchMsg(activeId, msgId, { poll: r.data.data.poll }); } catch { }

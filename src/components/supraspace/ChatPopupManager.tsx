@@ -4207,13 +4207,31 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   // ── Actions ──
   const handleReact = async (messageId: string, emoji: string) => {
-    if (isReadOnlyConversation) return;
+    if (isReadOnlyConversation || !crmUserId) return;
     clearBar();
+    let previousReactions: SSMessage['reactions'] | undefined;
+    setMessages(prev => prev.map(message => {
+      if (message._id !== messageId) return message;
+      previousReactions = message.reactions;
+      const selected = (message.reactions || []).find(reaction => reaction.emoji === emoji);
+      const alreadySelected = Boolean(selected?.users.includes(crmUserId));
+      const reactions = (message.reactions || []).map(reaction => ({
+        ...reaction,
+        users: reaction.users.filter(userId => userId !== crmUserId),
+      })).filter(reaction => reaction.users.length > 0);
+      if (!alreadySelected) {
+        const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
+        if (selectedIndex >= 0) reactions[selectedIndex] = { ...reactions[selectedIndex], users: [...reactions[selectedIndex].users, crmUserId] };
+        else reactions.push({ emoji, users: [crmUserId] });
+      }
+      return { ...message, reactions };
+    }));
     try {
       const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       applyMessageReactions(messageId, response.data?.data?.reactions);
     } catch {
+      if (previousReactions) applyMessageReactions(messageId, previousReactions);
       toast.error('Could not update reaction. Please try again.');
     }
   };
