@@ -222,3 +222,12 @@ export function mdtWallTimeToUtc(
 ): Date {
   return new Date(mountainWallTimeToUtcMs(year, month, day, hour, minute, second))
 }
+
+/** Parses a raw <input type="datetime-local"> value (e.g. "2026-10-15T14:30")
+ *  as Mountain Time wall-clock, regardless of the browser's own timezone. */
+export function parseDatetimeLocalAsMdt(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value)
+  if (!match) return null
+  const [, y, mo, day, h, mi] = match
+  return mdtWallTimeToUtc(parseInt(y, 10), parseInt(mo, 10), parseInt(day, 10), parseInt(h, 10), parseInt(mi, 10))
+}
