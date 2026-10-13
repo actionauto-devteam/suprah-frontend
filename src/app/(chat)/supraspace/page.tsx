@@ -10340,9 +10340,23 @@ export default function SupraSpacePage() {
     setConvos(prev => {
       const prevIds = new Set(prev.map(c => c._id));
       const missing = ctxConversations.filter(c => !prevIds.has(c._id));
-      if (!missing.length) return prev;
+      const archiveStateByConversationId = new Map(
+        ctxConversations.map(c => [c._id, (c.archivedBy || []).map(String)]),
+      );
+      let archiveStateChanged = false;
+      const synced = prev.map(c => {
+        const archivedBy = archiveStateByConversationId.get(c._id);
+        const hasSameArchiveState = archivedBy?.length === (c.archivedBy || []).length
+          && archivedBy.every((id, index) => id === String(c.archivedBy?.[index]));
+        if (!archivedBy || hasSameArchiveState) {
+          return c;
+        }
+        archiveStateChanged = true;
+        return { ...c, archivedBy };
+      });
+      if (!missing.length) return archiveStateChanged ? synced : prev;
       return [
-        ...prev,
+        ...synced,
         ...missing.map(c => ({
           ...c,
           admins: (c as any).admins || [],
