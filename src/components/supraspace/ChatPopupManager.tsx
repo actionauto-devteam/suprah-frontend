@@ -1991,7 +1991,11 @@ function htmlToMarkdown(el: HTMLElement): string {
       .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
-  return normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
+  const serialized = normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
+  const visibleText = el.innerText || '';
+  return richTextSerializationDropsVisibleText(visibleText, serialized)
+    ? normalizeSupraSpaceLegacyMarkup(visibleText.trim())
+    : serialized;
 }
 
 function insertTextAtRichEditorSelection(
@@ -2290,6 +2294,14 @@ function stripRichTextMarkupForPlainPaste(value: string): string {
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/(^|[^\w*])_([^_\n]+)_(?!\w)/g, '$1$2');
+}
+
+function richTextSerializationDropsVisibleText(visibleText: string, serializedText: string): boolean {
+  const serializedPlainText = stripRichTextMarkupForPlainPaste(serializedText)
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014]|\d+[.)])\s+/gm, '')
+    .replace(/^\s*```[^\n]*$/gm, '');
+  return supraSpaceClipboardTextLosesPlainText(visibleText, serializedPlainText);
 }
 
 // Converts source HTML (from another app's clipboard) into the editor's HTML dialect

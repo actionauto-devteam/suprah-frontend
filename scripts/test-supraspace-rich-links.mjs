@@ -135,4 +135,18 @@ assert.equal(
   true,
 );
 
+const shippingPaymentText = [
+  'Hello Boss requesting payment for this shipping please.',
+  'Vehicle: 2025 HONDA ODYSSEY',
+  'VIN: 5FNRL6H78PB012345',
+  'Customer Paid: $1,265.00',
+].join('\n');
+assert.equal(
+  richPaste.supraSpaceClipboardTextLosesPlainText(
+    shippingPaymentText,
+    shippingPaymentText.replace('5FNRL6H78PB012345', ''),
+  ),
+  true,
+);
+
 console.log('SupraSpace rich-text regression checks passed.');
