@@ -67,7 +67,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, shouldUseNativeSupraSpaceSelectionCopy, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -5137,7 +5137,14 @@ const Bubble = React.memo(function Bubble({
     }
   };
   const copyRichMessageToClipboard = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
-    if (shouldUseNativeSupraSpaceSelectionCopy(event.currentTarget)) return;
+    const selectionClipboard = getSupraSpaceSelectionClipboardData(event.currentTarget);
+    if (selectionClipboard && event.clipboardData) {
+      event.preventDefault();
+      event.clipboardData.setData('text/html', selectionClipboard.html);
+      event.clipboardData.setData('text/plain', selectionClipboard.plainText);
+      return;
+    }
+    if (hasSupraSpaceTextSelection()) return;
     if (!message.content || !event.clipboardData) return;
     event.preventDefault();
     event.clipboardData.setData('text/html', markdownTextToEditorHtml(message.content));
@@ -15190,11 +15197,7 @@ export default function SupraSpacePage() {
                                   && (e.ctrlKey || e.metaKey)
                                 ) {
                                   e.preventDefault();
-                                  if (isMobileViewport || isStandaloneApp) {
-                                    insertComposerSoftLineBreak();
-                                  } else {
-                                    handleSend();
-                                  }
+                                  handleSend();
                                   return;
                                 }
 
@@ -15235,44 +15238,13 @@ export default function SupraSpacePage() {
                                 const anchorElement = anchorNode instanceof HTMLElement
                                   ? anchorNode
                                   : anchorNode?.parentElement;
-                                const isInsideStructuredBlock = Boolean(
-                                  anchorElement
-                                  && textareaRef.current?.contains(anchorElement)
-                                  && anchorElement.closest('li, blockquote'),
-                                );
 
                                 if (
                                   e.key === 'Enter'
                                   && !e.shiftKey
                                   && !e.altKey
                                 ) {
-                                  if (handleFormattedLineBreak()) {
-                                    e.preventDefault();
-                                    return;
-                                  }
-
-                                  if (isInsideStructuredBlock) {
-                                    requestAnimationFrame(() => {
-                                      const el = textareaRef.current;
-                                      if (!el) return;
-
-                                      normalizeContentEditableListArtifacts(el);
-                                      normalizeRichEditorListExitArtifacts(el);
-                                      syncComposerText(
-                                        el.innerText.replace(/\n$/, ''),
-                                        true,
-                                      );
-                                      saveComposerSelection();
-                                      refreshActiveFormats();
-                                    });
-                                    return;
-                                  }
-
                                   e.preventDefault();
-                                  if (isMobileViewport || isStandaloneApp) {
-                                    insertComposerSoftLineBreak();
-                                    return;
-                                  }
                                   handleSend();
                                   return;
                                 }

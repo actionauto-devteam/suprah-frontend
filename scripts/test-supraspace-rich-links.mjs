@@ -29,6 +29,9 @@ const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatti
   './supra-space-links': links,
 });
 
+assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
+assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
+
 const meetUrl = 'https://meet.google.com/esg-zidk-mhv';
 const malformedExternalLink = '**➡️ Video call link: [https://**](https://**)meet.google.com/nbk-phfw-uxs**';
 const repairedExternalLink = '**➡️ Video call link: [https://meet.google.com/nbk-phfw-uxs](https://meet.google.com/nbk-phfw-uxs)**';

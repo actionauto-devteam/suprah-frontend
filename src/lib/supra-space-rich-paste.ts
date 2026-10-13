@@ -28,17 +28,53 @@ export function supraSpaceClipboardTextLosesPlainText(
   );
 }
 
-export function shouldUseNativeSupraSpaceSelectionCopy(container: HTMLElement): boolean {
+type SupraSpaceSelectionClipboardData = {
+  html: string;
+  plainText: string;
+};
+
+const SELECTION_COPY_SEMANTIC_TAGS = new Set([
+  'a', 'b', 'br', 'code', 'del', 'em', 'i', 's', 'strong', 'u',
+]);
+
+export function hasSupraSpaceTextSelection(): boolean {
   if (typeof window === 'undefined') return false;
+  const selection = window.getSelection();
+  return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
+}
+
+export function getSupraSpaceSelectionClipboardData(
+  container: HTMLElement,
+): SupraSpaceSelectionClipboardData | null {
+  if (typeof window === 'undefined') return null;
 
   const selection = window.getSelection();
-  return Boolean(
-    selection
-      && !selection.isCollapsed
-      && selection.toString().trim()
-      && container.contains(selection.anchorNode)
-      && container.contains(selection.focusNode),
-  );
+  if (
+    !selection
+    || selection.isCollapsed
+    || !selection.toString().trim()
+    || selection.rangeCount === 0
+    || !container.contains(selection.anchorNode)
+    || !container.contains(selection.focusNode)
+  ) {
+    return null;
+  }
+
+  const wrapper = container.ownerDocument.createElement('div');
+  wrapper.append(selection.getRangeAt(0).cloneContents());
+  Array.from(wrapper.querySelectorAll<HTMLElement>('*')).reverse().forEach(element => {
+    const tag = element.tagName.toLowerCase();
+    if (!SELECTION_COPY_SEMANTIC_TAGS.has(tag)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      return;
+    }
+
+    const href = tag === 'a' ? element.getAttribute('href') || '' : '';
+    Array.from(element.attributes).forEach(attribute => element.removeAttribute(attribute.name));
+    if (tag === 'a' && isSafeSupraSpaceLinkHref(href)) element.setAttribute('href', href);
+  });
+
+  return { html: wrapper.innerHTML, plainText: selection.toString() };
 }
 
 export function isSupraSpaceInlineClipboardStyle(element: HTMLElement): boolean {

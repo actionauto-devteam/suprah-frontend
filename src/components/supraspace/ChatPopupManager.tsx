@@ -14,7 +14,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, shouldUseNativeSupraSpaceSelectionCopy, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
@@ -6936,7 +6936,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             bareMessage ? 'p-0 bg-transparent text-foreground' : 'px-3 py-2 rounded-2xl',
                             !bareMessage && (isOwn ? 'text-white rounded-br-sm' : 'bg-muted text-foreground rounded-bl-sm')
                           )} data-popup-bubble-id={msg._id} onCopy={event => {
-                            if (shouldUseNativeSupraSpaceSelectionCopy(event.currentTarget)) return;
+                            const selectionClipboard = getSupraSpaceSelectionClipboardData(event.currentTarget);
+                            if (selectionClipboard && event.clipboardData) {
+                              event.preventDefault();
+                              event.clipboardData.setData('text/html', selectionClipboard.html);
+                              event.clipboardData.setData('text/plain', selectionClipboard.plainText);
+                              return;
+                            }
+                            if (hasSupraSpaceTextSelection()) return;
                             if (!msg.content || !event.clipboardData) return;
                             event.preventDefault();
                             event.clipboardData.setData('text/html', markdownTextToEditorHtml(msg.content));
