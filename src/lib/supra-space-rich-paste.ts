@@ -28,6 +28,19 @@ export function supraSpaceClipboardTextLosesPlainText(
   );
 }
 
+export function shouldUseNativeSupraSpaceSelectionCopy(container: HTMLElement): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const selection = window.getSelection();
+  return Boolean(
+    selection
+      && !selection.isCollapsed
+      && selection.toString().trim()
+      && container.contains(selection.anchorNode)
+      && container.contains(selection.focusNode),
+  );
+}
+
 export function isSupraSpaceInlineClipboardStyle(element: HTMLElement): boolean {
   return INLINE_STYLE_TAGS.has(element.tagName.toLowerCase())
     && !element.querySelector(BLOCK_STYLE_DESCENDANTS);

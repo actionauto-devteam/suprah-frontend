@@ -67,7 +67,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, sanitizeSupraSpacePastedEditorHtml, shouldUseNativeSupraSpaceSelectionCopy, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -5137,6 +5137,7 @@ const Bubble = React.memo(function Bubble({
     }
   };
   const copyRichMessageToClipboard = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (shouldUseNativeSupraSpaceSelectionCopy(event.currentTarget)) return;
     if (!message.content || !event.clipboardData) return;
     event.preventDefault();
     event.clipboardData.setData('text/html', markdownTextToEditorHtml(message.content));

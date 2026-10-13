@@ -138,6 +138,16 @@ export function splitSupraSpaceTrailingUrlPunctuation(value: string): {
   return { href, trailing };
 }
 
+const SUPRAH_MEET_CODE_PATTERN = /^MEET-\d{4}$/i;
+
+export function isSuprahMeetCode(value: string): boolean {
+  return SUPRAH_MEET_CODE_PATTERN.test(value.trim());
+}
+
+export function getSuprahMeetRoomHref(value: string): string {
+  return `/crm/suprah-meet/room/${encodeURIComponent(value.trim().toUpperCase())}`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

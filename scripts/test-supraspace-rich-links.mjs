@@ -79,6 +79,10 @@ assert.equal(links.findSupraSpaceMarkdownLink('[Unsafe](javascript:alert(1))'), 
 assert.equal(links.isSafeSupraSpaceLinkHref('https://example.com'), true);
 assert.equal(links.isSafeSupraSpaceLinkHref('https://'), false);
 assert.equal(links.isSafeSupraSpaceLinkHref('javascript:alert(1)'), false);
+assert.equal(links.isSuprahMeetCode('MEET-5872'), true);
+assert.equal(links.isSuprahMeetCode('meet-5872'), true);
+assert.equal(links.isSuprahMeetCode('MEET-58720'), false);
+assert.equal(links.getSuprahMeetRoomHref('meet-5872'), '/crm/suprah-meet/room/MEET-5872');
 
 assert.equal(
   links.normalizeSupraSpaceSplitUrlFormatting(malformedExternalLink),

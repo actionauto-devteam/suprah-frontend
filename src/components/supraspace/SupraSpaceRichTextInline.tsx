@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { stripResidualSupraSpaceInlineControlMarkers } from '@/lib/supra-space-message-formatting';
-import { findSupraSpaceMarkdownLink, splitSupraSpaceTrailingUrlPunctuation } from '@/lib/supra-space-links';
+import { findSupraSpaceMarkdownLink, getSuprahMeetRoomHref, isSuprahMeetCode, splitSupraSpaceTrailingUrlPunctuation } from '@/lib/supra-space-links';
 
 const FONT_FAMILIES = {
   default: 'inherit',
@@ -107,7 +107,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
   const pushPlain = (value: string) => {
     if (!value) return;
     const plain = stripTypographyControlTags(value.replace(/\{\s*\/?\s*(?:color|highlight)(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''));
-    const tokenPattern = /(https?:\/\/[^\s]+|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+    const tokenPattern = /(https?:\/\/[^\s]+|\bMEET-\d{4}\b|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
     let last = 0;
     let match: RegExpExecArray | null;
     while ((match = tokenPattern.exec(plain)) !== null) {
@@ -119,6 +119,9 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
         nodes.push(<React.Fragment key={key}><a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{href}</a>{trailing}</React.Fragment>);
       } else if (/^https?:\/\//i.test(token)) {
         nodes.push(token);
+      } else if (isSuprahMeetCode(token) && !insideLink) {
+        const code = token.toUpperCase();
+        nodes.push(<a key={key} href={getSuprahMeetRoomHref(code)} className="rounded px-1 font-mono font-bold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', background: isOwn ? 'rgba(255,255,255,0.22)' : 'rgba(20,184,166,0.12)' }} title={`Open Suprah Meet ${code}`}>{code}</a>);
       } else {
         nodes.push(isOwn
           ? <span key={key} className="font-bold" style={{ color: 'rgba(255,255,255,0.95)', background: 'rgba(255,255,255,0.22)', borderRadius: 4, padding: '0 3px' }}>{token}</span>
