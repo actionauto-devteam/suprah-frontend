@@ -38,18 +38,10 @@ export function TransportationMobilePagination({
   onPageChange,
   onLimitChange,
 }: TransportationMobilePaginationProps) {
-  if (!pagination || pagination.total <= 0) return null;
-
-  const totalPages = Math.max(1, pagination.totalPages || 1);
+  // Hooks run on every render, before the empty check below: returning early
+  // first made React fail ("Rendered more hooks…") when page info arrived.
+  const totalPages = Math.max(1, pagination?.totalPages || 1);
   const safePage = Math.min(Math.max(1, currentPage || 1), totalPages);
-  const from = Math.min(
-    (pagination.page - 1) * pagination.limit + 1,
-    pagination.total,
-  );
-  const to = Math.min(
-    pagination.page * pagination.limit,
-    pagination.total,
-  );
 
   const pageOptions = React.useMemo(
     () => Array.from({ length: totalPages }, (_, index) => index + 1),
@@ -62,6 +54,17 @@ export function TransportationMobilePagination({
       if (clamped !== safePage) void onPageChange(clamped);
     },
     [onPageChange, safePage, totalPages],
+  );
+
+  if (!pagination || pagination.total <= 0) return null;
+
+  const from = Math.min(
+    (pagination.page - 1) * pagination.limit + 1,
+    pagination.total,
+  );
+  const to = Math.min(
+    pagination.page * pagination.limit,
+    pagination.total,
   );
 
   const navButtonClass = cn(

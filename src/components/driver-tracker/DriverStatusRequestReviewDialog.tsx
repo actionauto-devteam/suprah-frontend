@@ -619,7 +619,7 @@ export function DriverStatusRequestReviewDialog({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-8 shrink-0 px-2 text-xs"
+                      className="max-md:min-h-11 h-8 shrink-0 px-2 text-xs"
                       onClick={() => setReassignTarget(null)}
                     >
                       Cancel

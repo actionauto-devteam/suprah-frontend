@@ -415,7 +415,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <ShieldAlert className="size-12 text-muted-foreground/30" />
             <p className="text-sm font-bold text-muted-foreground">Driver profile not found</p>
-            <Link href="/admin/drivers"><Button variant="outline" className="gap-2"><ArrowLeft className="size-4" /> Back to Drivers</Button></Link>
+            <Button asChild variant="outline" className="gap-2"><Link href="/admin/drivers"><ArrowLeft className="size-4" /> Back to Drivers</Link></Button>
         </div>
     );
 

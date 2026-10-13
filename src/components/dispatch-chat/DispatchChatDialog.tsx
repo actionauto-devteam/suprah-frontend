@@ -1048,7 +1048,7 @@ export function SystemEventCard({
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 gap-1.5 border-amber-500/30 bg-amber-500/[0.06] px-3 text-[11px] font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+              className="max-md:min-h-11 h-8 gap-1.5 border-amber-500/30 bg-amber-500/[0.06] px-3 text-[11px] font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
               onClick={() =>
                 onReviewLoadRequest?.(requestLoadId, requestDriverId)
               }
@@ -1133,7 +1133,7 @@ function DispatcherConversationList({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="max-md:size-11 size-8"
               onClick={onToggleCollapsed}
               aria-label={collapsed ? "Expand dispatcher conversations" : "Collapse dispatcher conversations"}
             >
@@ -1331,7 +1331,7 @@ export function ConversationDetailsPanel({
               {counterpartRole}: {counterpartName}
             </p>
           </div>
-          <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" onClick={onClose} aria-label="Close conversation details">
+          <Button type="button" variant="ghost" size="icon" className="max-md:size-11 size-8 shrink-0" onClick={onClose} aria-label="Close conversation details">
             <X className="size-4" />
           </Button>
         </div>
@@ -3257,7 +3257,7 @@ export function DispatchChatDialog({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 shrink-0"
+                className="max-md:size-11 size-9 shrink-0"
                 onClick={onBack}
                 aria-label="Back to all conversations"
               >
@@ -3269,7 +3269,7 @@ export function DispatchChatDialog({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 shrink-0 md:hidden"
+                className="max-md:size-11 size-9 shrink-0 md:hidden"
                 onClick={() => setConversationDrawerMobileOpen(true)}
                 aria-label="Open dispatcher conversations"
               >
@@ -3360,7 +3360,7 @@ export function DispatchChatDialog({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className={`size-9 shrink-0 text-muted-foreground hover:text-foreground ${detailsOpen ? "bg-muted text-foreground" : ""}`}
+                className={`max-md:size-11 size-9 shrink-0 text-muted-foreground hover:text-foreground ${detailsOpen ? "bg-muted text-foreground" : ""}`}
                 disabled={!activeThreadId}
                 onClick={() => setDetailsOpen(true)}
                 aria-label="Conversation details"
@@ -3668,7 +3668,7 @@ export function DispatchChatDialog({
                   <button
                     key={emoji}
                     type="button"
-                    className="flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
+                    className="max-md:size-10 flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
                     onClick={() => {
                       setDraft((current) => `${current}${emoji}`);
                       setEmojiOpen(false);

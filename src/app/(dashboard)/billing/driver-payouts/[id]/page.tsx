@@ -9,22 +9,21 @@ import { Load } from "@/types/load";
 import { formatCurrency } from "@/utils/format";
 import {
   ChevronLeft, RefreshCw, Truck, CheckCircle2,
-  DollarSign, Clock, X, Loader2, FileCheck, Eye,
-  MapPin, Calendar, Package, AlertCircle, Info, ExternalLink
+  DollarSign, Loader2, FileCheck, Eye,
+  MapPin, Package, AlertCircle, Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/user-error";
 import { initializeSocket } from "@/lib/socket.client";
-
-const ORANGE = "#E55A00";
-const PAGE_BG = "#07070a";
-const CARD_BG = "#0f0f14";
-const BORDER = "rgba(255,255,255,0.07)";
-const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
-const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const PAYOUT_IN_DEVELOPMENT_MESSAGE =
   "Driver payouts are still being built. No payout was sent. Delivery confirmation is recorded separately.";
+
+const cardClass = "rounded-2xl border border-border bg-card text-card-foreground";
+const fieldClass =
+  "w-full rounded-xl border border-input bg-background text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30";
 
 function PayoutActionCard({ load }: { load: Load }) {
   const [amount, setAmount] = React.useState(load.pricing?.carrierPayAmount || 0);
@@ -45,12 +44,12 @@ function PayoutActionCard({ load }: { load: Load }) {
 
   if (!isConfirmed) {
     return (
-      <div style={{ background: "rgba(250, 204, 21, 0.05)", border: "1px solid rgba(250,204,21,0.2)", borderRadius: 16, padding: 20 }}>
-        <div style={{ display: "flex", gap: 12 }}>
-          <AlertCircle style={{ width: 20, height: 20, color: "#facc15", flexShrink: 0 }} />
+      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5">
+        <div className="flex gap-3">
+          <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div>
-            <h4 style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, color: "#fff", margin: 0 }}>Pending Confirmation</h4>
-            <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.5)", margin: 0, marginTop: 4 }}>
+            <h4 className="text-base font-bold text-foreground">Pending Confirmation</h4>
+            <p className="mt-1 text-[13px] text-muted-foreground">
               You must confirm the delivery proof before you can initiate a payout.
             </p>
           </div>
@@ -60,59 +59,58 @@ function PayoutActionCard({ load }: { load: Load }) {
   }
 
   return (
-    <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 24 }}>
-      <h3 style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-        <DollarSign style={{ width: 18, height: 18, color: ORANGE }} />
+    <div className={cn(cardClass, "p-6")}>
+      <h3 className="mb-5 flex items-center gap-2 text-lg font-bold text-foreground">
+        <DollarSign className="size-[18px] text-primary" />
         Process Payout
       </h3>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="flex flex-col gap-4">
         <div>
-          <label style={{ fontFamily: DISPLAY, fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8, display: "block" }}>
-            Payout Amount (USD) <span style={{ color: ORANGE }}>*</span>
+          <label htmlFor="payout-amount" className="mb-2 block text-xs text-muted-foreground">
+            Payout Amount (USD) <span className="text-primary">*</span>
           </label>
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", fontFamily: MONO }}>$</span>
-            <input 
-              type="number" 
-              value={amount || ""} 
-              onChange={e => setAmount(parseFloat(e.target.value) || 0)}
-              placeholder="0.00" 
-              style={{ width: "100%", background: "#0a0a0d", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px 12px 30px", color: "#fff", fontFamily: MONO, fontSize: 16, outline: "none" }}
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-muted-foreground">$</span>
+            <input
+              id="payout-amount"
+              type="number"
+              value={amount || ""}
+              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+              placeholder="0.00"
+              className={cn(fieldClass, "py-3 pl-7 pr-3.5 font-mono text-base")}
             />
           </div>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 6 }}>
+          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground">
             Carrier Pay: {formatCurrency(load.pricing?.carrierPayAmount || 0)}
           </p>
         </div>
 
         <div>
-          <label style={{ fontFamily: DISPLAY, fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8, display: "block" }}>
+          <label htmlFor="payout-notes" className="mb-2 block text-xs text-muted-foreground">
             Notes for Driver
           </label>
-          <textarea 
-            value={notes} 
-            onChange={e => setNotes(e.target.value)} 
-            rows={3} 
+          <textarea
+            id="payout-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
             placeholder="Add any internal or driver-facing notes..."
-            style={{ width: "100%", background: "#0a0a0d", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", color: "#fff", fontFamily: DISPLAY, fontSize: 13, outline: "none", resize: "none" }}
+            className={cn(fieldClass, "resize-none px-3.5 py-3 text-[13px]")}
           />
         </div>
 
         {showNotice && (
-          <div role="status" style={{ display: "flex", gap: 8, color: "#facc15", alignItems: "flex-start" }}>
-            <Info style={{ width: 14, height: 14, flexShrink: 0, marginTop: 3 }} />
-            <p style={{ fontFamily: DISPLAY, fontSize: 13, margin: 0 }}>{PAYOUT_IN_DEVELOPMENT_MESSAGE}</p>
+          <div role="status" className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <p className="text-[13px]">{PAYOUT_IN_DEVELOPMENT_MESSAGE}</p>
           </div>
         )}
 
-        <button 
-          onClick={handleSubmit} 
-          style={{ width: "100%", padding: "14px 0", background: ORANGE, border: "none", borderRadius: 12, color: "#fff", fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, transition: "all 0.2s ease" }}
-        >
-          <DollarSign style={{ width: 18, height: 18 }} />
+        <Button type="button" onClick={handleSubmit} className="h-12 w-full gap-2.5 rounded-xl text-[15px] font-bold">
+          <DollarSign className="size-[18px]" />
           Approve & Send Payout
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -122,7 +120,7 @@ export default function PayoutDetailPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
   const { getToken } = useAuth();
-  
+
   const [load, setLoad] = React.useState<Load | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [actionLoading, setActionLoading] = React.useState(false);
@@ -202,159 +200,151 @@ export default function PayoutDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ background: PAGE_BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <RefreshCw style={{ width: 40, height: 40, color: ORANGE, animation: "spin 1.5s linear infinite" }} />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <RefreshCw className="size-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!load) {
     return (
-      <div style={{ background: PAGE_BG, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
-        <AlertCircle style={{ width: 48, height: 48, color: "rgba(255,255,255,0.1)" }} />
-        <h2 style={{ fontFamily: DISPLAY, color: "#fff", margin: 0 }}>Load not found</h2>
-        <Link href="/billing/driver-payouts" style={{ color: ORANGE, textDecoration: "none", fontFamily: DISPLAY }}>Return to Payouts</Link>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background text-foreground">
+        <AlertCircle className="size-12 text-muted-foreground/30" />
+        <h2 className="text-xl font-bold">Load not found</h2>
+        <Link href="/billing/driver-payouts" className="flex min-h-11 items-center font-semibold text-primary hover:underline">
+          Return to Payouts
+        </Link>
       </div>
     );
   }
 
-  const driver = typeof load.assignedDriverId === 'object' ? load.assignedDriverId : null;
+  const driver = typeof load.assignedDriverId === "object" ? load.assignedDriverId : null;
+  const confirmedAt = load.proofOfDelivery?.confirmedAt;
 
   return (
-    <div className="dark" style={{ background: PAGE_BG, minHeight: "100vh", fontFamily: DISPLAY, color: "#fff" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
-        @keyframes spin { to{transform:rotate(360deg)} }
-        .dp-main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
-        .dp-load-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 900px) { .dp-main-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 600px) { .dp-load-overview { grid-template-columns: 1fr; } }
-      `}</style>
-
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div style={{ borderBottom: `1px solid ${BORDER}`, background: "rgba(15,15,20,0.5)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button onClick={() => router.back()} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", display: "flex", alignItems: "center", gap: 4 }}>
-              <ChevronLeft style={{ width: 20, height: 20 }} />
-              <span style={{ fontSize: 14 }}>Back</span>
+      <div className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="flex min-h-11 items-center gap-1 rounded-lg px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronLeft className="size-5" />
+              <span>Back</span>
             </button>
-            <div style={{ width: 1, height: 24, background: BORDER }} />
-            <div>
-              <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Review Payout</h1>
-              <p style={{ fontFamily: MONO, fontSize: 11, color: ORANGE, margin: 0, marginTop: 2 }}>{load.loadNumber}</p>
+            <div className="h-6 w-px bg-border" />
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold sm:text-xl">Review Payout</h1>
+              <p className="mt-0.5 truncate font-mono text-[11px] text-primary">{load.loadNumber}</p>
             </div>
           </div>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>Status</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: load.status === "Delivered" ? "#4ade80" : "#facc15" }} />
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{load.status}</span>
-              </div>
+
+          <div className="shrink-0 text-right">
+            <p className="text-xs text-muted-foreground">Status</p>
+            <div className="mt-0.5 flex items-center justify-end gap-1.5">
+              <span className={cn("size-1.5 rounded-full", load.status === "Delivered" ? "bg-emerald-500" : "bg-amber-500")} />
+              <span className="text-sm font-semibold">{load.status}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <main className="dp-main-grid">
-        
+      <main className="mx-auto grid max-w-[1200px] grid-cols-1 gap-8 px-4 py-8 sm:px-5 min-[900px]:grid-cols-[1fr_380px]">
         {/* Left Content: POD & Details */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          
+        <div className="flex min-w-0 flex-col gap-8">
           {/* Proof of Delivery Section */}
           <section>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                <FileCheck style={{ width: 20, height: 20, color: ORANGE }} />
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2.5 text-lg font-bold">
+                <FileCheck className="size-5 text-primary" />
                 Proof of Delivery
               </h2>
               {load.proofOfDelivery?.submittedAt && (
-                <span style={{ fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+                <span className="font-mono text-[11px] text-muted-foreground">
                   Submitted: {new Date(load.proofOfDelivery.submittedAt).toLocaleString()}
                 </span>
               )}
             </div>
 
             {load.proofOfDelivery?.imageUrl ? (
-              <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 20, overflow: "hidden", position: "relative" }}>
-                <div 
+              <div className={cn(cardClass, "relative overflow-hidden")}>
+                <button
+                  type="button"
                   onClick={() => setZoomImage(!zoomImage)}
-                  style={{ 
-                    cursor: "zoom-in",
-                    height: zoomImage ? "auto" : 500,
-                    maxHeight: zoomImage ? "none" : 600,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#000",
-                    transition: "all 0.3s ease"
-                  }}
+                  aria-label={zoomImage ? "Show smaller photo" : "Show full-size photo"}
+                  aria-pressed={zoomImage}
+                  className={cn(
+                    "relative flex w-full items-center justify-center bg-black transition-all duration-300",
+                    zoomImage ? "h-auto cursor-zoom-out" : "h-[500px] max-h-[600px] cursor-zoom-in",
+                  )}
                 >
-                  <img 
-                    src={load.proofOfDelivery.imageUrl} 
-                    alt="Proof of Delivery" 
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={load.proofOfDelivery.imageUrl}
+                    alt="Proof of Delivery"
+                    className="h-full w-full object-contain"
                   />
                   {!zoomImage && (
-                    <div style={{ position: "absolute", bottom: 20, right: 20, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, pointerEvents: "none" }}>
-                      <Eye style={{ width: 14, height: 14 }} />
-                      <span style={{ fontSize: 12 }}>Click to Expand</span>
-                    </div>
+                    <span className="pointer-events-none absolute bottom-5 right-5 flex items-center gap-2 rounded-xl bg-black/60 px-3 py-2 text-xs text-white backdrop-blur-sm">
+                      <Eye className="size-3.5" />
+                      Click to Expand
+                    </span>
                   )}
-                </div>
-                
+                </button>
+
                 {load.proofOfDelivery.note && (
-                  <div style={{ padding: 24, borderTop: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.02)" }}>
-                    <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: MONO }}>Driver Note</p>
-                    <p style={{ fontSize: 15, lineHeight: 1.6, margin: 0 }}>{load.proofOfDelivery.note}</p>
+                  <div className="border-t border-border bg-muted/30 p-6">
+                    <p className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Driver Note</p>
+                    <p className="text-[15px] leading-relaxed">{load.proofOfDelivery.note}</p>
                   </div>
                 )}
               </div>
             ) : (
-              <div style={{ height: 300, background: CARD_BG, border: `1px dashed ${BORDER}`, borderRadius: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                <Package style={{ width: 40, height: 40, color: "rgba(255,255,255,0.1)" }} />
-                <p style={{ color: "rgba(255,255,255,0.3)" }}>No proof of delivery uploaded yet</p>
+              <div className="flex h-[300px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card">
+                <Package className="size-10 text-muted-foreground/30" />
+                <p className="text-muted-foreground">No proof of delivery uploaded yet</p>
               </div>
             )}
           </section>
 
           {/* Load Overview */}
-          <section className="dp-load-overview">
-            <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px", color: "rgba(255,255,255,0.5)" }}>Origin</h3>
-              <div style={{ display: "flex", gap: 12 }}>
-                <MapPin style={{ width: 18, height: 18, color: ORANGE, flexShrink: 0 }} />
-                <div>
-                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{load.pickupLocation.city}, {load.pickupLocation.state}</p>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{load.pickupLocation.street}</p>
+          <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className={cn(cardClass, "p-5")}>
+              <h3 className="mb-4 text-sm font-bold text-muted-foreground">Origin</h3>
+              <div className="flex gap-3">
+                <MapPin className="size-[18px] shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold">{load.pickupLocation.city}, {load.pickupLocation.state}</p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">{load.pickupLocation.street}</p>
                 </div>
               </div>
             </div>
-            <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px", color: "rgba(255,255,255,0.5)" }}>Destination</h3>
-              <div style={{ display: "flex", gap: 12 }}>
-                <MapPin style={{ width: 18, height: 18, color: "#4ade80", flexShrink: 0 }} />
-                <div>
-                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{load.deliveryLocation.city}, {load.deliveryLocation.state}</p>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{load.deliveryLocation.street}</p>
+            <div className={cn(cardClass, "p-5")}>
+              <h3 className="mb-4 text-sm font-bold text-muted-foreground">Destination</h3>
+              <div className="flex gap-3">
+                <MapPin className="size-[18px] shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold">{load.deliveryLocation.city}, {load.deliveryLocation.state}</p>
+                  <p className="mt-1 text-[13px] text-muted-foreground">{load.deliveryLocation.street}</p>
                 </div>
               </div>
             </div>
           </section>
 
           {/* Vehicle List */}
-          <section style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 16px", color: "rgba(255,255,255,0.5)" }}>Vehicles ({load.vehicles.length})</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <section className={cn(cardClass, "p-5")}>
+            <h3 className="mb-4 text-sm font-bold text-muted-foreground">Vehicles ({load.vehicles.length})</h3>
+            <div className="flex flex-col gap-3">
               {load.vehicles.map((v, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Truck style={{ width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
-                    <span style={{ fontWeight: 600 }}>{v.year} {v.make} {v.model}</span>
+                <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3.5 py-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Truck className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-semibold">{v.year} {v.make} {v.model}</span>
                   </div>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{v.vin || "NO VIN"}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{v.vin || "NO VIN"}</span>
                 </div>
               ))}
             </div>
@@ -362,18 +352,17 @@ export default function PayoutDetailPage() {
         </div>
 
         {/* Right Content: Sidebar Actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          
+        <div className="flex min-w-0 flex-col gap-6">
           {/* Driver Card */}
-          <div style={{ background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 20 }}>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: MONO }}>Assigned Driver</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: ORANGE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700 }}>
+          <div className={cn(cardClass, "p-5")}>
+            <p className="mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">Assigned Driver</p>
+            <div className="flex items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
                 {driver?.name?.[0] || "?"}
               </div>
-              <div>
-                <p style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{driver?.name || "Unassigned"}</p>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{driver?.email || "No email"}</p>
+              <div className="min-w-0">
+                <p className="truncate text-base font-bold">{driver?.name || "Unassigned"}</p>
+                <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{driver?.email || "No email"}</p>
               </div>
             </div>
           </div>
@@ -382,33 +371,31 @@ export default function PayoutDetailPage() {
           {/* Delivery confirmation is separate from payout: the driver
               completes delivery, then Dispatch confirms the proof here. */}
           {load.proofOfDelivery?.imageUrl && (
-            <div style={{ background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 16, padding: 20 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                <CheckCircle2 style={{ width: 16, height: 16, color: "#4ade80" }} />
-                {load.proofOfDelivery.confirmedAt ? "Delivery Confirmed" : "Verify Proof"}
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5">
+              <h4 className="mb-3 flex items-center gap-2 text-[15px] font-bold">
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                {confirmedAt ? "Delivery Confirmed" : "Verify Proof"}
               </h4>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 20, lineHeight: 1.5 }}>
-                {load.proofOfDelivery.confirmedAt
-                  ? `Confirmed on ${new Date(load.proofOfDelivery.confirmedAt).toLocaleString()}.`
+              <p className="mb-5 text-[13px] leading-relaxed text-muted-foreground">
+                {confirmedAt
+                  ? `Confirmed on ${new Date(confirmedAt).toLocaleString()}.`
                   : "Confirm that the proof of delivery is valid and the vehicle has been received by the customer."}
               </p>
               {/* Once confirmed, the button turns grey and can't be pressed
                   again, so Dispatch can see at a glance it's done. */}
-              <button 
+              <Button
+                type="button"
                 onClick={handleConfirmDelivery}
-                disabled={actionLoading || Boolean(load.proofOfDelivery.confirmedAt)}
-                aria-disabled={actionLoading || Boolean(load.proofOfDelivery.confirmedAt)}
-                style={{
-                  width: "100%", padding: "12px 0", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  ...(load.proofOfDelivery.confirmedAt
-                    ? { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", cursor: "not-allowed" }
-                    : { background: "#4ade80", color: "#000", cursor: actionLoading ? "wait" : "pointer" }),
-                }}
+                disabled={actionLoading || Boolean(confirmedAt)}
+                aria-disabled={actionLoading || Boolean(confirmedAt)}
+                className={cn(
+                  "h-11 w-full gap-2 rounded-xl text-sm font-bold",
+                  confirmedAt && "bg-muted text-muted-foreground disabled:opacity-100",
+                )}
               >
-                {actionLoading ? <Loader2 style={{ width: 16, height: 16, animation: "spin 1s linear infinite" }} /> : <CheckCircle2 style={{ width: 16, height: 16 }} />}
-                {load.proofOfDelivery.confirmedAt ? "Delivery Confirmed" : "Confirm Delivery"}
-              </button>
+                {actionLoading ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                {confirmedAt ? "Delivery Confirmed" : "Confirm Delivery"}
+              </Button>
             </div>
           )}
 
@@ -416,16 +403,12 @@ export default function PayoutDetailPage() {
           <PayoutActionCard load={load} />
 
           {/* Quick Links */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Link 
-              href={`/transportation/load/${load._id}`}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 10, color: "rgba(255,255,255,0.6)", textDecoration: "none", fontSize: 13, fontWeight: 600 }}
-            >
-              <Info style={{ width: 14, height: 14 }} />
+          <Button asChild variant="outline" className="h-11 w-full gap-2 rounded-xl text-[13px] font-semibold">
+            <Link href={`/transportation/load/${load._id}`}>
+              <Info className="size-3.5" />
               View Original Load
             </Link>
-          </div>
-
+          </Button>
         </div>
       </main>
     </div>

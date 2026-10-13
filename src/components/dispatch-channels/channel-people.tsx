@@ -133,7 +133,7 @@ export function ChannelPeoplePicker({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs"
+                className="max-md:min-h-11 h-7 text-xs"
                 disabled={disabled || pickingId !== null}
                 onClick={() => void pick(person)}
               >

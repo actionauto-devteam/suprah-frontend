@@ -167,6 +167,7 @@ export function DriverPickupProofDialog({
                 variant="destructive"
                 size="icon"
                 className="absolute top-2 right-2"
+                aria-label="Remove photo"
                 onClick={() => {
                   setFile(null);
                   setPreview((previous) => {

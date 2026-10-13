@@ -172,7 +172,7 @@ export function ChannelPeopleManager({
   const manageMenu = (member: ChannelMember) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="icon" variant="ghost" className="size-7" aria-label={`Manage ${member.name}`} disabled={busy}>
+        <Button type="button" size="icon" variant="ghost" className="max-md:size-11 size-7" aria-label={`Manage ${member.name}`} disabled={busy}>
           <MoreHorizontal className="size-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -243,7 +243,7 @@ export function ChannelPeopleManager({
               type="button"
               size="icon"
               variant="outline"
-              className="size-7"
+              className="max-md:size-11 size-7"
               aria-label={`Approve ${item.person.name}`}
               disabled={busy}
               onClick={() => void run(() => dispatchChannelsApi.decideSuggestion(getToken, channel.id, item.id, true), `${item.person.name} was added`)}
@@ -254,7 +254,7 @@ export function ChannelPeopleManager({
               type="button"
               size="icon"
               variant="outline"
-              className="size-7"
+              className="max-md:size-11 size-7"
               aria-label={`Decline ${item.person.name}`}
               disabled={busy}
               onClick={() => void run(() => dispatchChannelsApi.decideSuggestion(getToken, channel.id, item.id, false), "Suggestion declined")}

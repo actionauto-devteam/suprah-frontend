@@ -988,11 +988,11 @@ export default function LoadDetailsPage() {
                 </p>
               </div>
 
-              <Link href={`/billing/driver-payouts/${load._id}`}>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+              <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+                <Link href={`/billing/driver-payouts/${load._id}`}>
                   <DollarSign className="size-4" /> Review & Approve Payout
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -1141,7 +1141,7 @@ export default function LoadDetailsPage() {
                     type="button"
                     onClick={() => setMobileBolPreviewOpen(false)}
                     aria-label="Close BOL preview"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="max-md:size-11 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <X className="size-4" />
                   </button>

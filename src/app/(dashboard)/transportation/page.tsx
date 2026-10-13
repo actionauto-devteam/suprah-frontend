@@ -136,6 +136,8 @@ function PaginationBar({
       <div className="flex items-center justify-center gap-1">
         <button
           onClick={() => goToPage(page - 1)}
+          type="button"
+          aria-label="Previous page"
           disabled={page <= 1}
           className="h-7 w-7 flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -164,6 +166,8 @@ function PaginationBar({
         )}
         <button
           onClick={() => goToPage(page + 1)}
+          type="button"
+          aria-label="Next page"
           disabled={page >= totalPages}
           className="h-7 w-7 flex items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -619,8 +623,9 @@ function TransportationPageInner() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900"
+            className="max-md:size-11 h-6 w-6 p-0 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900"
             onClick={dismissNewEntries}
+            aria-label="Dismiss notice"
           >
             <X className="w-3.5 h-3.5" />
           </Button>
@@ -879,7 +884,7 @@ function TransportationPageInner() {
                     {boardError}
                   </p>
                   <Button
-                    className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
+                    className="max-md:min-h-11 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
                     onClick={fetchBoardLoads}
                   >
                     Retry
@@ -940,7 +945,7 @@ function TransportationPageInner() {
                     {searchQuery || selectedStatus !== "all" ? (
                       <Button
                         variant="outline"
-                        className="text-xs sm:text-sm h-8 sm:h-9"
+                        className="max-md:min-h-11 text-xs sm:text-sm h-8 sm:h-9"
                         onClick={() => {
                           setSearchQuery("");
                           setSelectedStatus("all");
@@ -950,7 +955,7 @@ function TransportationPageInner() {
                       </Button>
                     ) : (
                       <Button
-                        className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
+                        className="max-md:min-h-11 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
                         onClick={() => router.push("/transportation/create-load")}
                       >
                         Create Load
@@ -958,7 +963,7 @@ function TransportationPageInner() {
                     )}
                     <Button
                       variant="outline"
-                      className="text-xs sm:text-sm h-8 sm:h-9"
+                      className="max-md:min-h-11 text-xs sm:text-sm h-8 sm:h-9"
                       onClick={fetchBoardLoads}
                     >
                       Refresh

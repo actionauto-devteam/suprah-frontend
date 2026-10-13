@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { useAuth } from "@/providers/AuthProvider";
-import { useTheme } from "@/context/ThemeContext";
 import { apiClient } from "@/lib/api-client";
 import { DriverPayout, DeliverableLoad, DriverPayoutStats } from "@/types/driver-payout";
 import { formatCurrency } from "@/utils/format";
@@ -11,15 +10,14 @@ import {
   ChevronLeft,
   RefreshCw,
   Truck,
-  CheckCircle2,
   DollarSign,
   X,
-  Loader2,
   Package,
   FileCheck,
   Eye,
 } from "lucide-react";
-import { userErrorMessage } from "@/lib/user-error";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function ProofLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   const [zoom, setZoom] = React.useState(1);
@@ -85,20 +83,11 @@ function ProofLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "rgba(0,0,0,0.92)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90"
       onClick={onClose}
     >
       <div
-        style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 8, zIndex: 10000 }}
+        className="absolute right-3 top-3 z-[10000] flex gap-2"
         onClick={(e) => e.stopPropagation()}
       >
         {[
@@ -109,23 +98,11 @@ function ProofLightbox({ src, onClose }: { src: string; onClose: () => void }) {
         ].map(({ label, action, title }) => (
           <button
             key={title}
+            type="button"
             onClick={action}
             title={title}
-            style={{
-              minWidth: 44,
-              height: 44,
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#fff",
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: 15,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              WebkitTapHighlightColor: "transparent",
-            }}
+            aria-label={title}
+            className="flex h-11 min-w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-2 font-mono text-[15px] text-white transition-colors hover:bg-white/20"
           >
             {label}
           </button>
@@ -134,159 +111,56 @@ function ProofLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 
       <div
         ref={containerRef}
-        style={{
-          overflow: "hidden",
-          width: "100vw",
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          touchAction: "none",
-        }}
+        className="flex h-screen w-screen touch-none items-center justify-center overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt="Proof of delivery"
           draggable={false}
-          style={{
-            transform: `scale(${zoom})`,
-            transformOrigin: "center center",
-            transition: "transform 0.1s ease",
-            maxWidth: "90vw",
-            maxHeight: "85vh",
-            objectFit: "contain",
-            display: "block",
-            userSelect: "none",
-            WebkitUserSelect: "none",
-          }}
+          className="block max-h-[85vh] max-w-[90vw] select-none object-contain transition-transform duration-100"
+          style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
         />
       </div>
 
-      <p
-        style={{
-          position: "absolute",
-          bottom: 16,
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          color: "rgba(255,255,255,0.3)",
-          fontFamily: "'Share Tech Mono', monospace",
-          fontSize: 11,
-          padding: "0 16px",
-        }}
-      >
+      <p className="absolute inset-x-0 bottom-4 px-4 text-center font-mono text-[11px] text-white/40">
         {isTouchDevice ? "Tap outside to close · Pinch to zoom" : "Click outside or press Esc · Scroll to zoom"}
       </p>
     </div>
   );
 }
 
-const ORANGE = "#E55A00";
-const DISPLAY = "'Rajdhani', var(--font-sans), sans-serif";
-const MONO = "'Share Tech Mono', 'Roboto Mono', monospace";
-
-type SupraPalette = {
-  pageBg: string;
-  cardBg: string;
-  tabBg: string;
-  modalBg: string;
-  inputBg: string;
-  border: string;
-  surface: string;
-  text: string;
-  textSoft: string;
-  textMuted: string;
-  textDim: string;
-  textFaint: string;
-  textGhost: string;
-  iconMuted: string;
-  buttonGhost: string;
-  activeTabBadgeBg: string;
-};
-
-const DARK_PALETTE: SupraPalette = {
-  pageBg: "#07070a",
-  cardBg: "#0f0f14",
-  tabBg: "#0d0d11",
-  modalBg: "#0f0f14",
-  inputBg: "#0a0a0d",
-  border: "rgba(255,255,255,0.07)",
-  surface: "rgba(255,255,255,0.04)",
-  text: "#ffffff",
-  textSoft: "rgba(255,255,255,0.85)",
-  textMuted: "rgba(255,255,255,0.6)",
-  textDim: "rgba(255,255,255,0.45)",
-  textFaint: "rgba(255,255,255,0.35)",
-  textGhost: "rgba(255,255,255,0.25)",
-  iconMuted: "rgba(255,255,255,0.1)",
-  buttonGhost: "rgba(255,255,255,0.4)",
-  activeTabBadgeBg: "rgba(0,0,0,0.2)",
-};
-
-const LIGHT_PALETTE: SupraPalette = {
-  pageBg: "#f4f6fb",
-  cardBg: "#ffffff",
-  tabBg: "#eef2f7",
-  modalBg: "#ffffff",
-  inputBg: "#ffffff",
-  border: "rgba(15,23,42,0.12)",
-  surface: "rgba(15,23,42,0.04)",
-  text: "#0f172a",
-  textSoft: "rgba(15,23,42,0.86)",
-  textMuted: "rgba(15,23,42,0.68)",
-  textDim: "rgba(15,23,42,0.58)",
-  textFaint: "rgba(15,23,42,0.5)",
-  textGhost: "rgba(15,23,42,0.36)",
-  iconMuted: "rgba(15,23,42,0.16)",
-  buttonGhost: "rgba(15,23,42,0.58)",
-  activeTabBadgeBg: "rgba(255,255,255,0.72)",
+const PAYOUT_STATUS_CLASSES: Record<string, { badge: string; dot: string }> = {
+  pending: { badge: "bg-amber-500/10 text-amber-700 dark:text-amber-400", dot: "bg-amber-500" },
+  processing: { badge: "bg-amber-500/10 text-amber-700 dark:text-amber-400", dot: "bg-amber-500" },
+  paid: { badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" },
+  confirmed: { badge: "bg-blue-500/10 text-blue-700 dark:text-blue-400", dot: "bg-blue-500" },
+  failed: { badge: "bg-red-500/10 text-red-700 dark:text-red-400", dot: "bg-red-500" },
+  cancelled: { badge: "bg-slate-500/10 text-slate-600 dark:text-slate-400", dot: "bg-slate-400" },
 };
 
 function PayoutStatusBadge({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    pending: { bg: "rgba(250,204,21,0.12)", text: "#facc15" },
-    processing: { bg: "rgba(250,204,21,0.12)", text: "#facc15" },
-    paid: { bg: "rgba(74,222,128,0.12)", text: "#4ade80" },
-    confirmed: { bg: "rgba(96,165,250,0.12)", text: "#60a5fa" },
-    failed: { bg: "rgba(239,68,68,0.12)", text: "#ef4444" },
-    cancelled: { bg: "rgba(148,163,184,0.12)", text: "#94a3b8" },
-  };
-  const c = colors[status] || colors.pending;
+  const c = PAYOUT_STATUS_CLASSES[status] || PAYOUT_STATUS_CLASSES.pending;
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
-        background: c.bg,
-        color: c.text,
-        borderRadius: 6,
-        padding: "3px 9px",
-        fontFamily: MONO,
-        fontSize: 10,
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-      }}
-    >
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: c.text }} />
+    <span className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider", c.badge)}>
+      <span className={cn("size-1.5 rounded-full", c.dot)} />
       {status}
     </span>
   );
 }
 
+const fieldClass =
+  "mt-1.5 block w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30";
+
 function PayoutModal({
   target,
   onClose,
-  onCreated,
-  getToken,
-  palette,
 }: {
   target: DeliverableLoad;
   onClose: () => void;
   onCreated: () => void;
   getToken: () => Promise<string | null>;
-  palette: SupraPalette;
 }) {
   const [amount, setAmount] = React.useState(0);
   const [notes, setNotes] = React.useState("");
@@ -301,50 +175,33 @@ function PayoutModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.62)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          background: palette.modalBg,
-          border: `1px solid ${palette.border}`,
-          borderRadius: 18,
-          padding: "26px 26px",
-          width: "100%",
-          maxWidth: 420,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-5">
+      <div className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <h3 style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: palette.text, margin: 0 }}>Send Driver Payout</h3>
-            <p style={{ fontFamily: MONO, fontSize: 10, color: palette.textFaint, margin: 0, marginTop: 3 }}>{target.trackingNumber}</p>
+            <h3 className="text-lg font-bold text-foreground">Send Driver Payout</h3>
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{target.trackingNumber}</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: palette.buttonGhost }}>
-            <X style={{ width: 16, height: 16 }} />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex size-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="size-4" />
           </button>
         </div>
 
-        <div style={{ background: palette.surface, borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
-          <p style={{ fontFamily: DISPLAY, fontSize: 13, color: palette.textMuted, margin: 0 }}>Driver</p>
-          <p style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, color: palette.text, margin: 0, marginTop: 2 }}>
+        <div className="mb-4 rounded-xl bg-muted/50 px-3.5 py-3">
+          <p className="text-[13px] text-muted-foreground">Driver</p>
+          <p className="mt-0.5 text-[15px] font-bold text-foreground">
             {target.assignedDriverId?.name || "Unknown Driver"}
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label style={{ fontFamily: DISPLAY, fontSize: 12, color: palette.textDim }}>
-              Payout Amount (USD) <span style={{ color: ORANGE }}>*</span>
-            </label>
+        <div className="flex flex-col gap-3.5">
+          <label className="text-xs text-muted-foreground">
+            Payout Amount (USD) <span className="text-primary">*</span>
             <input
               type="number"
               value={amount || ""}
@@ -352,90 +209,31 @@ function PayoutModal({
               placeholder="0.00"
               min="0"
               step="0.01"
-              style={{
-                display: "block",
-                width: "100%",
-                boxSizing: "border-box",
-                marginTop: 6,
-                background: palette.inputBg,
-                border: `1px solid ${palette.border}`,
-                borderRadius: 9,
-                padding: "11px 14px",
-                color: palette.text,
-                fontFamily: MONO,
-                fontSize: 16,
-                outline: "none",
-              }}
+              className={cn(fieldClass, "font-mono text-base")}
             />
-          </div>
+          </label>
 
-          <div>
-            <label style={{ fontFamily: DISPLAY, fontSize: 12, color: palette.textDim }}>Notes (optional)</label>
+          <label className="text-xs text-muted-foreground">
+            Notes (optional)
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="Delivery bonus, route details..."
-              style={{
-                display: "block",
-                width: "100%",
-                boxSizing: "border-box",
-                marginTop: 6,
-                background: palette.inputBg,
-                border: `1px solid ${palette.border}`,
-                borderRadius: 9,
-                padding: "10px 14px",
-                color: palette.text,
-                fontFamily: DISPLAY,
-                fontSize: 13,
-                outline: "none",
-                resize: "vertical",
-              }}
+              className={cn(fieldClass, "resize-y text-[13px]")}
             />
-          </div>
+          </label>
 
-          {notice && <p role="status" style={{ fontFamily: DISPLAY, fontSize: 13, color: "#facc15" }}>{notice}</p>}
+          {notice && <p role="status" className="text-[13px] text-amber-700 dark:text-amber-400">{notice}</p>}
 
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: "11px 0",
-                background: "transparent",
-                border: `1px solid ${palette.border}`,
-                borderRadius: 10,
-                color: palette.textDim,
-                fontFamily: DISPLAY,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
+          <div className="flex gap-2.5">
+            <Button type="button" variant="outline" className="h-11 flex-1 rounded-xl" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              style={{
-                flex: 2,
-                padding: "11px 0",
-                background: ORANGE,
-                border: "none",
-                borderRadius: 10,
-                color: "#fff",
-                fontFamily: DISPLAY,
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-              }}
-            >
-              <DollarSign style={{ width: 14, height: 14 }} />
+            </Button>
+            <Button type="button" className="h-11 flex-[2] gap-2 rounded-xl font-bold" onClick={handleSubmit}>
+              <DollarSign className="size-3.5" />
               Send Payout
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -445,20 +243,14 @@ function PayoutModal({
 
 export default function DriverPayoutsPage() {
   const { getToken } = useAuth();
-  const { theme } = useTheme();
   const [deliverableLoads, setDeliverableLoads] = React.useState<DeliverableLoad[]>([]);
   const [pendingProofs, setPendingProofs] = React.useState<any[]>([]);
   const [payouts, setPayouts] = React.useState<DriverPayout[]>([]);
   const [payoutStats, setPayoutStats] = React.useState<DriverPayoutStats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [payoutTarget, setPayoutTarget] = React.useState<DeliverableLoad | null>(null);
-  const [confirmingId, setConfirmingId] = React.useState<string | null>(null);
-  const [proofBlobUrls, setProofBlobUrls] = React.useState<Record<string, string>>({});
-  const [loadingProofId, setLoadingProofId] = React.useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState<"pending-proofs" | "deliverable" | "history">("pending-proofs");
-
-  const palette = theme === "light" ? LIGHT_PALETTE : DARK_PALETTE;
 
   const authHeaders = React.useCallback(async () => {
     const token = await getToken();
@@ -490,94 +282,46 @@ export default function DriverPayoutsPage() {
     fetchData();
   }, [fetchData]);
 
-  const confirmDelivery = async (id: string) => {
-    setConfirmingId(id);
-    try {
-      const endpoint = `/api/loads/${id}/confirm-delivery`;
-      await apiClient.post(endpoint, {}, { headers: await authHeaders() });
-      fetchData();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setConfirmingId(null);
-    }
-  };
+  const loader = (
+    <div className="py-12 text-center">
+      <RefreshCw className="mx-auto size-5 animate-spin text-muted-foreground" />
+    </div>
+  );
 
-  const openProofImage = async (item: any) => {
-    const id = item._id;
-    if (proofBlobUrls[id]) { setLightboxSrc(proofBlobUrls[id]); return; }
-    setLoadingProofId(id);
-    try {
-      const token = await getToken();
-      const endpoint = `/api/loads/${id}/proof-image`;
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${API_BASE}${endpoint}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      setProofBlobUrls((prev) => ({ ...prev, [id]: blobUrl }));
-      setLightboxSrc(blobUrl);
-    } catch {
-      // non-fatal
-    } finally {
-      setLoadingProofId(null);
-    }
-  };
+  const loadIdLabel = (
+    <p className="font-mono text-[10px] tracking-wider text-muted-foreground">LOAD #</p>
+  );
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
-        @keyframes spin { to{transform:rotate(360deg)} }
-      `}</style>
-
-      <div style={{ background: palette.pageBg, minHeight: "100%", fontFamily: DISPLAY }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+      <div className="min-h-full bg-background text-foreground">
+        <div className="mx-auto max-w-[1100px] px-4 pb-16 pt-7 sm:px-5">
+          <div className="mb-7 flex flex-wrap items-center gap-3.5">
             <Link
               href="/billing"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                color: palette.textFaint,
-                textDecoration: "none",
-                fontFamily: DISPLAY,
-                fontSize: 13,
-              }}
+              className="flex min-h-11 items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
             >
-              <ChevronLeft style={{ width: 15, height: 15 }} /> Dashboard
+              <ChevronLeft className="size-4" /> Dashboard
             </Link>
-            <span style={{ color: palette.textGhost }}>›</span>
-            <h1 style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, color: palette.text, margin: 0 }}>Driver Payouts</h1>
+            <span className="text-muted-foreground/50">›</span>
+            <h1 className="text-[22px] font-bold text-foreground">Driver Payouts</h1>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8, marginBottom: 24 }}>
+          <div className="mb-6 grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2">
             {[
-              { label: "Total Paid Out", val: formatCurrency(payoutStats?.totalPaid ?? 0), color: "#4ade80" },
-              { label: "Pending Payouts", val: formatCurrency(payoutStats?.totalPending ?? 0), color: "#facc15" },
-              { label: "Deliverable Loads", val: String(deliverableLoads.length), color: ORANGE },
-              { label: "All Payouts", val: String(payouts.length), color: "#60a5fa" },
+              { label: "Total Paid Out", val: formatCurrency(payoutStats?.totalPaid ?? 0), color: "text-emerald-600 dark:text-emerald-400" },
+              { label: "Pending Payouts", val: formatCurrency(payoutStats?.totalPending ?? 0), color: "text-amber-600 dark:text-amber-400" },
+              { label: "Deliverable Loads", val: String(deliverableLoads.length), color: "text-primary" },
+              { label: "All Payouts", val: String(payouts.length), color: "text-blue-600 dark:text-blue-400" },
             ].map(({ label, val, color }) => (
-              <div key={label} style={{ background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 12, padding: "14px 16px" }}>
-                <p
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 10,
-                    color: palette.textFaint,
-                    margin: 0,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  {label}
-                </p>
-                <p style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, color, margin: 0, marginTop: 6 }}>{val}</p>
+              <div key={label} className="rounded-xl border border-border bg-card px-4 py-3.5">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                <p className={cn("mt-1.5 text-[22px] font-bold", color)}>{val}</p>
               </div>
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginBottom: 18, background: palette.tabBg, border: `1px solid ${palette.border}`, borderRadius: 10, padding: 4, width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}>
+          <div className="mb-4 flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1">
             {([
               ["pending-proofs", "Pending Proofs", FileCheck, pendingProofs.length],
               ["deliverable", "Ready to Pay", Truck, deliverableLoads.length],
@@ -585,30 +329,23 @@ export default function DriverPayoutsPage() {
             ] as ["pending-proofs" | "deliverable" | "history", string, any, number][]).map(([key, label, Icon, count]) => (
               <button
                 key={key}
+                type="button"
                 onClick={() => setTab(key)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "10px 14px",
-                  borderRadius: 7,
-                  border: "none",
-                  background: tab === key ? ORANGE : "transparent",
-                  color: tab === key ? "#fff" : palette.textFaint,
-                  fontFamily: DISPLAY,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  minHeight: 44,
-                  WebkitTapHighlightColor: "transparent",
-                }}
+                aria-pressed={tab === key}
+                className={cn(
+                  "flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[13px] font-semibold transition-colors",
+                  tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
               >
-                <Icon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                <Icon className="size-3.5 shrink-0" />
                 <span>{label}</span>
                 {count > 0 && (
-                  <span style={{ background: tab === key ? palette.activeTabBadgeBg : `${ORANGE}22`, color: tab === key ? "#fff" : ORANGE, borderRadius: 8, padding: "1px 7px", fontFamily: MONO, fontSize: 10 }}>
+                  <span
+                    className={cn(
+                      "rounded-lg px-1.5 py-px font-mono text-[10px]",
+                      tab === key ? "bg-black/15 text-primary-foreground" : "bg-primary/15 text-primary",
+                    )}
+                  >
                     {count}
                   </span>
                 )}
@@ -616,80 +353,59 @@ export default function DriverPayoutsPage() {
             ))}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-            <button
-              onClick={fetchData}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 14px",
-                background: "transparent",
-                border: `1px solid ${palette.border}`,
-                borderRadius: 8,
-                color: palette.buttonGhost,
-                fontFamily: DISPLAY,
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              <RefreshCw style={{ width: 13, height: 13 }} /> Refresh
-            </button>
+          <div className="mb-3.5 flex justify-end">
+            <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5 rounded-xl text-xs" onClick={fetchData}>
+              <RefreshCw className="size-3.5" /> Refresh
+            </Button>
           </div>
 
           {tab === "pending-proofs" &&
             (loading ? (
-              <div style={{ padding: "50px 0", textAlign: "center" }}>
-                <RefreshCw style={{ width: 22, height: 22, color: palette.textGhost, animation: "spin 1s linear infinite" }} />
-              </div>
+              loader
             ) : pendingProofs.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14 }}>
-                <FileCheck style={{ width: 36, height: 36, color: palette.iconMuted, display: "block", margin: "0 auto 14px" }} />
-                <p style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, color: palette.textMuted }}>No pending proofs</p>
-                <p style={{ fontFamily: DISPLAY, fontSize: 13, color: palette.textGhost }}>Drivers will submit proofs of delivery directly to you here.</p>
+              <div className="rounded-2xl border border-border bg-card px-5 py-14 text-center">
+                <FileCheck className="mx-auto mb-3.5 size-9 text-muted-foreground/30" />
+                <p className="text-base font-semibold text-foreground">No pending proofs</p>
+                <p className="text-[13px] text-muted-foreground">Drivers will submit proofs of delivery directly to you here.</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))", gap: 12 }}>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3">
                 {pendingProofs.map((item: any) => (
-                  <div key={item._id} style={{ background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14, padding: "18px", display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <div key={item._id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-[18px]">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <p style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.3)", margin: 0, letterSpacing: "0.05em" }}>LOAD #</p>
-                        <p style={{ fontFamily: MONO, fontSize: 13, color: "#fff", margin: 0, marginTop: 3 }}>{item.loadNumber || item.trackingNumber}</p>
+                        {loadIdLabel}
+                        <p className="mt-0.5 font-mono text-[13px] text-foreground">{item.loadNumber || item.trackingNumber}</p>
                       </div>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(96,165,250,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <FileCheck style={{ width: 15, height: 15, color: "#60a5fa" }} />
+                      <div className="flex size-[34px] items-center justify-center rounded-lg bg-blue-500/10">
+                        <FileCheck className="size-4 text-blue-600 dark:text-blue-400" />
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: palette.textFaint, margin: 0 }}>Driver</p>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 13, fontWeight: 700, color: palette.text, margin: 0, marginTop: 2 }}>{item.assignedDriverId?.name || "-"}</p>
+                        <p className="text-[11px] text-muted-foreground">Driver</p>
+                        <p className="mt-0.5 text-[13px] font-bold text-foreground">{item.assignedDriverId?.name || "-"}</p>
                       </div>
                       <div>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 11, color: palette.textFaint, margin: 0 }}>Submitted</p>
-                        <p style={{ fontFamily: DISPLAY, fontSize: 13, color: palette.textMuted, margin: 0, marginTop: 2 }}>
+                        <p className="text-[11px] text-muted-foreground">Submitted</p>
+                        <p className="mt-0.5 text-[13px] text-foreground/80">
                           {item.proofOfDelivery?.submittedAt ? new Date(item.proofOfDelivery.submittedAt).toLocaleDateString() : "-"}
                         </p>
                       </div>
                     </div>
 
                     {item.proofOfDelivery?.note && (
-                      <p style={{ fontFamily: DISPLAY, fontSize: 12, color: palette.textDim, margin: 0, background: palette.surface, borderRadius: 8, padding: "8px 10px" }}>
+                      <p className="rounded-lg bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
                         {item.proofOfDelivery.note}
                       </p>
                     )}
-                    <Link 
-                      href={`/billing/driver-payouts/${item._id}`}
-                      style={{ flex: 1, textDecoration: "none" }}
-                    >
-                      <button
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 8px", background: ORANGE, border: "none", borderRadius: 9, color: "#fff", fontFamily: DISPLAY, fontSize: 12, fontWeight: 700, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
-                        <Eye style={{ width: 13, height: 13 }} />
+                    <Button asChild className="min-h-11 w-full gap-1.5 rounded-xl text-xs font-bold">
+                      <Link href={`/billing/driver-payouts/${item._id}`}>
+                        <Eye className="size-3.5" />
                         Review Proof & Payout
-                      </button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -697,75 +413,68 @@ export default function DriverPayoutsPage() {
 
           {tab === "deliverable" &&
             (loading ? (
-              <div style={{ padding: "50px 0", textAlign: "center" }}>
-                <RefreshCw style={{ width: 22, height: 22, color: palette.textGhost, animation: "spin 1s linear infinite" }} />
-              </div>
+              loader
             ) : deliverableLoads.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px", background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14 }}>
-                <Package style={{ width: 36, height: 36, color: "rgba(255,255,255,0.1)", display: "block", margin: "0 auto 14px" }} />
-                <p style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>No deliverable loads</p>
-                <p style={{ fontFamily: DISPLAY, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Delivered loads appear here once you confirm their proof of delivery (Pending Proofs).</p>
+              <div className="rounded-2xl border border-border bg-card px-5 py-14 text-center">
+                <Package className="mx-auto mb-3.5 size-9 text-muted-foreground/30" />
+                <p className="text-base font-semibold text-foreground">No deliverable loads</p>
+                <p className="text-[13px] text-muted-foreground">Delivered loads appear here once you confirm their proof of delivery (Pending Proofs).</p>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
-                {deliverableLoads.map(s => (
-                  <div key={s._id} style={{ background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14, padding: "18px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-3">
+                {deliverableLoads.map((s) => (
+                  <div key={s._id} className="flex flex-col gap-3.5 rounded-2xl border border-border bg-card p-[18px]">
+                    <div className="flex items-start justify-between">
                       <div>
-                        <p style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.3)", margin: 0, letterSpacing: "0.05em" }}>LOAD #</p>
-                        <p style={{ fontFamily: MONO, fontSize: 13, color: "#fff", margin: 0, marginTop: 3 }}>{s.loadNumber || s.trackingNumber}</p>
+                        {loadIdLabel}
+                        <p className="mt-0.5 font-mono text-[13px] text-foreground">{s.loadNumber || s.trackingNumber}</p>
                       </div>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: `${ORANGE}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Truck style={{ width: 15, height: 15, color: ORANGE }} />
+                      <div className="flex size-[34px] items-center justify-center rounded-lg bg-primary/10">
+                        <Truck className="size-4 text-primary" />
                       </div>
                     </div>
 
                     <div>
-                      <p style={{ fontFamily: DISPLAY, fontSize: 12, color: palette.textFaint, margin: 0 }}>Driver</p>
-                      <p style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 700, color: palette.text, margin: 0, marginTop: 2 }}>{s.assignedDriverId?.name || "-"}</p>
+                      <p className="text-xs text-muted-foreground">Driver</p>
+                      <p className="mt-0.5 text-[15px] font-bold text-foreground">{s.assignedDriverId?.name || "-"}</p>
                     </div>
-                    <Link 
-                      href={`/billing/driver-payouts/${s._id}`}
-                      style={{ flex: 1, textDecoration: "none" }}
-                    >
-                      <button
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", background: ORANGE, border: "none", borderRadius: 9, color: "#fff", fontFamily: DISPLAY, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                        <DollarSign style={{ width: 12, height: 12 }} />
+                    <Button asChild className="min-h-11 w-full gap-1.5 rounded-xl text-xs font-bold">
+                      <Link href={`/billing/driver-payouts/${s._id}`}>
+                        <DollarSign className="size-3.5" />
                         Process Payout
-                      </button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 ))}
               </div>
             ))}
 
           {tab === "history" && (
-            <div style={{ background: palette.cardBg, border: `1px solid ${palette.border}`, borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ overflowX: "auto" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", minWidth: 480, gap: 12, padding: "11px 16px", borderBottom: `1px solid ${palette.border}` }}>
-                {["Driver", "Load", "Amount", "Status"].map(h => (
-                  <span key={h} style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</span>
-                ))}
-              </div>
-
-              {loading ? (
-                <div style={{ padding: "40px 0", textAlign: "center" }}>
-                  <RefreshCw style={{ width: 20, height: 20, color: palette.textGhost, animation: "spin 1s linear infinite" }} />
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="overflow-x-auto">
+                <div className="grid min-w-[480px] grid-cols-[1fr_1fr_auto_auto] gap-3 border-b border-border px-4 py-3">
+                  {["Driver", "Load", "Amount", "Status"].map((h) => (
+                    <span key={h} className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{h}</span>
+                  ))}
                 </div>
-              ) : payouts.length === 0 ? (
-                <p style={{ fontFamily: DISPLAY, fontSize: 14, color: palette.textFaint, textAlign: "center", padding: "40px 0" }}>No payouts yet</p>
-              ) : (
-                payouts.map((p) => (
-                  <div key={p._id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", minWidth: 480, gap: 12, alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${palette.border}` }}>
-                    <div>
-                      <p style={{ fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, color: palette.textSoft, margin: 0 }}>{(p.driverId as any)?.name || "-"}</p>
-                      <p style={{ fontFamily: MONO, fontSize: 11, color: palette.textFaint, margin: 0 }}>{new Date(p.createdAt || "").toLocaleDateString()}</p>
+
+                {loading ? (
+                  loader
+                ) : payouts.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">No payouts yet</p>
+                ) : (
+                  payouts.map((p) => (
+                    <div key={p._id} className="grid min-w-[480px] grid-cols-[1fr_1fr_auto_auto] items-center gap-3 border-b border-border px-4 py-3.5 last:border-b-0">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{(p.driverId as any)?.name || "-"}</p>
+                        <p className="font-mono text-[11px] text-muted-foreground">{new Date(p.createdAt || "").toLocaleDateString()}</p>
+                      </div>
+                      <p className="font-mono text-xs text-muted-foreground">{(p.loadId as any)?.loadNumber || (p.loadId as any)?.trackingNumber || "-"}</p>
+                      <p className="font-mono text-sm font-bold text-foreground">{formatCurrency(p.amount)}</p>
+                      <PayoutStatusBadge status={p.status} />
                     </div>
-                    <p style={{ fontFamily: MONO, fontSize: 12, color: palette.textDim, margin: 0 }}>{(p.loadId as any)?.loadNumber || (p.loadId as any)?.trackingNumber || "-"}</p>
-                    <p style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: palette.text, margin: 0 }}>{formatCurrency(p.amount)}</p>
-                    <PayoutStatusBadge status={p.status} />
-                  </div>
-              )))}
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -773,7 +482,7 @@ export default function DriverPayoutsPage() {
       </div>
 
       {payoutTarget && (
-        <PayoutModal target={payoutTarget} onClose={() => setPayoutTarget(null)} onCreated={fetchData} getToken={getToken} palette={palette} />
+        <PayoutModal target={payoutTarget} onClose={() => setPayoutTarget(null)} onCreated={fetchData} getToken={getToken} />
       )}
       {lightboxSrc && <ProofLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </>

@@ -592,7 +592,7 @@ export default function AvailableLoadDetailPage() {
           <div className="relative p-4 sm:p-5">
             <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <button onClick={() => router.back()} className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 dark:border-white/10 bg-background/80 dark:bg-white/5 transition-colors hover:bg-muted dark:hover:bg-white/10">
+                <button type="button" aria-label="Back" onClick={() => router.back()} className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/80 dark:border-white/10 bg-background/80 dark:bg-white/5 transition-colors hover:bg-muted dark:hover:bg-white/10">
                   <ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" />
                 </button>
                 <div className="min-w-0">
