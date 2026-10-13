@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { reconcileSupraSpaceDelivery } from './composer/delivery-reconciliation';
+import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } from './composer/delivery-feedback';
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
@@ -4335,6 +4336,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       fd.append('clientMessageId', clientMessageId);
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/upload`, fd, {
         headers: { Authorization: `Bearer ${crmToken}`, 'Content-Type': 'multipart/form-data' },
+        timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
       });
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('Attachment delivery was not confirmed.');
@@ -4350,7 +4352,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       if (inputRef.current) inputRef.current.innerHTML = '';
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
       return true;
-    } catch {
+    } catch (error) {
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
@@ -4367,7 +4369,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         toast.success('Delivery confirmed.');
         return true;
       }
-      toast.error(reconciliation.status === 'missing' ? 'Could not upload attachment. Your files are still ready to retry.' : 'Could not confirm delivery. Your files are still ready to retry.');
+      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'attachment'));
       return false;
     } finally {
       setSending(false);
@@ -4436,7 +4438,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const body: { content: string; gif: SSGif; replyTo?: string; clientMessageId: string } = { content: caption.trim(), gif, clientMessageId };
       if (replyTo?._id) body.replyTo = replyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+        {
+          headers: { Authorization: `Bearer ${crmToken}` },
+          timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
+          _skipAuthRefresh: true,
+        } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('GIF delivery was not confirmed.');
       failedDeliveryRef.current = null;
@@ -4448,7 +4454,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       if (inputRef.current) inputRef.current.innerHTML = '';
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }));
       return true;
-    } catch {
+    } catch (error) {
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
@@ -4462,7 +4468,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         toast.success('Delivery confirmed.');
         return true;
       }
-      toast.error(reconciliation.status === 'missing' ? 'Could not send GIF. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
+      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'GIF'));
       return false;
     } finally { setSending(false); sendInFlightRef.current = false; }
   }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingGif, replyTo?._id, sending, syncComposerText]);
@@ -5644,7 +5650,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const body: { content: string; replyTo?: string; clientMessageId: string } = { content: text, clientMessageId };
       if (currentReplyTo) body.replyTo = currentReplyTo._id;
       const r = await apiClient.post(`/api/supraspace/conversations/${conv._id}/messages`, body,
-        { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
+        {
+          headers: { Authorization: `Bearer ${crmToken}` },
+          timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
+          _skipAuthRefresh: true,
+        } as RequestConfigWithSkipRefresh);
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('Message delivery was not confirmed.');
       failedDeliveryRef.current = null;
@@ -5653,7 +5663,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
         return prev.map(m => m._id === tempId ? sent : m);
       });
-    } catch {
+    } catch (error) {
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
@@ -5673,7 +5683,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         if (inputRef.current) inputRef.current.textContent = text;
         setReplyTo(currentReplyTo);
       }
-      toast.error(reconciliation.status === 'missing' ? 'Could not send. Your draft is ready to retry.' : 'Could not confirm delivery. Your draft is ready to retry.');
+      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'message'));
     } finally { setSending(false); sendInFlightRef.current = false; }
   };
 

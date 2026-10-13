@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
 import { reconcileSupraSpaceDelivery } from '@/components/supraspace/composer/delivery-reconciliation';
+import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } from '@/components/supraspace/composer/delivery-feedback';
 import { ComposerCounter } from '@/components/supraspace/composer/ComposerCounter';
 import { createComposerMetrics } from '@/components/supraspace/composer/composer-metrics';
 import { mergeMessages, reconcileMessage } from '@/components/supraspace/messages/message-state';
@@ -11307,7 +11308,10 @@ export default function SupraSpacePage() {
         fd.append('clientMessageId', deliveryId);
         setSending(false);
         await appendSS4VideoThumbnails(fd, filesToUpload);
-        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+        const r = await apiClient.post(`/api/supraspace/conversations/${conversationId}/upload`, fd, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+          timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
+        });
         if (!r.data?.data) throw new Error('Attachment delivery was not confirmed.');
         replaceMessageLocal(conversationId, tempId, mergeLocalAttachmentPreviews(r.data.data, optimisticAttachmentUrls));
         showUploadNotice('success', filesToUpload.length === 1 ? 'Attachment sent.' : `${filesToUpload.length} attachments sent.`);
@@ -11315,7 +11319,7 @@ export default function SupraSpacePage() {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
           { content, gif: draftGif, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` }, timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS }
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
@@ -11349,7 +11353,11 @@ export default function SupraSpacePage() {
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
           { content, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
-          { headers: { Authorization: `Bearer ${token}` }, _skipAuthRefresh: true } as any
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
+            _skipAuthRefresh: true,
+          } as any
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) {
@@ -11379,19 +11387,21 @@ export default function SupraSpacePage() {
         return;
       }
       const deliveryStatus = reconciliation.status === 'missing' ? 'failed' : 'unknown';
-      setFailedSends(previous => previous.map(item => item.id === deliveryId ? { ...item, deliveryStatus } : item));
+      const deliveryItem = hasPendingFiles ? 'attachment' : hasPendingGif ? 'GIF' : 'message';
+      const failureMessage = getSupraSpaceDeliveryFailureMessage(error, deliveryItem);
+      setFailedSends(previous => previous.map(item => item.id === deliveryId ? { ...item, deliveryStatus, failureMessage } : item));
       if (hasPendingFiles) {
         if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
         optimisticAttachmentUrls.forEach(u => {
           URL.revokeObjectURL(u);
           localAttachmentPreviewUrlsRef.current.delete(u);
         });
-        showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm attachment delivery. Your files are kept safe.' : getErrorMessage(error, 'Failed to send attachment.'));
+        showUploadNotice('error', failureMessage);
       }
-      else if (hasPendingGif) showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm GIF delivery. Your draft is kept safe.' : getErrorMessage(error, 'Failed to send GIF.'));
+      else if (hasPendingGif) showUploadNotice('error', failureMessage);
       else {
         if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
-        showUploadNotice('error', deliveryStatus === 'unknown' ? 'Could not confirm delivery. Your draft is kept safe.' : getErrorMessage(error, 'Message failed to send.'));
+        showUploadNotice('error', failureMessage);
       }
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
@@ -14791,10 +14801,13 @@ export default function SupraSpacePage() {
                       <div key={item.id} role="status" className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-2)', background: 'var(--bg-hover)', color: 'var(--text-primary)' }}>
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="shrink-0 font-medium" style={{ color: item.deliveryStatus === 'failed' ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                            {item.deliveryStatus === 'checking' ? 'Checking delivery…' : item.deliveryStatus === 'unknown' ? "Couldn't confirm delivery" : "Couldn't send"}
+                            {item.deliveryStatus === 'checking' ? 'Checking delivery…' : item.deliveryStatus === 'unknown' ? 'Delivery still unconfirmed' : 'Send failed'}
                           </span>
                           <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--text-tertiary)' }}>{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</span>
                         </div>
+                        {item.deliveryStatus !== 'checking' && item.failureMessage && (
+                          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>{item.failureMessage}</p>
+                        )}
                         {item.deliveryStatus !== 'checking' && <div className="mt-1.5 flex flex-wrap gap-1.5">
                           <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
                             if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
