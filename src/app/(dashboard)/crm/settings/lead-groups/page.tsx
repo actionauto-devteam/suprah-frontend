@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Users, Plus, Pencil, Trash2, X, Loader2 } from "lucide-react"
+import { Users, Plus, Pencil, Trash2, X, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCrmLeadGroups, type CrmLeadGroup } from "@/hooks/useCrmLeadGroups"
 import { useTeamMembers } from "@/hooks/useTeamPulse"
@@ -25,7 +25,14 @@ function GroupForm({
   const [name, setName] = React.useState(initial?.name || "")
   const [description, setDescription] = React.useState(initial?.description || "")
   const [memberIds, setMemberIds] = React.useState<string[]>(initial?.memberIds || [])
+  const [memberSearch, setMemberSearch] = React.useState("")
   const [error, setError] = React.useState("")
+
+  const filteredMembers = React.useMemo(() => {
+    const query = memberSearch.trim().toLowerCase()
+    if (!query) return teamMembers || []
+    return (teamMembers || []).filter((member) => member.name.toLowerCase().includes(query))
+  }, [teamMembers, memberSearch])
 
   const toggleMember = (id: string) => {
     setMemberIds((current) => (current.includes(id) ? current.filter((m) => m !== id) : [...current, id]))
@@ -75,8 +82,17 @@ function GroupForm({
 
         <div>
           <label className="text-xs font-medium text-muted-foreground">Members</label>
-          <div className="mt-1 max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
-            {(teamMembers || []).map((member) => (
+          <div className="relative mt-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              placeholder="Search by name"
+              className="w-full rounded-lg border bg-background py-2 pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="mt-1.5 max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
+            {filteredMembers.map((member) => (
               <label
                 key={member._id}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
@@ -92,6 +108,9 @@ function GroupForm({
             ))}
             {(!teamMembers || teamMembers.length === 0) && (
               <p className="px-2 py-1.5 text-xs text-muted-foreground">No team members found.</p>
+            )}
+            {teamMembers && teamMembers.length > 0 && filteredMembers.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">No members match &quot;{memberSearch}&quot;.</p>
             )}
           </div>
         </div>
