@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Armchair, Check, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
   Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, PhoneOff,
-  Pin, PinOff, ScreenShareOff, Send, SmilePlus, SwitchCamera, Users, Video,
+  Pin, PinOff, ScreenShareOff, Send, Share2, SmilePlus, SwitchCamera, Users, Video,
   VideoOff, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { useMeetSession } from "@/components/suprah-meet/MeetSessionProvider";
 import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPanel";
 import { RecordingDistributionPanel } from "@/components/suprah-meet/RecordingDistributionPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
+import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
 
@@ -221,10 +222,7 @@ export default function SuprahMeetRoomPage() {
 
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
   const copyCode = () => { void navigator.clipboard?.writeText(code).catch(() => {}); setToast("Meeting code copied"); };
-  const copyGuestLink = () => {
-    void navigator.clipboard?.writeText(`${window.location.origin}/meet/${code}`).catch(() => {});
-    setToast("Guest link copied — anyone can open it in a browser");
-  };
+  const [showShare, setShowShare] = React.useState(false);
 
   // Already in a different meeting → don't hijack the running session.
   if (activeCode && activeCode !== code) {
@@ -364,8 +362,12 @@ export default function SuprahMeetRoomPage() {
           className="grid size-8 shrink-0 place-items-center rounded-md border border-emerald-400/20 text-emerald-200/70 hover:border-emerald-400/50 hover:text-emerald-200">
           <Minimize2 className="size-4" />
         </button>
+        <button onClick={() => setShowShare(true)} title="Share invite" aria-label="Share invite"
+          className="flex shrink-0 items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200 hover:border-emerald-400/60 hover:text-emerald-100 sm:px-2.5">
+          <Share2 className="size-4 sm:size-3.5" /> <span className="hidden sm:inline">Share</span>
+        </button>
         <button onClick={copyCode}
-          className="flex shrink-0 items-center gap-1.5 rounded-md border border-dashed border-emerald-400/30 px-2.5 py-1 text-xs text-emerald-200/80 hover:border-emerald-400/60 hover:text-emerald-300">
+          className="hidden shrink-0 items-center gap-1.5 rounded-md border border-dashed border-emerald-400/30 px-2.5 py-1 text-xs xs:flex text-emerald-200/80 hover:border-emerald-400/60 hover:text-emerald-300">
           {code} <Copy className="size-3" />
         </button>
       </header>
@@ -698,11 +700,12 @@ export default function SuprahMeetRoomPage() {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-emerald-200/50">Guest link</p>
-                    <button onClick={copyGuestLink} className="text-left text-emerald-300 hover:text-emerald-200">
-                      Copy invite link for external guests
+                    <button onClick={() => setShowShare(true)}
+                      className="mt-1 flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-emerald-200 hover:border-emerald-400/60 hover:text-emerald-100">
+                      <Share2 className="size-3.5" /> Share invite
                     </button>
-                    <p className="mt-0.5 text-[10px] text-emerald-200/40">
-                      Guests join from any browser — no Suprah account needed.
+                    <p className="mt-1 text-[10px] text-emerald-200/40">
+                      Send it by Gmail, Messenger, text, and more. Guests join from any browser — no Suprah account needed.
                     </p>
                   </div>
                   <div>
@@ -825,6 +828,12 @@ export default function SuprahMeetRoomPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showShare && (
+        <ShareMeetingDialog
+          meetings={[{ code, title: meet.meeting?.title ?? "Suprah Meet", scheduledAt: null, status: "live" }]}
+          onClose={() => setShowShare(false)} />
       )}
 
       {toast && (

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Building2, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleDot, Clock, Copy, Globe, Link2, Lock, Pencil, Plus, Repeat, Search, ShieldCheck, Bot, Trash2,
+  CircleDot, Clock, Copy, Globe, Lock, Pencil, Plus, Repeat, Search, Share2, ShieldCheck, Bot, Trash2,
   Users, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
+import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
+import type { ShareableMeeting } from "@/lib/meet-share";
 
 interface MeetingRow {
   _id: string; code: string; title: string;
@@ -89,6 +91,32 @@ const MISSED_AFTER_MS = 15 * 60_000;
 const denverDayStr = (offsetDays: number) =>
   new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString("en-CA", { timeZone: "America/Denver" });
 
+const wallMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+const denverNowMinutes = (nowMs: number) => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Denver", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(nowMs));
+  const get = (type: string) => Number(parts.find((x) => x.type === type)?.value ?? 0);
+  return get("hour") * 60 + get("minute");
+};
+
+function useDenverClock() {
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const today = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+  const minutes = denverNowMinutes(nowMs);
+  const isPast = React.useCallback(
+    (day: string, hhmm: string) => day < today || (day === today && wallMinutes(hhmm) <= minutes),
+    [today, minutes]);
+  return { today, isPast };
+}
+
+const PAST_TIME_MSG = "That time has already passed in Mountain time (MDT) — pick a later time.";
+
 export default function SuprahMeetLobbyPage() {
   const router = useRouter();
   const [meetings, setMeetings] = React.useState<MeetingRow[]>([]);
@@ -107,13 +135,7 @@ export default function SuprahMeetLobbyPage() {
     const t = setTimeout(() => setToast(null), 2800);
     return () => clearTimeout(t);
   }, [toast]);
-  // Shareable external-guest link (/meet/<code>) — guests join from any
-  // browser with no Suprah account; private meetings put them in the
-  // waiting room.
-  const copyGuestLink = (code: string) => {
-    void navigator.clipboard?.writeText(`${window.location.origin}/meet/${code}`).catch(() => {});
-    setToast("Guest link copied — anyone can open it, no Suprah account needed");
-  };
+  const [shareTarget, setShareTarget] = React.useState<{ meetings: ShareableMeeting[]; heading?: string } | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [upcomingPage, setUpcomingPage] = React.useState(1);
   const [missedPage, setMissedPage] = React.useState(1);
@@ -295,9 +317,10 @@ export default function SuprahMeetLobbyPage() {
                       : undefined}
                     action={<div className="flex items-center gap-1.5">
                       <button className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-500"
-                        title="Copy guest link — invite someone outside Suprah"
-                        onClick={() => copyGuestLink(m.code)}>
-                        <Link2 className="size-4" />
+                        title="Share invite — send it by Gmail, Messenger, text, and more"
+                        aria-label="Share invite"
+                        onClick={() => setShareTarget({ meetings: [m] })}>
+                        <Share2 className="size-4" />
                       </button>
                       <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500"
                         onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Join now</Button>
@@ -326,9 +349,10 @@ export default function SuprahMeetLobbyPage() {
                     <div className="flex items-center gap-1">
                       <Button size="icon" variant="ghost"
                         className="size-8 text-muted-foreground hover:text-emerald-500"
-                        title="Copy guest link — invite someone outside Suprah"
-                        onClick={() => copyGuestLink(m.code)}>
-                        <Link2 className="size-4" />
+                        title="Share invite — send it by Gmail, Messenger, text, and more"
+                        aria-label="Share invite"
+                        onClick={() => setShareTarget({ meetings: [m] })}>
+                        <Share2 className="size-4" />
                       </Button>
                       {canDelete(m) && (
                         <>
@@ -420,8 +444,17 @@ export default function SuprahMeetLobbyPage() {
           initialMode={showNew === "later" ? "later" : "now"}
           onClose={() => setShowNew(false)}
           onCreated={(code) => router.push(`/crm/suprah-meet/room/${code}`)}
-          onScheduled={() => { setShowNew(false); void load(); }}
+          onScheduled={(created) => {
+            setShowNew(false);
+            void load();
+            if (created.length > 0) setShareTarget({ meetings: created, heading: "Meeting scheduled — send the invite" });
+          }}
         />
+      )}
+
+      {shareTarget && (
+        <ShareMeetingDialog meetings={shareTarget.meetings} heading={shareTarget.heading}
+          onClose={() => setShareTarget(null)} />
       )}
 
       {editTarget && (
@@ -682,7 +715,7 @@ function AudiencePicker({ audience, setAudience, selectedUsers, setSelectedUsers
 /* ── New meeting modal — instant/scheduled/recurring + audience tagging ───── */
 function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   initialMode: "now" | "later";
-  onClose: () => void; onCreated: (code: string) => void; onScheduled: () => void;
+  onClose: () => void; onCreated: (code: string) => void; onScheduled: (created: ShareableMeeting[]) => void;
 }) {
   const [title, setTitle] = React.useState("");
   const [mode, setMode] = React.useState<"now" | "later">(initialMode);
@@ -700,8 +733,8 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
 
   // "Today"/"Tomorrow" chips and the date-picker minimum follow Mountain time,
   // not the viewer's local day (PH is a day ahead of Utah in the evening).
-  const todayStr = React.useMemo(() => denverDayStr(0), []);
-  const tomorrowStr = React.useMemo(() => denverDayStr(1), []);
+  const { today: todayStr, isPast } = useDenverClock();
+  const tomorrowStr = denverDayStr(1);
 
   // Repeating rules need an end date — default to two weeks out.
   React.useEffect(() => {
@@ -715,7 +748,7 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
   /** Session dates (YYYY-MM-DD) implied by the repeat rule, capped at 30. */
   const sessionDates = React.useMemo(() => {
     if (mode !== "later" || !date) return [];
-    if (repeat === "none") return [date];
+    if (repeat === "none") return isPast(date, time) ? [] : [date];
     const out: string[] = [];
     const cursor = new Date(`${date}T00:00:00`);
     const stop = new Date(`${(until || date)}T00:00:00`);
@@ -726,22 +759,30 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
         (repeat === "weekdays" && dow >= 1 && dow <= 5) ||
         (repeat === "weekends" && (dow === 0 || dow === 6)) ||
         (repeat === "custom" && customDays.has(dow));
-      if (matches) out.push(fmtDay(cursor));
+      if (matches && !isPast(fmtDay(cursor), time)) out.push(fmtDay(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
     return out;
-  }, [mode, date, repeat, until, customDays]);
+  }, [mode, date, repeat, until, customDays, time, isPast]);
+
+  React.useEffect(() => {
+    if (mode !== "later" || date !== todayStr || !isPast(date, time)) return;
+    const next = TIME_OPTIONS.find((o) => !isPast(date, o.value));
+    if (next) setTime(next.value);
+  }, [mode, date, time, todayStr, isPast]);
 
   const timeLabel = TIME_OPTIONS.find((o) => o.value === time)?.label ?? time;
   const preview = React.useMemo(() => {
     if (mode !== "later" || !date) return null;
-    if (sessionDates.length === 0) return "No days match this repeat rule — adjust the days or the end date.";
+    if (sessionDates.length === 0) {
+      return repeat === "none" ? PAST_TIME_MSG : "No upcoming days match this repeat rule — adjust the days or the end date.";
+    }
     if (sessionDates.length === 1) {
       const d = new Date(`${sessionDates[0]}T00:00:00`);
       return `${d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · ${timeLabel} MDT`;
     }
     return `${sessionDates.length} sessions · ${timeLabel} MDT · ${sessionDates[0]} to ${sessionDates[sessionDates.length - 1]}`;
-  }, [mode, date, sessionDates, timeLabel]);
+  }, [mode, date, repeat, sessionDates, timeLabel]);
 
   const toggleDow = (dow: number) =>
     setCustomDays((s) => {
@@ -762,13 +803,21 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
       };
       if (mode === "later") {
         if (!date) throw new Error("Pick a date.");
-        if (sessionDates.length === 0) throw new Error("No days match this repeat rule.");
+        if (sessionDates.length === 0) {
+          throw new Error(repeat === "none" ? PAST_TIME_MSG : "No upcoming days match this repeat rule.");
+        }
         if (sessionDates.length === 1) body.scheduledAt = `${sessionDates[0]}T${time}`;
         else body.occurrences = sessionDates.map((d) => `${d}T${time}`);
       }
       const res = await apiClient.post("/api/crm/meet/meetings", body);
-      const code = res.data?.data?.code;
-      mode === "now" ? onCreated(code) : onScheduled();
+      const data = res.data?.data;
+      const code = data?.code;
+      if (mode === "now") { onCreated(code); return; }
+      const rows: ShareableMeeting[] = Array.isArray(data?.meetings) ? data.meetings : data ? [data] : [];
+      const list = rows
+        .filter((x) => x?.code)
+        .map((x) => ({ code: x.code, title: x.title, scheduledAt: x.scheduledAt ?? null, status: x.status }));
+      onScheduled(list);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "Could not create the meeting.");
       setBusy(false);
@@ -831,7 +880,9 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
                   <span className="ml-auto rounded bg-emerald-500/10 px-1.5 py-px text-[10px] font-semibold text-emerald-500">MDT</span>
                 </label>
                 <select value={time} onChange={(e) => setTime(e.target.value)} className={fieldCls}>
-                  {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  {TIME_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} disabled={!!date && isPast(date, o.value)}>{o.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -965,7 +1016,7 @@ function EditMeetingModal({ m, onClose, onSaved }: {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const todayStr = React.useMemo(() => denverDayStr(0), []);
+  const { today: todayStr, isPast } = useDenverClock();
 
   // Resolve real names for tagged people who haven't joined a session yet.
   React.useEffect(() => {
@@ -989,6 +1040,7 @@ function EditMeetingModal({ m, onClose, onSaved }: {
   }, []);
 
   const timeChanged = date !== wall.date || time !== wall.time;
+  const pastPick = timeChanged && !!date && isPast(date, time);
 
   const save = async () => {
     setBusy(true); setError(null);
@@ -1050,7 +1102,10 @@ function EditMeetingModal({ m, onClose, onSaved }: {
                 <span className="ml-auto rounded bg-emerald-500/10 px-1.5 py-px text-[10px] font-semibold text-emerald-500">MDT</span>
               </label>
               <select value={time} onChange={(e) => setTime(e.target.value)} className={fieldCls}>
-                {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {TIME_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}
+                    disabled={!!date && o.value !== wall.time && isPast(date, o.value)}>{o.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -1095,7 +1150,8 @@ function EditMeetingModal({ m, onClose, onSaved }: {
         )}
 
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-        <Button onClick={() => void save()} disabled={busy}
+        {pastPick && <p className="mb-2 text-sm text-destructive">{PAST_TIME_MSG}</p>}
+        <Button onClick={() => void save()} disabled={busy || pastPick}
           className="h-11 w-full gap-2 bg-emerald-600 shadow-lg shadow-emerald-600/25 hover:bg-emerald-500">
           <Pencil className="size-4" /> Save changes
         </Button>

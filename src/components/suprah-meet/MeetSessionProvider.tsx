@@ -13,7 +13,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Maximize2, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
+import { GripHorizontal, Maximize2, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSuprahMeet } from "@/hooks/useSuprahMeet";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
@@ -106,6 +106,8 @@ function MiniMeetWindow() {
   const visible =
     !!activeCode && !onAnyRoomPage && (meet.phase === "in" || meet.phase === "joining");
 
+  const { ref: dragRef, style: dragStyle, dragging, handlers: dragHandlers } = useMiniWindowDrag(visible);
+
   // 1s tick for the elapsed chip (from the server's startedAt — a UTC instant).
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -133,10 +135,13 @@ function MiniMeetWindow() {
   const back = () => router.push(`/crm/suprah-meet/room/${activeCode}`);
 
   return (
-    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[70] w-64 overflow-hidden rounded-2xl border border-emerald-400/25 bg-[#0a1410]/95 text-emerald-50 shadow-2xl shadow-emerald-950/60 backdrop-blur">
+    <div ref={dragRef} style={dragStyle} {...dragHandlers}
+      className={cn("fixed z-[70] w-64 touch-none select-none overflow-hidden rounded-2xl border border-emerald-400/25 bg-[#0a1410]/95 text-emerald-50 shadow-2xl shadow-emerald-950/60 backdrop-blur",
+        dragging ? "cursor-grabbing ring-2 ring-emerald-400/40" : "cursor-grab",
+        !dragStyle && "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4")}>
       {/* Picture — click anywhere on it to return to the full meeting */}
       <button onClick={back} className="relative block h-36 w-full bg-[#0f1f19] text-left"
-        title="Return to the meeting">
+        title="Drag to move · click to return to the meeting">
         {tile ? (
           <video ref={(el) => meet.bindVideoTile(tile.tileId, el)} autoPlay playsInline
             muted={tile === selfTile}
@@ -148,6 +153,7 @@ function MiniMeetWindow() {
           </span>
         )}
         <span className="absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-[#071410]/90 to-transparent px-2.5 py-1.5 text-xs">
+          <GripHorizontal className="size-3.5 shrink-0 text-emerald-200/60" aria-hidden />
           <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
           <span className="min-w-0 flex-1 truncate font-medium">
             {meet.meeting?.title ?? activeCode}
@@ -179,6 +185,183 @@ function MiniMeetWindow() {
       </div>
     </div>
   );
+}
+
+const MINI_POS_KEY = "suprah-meet-mini-pos";
+const MINI_MARGIN = 12;
+const DRAG_THRESHOLD = 6;
+
+type MiniRatio = { rx: number; ry: number };
+type MiniBounds = { minX: number; maxX: number; minY: number; maxY: number };
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+function loadMiniRatio(): MiniRatio {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MINI_POS_KEY) || "null");
+    if (raw && Number.isFinite(raw.rx) && Number.isFinite(raw.ry)) {
+      return { rx: clamp01(raw.rx), ry: clamp01(raw.ry) };
+    }
+  } catch {
+    return { rx: 1, ry: 1 };
+  }
+  return { rx: 1, ry: 1 };
+}
+
+function saveMiniRatio(r: MiniRatio) {
+  try {
+    localStorage.setItem(MINI_POS_KEY, JSON.stringify(r));
+  } catch {
+    return;
+  }
+}
+
+function readSafeInsets() {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;inset:0;visibility:hidden;pointer-events:none;" +
+    "padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const insets = {
+    top: parseFloat(cs.paddingTop) || 0,
+    right: parseFloat(cs.paddingRight) || 0,
+    bottom: parseFloat(cs.paddingBottom) || 0,
+    left: parseFloat(cs.paddingLeft) || 0,
+  };
+  document.body.removeChild(probe);
+  return insets;
+}
+
+function useMiniWindowDrag(visible: boolean) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const [ratio, setRatio] = React.useState<MiniRatio>({ rx: 1, ry: 1 });
+  const [bounds, setBounds] = React.useState<MiniBounds | null>(null);
+  const [dragPos, setDragPos] = React.useState<{ x: number; y: number } | null>(null);
+  const boundsRef = React.useRef<MiniBounds | null>(null);
+  const suppressClickRef = React.useRef(false);
+  const detachRef = React.useRef<(() => void) | null>(null);
+
+  React.useEffect(() => { setRatio(loadMiniRatio()); }, []);
+
+  const measure = React.useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const vv = window.visualViewport;
+    const vw = vv?.width ?? window.innerWidth;
+    const vh = vv?.height ?? window.innerHeight;
+    const inset = readSafeInsets();
+    const minX = MINI_MARGIN + inset.left;
+    const minY = MINI_MARGIN + inset.top;
+    const next: MiniBounds = {
+      minX,
+      minY,
+      maxX: Math.max(minX, vw - el.offsetWidth - MINI_MARGIN - inset.right),
+      maxY: Math.max(minY, vh - el.offsetHeight - MINI_MARGIN - inset.bottom),
+    };
+    boundsRef.current = next;
+    setBounds(next);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!visible) return;
+    measure();
+    const vv = window.visualViewport;
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    vv?.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      vv?.removeEventListener("resize", measure);
+    };
+  }, [visible, measure]);
+
+  React.useEffect(() => () => detachRef.current?.(), []);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const b = boundsRef.current;
+    const el = ref.current;
+    if (!b || !el) return;
+    detachRef.current?.();
+    const rect = el.getBoundingClientRect();
+    const pointerId = e.pointerId;
+    const startX = e.clientX, startY = e.clientY;
+    const originX = rect.left, originY = rect.top;
+    let dragging = false;
+
+    const place = (clientX: number, clientY: number) => {
+      const cur = boundsRef.current ?? b;
+      return {
+        cur,
+        x: Math.min(cur.maxX, Math.max(cur.minX, originX + (clientX - startX))),
+        y: Math.min(cur.maxY, Math.max(cur.minY, originY + (clientY - startY))),
+      };
+    };
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        dragging = true;
+      }
+      ev.preventDefault();
+      const { x, y } = place(ev.clientX, ev.clientY);
+      setDragPos({ x, y });
+    };
+
+    const end = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      detach();
+      if (!dragging) return;
+      suppressClickRef.current = true;
+      window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+      const { cur, x, y } = place(ev.clientX, ev.clientY);
+      const spanX = cur.maxX - cur.minX, spanY = cur.maxY - cur.minY;
+      const next = {
+        rx: spanX > 0 ? clamp01((x - cur.minX) / spanX) : 1,
+        ry: spanY > 0 ? clamp01((y - cur.minY) / spanY) : 1,
+      };
+      setRatio(next);
+      saveMiniRatio(next);
+      setDragPos(null);
+    };
+
+    const detach = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      detachRef.current = null;
+    };
+
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    detachRef.current = detach;
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (!suppressClickRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const style: React.CSSProperties | undefined = dragPos
+    ? { left: dragPos.x, top: dragPos.y }
+    : bounds
+      ? {
+          left: bounds.minX + ratio.rx * (bounds.maxX - bounds.minX),
+          top: bounds.minY + ratio.ry * (bounds.maxY - bounds.minY),
+        }
+      : undefined;
+
+  return {
+    ref,
+    style,
+    dragging: !!dragPos,
+    handlers: { onPointerDown, onClickCapture, onDragStart: (e: React.DragEvent) => e.preventDefault() },
+  };
 }
 
 function MiniBtn({ on, onClick, label, iconOn, iconOff }: {
