@@ -6867,6 +6867,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                   normalizeRichEditorListExitArtifacts(editAreaRef.current);
                                   syncEditDraft();
                                   rememberEditSelection();
+                                  refreshPopupEditFormats();
                                 });
                               }}
                               className="ss-popup-rich-edit min-h-7 max-h-40 overflow-y-auto outline-none text-[15px] leading-[1.66] text-white"
@@ -7640,6 +7641,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                           normalizeRichEditorListExitArtifacts(el);
                           const nextText = el.innerText.replace(/\n$/, '');
                           syncComposerText(nextText, true);
+                          rememberComposerSelection();
+                          refreshComposerCaretFormats();
                         }
                       });
                     }}

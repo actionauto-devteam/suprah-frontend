@@ -6412,6 +6412,7 @@ const Bubble = React.memo(function Bubble({
                     normalizeRichEditorListExitArtifacts(editAreaRef.current);
                     syncEditDraft();
                     rememberEditSelection();
+                    refreshEditActiveFormats();
                   });
                 }}
                 className="ss4-copyable-text ss4-rich-edit min-h-7 max-h-56 overflow-y-auto outline-none"
@@ -15457,6 +15458,7 @@ export default function SupraSpacePage() {
                                       const nextText = enforceComposerLengthFromDom(el);
                                       syncComposerText(nextText);
                                       saveComposerSelection();
+                                      refreshActiveFormats();
                                     }
                                   });
                                   return;
