@@ -18,7 +18,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -30,9 +29,10 @@ import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
 import { LEAD_STATUS_VALUES } from "@/lib/leadStatus"
 import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter"
+import { EmailRichTextEditor, emailRichTextToPreviewClassName } from "@/components/campaigns/EmailRichTextEditor"
 
 const STATUS_OPTIONS = LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
-const MAX_BODY_LENGTH = 5000
+const MAX_BODY_TEXT_LENGTH = 5000
 const MAX_MARKETING_CONTACT_RECIPIENTS = 500
 const MAX_RECIPIENTS = 500
 
@@ -346,7 +346,7 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
   const [subject, setSubject] = React.useState("Hi {firstName},");
   const [greetingText, setGreetingText] = React.useState("Hi {firstName},")
   const [bannerImageUrl, setBannerImageUrl] = React.useState("")
-  const [bodyText, setBodyText] = React.useState("")
+  const [bodyHtml, setBodyHtml] = React.useState("")
   const [signOffText, setSignOffText] = React.useState("")
   const [statuses, setStatuses] = React.useState<string[]>([])
   const [selectAllLeads, setSelectAllLeads] = React.useState(false)
@@ -590,12 +590,14 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
     }
   }
 
+  const bodyHtmlHasContent = bodyHtml.replace(/<[^>]*>/g, "").trim().length > 0
+
   const canReview =
     isAdmin &&
     name.trim().length > 0 &&
     subject.trim().length > 0 &&
     greetingText.trim().length > 0 &&
-    bodyText.trim().length > 0 &&
+    bodyHtmlHasContent &&
     (audienceSource === "leadStatus" || selectedContacts.size > 0) &&
     (!scheduleEnabled || Boolean(scheduledAtInput))
 
@@ -616,7 +618,7 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
         subject: subject.trim(),
         greetingText: greetingText.trim(),
         bannerImageUrl: bannerImageUrl.trim(),
-        bodyText: bodyText.trim(),
+        bodyHtml: bodyHtml.trim(),
         signOffText: signOffText.trim(),
       }
       if (audienceSource === "marketingContacts") {
@@ -648,10 +650,10 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
       }
 
       setName("")
-      setSubject("Hi {firstName},");
+      setSubject("")
       setGreetingText("Hi {firstName},")
       setBannerImageUrl("")
-      setBodyText("")
+      setBodyHtml("")
       setSignOffText("")
       setStatuses([])
       setSelectAllLeads(false)
@@ -885,6 +887,12 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
                       </Button>
                     </div>
                     {selectAllNotice && <p className="text-[11px] text-muted-foreground">{selectAllNotice}</p>}
+                    {mcTotal > MAX_MARKETING_CONTACT_RECIPIENTS && (
+                      <p className="flex items-start gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        This filter matches {mcTotal.toLocaleString()} contacts — only the first {MAX_MARKETING_CONTACT_RECIPIENTS} are available to select until bulk sending is enabled. Narrow your filter, or use the import label / search to target fewer contacts.
+                      </p>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-2 border-t pt-2">
                       <Input
@@ -1038,16 +1046,12 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Message</label>
-                    <Textarea
-                      value={bodyText}
-                      onChange={(event) => setBodyText(event.target.value)}
-                      rows={5}
-                      maxLength={MAX_BODY_LENGTH}
-                      className="resize-none"
-                    />
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Message — <code className="rounded bg-muted px-1 py-0.5">{"{firstName}"}</code> works here too
+                    </label>
+                    <EmailRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
                     <div className="flex items-center justify-end text-[11px] text-muted-foreground">
-                      <span>{bodyText.length}/{MAX_BODY_LENGTH}</span>
+                      <span>{bodyHtml.replace(/<[^>]*>/g, "").length}/{MAX_BODY_TEXT_LENGTH} characters (approx.)</span>
                     </div>
                   </div>
 
@@ -1101,9 +1105,14 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
                 )}
                 <div className="space-y-3 p-4">
                   <p className="text-sm">{previewFor(greetingText) || "Hi Jordan,"}</p>
-                  <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                    {previewFor(bodyText) || "Your message will appear here as you type."}
-                  </p>
+                  {bodyHtmlHasContent ? (
+                    <div
+                      className={cn("text-sm leading-6 text-muted-foreground", emailRichTextToPreviewClassName())}
+                      dangerouslySetInnerHTML={{ __html: previewFor(bodyHtml) }}
+                    />
+                  ) : (
+                    <p className="text-sm leading-6 text-muted-foreground">Your message will appear here as you type.</p>
+                  )}
                   {signOffText && <p className="text-sm text-muted-foreground">{previewFor(signOffText)}</p>}
                   <p className="border-t pt-3 text-[10px] text-muted-foreground/70">Unsubscribe link included automatically</p>
                 </div>
