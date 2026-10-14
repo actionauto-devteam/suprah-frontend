@@ -106,7 +106,7 @@ function MiniMeetWindow() {
   const visible =
     !!activeCode && !onAnyRoomPage && (meet.phase === "in" || meet.phase === "joining");
 
-  const { ref: dragRef, style: dragStyle, dragging, handlers: dragHandlers } = useMiniWindowDrag(visible);
+  const { ref: dragRef, style: dragStyle, dragging, grabbing, handlers: dragHandlers } = useMiniWindowDrag(visible);
 
   // 1s tick for the elapsed chip (from the server's startedAt — a UTC instant).
   const [nowMs, setNowMs] = React.useState(() => Date.now());
@@ -136,11 +136,15 @@ function MiniMeetWindow() {
 
   return (
     <div ref={dragRef} style={dragStyle} {...dragHandlers}
-      className={cn("fixed z-[70] w-64 touch-none select-none overflow-hidden rounded-2xl border border-emerald-400/25 bg-[#0a1410]/95 text-emerald-50 shadow-2xl shadow-emerald-950/60 backdrop-blur",
-        dragging ? "cursor-grabbing ring-2 ring-emerald-400/40" : "cursor-grab",
+      className={cn("fixed z-[70] w-64 cursor-grab touch-none select-none overflow-hidden rounded-2xl border bg-[#0a1410]/95 text-emerald-50 backdrop-blur transition-[scale,box-shadow,border-color] duration-200 ease-out",
+        dragging
+          ? "scale-[1.04] border-emerald-400/60 shadow-[0_28px_60px_-12px_rgba(16,185,129,0.55)] ring-2 ring-emerald-400/50"
+          : grabbing
+            ? "scale-[0.98] border-emerald-400/50 shadow-2xl shadow-emerald-950/60"
+            : "border-emerald-400/25 shadow-2xl shadow-emerald-950/60 hover:border-emerald-400/45",
         !dragStyle && "bottom-[max(1rem,env(safe-area-inset-bottom))] right-4")}>
       {/* Picture — click anywhere on it to return to the full meeting */}
-      <button onClick={back} className="relative block h-36 w-full bg-[#0f1f19] text-left"
+      <button onClick={back} className="relative block h-36 w-full cursor-grab bg-[#0f1f19] text-left"
         title="Drag to move · click to return to the meeting">
         {tile ? (
           <video ref={(el) => meet.bindVideoTile(tile.tileId, el)} autoPlay playsInline
@@ -174,12 +178,12 @@ function MiniMeetWindow() {
           iconOn={<Mic className="size-4" />} iconOff={<MicOff className="size-4" />} />
         <MiniBtn on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
           iconOn={<Video className="size-4" />} iconOff={<VideoOff className="size-4" />} />
-        <button onClick={back}
-          className="h-9 flex-1 rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
+        <button onClick={back} data-mini-control
+          className="h-9 flex-1 cursor-pointer rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
           Return
         </button>
-        <button onClick={() => void meet.leave()} title="Leave the meeting"
-          className="grid h-9 w-10 place-items-center rounded-lg border border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
+        <button onClick={() => void meet.leave()} title="Leave the meeting" data-mini-control
+          className="grid h-9 w-10 cursor-pointer place-items-center rounded-lg border border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
           <PhoneOff className="size-4" />
         </button>
       </div>
@@ -238,6 +242,8 @@ function useMiniWindowDrag(visible: boolean) {
   const [ratio, setRatio] = React.useState<MiniRatio>({ rx: 1, ry: 1 });
   const [bounds, setBounds] = React.useState<MiniBounds | null>(null);
   const [dragPos, setDragPos] = React.useState<{ x: number; y: number } | null>(null);
+  const [pressed, setPressed] = React.useState(false);
+  const cursorLockRef = React.useRef<HTMLStyleElement | null>(null);
   const boundsRef = React.useRef<MiniBounds | null>(null);
   const suppressClickRef = React.useRef(false);
   const detachRef = React.useRef<(() => void) | null>(null);
@@ -277,6 +283,19 @@ function useMiniWindowDrag(visible: boolean) {
     };
   }, [visible, measure]);
 
+  const lockGrabbingCursor = () => {
+    if (cursorLockRef.current) return;
+    const tag = document.createElement("style");
+    tag.textContent = "*,*::before,*::after{cursor:grabbing!important;user-select:none!important}";
+    document.head.appendChild(tag);
+    cursorLockRef.current = tag;
+  };
+
+  const unlockGrabbingCursor = () => {
+    cursorLockRef.current?.remove();
+    cursorLockRef.current = null;
+  };
+
   React.useEffect(() => () => detachRef.current?.(), []);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -285,6 +304,11 @@ function useMiniWindowDrag(visible: boolean) {
     const el = ref.current;
     if (!b || !el) return;
     detachRef.current?.();
+    const onControl = !!(e.target as HTMLElement | null)?.closest?.("[data-mini-control]");
+    if (!onControl) {
+      setPressed(true);
+      if (e.pointerType === "mouse") lockGrabbingCursor();
+    }
     const rect = el.getBoundingClientRect();
     const pointerId = e.pointerId;
     const startX = e.clientX, startY = e.clientY;
@@ -305,6 +329,8 @@ function useMiniWindowDrag(visible: boolean) {
       if (!dragging) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
         dragging = true;
+        setPressed(true);
+        if (ev.pointerType === "mouse") lockGrabbingCursor();
       }
       ev.preventDefault();
       const { x, y } = place(ev.clientX, ev.clientY);
@@ -333,6 +359,8 @@ function useMiniWindowDrag(visible: boolean) {
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
       detachRef.current = null;
+      setPressed(false);
+      unlockGrabbingCursor();
     };
 
     window.addEventListener("pointermove", move, { passive: false });
@@ -360,6 +388,7 @@ function useMiniWindowDrag(visible: boolean) {
     ref,
     style,
     dragging: !!dragPos,
+    grabbing: pressed || !!dragPos,
     handlers: { onPointerDown, onClickCapture, onDragStart: (e: React.DragEvent) => e.preventDefault() },
   };
 }
@@ -369,8 +398,8 @@ function MiniBtn({ on, onClick, label, iconOn, iconOff }: {
   iconOn: React.ReactNode; iconOff: React.ReactNode;
 }) {
   return (
-    <button onClick={onClick} title={label} aria-pressed={on}
-      className={cn("grid h-9 w-10 place-items-center rounded-lg border transition-colors",
+    <button onClick={onClick} title={label} aria-pressed={on} data-mini-control
+      className={cn("grid h-9 w-10 cursor-pointer place-items-center rounded-lg border transition-colors",
         on ? "border-emerald-400/20 bg-[#142a21] hover:bg-[#1a3529]"
            : "border-rose-400/40 bg-rose-500/15 text-rose-300")}>
       {on ? iconOn : iconOff}
