@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { isAxiosError } from 'axios';
 import type { Socket } from 'socket.io-client';
 import { useSupraSpaceSocket } from '@/hooks/useSupraSpaceSocket';
+import { hasNewerSupraSpaceConversationActivity } from '@/lib/supraspace-conversation-freshness';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useCrmToken } from '@/hooks/useCrmToken';
@@ -157,6 +158,22 @@ function sortByLastMessage(convs: SSConv[]): SSConv[] {
       new Date(b.lastMessageAt || 0).getTime() -
       new Date(a.lastMessageAt || 0).getTime()
   );
+}
+
+function mergeConversationSnapshot(snapshot: SSConv, current: SSConv): SSConv {
+  if (!hasNewerSupraSpaceConversationActivity(current, snapshot)) return snapshot;
+
+  // Keep authoritative metadata from the response, but retain activity that
+  // arrived on the socket while that response was in flight.
+  return {
+    ...snapshot,
+    lastMessage: current.lastMessage,
+    lastMessageAt: current.lastMessageAt,
+    lastReaction: current.lastReaction,
+    unreadCount: current.unreadCount,
+    mentionCount: current.mentionCount,
+    unreadMentionCount: current.unreadMentionCount,
+  };
 }
 
 function readConversationPayload(payload: unknown): SSConv[] {
@@ -439,8 +456,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         params: { limit: SUPRASPACE_CONTEXT_CONVERSATION_LIMIT, offset: 0 },
       })
       .then((r) => {
-        const next = sortByLastMessage(readConversationPayload(r.data?.data));
-        setConversations(next);
+        const next = readConversationPayload(r.data?.data);
+        setConversations(previous => sortByLastMessage(next.map(snapshot => {
+          const current = previous.find(conversation => conversation._id === snapshot._id);
+          return current ? mergeConversationSnapshot(snapshot, current) : snapshot;
+        })));
         const serverPrefs = next.reduce<Record<string, NotifPref>>((acc, conv) => {
           if (conv.notificationPreference) acc[conv._id] = conv.notificationPreference;
           return acc;
@@ -489,6 +509,16 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   React.useEffect(() => { fetchConversations(); }, [fetchConversations]);
   React.useEffect(() => { fetchSpaces(); }, [fetchSpaces]);
+
+  // The server automatically restores the user room after reconnecting, but
+  // messages emitted while the transport was down have no replay. Reconcile a
+  // fresh snapshot immediately rather than waiting for focus/visibility.
+  React.useEffect(() => {
+    if (!socket) return;
+    const refreshAfterReconnect = () => fetchConversations();
+    socket.on('connect', refreshAfterReconnect);
+    return () => { socket.off('connect', refreshAfterReconnect); };
+  }, [socket, fetchConversations]);
 
   // Re-fetch on window focus AND on page visibility (covers PWA foreground transitions).
   React.useEffect(() => {
