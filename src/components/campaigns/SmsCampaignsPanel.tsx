@@ -2,20 +2,36 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Megaphone, Send, Users, X, CalendarClock } from "lucide-react"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarClock,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Megaphone,
+  MessageSquareText,
+  Send,
+  Users,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { useAlert } from "@/components/AlertDialog"
 import { apiClient } from "@/lib/api-client"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
 import { LEAD_STATUS_VALUES } from "@/lib/leadStatus"
+import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter"
 
-const STATUS_OPTIONS = LEAD_STATUS_VALUES
+const STATUS_OPTIONS = LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
 const OPT_OUT_LINE = "Reply STOP to opt out."
 const MAX_MESSAGE_LENGTH = 1000
+const MAX_RECIPIENTS = 500
 
 interface Campaign {
   _id: string
@@ -31,6 +47,17 @@ interface Campaign {
   createdByName: string
   createdAt: string
   completedAt?: string
+}
+
+interface CampaignDetail {
+  failedSample: Array<{ customerName?: string; phone: string; failureReason?: string }>
+  deliveryStatusCounts: Record<string, number>
+}
+
+const DELIVERY_STATUS_LABEL: Record<string, string> = {
+  accepted: "Accepted by carrier (not yet confirmed delivered)",
+  delivered: "Delivered",
+  delivery_failed: "Delivery failed",
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -57,54 +84,90 @@ const STATUS_LABEL: Record<Campaign["status"], string> = {
   failed: "Failed",
 }
 
+function FormSection({
+  step,
+  title,
+  description,
+  children,
+}: {
+  step: number
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+          {step}
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold leading-5">{title}</h3>
+          {description && <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>}
+        </div>
+      </div>
+      <div className="pl-7.5">{children}</div>
+    </div>
+  )
+}
+
 function CampaignRow({
   campaign,
   onCancel,
   onReschedule,
   busy,
   isAdmin,
+  expanded,
+  detail,
+  detailLoading,
+  onToggleDetail,
 }: {
   campaign: Campaign
   onCancel: (id: string) => void
   onReschedule: (campaign: Campaign) => void
   busy: boolean
   isAdmin: boolean
+  expanded: boolean
+  detail?: CampaignDetail
+  detailLoading: boolean
+  onToggleDetail: (id: string) => void
 }) {
   const progress = campaign.totalRecipients > 0
     ? Math.round(((campaign.sentCount + campaign.failedCount + campaign.skippedCount) / campaign.totalRecipients) * 100)
     : 0
   const canCancel = isAdmin && (campaign.status === "queued" || campaign.status === "scheduled" || campaign.status === "sending")
   const canReschedule = isAdmin && (campaign.status === "queued" || campaign.status === "scheduled")
+  const hasDetails = campaign.sentCount > 0 || campaign.failedCount > 0
 
   return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="rounded-xl border bg-card p-4 transition-colors hover:border-border/80">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">{campaign.name}</h3>
-            <Badge variant="outline" className={STATUS_STYLE[campaign.status]}>
+            <h3 className="truncate text-sm font-semibold">{campaign.name}</h3>
+            <Badge variant="outline" className={cn("shrink-0", STATUS_STYLE[campaign.status])}>
               {STATUS_LABEL[campaign.status]}
             </Badge>
           </div>
-          <p className="mt-1 line-clamp-2 max-w-xl text-xs text-muted-foreground">{campaign.message}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{campaign.message}</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
             {campaign.createdByName} · {fmtLongDateTimeMDT(campaign.createdAt)}
             {campaign.audienceStatuses.length > 0 ? ` · ${campaign.audienceStatuses.join(", ")}` : " · All statuses"}
           </p>
           {campaign.status === "scheduled" && campaign.scheduledAt && (
-            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
               <CalendarClock className="h-3 w-3" />
               Scheduled for {fmtLongDateTimeMDT(campaign.scheduledAt)} (Mountain Time)
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="text-right text-xs">
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start sm:gap-2">
+          <div className="text-left text-xs sm:text-right">
             <p className="font-semibold">{campaign.sentCount}/{campaign.totalRecipients} sent</p>
             {campaign.failedCount > 0 && <p className="text-red-600 dark:text-red-400">{campaign.failedCount} failed</p>}
-            {campaign.skippedCount > 0 && <p className="text-muted-foreground">{campaign.skippedCount} skipped (opted out)</p>}
+            {campaign.skippedCount > 0 && <p className="text-muted-foreground">{campaign.skippedCount} skipped</p>}
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex gap-1.5">
             {canReschedule && (
               <Button size="sm" variant="outline" disabled={busy} onClick={() => onReschedule(campaign)}>
                 Reschedule
@@ -123,6 +186,56 @@ function CampaignRow({
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
         </div>
       )}
+      {hasDetails && (
+        <button
+          type="button"
+          onClick={() => onToggleDetail(campaign._id)}
+          className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+        >
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {expanded ? "Hide delivery details" : "View delivery details"}
+        </button>
+      )}
+      {expanded && (
+        <div className="mt-2 space-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
+          {detailLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+            </div>
+          ) : detail ? (
+            <>
+              {Object.keys(detail.deliveryStatusCounts).length > 0 && (
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">Carrier delivery status</p>
+                  <ul className="space-y-0.5">
+                    {Object.entries(detail.deliveryStatusCounts).map(([status, count]) => (
+                      <li key={status} className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{DELIVERY_STATUS_LABEL[status] || status}</span>
+                        <span className="font-semibold text-foreground">{count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {detail.failedSample.length > 0 && (
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">Failed recipients (sample)</p>
+                  <ul className="space-y-1">
+                    {detail.failedSample.map((recipient, index) => (
+                      <li key={`${recipient.phone}-${index}`} className="text-red-600 dark:text-red-400">
+                        {recipient.customerName || recipient.phone}: {recipient.failureReason || "Unknown error"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Object.keys(detail.deliveryStatusCounts).length === 0 && detail.failedSample.length === 0 && (
+                <p className="text-muted-foreground">No delivery details to show yet.</p>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }
@@ -130,12 +243,14 @@ function CampaignRow({
 function RescheduleDialog({
   campaign,
   busy,
-  onClose,
+  open,
+  onOpenChange,
   onConfirm,
 }: {
   campaign: Campaign
   busy: boolean
-  onClose: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onConfirm: (scheduledAtIso: string) => void
 }) {
   const [value, setValue] = React.useState("")
@@ -156,39 +271,30 @@ function RescheduleDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-4"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose()
-      }}
-    >
-      <div className="w-full max-w-sm rounded-xl border bg-card p-5 shadow-xl">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-base font-semibold">Reschedule &quot;{campaign.name}&quot;</h3>
-          <Button variant="ghost" size="icon" onClick={onClose} disabled={busy} aria-label="Close">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <label className="text-sm font-semibold">New date &amp; time</label>
-        <p className="mb-1.5 text-[11px] text-muted-foreground">Mountain Time (America/Denver)</p>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Reschedule &quot;{campaign.name}&quot;</DialogTitle>
+          <DialogDescription>Pick a new send time in Mountain Time (America/Denver).</DialogDescription>
+        </DialogHeader>
         <Input
           type="datetime-local"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           disabled={busy}
         />
-        {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={busy}>
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={busy || !value}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save new time
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -197,12 +303,16 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
   const { getToken } = useAuth()
   const { user } = useUser()
   const isAdmin = user?.role === "admin"
+  const { confirm, AlertComponent } = useAlert()
 
   const [campaigns, setCampaigns] = React.useState<Campaign[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")
   const [busyId, setBusyId] = React.useState("")
   const [rescheduleTarget, setRescheduleTarget] = React.useState<Campaign | null>(null)
+  const [expandedId, setExpandedId] = React.useState("")
+  const [detailById, setDetailById] = React.useState<Record<string, CampaignDetail>>({})
+  const [detailLoadingId, setDetailLoadingId] = React.useState("")
 
   const [name, setName] = React.useState("")
   const [message, setMessage] = React.useState(`\n\n${OPT_OUT_LINE}`)
@@ -259,12 +369,9 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectAllLeads, statuses, getToken])
 
-  const toggleStatus = (status: string) => {
-    setStatuses((prev) => (prev.includes(status) ? prev.filter((value) => value !== status) : [...prev, status]))
-  }
-
   const messageIncludesOptOut = message.toLowerCase().includes("stop")
   const canReview = isAdmin && name.trim().length > 0 && message.trim().length > 0 && messageIncludesOptOut
+  const overLimit = audienceCount !== null && audienceCount > MAX_RECIPIENTS
 
   const handleSend = async () => {
     setSending(true)
@@ -297,7 +404,7 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
     }
   }
 
-  const handleCancel = async (id: string) => {
+  const doCancel = async (id: string) => {
     setBusyId(id)
     try {
       const t = await getToken()
@@ -307,6 +414,39 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
       setError(getErrorMessage(err, "Could not cancel this campaign."))
     } finally {
       setBusyId("")
+    }
+  }
+
+  const handleCancel = (id: string) => {
+    void confirm(
+      "Cancel this campaign?",
+      "Any recipients who haven't been texted yet will be skipped. This can't be undone.",
+      () => doCancel(id),
+      "Cancel campaign",
+      "Keep it",
+    )
+  }
+
+  const handleToggleDetail = async (id: string) => {
+    if (expandedId === id) {
+      setExpandedId("")
+      return
+    }
+    setExpandedId(id)
+    if (detailById[id]) return
+    setDetailLoadingId(id)
+    try {
+      const t = await getToken()
+      const res = await apiClient.get(`/api/crm/sms-campaigns/${id}`, { headers: { Authorization: `Bearer ${t}` } })
+      const data = res.data?.data || res.data
+      setDetailById((prev) => ({
+        ...prev,
+        [id]: { failedSample: data?.failedSample || [], deliveryStatusCounts: data?.deliveryStatusCounts || {} },
+      }))
+    } catch {
+      setDetailById((prev) => ({ ...prev, [id]: { failedSample: [], deliveryStatusCounts: {} } }))
+    } finally {
+      setDetailLoadingId("")
     }
   }
 
@@ -334,19 +474,19 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
       <div className={hideHeader ? "space-y-6" : "mx-auto max-w-5xl space-y-6 p-4 sm:p-6"}>
         {!hideHeader && (
           <>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/crm/leads")} aria-label="Back to leads">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold tracking-tight">SMS Campaigns</h1>
-          </div>
-        </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Send one text to a group of leads at once, by status. Opted-out numbers are skipped automatically, and
-          messages send gradually in the background rather than all at once.
-        </p>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/crm/leads")} aria-label="Back to leads">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-primary" />
+                <h1 className="text-xl font-bold tracking-tight">SMS Campaigns</h1>
+              </div>
+            </div>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Send one text to a group of leads at once, by status. Opted-out numbers are skipped automatically, and
+              messages send gradually in the background rather than all at once.
+            </p>
           </>
         )}
 
@@ -357,106 +497,107 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
         )}
 
         {isAdmin && (
-        <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-6">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">New campaign</h2>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold">Campaign name</label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. September Trade-In Push" maxLength={120} />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold">Audience</label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={selectAllLeads}
-                  onChange={(event) => setSelectAllLeads(event.target.checked)}
-                />
-                Select All Leads
-              </label>
+          <section className="space-y-5 rounded-2xl border bg-card p-4 sm:p-6">
+            <div className="flex items-center gap-2 border-b pb-4">
+              <MessageSquareText className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">New Campaign</h2>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              {selectAllLeads ? "Every eligible lead with a phone number will be included, regardless of status." : "Leave all unchecked to include every status."}
-            </p>
-            <div className={cn("flex flex-wrap gap-2 pt-1", selectAllLeads && "opacity-40")}>
-              {STATUS_OPTIONS.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  disabled={selectAllLeads}
-                  onClick={() => toggleStatus(status)}
+
+            <FormSection step={1} title="Campaign name">
+              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. September Trade-In Push" maxLength={120} className="max-w-md" />
+            </FormSection>
+
+            <FormSection
+              step={2}
+              title="Audience"
+              description="Choose which lead statuses to text, or include everyone with a phone number."
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <div className={cn(selectAllLeads && "pointer-events-none opacity-40")}>
+                  <MultiSelectFilter
+                    filterLabel="Lead status"
+                    icon={Users}
+                    allLabel="All statuses"
+                    options={STATUS_OPTIONS}
+                    value={statuses}
+                    onChange={setStatuses}
+                    searchPlaceholder="Search statuses…"
+                    clearLabel="Clear statuses"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Checkbox checked={selectAllLeads} onCheckedChange={(checked) => setSelectAllLeads(checked === true)} />
+                  Select All Leads
+                </label>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Users className="h-3.5 w-3.5" />
+                  {audienceCount === null ? "Counting…" : `${audienceCount} lead${audienceCount === 1 ? "" : "s"} with a phone number`}
+                </p>
+                <Badge
+                  variant="outline"
                   className={cn(
-                    "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
-                    statuses.includes(status)
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                    "text-[10px]",
+                    overLimit ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" : "text-muted-foreground",
                   )}
                 >
-                  {status}
-                </button>
-              ))}
-            </div>
-            <p className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-              <Users className="h-3.5 w-3.5" />
-              {audienceCount === null ? "Counting…" : `${audienceCount} lead${audienceCount === 1 ? "" : "s"} with a phone number`}
-            </p>
-            {audienceCount !== null && audienceCount > 500 && (
-              <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                This audience has {audienceCount} eligible leads, over the 500-recipient safe sending limit. Narrow your
-                status filter before sending.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold">Message</label>
-            <Textarea
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows={4}
-              maxLength={MAX_MESSAGE_LENGTH}
-              className="resize-none"
-            />
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Must include a &quot;Reply STOP to opt out&quot; line.</span>
-              <span>{message.length}/{MAX_MESSAGE_LENGTH}</span>
-            </div>
-          </div>
-
-          <div className="space-y-1.5 rounded-xl border bg-muted/20 p-3">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={scheduleEnabled}
-                onChange={(event) => setScheduleEnabled(event.target.checked)}
-              />
-              <CalendarClock className="h-4 w-4" />
-              Schedule for later
-            </label>
-            {scheduleEnabled && (
-              <div className="space-y-1">
-                <p className="text-[11px] text-muted-foreground">Mountain Time (America/Denver)</p>
-                <Input
-                  type="datetime-local"
-                  value={scheduledAtInput}
-                  onChange={(event) => setScheduledAtInput(event.target.value)}
-                  className="max-w-xs"
-                />
+                  Limit {MAX_RECIPIENTS}/send
+                </Badge>
               </div>
-            )}
-          </div>
+              {overLimit && (
+                <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  This audience has {audienceCount} eligible leads, over the {MAX_RECIPIENTS}-recipient safe sending limit. Narrow your status filter before sending.
+                </p>
+              )}
+            </FormSection>
 
-          {formError && <p className="text-sm text-red-500">{formError}</p>}
+            <FormSection step={3} title="Message" description='Must include a "Reply STOP to opt out" line.'>
+              <Textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                rows={4}
+                maxLength={MAX_MESSAGE_LENGTH}
+                className="resize-none"
+              />
+              <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span className={cn(!messageIncludesOptOut && message.trim().length > 0 && "font-medium text-amber-600 dark:text-amber-400")}>
+                  {messageIncludesOptOut ? "Opt-out line detected." : "Opt-out line missing."}
+                </span>
+                <span>{message.length}/{MAX_MESSAGE_LENGTH}</span>
+              </div>
+            </FormSection>
 
-          <div className="pt-2">
-            <Button disabled={!canReview || (scheduleEnabled && !scheduledAtInput)} onClick={() => setConfirming(true)}>
-              <Send className="mr-2 h-4 w-4" />
-              Review &amp; {scheduleEnabled ? "schedule" : "send"}
-            </Button>
-          </div>
-        </section>
+            <FormSection step={4} title="Scheduling" description="Send immediately, or line it up for a specific time.">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <Checkbox checked={scheduleEnabled} onCheckedChange={(checked) => setScheduleEnabled(checked === true)} />
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                Schedule for later
+              </label>
+              {scheduleEnabled && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] text-muted-foreground">Mountain Time (America/Denver)</p>
+                  <Input
+                    type="datetime-local"
+                    value={scheduledAtInput}
+                    onChange={(event) => setScheduledAtInput(event.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+              )}
+            </FormSection>
+
+            {formError && <p className="text-sm text-red-500">{formError}</p>}
+
+            <div className="border-t pt-4">
+              <Button disabled={!canReview || (scheduleEnabled && !scheduledAtInput)} onClick={() => setConfirming(true)}>
+                <Send className="mr-2 h-4 w-4" />
+                Review &amp; {scheduleEnabled ? "schedule" : "send"}
+              </Button>
+            </div>
+          </section>
         )}
 
         <section className="space-y-3">
@@ -467,7 +608,9 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : campaigns.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No campaigns sent yet.</p>
+            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No campaigns sent yet.
+            </div>
           ) : (
             <div className="space-y-3">
               {campaigns.map((campaign) => (
@@ -478,6 +621,10 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
                   onReschedule={setRescheduleTarget}
                   busy={busyId === campaign._id}
                   isAdmin={isAdmin}
+                  expanded={expandedId === campaign._id}
+                  detail={detailById[campaign._id]}
+                  detailLoading={detailLoadingId === campaign._id}
+                  onToggleDetail={handleToggleDetail}
                 />
               ))}
             </div>
@@ -485,51 +632,42 @@ export function SmsCampaignsPanel({ hideHeader = false }: { hideHeader?: boolean
         </section>
       </div>
 
-      {confirming && (
-        <div
-          className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !sending) setConfirming(false)
-          }}
-        >
-          <div className="w-full max-w-md rounded-xl border bg-card p-5 shadow-xl">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold">{scheduleEnabled ? "Schedule this campaign?" : "Send this campaign?"}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  This will text {audienceCount ?? "…"} lead{audienceCount === 1 ? "" : "s"}
-                  {scheduleEnabled ? " at the scheduled time." : ". This can't be undone once messages start sending."}
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setConfirming(false)} disabled={sending} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="mb-4 rounded-lg border bg-muted/30 p-3 text-xs">
-              <p className="font-semibold">{name}</p>
-              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{message}</p>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirming(false)} disabled={sending}>
-                Cancel
-              </Button>
-              <Button onClick={() => void handleSend()} disabled={sending}>
-                {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                {scheduleEnabled ? "Schedule" : "Send"} for {audienceCount ?? "…"} lead{audienceCount === 1 ? "" : "s"}
-              </Button>
-            </div>
+      <Dialog open={confirming} onOpenChange={(open) => !sending && setConfirming(open)}>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{scheduleEnabled ? "Schedule this campaign?" : "Send this campaign?"}</DialogTitle>
+            <DialogDescription>
+              This will text {audienceCount ?? "…"} lead{audienceCount === 1 ? "" : "s"}
+              {scheduleEnabled ? " at the scheduled time." : ". This can't be undone once messages start sending."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+            <p className="font-semibold">{name}</p>
+            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{message}</p>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(false)} disabled={sending}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSend()} disabled={sending}>
+              {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              {scheduleEnabled ? "Schedule" : "Send"} for {audienceCount ?? "…"} lead{audienceCount === 1 ? "" : "s"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {rescheduleTarget && (
         <RescheduleDialog
           campaign={rescheduleTarget}
           busy={busyId === rescheduleTarget._id}
-          onClose={() => setRescheduleTarget(null)}
+          open={!!rescheduleTarget}
+          onOpenChange={(open) => !open && setRescheduleTarget(null)}
           onConfirm={handleReschedule}
         />
       )}
+
+      <AlertComponent />
     </div>
   )
 }

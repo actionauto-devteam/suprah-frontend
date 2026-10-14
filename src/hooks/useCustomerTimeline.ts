@@ -4,7 +4,7 @@ import * as React from "react"
 import { apiClient } from "@/lib/api-client"
 import { getSocket } from "@/lib/socket.client"
 
-export type TimelineChannel = "sms" | "call" | "email" | "webchat" | "appointment" | "note"
+export type TimelineChannel = "sms" | "call" | "email" | "webchat" | "appointment" | "note" | "campaign_email" | "price_drop"
 
 export interface CustomerTimelineItem {
   id: string
