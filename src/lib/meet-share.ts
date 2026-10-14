@@ -16,8 +16,13 @@ export type ShareTargetKey =
   | "gmail" | "outlook" | "email" | "messenger" | "whatsapp"
   | "telegram" | "teams" | "viber" | "sms";
 
-export const meetGuestUrl = (code: string) =>
-  `${window.location.origin}/meet/${encodeURIComponent(code)}`;
+/**
+ * Build a guest URL without assuming a browser is available. Components that
+ * render on the server can pass an empty origin first, then provide the
+ * browser origin after mount for a shareable absolute URL.
+ */
+export const meetGuestUrl = (code: string, origin = "") =>
+  `${origin}/meet/${encodeURIComponent(code)}`;
 
 const mdtLabel = (iso: string) =>
   new Date(iso).toLocaleString("en-US", {
@@ -25,14 +30,14 @@ const mdtLabel = (iso: string) =>
     hour: "numeric", minute: "2-digit",
   }) + " MDT";
 
-export function buildMeetInvite(meetings: ShareableMeeting[]): MeetInvite {
+export function buildMeetInvite(meetings: ShareableMeeting[], origin = ""): MeetInvite {
   const first = meetings[0];
   const title = first.title?.trim() || "Suprah Meet";
-  const url = meetGuestUrl(first.code);
+  const url = meetGuestUrl(first.code, origin);
 
   if (meetings.length > 1) {
     const lines = meetings.map((m) =>
-      `• ${m.scheduledAt ? mdtLabel(m.scheduledAt) : "Anytime"} — ${meetGuestUrl(m.code)}`);
+      `• ${m.scheduledAt ? mdtLabel(m.scheduledAt) : "Anytime"} — ${meetGuestUrl(m.code, origin)}`);
     const header = [
       `You're invited to a Suprah Meet series: ${title}`,
       `${meetings.length} sessions, each with its own join link:`,

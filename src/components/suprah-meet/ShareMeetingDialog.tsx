@@ -37,12 +37,19 @@ export function ShareMeetingDialog({ meetings, heading, onClose }: {
   heading?: string;
   onClose: () => void;
 }) {
-  const invite = React.useMemo(() => buildMeetInvite(meetings), [meetings]);
+  // Keep the server and initial client render identical. The absolute origin
+  // is only available in a browser, so fill it in after this dialog mounts.
+  const [origin, setOrigin] = React.useState("");
+  const invite = React.useMemo(() => buildMeetInvite(meetings, origin), [meetings, origin]);
   const multi = meetings.length > 1;
   const [mobile] = React.useState(isMobileDevice);
   const [nativeOk] = React.useState(canNativeShare);
   const [copied, setCopied] = React.useState<"link" | "invite" | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
