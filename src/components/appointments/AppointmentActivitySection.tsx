@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, Mail, MessageCircle, MessageSquare, Phone, RefreshCw } from "lucide-react"
+import { CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, Mail, Megaphone, MessageCircle, MessageSquare, Phone, RefreshCw, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { fmtShortDateTimeMDT } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,8 @@ const FILTERS: Array<{ value: "all" | TimelineChannel; label: string }> = [
   { value: "webchat", label: "Chat" },
   { value: "appointment", label: "Appointments" },
   { value: "note", label: "Notes" },
+  { value: "campaign_email", label: "Campaigns" },
+  { value: "price_drop", label: "Price Drops" },
 ]
 
 const CHANNELS = {
@@ -29,6 +31,8 @@ const CHANNELS = {
   webchat: { icon: MessageCircle, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   appointment: { icon: CalendarClock, tone: "bg-blue-500/15 text-blue-700 dark:text-blue-300" },
   note: { icon: FileText, tone: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-300" },
+  campaign_email: { icon: Megaphone, tone: "bg-purple-500/15 text-purple-700 dark:text-purple-300" },
+  price_drop: { icon: TrendingDown, tone: "bg-rose-500/15 text-rose-700 dark:text-rose-300" },
 }
 
 function statusTone(status?: string) {

@@ -31,7 +31,7 @@ interface LeadAnalyticsOverviewProps {
   referenceDate?: string;
 }
 
-interface ChartTheme {
+export interface ChartTheme {
   axis: string;
   grid: string;
   cursor: string;
@@ -54,7 +54,7 @@ interface TrendPoint {
   leads: number;
 }
 
-interface RechartsTooltipEntry {
+export interface RechartsTooltipEntry {
   color?: string;
   name?: string;
   value?: number | string;
@@ -96,7 +96,7 @@ function normalizeCssColor(rawValue: string, fallback: string): string {
   return `hsl(${value})`;
 }
 
-function useChartTheme(): ChartTheme {
+export function useChartTheme(): ChartTheme {
   const [theme, setTheme] = React.useState<ChartTheme>({
     axis: "#475569",
     grid: "#CBD5E1",
@@ -308,7 +308,7 @@ function MetricCard({
   );
 }
 
-function OverviewTooltip({
+export function OverviewTooltip({
   active,
   payload,
   label,

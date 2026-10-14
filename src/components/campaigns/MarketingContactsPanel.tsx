@@ -2,10 +2,12 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Search, Trash2, Upload, Users } from "lucide-react"
+import { ArrowLeft, FileSpreadsheet, Loader2, Search, ShieldCheck, Trash2, Upload, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { useAlert } from "@/components/AlertDialog"
 import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
@@ -52,6 +54,7 @@ interface MarketingContact {
   consentStatus: ConsentStatus
   importLabel: string
   createdAt: string
+  permissionOverride?: { confirmedByName: string; confirmedAt: string }
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -59,6 +62,18 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 const PAGE_SIZE = 25
+
+const CONSENT_BADGE_STYLE: Record<ConsentStatus, string> = {
+  unknown: "border-muted-foreground/30 bg-muted text-muted-foreground",
+  claimed_verbal: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  documented: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+}
+
+const CONSENT_BADGE_LABEL: Record<ConsentStatus, string> = {
+  unknown: "Unknown",
+  claimed_verbal: "Claimed (verbal)",
+  documented: "Documented",
+}
 
 const COUNT_LABELS: { key: keyof ImportCounts; label: string; tone: string }[] = [
   { key: "validNew", label: "New & eligible", tone: "text-emerald-600 dark:text-emerald-400" },
@@ -88,6 +103,7 @@ function SampleList({ title, rows }: { title: string; rows: ImportSampleRow[] })
 export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const router = useRouter()
   const { getToken } = useAuth()
+  const { confirm, AlertComponent } = useAlert()
 
   const [file, setFile] = React.useState<File | null>(null)
   const [importLabel, setImportLabel] = React.useState("")
@@ -232,8 +248,7 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
     }
   }
 
-  const handleDelete = async (id: string, email: string) => {
-    if (!window.confirm(`Remove ${email} from Marketing Contacts? This cannot be undone.`)) return
+  const doDelete = async (id: string) => {
     setDeletingId(id)
     try {
       const t = await getToken()
@@ -244,6 +259,16 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
     } finally {
       setDeletingId("")
     }
+  }
+
+  const handleDelete = (id: string, email: string) => {
+    void confirm(
+      "Remove this contact?",
+      `${email} will be removed from Marketing Contacts. This cannot be undone.`,
+      () => doDelete(id),
+      "Remove contact",
+      "Keep it",
+    )
   }
 
   return (
@@ -267,8 +292,11 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
           </>
         )}
 
-        <section className="space-y-3 rounded-2xl border bg-card p-4 sm:p-6">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Import contacts</h2>
+        <section className="space-y-4 rounded-2xl border bg-card p-4 sm:p-6">
+          <div className="flex items-center gap-2 border-b pb-4">
+            <FileSpreadsheet className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Import Contacts</h2>
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold">CSV file</label>
@@ -299,7 +327,8 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold">Consent evidence status</label>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="flex items-start gap-1.5 rounded-lg border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               This records what evidence exists for these contacts — it does not by itself authorize sending them
               marketing email. &ldquo;Unknown&rdquo; and &ldquo;Claimed (verbal)&rdquo; are not the same as documented opt-in.
             </p>
@@ -385,7 +414,8 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <Users className="h-4 w-4 text-primary" />
               Library ({total} contact{total === 1 ? "" : "s"})
             </h2>
             <div className="relative w-full max-w-xs">
@@ -415,24 +445,39 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
           ) : (
             <div className="space-y-2">
               {contacts.map((contact) => (
-                <div key={contact._id} className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {contact.email}
-                      {(contact.firstName || contact.lastName) && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {[contact.firstName, contact.lastName].filter(Boolean).join(" ")}
-                        </span>
+                <div key={contact._id} className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-border/80">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-medium">
+                        {contact.email}
+                        {(contact.firstName || contact.lastName) && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {[contact.firstName, contact.lastName].filter(Boolean).join(" ")}
+                          </span>
+                        )}
+                      </p>
+                      <Badge variant="outline" className={cn("shrink-0 text-[10px]", CONSENT_BADGE_STYLE[contact.consentStatus])}>
+                        {CONSENT_BADGE_LABEL[contact.consentStatus]}
+                      </Badge>
+                      {contact.permissionOverride && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          title={`Permission confirmed by ${contact.permissionOverride.confirmedByName} on ${fmtLongDateTimeMDT(contact.permissionOverride.confirmedAt)}`}
+                        >
+                          <ShieldCheck className="mr-1 h-3 w-3" />
+                          Consent by {contact.permissionOverride.confirmedByName}
+                        </Badge>
                       )}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {contact.source} · {contact.importLabel} · {contact.consentStatus} · {fmtLongDateTimeMDT(contact.createdAt)}
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {contact.source} · {contact.importLabel} · {fmtLongDateTimeMDT(contact.createdAt)}
                     </p>
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 shrink-0"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600 hover:dark:text-red-400"
                     disabled={deletingId === contact._id}
                     onClick={() => void handleDelete(contact._id, contact.email)}
                     aria-label={`Delete ${contact.email}`}
@@ -459,6 +504,8 @@ export function MarketingContactsPanel({ hideHeader = false }: { hideHeader?: bo
           )}
         </section>
       </div>
+
+      <AlertComponent />
     </div>
   )
 }
