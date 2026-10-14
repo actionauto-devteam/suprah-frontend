@@ -459,7 +459,7 @@ function getRichEditorCaretFormattingSnapshot(
 
   const hasInlineWeight = ancestors.some(element => {
     const value = element.style.fontWeight.trim();
-    return value === 'bold' || Number.parseInt(value || '0', 10) >= 600;
+    return value === 'bold' || value === 'bolder' || Number.parseInt(value || '0', 10) >= 600;
   });
   const hasInlineItalic = ancestors.some(
     element => element.style.fontStyle.trim() === 'italic',
@@ -1186,7 +1186,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 function hasRichFormatting(html: string): boolean {
   return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
-    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
+    || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
 
 function getCopiedElementVisibleText(element: HTMLElement): string {
@@ -1922,7 +1922,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
     const elementIsBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)
-      || fontWeight === 'bold' || Number.parseInt(fontWeight || '0', 10) >= 600;
+      || fontWeight === 'bold' || fontWeight === 'bolder' || Number.parseInt(fontWeight || '0', 10) >= 600;
     const elementIsItalic = tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic';
     const elementIsUnderline = tag === 'u' || decoration.includes('underline');
     const elementIsStrike = tag === 's' || tag === 'strike' || tag === 'del' || decoration.includes('line-through');
@@ -2253,7 +2253,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const style = (element.getAttribute('style') || '').toLowerCase();
     const weight = style.match(/font-weight\s*:\s*([^;]+)/)?.[1]?.trim() || '';
     const href = tag === 'a' ? element.getAttribute('href') : null;
-    const isBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag) || weight === 'bold' || Number.parseInt(weight || '0', 10) >= 600;
+    const isBold = tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag) || weight === 'bold' || weight === 'bolder' || Number.parseInt(weight || '0', 10) >= 600;
     const isItalic = tag === 'em' || tag === 'i' || /font-style\s*:\s*italic/.test(style);
     const isUnderline = tag === 'u' || /text-decoration(?:-line)?\s*:[^;]*underline/.test(style);
     const isStrike = tag === 's' || tag === 'strike' || tag === 'del' || /text-decoration(?:-line)?\s*:[^;]*line-through/.test(style);
@@ -2498,6 +2498,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       tag === 'strong'
       || tag === 'b'
       || fontWeight === 'bold'
+      || fontWeight === 'bolder'
       || Number.parseInt(fontWeight || '0', 10) >= 600
     ) formatted = `<strong>${formatted}</strong>`;
     if (tag === 'em' || tag === 'i' || element.style.fontStyle === 'italic') {
