@@ -1649,22 +1649,28 @@ function getActiveSelectionColor(root: HTMLElement): string {
 
 function getRichEditorSelectionRange(root: HTMLElement, savedRange: Range | null): Range {
   const currentSelection = window.getSelection();
+  const hasSavedSelection = Boolean(
+    savedRange
+    && root.contains(savedRange.startContainer)
+    && root.contains(savedRange.endContainer),
+  );
   if (currentSelection?.rangeCount) {
     const currentRange = currentSelection.getRangeAt(0);
     if (
       root.contains(currentRange.startContainer)
       && root.contains(currentRange.endContainer)
     ) {
+      // Native selects can collapse the live editor range while their menu is
+      // open. Keep the pre-toolbar highlighted range for the formatting action.
+      if (currentRange.collapsed && hasSavedSelection && !savedRange!.collapsed) {
+        return savedRange!.cloneRange();
+      }
       return currentRange.cloneRange();
     }
   }
 
-  if (
-    savedRange
-    && root.contains(savedRange.startContainer)
-    && root.contains(savedRange.endContainer)
-  ) {
-    return savedRange.cloneRange();
+  if (hasSavedSelection) {
+    return savedRange!.cloneRange();
   }
 
   const fallbackRange = document.createRange();
