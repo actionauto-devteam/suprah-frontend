@@ -4213,17 +4213,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setMessages(prev => prev.map(message => {
       if (message._id !== messageId) return message;
       previousReactions = message.reactions;
-      const selected = (message.reactions || []).find(reaction => reaction.emoji === emoji);
-      const alreadySelected = Boolean(selected?.users.includes(crmUserId));
-      const reactions = (message.reactions || []).map(reaction => ({
-        ...reaction,
-        users: reaction.users.filter(userId => userId !== crmUserId),
-      })).filter(reaction => reaction.users.length > 0);
-      if (!alreadySelected) {
-        const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
-        if (selectedIndex >= 0) reactions[selectedIndex] = { ...reactions[selectedIndex], users: [...reactions[selectedIndex].users, crmUserId] };
-        else reactions.push({ emoji, users: [crmUserId] });
-      }
+      const reactions = [...(message.reactions || [])];
+      const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
+      if (selectedIndex >= 0) {
+        const users = reactions[selectedIndex].users.includes(crmUserId)
+          ? reactions[selectedIndex].users.filter(userId => userId !== crmUserId)
+          : [...reactions[selectedIndex].users, crmUserId];
+        if (users.length === 0) reactions.splice(selectedIndex, 1);
+        else reactions[selectedIndex] = { ...reactions[selectedIndex], users };
+      } else reactions.push({ emoji, users: [crmUserId] });
       return { ...message, reactions };
     }));
     try {

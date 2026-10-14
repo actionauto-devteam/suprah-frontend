@@ -12178,17 +12178,15 @@ export default function SupraSpacePage() {
     setMsgs(p => ({
       ...p, [activeId]: (p[activeId] || []).map(m => {
         if (m._id !== msgId) return m;
-        const selected = (m.reactions || []).find(r => r.emoji === emoji);
-        const alreadySelected = Boolean(selected?.users.includes(uid));
-        const reactions = (m.reactions || []).map(reaction => ({
-          ...reaction,
-          users: reaction.users.filter(userId => userId !== uid),
-        })).filter(reaction => reaction.users.length > 0);
-        if (!alreadySelected) {
-          const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
-          if (selectedIndex >= 0) reactions[selectedIndex] = { ...reactions[selectedIndex], users: [...reactions[selectedIndex].users, uid] };
-          else reactions.push({ emoji, users: [uid] });
-        }
+        const reactions = [...(m.reactions || [])];
+        const selectedIndex = reactions.findIndex(reaction => reaction.emoji === emoji);
+        if (selectedIndex >= 0) {
+          const users = reactions[selectedIndex].users.includes(uid)
+            ? reactions[selectedIndex].users.filter(userId => userId !== uid)
+            : [...reactions[selectedIndex].users, uid];
+          if (users.length === 0) reactions.splice(selectedIndex, 1);
+          else reactions[selectedIndex] = { ...reactions[selectedIndex], users };
+        } else reactions.push({ emoji, users: [uid] });
         return { ...m, reactions };
       })
     }));
