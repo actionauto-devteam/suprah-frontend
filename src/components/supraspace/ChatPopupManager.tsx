@@ -3123,7 +3123,7 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
       <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto">
         {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>}
         {!loading && gifs.length === 0 && (
-          <p className="col-span-2 text-center py-6 text-[11px] text-muted-foreground">{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>
+          <p className="col-span-2 text-center py-6 text-[11px] text-muted-foreground">{unavailable ? 'GIF search is temporarily unavailable. Please try again later.' : 'No GIFs found.'}</p>
         )}
         {gifs.map(g => {
           return (

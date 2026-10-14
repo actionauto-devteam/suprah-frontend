@@ -7600,7 +7600,7 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain', touchAction: 'pan-y', gridAutoFlow: 'row', gridAutoRows: gifTileSize ? `${gifTileSize}px` : 'auto' }}
         >
           {loading && <div className="col-span-3 flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-          {!loading && gifs.length === 0 && <p className="col-span-3 text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>}
+          {!loading && gifs.length === 0 && <p className="col-span-3 text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is temporarily unavailable. Please try again later.' : 'No GIFs found.'}</p>}
           {!loading && gifs.map(g => {
             return (
               <button key={g.url} type="button" onClick={() => { onPick(g); onClose(); }} className="relative block w-full overflow-hidden rounded-md" style={{ background: 'var(--bg-hover)', contain: 'layout paint', height: gifTileSize ? `${gifTileSize}px` : undefined, minHeight: gifTileSize ? `${gifTileSize}px` : undefined, maxHeight: gifTileSize ? `${gifTileSize}px` : undefined, aspectRatio: '1 / 1', transform: 'translateZ(0)' }}>
@@ -7635,7 +7635,7 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
       </div>
       <div className="p-2 grid grid-cols-2 gap-1.5 max-h-64 overflow-y-auto ss4-scroll">
         {loading && <div className="col-span-2 flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>}
-        {!loading && gifs.length === 0 && <p className="col-span-2 text-center py-6" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is unavailable. Please try again later.' : 'No GIFs found.'}</p>}
+        {!loading && gifs.length === 0 && <p className="col-span-2 text-center py-6" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{unavailable ? 'GIF search is temporarily unavailable. Please try again later.' : 'No GIFs found.'}</p>}
         {gifs.map(g => {
           return (
             <button key={g.url} onClick={() => { onPick(g); onClose(); }} className="rounded-lg overflow-hidden" style={{ aspectRatio: '1', background: 'var(--bg-hover)' }}>
