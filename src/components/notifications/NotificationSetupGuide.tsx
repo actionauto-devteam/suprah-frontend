@@ -15,7 +15,7 @@ interface NotificationSetupGuideProps {
   isSubscribed: boolean;
   isLoading: boolean;
   swDisabledInDev?: boolean;
-  subscribe: () => void | Promise<void>;
+  subscribe: () => void | Promise<unknown>;
   unsubscribe: () => void | Promise<void>;
 }
 

@@ -164,10 +164,10 @@ export function useCrmWebPush() {
     checkSubscription();
   }, [checkSubscription]);
 
-  const subscribe = async () => {
+  const subscribe = async (): Promise<"subscribed" | "permission-rejected" | "failed"> => {
     if (!VAPID_PUBLIC_KEY) {
       toast.error("Push key is missing. Please contact support.");
-      return;
+      return "failed";
     }
 
     try {
@@ -175,14 +175,14 @@ export function useCrmWebPush() {
 
       if (Notification.permission === "denied") {
         toast.error("Notifications are blocked. Please allow them in browser settings.");
-        return;
+        return "permission-rejected";
       }
 
       if (Notification.permission === "default") {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
           toast.error("Notification permission not granted.");
-          return;
+          return "permission-rejected";
         }
       }
 
@@ -195,7 +195,7 @@ export function useCrmWebPush() {
       const token = crmToken || localStorage.getItem("crm_token");
       if (!token) {
         toast.error("CRM session is still loading. Please try again.");
-        return;
+        return "failed";
       }
       const saved = await postWithRetry(
         CRM_SUBSCRIBE_URL,
@@ -204,14 +204,16 @@ export function useCrmWebPush() {
       );
       if (!saved) {
         toast.error("Failed to enable notifications. Please try again.");
-        return;
+        return "failed";
       }
 
       setIsSubscribed(true);
       toast.success("Admin alerts enabled!");
+      return "subscribed";
     } catch (error) {
       console.error("[CrmWebPush] Subscribe failed:", error);
       toast.error("Failed to enable notifications.");
+      return "failed";
     } finally {
       setIsLoading(false);
     }

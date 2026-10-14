@@ -121,20 +121,20 @@ export function useWebPush(options: UseWebPushOptions = {}) {
         getSubscription();
     }, [getSubscription]);
 
-    const subscribe = async () => {
+    const subscribe = async (): Promise<"subscribed" | "permission-rejected" | "failed"> => {
         if (disabled) {
-            return;
+            return "failed";
         }
 
         if (swDisabledInDev) {
             toast.info("Push is disabled on localhost. It works automatically once deployed — set NEXT_PUBLIC_ENABLE_SW_DEV=true locally to test it here.");
-            return;
+            return "failed";
         }
 
         if (!VAPID_PUBLIC_KEY) {
             console.error("VAPID Public Key missing from environment variables.");
             toast.error("Push key is missing. Please contact support.");
-            return;
+            return "failed";
         }
 
         try {
@@ -142,14 +142,14 @@ export function useWebPush(options: UseWebPushOptions = {}) {
 
             if (Notification.permission === "denied") {
                 toast.error("Notifications are blocked in this browser. Please allow them in site settings.");
-                return;
+                return "permission-rejected";
             }
 
             if (Notification.permission === "default") {
                 const permission = await Notification.requestPermission();
                 if (permission !== "granted") {
                     toast.error("Notification permission was not granted.");
-                    return;
+                    return "permission-rejected";
                 }
             }
 
@@ -168,9 +168,11 @@ export function useWebPush(options: UseWebPushOptions = {}) {
 
             setIsSubscribed(true);
             toast.success("Notifications enabled!");
+            return "subscribed";
         } catch (error) {
             console.error("Failed to subscribe to Web Push:", error);
             toast.error("Failed to enable notifications. Please check your browser settings.");
+            return "failed";
         } finally {
             setIsLoading(false);
         }

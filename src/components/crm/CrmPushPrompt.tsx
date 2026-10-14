@@ -24,10 +24,14 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   const slot = usePwaNagSlot("crm-push", 1);
 
   useEffect(() => {
-    if (!role || !isSupported || isSubscribed || isLoading || isPermanentlyDismissed !== false) return;
-
-    const dismissed = sessionStorage.getItem("crm_push_prompt_dismissed");
-    if (dismissed) return;
+    if (
+      !role ||
+      !isSupported ||
+      isSubscribed ||
+      isLoading ||
+      isPermanentlyDismissed !== false ||
+      Notification.permission !== "default"
+    ) return;
 
     const timer = setTimeout(() => {
       setShowPrompt(true);
@@ -41,9 +45,9 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   }, [isSubscribed, slot.release]);
 
   const handleDismiss = () => {
+    dismissPermanently();
     setShowPrompt(false);
     slot.release();
-    sessionStorage.setItem("crm_push_prompt_dismissed", "true");
   };
 
   const handlePermanentDismiss = () => {
@@ -53,7 +57,8 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
   };
 
   const handleSubscribe = async () => {
-    await subscribe();
+    const result = await subscribe();
+    if (result === "permission-rejected") dismissPermanently();
     setShowPrompt(false);
     slot.release();
   };
@@ -73,6 +78,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
 
           <button
             onClick={handleDismiss}
+            aria-label="Don't show notification prompt again"
             className="absolute right-4 top-4 text-zinc-600 hover:text-zinc-400 transition-colors p-1"
           >
             <X className="h-4 w-4" />
@@ -106,7 +112,7 @@ export function CrmPushPrompt({ role }: CrmPushPromptProps) {
                 onClick={handleDismiss}
                 className="text-xs h-8 px-3 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all font-semibold"
               >
-                Later
+                Dismiss
               </Button>
               <Button
                 size="sm"

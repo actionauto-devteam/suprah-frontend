@@ -36,11 +36,13 @@ export function PushPrompt() {
 
     useEffect(() => {
         // If not supported, already subscribed, or loading, do nothing
-        if (!isSupported || isSubscribed || isLoading || isPermanentlyDismissed !== false) return;
-
-        // Dimissal check - don't harass the user in the same session
-        const dismissed = sessionStorage.getItem("push_prompt_dismissed");
-        if (dismissed) return;
+        if (
+            !isSupported ||
+            isSubscribed ||
+            isLoading ||
+            isPermanentlyDismissed !== false ||
+            Notification.permission !== "default"
+        ) return;
 
         // Trigger logic: only show on dashboards (post-milestone entry points)
         const isDashboard = pathname?.includes('/driver') ||
@@ -65,9 +67,9 @@ export function PushPrompt() {
     }, [isSubscribed, slot.release]);
 
     const handleDismiss = () => {
+        dismissPermanently();
         setShowPrompt(false);
         slot.release();
-        sessionStorage.setItem("push_prompt_dismissed", "true");
     };
 
     const handlePermanentDismiss = () => {
@@ -77,7 +79,8 @@ export function PushPrompt() {
     };
 
     const handleSubscribe = async () => {
-        await subscribe();
+        const result = await subscribe();
+        if (result === "permission-rejected") dismissPermanently();
         setShowPrompt(false);
         slot.release();
     };
@@ -98,6 +101,7 @@ export function PushPrompt() {
 
                     <button
                         onClick={handleDismiss}
+                        aria-label="Don't show notification prompt again"
                         className="absolute right-4 top-4 text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors p-1"
                     >
                         <X className="h-4 w-4" />
@@ -129,7 +133,7 @@ export function PushPrompt() {
                                 onClick={handleDismiss}
                                 className="text-xs h-8 px-3 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 transition-all font-semibold"
                             >
-                                Maybe Later
+                                Dismiss
                             </Button>
                             <Button
                                 size="sm"
