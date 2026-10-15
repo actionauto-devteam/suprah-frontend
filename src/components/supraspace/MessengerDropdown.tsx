@@ -43,8 +43,8 @@ function initials(name: string): string {
   return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function relativeTime(dateStr: string, now = Date.now()): string {
+  const diff = now - new Date(dateStr).getTime();
   if (diff < 60_000) return 'now';
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
@@ -98,6 +98,19 @@ export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open
   // -- Dropdown open state (controlled so we can reset on close) --------------
   const [internalOpen, setInternalOpen] = React.useState(false);
   const open = controlledOpen ?? internalOpen;
+  const [relativeTimeNow, setRelativeTimeNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!open) return;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const timeout = setTimeout(() => {
+      setRelativeTimeNow(Date.now());
+      interval = setInterval(() => setRelativeTimeNow(Date.now()), 60_000);
+    }, 60_000 - (Date.now() % 60_000) + 25);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [open]);
   const setOpen = (next: boolean) => {
     if (controlledOpen === undefined) setInternalOpen(next);
     onOpenChange?.(next);
@@ -509,7 +522,7 @@ export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className={cn('text-[13px] truncate', isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground/80')}>{name}</span>
-                          {conv.lastMessageAt && <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(conv.lastMessageAt)}</span>}
+                          {conv.lastMessageAt && <span className="text-[10px] text-muted-foreground shrink-0">{relativeTime(conv.lastMessageAt, relativeTimeNow)}</span>}
                         </div>
                         <p className={cn('text-[11px] truncate mt-0.5', isUnread ? 'text-foreground font-semibold' : 'text-muted-foreground')}>{previewText(conv, crmUserId)}</p>
                       </div>
@@ -586,7 +599,7 @@ export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-[13px] font-medium text-foreground/80">{name}</span>
-                      {conv.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(conv.lastMessageAt)}</span>}
+                      {conv.lastMessageAt && <span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(conv.lastMessageAt, relativeTimeNow)}</span>}
                     </span>
                     <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{previewText(conv, crmUserId)}</span>
                     <span className={cn('mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-medium', leftChannel ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300' : 'bg-muted text-muted-foreground')}>

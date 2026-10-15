@@ -1517,10 +1517,10 @@ function fmtDate(d: string) {
   if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: MDT_TZ });
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: MDT_TZ });
 }
-function fmtRelative(d?: string) {
+function fmtRelative(d?: string, now = Date.now()) {
   if (!d) return '';
   try {
-    const diff = Date.now() - new Date(d).getTime();
+    const diff = now - new Date(d).getTime();
     if (diff < 60_000) return 'now';
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
     if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
@@ -8901,6 +8901,7 @@ interface ConvRowProps {
   draggable?: boolean;
   activeId: string | null;
   activeConvId: string | null;
+  relativeTimeNow: number;
   uid: string;
   token: string;
   presence: PresenceMap;
@@ -8950,7 +8951,7 @@ interface ConvRowProps {
 // component reference never changes, so re-renders just update props in place.
 const ConvRow = React.memo(function ConvRow({
   conv, compact, draggable: isDraggable,
-  activeId, activeConvId, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
+  activeId, activeConvId, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
   openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
@@ -9071,7 +9072,7 @@ const ConvRow = React.memo(function ConvRow({
             )}
             style={{ fontSize: 11, color: 'var(--text-disabled)' }}
           >
-            {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}
+            {fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt, relativeTimeNow)}
           </span>
           {isUnread && (
             isStandaloneApp && unreadCount > 1 ? (
@@ -9235,6 +9236,20 @@ const ConvRow = React.memo(function ConvRow({
 });
 
 export default function SupraSpacePage() {
+  // Relative timestamps depend on the clock, not only conversation updates.
+  // Keep one minute-aligned clock for this surface and pass it into memoized rows.
+  const [relativeTimeNow, setRelativeTimeNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const timeout = setTimeout(() => {
+      setRelativeTimeNow(Date.now());
+      interval = setInterval(() => setRelativeTimeNow(Date.now()), 60_000);
+    }, 60_000 - (Date.now() % 60_000) + 25);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, []);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -13885,7 +13900,7 @@ export default function SupraSpacePage() {
   };
 
   const sharedConvRowProps = {
-    activeId, activeConvId: activeConv?._id ?? null, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
+    activeId, activeConvId: activeConv?._id ?? null, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
     openConversation, openArchivedConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
