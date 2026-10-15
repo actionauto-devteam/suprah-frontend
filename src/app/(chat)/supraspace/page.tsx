@@ -15943,7 +15943,7 @@ export default function SupraSpacePage() {
                         <div className={cn('h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden', activeConv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(cName))}>
                           {activeConv.type === 'group' ? <ChannelFace conv={activeConv} avatar={cAvatar} name={cName} size={28} /> : cAvatar ? <SS4AvatarImage src={cAvatar} name={cName} className="w-full h-full object-cover" size={26} /> : <span className="text-white font-bold" style={{ fontSize: 26 }}>{ini(cName)}</span>}
                         </div>
-                        {activeConv.type === 'group' && (
+                        {activeConv.type === 'group' && !isArchivedActiveConv && !hasLeftChannel && (
                           <>
                             <input ref={avatarFileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }} />
                             <button onClick={() => avatarFileRef.current?.click()} className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)', border: '2px solid var(--bg-elevated)' }} title="Change photo"><ImageIcon className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
@@ -15951,7 +15951,7 @@ export default function SupraSpacePage() {
                         )}
                       </div>
 
-                      {activeConv.type === 'group' && editingGcName ? (
+                      {activeConv.type === 'group' && editingGcName && !isArchivedActiveConv && !hasLeftChannel ? (
                         <div className="flex items-center gap-2 w-full max-w-xs">
                           <input value={gcEmojiInput} onChange={e => setGcEmojiInput(e.target.value)} onKeyDown={e => {
                                 if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { updateChannelDetails(gcNameInput, gcEmojiInput); setEditingGcName(false); } }} placeholder="#" className="w-11 h-8 rounded-lg px-2 text-sm ss4-search-input text-center" maxLength={4} />
@@ -15963,18 +15963,18 @@ export default function SupraSpacePage() {
                         <div className="flex items-center gap-1.5 max-w-full">
                           <p className="ss4-display font-bold text-center truncate min-w-0" style={{ fontSize: 18, color: 'var(--text-primary)' }}>{activeConv.type === 'group' && activeConv.emoji ? `${activeConv.emoji} ` : ''}{cName}</p>
                          
-                          {activeConv.type === 'group' && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
+                          {activeConv.type === 'group' && !isArchivedActiveConv && !hasLeftChannel && <button onClick={() => { setGcNameInput(cName); setGcEmojiInput(activeConv.emoji || ''); setEditingGcName(true); }} className="ss4-icon-btn h-6 w-6 shrink-0"><Pencil className="h-3 w-3" /></button>}
                         </div>
                       )}
                       <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{activeConv.type === 'group' ? `${activeConv.members.length} members` : 'Direct message'}</p>
 
-                      {activeConv.type === 'group' && (
+                      {activeConv.type === 'group' && !isArchivedActiveConv && !hasLeftChannel && (
                         <div className="flex items-center gap-2 mt-1">
                           <button onClick={() => setManageOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><UserPlus className="h-3.5 w-3.5" /> Add</button>
                           <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
                         </div>
                       )}
-                      {activeConv.type === 'direct' && (
+                      {activeConv.type === 'direct' && !isArchivedActiveConv && !hasLeftChannel && (
                         <button onClick={() => setThemeOpen(true)} className="ss4-pill-btn h-8 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}><Palette className="h-3.5 w-3.5" /> Theme</button>
                       )}
                       <button onClick={() => setThreadReportOpen(true)} className="ss4-pill-btn h-10 px-3 flex items-center gap-1.5 mt-1" style={{ fontSize: 12 }}>
@@ -16157,7 +16157,7 @@ export default function SupraSpacePage() {
           />
         )}
 
-        {manageOpen && activeConv && (
+        {manageOpen && activeConv && !isArchivedActiveConv && !hasLeftChannel && (
           <ManageMembersModal
             users={allUsers}
             existingIds={safeMembers(activeConv).map(m => m._id)}
@@ -16167,7 +16167,7 @@ export default function SupraSpacePage() {
             getInitials={ini}
           />
         )}
-        {themeOpen && activeConv && (
+        {themeOpen && activeConv && !isArchivedActiveConv && !hasLeftChannel && (
           <ConversationSettingsModal
             current={activeConv.theme}
             conversation={activeConv}
@@ -16533,6 +16533,7 @@ export default function SupraSpacePage() {
           const pinned = isPinnedConv(sheetConv);
           const archived = isArchivedConv(sheetConv);
           const sheetLeftChannel = sheetConv.type === 'group' && (sheetConv.leftBy || []).map(String).includes(uid);
+          const canMutateSheetConversation = !archived && !sheetLeftChannel;
           const cName = getConvName(sheetConv, uid);
           const sheetIsUnread = isConvUnreadForUser(sheetConv, uid, manualUnread);
           const toggleSheetReadState = () => {
@@ -16552,13 +16553,18 @@ export default function SupraSpacePage() {
             setConvMobileSheet(null);
           };
           const sheetActions: { icon: React.ReactNode; label: string; danger?: boolean; onClick: () => void }[] = [
-            { icon: <MailOpen className="h-5 w-5" />, label: sheetIsUnread ? 'Mark as read' : 'Mark as unread', onClick: toggleSheetReadState },
-            { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
-            ...(sheetConv.type === 'group' && ctxSpaces.length > 0
-              ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
+            ...(canMutateSheetConversation ? [
+              { icon: <MailOpen className="h-5 w-5" />, label: sheetIsUnread ? 'Mark as read' : 'Mark as unread', onClick: toggleSheetReadState },
+              { icon: pinned ? <PinOff className="h-5 w-5" /> : <Pin className="h-5 w-5" />, label: pinned ? 'Unpin' : 'Pin', onClick: () => { togglePinConv(sheetConv); setConvMobileSheet(null); } },
+              ...(sheetConv.type === 'group' && ctxSpaces.length > 0
+                ? [{ icon: <Sparkles className="h-5 w-5" />, label: 'Move to Space', onClick: () => { setConvMobileSheet(null); setMoveSpaceSheetConv(sheetConv._id); } }]
+                : []),
+              { icon: <Archive className="h-5 w-5" />, label: 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } },
+              { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
+            ] : []),
+            ...(archived && !sheetLeftChannel
+              ? [{ icon: <ArchiveRestore className="h-5 w-5" />, label: 'Unarchive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } }]
               : []),
-            ...(!sheetLeftChannel ? [{ icon: archived ? <ArchiveRestore className="h-5 w-5" /> : <Archive className="h-5 w-5" />, label: archived ? 'Unarchive' : 'Archive', onClick: () => { toggleArchiveConv(sheetConv); setConvMobileSheet(null); } }] : []),
-            { icon: <Trash2 className="h-5 w-5" />, label: 'Delete conversation', danger: true, onClick: () => { setConvMobileSheet(null); setDeleteConfirmConv(sheetConv); } },
           ];
           return (
             <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setConvMobileSheet(null)}>
@@ -16569,13 +16575,13 @@ export default function SupraSpacePage() {
                 </div>
                 <p className="text-center font-semibold px-4 pt-1 pb-3 truncate" style={{ fontSize: 14, color: 'var(--text-primary)' }}>{cName}</p>
                 <div style={{ height: 1, background: 'var(--border-2,rgba(255,255,255,0.1))', margin: '0 16px 4px' }} />
-                <button
+                {canMutateSheetConversation && <button
                   className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
                   style={{ color: 'var(--text-primary)', fontSize: 15 }}
                   onClick={() => { setNotifModalConv(sheetConv); setConvMobileSheet(null); }}
                 >
                   <Bell className="h-5 w-5" /> Notification settings
-                </button>
+                </button>}
                 {sheetActions.map(a => (
                   <button key={a.label} className="w-full flex items-center gap-4 px-6 py-3.5 transition-colors active:bg-white/5"
                     style={{ color: a.danger ? 'var(--danger)' : 'var(--text-primary)', fontSize: 15 }}

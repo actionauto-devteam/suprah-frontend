@@ -2978,12 +2978,14 @@ function PinnedMessagesModal({
   pinnedMsgIds,
   loading,
   onUnpin,
+  canUnpin = true,
   onClose,
 }: {
   messages: SSMessage[];
   pinnedMsgIds: Set<string>;
   loading: boolean;
   onUnpin: (id: string) => void;
+  canUnpin?: boolean;
   onClose: () => void;
 }) {
   const pinned = messages.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted);
@@ -3039,14 +3041,15 @@ function PinnedMessagesModal({
                         {contentText}
                       </p>
                     </div>
-                    {/* Unpin button */}
-                    <button
-                      onClick={() => onUnpin(m._id)}
-                      title="Unpin message"
-                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--muted-foreground)', cursor: 'pointer', marginTop: 2 }}
-                    >
-                      <Pin style={{ width: 13, height: 13 }} />
-                    </button>
+                    {canUnpin && (
+                      <button
+                        onClick={() => onUnpin(m._id)}
+                        title="Unpin message"
+                        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--muted-foreground)', cursor: 'pointer', marginTop: 2 }}
+                      >
+                        <Pin style={{ width: 13, height: 13 }} />
+                      </button>
+                    )}
                   </div>
                 </React.Fragment>
               );
@@ -4374,6 +4377,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const handleDelete = async (msgId: string) => {
+    if (isReadOnlyConversation) return;
     clearBar();
     const previousPinnedMessage = pinnedMessages.find(message => message._id === msgId);
     setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: true, content: '', attachments: [] } : m));
@@ -4390,6 +4394,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   };
 
   const handleReply = (msgId: string) => {
+    if (isReadOnlyConversation) return;
     const msg = messages.find(m => m._id === msgId);
     if (msg) setReplyTo(msg);
     clearBar();
@@ -4831,6 +4836,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     );
 
   const startEdit = (msgId: string) => {
+    if (isReadOnlyConversation) return;
     const msg = messages.find(m => m._id === msgId);
     if (!msg) return;
     const bubble = document.querySelector<HTMLElement>(`[data-popup-bubble-id="${msgId}"]`);
@@ -7767,7 +7773,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       </div>
 
       {/* ── Fixed action bar portal (FB Messenger style: 3 buttons) ── */}
-      {barPos && hovMsg && typeof document !== 'undefined' && createPortal(
+      {!isReadOnlyConversation && barPos && hovMsg && typeof document !== 'undefined' && createPortal(
         <div
           data-supraspace-action-ui="true"
           className={cn('fixed z-9998 flex items-center gap-0.5 px-0.5 py-0.5', barPos.isOwn && 'flex-row-reverse')}
@@ -7921,7 +7927,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       )}
 
       {/* ── More-actions dropdown portal ── */}
-      {moreMenuMsgId && moreMenuPos && typeof document !== 'undefined' && createPortal(
+      {!isReadOnlyConversation && moreMenuMsgId && moreMenuPos && typeof document !== 'undefined' && createPortal(
         <div
           ref={moreMenuRef}
           data-supraspace-action-ui="true"
@@ -8069,7 +8075,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           messages={pinnedMessages}
           pinnedMsgIds={pinnedMsgIds}
           loading={pinnedMessagesLoading}
+          canUnpin={!isReadOnlyConversation}
           onUnpin={async (id) => {
+            if (isReadOnlyConversation) return;
             if (pinRequestIdsRef.current.has(id)) return;
             pinRequestIdsRef.current.add(id);
             const previousMessage = messages.find(m => m._id === id);
@@ -8096,7 +8104,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       )}
 
       {/* ── Members / invite modal ── */}
-      {inviteOpen && (
+      {inviteOpen && !isReadOnlyConversation && (
         <PopupInviteModal
           conv={conv}
           crmToken={crmToken}
@@ -8107,7 +8115,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       )}
 
       {/* ── Channel settings modal ── */}
-      {channelSettingsTab && (
+      {channelSettingsTab && !isReadOnlyConversation && (
         <PopupChannelSettingsModal
           conv={conv}
           crmToken={crmToken}
@@ -8247,7 +8255,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
 
                 {/* Members / invite — only for group chats */}
-                {conv.type === 'group' && (
+                {conv.type === 'group' && !isReadOnlyConversation && (
                   <button className={row} onClick={() => {
                     setInviteOpen(true);
                     close();
@@ -8258,18 +8266,18 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 )}
 
                 {/* Channel settings — nickname, quick reactions, theme */}
-                <button className={row} onClick={() => {
+                {!isReadOnlyConversation && <button className={row} onClick={() => {
                   setChannelSettingsTab('nickname');
                   close();
                 }}>
                   <Palette className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('Channel settings')}
-                </button>
+                </button>}
 
                 {sep}
 
                 {/* Mute notifications — with duration options */}
-                {notificationPref.muted ? (
+                {!isReadOnlyConversation && (notificationPref.muted ? (
                   <button className={row} onClick={() => { void setMutePref(false, null); close(); }}>
                     <BellOff className={ic} style={{ color: '#f87171' }} />
                     {label('Unmute notifications')}
@@ -8298,20 +8306,20 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       </div>
                     )}
                   </>
-                )}
+                ))}
 
                 {/* Mark as unread */}
-                <button className={row} onClick={() => {
+                {!isReadOnlyConversation && <button className={row} onClick={() => {
                   markConversationUnread(conv._id, true);
                   close();
                   onClose();
                 }}>
                   <MailOpen className={ic} style={{ color: 'var(--muted-foreground)' }} />
                   {label('Mark as unread')}
-                </button>
+                </button>}
 
                 {/* Archive chat */}
-                {!hasLeftChannel && <button className={row} onClick={() => {
+                {!isReadOnlyConversation && !hasLeftChannel && <button className={row} onClick={() => {
                   close();
                   onClose();
                   archiveConversation(conv._id, true)
@@ -8325,7 +8333,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 {sep}
 
                 {/* Delete / leave conversation */}
-                <button
+                {!isReadOnlyConversation && <button
                   className={row}
                   onClick={() => {
                     if (!confirmDelete) { setConfirmDelete(true); return; }
@@ -8340,7 +8348,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   {confirmDelete
                     ? <span style={{ fontSize: 14, color: '#f87171', fontWeight: 600 }}>Click again to confirm</span>
                     : label(conv.type === 'group' ? 'Leave conversation' : 'Delete conversation')}
-                </button>
+                </button>}
               </div>
             );
           })()}

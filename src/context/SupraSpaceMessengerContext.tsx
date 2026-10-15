@@ -994,7 +994,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
   // Toggle a conversation's archived state for the current user
   const archiveConversation = React.useCallback(async (convId: string, archived: boolean) => {
-    if (!crmToken || !crmUserId) return;
+    // Callers optimistically update their own list state. Treat a missing
+    // session as a failure so they can roll back instead of showing an archive
+    // change that was never persisted.
+    if (!crmToken || !crmUserId) throw new Error('You must be signed in to update archive state');
     setConversations((prev) => prev.map((conv) => {
       if (conv._id !== convId) return conv;
       const archivedBy = (conv.archivedBy || []).filter(id => String(id) !== crmUserId);
