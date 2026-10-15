@@ -151,11 +151,20 @@ function decodeCrmUserId(token: string): string | null {
   } catch { return null; }
 }
 
-function sortByLastMessage(convs: SSConv[]): SSConv[] {
+function reactionAppliesToViewer(reaction: SSLastReaction | null | undefined, viewerId?: string | null): boolean {
+  if (!reaction || !viewerId) return false;
+  return reaction.userId === viewerId || reaction.targetUserId === viewerId;
+}
+
+function conversationActivityAt(conv: SSConv, viewerId?: string | null): number {
+  const messageAt = new Date(conv.lastMessageAt || conv.lastMessage?.createdAt || 0).getTime();
+  if (!reactionAppliesToViewer(conv.lastReaction, viewerId)) return messageAt;
+  return Math.max(messageAt, new Date(conv.lastReaction!.createdAt).getTime());
+}
+
+function sortByLastMessage(convs: SSConv[], viewerId?: string | null): SSConv[] {
   return [...convs].sort(
-    (a, b) =>
-      new Date(b.lastMessageAt || 0).getTime() -
-      new Date(a.lastMessageAt || 0).getTime()
+    (a, b) => conversationActivityAt(b, viewerId) - conversationActivityAt(a, viewerId)
   );
 }
 
@@ -167,30 +176,38 @@ function readConversationPayload(payload: unknown): SSConv[] {
 
 function applyReactionActivityToConversations(
   convs: SSConv[],
-  payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null },
+  payload: {
+    conversationId: string;
+    reactionActivity?: SSLastReaction | null;
+    reactionActorId?: string;
+    reactionTargetUserId?: string;
+  },
+  viewerId?: string | null,
 ): SSConv[] {
-  if (payload.reactionActivity === undefined && payload.conversationLastMessageAt === undefined) return convs;
+  if (payload.reactionActivity === undefined) return convs;
   let changed = false;
   const updated = convs.map((conv) => {
     if (conv._id !== payload.conversationId) return conv;
+    const affectsViewer = payload.reactionActivity
+      ? reactionAppliesToViewer(payload.reactionActivity, viewerId)
+      : payload.reactionActorId === viewerId || payload.reactionTargetUserId === viewerId;
+    if (!affectsViewer) return conv;
     changed = true;
     if (payload.reactionActivity === null) {
       return {
         ...conv,
         lastReaction: null,
-        lastMessageAt: payload.conversationLastMessageAt || conv.lastMessage?.createdAt || conv.lastMessageAt,
       };
     }
     if (payload.reactionActivity) {
       return {
         ...conv,
         lastReaction: payload.reactionActivity,
-        lastMessageAt: payload.reactionActivity.createdAt || payload.conversationLastMessageAt || conv.lastMessageAt,
       };
     }
-    return payload.conversationLastMessageAt ? { ...conv, lastMessageAt: payload.conversationLastMessageAt } : conv;
+    return conv;
   });
-  return changed ? sortByLastMessage(updated) : convs;
+  return changed ? sortByLastMessage(updated, viewerId) : convs;
 }
 
 function mentionBoundaryRegex(alias: string): RegExp | null {
@@ -439,7 +456,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         params: { limit: SUPRASPACE_CONTEXT_CONVERSATION_LIMIT, offset: 0 },
       })
       .then((r) => {
-        const next = sortByLastMessage(readConversationPayload(r.data?.data));
+        const next = sortByLastMessage(readConversationPayload(r.data?.data), crmUserId);
         setConversations(next);
         const serverPrefs = next.reduce<Record<string, NotifPref>>((acc, conv) => {
           if (conv.notificationPreference) acc[conv._id] = conv.notificationPreference;
@@ -465,7 +482,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         conversationsFetchInFlightRef.current = false;
         setIsLoadingConversations(false);
       });
-  }, [crmToken]);
+  }, [crmToken, crmUserId]);
 
   // ── Fetch spaces ─────────────────────────────────────────────────────────────
   const fetchSpaces = React.useCallback(() => {
@@ -530,7 +547,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
             unreadCount: isIncomingUnread ? (conv.unreadCount || 0) + 1 : 0,
           };
         });
-        return sortByLastMessage(updated);
+        return sortByLastMessage(updated, crmUserId);
       });
       if (message.sender?._id !== crmUserId) {
         const pref = resolveNotifPref(conversationId);
@@ -586,8 +603,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       }
     });
 
-    listen('message:reaction', (payload: { conversationId: string; reactionActivity?: SSLastReaction | null; conversationLastMessageAt?: string | null }) => {
-      setConversations(prev => applyReactionActivityToConversations(prev, payload));
+    listen('message:reaction', (payload: {
+      conversationId: string;
+      reactionActivity?: SSLastReaction | null;
+      reactionActorId?: string;
+      reactionTargetUserId?: string;
+    }) => {
+      setConversations(prev => applyReactionActivityToConversations(prev, payload, crmUserId));
     });
 
     listen('message:edited', ({ conversationId, messageId, content, attachments, type }: {
@@ -621,7 +643,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     listen('conversation:updated', (update: Partial<SSConv> & { _id: string }) => {
       setConversations(prev => sortByLastMessage(prev.map(conv =>
         conv._id === update._id ? { ...conv, ...update } : conv
-      )));
+      ), crmUserId));
     });
 
     listen('conversation:deleted', ({ conversationId }: { conversationId: string }) => {
@@ -857,7 +879,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       const next = exists
         ? prev.map((item) => item._id === conversation._id ? { ...item, ...conversation } : item)
         : [conversation, ...prev];
-      return sortByLastMessage(next);
+      return sortByLastMessage(next, crmUserId);
     });
 
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -1027,8 +1049,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const patchConversation = React.useCallback((update: Partial<SSConv> & { _id: string }) => {
     setConversations((prev) => sortByLastMessage(prev.map((conversation) =>
       conversation._id === update._id ? { ...conversation, ...update } : conversation
-    )));
-  }, []);
+    ), crmUserId));
+  }, [crmUserId]);
 
   const value = React.useMemo(() => ({
         conversations,

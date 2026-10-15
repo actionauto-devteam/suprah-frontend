@@ -43,7 +43,7 @@ import {
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/providers/AuthProvider';
-import { SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
+import { SSConversation, SSMessage, SSAttachment, SSLastReaction, PresenceMap, SSOnlineStatus } from '@/hooks/useSupraSpaceSocket';
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } from '@/context/SupraSpaceMessengerContext';
@@ -379,7 +379,11 @@ function normalizeSupraSpaceConversation(conversation: SSConversation | SSConv):
   } as SSConversation;
 }
 
-function mergeSupraSpaceConversations(primary: Array<SSConversation | SSConv>, secondary: Array<SSConversation | SSConv> = []) {
+function mergeSupraSpaceConversations(
+  primary: Array<SSConversation | SSConv>,
+  secondary: Array<SSConversation | SSConv> = [],
+  viewerId?: string | null,
+) {
   const byId = new Map<string, SSConversation>();
   secondary.forEach((conversation) => {
     if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
@@ -387,8 +391,24 @@ function mergeSupraSpaceConversations(primary: Array<SSConversation | SSConv>, s
   primary.forEach((conversation) => {
     if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
   });
-  return Array.from(byId.values()).sort(
-    (a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
+  return sortSupraSpaceConversations(Array.from(byId.values()), viewerId);
+}
+
+function supraSpaceReactionAffectsViewer(reaction: SSLastReaction | null | undefined, viewerId?: string | null): boolean {
+  if (!reaction || !viewerId) return false;
+  return String(reaction.userId) === viewerId || String(reaction.targetUserId) === viewerId;
+}
+
+function supraSpaceConversationActivityAt(conversation: SSConversation, viewerId?: string | null): number {
+  const messageAt = new Date(conversation.lastMessageAt || conversation.lastMessage?.createdAt || 0).getTime();
+  const reaction = conversation.lastReaction;
+  if (!supraSpaceReactionAffectsViewer(reaction, viewerId)) return messageAt;
+  return Math.max(messageAt, new Date(reaction?.createdAt || 0).getTime());
+}
+
+function sortSupraSpaceConversations(conversations: SSConversation[], viewerId?: string | null): SSConversation[] {
+  return [...conversations].sort(
+    (a, b) => supraSpaceConversationActivityAt(b, viewerId) - supraSpaceConversationActivityAt(a, viewerId),
   );
 }
 
@@ -9936,13 +9956,10 @@ export default function SupraSpacePage() {
     if (conversationId && activeIdRef.current !== conversationId) return;
     const el = messageScrollRef.current;
     if (!el) return;
-    const messageNodes = Array.from(el.querySelectorAll<HTMLElement>('[id^="ss4-msg-"]'));
-    const latestNode = messageNodes[messageNodes.length - 1];
-    if (latestNode && latestNode.offsetHeight > el.clientHeight * 0.62) {
-      el.scrollTop = Math.max(0, latestNode.offsetTop - 16);
-    } else {
-      el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
-    }
+    // Every open-time correction must agree on one position. Switching between
+    // the top of a tall media message and the timeline end as images/videos
+    // load is what made attachment-heavy channels visibly jump up and down.
+    el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
     setShowJumpToLatest(false);
   }, []);
 
@@ -10195,7 +10212,7 @@ export default function SupraSpacePage() {
       });
       setMsgFetchState(p => ({ ...p, [conversationId]: 'loaded' }));
     }
-    setConvos(p => p.map(c => {
+    setConvos(p => sortSupraSpaceConversations(p.map(c => {
       if (c._id !== conversationId) return c;
       const isIncomingUnread = message.sender?._id !== uid && !message.readBy?.includes(uid) && conversationId !== activeIdRef.current;
       const isIncomingMention = message.sender?._id !== uid && contentMentionsUser(message.content, me?.fullName, me?.username);
@@ -10208,8 +10225,7 @@ export default function SupraSpacePage() {
         mentionCount: isIncomingMention ? (c.mentionCount || 0) + 1 : c.mentionCount || 0,
         unreadMentionCount: isIncomingUnreadMention ? (c.unreadMentionCount || 0) + 1 : (conversationId === activeIdRef.current ? 0 : c.unreadMentionCount || 0),
       };
-    })
-      .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+    }), uid));
   }, [uid, me?.fullName, me?.username, markConversationActivity]);
 
   const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
@@ -10221,11 +10237,11 @@ export default function SupraSpacePage() {
       if (ex.find(m => m._id === message._id)) return { ...p, [conversationId]: ex.filter(m => m._id !== tempId) };
       return { ...p, [conversationId]: ex.map(m => m._id === tempId ? message : m) };
     });
-    setConvos(p => p.map(c => c._id === conversationId && c.lastMessage?._id === tempId
+    setConvos(p => sortSupraSpaceConversations(p.map(c => c._id === conversationId && c.lastMessage?._id === tempId
       ? { ...c, lastMessage: message, lastMessageAt: message.createdAt }
       : c
-    ).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
-  }, []);
+    ), uid));
+  }, [uid]);
 
   const removeMessageLocal = React.useCallback((conversationId: string, messageId: string) => {
     setMsgs(p => ({ ...p, [conversationId]: (p[conversationId] || []).filter(m => m._id !== messageId) }));
@@ -10416,12 +10432,12 @@ export default function SupraSpacePage() {
           });
           const freshIds = new Set(fresh.map(c => c._id));
           const localOnly = prev.filter(c => !freshIds.has(c._id));
-          return mergeSupraSpaceConversations(freshWithPostRequestActivity, localOnly);
+          return mergeSupraSpaceConversations(freshWithPostRequestActivity, localOnly, uid);
         });
       })
       .catch(() => { })
       .finally(() => { convosFetchInFlightRef.current = false; });
-  }, [conversationPageSize]);
+  }, [conversationPageSize, uid]);
 
   const loadMoreConversations = React.useCallback(async () => {
     const t = tokenRef.current;
@@ -10439,13 +10455,13 @@ export default function SupraSpacePage() {
       setConversationsOffset(parsed.nextOffset);
       hasMoreConversationsRef.current = parsed.hasMore;
       conversationsOffsetRef.current = parsed.nextOffset;
-      setConvos(prev => mergeSupraSpaceConversations(prev, parsed.conversations));
+      setConvos(prev => mergeSupraSpaceConversations(prev, parsed.conversations, uid));
     } catch {
     } finally {
       convosLoadMoreInFlightRef.current = false;
       setLoadingMoreConversations(false);
     }
-  }, [conversationPageSize]);
+  }, [conversationPageSize, uid]);
 
   const handleConversationListScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
     if (q.trim().length >= 2 || loadingMoreConversations || !hasMoreConversationsRef.current) return;
@@ -10620,7 +10636,7 @@ export default function SupraSpacePage() {
         });
         const parsedConvos = readSupraSpaceConversationPayload(cv.data?.data);
         const fetchedConvos = parsedConvos.conversations;
-        const availableConvos = mergeSupraSpaceConversations(fetchedConvos, convosRef.current);
+        const availableConvos = mergeSupraSpaceConversations(fetchedConvos, convosRef.current, myData._id);
         convosRef.current = availableConvos;
         setConvos(availableConvos);
         setHasMoreConversations(parsedConvos.hasMore);
@@ -10772,7 +10788,7 @@ export default function SupraSpacePage() {
       .then(r => {
         if (cancelled) return;
         const parsed = readSupraSpaceConversationPayload(r.data?.data);
-        const nextConvos = mergeSupraSpaceConversations(parsed.conversations, convosRef.current);
+        const nextConvos = mergeSupraSpaceConversations(parsed.conversations, convosRef.current, uid);
         convosRef.current = nextConvos;
         setConvos(nextConvos);
         setHasMoreConversations(parsed.hasMore);
@@ -10867,7 +10883,7 @@ export default function SupraSpacePage() {
     const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
       markConversationActivity(conversationId);
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
-      setConvos(p => p.map(c => {
+      setConvos(p => sortSupraSpaceConversations(p.map(c => {
         if (c._id !== conversationId) return c;
         const cached = msgsRef.current[conversationId] || [];
         const prev = [...cached].filter(m => m._id !== messageId && !m.isDeleted).slice(-1)[0];
@@ -10876,7 +10892,7 @@ export default function SupraSpacePage() {
           ...(c.lastMessage?._id === messageId ? { lastMessage: (prev || null) as any, lastMessageAt: prev?.createdAt } : {}),
           ...(unreadUserIds.includes(uid) ? { unreadCount: Math.max(0, (c.unreadCount || 0) - 1) } : {}),
         };
-      }).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+      }), uid));
     };
     const onNew = (c: SSConversation) => {
       setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
@@ -10885,9 +10901,10 @@ export default function SupraSpacePage() {
     const onConvUpdated = (c: any) => {
       if (!c?._id) return;
       if (c.lastMessageAt || c.lastMessage || c.lastReaction !== undefined) markConversationActivity(c._id);
-      setConvos(p => p
-        .map(x => x._id === c._id ? { ...x, ...c } : x)
-        .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+      setConvos(p => sortSupraSpaceConversations(
+        p.map(x => x._id === c._id ? { ...x, ...c } : x),
+        uid,
+      ));
     };
     const onConvDeleted = ({ conversationId }: { conversationId: string }) => {
       setConvos(p => p.filter(x => x._id !== conversationId));
@@ -10928,20 +10945,27 @@ export default function SupraSpacePage() {
       setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
       setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
-    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, conversationLastMessageAt }: any) => {
+    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, reactionActorId, reactionTargetUserId }: any) => {
       patchMsg(conversationId, messageId, { reactions });
-      if (reactionActivity === undefined && conversationLastMessageAt === undefined) return;
+      if (reactionActivity === undefined) return;
+      const affectsViewer = reactionActivity
+        ? supraSpaceReactionAffectsViewer(reactionActivity, uid)
+        : reactionActorId === uid || reactionTargetUserId === uid;
+      if (!affectsViewer) return;
       markConversationActivity(conversationId);
-      setConvos(p => p.map(c => {
+      setConvos(p => {
+        const updated = p.map(c => {
         if (c._id !== conversationId) return c;
         if (reactionActivity === null) {
-          return { ...c, lastReaction: null, lastMessageAt: conversationLastMessageAt || c.lastMessage?.createdAt || c.lastMessageAt };
+          return { ...c, lastReaction: null };
         }
         if (reactionActivity) {
-          return { ...c, lastReaction: reactionActivity, lastMessageAt: reactionActivity.createdAt || conversationLastMessageAt || c.lastMessageAt };
+          return { ...c, lastReaction: reactionActivity };
         }
-        return conversationLastMessageAt ? { ...c, lastMessageAt: conversationLastMessageAt } : c;
-      }).sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
+        return c;
+        });
+        return sortSupraSpaceConversations(updated, uid);
+      });
     };
     const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
     const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
@@ -11092,9 +11116,14 @@ export default function SupraSpacePage() {
       forceScrollToBottomRef.current === activeId &&
       Date.now() <= openBottomLockUntilRef.current;
 
+    let animationFrame: number | null = null;
     const pinIfOpening = () => {
       if (!shouldKeepPinned()) return;
-      requestAnimationFrame(() => pinMessageViewportToBottom(activeId));
+      if (animationFrame !== null) return;
+      animationFrame = requestAnimationFrame(() => {
+        animationFrame = null;
+        if (shouldKeepPinned()) pinMessageViewportToBottom(activeId);
+      });
     };
 
     const observed = new Set<Element>();
@@ -11115,25 +11144,9 @@ export default function SupraSpacePage() {
     observeChildren();
     pinIfOpening();
 
-    const mutationObserver =
-      typeof MutationObserver !== 'undefined'
-        ? new MutationObserver(() => {
-            observeChildren();
-            pinIfOpening();
-          })
-        : null;
-
-    mutationObserver?.observe(scrollEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['src', 'style', 'class'],
-    });
-
     return () => {
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
       resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
     };
   }, [activeId, activeMsgs.length, pinMessageViewportToBottom]);
 
@@ -12318,6 +12331,12 @@ export default function SupraSpacePage() {
     try {
       const response = await apiClient.post(`/api/supraspace/messages/${msgId}/react`, { emoji }, { headers: { Authorization: `Bearer ${token}` } });
       if (Array.isArray(response.data?.data?.reactions)) patchMsg(activeId, msgId, { reactions: response.data.data.reactions });
+      const reactionActivity = response.data?.data?.reactionActivity;
+      if (reactionActivity !== undefined) {
+        setConvos(previous => sortSupraSpaceConversations(previous.map(conversation => (
+          conversation._id === activeId ? { ...conversation, lastReaction: reactionActivity } : conversation
+        )), uid));
+      }
     } catch {
       toast.error('Could not update reaction. Please try again.');
       void fetchConversationMessages(activeId, { force: true, silent: true });
@@ -14878,11 +14897,11 @@ export default function SupraSpacePage() {
                       data-supraspace-message-scroll="true"
                       className="ss4-chat-messages h-full overflow-y-auto py-2 space-y-2 ss4-scroll sm:py-3 sm:space-y-2.5"
                       style={{ ...(wallpaper ? { backgroundImage: wallpaper } : {}), overflowAnchor: 'none' }}
-                      onLoadCapture={() => {
+                      onLoadCapture={typeof ResizeObserver === 'undefined' ? () => {
                         if (activeId && forceScrollToBottomRef.current === activeId && Date.now() <= openBottomLockUntilRef.current) {
-                          scrollToLatest('auto', activeId);
+                          pinMessageViewportToBottom(activeId);
                         }
-                      }}
+                      } : undefined}
                     >
                       {hasMore[activeId] && (
                         <div className="flex justify-center pb-3">
@@ -16358,7 +16377,7 @@ export default function SupraSpacePage() {
           </div>
         )}
         {forwardMsg && (
-          <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} conversations={mergeSupraSpaceConversations(convos, ctxConversations)} token={token} onClose={() => setForwardMsg(null)} />
+          <ForwardMessageModal message={forwardMsg} users={allUsers.filter(u => u._id !== uid)} conversations={mergeSupraSpaceConversations(convos, ctxConversations, uid)} token={token} onClose={() => setForwardMsg(null)} />
         )}
         {notifModalConv && (
           <NotificationSettingsModal

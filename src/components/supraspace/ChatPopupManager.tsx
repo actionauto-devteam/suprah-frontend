@@ -4313,6 +4313,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const response = await apiClient.post(`/api/supraspace/messages/${messageId}/react`, { emoji },
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
       applyMessageReactions(messageId, response.data?.data?.reactions);
+      const reactionActivity = response.data?.data?.reactionActivity;
+      if (reactionActivity !== undefined) {
+        patchConversation({ _id: conv._id, lastReaction: reactionActivity });
+      }
     } catch {
       if (previousReactions) applyMessageReactions(messageId, previousReactions);
       toast.error('Could not update reaction. Please try again.');
