@@ -9282,6 +9282,14 @@ export default function SupraSpacePage() {
   }, [loading]);
 
   const [convos, setConvos] = React.useState<SSConversation[]>([]);
+  // Each refresh is a point-in-time snapshot. Track activity that arrives
+  // after a request begins so its response cannot move that row backwards.
+  const conversationActivityRevisionRef = React.useRef(0);
+  const conversationActivityRevisionByIdRef = React.useRef(new Map<string, number>());
+  const markConversationActivity = React.useCallback((conversationId: string) => {
+    const revision = ++conversationActivityRevisionRef.current;
+    conversationActivityRevisionByIdRef.current.set(conversationId, revision);
+  }, []);
   const [hasMoreConversations, setHasMoreConversations] = React.useState(false);
   const [conversationsOffset, setConversationsOffset] = React.useState(0);
   const [loadingMoreConversations, setLoadingMoreConversations] = React.useState(false);
@@ -10166,6 +10174,7 @@ export default function SupraSpacePage() {
   }, [activeId, allUsers, convos, hasMore, msgs, myProfile, uid]);
 
   const appendMessageLocal = React.useCallback((conversationId: string, message: SSMessage) => {
+    markConversationActivity(conversationId);
     const alreadyLoaded = conversationId in msgsRef.current;
     if (alreadyLoaded) {
       setMsgs(p => {
@@ -10190,7 +10199,7 @@ export default function SupraSpacePage() {
       };
     })
       .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
-  }, [uid, me?.fullName, me?.username]);
+  }, [uid, me?.fullName, me?.username, markConversationActivity]);
 
   const replaceMessageLocal = React.useCallback((conversationId: string, tempId: string, message: SSMessage) => {
     setMsgs(p => {
@@ -10361,6 +10370,7 @@ export default function SupraSpacePage() {
     const t = tokenRef.current;
     if (!t || !initDoneRef.current || convosFetchInFlightRef.current) return;
     convosFetchInFlightRef.current = true;
+    const activityRevisionAtRequestStart = conversationActivityRevisionRef.current;
     ctxRefreshConvosRef.current();
     apiClient
       .get('/api/supraspace/conversations', {
@@ -10375,9 +10385,27 @@ export default function SupraSpacePage() {
         hasMoreConversationsRef.current = parsed.hasMore;
         conversationsOffsetRef.current = parsed.nextOffset;
         setConvos(prev => {
+          const currentById = new Map(prev.map(conversation => [conversation._id, conversation]));
+          const freshWithPostRequestActivity = fresh.map(snapshot => {
+            const current = currentById.get(snapshot._id);
+            const currentActivityRevision = conversationActivityRevisionByIdRef.current.get(snapshot._id) || 0;
+            if (!current || currentActivityRevision <= activityRevisionAtRequestStart) return snapshot;
+
+            // Keep socket/local activity that arrived after this request
+            // started, while accepting the response's authoritative metadata.
+            return {
+              ...snapshot,
+              lastMessage: current.lastMessage,
+              lastMessageAt: current.lastMessageAt,
+              lastReaction: current.lastReaction,
+              unreadCount: current.unreadCount,
+              mentionCount: current.mentionCount,
+              unreadMentionCount: current.unreadMentionCount,
+            };
+          });
           const freshIds = new Set(fresh.map(c => c._id));
           const localOnly = prev.filter(c => !freshIds.has(c._id));
-          return mergeSupraSpaceConversations(fresh, localOnly);
+          return mergeSupraSpaceConversations(freshWithPostRequestActivity, localOnly);
         });
       })
       .catch(() => { })
@@ -10826,6 +10854,7 @@ export default function SupraSpacePage() {
       }
     };
     const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
+      markConversationActivity(conversationId);
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
       setConvos(p => p.map(c => {
         if (c._id !== conversationId) return c;
@@ -10844,6 +10873,7 @@ export default function SupraSpacePage() {
     };
     const onConvUpdated = (c: any) => {
       if (!c?._id) return;
+      if (c.lastMessageAt || c.lastMessage || c.lastReaction !== undefined) markConversationActivity(c._id);
       setConvos(p => p
         .map(x => x._id === c._id ? { ...x, ...c } : x)
         .sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()));
@@ -10890,6 +10920,7 @@ export default function SupraSpacePage() {
     const onReaction = ({ conversationId, messageId, reactions, reactionActivity, conversationLastMessageAt }: any) => {
       patchMsg(conversationId, messageId, { reactions });
       if (reactionActivity === undefined && conversationLastMessageAt === undefined) return;
+      markConversationActivity(conversationId);
       setConvos(p => p.map(c => {
         if (c._id !== conversationId) return c;
         if (reactionActivity === null) {
@@ -10997,7 +11028,7 @@ export default function SupraSpacePage() {
       socket.off('user:profile:updated', onProfileUpdated);
       socket.off('conversations:all-read', onAllRead);
     };
-  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages]);
+  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, markConversationActivity]);
 
   React.useLayoutEffect(() => {
     const pending = pendingScrollRestoreRef.current;
