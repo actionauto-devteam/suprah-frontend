@@ -78,19 +78,6 @@ function isLeftChannelForUser(conv: SSConv, userId: string | null): boolean {
 // --- Component ----------------------------------------------------------------
 
 export function MessengerDropdown({ open: controlledOpen, onOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void } = {}) {
-  // Relative labels otherwise remain frozen until another chat-state update.
-  const [, setRelativeTimeTick] = React.useState(0);
-  React.useEffect(() => {
-    let interval: ReturnType<typeof window.setInterval> | undefined;
-    const timeout = window.setTimeout(() => {
-      setRelativeTimeTick(value => value + 1);
-      interval = window.setInterval(() => setRelativeTimeTick(value => value + 1), 60_000);
-    }, 60_000 - (Date.now() % 60_000) + 25);
-    return () => {
-      window.clearTimeout(timeout);
-      if (interval) window.clearInterval(interval);
-    };
-  }, []);
   const {
     conversations,
     totalUnread,

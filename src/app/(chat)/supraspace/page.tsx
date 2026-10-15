@@ -47,7 +47,6 @@ import { SSConversation, SSMessage, SSAttachment, PresenceMap, SSOnlineStatus } 
 import { PresenceAvatarDot } from '@/app/(dashboard)/team-pulse/_components/StatusDot';
 import { S } from '@/app/(dashboard)/team-pulse/_components/team-pulse-constants';
 import { useSupraSpaceMessenger, useSupraSpaceRealtime, SSSpace, type SSConv } from '@/context/SupraSpaceMessengerContext';
-import { hasNewerSupraSpaceConversationActivity } from '@/lib/supraspace-conversation-freshness';
 import { useTheme } from '@/context/ThemeContext';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { isSupraSpaceInstalled } from '@/lib/supraspace-install';
@@ -386,25 +385,7 @@ function mergeSupraSpaceConversations(primary: Array<SSConversation | SSConv>, s
     if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
   });
   primary.forEach((conversation) => {
-    if (!conversation?._id) return;
-    const snapshot = normalizeSupraSpaceConversation(conversation);
-    const current = byId.get(conversation._id);
-    if (!current || !hasNewerSupraSpaceConversationActivity(current, snapshot)) {
-      byId.set(conversation._id, snapshot);
-      return;
-    }
-    // A socket event arrived after this request began. Preserve its newer
-    // summary and badges while accepting the response's authoritative roster
-    // and settings fields.
-    byId.set(conversation._id, {
-      ...snapshot,
-      lastMessage: current.lastMessage,
-      lastMessageAt: current.lastMessageAt,
-      lastReaction: current.lastReaction,
-      unreadCount: current.unreadCount,
-      mentionCount: current.mentionCount,
-      unreadMentionCount: current.unreadMentionCount,
-    });
+    if (conversation?._id) byId.set(conversation._id, normalizeSupraSpaceConversation(conversation));
   });
   return Array.from(byId.values()).sort(
     (a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
@@ -9254,20 +9235,6 @@ const ConvRow = React.memo(function ConvRow({
 });
 
 export default function SupraSpacePage() {
-  // Relative labels are derived from Date.now(), so they need a clock tick of
-  // their own instead of waiting for an unrelated socket/render update.
-  const [, setRelativeTimeTick] = React.useState(0);
-  React.useEffect(() => {
-    let interval: ReturnType<typeof window.setInterval> | undefined;
-    const timeout = window.setTimeout(() => {
-      setRelativeTimeTick(value => value + 1);
-      interval = window.setInterval(() => setRelativeTimeTick(value => value + 1), 60_000);
-    }, 60_000 - (Date.now() % 60_000) + 25);
-    return () => {
-      window.clearTimeout(timeout);
-      if (interval) window.clearInterval(interval);
-    };
-  }, []);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -10392,10 +10359,11 @@ export default function SupraSpacePage() {
         setConversationsOffset(parsed.nextOffset);
         hasMoreConversationsRef.current = parsed.hasMore;
         conversationsOffsetRef.current = parsed.nextOffset;
-        // Keep each current row as the secondary source so a message received
-        // while this request was in flight cannot be replaced by its older
-        // response snapshot.
-        setConvos(prev => mergeSupraSpaceConversations(fresh, prev));
+        setConvos(prev => {
+          const freshIds = new Set(fresh.map(c => c._id));
+          const localOnly = prev.filter(c => !freshIds.has(c._id));
+          return mergeSupraSpaceConversations(fresh, localOnly);
+        });
       })
       .catch(() => { })
       .finally(() => { convosFetchInFlightRef.current = false; });
