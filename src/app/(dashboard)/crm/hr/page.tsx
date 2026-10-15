@@ -16,6 +16,9 @@ import {
   Zap,
   CheckCircle2,
   Building2,
+  RotateCcw,
+  Search,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -320,6 +323,7 @@ function MilestonesTab({ token, isAdmin }: { token: string; isAdmin: boolean }) 
 function OnboardingTab({ token }: { token: string }) {
   const [employees, setEmployees] = React.useState<ActiveEmployee[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState("");
 
   React.useEffect(() => {
     if (!token) return;
@@ -358,9 +362,38 @@ function OnboardingTab({ token }: { token: string }) {
     );
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredEmployees = q
+    ? employees.filter((e) => e.fullName.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
+    : employees;
+
   return (
-    <div className="divide-y divide-border/20">
-      {employees.map((emp) => (
+    <div>
+      <div className="px-5 xl:px-8 py-3 border-b border-border/20">
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or email..."
+            className="h-9 pl-8 pr-7 w-full rounded-xl border border-border bg-muted/30 text-foreground/80 text-[11px] font-bold placeholder:text-muted-foreground placeholder:font-medium focus:outline-none focus:border-ring/50"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center text-muted-foreground"
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {filteredEmployees.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No employees match &quot;{search}&quot;.</div>
+      ) : (
+      <div className="divide-y divide-border/20">
+      {filteredEmployees.map((emp) => (
         <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
           <Avatar className="h-9 w-9 xl:h-11 xl:w-11 shrink-0">
             <AvatarImage src={emp.avatar} />
@@ -388,6 +421,8 @@ function OnboardingTab({ token }: { token: string }) {
           </div>
         </div>
       ))}
+      </div>
+      )}
     </div>
   );
 }
@@ -406,6 +441,22 @@ function OffboardingTab({
   const [loading, setLoading] = React.useState(true);
   const [offboardTarget, setOffboardTarget] = React.useState<OffboardUser | null>(null);
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [undoingId, setUndoingId] = React.useState<string | null>(null);
+  const [undoError, setUndoError] = React.useState("");
+  const [search, setSearch] = React.useState("");
+
+  const handleUndoOffboard = async (emp: OffboardedEmployee) => {
+    setUndoingId(emp._id);
+    setUndoError("");
+    try {
+      await apiClient.post(`/api/crm/users/${emp._id}/undo-offboard`, {}, crmAuthConfig(token));
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setUndoError(`Failed to undo offboard for ${emp.fullName}.`);
+    } finally {
+      setUndoingId(null);
+    }
+  };
 
   React.useEffect(() => {
     if (!token) return;
@@ -467,20 +518,51 @@ function OffboardingTab({
     );
   }
 
+  const q = search.trim().toLowerCase();
+  const filteredActive = q
+    ? active.filter((e) => e.fullName.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
+    : active;
+  const filteredOffboarded = q
+    ? offboarded.filter((e) => e.fullName.toLowerCase().includes(q) || e.email.toLowerCase().includes(q))
+    : offboarded;
+
   return (
     <>
+
+      <div className="px-5 xl:px-8 py-3 border-b border-border/20">
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or email..."
+            className="h-9 pl-8 pr-7 w-full rounded-xl border border-border bg-muted/30 text-foreground/80 text-[11px] font-bold placeholder:text-muted-foreground placeholder:font-medium focus:outline-none focus:border-ring/50"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center text-muted-foreground"
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Active employees — can be offboarded */}
       <div className="px-5 py-3 border-b border-border/20">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-          Active Employees ({active.length})
+          Active Employees ({filteredActive.length})
         </p>
       </div>
-      {active.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No active employees.</div>
+      {filteredActive.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">
+          {q ? `No active employees match "${search}".` : "No active employees."}
+        </div>
       ) : (
         <div className="divide-y divide-border/20">
-          {active.map((emp) => (
+          {filteredActive.map((emp) => (
             <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5">
               <Avatar className="h-8 w-8 xl:h-10 xl:w-10 shrink-0">
                 <AvatarImage src={emp.avatar} />
@@ -509,14 +591,19 @@ function OffboardingTab({
       {/* Already offboarded */}
       <div className="px-5 py-3 border-y border-border/20 mt-2">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-          Offboarded ({offboarded.length})
+          Offboarded ({filteredOffboarded.length})
         </p>
       </div>
-      {offboarded.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">No offboarded employees.</div>
+      {undoError && (
+        <div className="px-5 py-2 text-xs text-rose-500 bg-rose-500/5">{undoError}</div>
+      )}
+      {filteredOffboarded.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-muted-foreground/60 text-center">
+          {q ? `No offboarded employees match "${search}".` : "No offboarded employees."}
+        </div>
       ) : (
         <div className="divide-y divide-border/20">
-          {offboarded.map((emp) => (
+          {filteredOffboarded.map((emp) => (
             <div key={emp._id} className="flex items-center gap-4 px-5 xl:px-8 py-4 xl:py-5 opacity-60">
               <Avatar className="h-8 w-8 xl:h-10 xl:w-10 shrink-0">
                 <AvatarImage src={emp.avatar} />
@@ -529,10 +616,24 @@ function OffboardingTab({
                 <p className="text-[11px] text-muted-foreground/60 truncate">{emp.email}</p>
               </div>
               {emp.offboardedAt && (
-                <p className="text-xs text-muted-foreground/60 shrink-0 min-w-24 text-right">
+                <p className="text-xs text-muted-foreground/60 shrink-0 min-w-24 text-right hidden sm:block">
                   {formatDate(emp.offboardedAt)}
                 </p>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={undoingId === emp._id}
+                onClick={() => handleUndoOffboard(emp)}
+                className="h-8 xl:h-9 shrink-0 rounded-lg text-[11px] xl:text-xs font-semibold border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10 gap-1.5"
+              >
+                {undoingId === emp._id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3 w-3" />
+                )}
+                <span className="hidden sm:inline">Undo Offboard</span>
+              </Button>
             </div>
           ))}
         </div>

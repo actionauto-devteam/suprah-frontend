@@ -41,6 +41,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@telnyx/webrtc": "^2.27.9",
     "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-image": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
     "@tiptap/extension-placeholder": "^3.32.0",
     "@tiptap/extension-underline": "^3.32.0",
