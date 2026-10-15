@@ -2106,6 +2106,17 @@ function htmlToMarkdown(el: HTMLElement): string {
     const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
     if (highlight && inner.trim()) inner = `{highlight:${highlight}}${inner}{/highlight}`;
 
+    // WebKit may leave a terminal <br> inside every visual block in a
+    // contentEditable composer. The block itself already supplies the line
+    // boundary below, so serializing both turns one visible line break into a
+    // stored blank line. Keep an otherwise empty block intact: that is an
+    // intentional blank line.
+    if (
+      ['div', 'p', 'section', 'article'].includes(tag)
+      && inner.endsWith('\n')
+      && inner.slice(0, -1).trim()
+    ) inner = inner.slice(0, -1);
+
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
       || /^h[1-6]$/.test(tag)
