@@ -2,6 +2,16 @@ import { isSafeSupraSpaceLinkHref } from './supra-space-links';
 
 type CssColorNormalizer = (value: string | null | undefined) => string | null;
 
+type SupraSpaceClipboardStyleOptions = {
+  normalizeColor?: CssColorNormalizer;
+  /**
+   * Callers only return the editor's supported font family/size declarations.
+   * Keeping this at the clipboard boundary prevents arbitrary source CSS from
+   * becoming persisted message formatting.
+   */
+  getTypographyStyles?: (element: HTMLElement) => string[];
+};
+
 const INLINE_STYLE_TAGS = new Set([
   'a', 'b', 'code', 'del', 'em', 'font', 'i', 'mark', 's', 'span', 'strike', 'strong', 'u',
 ]);
@@ -34,7 +44,7 @@ type SupraSpaceSelectionClipboardData = {
 };
 
 const SELECTION_COPY_SEMANTIC_TAGS = new Set([
-  'a', 'b', 'br', 'code', 'del', 'em', 'i', 's', 'strong', 'u',
+  'a', 'b', 'blockquote', 'br', 'code', 'del', 'em', 'font', 'i', 'li', 'mark', 'ol', 'pre', 's', 'span', 'strike', 'strong', 'u', 'ul',
 ]);
 
 export function hasSupraSpaceTextSelection(): boolean {
@@ -45,6 +55,7 @@ export function hasSupraSpaceTextSelection(): boolean {
 
 export function getSupraSpaceSelectionClipboardData(
   container: HTMLElement,
+  styleOptions: SupraSpaceClipboardStyleOptions = {},
 ): SupraSpaceSelectionClipboardData | null {
   if (typeof window === 'undefined') return null;
 
@@ -70,8 +81,23 @@ export function getSupraSpaceSelectionClipboardData(
     }
 
     const href = tag === 'a' ? element.getAttribute('href') || '' : '';
+    const color = styleOptions.normalizeColor
+      ? getSupraSpaceClipboardTextColor(element, styleOptions.normalizeColor)
+      : null;
+    const highlight = styleOptions.normalizeColor
+      ? getSupraSpaceClipboardHighlight(element, styleOptions.normalizeColor)
+      : null;
+    const typographyStyles = isSupraSpaceInlineClipboardStyle(element)
+      ? styleOptions.getTypographyStyles?.(element) || []
+      : [];
     Array.from(element.attributes).forEach(attribute => element.removeAttribute(attribute.name));
     if (tag === 'a' && isSafeSupraSpaceLinkHref(href)) element.setAttribute('href', href);
+    const styles = [
+      ...typographyStyles,
+      ...(color ? [`color:${color}`] : []),
+      ...(highlight ? [`background-color:${highlight}`] : []),
+    ];
+    if (styles.length) element.setAttribute('style', [...new Set(styles)].join(';'));
   });
 
   return { html: wrapper.innerHTML, plainText: selection.toString() };
@@ -111,6 +137,7 @@ export function getSupraSpaceClipboardHighlight(
 export function sanitizeSupraSpacePastedEditorHtml(
   html: string,
   normalizeColor: CssColorNormalizer,
+  styleOptions: SupraSpaceClipboardStyleOptions = {},
 ): string {
   if (!html.trim()) return html;
 
@@ -120,6 +147,9 @@ export function sanitizeSupraSpacePastedEditorHtml(
   doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
     const color = getSupraSpaceClipboardTextColor(element, normalizeColor);
     const highlight = getSupraSpaceClipboardHighlight(element, normalizeColor);
+    const typographyStyles = isSupraSpaceInlineClipboardStyle(element)
+      ? styleOptions.getTypographyStyles?.(element) || []
+      : [];
     const tag = element.tagName.toLowerCase();
     const href = element.getAttribute('href') || '';
     const safeHref = isSafeSupraSpaceLinkHref(href);
@@ -133,9 +163,12 @@ export function sanitizeSupraSpacePastedEditorHtml(
       if (!keepAnchorAttribute && !keepListAttribute) element.removeAttribute(attribute.name);
     });
 
-    if (color) element.style.color = color;
-    if (highlight) element.style.backgroundColor = highlight;
-    if (!element.getAttribute('style')?.trim()) element.removeAttribute('style');
+    const styles = [
+      ...typographyStyles,
+      ...(color ? [`color:${color}`] : []),
+      ...(highlight ? [`background-color:${highlight}`] : []),
+    ];
+    if (styles.length) element.setAttribute('style', [...new Set(styles)].join(';'));
   });
 
   return doc.body.innerHTML;

@@ -2644,7 +2644,24 @@ function normalizeRichEditorListExitArtifacts(root: HTMLElement | null): boolean
 }
 
 function sanitizePastedEditorHtmlForTheme(html: string): string {
-  return sanitizeSupraSpacePastedEditorHtml(html, cssColorToHex);
+  return sanitizeSupraSpacePastedEditorHtml(html, cssColorToHex, {
+    getTypographyStyles: getSupraSpaceClipboardTypographyStyles,
+  });
+}
+
+function getSupraSpaceClipboardTypographyStyles(element: HTMLElement): string[] {
+  const styles: string[] = [];
+  const family = ss4FontFamilyIdFromCss(
+    `${element.style.fontFamily || ''} ${element.getAttribute('face') || ''}`,
+  );
+  if (family && family !== SS4_DEFAULT_FONT_FAMILY) {
+    styles.push(`font-family:${ss4FontFamilyCss(family)}`);
+  }
+
+  const size = ss4FontSizeFromCss(element.style.fontSize)
+    || ss4FontSizeFromLegacyAttribute(element.getAttribute('size'));
+  if (size && size !== SS4_DEFAULT_FONT_SIZE) styles.push(`font-size:${size}px`);
+  return styles;
 }
 
 function plainTextHasListMarkers(text: string): boolean {
@@ -5242,7 +5259,10 @@ const Bubble = React.memo(function Bubble({
     }
   };
   const copyRichMessageToClipboard = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
-    const selectionClipboard = getSupraSpaceSelectionClipboardData(event.currentTarget);
+    const selectionClipboard = getSupraSpaceSelectionClipboardData(event.currentTarget, {
+      normalizeColor: cssColorToHex,
+      getTypographyStyles: getSupraSpaceClipboardTypographyStyles,
+    });
     if (selectionClipboard && event.clipboardData) {
       event.preventDefault();
       event.clipboardData.setData('text/html', selectionClipboard.html);
