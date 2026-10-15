@@ -67,6 +67,7 @@ import { titleCaseDay } from '@/lib/driver-load-compatibility';
 import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
 import { DispatchChatDialog, type DispatchChatThreadSummary } from '@/components/dispatch-chat/DispatchChatDialog';
 import { userErrorMessage } from "@/lib/user-error";
+import { EQUIPMENT_PAGE_PATH, trailerFitProblem } from '@/lib/trailer-setup';
 
 const FALLBACK = '/vehicle-placeholder.jpg';
 
@@ -279,6 +280,10 @@ function CompatibilityBadges({ compatibility }: { compatibility?: DriverLoadComp
           <CheckCircle2 className="mr-1 size-3 shrink-0" />
           Capacity {compatibility.capacity.requiredVehicles}/{compatibility.capacity.maxVehicles}
         </Badge>
+      ) : !compatibility.trailer.driverTrailerType ? (
+        <Badge className="h-auto whitespace-normal border-amber-500/25 bg-amber-500/10 px-2 py-1 text-xs leading-tight text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="mr-1 size-3 shrink-0" />Set Up Your Trailer
+        </Badge>
       ) : (
         <Badge className="h-auto whitespace-normal border-red-500/25 bg-red-500/10 px-2 py-1 text-xs leading-tight text-red-700 dark:text-red-400">
           {capacity === 'exceeded' ? (
@@ -287,8 +292,8 @@ function CompatibilityBadges({ compatibility }: { compatibility?: DriverLoadComp
             <AlertTriangle className="mr-1 size-3 shrink-0" />
           )}
           {capacity === 'exceeded'
-            ? `Capacity ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles} · Exceeded`
-            : 'Capacity Not Verified'}
+            ? `${compatibility.capacity.requiredVehicles} Vehicles · Your Trailer Carries ${compatibility.capacity.maxVehicles}`
+            : 'Trailer Fit Unknown'}
         </Badge>
       )}
 
@@ -320,6 +325,8 @@ export default function AvailableLoadsPage() {
   const [orgs, setOrgs] = React.useState<PublicOrg[]>([]);
   const [driverTrailerType, setDriverTrailerType] = React.useState<string | null>(null);
   const [equipmentCapacity, setEquipmentCapacity] = React.useState<number | null>(null);
+  // Whether the driver has set their trailer type; null until the profile loads.
+  const [trailerSetUp, setTrailerSetUp] = React.useState<boolean | null>(null);
   const [sortBy, setSortBy] = React.useState<SortMode>('newest');
   const [requestTarget, setRequestTarget] = React.useState<AvailableLoad | null>(null);
   const [showContractModal, setShowContractModal] = React.useState(false);
@@ -338,6 +345,7 @@ export default function AvailableLoadsPage() {
       });
       const profile = response.data?.data;
       const trailer = profile?.trailerType;
+      setTrailerSetUp(Boolean(trailer));
       if (trailer) {
         // Keep the driver's configured trailer available for compatibility context
         // and filter options, but leave the actual filter under user control.
@@ -454,11 +462,7 @@ export default function AvailableLoadsPage() {
 
     const compatibility = requestTarget.compatibility;
     if (compatibility && !compatibility.driverRequestAllowed) {
-      toast.error(
-        compatibility.capacity.status === 'exceeded'
-          ? 'This load exceeds your configured vehicle capacity.'
-          : 'Your vehicle capacity must be verified before requesting this load.',
-      );
+      toast.error(trailerFitProblem(compatibility)?.detail ?? "This load doesn't fit your trailer.");
       return;
     }
 
@@ -610,6 +614,7 @@ export default function AvailableLoadsPage() {
   const capacityBlocked = Boolean(
     requestCompatibility && !requestCompatibility.driverRequestAllowed,
   );
+  const trailerProblem = trailerFitProblem(requestCompatibility);
   const offSchedule =
     requestCompatibility?.availability.status === 'off_schedule';
   const requestBlocked =
@@ -657,9 +662,9 @@ export default function AvailableLoadsPage() {
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Stat value={loads.length.toString()} label="Available" />
                 <Stat
-                  value={equipmentCapacity != null ? `${equipmentCapacity} vehicles` : 'Not set'}
+                  value={trailerSetUp === false ? 'Not set up' : equipmentCapacity != null ? `${equipmentCapacity} vehicles` : 'Not set'}
                   label="Equipment Capacity"
-                  className={equipmentCapacity == null ? 'text-amber-500' : 'text-indigo-500'}
+                  className={trailerSetUp === false || equipmentCapacity == null ? 'text-amber-500' : 'text-indigo-500'}
                 />
                 <Stat value={avgPay != null ? `$${avgPay.toLocaleString()}` : "—"} label="Avg Pay" className="text-emerald-500" />
                 <Stat value={highPay != null ? `$${highPay.toLocaleString()}` : "—"} label="Top Pay" className="text-emerald-500" />
@@ -667,6 +672,23 @@ export default function AvailableLoadsPage() {
             )}
           </div>
         </div>
+
+        {trailerSetUp === false && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3.5 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <Truck className="mt-0.5 size-4 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Set up your trailer to request more loads</p>
+                <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                  Until you tell us your trailer type and how many vehicles it carries, you can only request loads with 1 vehicle.
+                </p>
+              </div>
+            </div>
+            <Button asChild size="sm" className="h-11 shrink-0 rounded-xl">
+              <Link href={EQUIPMENT_PAGE_PATH}>Set up trailer</Link>
+            </Button>
+          </div>
+        )}
 
         {!workEligibility.canTakeNewWork && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3.5">
@@ -829,12 +851,13 @@ export default function AvailableLoadsPage() {
               <div className="flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/5 p-3.5">
                 <XCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-red-700 dark:text-red-400">This load cannot be self-requested with the current equipment profile</p>
+                  <p className="text-sm font-bold text-red-700 dark:text-red-400">{trailerProblem?.title}</p>
                   <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                    {requestCompatibility?.capacity.status === 'exceeded'
-                      ? `The load requires ${requestCompatibility.capacity.requiredVehicles} vehicle${requestCompatibility.capacity.requiredVehicles === 1 ? '' : 's'}, while your configured capacity is ${requestCompatibility.capacity.maxVehicles}.`
-                      : 'Your vehicle capacity could not be verified. Update Equipment or contact Dispatch.'}
+                    {trailerProblem?.detail}
                   </p>
+                  <Link href={EQUIPMENT_PAGE_PATH} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">
+                    Open Equipment page
+                  </Link>
                 </div>
               </div>
             )}

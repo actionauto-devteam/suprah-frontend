@@ -96,6 +96,8 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     const { getToken } = useAuth()
     const [logoutOpen, setLogoutOpen] = React.useState(false)
 
+    // The Drivers review queue and the dashboard read this same cache entry as
+    // the list of items, so store the list and only count it for the badge.
     const { data: queueCount } = useQuery({
         queryKey: ["admin-review-queue"],
         queryFn: async () => {
@@ -103,8 +105,9 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
             const res = await apiClient.get("/api/admin/review-queue", {
                 headers: { Authorization: `Bearer ${token}` },
             })
-            return (res.data?.data?.items || []).length as number
+            return (res.data?.data?.items || []) as unknown[]
         },
+        select: (items) => items.length,
         refetchInterval: 60000,
         refetchOnWindowFocus: true,
     })

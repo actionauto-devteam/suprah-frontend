@@ -12,6 +12,7 @@ import { Search, ShieldCheck, ChevronRight, RefreshCw } from 'lucide-react';
 import { EmptyState } from '@/components/admin/primitives';
 import { AdminErrorState } from '@/components/admin/AdminErrorState';
 import { cn } from '@/lib/utils';
+import { formatExpirationDay } from '@/lib/mountain-time';
 
 interface ExpiringItem {
   driverId: string;
@@ -23,9 +24,6 @@ interface ExpiringItem {
 }
 
 const WINDOWS = [30, 60, 90] as const;
-
-const fmtDate = (value: string) =>
-  new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export function CompliancePanel() {
   const { getToken } = useAuth();
@@ -145,7 +143,7 @@ export function CompliancePanel() {
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.driverName}</span>
                 <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">{item.kind}</span>
                 <span className="hidden w-28 shrink-0 text-right text-xs tabular-nums text-muted-foreground md:block">
-                  {fmtDate(item.expiresAt)}
+                  {formatExpirationDay(item.expiresAt)}
                 </span>
                 <span
                   className={cn(

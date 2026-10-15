@@ -352,7 +352,7 @@ function DriverDispatchChatView() {
                 type="button"
                 onClick={() => setNewMessageOpen(true)}
                 title="Message the dispatcher of one of your loads"
-                className="flex h-7 items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/15 px-2.5 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/25 dark:text-emerald-300"
+                className="max-md:min-h-11 flex h-7 items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/15 px-2.5 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/25 dark:text-emerald-300"
               >
                 <Plus className="size-3" />
                 New
@@ -366,14 +366,14 @@ function DriverDispatchChatView() {
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search chats & channels…"
                 aria-label="Search chats and channels"
-                className="h-11 w-full rounded-xl border border-border/70 bg-background/60 pl-10 pr-9 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-emerald-500/60 focus-visible:ring-[3px] focus-visible:ring-emerald-500/20 sm:text-sm [&::-webkit-search-cancel-button]:hidden"
+                className="max-md:pr-12 h-11 w-full rounded-xl border border-border/70 bg-background/60 pl-10 pr-9 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-emerald-500/60 focus-visible:ring-[3px] focus-visible:ring-emerald-500/20 sm:text-sm [&::-webkit-search-cancel-button]:hidden"
               />
               {searching && (
                 <button
                   type="button"
                   onClick={() => setQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                  className="max-md:size-10 max-md:right-1 absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
                 >
                   <X className="size-3.5" />
                 </button>
@@ -413,7 +413,7 @@ function DriverDispatchChatView() {
                 <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-center">
                   <p className="text-xs font-bold text-red-600 dark:text-red-400">Could not load your chats</p>
                   <p className="mt-1 text-[10px] text-muted-foreground">{inbox.error}</p>
-                  <Button type="button" variant="outline" size="sm" className="mt-3 h-8 gap-1.5 text-xs" onClick={() => void inbox.refresh()}>
+                  <Button type="button" variant="outline" size="sm" className="max-md:min-h-11 mt-3 h-8 gap-1.5 text-xs" onClick={() => void inbox.refresh()}>
                     <RefreshCw className="size-3.5" /> Try again
                   </Button>
                 </div>

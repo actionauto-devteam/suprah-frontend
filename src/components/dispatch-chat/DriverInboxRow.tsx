@@ -176,7 +176,7 @@ export function DriverInboxRow({
           aria-label={pin.pinned ? `Unpin ${title}` : `Pin ${title}`}
           title={pin.pinned ? "Unpin" : "Pin to the top"}
           className={cn(
-            "mr-1 flex size-7 shrink-0 items-center justify-center rounded-md transition-opacity hover:bg-muted focus-visible:opacity-100",
+            "max-md:size-11 mr-1 flex size-7 shrink-0 items-center justify-center rounded-md transition-opacity hover:bg-muted focus-visible:opacity-100",
             pin.pinned
               ? "text-emerald-600 dark:text-emerald-400"
               : "text-muted-foreground md:opacity-0 md:group-hover:opacity-100",

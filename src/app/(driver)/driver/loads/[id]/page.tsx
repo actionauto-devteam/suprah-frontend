@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { OpenInGoogleMapsButton } from "@/components/driver/OpenInGoogleMapsButton";
+import { DriverArrivalButton } from "@/components/driver/DriverArrivalButton";
+import { VehicleConditionButton } from "@/components/driver/VehicleConditionButton";
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -369,7 +371,7 @@ export default function LoadDetailPage() {
           <div className="relative p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
-                <button onClick={() => router.back()} className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/10"><ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" /></button>
+                <button type="button" onClick={() => router.back()} aria-label="Back" className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-background/80 dark:bg-white/5 hover:bg-muted dark:hover:bg-white/10 transition-colors border border-border/80 dark:border-white/10"><ArrowLeft className="size-4.5 text-foreground/80 dark:text-white/80" /></button>
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground font-mono">{data.loadNumber || loadId.slice(-8)}</h1>
@@ -419,8 +421,11 @@ export default function LoadDetailPage() {
           </div>
         )}
 
+        {isAssigned && <DriverArrivalButton load={data} onArrived={fetchDetail} />}
+
         <div className="flex flex-wrap gap-2">
           {isAssigned && <OpenInGoogleMapsButton load={data} />}
+          {isAssigned && <VehicleConditionButton load={data} className="w-auto" />}
           {canAccept && (
             <Button onClick={() => handleAction('accept-load')} disabled={!!actionLoading} className="h-11 gap-2 rounded-xl">
               {actionLoading === 'accept-load' ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Accept Load

@@ -33,7 +33,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         type="button"
         variant="ghost"
         size="icon"
-        className="size-9 shrink-0"
+        className="max-md:size-11 size-9 shrink-0"
         aria-label={`Copy ${label.toLowerCase()}`}
         onClick={() => {
           void navigator.clipboard?.writeText(value).then(

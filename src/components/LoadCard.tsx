@@ -41,7 +41,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Load, LoadStatus } from "@/types/load"
 import { useRouter } from "next/navigation"
-import { generateLoadPDF } from "@/utils/pdfGenerator"
 import { useOrg } from "@/hooks/useOrg"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { cn } from "@/lib/utils"
@@ -392,12 +391,15 @@ export function LoadCard({ load, onDelete, isDeleting }: LoadCardProps) {
   const deleteBlockReason = getLoadDeleteBlockReason(load)
   const deleteBlocked = deleteBlockReason !== null
 
-  const handleExportPDF = (e: React.MouseEvent) => {
+  const handleExportPDF = async (e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     setIsExporting(true)
     try {
-      generateLoadPDF(load, organization?.name || "Your Dealership")
+      // The PDF library (~100 KB) loads only when someone exports, so the
+      // Transportation page itself opens faster.
+      const { generateLoadPDF } = await import("@/utils/pdfGenerator")
+      await generateLoadPDF(load, organization?.name || "Your Dealership")
     } finally {
       setIsExporting(false)
     }

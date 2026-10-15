@@ -14,6 +14,7 @@ import { ComplianceDocument, DriverProfile } from '@/types/driver-profile';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Kbd, FieldRow } from '@/components/admin/primitives';
 import { cn } from '@/lib/utils';
+import { formatExpirationDay, mountainDaysUntil } from '@/lib/mountain-time';
 
 const REJECTION_PRESETS = [
   'Image is blurry or unreadable',
@@ -32,10 +33,11 @@ const fmtSize = (b?: number) =>
 
 const expiryState = (d?: string) => {
   if (!d) return null;
-  const days = Math.ceil((new Date(d).getTime() - Date.now()) / 864e5);
-  if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, tone: 'critical' as const };
+  // Mountain Time calendar days; expired from the expiration day on.
+  const days = mountainDaysUntil(d) ?? 0;
+  if (days <= 0) return { label: days === 0 ? 'Expired today' : `Expired ${Math.abs(days)}d ago`, tone: 'critical' as const };
   if (days <= 30) return { label: `Expires in ${days}d`, tone: 'warning' as const };
-  return { label: `Valid — ${fmtDate(d)}`, tone: 'ok' as const };
+  return { label: `Valid — ${formatExpirationDay(d)}`, tone: 'ok' as const };
 };
 
 interface Props {
@@ -149,7 +151,7 @@ export function DocumentReviewWorkspace({
       return [
         { label: 'CDL number', value: profile.driversLicenseNumber, mono: true },
         { label: 'Issuing state', value: profile.licenseState },
-        { label: 'Expiration on file', value: fmtDate(profile.licenseExpirationDate) },
+        { label: 'Expiration on file', value: formatExpirationDay(profile.licenseExpirationDate) || '—' },
         { label: 'Name on profile', value: driverName },
       ];
     }
@@ -157,11 +159,11 @@ export function DocumentReviewWorkspace({
       return [
         { label: 'Provider', value: profile.insuranceProvider },
         { label: 'Policy number', value: profile.insurancePolicyNumber, mono: true },
-        { label: 'Expiration on file', value: fmtDate(profile.insuranceExpirationDate) },
+        { label: 'Expiration on file', value: formatExpirationDay(profile.insuranceExpirationDate) || '—' },
       ];
     }
     if (doc.type === 'medical_card') {
-      return [{ label: 'Expiration on file', value: fmtDate(profile.medicalCardExpirationDate) }];
+      return [{ label: 'Expiration on file', value: formatExpirationDay(profile.medicalCardExpirationDate) || '—' }];
     }
     if (doc.type === 'vehicle_registration') {
       return [
@@ -202,13 +204,13 @@ export function DocumentReviewWorkspace({
             <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
               {index + 1} / {total}
             </span>
-            <Button variant="ghost" size="icon" className="size-8" onClick={() => go(-1)} disabled={index === 0}>
+            <Button variant="ghost" size="icon" className="size-8" onClick={() => go(-1)} aria-label="Previous document" disabled={index === 0}>
               <ChevronLeft className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-8" onClick={() => go(1)} disabled={index >= total - 1}>
+            <Button variant="ghost" size="icon" className="size-8" onClick={() => go(1)} aria-label="Next document" disabled={index >= total - 1}>
               <ChevronRight className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-8" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="size-8" onClick={() => onOpenChange(false)} aria-label="Close">
               <X className="size-4" />
             </Button>
           </div>
@@ -217,20 +219,20 @@ export function DocumentReviewWorkspace({
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative flex min-h-0 flex-1 flex-col bg-muted/40">
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-card/60 px-2 py-1.5 backdrop-blur">
-              <Button variant="ghost" size="icon" className="size-7" onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))}>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} aria-label="Zoom out">
                 <ZoomOut className="size-3.5" />
               </Button>
               <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
                 {Math.round(zoom * 100)}%
               </span>
-              <Button variant="ghost" size="icon" className="size-7" onClick={() => setZoom(z => Math.min(z + 0.25, 4))}>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => setZoom(z => Math.min(z + 0.25, 4))} aria-label="Zoom in">
                 <ZoomIn className="size-3.5" />
               </Button>
               <Separator orientation="vertical" className="mx-1 h-4" />
-              <Button variant="ghost" size="icon" className="size-7" onClick={() => setRotation(r => (r + 90) % 360)}>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => setRotation(r => (r + 90) % 360)} aria-label="Rotate">
                 <RotateCw className="size-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="size-7" onClick={() => { setZoom(1); setRotation(0); }}>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => { setZoom(1); setRotation(0); }} aria-label="Reset view">
                 <Maximize2 className="size-3.5" />
               </Button>
               {fileUrl && (

@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Check, CheckCircle2, Copy, Link2, Loader2, Mail, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMountainDateTime } from "@/lib/mountain-time";
 
 interface DriverInvite {
   shortCode: string;
@@ -94,12 +95,12 @@ function SingleLinkTab() {
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
             <span className="flex-1 truncate text-sm font-mono">{invite.link}</span>
-            <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={copyLink}>
+            <Button size="icon" variant="ghost" className="max-md:size-11 h-8 w-8 shrink-0" onClick={copyLink} aria-label={copied ? "Invite link copied" : "Copy invite link"}>
               {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Expires {new Date(invite.expiresAt).toLocaleString()} · {invite.multiUse ? "multi-use" : "single-use"}
+            Expires {formatMountainDateTime(invite.expiresAt)} · {invite.multiUse ? "multi-use" : "single-use"}
           </p>
         </div>
       )}

@@ -2,6 +2,13 @@
 
 import * as React from "react";
 import { OpenInGoogleMapsButton } from "@/components/driver/OpenInGoogleMapsButton";
+import { DriverArrivalButton } from "@/components/driver/DriverArrivalButton";
+import { VehicleConditionButton } from "@/components/driver/VehicleConditionButton";
+import {
+  isNoConnectionError,
+  useSendWhenBackOnline,
+  WaitingForSignalNotice,
+} from "@/hooks/useSendWhenBackOnline";
 import {
   createGoogleNextStopLayer,
   createMapboxNextStopLayer,
@@ -107,6 +114,7 @@ import { useDriverWorkEligibility } from "@/hooks/useDriverWorkEligibility";
 import Link from "next/link";
 import { formatScheduleDate, getCalendarTimeZoneAbbreviation } from "@/utils/calendar.utils";
 import { userErrorMessage } from "@/lib/user-error";
+import { EQUIPMENT_PAGE_PATH } from "@/lib/trailer-setup";
 import { hasVehiclesOnBoard, isActiveLoadStatus, isGpsTrackingLoadStatus } from "@/lib/load-status";
 
 function formatDashboardLoadLocation(
@@ -288,7 +296,11 @@ export default function DriverDashboardPage() {
     isComplianceExpired: boolean;
     /** Which of the driver's credentials have expired (label + YYYY-MM-DD). */
     complianceExpiredItems?: { label: string; date: string }[];
+    /** Credentials that expire within 30 days (label + YYYY-MM-DD + days left). */
+    complianceExpiringItems?: { label: string; date: string; daysLeft: number }[];
     completedLoads: number;
+    /** False until the driver sets their trailer type (capacity is then the default of 1). */
+    trailerSetUp?: boolean;
   } | null>(null);
   const [kpiSnapshot, setKpiSnapshot] = React.useState<DriverKpiSnapshot | null>(
     () => readDriverKpiSnapshot(user?.id),
@@ -1950,6 +1962,37 @@ export default function DriverDashboardPage() {
           </div>
         </div>
       )}
+      {(dashStats?.complianceExpiringItems?.length ?? 0) > 0 && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+          <Timer className="size-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-base font-semibold text-amber-700 dark:text-amber-400">
+              {expiringCredentialsText(dashStats?.complianceExpiringItems)}
+            </p>
+            <p className="text-sm leading-relaxed text-amber-700/90 dark:text-amber-500">
+              Before then, press Replace on {(dashStats?.complianceExpiringItems?.length ?? 0) > 1 ? "each one" : "it"} on your{" "}
+              <Link href="/driver/documents" className="underline font-bold">Documents page</Link> and upload the
+              renewed document with its new expiration date. Once it&apos;s approved, this notice goes away.
+            </p>
+          </div>
+        </div>
+      )}
+      {dashStats?.trailerSetUp === false && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+          <Truck className="size-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-base font-semibold text-amber-700 dark:text-amber-400">
+              Tell us about your trailer
+            </p>
+            <p className="text-sm leading-relaxed text-amber-700/90 dark:text-amber-500">
+              On your{" "}
+              <Link href={EQUIPMENT_PAGE_PATH} className="underline font-bold">Equipment page</Link>, choose your
+              trailer type and how many vehicles it carries. Until then, you can only request loads with 1 vehicle,
+              and Dispatch has to double-check before giving you a bigger load.
+            </p>
+          </div>
+        </div>
+      )}
 
       {dashStats && dashStats.pendingRequests > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-2.5">
@@ -2820,6 +2863,9 @@ export default function DriverDashboardPage() {
                       </div>
                     )}
 
+                    <DriverArrivalButton load={currentLoad} onArrived={() => fetchData({ loadsOnly: true })} />
+                    <VehicleConditionButton load={currentLoad} showHint />
+
                     {!currentLoadHasPendingRelease && currentLoad.status === "Accepted" && (
                       <Button
                         size="sm"
@@ -3418,6 +3464,23 @@ function expiredCredentialsText(items?: { label: string; date: string }[]): stri
   return `Your ${described.length ? `${described.join(", ")} and ${last}` : last}`;
 }
 
+/** "Your CDL expires in 14 days (Oct 27, 2026)" for the Driver Page's renewal notice. */
+function expiringCredentialsText(items?: { label: string; date: string; daysLeft: number }[]): string {
+  if (!items?.length) return "One of your documents expires soon";
+  const described = items.map((item) => {
+    const day = new Date(`${item.date}T00:00:00Z`).toLocaleDateString("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const when = item.daysLeft <= 1 ? "tomorrow" : `in ${item.daysLeft} days`;
+    return `${item.label} expires ${when} (${day})`;
+  });
+  const last = described.pop();
+  return `Your ${described.length ? `${described.join(", ")} and ${last}` : last}`;
+}
+
 function DriverDeliveryProofDialog({
   load,
   loadReference,
@@ -3442,6 +3505,8 @@ function DriverDeliveryProofDialog({
   // after a failed /deliver doesn't upload the same photo again (same as the
   // Loads page's delivery dialog).
   const proofSubmittedRef = React.useRef(false);
+  // No signal: the photo stays here and is sent once the phone is back online.
+  const [waitingForSignal, setWaitingForSignal] = React.useState(false);
 
   React.useEffect(() => {
     proofSubmittedRef.current = false;
@@ -3449,6 +3514,7 @@ function DriverDeliveryProofDialog({
       setFile(null);
       setNote("");
       setError(null);
+      setWaitingForSignal(false);
       setPreview((previous) => {
         if (previous) URL.revokeObjectURL(previous);
         return null;
@@ -3513,8 +3579,15 @@ function DriverDeliveryProofDialog({
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
+      setWaitingForSignal(false);
       await onDelivered();
     } catch (err: any) {
+      if (isNoConnectionError(err)) {
+        setWaitingForSignal(true);
+        setError(null);
+        return;
+      }
+      setWaitingForSignal(false);
       const message = userErrorMessage(err, "complete this delivery");
       setError(
         step === "deliver"
@@ -3525,6 +3598,8 @@ function DriverDeliveryProofDialog({
       setSubmitting(false);
     }
   };
+
+  useSendWhenBackOnline(waitingForSignal && !!file, () => void submitDelivery(), submitting);
 
   if (!load) return null;
 
@@ -3639,6 +3714,7 @@ function DriverDeliveryProofDialog({
             />
           </div>
 
+          {waitingForSignal && !error && <WaitingForSignalNotice />}
           {error && (
             <div className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />

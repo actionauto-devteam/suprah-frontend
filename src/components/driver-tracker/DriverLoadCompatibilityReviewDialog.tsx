@@ -46,6 +46,8 @@ export function DriverLoadCompatibilityReviewDialog({
 }: Props) {
   const availability = compatibility?.availability;
   const capacity = compatibility?.capacity;
+  // A driver who never set up their trailer has the default capacity of 1.
+  const trailerNotSetUp = Boolean(compatibility) && !compatibility?.trailer?.driverTrailerType;
   const hasAvailabilityWarning = availability?.status === "off_schedule";
   const hasCapacityWarning = capacity?.status !== "match";
   const normalizedActiveLoads = React.useMemo(
@@ -168,14 +170,18 @@ export function DriverLoadCompatibilityReviewDialog({
               <Truck className="mt-0.5 size-4 shrink-0 text-red-500" />
               <div className="min-w-0">
                 <p className="break-words text-sm font-bold text-red-700 [overflow-wrap:anywhere] dark:text-red-400">
-                  {capacity?.status === "exceeded"
-                    ? "Vehicle Capacity Exceeded"
-                    : "Vehicle Capacity Not Verified"}
+                  {trailerNotSetUp
+                    ? "Driver Hasn't Set Up Their Trailer"
+                    : capacity?.status === "exceeded"
+                      ? "Vehicle Capacity Exceeded"
+                      : "Vehicle Capacity Not Verified"}
                 </p>
                 <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                  {capacity?.status === "exceeded"
-                    ? `This load requires ${capacity.requiredVehicles} vehicle${capacity.requiredVehicles === 1 ? "" : "s"}, while the driver's configured capacity is ${capacity.maxVehicles}. Verify the equipment before overriding.`
-                    : "The driver's equipment capacity could not be verified. Confirm the current equipment before overriding this warning."}
+                  {trailerNotSetUp
+                    ? `This load has ${capacity?.requiredVehicles ?? "several"} vehicle${capacity?.requiredVehicles === 1 ? "" : "s"}, and this driver hasn't told us their trailer yet. Check with the driver that their trailer can carry this load before overriding.`
+                    : capacity?.status === "exceeded"
+                      ? `This load requires ${capacity.requiredVehicles} vehicle${capacity.requiredVehicles === 1 ? "" : "s"}, while the driver's configured capacity is ${capacity.maxVehicles}. Verify the equipment before overriding.`
+                      : "The driver's equipment capacity could not be verified. Confirm the current equipment before overriding this warning."}
                 </p>
               </div>
             </div>

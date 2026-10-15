@@ -127,7 +127,7 @@ export function SupraStyleComposer({
               <button
                 key={emoji}
                 type="button"
-                className="flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
+                className="max-md:size-10 flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
                 onClick={() => insertEmoji(emoji)}
               >
                 {emoji}
@@ -190,7 +190,7 @@ export function SupraStyleComposer({
               onClick={() => setEmojiOpen((current) => !current)}
               disabled={disabled}
               className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors disabled:opacity-50 md:hidden",
+                "max-md:size-11 flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors disabled:opacity-50 md:hidden",
                 emojiOpen && "text-emerald-600 dark:text-emerald-400",
               )}
               aria-label="Add emoji"
@@ -233,7 +233,7 @@ export function SupraStyleComposer({
               type="button"
               onClick={() => filesInputRef.current?.click()}
               disabled={attachDisabled}
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+              className="max-md:size-11 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
               title="Attach photos or files (up to 5, 25 MB each)"
               aria-label="Attach photos or files"
             >
@@ -244,7 +244,7 @@ export function SupraStyleComposer({
               onClick={() => setEmojiOpen((current) => !current)}
               disabled={disabled}
               className={cn(
-                "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40",
+                "max-md:size-11 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40",
                 emojiOpen && "bg-muted text-foreground",
               )}
               title="Emoji"
@@ -264,7 +264,7 @@ export function SupraStyleComposer({
               type="button"
               onClick={submit}
               disabled={!canSend}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
+              className="max-md:size-11 flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
               title="Send (Enter). Shift+Enter adds a new line."
               aria-label="Send"
             >

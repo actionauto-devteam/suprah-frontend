@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Globe, UserCheck, Truck } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { ArrowLeft, Globe, UserCheck, Truck, Copy, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getLoadById } from "@/lib/api/loads"
 import { LoadFormLayout } from "@/components/create-load/LoadFormLayout"
 import { PostType } from "@/components/create-load/types"
 import { cn } from "@/lib/utils"
@@ -13,6 +15,7 @@ import { cn } from "@/lib/utils"
 //   /transportation/create-load                 → chooser
 //   /transportation/create-load?type=load-board → straight into that workflow
 //   /transportation/create-load?type=assign-carrier
+//   …&duplicate=<loadId>                       → pre-filled from that load
 
 const WORKFLOWS: Array<{
   key: PostType
@@ -48,6 +51,21 @@ function CreateLoadPageInner() {
 
   const [postType, setPostType] = React.useState<PostType | null>(initialType)
 
+  // "Duplicate" on a load opens this page pre-filled from that load.
+  const duplicateId = searchParams.get("duplicate")
+  const {
+    data: duplicateFrom,
+    isLoading: isLoadingCopy,
+    isError: copyFailed,
+  } = useQuery({
+    queryKey: ["load-copy-source", duplicateId],
+    queryFn: () => getLoadById(duplicateId!),
+    enabled: !!duplicateId,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  })
+
   return (
     <div className="min-h-dvh p-4 sm:p-6 lg:p-8">
       {/* ── Header ── */}
@@ -57,7 +75,7 @@ function CreateLoadPageInner() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="max-md:size-11 h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
             onClick={() =>
               postType ? setPostType(null) : router.push("/transportation")
             }
@@ -106,8 +124,39 @@ function CreateLoadPageInner() {
             </button>
           ))}
         </div>
+      ) : duplicateId && isLoadingCopy ? (
+        <div className="max-w-3xl mx-auto flex items-center justify-center h-64">
+          <Truck className="size-5 text-emerald-500 motion-safe:animate-pulse" />
+        </div>
       ) : (
-        <LoadFormLayout postType={postType} />
+        <>
+          {duplicateId && (
+            <div
+              className={cn(
+                "max-w-3xl mx-auto mb-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm",
+                copyFailed || !duplicateFrom
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                  : "border-primary/25 bg-primary/5 text-foreground",
+              )}
+            >
+              {copyFailed || !duplicateFrom ? (
+                <>
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <p>We couldn&apos;t copy that load, so this is a blank form.</p>
+                </>
+              ) : (
+                <>
+                  <Copy className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <p className="min-w-0">
+                    Copied from <span className="font-semibold">{duplicateFrom.loadNumber}</span>. Add the
+                    dates and each vehicle&apos;s VIN, and check the rest before you save.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          <LoadFormLayout postType={postType} duplicateFrom={duplicateFrom} />
+        </>
       )}
     </div>
   )

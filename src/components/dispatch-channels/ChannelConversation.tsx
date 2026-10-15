@@ -464,7 +464,7 @@ export function ChannelConversation({
       <header className="relative shrink-0 border-b border-border/60 bg-gradient-to-r from-emerald-500/[0.07] via-background to-background px-3 py-2.5 sm:px-4 sm:py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {onBack && (
-            <Button type="button" size="icon" variant="ghost" className="size-9 shrink-0" onClick={onBack} aria-label="Back to channels">
+            <Button type="button" size="icon" variant="ghost" className="max-md:size-11 size-9 shrink-0" onClick={onBack} aria-label="Back to channels">
               <ArrowLeft className="size-4" />
             </Button>
           )}
@@ -523,7 +523,7 @@ export function ChannelConversation({
               type="button"
               variant="ghost"
               size="icon"
-              className={cn("size-9 shrink-0 text-muted-foreground hover:text-foreground", detailsOpen && "bg-muted text-foreground")}
+              className={cn("max-md:size-11 size-9 shrink-0 text-muted-foreground hover:text-foreground", detailsOpen && "bg-muted text-foreground")}
               onClick={openDetails}
               disabled={!channel}
               aria-label="Channel details"
@@ -577,7 +577,7 @@ export function ChannelConversation({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-7 rounded-full text-[10px] font-bold"
+                  className="max-md:min-h-11 h-7 rounded-full text-[10px] font-bold"
                   onClick={() => void loadOlder()}
                   disabled={loadingOlder}
                 >
@@ -656,10 +656,10 @@ export function ChannelConversation({
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] text-muted-foreground">Enter to save · Esc to cancel</span>
                             <div className="flex gap-1.5">
-                              <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(null)} disabled={savingEdit}>
+                              <Button type="button" size="sm" variant="ghost" className="max-md:min-h-11 h-7 text-xs" onClick={() => setEditing(null)} disabled={savingEdit}>
                                 Cancel
                               </Button>
-                              <Button type="button" size="sm" className="h-7 text-xs" onClick={() => void saveEdit()} disabled={savingEdit}>
+                              <Button type="button" size="sm" className="max-md:min-h-11 h-7 text-xs" onClick={() => void saveEdit()} disabled={savingEdit}>
                                 {savingEdit ? <Loader2 className="size-3 animate-spin" /> : "Save"}
                               </Button>
                             </div>
@@ -693,7 +693,7 @@ export function ChannelConversation({
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="size-7 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100"
+                              className="max-md:size-11 size-7 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100"
                               aria-label="Message options"
                             >
                               <MoreHorizontal className="size-4" />
@@ -777,7 +777,7 @@ export function ChannelConversation({
                     <button
                       key={emoji}
                       type="button"
-                      className="flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
+                      className="max-md:size-10 flex size-7 items-center justify-center rounded-lg text-base hover:bg-muted"
                       onClick={() => {
                         setDraft((current) => `${current}${emoji}`);
                         setEmojiOpen(false);

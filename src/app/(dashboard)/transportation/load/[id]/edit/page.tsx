@@ -38,7 +38,7 @@ export default function EditLoadPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="max-md:size-11 h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
             onClick={() => router.push(`/transportation/load/${id}`)}
             aria-label="Back"
           >

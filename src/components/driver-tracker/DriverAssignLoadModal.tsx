@@ -118,6 +118,10 @@ export function DriverAssignLoadModal({
     });
   }, [availableLoads, loadSearch]);
 
+  const assigningLoad = assigning
+    ? availableLoads.find((load) => load._id === assigning) ?? null
+    : null;
+
   const handleAssign = async (item: AvailableItem) => {
     setAssigning(item._id);
     try {
@@ -141,8 +145,17 @@ export function DriverAssignLoadModal({
             </span>
           </DialogTitle>
           <DialogDescription className="break-words text-xs leading-relaxed [overflow-wrap:anywhere] sm:text-sm">
-            Select an available load to assign to this driver.
+            Choose a load, then press Assign. The load goes to this driver to accept.
           </DialogDescription>
+
+          {assigning && (
+            <p role="status" className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+              <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                Assigning {assigningLoad?.trackingNumber || assigning} to {driver?.driver?.name || "this driver"}…
+              </span>
+            </p>
+          )}
 
           <div className="mt-2 flex min-w-0 items-start gap-3">
             <Avatar className="size-10 shrink-0 border-2 border-background shadow-sm">
@@ -185,7 +198,9 @@ export function DriverAssignLoadModal({
                 >
                   {driver?.assignable
                     ? "Eligible"
-                    : `Unavailable · ${(eq?.operationalStatus || "active")
+                    : driver?.accountApproved === false
+                      ? "Unavailable · Application not approved yet"
+                      : `Unavailable · ${(eq?.operationalStatus || "active")
                         .replace("maintenance", "In Shop")
                         .replace("on_leave", "On Leave")}`}
                 </Badge>
@@ -198,7 +213,9 @@ export function DriverAssignLoadModal({
           <div className="space-y-4">
             {driver && !driver.assignable && (
               <div className="break-words rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2.5 text-xs leading-relaxed text-amber-700 [overflow-wrap:anywhere] dark:text-amber-400">
-                This driver is not currently eligible for a new assignment. Return the driver to Active and clear any blocking status transition first.
+                {driver.accountApproved === false
+                  ? "This driver's account application hasn't been approved yet, so they can't be given loads. You can assign them once the Suprah team approves it."
+                  : "This driver is not currently eligible for a new assignment. Return the driver to Active and clear any blocking status transition first."}
               </div>
             )}
 
@@ -246,7 +263,12 @@ export function DriverAssignLoadModal({
                 return (
                   <div
                     key={load._id}
-                    className="rounded-xl border border-border/40 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-sm sm:p-4"
+                    aria-busy={assigning === load._id || undefined}
+                    className={`rounded-xl border p-3 transition-all duration-200 sm:p-4 ${
+                      assigning === load._id
+                        ? "border-primary/60 bg-primary/5 ring-1 ring-primary/40"
+                        : "border-border/40 hover:border-primary/30 hover:shadow-sm"
+                    }`}
                   >
                     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -313,7 +335,10 @@ export function DriverAssignLoadModal({
                         disabled={assigning !== null || !driver?.assignable}
                       >
                         {assigning === load._id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
+                          <>
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Assigning…
+                          </>
                         ) : needsReview ? (
                           "Review & Assign"
                         ) : (

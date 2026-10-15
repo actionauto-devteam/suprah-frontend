@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getLoadById } from "@/lib/api/loads"
 import { generateBolHtml } from "@/lib/transportation-reports"
 import { useOrg } from "@/hooks/useOrg"
-import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route } from "lucide-react"
+import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
@@ -24,6 +24,9 @@ import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { Load } from "@/types/load"
+import { arrivalAt, formatWait } from "@/lib/load-arrival"
+import { formatMountainDateTime } from "@/lib/mountain-time"
+import { ConditionReportCard } from "@/components/transportation/ConditionReportCard"
 
 function LoadDetailsLoading() {
   return (
@@ -151,6 +154,8 @@ type LoadTimeline = {
   pickedUpAt?: string;
   inTransitAt?: string;
   deliveredAt?: string;
+  arrivals?: Load["arrivals"];
+  assignedDriverId?: Load["assignedDriverId"];
   gpsGapEvents?: Array<{ step: string; recordedAt?: string; lastGpsAt?: string | null }>;
 };
 
@@ -245,8 +250,19 @@ const LOAD_JOURNEY_THEME: Record<
   },
 }
 
+/** The current time, updated every minute (for "waiting so far"). */
+function useMinuteClock() {
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return now
+}
+
 function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
   const currentStatus = normalizeLoadJourneyStatus(load.status)
+  const now = useMinuteClock()
 
   const steps = [
     {
@@ -282,6 +298,31 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
   ]
 
   const gpsGaps = Array.isArray(load.gpsGapEvents) ? load.gpsGapEvents : []
+
+  // "I've arrived" taps: how long the driver waited before pickup/delivery,
+  // or has been waiting so far.
+  const arrivedAtPickup = arrivalAt(load, "pickup")
+  const arrivedAtDelivery = arrivalAt(load, "delivery")
+  const stopWaits = [
+    arrivedAtPickup && {
+      key: "pickup",
+      arrived: arrivedAtPickup,
+      label: "Arrived at pickup",
+      wait: load.pickedUpAt
+        ? `waited ${formatWait(arrivedAtPickup, new Date(load.pickedUpAt).getTime())} before pickup`
+        : normalizeLoadJourneyStatus(load.status) === "Accepted"
+          ? `waiting ${formatWait(arrivedAtPickup, now)} so far`
+          : null,
+    },
+    arrivedAtDelivery && {
+      key: "delivery",
+      arrived: arrivedAtDelivery,
+      label: "Arrived at delivery",
+      wait: load.deliveredAt
+        ? `waited ${formatWait(arrivedAtDelivery, new Date(load.deliveredAt).getTime())} before delivery`
+        : `waiting ${formatWait(arrivedAtDelivery, now)} so far`,
+    },
+  ].filter(Boolean) as Array<{ key: string; arrived: string; label: string; wait: string | null }>
 
   const formatTimelineDate = (value?: string | null) => {
     if (!value) return null
@@ -385,6 +426,19 @@ function LoadTrackingTimeline({ load }: { load: LoadTimeline }) {
             )
           })}
         </div>
+
+        {stopWaits.length > 0 && (
+          <ul className="mt-4 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+            {stopWaits.map((stop) => (
+              <li key={stop.key} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="font-semibold text-foreground">{stop.label}</span>
+                <span className="text-muted-foreground">{formatMountainDateTime(stop.arrived)}</span>
+                {stop.wait && <span className="text-muted-foreground">· {stop.wait}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
 
         {gpsGaps.length > 0 && (
           <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
@@ -643,6 +697,11 @@ export default function LoadDetailsPage() {
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={handlePrintBol}><FileText className="size-4 mr-2 text-muted-foreground" /> Print BOL</Button>
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setHistoryOpen(true)}><History className="size-4 mr-2 text-muted-foreground" /> Assignment history</Button>
           <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setTripHistoryOpen(true)}><Route className="size-4 mr-2 text-muted-foreground" /> Trip history</Button>
+          <Button asChild variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial">
+            <Link href={`/transportation/create-load?type=${load.postType === "load-board" ? "load-board" : "assign-carrier"}&duplicate=${load._id}`}>
+              <Copy className="size-4 mr-2 text-muted-foreground" /> Duplicate
+            </Link>
+          </Button>
           {canMarkDelivered && (
             <Button variant="outline" size="sm" className="bg-background flex-1 sm:flex-initial" onClick={() => setMarkDeliveredOpen(true)}>
               <CheckCircle2 className="size-4 mr-2 text-emerald-600 dark:text-emerald-400" /> Mark as delivered
@@ -988,14 +1047,21 @@ export default function LoadDetailsPage() {
                 </p>
               </div>
 
-              <Link href={`/billing/driver-payouts/${load._id}`}>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+              <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-11 rounded-xl shadow-lg shadow-primary/20 gap-2">
+                <Link href={`/billing/driver-payouts/${load._id}`}>
                   <DollarSign className="size-4" /> Review & Approve Payout
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         )}
+
+        {/* Vehicle condition (driver's optional report; hidden until there is one) */}
+        <ConditionReportCard
+          vehicles={load.vehicles}
+          reports={load.conditionReports}
+          signature={load.deliverySignature}
+        />
 
         {/* Notes & Instructions */}
         {(load.additionalInfo?.instructions || load.additionalInfo?.notes) && (
@@ -1141,7 +1207,7 @@ export default function LoadDetailsPage() {
                     type="button"
                     onClick={() => setMobileBolPreviewOpen(false)}
                     aria-label="Close BOL preview"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="max-md:size-11 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <X className="size-4" />
                   </button>

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dialog";
 import type { DriverTrackingItem } from "@/types/driver-tracking";
 import { userErrorMessage } from "@/lib/user-error";
+import { mountainDaysUntil } from "@/lib/mountain-time";
 
 interface DriverReviewAccess {
   level:
@@ -290,9 +291,10 @@ function formatCalendarDay(value?: string | null) {
 }
 
 /** Same rule as the server: expired once the date has passed. */
+/** Expired from its expiration day on, on the Mountain Time calendar (same as the server). */
 function isPastDate(value?: string | null) {
-  const time = value ? new Date(value).getTime() : Number.NaN;
-  return Number.isFinite(time) && time < Date.now();
+  const days = mountainDaysUntil(value);
+  return days !== null && days <= 0;
 }
 
 function formatDate(value?: string | null, withTime = false) {
@@ -950,10 +952,10 @@ export function DriverComplianceDocumentsDialog({
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           <Field label="CDL Number" value={profile.credentials?.driversLicenseNumber} />
                           <Field label="CDL State" value={profile.credentials?.licenseState} />
-                          <Field label="CDL Expiration" value={formatDate(profile.credentials?.licenseExpirationDate)} />
+                          <Field label="CDL Expiration" value={formatCalendarDay(profile.credentials?.licenseExpirationDate)} />
                           <Field label="Insurance Provider" value={profile.credentials?.insuranceProvider} />
                           <Field label="Insurance Policy" value={profile.credentials?.insurancePolicyNumber} />
-                          <Field label="Insurance Expiration" value={formatDate(profile.credentials?.insuranceExpirationDate)} />
+                          <Field label="Insurance Expiration" value={formatCalendarDay(profile.credentials?.insuranceExpirationDate)} />
                         </div>
                       </>
                     ) : hasProtectedOperationalAccess ? (

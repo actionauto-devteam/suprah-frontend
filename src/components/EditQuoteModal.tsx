@@ -129,7 +129,7 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                             Update customer, vehicle, and route information
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors shrink-0">
+                    <button type="button" aria-label="Close" onClick={onClose} className="max-md:p-3 p-2 rounded-lg hover:bg-muted transition-colors shrink-0">
                         <X className="w-5 h-5 text-muted-foreground" />
                     </button>
                 </div>
@@ -479,6 +479,9 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                     <button
                                         type="button"
                                         onClick={() => setFormData(prev => ({ ...prev, enclosedTrailer: !prev.enclosedTrailer }))}
+                                        role="switch"
+                                        aria-checked={!!formData.enclosedTrailer}
+                                        aria-label="Enclosed Trailer"
                                         className={cn(
                                             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
                                             formData.enclosedTrailer ? "bg-primary" : "bg-muted-foreground/30"
@@ -498,6 +501,9 @@ export function EditQuoteModal({ quote, isOpen, onClose, onSave }: EditQuoteModa
                                     <button
                                         type="button"
                                         onClick={() => setFormData(prev => ({ ...prev, vehicleInoperable: !prev.vehicleInoperable }))}
+                                        role="switch"
+                                        aria-checked={!!formData.vehicleInoperable}
+                                        aria-label="Vehicle Inoperable"
                                         className={cn(
                                             "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
                                             formData.vehicleInoperable ? "bg-primary" : "bg-muted-foreground/30"
