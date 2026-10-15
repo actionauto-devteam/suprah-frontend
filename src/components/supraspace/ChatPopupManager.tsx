@@ -2959,11 +2959,13 @@ function ForwardModal({ message, token, myId, onClose }: {
 function PinnedMessagesModal({
   messages,
   pinnedMsgIds,
+  loading,
   onUnpin,
   onClose,
 }: {
   messages: SSMessage[];
   pinnedMsgIds: Set<string>;
+  loading: boolean;
   onUnpin: (id: string) => void;
   onClose: () => void;
 }) {
@@ -2990,7 +2992,9 @@ function PinnedMessagesModal({
 
         {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {pinned.length === 0 ? (
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Loading pinned messages…</div>
+          ) : pinned.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>No pinned messages</div>
           ) : (
             pinned.map((m, idx) => {
@@ -4121,6 +4125,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [moreMenuMsgId]);
 
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
+  const [pinnedMessages, setPinnedMessages] = React.useState<SSMessage[]>([]);
+  const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
+  const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedOpen, setPinnedOpen] = React.useState(false);
   const syncPinnedMessageIds = React.useCallback((nextMessages: SSMessage[]) => {
     setPinnedMsgIds(prev => {
@@ -4132,6 +4139,32 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       return next;
     });
   }, []);
+  const pinnedMessagesRequestRef = React.useRef(0);
+  const fetchPinnedMessages = React.useCallback(async () => {
+    const effectiveToken = crmToken || (typeof window !== 'undefined' ? localStorage.getItem('crm_token') : null);
+    if (!effectiveToken) return;
+    const requestId = ++pinnedMessagesRequestRef.current;
+    setPinnedMessagesLoading(true);
+    try {
+      const response = await apiClient.get(`/api/supraspace/conversations/${conv._id}/pinned-messages`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` },
+        params: { limit: 250 },
+      });
+      if (requestId !== pinnedMessagesRequestRef.current) return;
+      const items: SSMessage[] = response.data?.data?.items || [];
+      setPinnedMessages(items);
+      setPinnedMsgIds(new Set(items.map(message => message._id)));
+    } catch {
+      // Keep the last confirmed collection visible during a transient refresh failure.
+    } finally {
+      if (requestId === pinnedMessagesRequestRef.current) setPinnedMessagesLoading(false);
+    }
+  }, [conv._id, crmToken]);
+  React.useEffect(() => {
+    setPinnedMessages([]);
+    setPinnedMsgIds(new Set());
+    void fetchPinnedMessages();
+  }, [fetchPinnedMessages]);
 
   // Forward modal
   const [forwardMsg, setForwardMsg] = React.useState<SSMessage | null>(null);
@@ -4325,12 +4358,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   const handleDelete = async (msgId: string) => {
     clearBar();
+    const previousPinnedMessage = pinnedMessages.find(message => message._id === msgId);
     setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: true, content: '', attachments: [] } : m));
+    setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(msgId); return next; });
+    setPinnedMessages(prev => prev.filter(message => message._id !== msgId));
     try {
       await apiClient.delete(`/api/supraspace/messages/${msgId}`,
         { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
     } catch {
       setMessages(prev => prev.map(m => m._id === msgId ? { ...m, isDeleted: false } : m));
+      if (previousPinnedMessage) setPinnedMessages(prev => prev.some(message => message._id === msgId) ? prev : [previousPinnedMessage, ...prev]);
+      void fetchPinnedMessages();
     }
   };
 
@@ -5616,6 +5654,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ? { ...message, isDeleted: true, content: '', attachments: [] }
         : message
       ));
+      setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(messageId); return next; });
+      setPinnedMessages(prev => prev.filter(message => message._id !== messageId));
     };
     socket.on('message:deleted', handler);
     return () => { socket.off('message:deleted', handler); };
@@ -5670,10 +5710,11 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         return next;
       });
       setMessages(prev => prev.map(m => m._id === messageId ? { ...m, pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null } : m));
+      void fetchPinnedMessages();
     };
     socket.on('message:pinned', handler);
     return () => { socket.off('message:pinned', handler); };
-  }, [socket, conv._id]);
+  }, [socket, conv._id, fetchPinnedMessages]);
   React.useEffect(() => {
     if (!socket) return;
     const handler = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
@@ -7901,20 +7942,29 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </button>
                 <button className={row} onClick={async () => {
                   if (!msg || !moreMenuMsgId || !crmToken) return;
+                  if (pinRequestIdsRef.current.has(moreMenuMsgId)) return;
+                  pinRequestIdsRef.current.add(moreMenuMsgId);
                   const pinned = !isPinned;
                   const previousPinnedBy = msg.pinnedBy || [];
-                  const nextPinnedBy = pinned
-                    ? Array.from(new Set(crmUserId ? [...previousPinnedBy, crmUserId] : previousPinnedBy))
-                    : previousPinnedBy.filter(id => String(id) !== crmUserId);
+                  const previousPinnedMessages = pinnedMessages;
+                  const nextPinnedBy = pinned && crmUserId ? [crmUserId] : [];
                   setPinnedMsgIds(prev => { const n = new Set(prev); isPinned ? n.delete(moreMenuMsgId) : n.add(moreMenuMsgId); return n; });
                   setMessages(prev => prev.map(m => m._id === moreMenuMsgId ? { ...m, pinnedBy: nextPinnedBy, pinnedAt: pinned ? m.pinnedAt || new Date().toISOString() : null } : m));
+                  setPinnedMessages(prev => pinned
+                    ? (prev.some(message => message._id === moreMenuMsgId) ? prev : [{ ...msg, pinnedBy: nextPinnedBy, pinnedAt: msg.pinnedAt || new Date().toISOString() }, ...prev])
+                    : prev.filter(message => message._id !== moreMenuMsgId));
                   try {
                     await apiClient.post(`/api/supraspace/messages/${moreMenuMsgId}/pin`, { pinned }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
                     isPinned ? toast('Message unpinned') : toast.success('Message pinned');
+                    void fetchPinnedMessages();
                   } catch {
                     setPinnedMsgIds(prev => { const n = new Set(prev); isPinned ? n.add(moreMenuMsgId) : n.delete(moreMenuMsgId); return n; });
                     setMessages(prev => prev.map(m => m._id === moreMenuMsgId ? { ...m, pinnedBy: previousPinnedBy, pinnedAt: msg.pinnedAt || null } : m));
+                    setPinnedMessages(previousPinnedMessages);
+                    void fetchPinnedMessages();
                     toast.error('Could not update pinned message');
+                  } finally {
+                    pinRequestIdsRef.current.delete(moreMenuMsgId);
                   }
                   close();
                 }}>
@@ -7996,19 +8046,29 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       {/* ── Pinned messages modal ── */}
       {pinnedOpen && (
         <PinnedMessagesModal
-          messages={messages}
+          messages={pinnedMessages}
           pinnedMsgIds={pinnedMsgIds}
+          loading={pinnedMessagesLoading}
           onUnpin={async (id) => {
+            if (pinRequestIdsRef.current.has(id)) return;
+            pinRequestIdsRef.current.add(id);
             const previousMessage = messages.find(m => m._id === id);
+            const previousPinnedMessages = pinnedMessages;
             setPinnedMsgIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-            setMessages(prev => prev.map(m => m._id === id ? { ...m, pinnedBy: (m.pinnedBy || []).filter(userId => String(userId) !== crmUserId), pinnedAt: null } : m));
+            setPinnedMessages(prev => prev.filter(message => message._id !== id));
+            setMessages(prev => prev.map(m => m._id === id ? { ...m, pinnedBy: [], pinnedAt: null } : m));
             try {
               await apiClient.post(`/api/supraspace/messages/${id}/pin`, { pinned: false }, { headers: { Authorization: `Bearer ${crmToken}` }, _skipAuthRefresh: true } as RequestConfigWithSkipRefresh);
               toast('Message unpinned');
+              void fetchPinnedMessages();
             } catch {
               setPinnedMsgIds(prev => { const n = new Set(prev); n.add(id); return n; });
               if (previousMessage) setMessages(prev => prev.map(m => m._id === id ? previousMessage : m));
+              setPinnedMessages(previousPinnedMessages);
+              void fetchPinnedMessages();
               toast.error('Could not update pinned message');
+            } finally {
+              pinRequestIdsRef.current.delete(id);
             }
           }}
           onClose={() => setPinnedOpen(false)}

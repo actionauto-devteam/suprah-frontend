@@ -336,17 +336,17 @@ export default function YapLinePage() {
   const togglePin = React.useCallback(async (c: Conv) => {
     const isPinned = !!(s.myUserId && c.pinnedBy?.includes(s.myUserId));
     const next = !isPinned;
-    setConvs((prev) => {
-      const updated = prev.map((x) => x._id === c._id
-        ? { ...x, pinnedBy: next ? [...(x.pinnedBy || []), s.myUserId!] : (x.pinnedBy || []).filter((id) => id !== s.myUserId) }
-        : x);
-      convsCache = updated;
-      return updated;
-    });
     try {
       await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned: next });
+      setConvs((prev) => {
+        const updated = prev.map((x) => x._id === c._id
+          ? { ...x, pinnedBy: next ? Array.from(new Set([...(x.pinnedBy || []), s.myUserId!])) : (x.pinnedBy || []).filter((id) => id !== s.myUserId) }
+          : x);
+        convsCache = updated;
+        return updated;
+      });
     } catch {
-      toast.error("Could not update pin");
+      toast.error(`Could not ${next ? 'pin' : 'unpin'} this conversation`);
     }
   }, [s.myUserId]);
 

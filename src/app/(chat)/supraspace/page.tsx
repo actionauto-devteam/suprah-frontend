@@ -9757,6 +9757,9 @@ export default function SupraSpacePage() {
     return () => { cancelled = true; };
   }, [showInfo, activeId, infoTab, token]);
   const [pinnedMsgIds, setPinnedMsgIds] = React.useState<Set<string>>(new Set());
+  const [pinnedMessages, setPinnedMessages] = React.useState<SSMessage[]>([]);
+  const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
+  const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
   const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
   const syncPinnedMessageIds = React.useCallback((messages: SSMessage[]) => {
@@ -9769,6 +9772,31 @@ export default function SupraSpacePage() {
       return next;
     });
   }, []);
+  const pinnedMessagesRequestRef = React.useRef(0);
+  const fetchPinnedMessages = React.useCallback(async (conversationId: string) => {
+    if (!token) return;
+    const requestId = ++pinnedMessagesRequestRef.current;
+    setPinnedMessagesLoading(true);
+    try {
+      const response = await apiClient.get(`/api/supraspace/conversations/${conversationId}/pinned-messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 250 },
+      });
+      if (requestId !== pinnedMessagesRequestRef.current) return;
+      const items: SSMessage[] = response.data?.data?.items || [];
+      setPinnedMessages(items);
+      setPinnedMsgIds(new Set(items.map(message => message._id)));
+    } catch {
+      // Keep the last confirmed collection visible during a transient refresh failure.
+    } finally {
+      if (requestId === pinnedMessagesRequestRef.current) setPinnedMessagesLoading(false);
+    }
+  }, [token]);
+  React.useEffect(() => {
+    setPinnedMessages([]);
+    setPinnedMsgIds(new Set());
+    if (activeId) void fetchPinnedMessages(activeId);
+  }, [activeId, fetchPinnedMessages]);
   const [editingGcName, setEditingGcName] = React.useState(false);
   const [gcNameInput, setGcNameInput] = React.useState('');
   const [gcEmojiInput, setGcEmojiInput] = React.useState('');
@@ -10070,8 +10098,8 @@ export default function SupraSpacePage() {
     }),
   ), [activeMsgs]);
   const activePinnedMsgs = React.useMemo(
-    () => activeMsgs.filter(m => pinnedMsgIds.has(m._id) && !m.isDeleted),
-    [activeMsgs, pinnedMsgIds],
+    () => pinnedMessages.filter(message => !message.isDeleted),
+    [pinnedMessages],
   );
   const activeMsgStatus = activeId ? (msgFetchState[activeId] || 'idle') : 'idle';
   const activeConvHasHistorySignal = Boolean(activeConv?.lastMessage || activeConv?.lastMessageAt);
@@ -10883,6 +10911,10 @@ export default function SupraSpacePage() {
     const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
       markConversationActivity(conversationId);
       patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
+      if (conversationId === activeIdRef.current) {
+        setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(messageId); return next; });
+        setPinnedMessages(prev => prev.filter(message => message._id !== messageId));
+      }
       setConvos(p => sortSupraSpaceConversations(p.map(c => {
         if (c._id !== conversationId) return c;
         const cached = msgsRef.current[conversationId] || [];
@@ -10994,6 +11026,7 @@ export default function SupraSpacePage() {
         return next;
       });
       patchMsg(conversationId, messageId, { pinnedBy: pinnedBy || [], pinnedAt: pinnedAt || null });
+      if (conversationId === activeIdRef.current) void fetchPinnedMessages(conversationId);
     };
     socket.on('message:new', onMsg);
     socket.on('message:deleted', onDel);
@@ -11063,7 +11096,7 @@ export default function SupraSpacePage() {
       socket.off('user:profile:updated', onProfileUpdated);
       socket.off('conversations:all-read', onAllRead);
     };
-  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, markConversationActivity]);
+  }, [socket, appendMessageLocal, patchMsg, patchConv, fetchConversationMessages, markConversationActivity, fetchPinnedMessages]);
 
   React.useLayoutEffect(() => {
     const pending = pendingScrollRestoreRef.current;
@@ -12390,30 +12423,45 @@ export default function SupraSpacePage() {
 
   const handleDelete = React.useCallback(async (msgId: string) => {
     if (!activeId) return;
+    const previousPinnedMessage = pinnedMessages.find(message => message._id === msgId);
     patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] } as any);
+    setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(msgId); return next; });
+    setPinnedMessages(prev => prev.filter(message => message._id !== msgId));
     try { await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } }); }
-    catch { patchMsg(activeId, msgId, { isDeleted: false } as any); }
-  }, [activeId, token, patchMsg]);
+    catch {
+      patchMsg(activeId, msgId, { isDeleted: false } as any);
+      if (previousPinnedMessage) setPinnedMessages(prev => prev.some(message => message._id === msgId) ? prev : [previousPinnedMessage, ...prev]);
+      void fetchPinnedMessages(activeId);
+    }
+  }, [activeId, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
   const handlePinToggle = React.useCallback(async (msgId: string) => {
     if (!activeId) return;
+    if (pinRequestIdsRef.current.has(msgId)) return;
+    pinRequestIdsRef.current.add(msgId);
     const alreadyPinned = pinnedMsgIds.has(msgId);
     const pinned = !alreadyPinned;
     const previousMessage = (msgsRef.current[activeId] || []).find(m => m._id === msgId);
-    const nextPinnedBy = pinned
-      ? Array.from(new Set([...(previousMessage?.pinnedBy || []), uid]))
-      : (previousMessage?.pinnedBy || []).filter(id => String(id) !== uid);
+    const previousPinnedMessages = pinnedMessages;
+    const nextPinnedBy = pinned ? [uid] : [];
     setPinnedMsgIds(prev => { const n = new Set(prev); alreadyPinned ? n.delete(msgId) : n.add(msgId); return n; });
     patchMsg(activeId, msgId, { pinnedBy: nextPinnedBy, pinnedAt: pinned ? previousMessage?.pinnedAt || new Date().toISOString() : null });
-    if (alreadyPinned) {
-      toast('Message unpinned');
-      setPinEvents(pe => pe.filter(e => e.msgId !== msgId));
-    } else {
-      toast.success('Message pinned');
-      const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
-      setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
-    }
+    setPinnedMessages(prev => pinned
+      ? (previousMessage && !prev.some(message => message._id === msgId) ? [
+        { ...previousMessage, pinnedBy: nextPinnedBy, pinnedAt: previousMessage.pinnedAt || new Date().toISOString() },
+        ...prev,
+      ] : prev.map(message => message._id === msgId ? { ...message, pinnedBy: nextPinnedBy, pinnedAt: message.pinnedAt || new Date().toISOString() } : message))
+      : prev.filter(message => message._id !== msgId));
     try {
       await apiClient.post(`/api/supraspace/messages/${msgId}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } });
+      if (alreadyPinned) {
+        toast('Message unpinned');
+        setPinEvents(pe => pe.filter(e => e.msgId !== msgId));
+      } else {
+        toast.success('Message pinned');
+        const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
+        setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
+      }
+      void fetchPinnedMessages(activeId);
     } catch {
       setPinnedMsgIds(prev => {
         const n = new Set(prev);
@@ -12421,9 +12469,13 @@ export default function SupraSpacePage() {
         return n;
       });
       if (previousMessage) patchMsg(activeId, msgId, { pinnedBy: previousMessage.pinnedBy || [], pinnedAt: previousMessage.pinnedAt || null });
+      setPinnedMessages(previousPinnedMessages);
+      void fetchPinnedMessages(activeId);
       toast.error('Could not update pinned message');
+    } finally {
+      pinRequestIdsRef.current.delete(msgId);
     }
-  }, [activeId, pinnedMsgIds, activeConv, uid, token, patchMsg]);
+  }, [activeId, pinnedMsgIds, activeConv, uid, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
 
   const jumpToMessage = React.useCallback(async (msgId: string, createdAt?: string) => {
     setPinnedModalOpen(false);
@@ -12485,8 +12537,12 @@ export default function SupraSpacePage() {
 
   const togglePinConv = React.useCallback(async (c: SSConversation) => {
     const pinned = !isPinnedConv(c);
-    patchConv(c._id, { pinnedBy: pinned ? [...(c.pinnedBy || []), uid] : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
-    try { await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
+    try {
+      await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } });
+      patchConv(c._id, { pinnedBy: pinned ? Array.from(new Set([...(c.pinnedBy || []), uid])) : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
+    } catch {
+      toast.error(`Could not ${pinned ? 'pin' : 'unpin'} this conversation`);
+    }
   }, [isPinnedConv, patchConv, uid, token]);
   const toggleArchiveConv = React.useCallback(async (c: SSConversation) => {
     const leftChannel = c.type === 'group' && (c.leftBy || []).map(String).includes(uid);
@@ -15851,7 +15907,7 @@ export default function SupraSpacePage() {
             {showInfo && activeId && activeConv && (() => {
               const cName = getConvName(activeConv, uid);
               const cAvatar = getConvAvatar(activeConv, uid);
-              const pinnedMsgs = activeMsgs.filter(m => pinnedMsgIds.has(m._id));
+              const pinnedMsgs = activePinnedMsgs;
               return (
                 <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'var(--bg-elevated)' }}>
                   <div className="ss4-chat-header shrink-0 flex items-center gap-2.5 px-4 py-3">
@@ -16333,7 +16389,9 @@ export default function SupraSpacePage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 ss4-scroll">
-                {activePinnedMsgs.length === 0 ? (
+                    {pinnedMessagesLoading ? (
+                      <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--text-tertiary)' }} /></div>
+                    ) : activePinnedMsgs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                     <PinOff className="h-8 w-8" style={{ color: 'var(--text-tertiary)' }} />
                     <p className="font-semibold" style={{ fontSize: 14, color: 'var(--text-primary)' }}>No pinned messages</p>
