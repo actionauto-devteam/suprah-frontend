@@ -1136,6 +1136,14 @@ class ApiClient {
     return this.post("/api/crm/timeproof/admin/time-override", data, config);
   }
 
+  async getFormerEmployees(config?: AxiosRequestConfig) {
+    return this.get("/api/crm/timeproof/former-employees", config);
+  }
+
+  async deleteFormerEmployeeTimeproof(userId: string, reason: string, config?: AxiosRequestConfig) {
+    return this.delete(`/api/crm/timeproof/former-employees/${userId}`, { ...config, data: { reason } });
+  }
+
   async excludeScreenshots(
     data: { userId: string; date: string; after: string; reason: string },
     config?: AxiosRequestConfig

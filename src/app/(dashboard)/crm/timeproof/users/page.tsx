@@ -19,6 +19,7 @@ import {
   X,
   Wallet,
   TrendingUp,
+  Archive,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -685,6 +686,14 @@ export default function AdminShiftBoardPage() {
             >
               <CalendarDays className="h-3.5 w-3.5" />
               <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">Calendar</span>
+            </button>
+            <button
+              onClick={() => router.push("/crm/timeproof/former-employees")}
+              className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
+              title="Former employees' preserved Timeproof records"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">Former Employees</span>
             </button>
             {lastRefreshed && (
               <span className="hidden md:block text-[10px] text-muted-foreground font-mono ml-auto">

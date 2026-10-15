@@ -21,6 +21,7 @@ import {
   Activity,
   Pencil,
   History,
+  Trash2,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { LiveClock } from "@/components/crm/LiveClock"
@@ -72,6 +73,10 @@ interface TimeprofData {
     role: string
     department?: string
     hourlyRate?: number | null
+    accountModel?: "CrmUser" | "User" | "Archived"
+    isOffboarded?: boolean
+    isArchived?: boolean
+    offboardedAt?: string | null
   }
   calendar: Record<string, DayData>
   summary: {
@@ -317,6 +322,38 @@ export default function AdminUserTimeprofPage() {
   const [overrideSubmitting, setOverrideSubmitting] = React.useState(false)
   const [overrideError, setOverrideError] = React.useState("")
   const [overrideSuccess, setOverrideSuccess] = React.useState("")
+
+  const [showDeleteRecords, setShowDeleteRecords] = React.useState(false)
+  const [deleteRecordsReason, setDeleteRecordsReason] = React.useState("")
+  const [deleteRecordsConfirmName, setDeleteRecordsConfirmName] = React.useState("")
+  const [deleteRecordsSubmitting, setDeleteRecordsSubmitting] = React.useState(false)
+  const [deleteRecordsError, setDeleteRecordsError] = React.useState("")
+  const [deleteRecordsDone, setDeleteRecordsDone] = React.useState(false)
+
+  const handleDeleteTimeproofRecords = React.useCallback(async () => {
+    if (!data || !userId) return
+    if (!deleteRecordsReason.trim()) {
+      setDeleteRecordsError("A reason is required.")
+      return
+    }
+    if (deleteRecordsConfirmName.trim() !== data.user.fullName) {
+      setDeleteRecordsError("Type the employee's full name exactly to confirm.")
+      return
+    }
+    const token = localStorage.getItem("crm_token")
+    if (!token) return
+    setDeleteRecordsSubmitting(true)
+    setDeleteRecordsError("")
+    try {
+      await apiClient.deleteFormerEmployeeTimeproof(userId, deleteRecordsReason.trim(), { headers: { Authorization: `Bearer ${token}` } })
+      setDeleteRecordsDone(true)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setDeleteRecordsError(err?.response?.data?.message || "Failed to delete Timeproof records.")
+    } finally {
+      setDeleteRecordsSubmitting(false)
+    }
+  }, [data, userId, deleteRecordsReason, deleteRecordsConfirmName])
 
   const loadOverrideDayLogs = React.useCallback(async (dateStr: string) => {
     const token = localStorage.getItem("crm_token")
@@ -1098,6 +1135,18 @@ export default function AdminUserTimeprofPage() {
 
         {data && (
           <>
+            {data.user.isOffboarded && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 flex items-center gap-2.5">
+                <History className="h-4 w-4 text-amber-600 shrink-0" />
+                <p className="text-[12px] text-amber-700 dark:text-amber-400">
+                  {data.user.isArchived
+                    ? "This account has been deleted. This Timeproof history is preserved from the archive."
+                    : "This employee has been offboarded."}
+                  {data.user.offboardedAt && ` Offboarded ${toMDTDate(new Date(data.user.offboardedAt)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}.`}
+                </p>
+              </div>
+            )}
+
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard
@@ -1785,6 +1834,63 @@ export default function AdminUserTimeprofPage() {
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Delete Timeproof Records: admin-only, former employees only ── */}
+            {isAdmin && data.user.isOffboarded && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 space-y-3">
+                <button
+                  onClick={() => { setShowDeleteRecords((v) => !v); setDeleteRecordsError(""); setDeleteRecordsDone(false) }}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                    <span className="text-[11px] font-black tracking-tight">Delete Timeproof Records</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/40">{showDeleteRecords ? "Hide" : "Permanently remove"}</span>
+                </button>
+
+                {showDeleteRecords && (
+                  deleteRecordsDone ? (
+                    <p className="text-[12px] text-emerald-600 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2">
+                      Timeproof records for {data.user.fullName} have been permanently deleted.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5 pt-1">
+                      <p className="text-[11px] text-rose-700 dark:text-rose-400 leading-relaxed">
+                        This permanently deletes every hour, screenshot, and idle record for {data.user.fullName}. This cannot be undone.
+                      </p>
+                      <textarea
+                        value={deleteRecordsReason}
+                        onChange={(e) => setDeleteRecordsReason(e.target.value)}
+                        rows={2}
+                        placeholder="Reason — required"
+                        className="w-full rounded-lg border border-border/40 bg-background px-2 py-1.5 text-[12px] resize-none"
+                      />
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground/60">Type the employee's full name to confirm: <span className="font-bold text-foreground/80">{data.user.fullName}</span></label>
+                        <input
+                          type="text"
+                          value={deleteRecordsConfirmName}
+                          onChange={(e) => setDeleteRecordsConfirmName(e.target.value)}
+                          className="w-full h-9 rounded-lg border border-border/40 bg-background px-2 text-[12px]"
+                        />
+                      </div>
+                      {deleteRecordsError && (
+                        <p className="text-[10px] text-rose-500 bg-rose-500/5 border border-rose-500/15 rounded-lg px-3 py-2">{deleteRecordsError}</p>
+                      )}
+                      <button
+                        onClick={handleDeleteTimeproofRecords}
+                        disabled={deleteRecordsSubmitting}
+                        className="w-full h-9 rounded-lg text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 bg-rose-600 hover:bg-rose-500"
+                      >
+                        {deleteRecordsSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {deleteRecordsSubmitting ? "Deleting…" : "Permanently Delete"}
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             )}

@@ -19,6 +19,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useOrg } from "@/hooks/useOrg"
@@ -562,6 +563,24 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
     }
   }
 
+  // ── Undo an offboard (restores isActive + isOffboarded, clears the Former Employees archive) ──
+  const handleUndoOffboard = async (user: CrmUserRow) => {
+    setActioningId(user._id)
+    try {
+      await apiClient.post(
+        `/api/crm/users/${user._id}/undo-offboard`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      toast.success(`${user.fullName}'s offboard has been undone.`)
+      fetchUsers(page)
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to undo offboard."))
+    } finally {
+      setActioningId(null)
+    }
+  }
+
   // ── Delete (confirmed via AlertDialog) ──
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
@@ -617,13 +636,18 @@ export function UsersTable({ token, refreshKey, exportRequestKey = 0 }: UsersTab
           </DropdownMenuItem>
 
           <DropdownMenuItem
-            onClick={() => handleToggleStatus(u)}
+            onClick={() => (!u.isActive && u.isOffboarded ? handleUndoOffboard(u) : handleToggleStatus(u))}
             className="rounded-lg text-xs h-8 gap-2.5 cursor-pointer"
           >
             {u.isActive ? (
               <>
                 <PowerOff className="h-3.5 w-3.5 text-amber-500" />
                 <span className="text-amber-600">Deactivate</span>
+              </>
+            ) : u.isOffboarded ? (
+              <>
+                <RotateCcw className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="text-emerald-600">Undo Offboard</span>
               </>
             ) : (
               <>

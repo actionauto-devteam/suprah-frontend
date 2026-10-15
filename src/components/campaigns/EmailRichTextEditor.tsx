@@ -5,6 +5,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Underline from "@tiptap/extension-underline"
 import Link from "@tiptap/extension-link"
+import Image from "@tiptap/extension-image"
 import Placeholder from "@tiptap/extension-placeholder"
 import {
   Bold,
@@ -17,6 +18,7 @@ import {
   ListOrdered,
   Link as LinkIcon,
   Unlink,
+  ImageIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -30,6 +32,7 @@ const CONTENT_CLASSES = cn(
   "[&_li]:my-0.5",
   "[&_strong]:font-bold [&_em]:italic [&_u]:underline",
   "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
+  "[&_img]:my-2 [&_img]:block [&_img]:max-w-full [&_img]:rounded-md",
 )
 
 function ToolbarButton({
@@ -74,6 +77,12 @@ function Toolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run()
   }, [editor])
 
+  const insertImage = React.useCallback(() => {
+    const url = window.prompt("Image URL", "https://")
+    if (!url || url.trim() === "") return
+    editor.chain().focus().setImage({ src: url.trim() }).run()
+  }, [editor])
+
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/20 px-1.5 py-1">
       <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -109,6 +118,10 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Remove link" disabled={!editor.isActive("link")} onClick={() => editor.chain().focus().unsetLink().run()}>
         <Unlink className="h-3.5 w-3.5" />
       </ToolbarButton>
+      <span className="mx-1 h-4 w-px bg-border" />
+      <ToolbarButton label="Insert image" onClick={insertImage}>
+        <ImageIcon className="h-3.5 w-3.5" />
+      </ToolbarButton>
     </div>
   )
 }
@@ -135,6 +148,7 @@ export function EmailRichTextEditor({
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow" } }),
+      Image,
       Placeholder.configure({ placeholder }),
     ],
     content: value,
