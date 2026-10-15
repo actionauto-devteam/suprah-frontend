@@ -58,6 +58,11 @@ import { DriverReleaseLoadDialog } from '@/components/driver/DriverReleaseLoadDi
 import { DriverPickupProofDialog } from '@/components/driver/DriverPickupProofDialog';
 import { useDriverWorkEligibility } from '@/hooks/useDriverWorkEligibility';
 import { userErrorMessage } from "@/lib/user-error";
+import {
+  isNoConnectionError,
+  useSendWhenBackOnline,
+  WaitingForSignalNotice,
+} from "@/hooks/useSendWhenBackOnline";
 import { formatScheduleDate } from "@/utils/calendar.utils";
 
 // Readable phrases for driver load actions in error messages ("We couldn't …").
@@ -1168,6 +1173,8 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
   // retry after the follow-up /deliver call fails skips re-uploading proof
   // instead of creating a duplicate.
   const proofSubmittedRef = React.useRef(false);
+  // No signal: the photo stays here and is sent once the phone is back online.
+  const [waitingForSignal, setWaitingForSignal] = React.useState(false);
 
   React.useEffect(() => {
     proofSubmittedRef.current = false;
@@ -1177,6 +1184,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
       setPreview(null);
       setNote("");
       setError(null);
+      setWaitingForSignal(false);
       return;
     }
   }, [load]);
@@ -1230,8 +1238,15 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
+      setWaitingForSignal(false);
       onSuccess();
     } catch (err: any) {
+      if (isNoConnectionError(err)) {
+        setWaitingForSignal(true);
+        setError(null);
+        return;
+      }
+      setWaitingForSignal(false);
       const message = userErrorMessage(err, "submit your proof of delivery");
       // Same wording as the Driver Page's delivery dialog: say whether the photo was kept.
       setError(
@@ -1243,6 +1258,8 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
       setSubmitting(false);
     }
   };
+
+  useSendWhenBackOnline(waitingForSignal && !!file, () => void handleSubmit(), submitting);
 
   if (!load) return null;
   return (
@@ -1348,6 +1365,7 @@ function SubmitProofModal({ load, getToken, onClose, onSuccess }: { load: Load |
               className="mt-1"
             />
           </div>
+          {waitingForSignal && !error && <WaitingForSignalNotice />}
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-xl border border-red-500/15 bg-red-500/5 text-sm text-red-700 dark:text-red-300">
               <AlertCircle className="size-4 shrink-0" />

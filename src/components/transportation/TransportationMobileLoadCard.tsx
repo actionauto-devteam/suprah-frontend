@@ -23,7 +23,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { cn } from "@/lib/utils";
 import { getLoadDeleteBlockReason } from "@/lib/load-delete-policy";
-import { generateLoadPDF } from "@/utils/pdfGenerator";
 import { useOrg } from "@/hooks/useOrg";
 import type { Load, LoadStatus } from "@/types/load";
 import {
@@ -350,11 +349,14 @@ export function TransportationMobileLoadCard({
     onInspect(load, tab);
   };
 
-  const handleExport = (event: React.MouseEvent) => {
+  const handleExport = async (event: React.MouseEvent) => {
     stop(event);
     setIsExporting(true);
     try {
-      generateLoadPDF(load, organization?.name || "Your Dealership");
+      // The PDF library (~100 KB) loads only when someone exports, so the
+      // Transportation page itself opens faster.
+      const { generateLoadPDF } = await import("@/utils/pdfGenerator");
+      await generateLoadPDF(load, organization?.name || "Your Dealership");
     } finally {
       setIsExporting(false);
     }

@@ -28,6 +28,15 @@ const nextConfig: NextConfig = {
   // treats the request as a potential DNS-rebinding attempt and blocks it,
   // which is what got the page stuck at a permanent "0%" compiling overlay.
   allowedDevOrigins: ["space.suprah-app.com"],
+  // Dev server only (no effect on builds). By default `next dev --webpack`
+  // unloads any page not viewed for 60s, and each unload is a rebuild. A
+  // rebuild followed by any tab (re)connecting makes Next full-reload every
+  // other open tab, which wiped half-filled forms about once a minute with a
+  // few tabs open. Keeping visited pages loaded stops those rebuilds.
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 20,
+  },
   async headers() {
     return [
       {

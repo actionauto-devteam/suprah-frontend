@@ -75,6 +75,7 @@ import { cn } from '@/lib/utils';
 import { DocumentRequirementCard, type DocStatus } from './DocumentRequirementCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { userErrorMessage } from "@/lib/user-error";
+import { mountainDaysUntil } from "@/lib/mountain-time";
 
 const STEPS = [
   { id: 'documents', label: 'Documents', icon: FileCheck },
@@ -115,8 +116,11 @@ const formatDate = (value: string) =>
 
 const expirationStatus = (value?: string) => {
   if (!value) return null;
-  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
-  if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, className: 'text-red-500' };
+  // Whole days on the Mountain Time calendar, the same count as the Driver
+  // Page's "expires soon" notice. A document counts as expired on its date.
+  const days = mountainDaysUntil(value);
+  if (days === null) return null;
+  if (days <= 0) return { label: days === 0 ? 'Expired today' : `Expired ${Math.abs(days)}d ago`, className: 'text-red-500' };
   if (days <= 30) return { label: `${days}d left`, className: 'text-amber-500' };
   return { label: `${days}d`, className: 'text-emerald-500' };
 };

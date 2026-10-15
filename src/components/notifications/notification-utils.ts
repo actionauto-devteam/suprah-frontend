@@ -72,6 +72,7 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   driver_dispatch_message: { icon: MessageSquare, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   dispatch_channel: { icon: MessageSquare, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   driver_payout: { icon: DollarSign, gradient: 'from-green-500 to-emerald-600', bg: 'bg-green-500' },
+  driver_document_expiring: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   payment_received: { icon: CreditCard, gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-500' },
   payment_pending: { icon: CreditCard, gradient: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500' },
   payment_failed: { icon: CreditCard, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
@@ -198,6 +199,7 @@ const TYPE_LABELS: Record<string, string> = {
   load_delivered: 'Load Delivered',
   driver_location_update: 'Driver Location Update',
   driver_payout: 'Driver Payout',
+  driver_document_expiring: 'Document Expiring Soon',
   payment_received: 'Payment Received',
   payment_pending: 'Payment Pending',
   payment_failed: 'Payment Failed',
@@ -398,6 +400,7 @@ const DRIVER_ROUTE_MAP: Record<string, string> = {
   dispatch_channel: '/driver/channels',
   driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', driver_payout: '/driver/earnings',
+  driver_document_expiring: '/driver/documents',
   shipment_assigned: '/driver/loads', shipment_picked_up: '/driver/loads', shipment_delivered: '/driver/loads',
   password_changed: '/driver/profile', email_changed: '/driver/profile', profile_updated: '/driver/profile', login_alert: '/driver/profile',
 };

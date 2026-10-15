@@ -200,7 +200,11 @@ export function DriverTrackerMobileDrawer({
                 >
                   <UserPlus className="size-4 shrink-0" />
                   <span className="min-w-0 break-words text-left leading-tight [overflow-wrap:anywhere]">
-                    {driver.assignable ? "Assign Load" : "Unavailable for Assignment"}
+                    {driver.assignable
+                      ? "Assign Load"
+                      : driver.accountApproved === false
+                        ? "Application not approved yet"
+                        : "Unavailable for Assignment"}
                   </span>
                 </Button>
 
@@ -743,7 +747,13 @@ export function DriverTrackerMobileDrawer({
                   />
                   <InfoTile
                     label="Assignment Eligibility"
-                    value={driver.assignable ? "Eligible" : "Unavailable"}
+                    value={
+                      driver.assignable
+                        ? "Eligible"
+                        : driver.accountApproved === false
+                          ? "Application not approved yet"
+                          : "Unavailable"
+                    }
                   />
                 </div>
 

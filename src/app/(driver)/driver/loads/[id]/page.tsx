@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { OpenInGoogleMapsButton } from "@/components/driver/OpenInGoogleMapsButton";
+import { DriverArrivalButton } from "@/components/driver/DriverArrivalButton";
+import { VehicleConditionButton } from "@/components/driver/VehicleConditionButton";
 import { useAuth } from '@/providers/AuthProvider';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -419,8 +421,11 @@ export default function LoadDetailPage() {
           </div>
         )}
 
+        {isAssigned && <DriverArrivalButton load={data} onArrived={fetchDetail} />}
+
         <div className="flex flex-wrap gap-2">
           {isAssigned && <OpenInGoogleMapsButton load={data} />}
+          {isAssigned && <VehicleConditionButton load={data} className="w-auto" />}
           {canAccept && (
             <Button onClick={() => handleAction('accept-load')} disabled={!!actionLoading} className="h-11 gap-2 rounded-xl">
               {actionLoading === 'accept-load' ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Accept Load

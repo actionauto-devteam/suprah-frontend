@@ -43,6 +43,7 @@ import {
 } from "@/components/transportation/TransportationMobileDetailsDrawer";
 import { TransportationMobileViewSwitcher } from "@/components/transportation/TransportationMobileViewSwitcher";
 import { TransportationMobilePagination } from "@/components/transportation/TransportationMobilePagination";
+import { NeedsAttentionPanel } from "@/components/transportation/NeedsAttentionPanel";
 
 
 function getPageNumbers(current: number, total: number): (number | "…")[] {
@@ -770,6 +771,9 @@ function TransportationPageInner() {
           </div>
         </section>
       </div>
+
+      {/* What Dispatch should look at now; hidden when there's nothing. */}
+      <NeedsAttentionPanel className="mx-2 mt-2.5 shrink-0 sm:mx-4 md:mx-6" />
 
       {/* Search remains outside the identity panel, while Refresh now lives
           with the panel actions like the All Inventory header. */}

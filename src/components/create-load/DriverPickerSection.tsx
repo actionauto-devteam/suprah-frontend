@@ -35,6 +35,8 @@ import {
 import { useDriverLoadCompatibilityPreview } from "@/hooks/useDriverLoadCompatibilityPreview"
 import { DriverLoadRecommendationBadges } from "@/components/driver-tracker/DriverLoadRecommendationBadges"
 import { userErrorMessage } from "@/lib/user-error";
+import { useAuth } from "@/providers/AuthProvider"
+import { initializeSocket } from "@/lib/socket.client"
 
 // ─── Centralized driver directory types ──────────────────────────────────────
 // Mirrors GET /api/driver-tracking/org-drivers?scope=assignable: every driver
@@ -303,6 +305,36 @@ export function DriverPickerSection({
   React.useEffect(() => {
     fetchDrivers()
   }, [fetchDrivers])
+
+  // A driver approved, rejected or changing Work Availability while this form
+  // is open shows up (or drops out) right away. Bursts are grouped.
+  const { getToken } = useAuth()
+  React.useEffect(() => {
+    let active = true
+    let timer: number | undefined
+    let socket: ReturnType<typeof initializeSocket> | null = null
+    const refresh = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        if (active) void fetchDrivers()
+      }, 1500)
+    }
+    const joinDriverPool = () => socket?.emit("join_driver_pool")
+    void (async () => {
+      const token = await getToken()
+      if (!token || !active) return
+      socket = initializeSocket(token)
+      socket.on("connect", joinDriverPool)
+      socket.on("driver:directory_changed", refresh)
+      if (socket.connected) joinDriverPool()
+    })()
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+      socket?.off("connect", joinDriverPool)
+      socket?.off("driver:directory_changed", refresh)
+    }
+  }, [getToken, fetchDrivers])
 
   const previewDriverIds = React.useMemo(
     () => drivers.map((driver) => driver.id),

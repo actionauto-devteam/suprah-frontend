@@ -104,6 +104,8 @@ export interface DriverTrackingItem {
   lastSeenAt: string | null;
   isSharing: boolean;
   assignable: boolean;
+  /** False while the driver's account application awaits the Suprah team's approval. */
+  accountApproved?: boolean;
   warnings: string[];
   /** @deprecated Vehicle capacity is per load, not activeLoadCount subtraction. */
   remainingCapacity: number | null;

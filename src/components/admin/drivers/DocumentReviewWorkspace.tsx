@@ -14,6 +14,7 @@ import { ComplianceDocument, DriverProfile } from '@/types/driver-profile';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Kbd, FieldRow } from '@/components/admin/primitives';
 import { cn } from '@/lib/utils';
+import { formatExpirationDay, mountainDaysUntil } from '@/lib/mountain-time';
 
 const REJECTION_PRESETS = [
   'Image is blurry or unreadable',
@@ -32,10 +33,11 @@ const fmtSize = (b?: number) =>
 
 const expiryState = (d?: string) => {
   if (!d) return null;
-  const days = Math.ceil((new Date(d).getTime() - Date.now()) / 864e5);
-  if (days < 0) return { label: `Expired ${Math.abs(days)}d ago`, tone: 'critical' as const };
+  // Mountain Time calendar days; expired from the expiration day on.
+  const days = mountainDaysUntil(d) ?? 0;
+  if (days <= 0) return { label: days === 0 ? 'Expired today' : `Expired ${Math.abs(days)}d ago`, tone: 'critical' as const };
   if (days <= 30) return { label: `Expires in ${days}d`, tone: 'warning' as const };
-  return { label: `Valid — ${fmtDate(d)}`, tone: 'ok' as const };
+  return { label: `Valid — ${formatExpirationDay(d)}`, tone: 'ok' as const };
 };
 
 interface Props {
@@ -149,7 +151,7 @@ export function DocumentReviewWorkspace({
       return [
         { label: 'CDL number', value: profile.driversLicenseNumber, mono: true },
         { label: 'Issuing state', value: profile.licenseState },
-        { label: 'Expiration on file', value: fmtDate(profile.licenseExpirationDate) },
+        { label: 'Expiration on file', value: formatExpirationDay(profile.licenseExpirationDate) || '—' },
         { label: 'Name on profile', value: driverName },
       ];
     }
@@ -157,11 +159,11 @@ export function DocumentReviewWorkspace({
       return [
         { label: 'Provider', value: profile.insuranceProvider },
         { label: 'Policy number', value: profile.insurancePolicyNumber, mono: true },
-        { label: 'Expiration on file', value: fmtDate(profile.insuranceExpirationDate) },
+        { label: 'Expiration on file', value: formatExpirationDay(profile.insuranceExpirationDate) || '—' },
       ];
     }
     if (doc.type === 'medical_card') {
-      return [{ label: 'Expiration on file', value: fmtDate(profile.medicalCardExpirationDate) }];
+      return [{ label: 'Expiration on file', value: formatExpirationDay(profile.medicalCardExpirationDate) || '—' }];
     }
     if (doc.type === 'vehicle_registration') {
       return [

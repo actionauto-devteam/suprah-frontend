@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 import { REQUIRED_DOCUMENTS, trailerTypeOptions, specialFeatureOptions, hitchTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { cn } from '@/lib/utils';
+import { formatExpirationDay, mountainDaysUntil } from '@/lib/mountain-time';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
@@ -34,8 +35,9 @@ const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month
 const fmtSize = (b?: number) => !b ? '' : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 const getExpStatus = (d?: string) => {
     if (!d) return { l: 'Not Set', c: 'text-muted-foreground' };
-    const days = Math.ceil((new Date(d).getTime() - Date.now()) / 864e5);
-    if (days < 0) return { l: `Expired ${Math.abs(days)}d ago`, c: 'text-red-500' };
+    // Mountain Time calendar days; expired from the expiration day on.
+    const days = mountainDaysUntil(d) ?? 0;
+    if (days <= 0) return { l: days === 0 ? 'Expired today' : `Expired ${Math.abs(days)}d ago`, c: 'text-red-500' };
     if (days <= 30) return { l: `${days}d left`, c: 'text-amber-500' };
     if (days <= 90) return { l: `${days}d`, c: 'text-yellow-500' };
     return { l: `${days}d`, c: 'text-emerald-500' };
@@ -492,7 +494,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                 <div className="size-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0"><Clock className="size-5 text-amber-600 dark:text-amber-400" /></div>
                                 <div>
                                     <p className="text-sm font-bold text-amber-700 dark:text-amber-300">Driver Account Application — Pending Review</p>
-                                    <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">Review the details below, then approve or reject this application. The driver will be notified by email either way.</p>
+                                    <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5">Approving lets the driver sign in and be given loads right away, even before their documents are uploaded or checked. Documents are still reviewed separately (Approve Driver). The driver is notified by email either way.</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
@@ -500,8 +502,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                     className="gap-2 border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-700 dark:text-red-400 rounded-xl">
                                     <XCircle className="size-4" /> Reject
                                 </Button>
-                                <Button onClick={handleApproveApplication} disabled={!!decidingRequest || !finalApprovalEligible}
-                                    title={!finalApprovalEligible ? (finalApprovalBlockers[0] || 'Complete Driver Verification requirements first') : undefined}
+                                <Button onClick={handleApproveApplication} disabled={!!decidingRequest}
                                     className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">
                                     {decidingRequest === 'approve' ? <Loader2 className="size-4 animate-spin" /> : <BadgeCheck className="size-4" />} Approve Application
                                 </Button>
@@ -615,13 +616,13 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">CDL Expiration</p>
                                                         <p className={cn('text-sm font-semibold', getExpStatus(profile.licenseExpirationDate).c)}>
-                                                            {profile.licenseExpirationDate ? `${fmtDate(profile.licenseExpirationDate)} (${getExpStatus(profile.licenseExpirationDate).l})` : 'Not set'}
+                                                            {profile.licenseExpirationDate ? `${formatExpirationDay(profile.licenseExpirationDate)} (${getExpStatus(profile.licenseExpirationDate).l})` : 'Not set'}
                                                         </p>
                                                     </div>
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Medical Expiration</p>
                                                         <p className={cn('text-sm font-semibold', getExpStatus(profile.medicalCardExpirationDate).c)}>
-                                                            {profile.medicalCardExpirationDate ? `${fmtDate(profile.medicalCardExpirationDate)} (${getExpStatus(profile.medicalCardExpirationDate).l})` : 'Not set'}
+                                                            {profile.medicalCardExpirationDate ? `${formatExpirationDay(profile.medicalCardExpirationDate)} (${getExpStatus(profile.medicalCardExpirationDate).l})` : 'Not set'}
                                                         </p>
                                                     </div>
                                                     <Field label="Insurance Provider" value={profile.insuranceProvider} />
@@ -970,7 +971,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Expiration</p>
                                                         <p className={cn('text-sm font-bold', getExpStatus(profile.licenseExpirationDate).c)}>
-                                                            {profile.licenseExpirationDate ? fmtDate(profile.licenseExpirationDate) : 'Not set'}
+                                                            {profile.licenseExpirationDate ? formatExpirationDay(profile.licenseExpirationDate) : 'Not set'}
                                                         </p>
                                                         {profile.licenseExpirationDate && (
                                                             <Badge className={cn('text-[9px] font-bold',
@@ -991,7 +992,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Expiration</p>
                                                         <p className={cn('text-sm font-bold', getExpStatus(profile.medicalCardExpirationDate).c)}>
-                                                            {profile.medicalCardExpirationDate ? fmtDate(profile.medicalCardExpirationDate) : 'Not set'}
+                                                            {profile.medicalCardExpirationDate ? formatExpirationDay(profile.medicalCardExpirationDate) : 'Not set'}
                                                         </p>
                                                         {profile.medicalCardExpirationDate && (
                                                             <Badge className={cn('text-[9px] font-bold',
@@ -1014,7 +1015,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Expiration</p>
                                                         <p className={cn('text-sm font-bold', getExpStatus(profile.insuranceExpirationDate).c)}>
-                                                            {profile.insuranceExpirationDate ? fmtDate(profile.insuranceExpirationDate) : 'Not set'}
+                                                            {profile.insuranceExpirationDate ? formatExpirationDay(profile.insuranceExpirationDate) : 'Not set'}
                                                         </p>
                                                         {profile.insuranceExpirationDate && (
                                                             <Badge className={cn('text-[9px] font-bold',

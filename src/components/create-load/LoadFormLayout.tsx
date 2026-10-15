@@ -67,6 +67,8 @@ interface LoadFormLayoutProps {
   postType: PostType
   mode?: "create" | "edit"
   initialLoad?: Load
+  /** Create mode: start from a copy of this earlier load (see copySource below). */
+  duplicateFrom?: Load
 }
 
 type StepKey =
@@ -121,6 +123,17 @@ function mapVehiclesFromLoad(vehicles?: any[]): LoadVehicle[] {
     color: v.color ?? "",
     condition: v.condition === "Inoperable" ? "Inoperable" : "Operable",
     inspectionPhotoUrl: v.inspectionPhotoUrl ?? undefined,
+  }))
+}
+
+// Duplicating a load copies the vehicles' description but not their VIN,
+// inventory link or inspection photo: those belong to the original cars.
+function mapVehiclesForCopy(vehicles?: Parameters<typeof mapVehiclesFromLoad>[0]): LoadVehicle[] {
+  return mapVehiclesFromLoad(vehicles).map((v) => ({
+    ...v,
+    vehicleId: undefined,
+    vin: "",
+    inspectionPhotoUrl: undefined,
   }))
 }
 
@@ -186,9 +199,14 @@ export function LoadFormLayout({
   postType,
   mode = "create",
   initialLoad,
+  duplicateFrom,
 }: LoadFormLayoutProps) {
   const router = useRouter()
   const isEdit = mode === "edit" && !!initialLoad
+  // Create mode can start from a copy of an earlier load: the same route and
+  // contacts, vehicles (without VINs or photos), trailer, pricing and notes.
+  // Dates, the reference number, the contract and the driver start fresh.
+  const copySource = isEdit ? undefined : duplicateFrom
 
   // Silently attached as contract.signerName when the Review step's "I
   // agree" checkbox is checked — no visible signer-name field. (The
@@ -213,27 +231,46 @@ export function LoadFormLayout({
 
   // ── Form state ──
   const [pickup, setPickup] = React.useState<LocationBlock>(() =>
-    isEdit ? mapLocationFromLoad(initialLoad!.pickupLocation) : emptyLocation(),
+    isEdit
+      ? mapLocationFromLoad(initialLoad!.pickupLocation)
+      : copySource
+        ? mapLocationFromLoad(copySource.pickupLocation)
+        : emptyLocation(),
   )
   const [delivery, setDelivery] = React.useState<LocationBlock>(() =>
-    isEdit ? mapLocationFromLoad(initialLoad!.deliveryLocation) : emptyLocation(),
+    isEdit
+      ? mapLocationFromLoad(initialLoad!.deliveryLocation)
+      : copySource
+        ? mapLocationFromLoad(copySource.deliveryLocation)
+        : emptyLocation(),
   )
   const [vehicles, setVehicles] = React.useState<LoadVehicle[]>(() =>
-    isEdit ? mapVehiclesFromLoad(initialLoad!.vehicles) : [emptyVehicle()],
+    isEdit
+      ? mapVehiclesFromLoad(initialLoad!.vehicles)
+      : copySource
+        ? mapVehiclesForCopy(copySource.vehicles)
+        : [emptyVehicle()],
   )
   const [trailerType, setTrailerType] = React.useState<string>(
-    () => (isEdit ? initialLoad!.trailerType : undefined) || "open_2car",
+    () => (isEdit ? initialLoad!.trailerType : copySource?.trailerType) || "open_2car",
   )
   const [dates, setDates] = React.useState<LoadDates>(() =>
     isEdit ? mapDatesFromLoad(initialLoad!.dates) : emptyDates(),
   )
   const [additionalInfo, setAdditionalInfo] = React.useState<LoadAdditionalInfo>(
-    () => (isEdit ? mapAdditionalInfoFromLoad(initialLoad!.additionalInfo) : emptyAdditionalInfo()),
+    () =>
+      isEdit
+        ? mapAdditionalInfoFromLoad(initialLoad!.additionalInfo)
+        : copySource
+          ? { ...mapAdditionalInfoFromLoad(copySource.additionalInfo), referenceNumber: "" }
+          : emptyAdditionalInfo(),
   )
   const [pricing, setPricing] = React.useState<LoadPricingInput>(() =>
     isEdit
       ? mapPricingFromLoad(initialLoad!.pricing, postType)
-      : { isPricingEnabled: true, isVisibleToDriver: true },
+      : copySource
+        ? mapPricingFromLoad(copySource.pricing, postType)
+        : { isPricingEnabled: true, isVisibleToDriver: true },
   )
   const [contract, setContract] = React.useState<LoadContract>(() =>
     isEdit

@@ -1,3 +1,5 @@
+import type { ConditionReport, DeliverySignature } from "@/lib/condition-report";
+
 export interface LoadLocation {
   locationType?: string;
   /** Canonical backend location name. */
@@ -123,6 +125,18 @@ export interface Load {
   pickedUpAt?: string;
   inTransitAt?: string;
   deliveredAt?: string;
+  /**
+   * "I've arrived" taps at each stop. Dispatch gets the driver who tapped
+   * (only the assigned driver's counts); a driver gets only their own.
+   */
+  arrivals?: {
+    pickup?: { at?: string; driverId?: string };
+    delivery?: { at?: string; driverId?: string };
+  };
+  /** The driver's vehicle condition reports (Dispatch's load details only). */
+  conditionReports?: ConditionReport[];
+  /** The customer's signature at delivery (the drawing only on load details). */
+  deliverySignature?: DeliverySignature | null;
   proofOfPickup?: {
     imageUrl: string;
     submittedAt: string;

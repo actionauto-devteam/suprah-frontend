@@ -15,6 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { userErrorMessage } from "@/lib/user-error";
+import {
+  isNoConnectionError,
+  useSendWhenBackOnline,
+  WaitingForSignalNotice,
+} from "@/hooks/useSendWhenBackOnline";
 
 type PickupLoad = Pick<Load, "_id" | "loadNumber">;
 
@@ -47,6 +52,8 @@ export function DriverPickupProofDialog({
   const [note, setNote] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // No signal: the photo stays here and is sent once the phone is back online.
+  const [waitingForSignal, setWaitingForSignal] = React.useState(false);
   const cameraRef = React.useRef<HTMLInputElement>(null);
   const galleryRef = React.useRef<HTMLInputElement>(null);
   const proofSubmittedRef = React.useRef(false);
@@ -58,6 +65,7 @@ export function DriverPickupProofDialog({
       setFile(null);
       setNote("");
       setError(null);
+      setWaitingForSignal(false);
       setPreview((previous) => {
         if (previous) URL.revokeObjectURL(previous);
         return null;
@@ -133,8 +141,15 @@ export function DriverPickupProofDialog({
       step = "pickup";
       await apiClient.post(`${loadPath}/pickup`, {}, { headers: authHeaders });
 
+      setWaitingForSignal(false);
       onPickedUp();
     } catch (err) {
+      if (isNoConnectionError(err)) {
+        setWaitingForSignal(true);
+        setError(null);
+        return;
+      }
+      setWaitingForSignal(false);
       const message = extractMessage(err);
       setError(
         step === "pickup"
@@ -145,6 +160,8 @@ export function DriverPickupProofDialog({
       setSubmitting(false);
     }
   }, [load, file, note, getToken, onPickedUp]);
+
+  useSendWhenBackOnline(waitingForSignal && !!file, handleSubmit, submitting);
 
   return (
     <Dialog open={!!load} onOpenChange={(open) => !open && onClose()}>
@@ -170,6 +187,7 @@ export function DriverPickupProofDialog({
                 aria-label="Remove photo"
                 onClick={() => {
                   setFile(null);
+                  setWaitingForSignal(false);
                   setPreview((previous) => {
                     if (previous) URL.revokeObjectURL(previous);
                     return null;
@@ -218,6 +236,7 @@ export function DriverPickupProofDialog({
             onChange={(e) => setNote(e.target.value)}
             disabled={submitting}
           />
+          {waitingForSignal && !error && <WaitingForSignalNotice />}
           {error && (
             <div className="text-destructive text-sm">{error}</div>
           )}

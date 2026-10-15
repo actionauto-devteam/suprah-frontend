@@ -83,6 +83,8 @@ export function DriverTrackerAvailableLoadsCard({
   focusedLoadId = null,
 }: DriverTrackerAvailableLoadsCardProps) {
   const [assigning, setAssigning] = React.useState<string | null>(null);
+  // The driver being assigned, so only their row shows progress.
+  const [assigningDriverId, setAssigningDriverId] = React.useState<string | null>(null);
   const [assignLoad, setAssignLoad] = React.useState<AvailableItem | null>(null);
   const [driverSearch, setDriverSearch] = React.useState("");
   const loadRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -118,13 +120,19 @@ export function DriverTrackerAvailableLoadsCard({
 
   const handleAssign = async (item: AvailableItem, driverId: string) => {
     setAssigning(item._id);
+    setAssigningDriverId(driverId);
     try {
       const succeeded = await onAssign(item, driverId);
       if (succeeded) setAssignLoad(null);
     } finally {
       setAssigning(null);
+      setAssigningDriverId(null);
     }
   };
+
+  const assigningDriverName = assigningDriverId
+    ? activeDrivers.find((d) => d.driver?.id === assigningDriverId)?.driver?.name || "the driver"
+    : null;
 
   const filteredDrivers = React.useMemo(() => {
     const q = driverSearch.trim().toLowerCase();
@@ -296,8 +304,17 @@ export function DriverTrackerAvailableLoadsCard({
               <span className="min-w-0 break-words [overflow-wrap:anywhere]">Assign Driver</span>
             </DialogTitle>
             <DialogDescription className="break-words text-xs leading-relaxed [overflow-wrap:anywhere]">
-              Choose an available driver for this load. Driver details and compatibility indicators remain fully visible on smaller screens.
+              Choose a driver, then press Assign. The load goes to that driver to accept.
             </DialogDescription>
+
+            {assigningDriverName && assignLoad && (
+              <p role="status" className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+                <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                  Assigning {assignLoad.trackingNumber || assignLoad._id.slice(-8)} to {assigningDriverName}…
+                </span>
+              </p>
+            )}
 
             {assignLoad && (
               <div className="mt-2 space-y-2 rounded-lg border border-border/40 bg-muted/[0.12] p-3">
@@ -370,11 +387,18 @@ export function DriverTrackerAvailableLoadsCard({
                 const needsReview =
                   availabilityMatch === "off_schedule" ||
                   capacityMatch !== "match";
+                const isAssigningThis =
+                  Boolean(driver.driver?.id) && driver.driver?.id === assigningDriverId;
 
                 return (
                   <div
                     key={driver.id}
-                    className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-border/40 p-3 transition-all duration-200 hover:border-primary/30 hover:shadow-sm sm:flex-row sm:items-center"
+                    aria-busy={isAssigningThis || undefined}
+                    className={`flex min-w-0 flex-col justify-between gap-3 rounded-xl border p-3 transition-all duration-200 sm:flex-row sm:items-center ${
+                      isAssigningThis
+                        ? "border-primary/60 bg-primary/5 ring-1 ring-primary/40"
+                        : "border-border/40 hover:border-primary/30 hover:shadow-sm"
+                    }`}
                   >
                     <div className="flex min-w-0 flex-1 items-start gap-3">
                       <Avatar className="size-10 shrink-0 border-2 border-background shadow-sm">
@@ -468,8 +492,11 @@ export function DriverTrackerAvailableLoadsCard({
                       disabled={assigning !== null}
                       onClick={() => driver.driver?.id && assignLoad && handleAssign(assignLoad, driver.driver.id)}
                     >
-                      {assigning === assignLoad?._id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                      {isAssigningThis ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" />
+                          Assigning…
+                        </>
                       ) : needsReview ? (
                         "Review & Assign"
                       ) : (

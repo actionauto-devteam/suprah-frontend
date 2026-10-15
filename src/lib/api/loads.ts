@@ -162,6 +162,41 @@ export async function getLoadStats(
   return res.data.data
 }
 
+export type LoadAttentionKind =
+  | "proof_waiting"
+  | "late_delivery"
+  | "late_pickup"
+  | "gps_quiet"
+  | "document_expired"
+  | "document_expiring"
+
+export interface LoadAttentionItem {
+  kind: LoadAttentionKind
+  loadId: string
+  loadNumber: string
+  status: string
+  driverId?: string
+  driverName?: string
+  /** When the issue started: proof submitted, or last GPS position (ISO). */
+  since?: string
+  /** The missed deadline or the credential's expiration day (YYYY-MM-DD). */
+  date?: string
+  /** "CDL", "medical card" or "insurance". */
+  credential?: string
+  daysLeft?: number
+}
+
+export interface LoadAttention {
+  counts: Record<LoadAttentionKind, number>
+  items: LoadAttentionItem[]
+}
+
+/** Transportation's "Needs attention" list for this organization. */
+export async function getLoadAttention(config?: AxiosRequestConfig): Promise<LoadAttention> {
+  const res = await apiClient.get<{ data: LoadAttention }>("/api/loads/attention", config)
+  return res.data.data
+}
+
 export async function createLoad(payload: CreateLoadPayload): Promise<CreateLoadResponse> {
   try {
     const body = {

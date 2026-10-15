@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Check, CheckCircle2, Copy, Link2, Loader2, Mail, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMountainDateTime } from "@/lib/mountain-time";
 
 interface DriverInvite {
   shortCode: string;
@@ -99,7 +100,7 @@ function SingleLinkTab() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Expires {new Date(invite.expiresAt).toLocaleString()} · {invite.multiUse ? "multi-use" : "single-use"}
+            Expires {formatMountainDateTime(invite.expiresAt)} · {invite.multiUse ? "multi-use" : "single-use"}
           </p>
         </div>
       )}

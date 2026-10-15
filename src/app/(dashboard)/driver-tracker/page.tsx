@@ -187,6 +187,8 @@ interface DispatcherLoadActionOptions {
   loadLabel: string;
   actionLabel: string;
   successMessage: string;
+  /** For an assignment: the driver whose assigned loads "View" opens. */
+  assignedDriverId?: string;
   activeLoads?: DriverActiveLoadSummary[];
 }
 
@@ -230,6 +232,7 @@ function toDriverTrackingItem(item: any): DriverTrackingItem {
     isSharing: Boolean(item.presence?.isSharing),
     canViewExactGps: item.presence?.canViewExactGps === true,
     assignable: Boolean(item.assignable),
+    accountApproved: item.accountApproved !== false,
     warnings: Array.isArray(item.warnings) ? item.warnings : [],
     remainingCapacity: item.remainingCapacity ?? null,
     activeLoadCount: Number(item.activeLoadCount ?? 0),
@@ -997,6 +1000,22 @@ export default function DriverTrackerPage() {
   }, [getToken, isSignedIn, isDriver, user?.id]);
 
 
+  // "View" on an assignment's success message opens that driver's assigned
+  // loads. openLoadManagement is declared further down, so it's read via a ref.
+  const openLoadManagementRef = React.useRef<((tab: string, driverId?: string | null) => void) | null>(null);
+  const announceSuccess = React.useCallback(
+    (options: { successMessage: string; assignedDriverId?: string }) => {
+      const driverId = options.assignedDriverId;
+      toast.success(
+        options.successMessage,
+        driverId
+          ? { action: { label: "View", onClick: () => openLoadManagementRef.current?.("assigned", driverId) } }
+          : undefined,
+      );
+    },
+    [],
+  );
+
   const runDispatcherLoadAction = React.useCallback(
     async (options: DispatcherLoadActionOptions): Promise<boolean> => {
       try {
@@ -1004,7 +1023,7 @@ export default function DriverTrackerPage() {
         await apiClient.post(options.endpoint, options.payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        toast.success(options.successMessage);
+        announceSuccess(options);
         await Promise.all([
           fetchDrivers(),
           fetchAvailableLoads(),
@@ -1046,6 +1065,7 @@ export default function DriverTrackerPage() {
       fetchDrivers,
       fetchAvailableLoads,
       fetchLoadRequests,
+      announceSuccess,
     ],
   );
 
@@ -1082,7 +1102,7 @@ export default function DriverTrackerPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      toast.success(options.successMessage);
+      announceSuccess(options);
       await Promise.all([
         fetchDrivers(),
         fetchAvailableLoads(),
@@ -1140,6 +1160,7 @@ export default function DriverTrackerPage() {
     fetchDrivers,
     fetchAvailableLoads,
     fetchLoadRequests,
+    announceSuccess,
   ]);
 
   const handleCompatibilityReviewOpenChange = React.useCallback(
@@ -1173,7 +1194,7 @@ export default function DriverTrackerPage() {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      toast.success(compatibilityReview.successMessage);
+      announceSuccess(compatibilityReview);
       await Promise.all([
         fetchDrivers(),
         fetchAvailableLoads(),
@@ -1226,18 +1247,22 @@ export default function DriverTrackerPage() {
     fetchDrivers,
     fetchAvailableLoads,
     fetchLoadRequests,
+    announceSuccess,
   ]);
 
   const handleAssignLoad = React.useCallback(
     async (item: AvailableItem): Promise<boolean> => {
       if (!assigningTo?.driver?.id || !isSignedIn) return false;
+      const driverName = assigningTo.driver.name || "the driver";
+      const loadLabel = item.trackingNumber || item._id;
       const success = await runDispatcherLoadAction({
         endpoint: "/api/driver-tracking/assign-load",
         payload: { loadId: item._id, driverId: assigningTo.driver.id },
         driverName: assigningTo.driver.name || "Driver",
-        loadLabel: item.trackingNumber || item._id,
+        loadLabel,
         actionLabel: "Assign Anyway",
-        successMessage: `Load assigned to ${assigningTo.driver.name || "driver"}`,
+        successMessage: `${loadLabel} assigned to ${driverName}. Waiting for them to accept.`,
+        assignedDriverId: assigningTo.driver.id,
         activeLoads: assigningTo.shipments ?? [],
       });
       if (success) setAssignModalOpen(false);
@@ -1252,13 +1277,15 @@ export default function DriverTrackerPage() {
       const driver = drivers.find(
         (candidate) => String(candidate.driver?.id ?? candidate.id) === String(driverId),
       );
+      const loadLabel = item.trackingNumber || item._id;
       return runDispatcherLoadAction({
         endpoint: "/api/driver-tracking/assign-load",
         payload: { loadId: item._id, driverId },
         driverName: driver?.driver?.name || "Driver",
-        loadLabel: item.trackingNumber || item._id,
+        loadLabel,
         actionLabel: "Assign Anyway",
-        successMessage: "Load assigned successfully",
+        successMessage: `${loadLabel} assigned to ${driver?.driver?.name || "the driver"}. Waiting for them to accept.`,
+        assignedDriverId: String(driverId),
         activeLoads: driver?.shipments ?? [],
       });
     },
@@ -1423,6 +1450,10 @@ export default function DriverTrackerPage() {
       loadManagementRef.current?.focus({ preventScroll: true });
     }));
   }, [setMobileWorkspace]);
+
+  React.useEffect(() => {
+    openLoadManagementRef.current = openLoadManagement;
+  }, [openLoadManagement]);
 
   const resolveLoadInquiryDestination = React.useCallback(
     async (
@@ -1979,7 +2010,10 @@ export default function DriverTrackerPage() {
           const driverId = String(payload?.driverId ?? "");
           if (cancelled || !driverId) return;
           void liveRefreshRef.current.shownDrivers([driverId]);
-          if (assignableIdsRef.current.has(driverId) && assignableRefreshTimerRef.current === null) {
+          // Refresh the assignable list for any change, not only for drivers
+          // already on it: a newly approved driver, or one back from On Leave,
+          // must appear too. The short delay groups bursts into one request.
+          if (assignableRefreshTimerRef.current === null) {
             assignableRefreshTimerRef.current = window.setTimeout(() => {
               assignableRefreshTimerRef.current = null;
               void liveRefreshRef.current.assignable();

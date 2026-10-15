@@ -878,7 +878,11 @@ export function DriverTrackerListCard({
                       }}
                     >
                       <UserPlus className="size-3.5" />
-                      {driver.assignable ? "Assign Load" : "Unavailable for Assignment"}
+                      {driver.assignable
+                        ? "Assign Load"
+                        : driver.accountApproved === false
+                          ? "Application not approved yet"
+                          : "Unavailable for Assignment"}
                     </Button>
                   )}
                 </div>

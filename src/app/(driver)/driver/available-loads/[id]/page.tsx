@@ -44,6 +44,7 @@ import { titleCaseDay } from '@/lib/driver-load-compatibility';
 import { DriverLoadRecommendationBadges } from '@/components/driver-tracker/DriverLoadRecommendationBadges';
 import { initializeSocket } from '@/lib/socket.client';
 import { userErrorMessage } from "@/lib/user-error";
+import { EQUIPMENT_PAGE_PATH, trailerFitProblem } from '@/lib/trailer-setup';
 
 const FALLBACK = '/vehicle-placeholder.jpg';
 
@@ -155,17 +156,18 @@ function CompatibilityPanel({ compatibility }: { compatibility?: DriverLoadCompa
             <p className="break-words text-sm font-bold [overflow-wrap:anywhere]">
               {capacity === 'match'
                 ? `Capacity Fits · ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
-                : capacity === 'exceeded'
-                  ? `Capacity Exceeded · ${compatibility.capacity.requiredVehicles}/${compatibility.capacity.maxVehicles}`
-                  : 'Vehicle Capacity Not Verified'}
+                : trailerFitProblem(compatibility)?.title}
             </p>
             <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
               {capacity === 'match'
                 ? 'Your configured equipment can accommodate the vehicles on this load.'
-                : capacity === 'exceeded'
-                  ? 'Drivers cannot self-request a load that exceeds their configured equipment capacity. Contact Dispatch if your equipment profile is outdated.'
-                  : 'Update your Equipment profile or contact Dispatch before requesting this load.'}
+                : trailerFitProblem(compatibility)?.detail}
             </p>
+            {capacity !== 'match' && (
+              <Link href={EQUIPMENT_PAGE_PATH} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">
+                Open Equipment page
+              </Link>
+            )}
           </div>
         </div>
 
@@ -488,11 +490,7 @@ export default function AvailableLoadDetailPage() {
 
     const compatibility: DriverLoadCompatibility | undefined = data.compatibility;
     if (compatibility && !compatibility.driverRequestAllowed) {
-      toast.error(
-        compatibility.capacity.status === 'exceeded'
-          ? 'This load exceeds your configured vehicle capacity.'
-          : 'Your vehicle capacity must be verified before requesting this load.',
-      );
+      toast.error(trailerFitProblem(compatibility)?.detail ?? "This load doesn't fit your trailer.");
       return;
     }
 
@@ -641,9 +639,12 @@ export default function AvailableLoadDetailPage() {
             </Button>
           )}
           {capacityBlocked && (
-            <Badge className="h-auto min-h-11 whitespace-normal border-red-500/25 bg-red-500/10 px-4 py-2 text-sm leading-relaxed text-red-700 dark:text-red-400">
-              <XCircle className="mr-2 size-4 shrink-0" />Capacity mismatch — contact Dispatch
-            </Badge>
+            <Button asChild variant="outline" className="h-11 flex-1 gap-2 rounded-xl border-red-500/30 text-sm font-bold text-red-700 dark:text-red-400 sm:flex-none">
+              <Link href={EQUIPMENT_PAGE_PATH}>
+                <Truck className="size-4" />
+                {compatibility?.trailer.driverTrailerType ? 'Update your trailer' : 'Set up your trailer'}
+              </Link>
+            </Button>
           )}
           {isRequested && (
             <>
