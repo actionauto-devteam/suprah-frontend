@@ -68,6 +68,11 @@ const PUBLIC_ROUTES = [
   // Driver and customer invite links (/join/<code>) are opened by people who
   // don't have an account yet, so they must not be sent to /sign-in.
   "/join/",
+  // Dealership invite links: the owner creates their account on this page.
+  "/dealership-setup/",
+  // Reached from "Forgot password?" on the sign-in page, so always signed out.
+  "/forgot-password",
+  "/privacy-policy",
   "/vehicle",
   "/embed",
   "/referral",

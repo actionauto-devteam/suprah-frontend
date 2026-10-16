@@ -256,7 +256,7 @@ export function PreferredRoutesEditor({
       </div>
 
       {routes.length > 0 ? (
-        <div className="space-y-2 max-h-52 overflow-y-auto overscroll-contain pr-1">
+        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
           {routes.map((route) => {
             const twoWay = /↔|<->|⇄/.test(route);
             return (

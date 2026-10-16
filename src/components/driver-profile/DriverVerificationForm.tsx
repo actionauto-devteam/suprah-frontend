@@ -18,6 +18,7 @@ import {
   FileCheck, CreditCard, Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { userErrorMessage } from '@/lib/user-error';
 import { REQUIRED_DOCUMENTS, documentTypeOptions, US_STATES } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { Stepper, type StepperStep } from './Stepper';
@@ -121,7 +122,7 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
   };
   const uploadedCount = requiredDocs.filter(d => getDocStatus(d.type) !== 'missing').length;
   const documentsDone = uploadedCount === requiredDocs.length;
-  const complianceDone = !!(licenseNumber.trim() && licenseExp);
+  const complianceDone = !!(licenseNumber.trim() && licenseState && licenseExp);
   const completedStepIds = React.useMemo(() => {
     const done = new Set<string>();
     if (documentsDone) done.add('documents');
@@ -190,8 +191,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
         insurancePolicyNumber: insurancePolicyNumber.trim(),
       }, { headers: { Authorization: `Bearer ${token}` } });
       setActiveStep('agreement');
-    } catch {
-      toast.error("We couldn't save your compliance details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "save your compliance details"));
     } finally {
       setSavingCompliance(false);
     }
@@ -209,8 +210,9 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Application submitted for review');
       onComplete();
-    } catch {
-      toast.error("We couldn't submit your application. Please try again.");
+    } catch (error) {
+      // Show the server's reason, e.g. which required detail is still missing.
+      toast.error(userErrorMessage(error, "submit your application"));
     } finally {
       setSubmitting(false);
     }
