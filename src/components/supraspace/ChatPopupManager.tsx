@@ -14,7 +14,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
@@ -2045,8 +2045,6 @@ function htmlToMarkdown(el: HTMLElement): string {
 
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
-    if (highlight && inner.trim()) inner = `{highlight:${highlight}}${inner}{/highlight}`;
 
     // WebKit may leave a terminal <br> inside every visual block in a
     // contentEditable composer. The block itself already supplies the line
@@ -2428,9 +2426,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
     }
 
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
-    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
     if (color) styles.push(`color:${color}`);
-    if (highlight) styles.push(`background-color:${highlight}`);
 
     return styles;
   };
@@ -7139,7 +7135,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 imageAttachments.length === 1 ? 'inline-block' : 'grid gap-1 overflow-hidden rounded-2xl',
                                 imageAttachments.length === 2 && 'grid-cols-2',
                                 imageAttachments.length >= 3 && 'grid-cols-2'
-                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : { width: 'fit-content', maxWidth: '100%' }}>
+                              )} style={imageAttachments.length > 1 ? { width: 220, maxWidth: '100%' } : { width: 220, maxWidth: '100%', height: 180 }}>
                                 {imageAttachments.map((a: SSAttachment, i: number) => {
                                   const src = resolveImageUrl(a.thumbnailUrl || a.url) || a.url;
                                   const fullSrc = resolveImageUrl(a.url) || a.url;
@@ -7150,7 +7146,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                       type="button"
                                       onClick={() => setMediaPreview({ src: fullSrc, name: a.originalName || 'photo' })}
                                       className={cn(
-                                        imageAttachments.length === 1 ? 'inline-block max-w-full' : 'block',
+                                        imageAttachments.length === 1 ? 'block h-full w-full max-w-full' : 'block',
                                         'overflow-hidden border border-white/10 bg-black/20',
                                         imageAttachments.length === 1 ? 'rounded-2xl' : 'h-32',
                                       )}
@@ -7163,8 +7159,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                           key={retryingPopupImages.has(imageKey) ? `${imageKey}:retry` : imageKey}
                                           src={src}
                                           alt={a.originalName || 'photo'}
-                                          className="block rounded-2xl"
-                                          style={{ maxWidth: '100%', maxHeight: 240, width: 'auto', height: 'auto' }}
+                                          className="block h-full w-full rounded-2xl object-contain"
                                           onError={() => recoverPopupImage(imageKey)}
                                         />
                                       ) : (

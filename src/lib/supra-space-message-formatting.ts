@@ -271,6 +271,14 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
       .replace(DOUBLE_BRACE_CONTROL_TAG, canonicalizeDoubleBraceControlTag),
   );
 
+  // SupraSpace has no authored text-highlight control. Background colors only
+  // arrived through pasted page/bubble CSS, including messages stored before
+  // the paste sanitizer existed. Keep the message text and its supported
+  // formatting, but remove those display artifacts for existing messages too.
+  normalized = normalized
+    .replace(/\{highlight:#[0-9a-f]{3,8}\}/gi, '')
+    .replace(/\{\/highlight\}/gi, '');
+
   // Remove wrappers that contain formatting controls only. Repeat so nested
   // empty wrappers collapse from the inside out.
   let previous = '';
@@ -294,7 +302,7 @@ export function normalizeSupraSpaceLegacyMarkup(content: string): string {
       '$1\n$3',
     );
 
-  normalized = normalizeSupraSpaceExternalQuoteArtifacts(normalized)
+  normalized = repairSingleSidedBoldMarkers(normalizeSupraSpaceExternalQuoteArtifacts(normalized))
     .replace(FORMAT_ONLY_LINE, '$1');
   return normalized;
 }
@@ -374,19 +382,14 @@ export function prepareSupraSpaceMarkupForDisplay(content: string): string {
 /**
  * Removes only formatting-control markers that reach a renderer as plain text.
  *
- * Valid paired markers are consumed by the normal rich-text parser first, so
- * anything that reaches this fallback path is an unmatched/redundant control
- * artifact (for example the extra ** wrappers produced by some copied rich
- * text). Keeping this at the final plain-text boundary preserves recognized
- * bold/underline/strike formatting while ensuring the internal syntax is never
- * exposed to end users.
+ * Valid paired markers are consumed by the normal rich-text parser first.
+ * Anything left here might be an old editor artifact, but it might also be
+ * literal text a person intentionally typed (for example `****`, a part
+ * number, or an underscore-delimited value).  Legacy one-sided bold runs are
+ * repaired above; do not delete ambiguous literal characters at render time.
  */
 export function stripResidualSupraSpaceInlineControlMarkers(value: string): string {
-  if (!value) return '';
-  return value
-    .replace(/\*{2,}/g, marker => marker.length >= 4 ? marker : '')
-    .replace(/__/g, '')
-    .replace(/~~/g, '');
+  return value || '';
 }
 
 /**

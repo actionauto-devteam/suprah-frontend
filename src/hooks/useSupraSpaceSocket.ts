@@ -130,6 +130,11 @@ interface UseSupraSpaceReturn {
 
 export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
   const socketRef = React.useRef<Socket | null>(null);
+  // A chat can be opened while a phone/PWA is reconnecting.  Keep the read
+  // receipt until the authenticated socket is actually available so the
+  // optimistic unread badge cannot return after the next refresh.
+  const pendingReadConversationIdsRef = React.useRef<Set<string>>(new Set());
+  const pendingMarkAllReadRef = React.useRef(false);
   const typingStartLastSentRef = React.useRef<Record<string, number>>({});
   const presenceActivityRef = React.useRef(true);
   // Watchdog per conversationId:userId — self-heals a stuck "is typing..."
@@ -159,6 +164,21 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     socketRef.current = socket;
     setSocketState(socket);
 
+    const flushPendingReadReceipts = () => {
+      if (!socket.connected) return;
+      if (pendingMarkAllReadRef.current) {
+        pendingMarkAllReadRef.current = false;
+        pendingReadConversationIdsRef.current.clear();
+        socket.emit('mark:all:read');
+        return;
+      }
+      const pendingConversationIds = Array.from(pendingReadConversationIdsRef.current);
+      pendingReadConversationIdsRef.current.clear();
+      pendingConversationIds.forEach(conversationId => {
+        socket.emit('mark:read', { conversationId });
+      });
+    };
+
     const emitPresenceHeartbeat = (activeOverride?: boolean) => {
       if (!socket.connected) return;
       const isActive = typeof activeOverride === 'boolean' ? activeOverride : presenceActivityRef.current;
@@ -172,6 +192,7 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
       presenceActivityRef.current = true;
       emitPresenceHeartbeat(true);
       socket.emit('presence:status_request'); // ask for the whole org's real online/away/busy/DND status
+      flushPendingReadReceipts();
     });
 
     socket.on('disconnect', () => {
@@ -334,10 +355,22 @@ export function useSupraSpaceSocket(token: string | null): UseSupraSpaceReturn {
     if (socket?.connected) socket.emit('typing:stop', { conversationId });
   }, []);
   const markRead = React.useCallback((conversationId: string) => {
-    socketRef.current?.emit('mark:read', { conversationId });
+    if (!conversationId) return;
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      pendingReadConversationIdsRef.current.add(conversationId);
+      return;
+    }
+    socket.emit('mark:read', { conversationId });
   }, []);
   const markAllRead = React.useCallback(() => {
-    socketRef.current?.emit('mark:all:read');
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      pendingMarkAllReadRef.current = true;
+      pendingReadConversationIdsRef.current.clear();
+      return;
+    }
+    socket.emit('mark:all:read');
   }, []);
 
   return React.useMemo(() => ({ socket: socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead }), [socketState, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead]);

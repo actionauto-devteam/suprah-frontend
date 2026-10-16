@@ -84,9 +84,11 @@ export function getSupraSpaceSelectionClipboardData(
     const color = styleOptions.normalizeColor
       ? getSupraSpaceClipboardTextColor(element, styleOptions.normalizeColor)
       : null;
-    const highlight = styleOptions.normalizeColor
-      ? getSupraSpaceClipboardHighlight(element, styleOptions.normalizeColor)
-      : null;
+    // A selection is copied out of a rendered chat bubble.  Highlighting is
+    // presentation from the source surface (and used to carry a bubble's
+    // dark background into sites such as Indeed), not part of the selected
+    // message's portable content.  Keep semantic tags and supported type,
+    // but never export a background color from this path.
     const typographyStyles = isSupraSpaceInlineClipboardStyle(element)
       ? styleOptions.getTypographyStyles?.(element) || []
       : [];
@@ -95,7 +97,6 @@ export function getSupraSpaceSelectionClipboardData(
     const styles = [
       ...typographyStyles,
       ...(color ? [`color:${color}`] : []),
-      ...(highlight ? [`background-color:${highlight}`] : []),
     ];
     if (styles.length) element.setAttribute('style', [...new Set(styles)].join(';'));
   });
@@ -120,20 +121,6 @@ export function getSupraSpaceClipboardTextColor(
   );
 }
 
-export function getSupraSpaceClipboardHighlight(
-  element: HTMLElement,
-  normalizeColor: CssColorNormalizer,
-): string | null {
-  if (!isSupraSpaceInlineClipboardStyle(element)) return null;
-  const tag = element.tagName.toLowerCase();
-  return normalizeColor(
-    element.style.backgroundColor
-    || element.style.background
-    || element.getAttribute('bgcolor')
-    || (tag === 'mark' ? 'yellow' : ''),
-  );
-}
-
 export function sanitizeSupraSpacePastedEditorHtml(
   html: string,
   normalizeColor: CssColorNormalizer,
@@ -146,7 +133,6 @@ export function sanitizeSupraSpacePastedEditorHtml(
 
   doc.body.querySelectorAll<HTMLElement>('*').forEach(element => {
     const color = getSupraSpaceClipboardTextColor(element, normalizeColor);
-    const highlight = getSupraSpaceClipboardHighlight(element, normalizeColor);
     const typographyStyles = isSupraSpaceInlineClipboardStyle(element)
       ? styleOptions.getTypographyStyles?.(element) || []
       : [];
@@ -166,7 +152,6 @@ export function sanitizeSupraSpacePastedEditorHtml(
     const styles = [
       ...typographyStyles,
       ...(color ? [`color:${color}`] : []),
-      ...(highlight ? [`background-color:${highlight}`] : []),
     ];
     if (styles.length) element.setAttribute('style', [...new Set(styles)].join(';'));
   });

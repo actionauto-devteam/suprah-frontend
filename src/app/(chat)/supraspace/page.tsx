@@ -67,7 +67,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardHighlight, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -2123,8 +2123,6 @@ function htmlToMarkdown(el: HTMLElement): string {
 
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
-    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
-    if (highlight && inner.trim()) inner = `{highlight:${highlight}}${inner}{/highlight}`;
 
     // WebKit may leave a terminal <br> inside every visual block in a
     // contentEditable composer. The block itself already supplies the line
@@ -2967,9 +2965,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
     }
 
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
-    const highlight = getSupraSpaceClipboardHighlight(element, cssColorToHex);
     if (color) styles.push(`color:${color}`);
-    if (highlight) styles.push(`background-color:${highlight}`);
 
     return styles;
   };
@@ -6878,8 +6874,8 @@ const Bubble = React.memo(function Bubble({
               if (images.length === 0) return null;
               if (images.length === 1) return (
                 <button data-ss4-attachment-url={images[0].attachment.url} onClick={event => { if (preventClickAfterLongPress(event)) return; openAttachmentMedia(images[0].attachment, images[0].attachmentIndex); }}
-                  className="inline-block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'fit-content', maxWidth: '100%', background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
-                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: 'fit-content', maxWidth: 'min(420px, 72vw)' }} imageStyle={{ width: 'auto', height: 'auto', maxWidth: 'min(420px, 72vw)', maxHeight: 420 }} onRecover={onRefreshMedia} />
+                  className="inline-block text-left rounded-xl overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity" style={{ width: 'min(420px, 72vw)', maxWidth: '100%', height: 220, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-2)' }}>
+                  <SS4AttachmentImage attachment={images[0].attachment} alt={images[0].attachment.originalName} className="rounded-xl" style={{ width: '100%', height: '100%' }} imageStyle={{ width: '100%', height: '100%', objectFit: 'contain' }} onRecover={onRefreshMedia} />
                 </button>
               );
               const galleryImages = images.slice(0, 4);
