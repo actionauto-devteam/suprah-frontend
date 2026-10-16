@@ -5579,6 +5579,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (!candidate) return;
     const anchor = candidate.anchor;
     const endOffset = candidate.end;
+    // Mention insertion replaces a DOM range. Verify that the replacement
+    // changed only the typed @fragment so malformed contentEditable ranges
+    // cannot discard unrelated pasted text such as VINs.
+    const beforeText = el.innerText.replace(/\n$/, '');
+    const candidateText = textBeforeCaret.slice(anchor, endOffset);
+    const candidateIndex = candidateText ? beforeText.lastIndexOf(candidateText) : -1;
+    const expectedText = candidateIndex >= 0
+      ? `${beforeText.slice(0, candidateIndex)}@${name} ${beforeText.slice(candidateIndex + candidateText.length)}`
+      : null;
     const range = rangeFromTextOffset(el, anchor);
     const endRange = rangeFromTextOffset(el, endOffset);
     range.setEnd(endRange.startContainer, endRange.startOffset);
@@ -5595,13 +5604,25 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     fragment.appendChild(spaceNode);
     range.deleteContents();
     range.insertNode(fragment);
-    const next = el.innerText.replace(/\n$/, '');
+    let next = el.innerText.replace(/\n$/, '');
     const caretOffset = anchor + name.length + 2;
+    const restoredVisibleText = Boolean(expectedText && next !== expectedText);
+    if (restoredVisibleText) {
+      // Only fall back after a failed DOM replacement. The recovery keeps the
+      // exact visible payload intact rather than permitting silent data loss.
+      el.replaceChildren(document.createTextNode(expectedText!));
+      next = expectedText!;
+    }
     syncComposerText(next, true);
     setMentionQuery(null);
     setMentionAnchor(-1);
     const nextRange = document.createRange();
-    nextRange.setStartAfter(spaceNode);
+    if (restoredVisibleText) {
+      const recoveredRange = rangeFromTextOffset(el, Math.min(caretOffset, next.length));
+      nextRange.setStart(recoveredRange.startContainer, recoveredRange.startOffset);
+    } else {
+      nextRange.setStartAfter(spaceNode);
+    }
     nextRange.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(nextRange);

@@ -12286,6 +12286,16 @@ export default function SupraSpacePage() {
     if (!candidate) return;
     const anchor = candidate.anchor;
     const endOffset = candidate.end;
+    // Mention insertion is one of the few composer actions that replaces an
+    // existing DOM range. Keep it transactional: rich pasted content may span
+    // several text nodes, and a browser must never be allowed to turn a range
+    // mismatch into loss of an unrelated visible line (for example a VIN).
+    const beforeText = el.innerText.replace(/\n$/, '');
+    const candidateText = textBeforeCaret.slice(anchor, endOffset);
+    const candidateIndex = candidateText ? beforeText.lastIndexOf(candidateText) : -1;
+    const expectedText = candidateIndex >= 0
+      ? `${beforeText.slice(0, candidateIndex)}@${name} ${beforeText.slice(candidateIndex + candidateText.length)}`
+      : null;
     const currentText = el.innerText.replace(/\n$/, '');
     if (currentText.length - (endOffset - anchor) + name.length + 2 > SS4_MAX_MESSAGE_CHARS) {
       showMessageLimitNotice();
@@ -12306,14 +12316,27 @@ export default function SupraSpacePage() {
     fragment.appendChild(spaceNode);
     range.deleteContents();
     range.insertNode(fragment);
-    const next = el.innerText.replace(/\n$/, '');
+    let next = el.innerText.replace(/\n$/, '');
     const caretOffset = anchor + name.length + 2;
+    const restoredVisibleText = Boolean(expectedText && next !== expectedText);
+    if (restoredVisibleText) {
+      // This is deliberately a text-only fallback. It only runs after the
+      // browser has already produced a wrong DOM result; preserving every
+      // visible character is safer than keeping formatting around lost data.
+      el.replaceChildren(document.createTextNode(expectedText!));
+      next = expectedText!;
+    }
     syncComposerText(next, true);
     setMentionQuery(null);
     setMentionAnchor(-1);
     composerCaretOffsetRef.current = caretOffset;
     const nextRange = document.createRange();
-    nextRange.setStartAfter(spaceNode);
+    if (restoredVisibleText) {
+      const recoveredRange = rangeFromTextOffset(el, Math.min(caretOffset, next.length));
+      nextRange.setStart(recoveredRange.startContainer, recoveredRange.startOffset);
+    } else {
+      nextRange.setStartAfter(spaceNode);
+    }
     nextRange.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(nextRange);
