@@ -2647,7 +2647,9 @@ export default function DriverDashboardPage() {
               <Link href="/driver/loads">My Loads <ArrowRight className="size-3.5" /></Link>
               <Link href="/driver/available-loads">Available Loads <ArrowRight className="size-3.5" /></Link>
             </div>
-            <CardContent className="p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+            {/* Scrolls inside itself only on computers, where this card is a fixed-height column.
+                On phones the card grows with its content, so swipes must reach the page. */}
+            <CardContent className="p-4 flex-1 min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable]">
               {isLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-5 w-40" />
@@ -2991,7 +2993,7 @@ export default function DriverDashboardPage() {
                         </span>
                       </div>
 
-                      <div className="min-h-0 flex-1 max-h-[320px] xl:max-h-none overflow-y-auto overscroll-contain touch-pan-y pr-1 space-y-1 [scrollbar-gutter:stable]">
+                      <div className="min-h-0 flex-1 lg:max-h-[320px] xl:max-h-none lg:overflow-y-auto lg:overscroll-contain touch-pan-y pr-1 space-y-1 lg:[scrollbar-gutter:stable]">
                         {otherActiveLoads.map((load) => (
                           <button
                             key={load._id}
