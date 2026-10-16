@@ -1946,7 +1946,11 @@ function htmlToMarkdown(el: HTMLElement): string {
         .join('');
 
       const isNestedList = element.parentElement?.tagName.toLowerCase() === 'li';
-      return isNestedList || !serializedList ? serializedList : `\n${serializedList}`;
+      // `li` already terminates each item. Do not add another trailing block
+      // break for a top-level list: the following editor paragraph supplies
+      // its own boundary, and the two together used to create a phantom blank
+      // line after sent/edited numbered lists.
+      return isNestedList || !serializedList ? serializedList : `\n${serializedList.trimEnd()}`;
     }
 
     if (tag === 'li') {

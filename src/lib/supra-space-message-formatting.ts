@@ -134,6 +134,22 @@ export function normalizeSupraSpaceExternalQuoteArtifacts(content: string): stri
     const hasEscapedEmptyLine = quoteLines.some(line => line.content.trim() === '\\');
     const hasVisibleContent = quoteLines.some(line => !isEmptyArtifact(line));
 
+    // Some teams use a leading `>` as a quick plain-text bullet.  A run of
+    // several non-empty single-chevron rows is list-shaped, not a quoted
+    // paragraph (real multi-paragraph quotes retain their empty `>` row).
+    // Keep short/structured quotations untouched so quoting remains available.
+    const isRepeatedChevronBulletList = quoteLines.length >= 3
+      && quoteLines.every(line => (
+        line.prefix.trim() === '>'
+        && !isEmptyArtifact(line)
+        && !line.content.trimStart().startsWith('>')
+      ));
+
+    if (isRepeatedChevronBulletList) {
+      output.push(...quoteLines.map(line => `• ${line.content.trimStart()}`));
+      continue;
+    }
+
     if (hasVisibleContent && (hasEscapedEmptyLine || emptyCount >= 3)) {
       const unwrapped = quoteLines
         .filter(line => !isEmptyArtifact(line))
