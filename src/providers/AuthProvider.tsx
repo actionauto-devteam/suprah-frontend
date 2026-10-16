@@ -65,6 +65,9 @@ const PUBLIC_ROUTES = [
   "/auth/callback",
   "/verify-email",
   "/accept-invite",
+  // Driver and customer invite links (/join/<code>) are opened by people who
+  // don't have an account yet, so they must not be sent to /sign-in.
+  "/join/",
   "/vehicle",
   "/embed",
   "/referral",
