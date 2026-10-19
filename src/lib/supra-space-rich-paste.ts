@@ -114,6 +114,15 @@ export function getSupraSpaceClipboardTextColor(
   normalizeColor: CssColorNormalizer,
 ): string | null {
   if (!isSupraSpaceInlineClipboardStyle(element)) return null;
+  const sourceStyle = element.getAttribute('style') || '';
+  const hasSourceBackground = Boolean(
+    element.getAttribute('bgcolor')
+    || element.style.background
+    || element.style.backgroundColor
+    || element.style.backgroundImage
+    || /(?:^|;)\s*(?:background(?:-color|-image)?|mso-highlight)\s*:/i.test(sourceStyle),
+  );
+  if (hasSourceBackground) return null;
   return normalizeColor(
     element.style.color
     || element.style.getPropertyValue('-webkit-text-fill-color')
