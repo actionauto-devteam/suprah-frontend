@@ -32,7 +32,7 @@ import {
   UserPlus, UserMinus, Palette, Film, Wifi, Clock, MapPin, LogOut, Play, Pause,
   MoreHorizontal, MoreVertical, Copy, GripVertical, Link2, Star, MailOpen, Share2,
   Bell, VolumeX, EyeOff, Volume2, Settings as SettingsIcon,
-  Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Type, ZoomIn, ZoomOut,
+  Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Table2, Type, ZoomIn, ZoomOut,
   ExternalLink, Maximize2,
   Folder,
 } from 'lucide-react';
@@ -69,6 +69,7 @@ import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
 import { getSupraSpaceCacheUserIdFromToken, readSupraSpaceCache, writeSupraSpaceCache } from '@/lib/supraspace-cache';
@@ -2034,6 +2035,12 @@ function htmlToMarkdown(el: HTMLElement): string {
       strike: inherited.strike || elementIsStrike,
     };
 
+    if (tag === 'table') {
+      return serializeSupraSpaceEditorTable(element as HTMLTableElement, cell =>
+        Array.from(cell.childNodes).map(child => walk(child, listDepth, childInherited)).join(''),
+      );
+    }
+
     if (tag === 'ul' || tag === 'ol') {
       const serializedList = Array.from(element.children)
         .filter(child => child.tagName.toLowerCase() === 'li')
@@ -2750,7 +2757,7 @@ function escapeHtmlText(s: string): string {
 }
 
 function hasRichFormatting(html: string): boolean {
-  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
+  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|table|tr|t[dh]|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
     || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
@@ -3084,6 +3091,15 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<li>${wrapStyles(element, own)}${nested}</li>`;
     }
 
+    if (tag === 'table') {
+      const rows = Array.from((element as HTMLTableElement).rows).map(row => {
+        const cells = Array.from(row.cells).map(cell => walk(cell));
+        const isHeader = Array.from(row.cells).every(cell => cell.tagName.toLowerCase() === 'th');
+        return `<tr>${cells.map(cell => `<${isHeader ? 'th' : 'td'}>${cell || '<br>'}</${isHeader ? 'th' : 'td'}>`).join('')}</tr>`;
+      }).filter(row => row !== '<tr></tr>');
+      return rows.length ? `<table><tbody>${rows.join('')}</tbody></table>` : '';
+    }
+
     const inner = Array.from(element.childNodes).map(walk).join('');
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
@@ -3374,7 +3390,16 @@ function markdownTextToEditorHtml(text: string): string {
     }
   };
 
-  lines.forEach(line => {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const table = parseSupraSpaceMarkdownTable(lines, lineIndex);
+    if (table) {
+      flushListsToDepth(0);
+      const renderCells = (cells: string[], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}>${renderStyledInline(cell.replace(/<br>/g, '\n')) || '<br>'}</${tag}>`).join('')}</tr>`;
+      output.push(`<table><thead>${renderCells(table.header, 'th')}</thead><tbody>${table.rows.map(row => renderCells(row, 'td')).join('')}</tbody></table>`);
+      lineIndex = table.endIndex - 1;
+      continue;
+    }
+    const line = lines[lineIndex];
     const bulletMatch = line.match(SS4_SOURCE_BULLET_RE);
     const numberedMatch = bulletMatch
       ? null
@@ -3398,14 +3423,14 @@ function markdownTextToEditorHtml(text: string): string {
         stack.push({ tag, depth, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
       }
       stack[depth].items.push(`<li>${renderStyledInline(rest) || '<br>'}</li>`);
-      return;
+      continue;
     }
 
     flushListsToDepth(0);
     const rendered = renderStyledInline(quoteMatch ? quoteMatch[1] : line) || '<br>';
     if (quoteMatch) output.push(`<blockquote>${rendered}</blockquote>`);
     else output.push(`<div>${rendered}</div>`);
-  });
+  }
 
   flushListsToDepth(0);
   return output.join('');
@@ -3698,6 +3723,27 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       addSeparation('block');
       result.push(<pre key={`code-${blockIdx++}`} className="ss4-codeblock"><code>{codeLines.join('\n')}</code></pre>);
       hasRenderedContent = true;
+      continue;
+    }
+
+    const table = parseSupraSpaceMarkdownTable(rawLines, lineIndex);
+    if (table) {
+      addSeparation('block');
+      const renderCells = (cells: string[], tag: 'th' | 'td', rowIndex: number) => cells.map((cell, cellIndex) => React.createElement(
+        tag,
+        { key: `${tag}-${rowIndex}-${cellIndex}` },
+        renderInline(cell.replace(/<br>/g, '\n'), `table-${blockIdx}-${rowIndex}-${cellIndex}`),
+      ));
+      result.push(
+        <div key={`table-wrap-${blockIdx++}`} className="ss4-message-table-wrap">
+          <table className="ss4-message-table">
+            <thead><tr>{renderCells(table.header, 'th', 0)}</tr></thead>
+            {table.rows.length > 0 && <tbody>{table.rows.map((row, index) => <tr key={index}>{renderCells(row, 'td', index + 1)}</tr>)}</tbody>}
+          </table>
+        </div>,
+      );
+      hasRenderedContent = true;
+      lineIndex = table.endIndex;
       continue;
     }
 
@@ -11718,6 +11764,25 @@ export default function SupraSpacePage() {
       showUploadNotice('info', 'This conversation is archived. Unarchive it to send messages.');
       return;
     }
+    const spreadsheetFiles = selected.filter(isSupraSpaceSpreadsheetFile);
+    if (spreadsheetFiles.length) {
+      for (const file of spreadsheetFiles) {
+        try {
+          const editor = textareaRef.current;
+          if (!editor) throw new Error('The message editor is not ready.');
+          editor.focus();
+          document.execCommand('insertHTML', false, await spreadsheetFileToSupraSpaceEditorHtml(file));
+          const serialized = htmlToMarkdown(editor);
+          if (serialized.length > SS4_MAX_MESSAGE_CHARS) throw new Error(SS4_MESSAGE_LIMIT_ERROR);
+          syncComposerText(serialized, true);
+          showUploadNotice('info', `${file.name} inserted as a table from its first sheet.`);
+        } catch (error) {
+          showUploadNotice('error', error instanceof Error ? error.message : `Could not import ${file.name}.`);
+        }
+      }
+      selected = selected.filter(file => !isSupraSpaceSpreadsheetFile(file));
+    }
+    if (!selected.length) return;
     const seenIncoming = new Set<string>();
     const existingKeys = new Set(pendingFiles.map(attachmentFileKey));
     const uniqueSelected = selected.filter(file => {
@@ -11735,7 +11800,7 @@ export default function SupraSpacePage() {
     }
     setPendingFiles(prev => [...prev, ...uniqueSelected]);
     showUploadNotice('info', uniqueSelected.length === 1 ? `${uniqueSelected[0].name} attached. Press Send.` : `${uniqueSelected.length} files attached.`);
-  }, [activeId, isArchivedActiveConv, pendingFiles, showUploadNotice]);
+  }, [activeId, isArchivedActiveConv, pendingFiles, showUploadNotice, syncComposerText]);
   handleUploadFilesRef.current = handleUploadFiles;
 
   const shareTargetId = searchParams.get('shareTargetId');
@@ -13209,6 +13274,24 @@ export default function SupraSpacePage() {
     showMessageLimitNotice,
     syncComposerText,
   ]);
+
+  const insertComposerTable = React.useCallback(() => {
+    const editor = textareaRef.current;
+    if (!editor) return;
+    editor.focus();
+    const range = getRichEditorSelectionRange(editor, composerSelectionRangeRef.current);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('insertHTML', false, createSupraSpaceEditorTableHtml());
+    const serialized = htmlToMarkdown(editor);
+    if (serialized.length > SS4_MAX_MESSAGE_CHARS) {
+      toast.error(SS4_MESSAGE_LIMIT_ERROR);
+      return;
+    }
+    syncComposerText(serialized, true);
+    saveComposerSelection();
+  }, [saveComposerSelection, syncComposerText]);
 
   const handleListIndent = React.useCallback((outdent: boolean): boolean => {
     const el = textareaRef.current;
@@ -15348,6 +15431,9 @@ export default function SupraSpacePage() {
                             </button>
                             <button type="button" onMouseDown={e => { e.preventDefault(); applyFormat('code'); }} className={formatButtonClass('code')} title="Inline code" aria-pressed={activeFormats.code}>
                               <Code2 className="h-3.5 w-3.5" style={formatIconStyle('code')} />
+                            </button>
+                            <button type="button" onMouseDown={e => { e.preventDefault(); insertComposerTable(); }} className="h-9 w-9 flex items-center justify-center rounded-lg transition-colors hover:bg-(--bg-hover)" title="Insert a 3 by 3 table">
+                              <Table2 className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                             </button>
                             <button
                               type="button"

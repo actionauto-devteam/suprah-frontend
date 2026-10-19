@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
 import { useTheme } from '@/context/ThemeContext';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2, AlertCircle } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Table2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2, AlertCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -15,6 +15,7 @@ import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
 import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
@@ -62,6 +63,9 @@ const MORE_TEXT_COLORS = [
 
 const POPUP_RICH_EDIT_CSS = `
   .ss-popup-rich-edit { white-space: pre-wrap; line-height: 1.66; }
+  .ss-popup-rich-edit table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .82em; }
+  .ss-popup-rich-edit th, .ss-popup-rich-edit td { min-width: 4.5rem; padding: .32rem .42rem; border: 1px solid rgba(255,255,255,.24); text-align: left; vertical-align: top; }
+  .ss-popup-rich-edit th { background: rgba(255,255,255,.12); font-weight: 700; }
   .ss-popup-rich-edit ul,
   .ss-popup-rich-edit ol {
     display: block !important;
@@ -1126,6 +1130,15 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   const lines = text.split('\n');
   const bulletRe = POPUP_SOURCE_BULLET_RE;
   const numberedRe = /^(\s*)(\d+)\.\s+(.+)$/;
+  const tables = new Map<number, ReturnType<typeof parseSupraSpaceMarkdownTable>>();
+  const tableCoveredLines = new Set<number>();
+  for (let index = 0; index < lines.length; index += 1) {
+    const table = parseSupraSpaceMarkdownTable(lines, index);
+    if (!table) continue;
+    tables.set(index, table);
+    for (let covered = index + 1; covered < table.endIndex; covered += 1) tableCoveredLines.add(covered);
+    index = table.endIndex - 1;
+  }
 
   const depthFrom = (indent: string, marker?: string) => {
     const indentDepth = Math.round(indent.replace(/\t/g, '    ').length / 2);
@@ -1136,6 +1149,16 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   return (
     <span className="block" style={{ lineHeight: 1.66 }}>
       {lines.map((line, index) => {
+        const table = tables.get(index);
+        if (table) {
+          const renderCells = (cells: string[], tag: 'th' | 'td', rowIndex: number) => cells.map((cell, cellIndex) => React.createElement(
+            tag,
+            { key: `${tag}-${rowIndex}-${cellIndex}`, style: { border: '1px solid rgba(255,255,255,.22)', padding: '5px 7px', textAlign: 'left', verticalAlign: 'top' } },
+            renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${index}-${rowIndex}-${cellIndex}`),
+          ));
+          return <span key={`table-${index}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>;
+        }
+        if (tableCoveredLines.has(index)) return null;
         if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return null;
         if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: 10 }} aria-hidden="true" />;
 
@@ -1184,7 +1207,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
 // ─── Paste helpers (mirror of SupraSpace, adapted for plain <input>) ─────────
 
 function hasRichFormatting(html: string): boolean {
-  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|h[1-6])\b/i.test(html)
+  return /<(b|strong|i|em|u|s|strike|del|code|li|blockquote|ol|ul|table|tr|t[dh]|h[1-6])\b/i.test(html)
     || /<font\b[^>]*(?:color|face|size)\s*=/i.test(html)
     || /style\s*=\s*["'][^"']*(?:font-weight\s*:\s*(?:bold|bolder|\d{3,})|font-style\s*:\s*italic|font-family\s*:|font-size\s*:|color\s*:\s*[^"';\s][^"';]*|background-color\s*:\s*[^"';\s][^"';]*)/i.test(html);
 }
@@ -1939,6 +1962,12 @@ function htmlToMarkdown(el: HTMLElement): string {
       strike: inherited.strike || elementIsStrike,
     };
 
+    if (tag === 'table') {
+      return serializeSupraSpaceEditorTable(element as HTMLTableElement, cell =>
+        Array.from(cell.childNodes).map(child => walk(child, listDepth, childInherited)).join(''),
+      );
+    }
+
     if (tag === 'ul' || tag === 'ol') {
       const serializedList = Array.from(element.children)
         .filter(child => child.tagName.toLowerCase() === 'li')
@@ -2523,6 +2552,15 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<li>${wrapStyles(element, own)}${nested}</li>`;
     }
 
+    if (tag === 'table') {
+      const rows = Array.from((element as HTMLTableElement).rows).map(row => {
+        const cells = Array.from(row.cells).map(cell => walk(cell));
+        const isHeader = Array.from(row.cells).every(cell => cell.tagName.toLowerCase() === 'th');
+        return `<tr>${cells.map(cell => `<${isHeader ? 'th' : 'td'}>${cell || '<br>'}</${isHeader ? 'th' : 'td'}>`).join('')}</tr>`;
+      }).filter(row => row !== '<tr></tr>');
+      return rows.length ? `<table><tbody>${rows.join('')}</tbody></table>` : '';
+    }
+
     const inner = Array.from(element.childNodes).map(walk).join('');
     const fontWeight = element.style.fontWeight;
     const decoration = `${element.style.textDecoration} ${element.style.textDecorationLine}`.toLowerCase();
@@ -2778,7 +2816,16 @@ function markdownTextToEditorHtml(text: string): string {
     }
   };
 
-  lines.forEach(line => {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const table = parseSupraSpaceMarkdownTable(lines, lineIndex);
+    if (table) {
+      flushListsToDepth(0);
+      const renderCells = (cells: string[], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}>${renderStyledInline(cell.replace(/<br>/g, '\n')) || '<br>'}</${tag}>`).join('')}</tr>`;
+      output.push(`<table><thead>${renderCells(table.header, 'th')}</thead><tbody>${table.rows.map(row => renderCells(row, 'td')).join('')}</tbody></table>`);
+      lineIndex = table.endIndex - 1;
+      continue;
+    }
+    const line = lines[lineIndex];
     const bulletMatch = line.match(POPUP_SOURCE_BULLET_RE);
     const numberedMatch = bulletMatch
       ? null
@@ -2802,14 +2849,14 @@ function markdownTextToEditorHtml(text: string): string {
         stack.push({ tag, depth, start: numberedMatch ? Number(numberedMatch[2]) : undefined, items: [] });
       }
       stack[depth].items.push(`<li>${renderStyledInline(rest) || '<br>'}</li>`);
-      return;
+      continue;
     }
 
     flushListsToDepth(0);
     const rendered = renderStyledInline(quoteMatch ? quoteMatch[1] : line) || '<br>';
     if (quoteMatch) output.push(`<blockquote>${rendered}</blockquote>`);
     else output.push(`<div>${rendered}</div>`);
-  });
+  }
 
   flushListsToDepth(0);
   return output.join('');
@@ -4456,9 +4503,25 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     });
   }, [conv._id, crmToken]);
 
-  const stageFiles = React.useCallback((files: FileList | File[] | null) => {
+  const stageFiles = React.useCallback(async (files: FileList | File[] | null) => {
+    const incoming = Array.from(files || []);
+    const spreadsheetFiles = incoming.filter(isSupraSpaceSpreadsheetFile);
+    if (spreadsheetFiles.length) {
+      for (const file of spreadsheetFiles) {
+        try {
+          const root = inputRef.current;
+          if (!root) throw new Error('The message editor is not ready.');
+          root.focus();
+          document.execCommand('insertHTML', false, await spreadsheetFileToSupraSpaceEditorHtml(file));
+          syncComposerText(htmlToMarkdown(root), true);
+          toast.success(`${file.name} inserted as a table from its first sheet.`);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : `Could not import ${file.name}.`);
+        }
+      }
+    }
     const seenIncoming = new Set<string>();
-    const selected = Array.from(files || []).filter(file => {
+    const selected = incoming.filter(file => !isSupraSpaceSpreadsheetFile(file)).filter(file => {
       const key = attachmentFileKey(file);
       if (seenIncoming.has(key)) return false;
       seenIncoming.add(key);
@@ -4477,7 +4540,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setDraggingAttachment(false);
     dragDepthRef.current = 0;
     setTimeout(() => inputRef.current?.focus(), 40);
-  }, []);
+  }, [syncComposerText]);
 
   const removePendingAttachment = React.useCallback((index: number) => {
     setPendingAttachments(prev => {
@@ -6117,6 +6180,19 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     syncComposerText(htmlToMarkdown(root), true);
   }, [syncComposerText]);
 
+  const insertComposerTable = React.useCallback(() => {
+    const root = inputRef.current;
+    if (!root) return;
+    root.focus();
+    const range = getRichEditorSelectionRange(root, inputSelectionRangeRef.current);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand('insertHTML', false, createSupraSpaceEditorTableHtml());
+    syncComposerText(htmlToMarkdown(root), true);
+    rememberComposerSelection();
+  }, [rememberComposerSelection, syncComposerText]);
+
   const refreshComposerCaretFormats = React.useCallback(() => {
     try {
       const root = inputRef.current;
@@ -7700,6 +7776,17 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   title="Add or update link"
                 >
                   <Link2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    insertComposerTable();
+                  }}
+                  className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center transition-colors hover:bg-muted"
+                  title="Insert a 3 by 3 table"
+                >
+                  <Table2 className="h-3.5 w-3.5" />
                 </button>
                 {TEXT_COLORS.map(color => (
                   <button

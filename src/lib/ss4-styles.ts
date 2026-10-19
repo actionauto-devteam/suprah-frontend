@@ -588,6 +588,32 @@ export const SS4_CSS = `
   .ss4-dot-appt    { background: #9b6fd6; }
   .ss4-dot-closed  { background: rgba(255,255,255,0.2); }
   .ss4-dot-calls   { background: #22c9c9; }
+  .ss4-message-table-wrap {
+    max-width: 100%;
+    margin: .45rem 0;
+    overflow-x: auto;
+    border: 1px solid var(--border-2);
+    border-radius: .55rem;
+  }
+  .ss4-message-table,
+  .ss4-composer-editor table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: .82em;
+  }
+  .ss4-message-table th,
+  .ss4-message-table td,
+  .ss4-composer-editor th,
+  .ss4-composer-editor td {
+    min-width: 5rem;
+    padding: .42rem .55rem;
+    border: 1px solid var(--border-2);
+    text-align: left;
+    vertical-align: top;
+  }
+  .ss4-message-table th,
+  .ss4-composer-editor th { background: var(--bg-hover); font-weight: 700; }
 `;
 
 export function injectSS4Styles() {
