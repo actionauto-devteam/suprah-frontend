@@ -227,7 +227,7 @@ export function buildTimecardRows(calendar: Record<string, DayData>, startDateSt
 
 export function generateTimecardHtml(p: {
   fullName: string
-  rateNum: number
+  rateNum: number | null
   startDateStr: string
   endDateStr: string
   rows: TimecardRow[]
@@ -239,7 +239,7 @@ export function generateTimecardHtml(p: {
   const companyName = p.companyName || "Your Dealership"
   const totalSeconds = p.rows.reduce((sum, r) => sum + r.totalSeconds, 0)
   const totalWholeHours = Math.floor(totalSeconds / 3600)
-  const totalIncome = totalWholeHours * p.rateNum
+  const totalIncome = p.rateNum === null ? null : totalWholeHours * p.rateNum
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
   })
@@ -282,7 +282,7 @@ export function generateTimecardHtml(p: {
   <div class="header"><div class="company">${companyName}</div><div class="doc-title">Timecard — Pay Period Summary</div></div>
   <div class="meta-grid">
     <div class="row"><span class="meta-label">Employee</span><span class="meta-value">${p.fullName}</span></div>
-    <div class="row"><span class="meta-label">Rate / hr</span><span class="meta-value">$${p.rateNum.toFixed(2)}</span></div>
+    ${p.rateNum === null ? "" : `<div class="row"><span class="meta-label">Rate / hr</span><span class="meta-value">$${p.rateNum.toFixed(2)}</span></div>`}
     <div class="row"><span class="meta-label">Date Start</span><span class="meta-value">${p.startDateStr}</span></div>
     <div class="row"><span class="meta-label">Date End</span><span class="meta-value">${p.endDateStr}</span></div>
   </div>
@@ -292,7 +292,7 @@ export function generateTimecardHtml(p: {
   </table>
   <div class="totals">
     <div class="item">Total Hours: ${fmtHHMMSS(totalSeconds)}</div>
-    <div class="item">Total Income: $${totalIncome.toFixed(2)}</div>
+    ${totalIncome === null ? "" : `<div class="item">Total Income: $${totalIncome.toFixed(2)}</div>`}
   </div>
   <div class="verified">✓ Hours verified via ${companyName} Timeproof System — server-validated timestamps</div>
   <div class="sig-area">
@@ -343,7 +343,7 @@ export function generateIdleLogHtml(p: {
       <td>${i + 1}</td>
       <td>${fmtMDTDateTime(r.idleStart)}</td>
       <td>${r.idleEnd ? fmtMDTDateTime(r.idleEnd) : "Ongoing"}</td>
-      <td class="amount">${fmtHHMM(r.durationSeconds)}</td>
+      <td class="duration">${Math.floor(r.durationSeconds / 60)} mins</td>
     </tr>`).join("")
     : `<tr><td colspan="4" class="empty">No idle periods recorded for this range.</td></tr>`
 
@@ -364,7 +364,7 @@ export function generateIdleLogHtml(p: {
   thead td { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #555; border-bottom: 2px solid #111; padding: 8px 10px; }
   table td { padding: 8px 10px; font-size: 11.5px; border-bottom: 1px solid #eee; }
   table td:first-child { color: #222; font-weight: 600; }
-  table td.amount { text-align: right; font-family: 'Courier New', monospace; font-weight: 700; }
+  table td.duration { text-align: center; font-family: 'Courier New', monospace; font-weight: 700; white-space: nowrap; }
   table td.empty { text-align: center; color: #999; padding: 24px 10px; }
   .totals { display: flex; justify-content: space-between; border-top: 2px solid #111; padding-top: 14px; margin-top: 4px; }
   .totals .item { font-size: 13px; font-weight: 900; }
@@ -379,11 +379,11 @@ export function generateIdleLogHtml(p: {
     <div class="row"><span class="meta-label">Date End</span><span class="meta-value">${p.endDateStr}</span></div>
   </div>
   <table>
-    <thead><tr><td>#</td><td>Idle Start</td><td>Idle End</td><td>Duration</td></tr></thead>
+    <thead><tr><td>#</td><td>Idle Start</td><td>Idle End</td><td class="duration">Duration</td></tr></thead>
     <tbody>${rowsHtml}</tbody>
   </table>
   <div class="totals">
-    <div class="item">Total Idle Time: ${fmtHHMM(totalSeconds)}</div>
+    <div class="item">Total Idle Time: ${Math.floor(totalSeconds / 60)} mins</div>
     <div class="item">Occurrences: ${p.periods.length}</div>
   </div>
   <div class="note">Derived from tray-detected inactivity (10+ minutes without keyboard/mouse input) while clocked in. Days without tray data are excluded, not counted as idle. This is a read-only record — not editable.</div>

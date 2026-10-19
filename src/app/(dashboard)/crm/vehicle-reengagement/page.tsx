@@ -8,8 +8,9 @@ import { apiClient } from "@/lib/api-client"
 import { useAuth } from "@/providers/AuthProvider"
 import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT } from "@/lib/timezone"
+import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 
-const STATUS_TABS = ["ALL", "blocked", "sent", "failed", "skipped"] as const
+const STATUS_TABS = ["ALL", "blocked", "sent", "failed", "skipped", "skipped_ai_not_live"] as const
 type StatusTab = (typeof STATUS_TABS)[number]
 
 interface ReengagementLog {
@@ -19,7 +20,7 @@ interface ReengagementLog {
   leadName: string
   leadPhone: string
   finalMessage?: string
-  status: "blocked" | "sent" | "failed" | "skipped"
+  status: "blocked" | "sent" | "failed" | "skipped" | "skipped_ai_not_live"
   blockedReason?: string
   classifierVerdict?: "SAFE" | "UNSAFE" | "ERROR"
   failureReason?: string
@@ -38,17 +39,37 @@ const STATUS_STYLE: Record<ReengagementLog["status"], string> = {
   sent: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   failed: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
   skipped: "border-muted-foreground/30 bg-muted text-muted-foreground",
+  skipped_ai_not_live: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300",
 }
 
-function LogRow({ log, onSendAnyway, busy }: { log: ReengagementLog; onSendAnyway: (id: string) => void; busy: boolean }) {
+const STATUS_LABELS: Record<StatusTab, string> = {
+  ALL: "All",
+  blocked: "Blocked",
+  sent: "Sent",
+  failed: "Failed",
+  skipped: "Skipped",
+  skipped_ai_not_live: "Not sent (AI not live)",
+}
+
+function LogRow({
+  log,
+  onSendAnyway,
+  busy,
+  smsLive,
+}: {
+  log: ReengagementLog
+  onSendAnyway: (id: string) => void
+  busy: boolean
+  smsLive: boolean
+}) {
   return (
     <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">{log.leadName}</h3>
-            <Badge variant="outline" className={cn("capitalize", STATUS_STYLE[log.status])}>
-              {log.status}
+            <Badge variant="outline" className={STATUS_STYLE[log.status]}>
+              {STATUS_LABELS[log.status]}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -71,15 +92,29 @@ function LogRow({ log, onSendAnyway, busy }: { log: ReengagementLog; onSendAnywa
           {log.status === "skipped" && log.failureReason && (
             <p className="mt-1.5 text-xs text-muted-foreground">Skipped: {log.failureReason}</p>
           )}
+          {log.status === "skipped_ai_not_live" && (
+            <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+              Not sent because Suprah text-message AI is not live. This match will not be sent later.
+            </p>
+          )}
           <p className="mt-1.5 text-[11px] text-muted-foreground">
             {log.leadPhone} · {fmtLongDateTimeMDT(log.sentAt || log.createdAt)}
           </p>
         </div>
         {log.status === "blocked" && (
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => onSendAnyway(log.id)}>
-            {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-            Send anyway
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || !smsLive}
+              title={smsLive ? undefined : "Text-message AI is not live, so blocked messages cannot be sent"}
+              onClick={() => onSendAnyway(log.id)}
+            >
+              {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Send anyway
+            </Button>
+            {!smsLive && <span className="text-[11px] text-muted-foreground">Text AI is not live</span>}
+          </div>
         )}
       </div>
     </div>
@@ -88,6 +123,8 @@ function LogRow({ log, onSendAnyway, busy }: { log: ReengagementLog; onSendAnywa
 
 export default function VehicleReengagementPage() {
   const { getToken } = useAuth()
+  const { data: aiModes } = useAiOperatingModes(getToken)
+  const smsLive = aiModes?.effective.sms === "live"
 
   const [tab, setTab] = React.useState<StatusTab>("blocked")
   const [logs, setLogs] = React.useState<ReengagementLog[]>([])
@@ -157,11 +194,11 @@ export default function VehicleReengagementPage() {
             type="button"
             onClick={() => setTab(value)}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold capitalize transition-colors",
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
               tab === value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
-            {value === "ALL" ? "All" : value} ({counts[value] ?? 0})
+            {STATUS_LABELS[value]} ({counts[value] ?? 0})
           </button>
         ))}
       </div>
@@ -177,7 +214,7 @@ export default function VehicleReengagementPage() {
       ) : (
         <div className="space-y-3">
           {logs.map((log) => (
-            <LogRow key={log.id} log={log} onSendAnyway={handleSendAnyway} busy={busyId === log.id} />
+            <LogRow key={log.id} log={log} onSendAnyway={handleSendAnyway} busy={busyId === log.id} smsLive={smsLive} />
           ))}
         </div>
       )}

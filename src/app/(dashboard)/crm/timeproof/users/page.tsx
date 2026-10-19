@@ -22,6 +22,7 @@ import {
   Archive,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { useCrmUser } from "@/hooks/useCrmUser"
 import { LiveClock } from "@/components/crm/LiveClock"
 import { initializeSocket } from "@/lib/socket.client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -357,6 +358,8 @@ function UserCard({ user, onClick }: { user: MergedUser; onClick: () => void }) 
 ───────────────────────────────────────────────────────────────────────── */
 export default function AdminShiftBoardPage() {
   const router = useRouter()
+  const { user: currentUser } = useCrmUser()
+  const canViewPayroll = !!currentUser?.payrollAccess
   const searchParams = useSearchParams()
   const [users, setUsers] = React.useState<MergedUser[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -663,6 +666,7 @@ export default function AdminShiftBoardPage() {
                 ))}
               </SelectContent>
             </Select>
+            {canViewPayroll && (
             <button
               onClick={() => router.push("/crm/timeproof/payroll-status")}
               className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
@@ -671,6 +675,8 @@ export default function AdminShiftBoardPage() {
               <Wallet className="h-3.5 w-3.5" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Payroll</span>
             </button>
+            )}
+            {canViewPayroll && (
             <button
               onClick={() => router.push("/crm/timeproof/overtime-report")}
               className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"
@@ -679,6 +685,7 @@ export default function AdminShiftBoardPage() {
               <TrendingUp className="h-3.5 w-3.5" />
               <span className="text-[11px] font-bold uppercase tracking-wider hidden sm:inline">OT Report</span>
             </button>
+            )}
             <button
               onClick={() => router.push("/team-pulse?tab=calendar")}
               className="shrink-0 h-9 px-3 rounded-xl border border-border flex items-center gap-1.5 hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground"

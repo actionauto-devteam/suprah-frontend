@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarClock, CheckCircle2, CircleAlert, FileText, Loader2, Mail, Megaphone, MessageCircle, MessageSquare, Phone, RefreshCw, TrendingDown } from "lucide-react"
+import { CalendarClock, CheckCircle2, CircleAlert, FileText, Link2, Loader2, Mail, Megaphone, MessageCircle, MessageSquare, Phone, RefreshCw, TrendingDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { fmtShortDateTimeMDT } from "@/lib/timezone"
 import { cn } from "@/lib/utils"
@@ -101,6 +101,8 @@ export function AppointmentActivitySection({ leadId }: AppointmentActivitySectio
             const config = CHANNELS[item.channel]
             const Icon = config.icon
             const detailError = typeof item.metadata?.error === "string" ? item.metadata.error : ""
+            const sharedScope = item.metadata?.inquiryScope === "shared"
+            const relatedVehicle = typeof item.metadata?.relatedVehicleLabel === "string" ? item.metadata.relatedVehicleLabel : ""
             return (
               <li key={item.id} className="relative flex min-w-0 gap-2.5 py-1.5">
                 <span className={cn("relative z-10 flex size-8 shrink-0 items-center justify-center rounded-md border border-background", config.tone)}>
@@ -118,7 +120,16 @@ export function AppointmentActivitySection({ leadId }: AppointmentActivitySectio
                     </div>
                   </div>
                   {item.body && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground/80 [overflow-wrap:anywhere]">{item.body}</p>}
-                  {detailError && <p className="mt-1 flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400"><CircleAlert className="size-3" />{detailError}</p>}
+                  {sharedScope && (
+                    <span
+                      className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                      title="This message is from the customer's shared text thread and relates to a different vehicle inquiry."
+                    >
+                      <Link2 className="size-2.5 shrink-0" />
+                      <span className="truncate">{relatedVehicle ? `Other inquiry: ${relatedVehicle}` : "Shared thread"}</span>
+                    </span>
+                  )}
+                  {detailError &&<p className="mt-1 flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400"><CircleAlert className="size-3" />{detailError}</p>}
                   {item.status === "delivered" && <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="size-3" />Delivered</span>}
                 </div>
               </li>

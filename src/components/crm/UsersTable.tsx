@@ -73,6 +73,7 @@ interface CrmUserRow {
   hireDate?: string
   department?: string
   isOffboarded?: boolean
+  payrollAccess?: boolean
   screenshotExempt?: boolean
   locationRequiredOverride?: "default" | "required" | "exempt"
   monitoringModeOverride?: "default" | "off" | "always" | "switching"

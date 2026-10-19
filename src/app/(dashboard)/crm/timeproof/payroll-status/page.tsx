@@ -174,6 +174,25 @@ export default function PayrollStatusPage() {
     }
   }
 
+
+  if (currentUser && !currentUser.payrollAccess) {
+    return (
+      <div className="min-h-screen bg-background timeproof-scope flex flex-col items-center justify-center text-center px-6 gap-3">
+        <div className="h-14 w-14 rounded-2xl bg-muted/30 flex items-center justify-center">
+          <Lock className="h-6 w-6 text-muted-foreground/40" />
+        </div>
+        <p className="text-sm font-semibold text-muted-foreground/80">Restricted</p>
+        <p className="text-xs text-muted-foreground/60 max-w-xs">You don&apos;t have payroll access. Ask an admin with payroll access to grant it.</p>
+        <button
+          onClick={() => router.push("/crm/timeproof/users")}
+          className="mt-2 h-9 px-4 rounded-xl border border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+        >
+          Back to Live Shift Board
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background timeproof-scope">
       {/* Header — two rows on every screen size so the search box can never
