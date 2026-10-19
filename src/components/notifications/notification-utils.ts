@@ -490,6 +490,16 @@ function getRoleContext(pathname: string): 'driver' | 'customer' | 'admin' | 'da
 }
 
 export function getNotificationRoute(notification: Notification, pathname?: string): string | null {
+  if (notification.type === 'crm_message') {
+    const conversationId = String(notification.metadata?.conversationId ?? '').trim();
+    const messageId = String(notification.metadata?.messageId ?? '').trim();
+    if (conversationId) {
+      const params = new URLSearchParams({ conversationId });
+      if (messageId) params.set('messageId', messageId);
+      return `/crm/supra-space?${params.toString()}`;
+    }
+  }
+
   // GPS-offline alerts must always open the affected driver's isolated
   // Dispatch Chat. Derive the deep link from driverId on the frontend too so
   // notifications created before metadata.route was added remain clickable.

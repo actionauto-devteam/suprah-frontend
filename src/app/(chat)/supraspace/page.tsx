@@ -9927,6 +9927,7 @@ export default function SupraSpacePage() {
   const fetchSeqRef = React.useRef<Record<string, number>>({});
   const refreshFormatsRafRef = React.useRef<number | null>(null);
   const pendingNotificationTargetRef = React.useRef<{ conversationId: string; messageId?: string } | null>(null);
+  const notificationTargetFetchesRef = React.useRef(new Set<string>());
   const composerDraftsRef = React.useRef<Record<string, string>>({});
   const previousComposerConversationRef = React.useRef<string | null>(null);
   const [composerDraftPreviews, setComposerDraftPreviews] = React.useState<Record<string, string>>({});
@@ -10914,7 +10915,43 @@ export default function SupraSpacePage() {
     }
 
     const conversationMessages = msgs[target.conversationId] || [];
-    if (!conversationMessages.some(message => message._id === target.messageId)) return;
+    if (!conversationMessages.some(message => message._id === target.messageId)) {
+      const targetKey = `${target.conversationId}:${target.messageId}`;
+      if (notificationTargetFetchesRef.current.has(targetKey)) return;
+
+      const token = tokenRef.current;
+      if (!token) return;
+      notificationTargetFetchesRef.current.add(targetKey);
+
+      void apiClient
+        .get(`/api/supraspace/conversations/${target.conversationId}/messages/${target.messageId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((response) => {
+          const message = response.data?.data as SSMessage | undefined;
+          if (!message?._id) {
+            if (pendingNotificationTargetRef.current?.conversationId === target.conversationId
+              && pendingNotificationTargetRef.current?.messageId === target.messageId) {
+              pendingNotificationTargetRef.current = null;
+            }
+            return;
+          }
+          setMsgs(previous => ({
+            ...previous,
+            [target.conversationId]: mergeMessages(previous[target.conversationId] || [], [message]),
+          }));
+        })
+        .catch(() => {
+          if (pendingNotificationTargetRef.current?.conversationId === target.conversationId
+            && pendingNotificationTargetRef.current?.messageId === target.messageId) {
+            pendingNotificationTargetRef.current = null;
+          }
+        })
+        .finally(() => {
+          notificationTargetFetchesRef.current.delete(targetKey);
+        });
+      return;
+    }
 
     window.setTimeout(() => {
       const el = document.getElementById(`ss4-msg-${target.messageId}`);
