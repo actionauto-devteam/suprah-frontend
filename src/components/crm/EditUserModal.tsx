@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
 import { DEPARTMENTS } from "@/lib/departments"
+import { useCrmUser } from "@/hooks/useCrmUser"
 
 
 interface EditUserForm {
@@ -45,6 +46,7 @@ interface EditUserForm {
   payrollLocation: "" | "Utah" | "Philippines"
   hourlyTrackingExempt: boolean
   otWarningExempt: boolean
+  payrollAccess: boolean
 }
 
 interface FormErrors {
@@ -78,6 +80,7 @@ interface EditUserModalProps {
     payrollLocation?: "Utah" | "Philippines" | null
     hourlyTrackingExempt?: boolean
     otWarningExempt?: boolean
+    payrollAccess?: boolean
   } | null
   onUpdated?: () => void
 }
@@ -101,6 +104,9 @@ function validate(form: EditUserForm): FormErrors {
 
 export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUserModalProps) {
   const [submitting, setSubmitting] = React.useState(false)
+  const { user: actor } = useCrmUser()
+  const isSelf = !!actor?.email && !!user?.email && actor.email.toLowerCase() === user.email.toLowerCase()
+  const canGrantPayroll = !!actor?.payrollAccess && !isSelf
   const [errors, setErrors] = React.useState<FormErrors>({})
   const [form, setForm] = React.useState<EditUserForm>({
     fullName: "",
@@ -121,6 +127,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
     payrollLocation: "",
     hourlyTrackingExempt: false,
     otWarningExempt: false,
+    payrollAccess: false,
   })
 
   React.useEffect(() => {
@@ -144,6 +151,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
         payrollLocation: user.payrollLocation ?? "",
         hourlyTrackingExempt: !!user.hourlyTrackingExempt,
         otWarningExempt: !!user.otWarningExempt,
+        payrollAccess: !!user.payrollAccess,
       })
       setErrors({})
     }
@@ -198,6 +206,7 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
           payrollLocation: form.payrollLocation || null,
           hourlyTrackingExempt: form.hourlyTrackingExempt,
           otWarningExempt: form.otWarningExempt,
+          ...(canGrantPayroll && { payrollAccess: form.payrollAccess }),
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -396,6 +405,19 @@ export function EditUserModal({ open, onClose, token, user, onUpdated }: EditUse
               onCheckedChange={(checked) => setForm((p) => ({ ...p, hourlyTrackingExempt: checked }))}
             />
           </div>
+
+          {canGrantPayroll && (form.role === "admin" || form.role === "manager") && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">
+              <div>
+                <Label className="text-xs font-semibold text-foreground">Payroll Access</Label>
+                <p className="text-[11px] text-muted-foreground/60 mt-0.5">Lets this person see other users&apos; Payout Calculator, hourly rate, Payroll Status, and OT Report. Their own payout calculator is always visible to them.</p>
+              </div>
+              <Switch
+                checked={form.payrollAccess}
+                onCheckedChange={(checked) => setForm((p) => ({ ...p, payrollAccess: checked }))}
+              />
+            </div>
+          )}
 
           {/* OT Warning Flag Exemption — hides the 43h heads-up badge only, OT pay still computes normally */}
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-3">

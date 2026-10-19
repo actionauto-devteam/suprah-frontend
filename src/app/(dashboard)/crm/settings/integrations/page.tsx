@@ -20,6 +20,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 import { useAlert } from "@/components/AlertDialog";
 import { useCrmLeadGroups } from "@/hooks/useCrmLeadGroups";
+import { AiOperatingModesPanel, summarizeAiModes } from "@/components/crm/AiOperatingModesPanel";
+import type { AiModesPayload } from "@/lib/aiOperatingModes";
 
 interface CrmUserData {
   _id: string;
@@ -73,8 +75,7 @@ export default function IntegrationsSettingsPage() {
   const [webchatGreeting, setWebchatGreeting] = React.useState("");
   const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
-  const [aiAgentEnabled, setAiAgentEnabled] = React.useState(false);
-  const [savedAiAgentEnabled, setSavedAiAgentEnabled] = React.useState(false);
+  const [aiModesData, setAiModesData] = React.useState<AiModesPayload | null>(null);
   const [aiAgentName, setAiAgentName] = React.useState("Alex");
   const [savedAiAgentName, setSavedAiAgentName] = React.useState("Alex");
   const [aiHandoffFallbackGroupId, setAiHandoffFallbackGroupId] = React.useState("");
@@ -131,10 +132,7 @@ export default function IntegrationsSettingsPage() {
           setSavedWebchatEnabled(enabled);
           setWebchatGreeting(greeting);
           setSavedWebchatGreeting(greeting);
-          const agentEnabled = settingsData?.aiAgentEnabled === true;
           const agentName = settingsData?.aiAgentName || "Alex";
-          setAiAgentEnabled(agentEnabled);
-          setSavedAiAgentEnabled(agentEnabled);
           setAiAgentName(agentName);
           setSavedAiAgentName(agentName);
           const fallbackGroupId = settingsData?.aiHandoffFallbackGroupId || "";
@@ -365,7 +363,6 @@ export default function IntegrationsSettingsPage() {
     }
 
     const aiAgentSettingsDirty =
-        aiAgentEnabled !== savedAiAgentEnabled ||
         aiAgentName.trim() !== savedAiAgentName ||
         aiHandoffFallbackGroupId !== savedAiHandoffFallbackGroupId ||
         aiFollowUpIntervalHours !== savedAiFollowUpIntervalHours
@@ -379,20 +376,15 @@ export default function IntegrationsSettingsPage() {
             const intervalHours = [24, 48, 72].includes(aiFollowUpIntervalHours) ? aiFollowUpIntervalHours : 24
             await apiClient.patch(
                 "/api/crm/org-settings",
-                { aiAgentEnabled, aiAgentName: name, aiHandoffFallbackGroupId, aiFollowUpIntervalHours: intervalHours },
+                { aiAgentName: name, aiHandoffFallbackGroupId, aiFollowUpIntervalHours: intervalHours },
                 { headers: { Authorization: `Bearer ${t}` } },
             )
-            setSavedAiAgentEnabled(aiAgentEnabled)
             setAiAgentName(name)
             setSavedAiAgentName(name)
             setSavedAiHandoffFallbackGroupId(aiHandoffFallbackGroupId)
             setAiFollowUpIntervalHours(intervalHours)
             setSavedAiFollowUpIntervalHours(intervalHours)
-            toast.success("AI agent settings saved", {
-                description: aiAgentEnabled
-                    ? `${name} will now reply live to webchat and text messages.`
-                    : `${name} is now turned off — conversations wait for your team.`
-            })
+            toast.success("AI agent settings saved")
         } catch (error) {
             console.error("Failed to save AI agent settings:", error)
             const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -963,11 +955,11 @@ export default function IntegrationsSettingsPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-base font-bold truncate">AI Agent</p>
-                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Replies live to webchat and text conversations until a teammate steps in.</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Choose, per channel, whether the AI agent is off, in training, or replying live.</p>
                                     </div>
                                 </div>
-                                <Badge className={aiAgentEnabled ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
-                                    {aiAgentEnabled ? "Live" : "Off"}
+                                <Badge className={summarizeAiModes(aiModesData).tone === "live" ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : summarizeAiModes(aiModesData).tone === "training" ? "bg-amber-500/10 text-amber-600 shadow-none border-none pointer-events-none shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
+                                    {summarizeAiModes(aiModesData).label}
                                 </Badge>
                             </div>
 
@@ -979,17 +971,12 @@ export default function IntegrationsSettingsPage() {
                                     </div>
                                 )}
 
-                                <div className="flex items-center justify-between gap-3 max-w-xl">
-                                    <div className="min-w-0">
-                                        <label className="text-sm font-semibold text-foreground">Let the AI agent reply live</label>
-                                        <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md mt-0.5">While on, it answers webchat and text messages the moment they arrive, and keeps chatting until someone on your team pauses it. Anything it can&apos;t handle gets flagged to your team automatically.</p>
-                                    </div>
-                                    <Switch
-                                        checked={aiAgentEnabled}
-                                        onCheckedChange={setAiAgentEnabled}
-                                        disabled={!isAdmin || isSavingAiAgent}
-                                    />
-                                </div>
+                                <AiOperatingModesPanel
+                                    getToken={getToken}
+                                    isAdmin={isAdmin}
+                                    agentName={aiAgentName.trim() || "Alex"}
+                                    onSummaryChange={setAiModesData}
+                                />
 
                                 <div className="space-y-1.5 max-w-xl">
                                     <label className="text-sm font-semibold text-foreground">Agent name</label>

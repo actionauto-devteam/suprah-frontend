@@ -196,6 +196,7 @@ export default function AdminUserTimeprofPage() {
   const { organization } = useOrg()
   const isAdmin = currentUser?.role === "admin"
   const isAdminOrManager = currentUser?.role === "admin" || currentUser?.role === "manager"
+  const canViewPayroll = !!currentUser?.payrollAccess
   const isMobile = useIsMobile()
 
   const [data, setData] = React.useState<TimeprofData | null>(null)
@@ -916,14 +917,14 @@ export default function AdminUserTimeprofPage() {
     const rows = buildTimecardRows(data.calendar, timecardStart, timecardEnd)
     return generateTimecardHtml({
       fullName: data.user.fullName,
-      rateNum,
+      rateNum: canViewPayroll ? rateNum : null,
       startDateStr: timecardStart,
       endDateStr: timecardEnd,
       rows,
       autoPrint: false,
       companyName: organization?.name,
     })
-  }, [data, showTimecardForm, timecardStart, timecardEnd, rateNum, organization])
+  }, [data, showTimecardForm, timecardStart, timecardEnd, rateNum, canViewPayroll, organization])
 
   const timecardPreviewRef = React.useRef<HTMLIFrameElement>(null)
   const printTimecard = React.useCallback(() => {
@@ -1242,6 +1243,7 @@ export default function AdminUserTimeprofPage() {
             </div>
 
             {/* ── Payout Calculator ── */}
+            {canViewPayroll && (
             <div className="rounded-2xl border border-border/40 bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -1498,6 +1500,7 @@ export default function AdminUserTimeprofPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {isAdminOrManager && data.isLive && monitoringDevice?.enabled && (
               <div className="rounded-2xl border border-border/40 bg-card p-4 space-y-2.5">

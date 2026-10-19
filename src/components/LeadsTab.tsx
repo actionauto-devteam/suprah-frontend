@@ -25,6 +25,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useLeads, useLeadStatusCounts, useLeadLocationCounts, Lead } from "@/hooks/useLeads"
 import { initializeSocket } from "@/lib/socket.client"
+import { useAiOperatingModes } from "@/hooks/useAiOperatingModes"
 import { useAuth } from "@/providers/AuthProvider"
 import { apiClient } from "@/lib/api-client"
 import { ShippingQuoteModal } from "@/components/shipping-quote-modal"
@@ -79,6 +80,9 @@ import { WorkspaceEmptyState } from "@/components/conversation-workspace/Workspa
 const LEADS_SOURCE_EMAIL = "leads@dealerscloud.com";
 const LEADS_PER_PAGE = 20;
 const THREAD_POLL_INTERVAL_MS = 15_000;
+const LIVE_THREAD_REFRESH_DELAY_MS = 400;
+
+const phoneTail = (value: unknown): string => String(value || "").replace(/\D/g, "").slice(-10);
 const DRAFT_STORAGE_KEY = "crm-appointment-draft";
 
 const isMongoObjectId = (value: unknown): value is string =>
@@ -449,6 +453,7 @@ export function LeadsTab({
   const [aiAgentStatus, setAiAgentStatus] = React.useState<
     Record<string, { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | undefined>
   >({});
+  const { data: aiModesData } = useAiOperatingModes(getToken);
 
   const toggleAiAgent = React.useCallback(
     async (lead: Lead | null) => {
@@ -479,6 +484,13 @@ export function LeadsTab({
 
 
   const loadedThreadIdsRef = React.useRef<Set<string>>(new Set());
+  const selectedLeadRef = React.useRef<Lead | null>(null);
+  const fetchThreadRef = React.useRef<((lead: Lead) => Promise<void>) | null>(null);
+  const liveThreadRefreshTimerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    selectedLeadRef.current = selectedLead;
+  }, [selectedLead]);
 
   const [highlightedLeadIds, setHighlightedLeadIds] = React.useState<
     Set<string>
@@ -723,14 +735,29 @@ export function LeadsTab({
        */
       socket.on("comm:message:new", (data: any) => {
         const message = data?.message;
+        if (!message) return;
         const leadId = message?.leadId || data?.conversation?.leadId;
-        if (!message || !leadId) return;
-        setThreads((previous) => {
-          const existing = previous[leadId];
-          if (!existing) return previous;
-          if (existing.some((m: any) => m?._id === message._id)) return previous;
-          return { ...previous, [leadId]: [...existing, message] };
-        });
+        if (leadId) {
+          setThreads((previous) => {
+            const existing = previous[leadId];
+            if (!existing) return previous;
+            if (existing.some((m: any) => m?._id === message._id)) return previous;
+            return { ...previous, [leadId]: [...existing, message] };
+          });
+        }
+
+        const current = selectedLeadRef.current;
+        const messagePhone =
+          data?.conversation?.customerPhone ||
+          (message.direction === "inbound" ? message.from : message.to);
+        const currentTail = phoneTail(current?.phone);
+        if (!current || !isSmsLead(current) || !currentTail || currentTail !== phoneTail(messagePhone)) return;
+        if (liveThreadRefreshTimerRef.current) window.clearTimeout(liveThreadRefreshTimerRef.current);
+        liveThreadRefreshTimerRef.current = window.setTimeout(() => {
+          liveThreadRefreshTimerRef.current = null;
+          if (selectedLeadRef.current?._id !== current._id) return;
+          void fetchThreadRef.current?.(current);
+        }, LIVE_THREAD_REFRESH_DELAY_MS);
       });
 
       socket.on(
@@ -799,6 +826,10 @@ export function LeadsTab({
     };
     setupSocket();
     return () => {
+      if (liveThreadRefreshTimerRef.current) {
+        window.clearTimeout(liveThreadRefreshTimerRef.current);
+        liveThreadRefreshTimerRef.current = null;
+      }
       if (socket) {
         socket.off("lead:new");
         socket.off("lead:update");
@@ -1113,6 +1144,10 @@ export function LeadsTab({
     },
     [getToken, buildLeadFallbackMessage],
   );
+
+  React.useEffect(() => {
+    fetchThreadRef.current = fetchThread;
+  }, [fetchThread]);
 
   React.useEffect(() => {
     if (!selectedLead) return;
@@ -2211,7 +2246,12 @@ export function LeadsTab({
                     }
                     aiAgentStatus={
                       isSmsLead(selectedLead) || isWebchatLead(selectedLead) || isEmailLead(selectedLead)
-                        ? aiAgentStatus[selectedLead._id] || { paused: false }
+                        ? {
+                            ...(aiAgentStatus[selectedLead._id] || { paused: false }),
+                            mode: aiModesData?.effective[
+                              isWebchatLead(selectedLead) ? "webchat" : isSmsLead(selectedLead) ? "sms" : "email"
+                            ],
+                          }
                         : null
                     }
                     onToggleAiAgent={() => toggleAiAgent(selectedLead)}

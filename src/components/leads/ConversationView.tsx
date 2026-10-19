@@ -13,10 +13,12 @@ import {
   Pause,
   Play,
   AlertTriangle,
+  Link2,
 } from "lucide-react";
 import { cn, decodeHtmlEntities } from "@/lib/utils";
 import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
+import { aiModeIndicatorLabel, type AiMode } from "@/lib/aiOperatingModes";
 import { CoachAiPopover } from "./CoachAiPopover";
 
 interface ConversationViewProps {
@@ -27,7 +29,7 @@ interface ConversationViewProps {
   sourceEmail: string;
   siblingCount?: number;
   onReplyToSiblings?: () => void;
-  aiAgentStatus?: { paused: boolean; pausedBy?: string; autoPausedUntil?: string } | null;
+  aiAgentStatus?: { paused: boolean; pausedBy?: string; autoPausedUntil?: string; mode?: AiMode } | null;
   onToggleAiAgent?: () => void;
 }
 
@@ -643,7 +645,19 @@ export function ConversationView({
     new Date(aiAgentStatus!.autoPausedUntil as string) > new Date();
   const isPausedForDisplay = Boolean(aiAgentStatus?.paused) || isAutoPaused;
 
-  const aiToggleButton = aiAgentStatus && (
+  const aiNotSending = Boolean(aiAgentStatus?.mode) && aiAgentStatus!.mode !== "live";
+
+  const aiToggleButton = aiAgentStatus && (aiNotSending ? (
+    <span
+      role="status"
+      title={aiModeIndicatorLabel(aiAgentStatus.mode as AiMode)}
+      className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
+    >
+      <Bot className="h-3.5 w-3.5 shrink-0" />
+      <span className="hidden sm:inline">{aiModeIndicatorLabel(aiAgentStatus.mode as AiMode)}</span>
+      <span className="sm:hidden">{aiAgentStatus.mode === "off" ? "AI off" : "Training"}</span>
+    </span>
+  ) : (
     <button
       type="button"
       onClick={onToggleAiAgent}
@@ -675,7 +689,7 @@ export function ConversationView({
         <Pause className="h-3 w-3 shrink-0" />
       )}
     </button>
-  );
+  ));
 
   return (
     <section className="suprah-conversation-shell suprah-center-conversation-content relative flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-[#0a1410]">
@@ -915,7 +929,7 @@ export function ConversationView({
                                 messageId={String(message._id || message.id)}
                                 channel={aiMessageChannel}
                               />
-                              <span>Â·</span>
+                              <span>·</span>
                             </>
                           )}
                           {senderLabel} · {formatTimestamp(stamp)}
@@ -927,6 +941,20 @@ export function ConversationView({
                             </span>
                           )}
                         </span>
+
+                        {message?.inquiryScope === "shared" && (
+                          <span
+                            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                            title="This message is from the customer's shared text thread and relates to a different vehicle inquiry."
+                          >
+                            <Link2 className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">
+                              {message?.relatedVehicleLabel
+                                ? `Other inquiry: ${message.relatedVehicleLabel}`
+                                : "Shared thread"}
+                            </span>
+                          </span>
+                        )}
 
                         {message?.status === "failed" && (
                           <div className="mt-1 max-w-full">

@@ -8,6 +8,7 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronUp,
+  ImageUp,
   Loader2,
   Mail,
   Search,
@@ -29,7 +30,13 @@ import { cn } from "@/lib/utils"
 import { fmtLongDateTimeMDT, parseDatetimeLocalAsMdt } from "@/lib/timezone"
 import { LEAD_STATUS_VALUES } from "@/lib/leadStatus"
 import { MultiSelectFilter } from "@/components/calendar/MultiSelectFilter"
-import { EmailRichTextEditor, emailRichTextToPreviewClassName } from "@/components/campaigns/EmailRichTextEditor"
+import {
+  EmailRichTextEditor,
+  EMAIL_IMAGE_ACCEPT,
+  emailImageFilesFrom,
+  emailImageSizeError,
+  describeEmailImageUploadError,
+} from "@/components/campaigns/EmailRichTextEditor"
 
 const STATUS_OPTIONS = LEAD_STATUS_VALUES.map((status) => ({ value: status, label: status }))
 const MAX_BODY_TEXT_LENGTH = 5000
@@ -45,6 +52,22 @@ interface MarketingContactOption {
   lastName?: string
   permissionOverride?: { confirmedByName: string; confirmedAt: string }
 }
+
+interface PreviewRecipient {
+  firstName: string
+  displayName: string
+  email: string
+}
+
+interface CampaignPreviewData {
+  subject: string
+  html: string
+  greetingName: string
+  missingMailingAddress: boolean
+  images: { inEditor: number; inEmail: number; removedBySanitizer: number; notHttps: number }
+}
+
+const NO_NAME_PREVIEW = "__no_first_name__"
 
 interface SelectionSummary {
   requested: number
@@ -346,11 +369,20 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
   const [subject, setSubject] = React.useState("Hi {firstName},");
   const [greetingText, setGreetingText] = React.useState("Hi {firstName},")
   const [bannerImageUrl, setBannerImageUrl] = React.useState("")
+  const [bannerUploading, setBannerUploading] = React.useState(false)
+  const [bannerError, setBannerError] = React.useState<string | null>(null)
+  const bannerFileInputRef = React.useRef<HTMLInputElement>(null)
   const [bodyHtml, setBodyHtml] = React.useState("")
   const [signOffText, setSignOffText] = React.useState("")
   const [statuses, setStatuses] = React.useState<string[]>([])
   const [selectAllLeads, setSelectAllLeads] = React.useState(false)
   const [audienceCount, setAudienceCount] = React.useState<number | null>(null)
+  const [leadPreviewRecipient, setLeadPreviewRecipient] = React.useState<PreviewRecipient | null>(null)
+  const [previewChoice, setPreviewChoice] = React.useState("")
+  const [previewData, setPreviewData] = React.useState<CampaignPreviewData | null>(null)
+  const [previewError, setPreviewError] = React.useState("")
+  const [previewLoading, setPreviewLoading] = React.useState(false)
+  const [previewFrameHeight, setPreviewFrameHeight] = React.useState(480)
   const [scheduleEnabled, setScheduleEnabled] = React.useState(false)
   const [scheduledAtInput, setScheduledAtInput] = React.useState("")
   const [confirming, setConfirming] = React.useState(false)
@@ -421,8 +453,12 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
         if (cancelled) return
         const data = res.data?.data || res.data
         setAudienceCount(typeof data?.count === "number" ? data.count : null)
+        setLeadPreviewRecipient(data?.previewRecipient || null)
       } catch {
-        if (!cancelled) setAudienceCount(null)
+        if (!cancelled) {
+          setAudienceCount(null)
+          setLeadPreviewRecipient(null)
+        }
       }
     }, 300)
     return () => {
@@ -545,6 +581,44 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
     }
   }
 
+  const uploadCampaignImage = React.useCallback(
+    async (file: File): Promise<string> => {
+      const t = await getToken()
+      const form = new FormData()
+      form.append("image", file)
+      const res = await apiClient.post("/api/crm/email-campaigns/images", form, {
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      const url = res.data?.data?.url
+      if (typeof url !== "string" || !url) throw new Error("The image could not be uploaded. Please try again.")
+      return url
+    },
+    [getToken],
+  )
+
+  const handleBannerFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const [file] = emailImageFilesFrom(event.target.files)
+    event.target.value = ""
+    if (!file) {
+      setBannerError("Please choose a JPG, PNG, WEBP, or GIF image.")
+      return
+    }
+    const sizeError = emailImageSizeError(file)
+    if (sizeError) {
+      setBannerError(sizeError)
+      return
+    }
+    setBannerError(null)
+    setBannerUploading(true)
+    try {
+      setBannerImageUrl(await uploadCampaignImage(file))
+    } catch (err) {
+      setBannerError(describeEmailImageUploadError(err))
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
   const handleAddManualEmail = async () => {
     const email = manualEmailInput.trim()
     if (!email) return
@@ -605,7 +679,71 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
   const confirmNoun = audienceSource === "marketingContacts" ? "contact" : "lead"
   const overLimit = audienceSource === "leadStatus" && audienceCount !== null && audienceCount > MAX_RECIPIENTS
 
-  const previewFor = (text: string) => text.replace(/\{firstName\}/gi, "Jordan")
+  const previewOptions = React.useMemo(() => {
+    const options: { value: string; label: string; firstName: string }[] = []
+    if (audienceSource === "marketingContacts") {
+      for (const contact of Array.from(selectedContacts.values()).slice(0, 20)) {
+        const display = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim()
+        options.push({
+          value: contact._id,
+          label: display ? `${display} (${contact.email})` : contact.email,
+          firstName: String(contact.firstName || "").trim(),
+        })
+      }
+    } else if (leadPreviewRecipient) {
+      options.push({
+        value: "lead-sample",
+        label: leadPreviewRecipient.displayName
+          ? `${leadPreviewRecipient.displayName} (${leadPreviewRecipient.email})`
+          : leadPreviewRecipient.email,
+        firstName: leadPreviewRecipient.firstName,
+      })
+    }
+    options.push({ value: NO_NAME_PREVIEW, label: "A recipient with no first name", firstName: "" })
+    return options
+  }, [audienceSource, selectedContacts, leadPreviewRecipient])
+
+  const activePreview = previewOptions.find((option) => option.value === previewChoice) || previewOptions[0]
+
+  React.useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      setPreviewLoading(true)
+      try {
+        const t = await getToken()
+        const res = await apiClient.post(
+          "/api/crm/email-campaigns/preview",
+          {
+            subject,
+            greetingText,
+            bannerImageUrl: bannerImageUrl.trim(),
+            bodyHtml: bodyHtml.trim(),
+            signOffText,
+            previewFirstName: activePreview?.firstName || "",
+          },
+          { headers: { Authorization: `Bearer ${t}` } },
+        )
+        if (cancelled) return
+        setPreviewData((res.data?.data || res.data) as CampaignPreviewData)
+        setPreviewError("")
+      } catch (err) {
+        if (cancelled) return
+        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        setPreviewError(message || "The preview could not be loaded.")
+      } finally {
+        if (!cancelled) setPreviewLoading(false)
+      }
+    }, 500)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [subject, greetingText, bannerImageUrl, bodyHtml, signOffText, activePreview?.firstName, getToken])
+
+  const resizePreviewFrame = (frame: HTMLIFrameElement | null) => {
+    const height = frame?.contentDocument?.body?.scrollHeight
+    if (height) setPreviewFrameHeight(Math.min(Math.max(height + 16, 240), 1600))
+  }
 
   const handleSend = async () => {
     setSending(true)
@@ -1041,15 +1179,53 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Banner image URL (optional)</label>
-                    <Input value={bannerImageUrl} onChange={(event) => setBannerImageUrl(event.target.value)} placeholder="https://…" />
+                    <label className="text-xs font-medium text-muted-foreground">Banner image (optional)</label>
+                    {bannerImageUrl ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <img src={bannerImageUrl} alt="Banner preview" className="h-14 w-24 shrink-0 rounded-md border object-cover" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={bannerUploading}
+                          onClick={() => bannerFileInputRef.current?.click()}
+                        >
+                          {bannerUploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImageUp className="mr-1.5 h-3.5 w-3.5" />}
+                          {bannerUploading ? "Uploading…" : "Replace"}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" disabled={bannerUploading} onClick={() => setBannerImageUrl("")}>
+                          <X className="mr-1.5 h-3.5 w-3.5" />
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={bannerUploading}
+                        onClick={() => bannerFileInputRef.current?.click()}
+                      >
+                        {bannerUploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImageUp className="mr-1.5 h-3.5 w-3.5" />}
+                        {bannerUploading ? "Uploading…" : "Upload banner image"}
+                      </Button>
+                    )}
+                    <input
+                      ref={bannerFileInputRef}
+                      type="file"
+                      accept={EMAIL_IMAGE_ACCEPT}
+                      className="hidden"
+                      onChange={handleBannerFile}
+                    />
+                    <p className="text-[11px] text-muted-foreground">JPG, PNG, WEBP, or GIF from your device, up to 5 MB.</p>
+                    {bannerError && <p className="text-[11px] text-red-600 dark:text-red-400">{bannerError}</p>}
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">
                       Message — <code className="rounded bg-muted px-1 py-0.5">{"{firstName}"}</code> works here too
                     </label>
-                    <EmailRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+                    <EmailRichTextEditor value={bodyHtml} onChange={setBodyHtml} onUploadImage={uploadCampaignImage} />
                     <div className="flex items-center justify-end text-[11px] text-muted-foreground">
                       <span>{bodyHtml.replace(/<[^>]*>/g, "").length}/{MAX_BODY_TEXT_LENGTH} characters (approx.)</span>
                     </div>
@@ -1093,29 +1269,64 @@ export function EmailCampaignsPanel({ hideHeader = false }: { hideHeader?: boole
 
             <div className="lg:sticky lg:top-4 lg:self-start">
               <p className="mb-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">Live Preview</p>
+              <div className="mb-2 space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">Previewing as</label>
+                <Select value={activePreview?.value || NO_NAME_PREVIEW} onValueChange={setPreviewChoice}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {previewOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-xs">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Greeting will read &ldquo;{previewData?.greetingName || "there"}&rdquo;. Recipients without a first name see &ldquo;there&rdquo;.
+                </p>
+              </div>
               <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                <div className="border-b bg-muted/30 px-4 py-2.5">
-                  <p className="text-[11px] text-muted-foreground">
-                    <span className="font-semibold text-foreground">Subject:</span> {previewFor(subject) || "Your subject line"}
+                <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5">
+                  <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+                    <span className="font-semibold text-foreground">Subject:</span> {previewData?.subject || "Your subject line"}
                   </p>
+                  {previewLoading && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
                 </div>
-                {bannerImageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={bannerImageUrl} alt="" className="h-36 w-full object-cover" />
+                {previewData ? (
+                  <iframe
+                    title="Email preview"
+                    sandbox="allow-same-origin"
+                    srcDoc={previewData.html}
+                    onLoad={(event) => resizePreviewFrame(event.currentTarget)}
+                    className="block w-full border-0 bg-[#f4f4f4]"
+                    style={{ height: previewFrameHeight }}
+                  />
+                ) : (
+                  <p className="p-4 text-sm text-muted-foreground">{previewError || "Loading preview…"}</p>
                 )}
-                <div className="space-y-3 p-4">
-                  <p className="text-sm">{previewFor(greetingText) || "Hi Jordan,"}</p>
-                  {bodyHtmlHasContent ? (
-                    <div
-                      className={cn("text-sm leading-6 text-muted-foreground", emailRichTextToPreviewClassName())}
-                      dangerouslySetInnerHTML={{ __html: previewFor(bodyHtml) }}
-                    />
-                  ) : (
-                    <p className="text-sm leading-6 text-muted-foreground">Your message will appear here as you type.</p>
-                  )}
-                  {signOffText && <p className="text-sm text-muted-foreground">{previewFor(signOffText)}</p>}
-                  <p className="border-t pt-3 text-[10px] text-muted-foreground/70">Unsubscribe link included automatically</p>
-                </div>
+              </div>
+              <div className="mt-2 space-y-1 text-[11px]">
+                {previewError && previewData && <p className="text-red-600 dark:text-red-400">{previewError}</p>}
+                {previewData?.missingMailingAddress && (
+                  <p className="text-amber-700 dark:text-amber-300">Add your business mailing address in Settings before sending. It appears in the footer.</p>
+                )}
+                {previewData && previewData.images.removedBySanitizer > 0 && (
+                  <p className="text-amber-700 dark:text-amber-300">
+                    {previewData.images.removedBySanitizer} image(s) will be removed before sending because their address is not a valid web link.
+                  </p>
+                )}
+                {previewData && previewData.images.notHttps > 0 && (
+                  <p className="text-amber-700 dark:text-amber-300">
+                    {previewData.images.notHttps} image(s) do not use a secure https link and may not display for every recipient.
+                  </p>
+                )}
+                {previewData && (
+                  <p className="text-muted-foreground">
+                    Images in this email: {previewData.images.inEmail}. Some inboxes hide images until the reader allows them, and Gmail hides them for messages in Spam.
+                  </p>
+                )}
               </div>
             </div>
           </section>

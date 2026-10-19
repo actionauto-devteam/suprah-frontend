@@ -57,6 +57,7 @@ export function SignInForm({ onToggleMode }: { onToggleMode?: () => void }) {
       service_unavailable:
         "We're temporarily experiencing technical issues on our end. Your account and data are safe — please try again in a few minutes.",
       oauth_failed: "Google sign-in didn't complete. Please try again.",
+      account_suspended: "Your account has been suspended. Contact your administrator for help.",
       handle_oauth_failed: "Google sign-in didn't complete. Please try again.",
       no_account: "No account found for this Google profile. Please contact your representative to set up your account.",
     };

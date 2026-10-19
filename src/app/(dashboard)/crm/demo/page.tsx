@@ -29,7 +29,7 @@ interface DemoScenario {
   optedOut: boolean
   nurtureCount: number
   reengagement: {
-    status: "blocked" | "sent" | "failed" | "skipped"
+    status: "blocked" | "sent" | "failed" | "skipped" | "skipped_ai_not_live"
     finalMessage: string | null
     blockedReason: string | null
     failureReason: string | null
@@ -378,7 +378,9 @@ function DemoScenarioCard({
                   ? `Sent: "${scenario.reengagement.finalMessage}"`
                   : scenario.reengagement.status === "blocked"
                     ? `Blocked: ${scenario.reengagement.blockedReason || "safety check"}${scenario.reengagement.classifierVerdict ? ` (${scenario.reengagement.classifierVerdict})` : ""}`
-                    : scenario.reengagement.status === "skipped"
+                    : scenario.reengagement.status === "skipped_ai_not_live"
+                      ? "Not sent: text-message AI is off for this dealership"
+                      : scenario.reengagement.status === "skipped"
                       ? `Skipped: ${scenario.reengagement.failureReason || "opted out"}`
                       : `Failed: ${scenario.reengagement.failureReason || "could not generate"}`}
               </p>

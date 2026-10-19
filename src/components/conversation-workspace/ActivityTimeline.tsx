@@ -5,6 +5,7 @@ import {
   Bot,
   Check,
   FileText,
+  Link2,
   Mail,
   MessageCircle,
   MessageSquare,
@@ -188,6 +189,19 @@ export function ActivityTimeline({
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                         <Bot className="h-2.5 w-2.5" />
                         AI
+                      </span>
+                    )}
+                    {item.metadata?.inquiryScope === "shared" && (
+                      <span
+                        className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                        title="This message is from the customer's shared text thread and relates to a different vehicle inquiry."
+                      >
+                        <Link2 className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">
+                          {item.metadata.relatedVehicleLabel
+                            ? `Other inquiry: ${item.metadata.relatedVehicleLabel}`
+                            : "Shared thread"}
+                        </span>
                       </span>
                     )}
                   </div>

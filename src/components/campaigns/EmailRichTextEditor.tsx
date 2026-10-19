@@ -19,8 +19,21 @@ import {
   Link as LinkIcon,
   Unlink,
   ImageIcon,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+export const EMAIL_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif"
+export const EMAIL_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+const ACCEPTED_IMAGE_TYPES = EMAIL_IMAGE_ACCEPT.split(",")
+
+export function emailImageFilesFrom(list: FileList | File[] | null | undefined): File[] {
+  return Array.from(list || []).filter((file) => ACCEPTED_IMAGE_TYPES.includes(file.type))
+}
+
+export function emailImageSizeError(file: File): string | null {
+  return file.size > EMAIL_IMAGE_MAX_BYTES ? `${file.name} is larger than 5 MB. Please choose a smaller image.` : null
+}
 
 const CONTENT_CLASSES = cn(
   "[&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
@@ -54,6 +67,7 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      title={label}
       aria-pressed={active}
       className={cn(
         "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40",
@@ -65,7 +79,15 @@ function ToolbarButton({
   )
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({
+  editor,
+  onPickImage,
+  imageUploading,
+}: {
+  editor: Editor
+  onPickImage?: () => void
+  imageUploading: boolean
+}) {
   const setLink = React.useCallback(() => {
     const previousUrl = editor.getAttributes("link").href as string | undefined
     const url = window.prompt("Link URL", previousUrl || "https://")
@@ -75,12 +97,6 @@ function Toolbar({ editor }: { editor: Editor }) {
       return
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run()
-  }, [editor])
-
-  const insertImage = React.useCallback(() => {
-    const url = window.prompt("Image URL", "https://")
-    if (!url || url.trim() === "") return
-    editor.chain().focus().setImage({ src: url.trim() }).run()
   }, [editor])
 
   return (
@@ -118,23 +134,79 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Remove link" disabled={!editor.isActive("link")} onClick={() => editor.chain().focus().unsetLink().run()}>
         <Unlink className="h-3.5 w-3.5" />
       </ToolbarButton>
-      <span className="mx-1 h-4 w-px bg-border" />
-      <ToolbarButton label="Insert image" onClick={insertImage}>
-        <ImageIcon className="h-3.5 w-3.5" />
-      </ToolbarButton>
+      {onPickImage && (
+        <>
+          <span className="mx-1 h-4 w-px bg-border" />
+          <ToolbarButton label="Insert image from your device" disabled={imageUploading} onClick={onPickImage}>
+            {imageUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+          </ToolbarButton>
+        </>
+      )}
     </div>
   )
+}
+
+export function describeEmailImageUploadError(error: unknown): string {
+  const message =
+    (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+    (error instanceof Error ? error.message : "")
+  return message || "The image could not be uploaded. Please try again."
 }
 
 export function EmailRichTextEditor({
   value,
   onChange,
   placeholder = "Write your message…",
+  onUploadImage,
 }: {
   value: string
   onChange: (html: string) => void
   placeholder?: string
+  onUploadImage?: (file: File) => Promise<string>
 }) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const editorRef = React.useRef<Editor | null>(null)
+  const uploadRef = React.useRef(onUploadImage)
+  const [uploadingCount, setUploadingCount] = React.useState(0)
+  const [uploadError, setUploadError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    uploadRef.current = onUploadImage
+  }, [onUploadImage])
+
+  const insertImageFiles = React.useCallback(async (files: File[], position?: number) => {
+    const upload = uploadRef.current
+    if (!upload || !files.length) return
+    setUploadError(null)
+    for (const file of files) {
+      const sizeError = emailImageSizeError(file)
+      if (sizeError) {
+        setUploadError(sizeError)
+        continue
+      }
+      setUploadingCount((count) => count + 1)
+      try {
+        const src = await upload(file)
+        const current = editorRef.current
+        if (!current) continue
+        if (typeof position === "number") {
+          current.chain().focus().insertContentAt(position, { type: "image", attrs: { src } }).run()
+        } else {
+          current.chain().focus().setImage({ src }).run()
+        }
+      } catch (error) {
+        setUploadError(describeEmailImageUploadError(error))
+      } finally {
+        setUploadingCount((count) => Math.max(0, count - 1))
+      }
+    }
+  }, [])
+
+  const insertImageFilesRef = React.useRef(insertImageFiles)
+  React.useEffect(() => {
+    insertImageFilesRef.current = insertImageFiles
+  }, [insertImageFiles])
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -148,7 +220,7 @@ export function EmailRichTextEditor({
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow" } }),
-      Image,
+      Image.configure({ allowBase64: false }),
       Placeholder.configure({ placeholder }),
     ],
     content: value,
@@ -161,22 +233,79 @@ export function EmailRichTextEditor({
           CONTENT_CLASSES,
         ),
       },
+      handlePaste: (_view, event) => {
+        if (!uploadRef.current) return false
+        const files = emailImageFilesFrom(event.clipboardData?.files)
+        if (!files.length) return false
+        event.preventDefault()
+        void insertImageFilesRef.current(files)
+        return true
+      },
+      handleDrop: (view, event, _slice, moved) => {
+        if (moved || !uploadRef.current) return false
+        const files = emailImageFilesFrom(event.dataTransfer?.files)
+        if (!files.length) return false
+        event.preventDefault()
+        const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+        void insertImageFilesRef.current(files, position)
+        return true
+      },
     },
   })
+
+  React.useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
 
   React.useEffect(() => {
     if (!editor) return
     if (value !== editor.getHTML()) editor.commands.setContent(value || "", { emitUpdate: false })
   }, [value, editor])
 
+  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = emailImageFilesFrom(event.target.files)
+    event.target.value = ""
+    if (!files.length) {
+      setUploadError("Please choose a JPG, PNG, WEBP, or GIF image.")
+      return
+    }
+    void insertImageFiles(files)
+  }
+
   if (!editor) {
     return <div className="h-40 animate-pulse rounded-md border bg-muted/30" />
   }
 
+  const uploading = uploadingCount > 0
+
   return (
-    <div className="overflow-hidden rounded-md border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-      <Toolbar editor={editor} />
-      <EditorContent editor={editor} />
+    <div className="space-y-1.5">
+      <div className="overflow-hidden rounded-md border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        <Toolbar
+          editor={editor}
+          onPickImage={onUploadImage ? () => fileInputRef.current?.click() : undefined}
+          imageUploading={uploading}
+        />
+        <EditorContent editor={editor} />
+      </div>
+      {onUploadImage && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={EMAIL_IMAGE_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={handleFileInput}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {uploading
+              ? "Uploading image…"
+              : "Add images from your device with the image button, or paste/drag them in. JPG, PNG, WEBP, or GIF up to 5 MB."}
+          </p>
+          {uploadError && <p className="text-[11px] text-red-600 dark:text-red-400">{uploadError}</p>}
+        </>
+      )}
     </div>
   )
 }

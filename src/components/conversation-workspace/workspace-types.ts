@@ -33,6 +33,9 @@ export interface WorkspaceActivityItem {
     mentionedUserIds?: string[];
     mentionedGroupIds?: string[];
     milestone?: boolean;
+    inquiryScope?: "this_inquiry" | "shared";
+    relatedLeadId?: string;
+    relatedVehicleLabel?: string;
   };
 }
 

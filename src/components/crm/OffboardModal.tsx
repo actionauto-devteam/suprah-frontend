@@ -43,6 +43,7 @@ const CHECKLIST = [
   "Account access will be immediately revoked",
   "Name removed from active employee lists",
   "Login credentials will be invalidated",
+  "Suprah AI account with the same email will be locked and signed out",
   "Records preserved in audit history",
 ]
 
@@ -71,13 +72,20 @@ export function OffboardModal({
     if (!user || submitting) return
     setSubmitting(true)
     try {
-      await apiClient.post(
+      const res = await apiClient.post(
         `/api/crm/users/${user._id}/offboard`,
         {},
 
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      toast.success(`${user.fullName} has been offboarded successfully.`)
+      const mainAccount = res.data?.data?.mainAccount
+      if (mainAccount === "protected") {
+        toast.warning(`${user.fullName} has been offboarded, but their Suprah AI account was NOT locked because it is a super admin or organization owner.`)
+      } else if (mainAccount === "other_organization") {
+        toast.warning(`${user.fullName} has been offboarded, but their Suprah AI account was NOT locked because it belongs to another organization.`)
+      } else {
+        toast.success(`${user.fullName} has been offboarded successfully.`)
+      }
       onOffboarded?.()
       handleClose()
     } catch (err: any) {

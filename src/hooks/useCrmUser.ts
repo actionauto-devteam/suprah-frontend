@@ -12,6 +12,7 @@ export interface CrmHeaderUser {
   avatarSrc?: string;
   onlineStatus?: 'online' | 'idle' | 'away' | 'busy' | 'offline' | 'do_not_disturb';
   lastDeviceType?: 'mobile' | 'desktop';
+  payrollAccess?: boolean;
 }
 
 function withAvatarCacheBust(avatar?: string | null) {
@@ -62,6 +63,7 @@ export function useCrmUser() {
           ),
           onlineStatus: profile?.onlineStatus,
           lastDeviceType: profile?.lastDeviceType,
+          payrollAccess: !!data.payrollAccess,
         });
       } catch {
         // Read-only: leave user null, let each page's own auth guard handle redirects.
