@@ -8168,141 +8168,51 @@ function SpacesGridPanel({ spaces, unreadCounts, onSelectSpace, onCreateSpace }:
   );
 }
 
-function ss4NotifDayBucket(dateStr: string): 'today' | 'yesterday' | 'older' {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
-  if (diffDays <= 0) return 'today';
-  if (diffDays === 1) return 'yesterday';
-  return 'older';
-}
-type Ss4NotifBucket = 'foryou' | 'muted' | 'none' | 'main';
-function ss4NotifBucket(
-  n: any,
-  notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>,
-): Ss4NotifBucket {
-  if (n.metadata?.kind === 'mention') return 'foryou';
-  const pref = notifPrefs[n.metadata?.conversationId];
-  if (pref?.muted) return 'muted';
-  if (pref?.type === 'none') return 'none';
-  return 'main';
-}
-
-const SS4_NOTIF_FILTERS: { key: 'all' | 'foryou' | 'muted' | 'none'; label: string }[] = [
+const SS4_UNREAD_NOTIFICATION_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'foryou', label: 'For You' },
   { key: 'muted', label: 'Muted' },
   { key: 'none', label: 'None' },
-];
+] as const;
 
-function NotificationsPanel({ token, socket, notifPrefs, onOpenNotification }: {
-  token: string;
-  socket: any;
+type SS4UnreadNotificationFilter = typeof SS4_UNREAD_NOTIFICATION_FILTERS[number]['key'];
+
+function NotificationsPanel({ unreadConversations, uid, manualUnread, notifPrefs, onOpenNotification }: {
+  unreadConversations: SSConversation[];
+  uid: string;
+  manualUnread: Set<string>;
   notifPrefs: Record<string, { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean }>;
   onOpenNotification: (conversationId: string, messageId?: string) => void;
 }) {
-  const [items, setItems] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [filter, setFilter] = React.useState<'all' | 'foryou' | 'muted' | 'none'>('all');
-
-  const load = React.useCallback(() => {
-    if (!token) { setLoading(false); return; }
-    apiClient.get('/api/crm/notifications', { headers: { Authorization: `Bearer ${token}` }, params: { type: 'crm_message', limit: 100, isRead: false } })
-      .then(r => {
-        const all: any[] = r.data?.data?.notifications || [];
-        setItems(all.filter(n => ss4NotifDayBucket(n.createdAt) !== 'older'));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  React.useEffect(() => { load(); }, [load]);
-
-  React.useEffect(() => {
-    if (!socket) return;
-    const upsert = (notification: any) => {
-      if (notification?.type !== 'crm_message') return;
-      if (notification.isRead) {
-        setItems(prev => prev.filter(n => n._id !== notification._id));
-        return;
-      }
-      if (ss4NotifDayBucket(notification.createdAt) === 'older') return;
-      setItems(prev => [notification, ...prev.filter(n => n._id !== notification._id)]);
-    };
-    socket.on('notification:new', upsert);
-    socket.on('notification:updated', upsert);
-    return () => {
-      socket.off('notification:new', upsert);
-      socket.off('notification:updated', upsert);
-    };
-  }, [socket]);
-
-  const grouped = React.useMemo(() => {
-    const byConv = new Map<string, any[]>();
-    for (const n of items) {
-      const convId = n.metadata?.conversationId;
-      if (!convId) continue;
-      const arr = byConv.get(convId);
-      if (arr) arr.push(n); else byConv.set(convId, [n]);
-    }
-    return Array.from(byConv.values()).map(group => {
-      const sorted = [...group].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return { latest: sorted[0], all: sorted, count: sorted.length };
+  const [filter, setFilter] = React.useState<SS4UnreadNotificationFilter>('all');
+  const orderedConversations = React.useMemo(() => (
+    [...unreadConversations].sort((a, b) => (
+      new Date(b.lastMessageAt || b.lastMessage?.createdAt || 0).getTime()
+      - new Date(a.lastMessageAt || a.lastMessage?.createdAt || 0).getTime()
+    ))
+  ), [unreadConversations]);
+  const filteredConversations = React.useMemo(() => {
+    if (filter === 'all') return orderedConversations;
+    return orderedConversations.filter(conv => {
+      const pref = notifPrefs[conv._id];
+      if (filter === 'foryou') return (conv.unreadMentionCount || 0) > 0;
+      if (filter === 'muted') return Boolean(pref?.muted);
+      return pref?.type === 'none';
     });
-  }, [items]);
-
-  const handleTap = (group: { latest: any; all: any[] }) => {
-    const ids = group.all.map(n => n._id);
-    Promise.allSettled(ids.map(id => apiClient.patch(`/api/crm/notifications/${id}/read`, {}, { headers: { Authorization: `Bearer ${token}` } }))).catch(() => {});
-    setItems(prev => prev.filter(x => !ids.includes(x._id)));
-    const conversationId = group.latest.metadata?.conversationId;
-    if (conversationId) onOpenNotification(conversationId, group.latest.metadata?.messageId);
-  };
-
-  const filteredGroups = filter === 'all' ? grouped : grouped.filter(g => ss4NotifBucket(g.latest, notifPrefs) === filter);
-  const today = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'today');
-  const yesterday = filteredGroups.filter(g => ss4NotifDayBucket(g.latest.createdAt) === 'yesterday');
-
-  const Row = (g: { latest: any; all: any[]; count: number }) => {
-    const n = g.latest;
-    return (
-      <button
-        key={n.metadata?.conversationId || n._id}
-        onClick={() => handleTap(g)}
-        className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-(--bg-hover)"
-        style={{ background: 'var(--bg-subtle)' }}
-      >
-        <span className="h-2 w-2 rounded-full shrink-0 mt-1.5" style={{ background: 'var(--accent)' }} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-            {n.metadata?.kind === 'mention' ? '@ ' : ''}{n.title}
-          </p>
-          <p className="truncate mt-0.5" style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{n.message}</p>
-          <p className="mt-0.5" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(n.createdAt)}</p>
-        </div>
-        {g.count > 1 && (
-          <span
-            className="shrink-0 rounded-full font-bold flex items-center justify-center"
-            style={{ minWidth: 22, height: 22, padding: '0 6px', fontSize: 11, background: 'var(--accent)', color: '#fff' }}
-          >
-            {g.count > 99 ? '99+' : g.count}
-          </span>
-        )}
-      </button>
-    );
-  };
+  }, [filter, notifPrefs, orderedConversations]);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto ss4-scroll px-4 pt-4 pb-6">
-      <p className="ss4-display font-bold mb-3" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Notifications</p>
+      <p className="ss4-display font-bold mb-1" style={{ fontSize: 20, color: 'var(--text-primary)' }}>Notifications</p>
+      <p className="mb-4" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Unread chats</p>
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-4">
-        {SS4_NOTIF_FILTERS.map(f => {
-          const active = filter === f.key;
+        {SS4_UNREAD_NOTIFICATION_FILTERS.map(({ key, label }) => {
+          const active = filter === key;
           return (
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
               className="shrink-0 rounded-full transition-colors"
               style={{
                 background: active ? 'var(--accent)' : 'var(--bg-hover)',
@@ -8314,32 +8224,50 @@ function NotificationsPanel({ token, socket, notifPrefs, onOpenNotification }: {
                 whiteSpace: 'nowrap',
               }}
             >
-              {f.label}
+              {label}
             </button>
           );
         })}
       </div>
-      {loading ? (
-        <div className="flex justify-center py-10"><Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--accent)' }} /></div>
-      ) : filteredGroups.length === 0 ? (
+      {filteredConversations.length === 0 ? (
         <p className="text-center py-10" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-          {items.length === 0 ? 'No notifications yet' : 'No notifications in this filter'}
+          {filter === 'all' ? 'No unread notifications' : 'No unread notifications in this filter'}
         </p>
       ) : (
-        <>
-          {today.length > 0 && (
-            <div className="mb-4">
-              <p className="px-1 pb-1.5" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Today</p>
-              <div className="space-y-1">{today.map(Row)}</div>
-            </div>
-          )}
-          {yesterday.length > 0 && (
-            <div className="mb-4">
-              <p className="px-1 pb-1.5" style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>Yesterday</p>
-              <div className="space-y-1">{yesterday.map(Row)}</div>
-            </div>
-          )}
-        </>
+        <div className="space-y-1">
+          {filteredConversations.map(conv => {
+            const name = getConvName(conv, uid);
+            const avatar = getConvAvatar(conv, uid);
+            const unreadCount = manualUnread.has(conv._id) ? Math.max(1, conv.unreadCount || 0) : (conv.unreadCount || 0);
+            const preview = getSupraSpaceConversationPreview({ lastMessage: conv.lastMessage, lastReaction: conv.lastReaction, unreadCount, conversationType: conv.type, viewerId: uid });
+
+            return (
+              <button
+                key={conv._id}
+                type="button"
+                onClick={() => onOpenNotification(conv._id, conv.lastMessage?._id)}
+                className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-(--bg-hover)"
+                style={{ background: 'var(--bg-subtle)' }}
+              >
+                <span className={cn('h-9 w-9 shrink-0 rounded-full flex items-center justify-center overflow-hidden', conv.type === 'group' ? 'ss4-ava-purple' : getAvaColor(name))}>
+                  {conv.type === 'group'
+                    ? <ChannelFace conv={conv} avatar={avatar} name={name} size={11} />
+                    : <SS4AvatarImage src={avatar} name={name} className="w-full h-full object-cover" size={10} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate font-bold" style={{ fontSize: 13, color: 'var(--text-primary)' }}>{name}</span>
+                    <span className="ml-auto shrink-0" style={{ fontSize: 10, color: 'var(--text-disabled)' }}>{fmtRelative(conv.lastMessageAt || conv.lastMessage?.createdAt)}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate" style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>{preview.senderPrefix}{preview.text}</span>
+                </span>
+                <span className="shrink-0 rounded-full font-bold flex items-center justify-center" style={{ minWidth: 22, height: 22, padding: '0 6px', fontSize: 11, background: 'var(--accent)', color: '#fff' }}>
+                  {unreadCount > 99 ? '99+' : Math.max(1, unreadCount)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -13874,6 +13802,27 @@ export default function SupraSpacePage() {
     setManualUnread(p => { if (!p.has(convId)) return p; const n = new Set(p); n.delete(convId); return n; });
     pendingNotificationTargetRef.current = { conversationId: convId, messageId };
 
+    // This path can reuse an already-cached message, so it cannot rely on the
+    // message fetch below to create the receipt. The socket helper queues the
+    // receipt through a temporary disconnect as well.
+    markRead(convId);
+    ctxMarkAsRead(convId);
+    markConversationActivity(convId);
+    setConvos(previous => previous.map(conversation => {
+      if (conversation._id !== convId) return conversation;
+      const lastMessage = conversation.lastMessage;
+      const readBy = lastMessage?.readBy || [];
+      return {
+        ...conversation,
+        unreadCount: 0,
+        unreadMentionCount: 0,
+        manualUnread: false,
+        lastMessage: lastMessage && !readBy.includes(uid)
+          ? { ...lastMessage, readBy: [...readBy, uid] }
+          : lastMessage,
+      };
+    }));
+
     if ((msgsRef.current[convId] || []).some(m => m._id === messageId)) return;
 
     const t = tokenRef.current;
@@ -13893,7 +13842,7 @@ export default function SupraSpacePage() {
     } finally {
       setLoadingMsgs(false);
     }
-  }, []);
+  }, [ctxMarkAsRead, markConversationActivity, markRead, uid]);
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
   const themeStyle = themeVars(activeConv?.theme);
@@ -14101,6 +14050,13 @@ export default function SupraSpacePage() {
     }
     return out;
   }, [convos, uid, manualUnread]);
+
+  // The mobile badge and its panel intentionally share this exact source.
+  // Conversation read state is authoritative for SupraSpace; notification
+  // records are cleared as a side effect of reading a conversation.
+  const unreadNotificationConversations = React.useMemo(() => (
+    convos.filter(c => isConvUnreadForUser(c, uid, manualUnread))
+  ), [convos, uid, manualUnread]);
 
   const mobileRecentConversations = React.useMemo(() => (
     recentSupraSpaceConversations(convos.filter(c => !isArchivedConv(c)))
@@ -14950,8 +14906,9 @@ export default function SupraSpacePage() {
 
             {isStandaloneApp && sidebarTab === 'notifications' && (
               <NotificationsPanel
-                token={token || ''}
-                socket={socket}
+                unreadConversations={unreadNotificationConversations}
+                uid={uid}
+                manualUnread={manualUnread}
                 notifPrefs={notifPrefs}
                 onOpenNotification={(conversationId, messageId) => {
                   setSidebarTab('chats');
@@ -14993,7 +14950,7 @@ export default function SupraSpacePage() {
                     ] as const).map(({ key, label, Icon }) => {
                       const active = sidebarTab === key;
                       const badgeCount = key === 'notifications'
-                        ? convos.filter(c => isConvUnreadForUser(c, uid, manualUnread)).length
+                        ? unreadNotificationConversations.length
                         : 0;
                       return (
                         <button
