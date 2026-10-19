@@ -21,6 +21,30 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
   return loadedModule.exports;
 }
 
+function loadSupraSpacePastedMediaHelpers() {
+  const source = fs.readFileSync(new URL('../src/app/(chat)/supraspace/page.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf('function cleanSS4PastedUrlCandidate');
+  const end = source.indexOf('async function ss4PastedMediaUrlToFile', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const compiled = typescript.transpileModule(`${source.slice(start, end)}\nmodule.exports = { getSS4PastedMediaReference };`, {
+    compilerOptions: {
+      module: typescript.ModuleKind.CommonJS,
+      target: typescript.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const loadedModule = { exports: {} };
+  vm.runInNewContext(compiled, {
+    URL,
+    Set,
+    module: loadedModule,
+    exports: loadedModule.exports,
+    getMediaExtension: pathname => (pathname.match(/\.[^./]+$/)?.[0] || '').toLowerCase(),
+    SS4_PASTED_ATTACHMENT_EXTENSIONS: new Set(['.png', '.pdf']),
+  });
+  return loadedModule.exports;
+}
+
 const links = loadTypeScriptModule('../src/lib/supra-space-links.ts');
 const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
   './supra-space-links': links,
@@ -28,9 +52,22 @@ const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
 const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatting.ts', {
   './supra-space-links': links,
 });
+const pastedMedia = loadSupraSpacePastedMediaHelpers();
 
 assert.equal(richPaste.hasSupraSpaceTextSelection(), false);
 assert.equal(richPaste.getSupraSpaceSelectionClipboardData({}), null);
+
+const attachmentUrl = 'https://example.test/attachment.png';
+assert.equal(
+  pastedMedia.getSS4PastedMediaReference('newly copied text', `<a href="${attachmentUrl}">old attachment</a>`),
+  null,
+);
+const currentAttachmentReference = pastedMedia.getSS4PastedMediaReference(
+  attachmentUrl,
+  '<a href="https://example.test/previous.pdf">old attachment</a>',
+);
+assert.equal(currentAttachmentReference?.url, attachmentUrl);
+assert.equal(currentAttachmentReference?.local, false);
 
 const meetUrl = 'https://meet.google.com/esg-zidk-mhv';
 const malformedExternalLink = '**➡️ Video call link: [https://**](https://**)meet.google.com/nbk-phfw-uxs**';

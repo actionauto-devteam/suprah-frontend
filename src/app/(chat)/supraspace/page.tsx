@@ -4618,7 +4618,8 @@ function getSS4PastedMediaReference(text: string, html: string): SS4PastedMediaR
     if (cleaned) candidates.push(cleaned);
   };
 
-  if (html) {
+  const rawText = text || '';
+  if (!rawText.trim() && html) {
     try {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       doc.querySelectorAll('[src], [href]').forEach(node => {
@@ -4630,7 +4631,6 @@ function getSS4PastedMediaReference(text: string, html: string): SS4PastedMediaR
     }
   }
 
-  const rawText = text || '';
   const directMatches = rawText.match(/(?:https?:\/\/|file:\/\/)[^\s<>"']+/gi) || [];
   directMatches.forEach(add);
   const compactText = rawText.replace(/\s+/g, '');
@@ -4639,7 +4639,8 @@ function getSS4PastedMediaReference(text: string, html: string): SS4PastedMediaR
 
   for (const candidate of candidates) {
     if (!isSS4MediaUrl(candidate)) continue;
-    return { url: candidate, local: candidate.toLowerCase().startsWith('file://') };
+    const reference = { url: candidate, local: candidate.toLowerCase().startsWith('file://') };
+    if (!rawText.trim() || isOnlySS4PastedMediaReference(rawText, reference)) return reference;
   }
   return null;
 }
