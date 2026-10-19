@@ -12,6 +12,7 @@ import { DriverProfile } from '@/types/driver-profile';
 import { operationalStatusOptions, US_STATES, AVAILABLE_DAYS } from './driver-profile-constants';
 import { PreferredRoutesEditor } from './PreferredRoutesEditor';
 import { cn } from '@/lib/utils';
+import { userErrorMessage } from '@/lib/user-error';
 
 interface LogisticsTabProps {
   profile: DriverProfile | null;
@@ -44,8 +45,8 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({ profile, onSave }) =
         availableDays: days,
       });
       toast.success('Logistics saved');
-    } catch {
-      toast.error("We couldn't save your logistics details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "save your logistics details"));
     } finally {
       setSaving(false);
     }

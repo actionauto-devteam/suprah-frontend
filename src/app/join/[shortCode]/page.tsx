@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/user-error";
 
 type Step = "loading" | "invalid" | "form" | "submitting" | "success";
 type InvalidReason = "not_found" | "used" | "expired";
@@ -89,7 +90,7 @@ export default function JoinPage() {
       });
       setStep("success");
     } catch (err: any) {
-      const msg = err?.response?.data?.message || "Something went wrong. Please try again.";
+      const msg = userErrorMessage(err, "create your account");
       setError(msg);
       setStep("form");
     }

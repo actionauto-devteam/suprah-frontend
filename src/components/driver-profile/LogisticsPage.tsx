@@ -19,6 +19,7 @@ import { operationalStatusOptions, US_STATES, AVAILABLE_DAYS } from './driver-pr
 import { PreferredRoutesEditor } from './PreferredRoutesEditor';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { userErrorMessage } from '@/lib/user-error';
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -80,8 +81,8 @@ export const LogisticsPage: React.FC = () => {
       }, { headers: { Authorization: `Bearer ${token}` } });
       if (res.data?.data) setProfile(res.data.data);
       toast.success('Logistics saved successfully');
-    } catch {
-      toast.error("We couldn't save your logistics details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "save your logistics details"));
     } finally {
       setSaving(false);
     }

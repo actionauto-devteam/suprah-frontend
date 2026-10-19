@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { DriverProfile } from '@/types/driver-profile';
 import { trailerTypeOptions, specialFeatureOptions } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
+import { userErrorMessage } from '@/lib/user-error';
 
 interface EquipmentTabProps {
   profile: DriverProfile | null;
@@ -49,8 +50,8 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
         specialFeatures: features,
       });
       toast.success('Equipment saved');
-    } catch {
-      toast.error("We couldn't save your equipment details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "save your equipment details"));
     } finally {
       setSaving(false);
     }
