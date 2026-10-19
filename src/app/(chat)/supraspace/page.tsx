@@ -85,6 +85,8 @@ const SS4_MESSAGE_LIMIT_WARNING_CHARS = 9500;
 const SS4_MESSAGE_LIMIT_ERROR = 'Messages can be up to 10,000 characters. Send the rest in a new message.';
 const SS4_MESSAGE_PAGE_SIZE = 40;
 const SS4_CONVERSATION_PAGE_SIZE = 80;
+const SS4_MESSAGE_HIGHLIGHT_DURATION_MS = 2300;
+const ss4MessageHighlightTimers = new WeakMap<HTMLElement, number>();
 type RichTextFormat = 'bold' | 'italic' | 'underline' | 'strike' | 'list' | 'numbered' | 'quote' | 'code';
 type PasteMode = 'formatted' | 'plain';
 
@@ -95,6 +97,19 @@ type SS4InlineTypingPreferences = Record<
 >;
 
 const EMPTY_MEMBERS_ARRAY: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }> = [];
+
+function highlightSupraSpaceMessageTarget(target: HTMLElement): void {
+  const existingTimer = ss4MessageHighlightTimers.get(target);
+  if (existingTimer !== undefined) window.clearTimeout(existingTimer);
+
+  target.classList.remove('ss4-msg-highlight');
+  void target.offsetWidth;
+  target.classList.add('ss4-msg-highlight');
+  ss4MessageHighlightTimers.set(target, window.setTimeout(() => {
+    target.classList.remove('ss4-msg-highlight');
+    ss4MessageHighlightTimers.delete(target);
+  }, SS4_MESSAGE_HIGHLIGHT_DURATION_MS));
+}
 
 function shallowEqualFlat<T extends Record<string, unknown>>(a: T, b: T): boolean {
   const keysA = Object.keys(a);
@@ -10833,7 +10848,7 @@ export default function SupraSpacePage() {
     conversationPageSize,
   ]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const target = pendingNotificationTargetRef.current;
     if (!target || target.conversationId !== activeId) return;
 
@@ -10882,16 +10897,10 @@ export default function SupraSpacePage() {
       return;
     }
 
-    window.setTimeout(() => {
-      const el = document.getElementById(`ss4-msg-${target.messageId}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (el) {
-        el.classList.remove('ss4-msg-highlight');
-        void el.offsetWidth;
-        el.classList.add('ss4-msg-highlight');
-        window.setTimeout(() => el.classList.remove('ss4-msg-highlight'), 2300);
-      }
-    }, 160);
+    const el = document.getElementById(`ss4-msg-${target.messageId}`);
+    if (!el) return;
+    highlightSupraSpaceMessageTarget(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     pendingNotificationTargetRef.current = null;
   }, [activeId, msgs, scrollToLatest]);
 
@@ -12568,6 +12577,7 @@ export default function SupraSpacePage() {
     const scrollToTarget = () => {
       const target = document.getElementById(`ss4-msg-${msgId}`);
       if (!target) return false;
+      highlightSupraSpaceMessageTarget(target);
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       target.animate(
         [
