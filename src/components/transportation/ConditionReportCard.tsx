@@ -5,6 +5,7 @@ import { ClipboardCheck, ImageIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { VehicleDamageOutline } from "@/components/driver/VehicleDamageOutline"
 import {
+  CONDITION_AREA_LABELS,
   CONDITION_DAMAGE_LABELS,
   type ConditionReport,
   type ConditionStop,
@@ -128,11 +129,20 @@ function StopReport({
                     href={photo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="Open photo in a new tab"
-                    className="block aspect-square overflow-hidden rounded-md border border-border bg-muted"
+                    aria-label={
+                      photo.area
+                        ? `Open the ${(CONDITION_AREA_LABELS[photo.area] ?? photo.area).toLowerCase()} photo in a new tab`
+                        : "Open photo in a new tab"
+                    }
+                    className="relative block aspect-square overflow-hidden rounded-md border border-border bg-muted"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={photo.url} alt="Vehicle condition photo" className="size-full object-cover" />
+                    {photo.area && (
+                      <span className="absolute bottom-0.5 left-0.5 max-w-[calc(100%-0.25rem)] truncate rounded bg-black/65 px-1 py-px text-[9px] font-semibold text-white">
+                        {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
+                      </span>
+                    )}
                   </a>
                 ) : (
                   <div key={photo.id} className="flex aspect-square items-center justify-center rounded-md border border-border bg-muted">

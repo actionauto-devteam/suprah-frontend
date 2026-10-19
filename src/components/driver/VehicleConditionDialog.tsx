@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Camera, CheckCircle2, ImageIcon, Loader2, Lock, RotateCcw, Trash2, X } from "lucide-react"
+import { Camera, CheckCircle2, ImageIcon, Loader2, Lock, RotateCcw, Trash2, WifiOff, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { useAuth } from "@/providers/AuthProvider"
 import { userErrorMessage } from "@/lib/user-error"
 import { cn } from "@/lib/utils"
 import {
+  CONDITION_AREA_LABELS,
   CONDITION_DAMAGE_LABELS,
   addConditionPhoto,
   getMyConditionReport,
@@ -31,9 +32,25 @@ import {
 } from "@/lib/condition-report"
 import { VehicleDamageOutline } from "@/components/driver/VehicleDamageOutline"
 import { formatMountainDateTime } from "@/lib/mountain-time"
+import { isNoConnectionError, useSendWhenBackOnline } from "@/hooks/useSendWhenBackOnline"
 
 const PHOTO_TYPES = ["image/jpeg", "image/png"]
 const STOP_LABEL: Record<ConditionStop, string> = { pickup: "At pickup", delivery: "At delivery" }
+
+type DamageDetails = { areas: string[]; types: string[]; note: string }
+
+const detailsOf = (report: ConditionReport | null): DamageDetails => ({
+  areas: report?.damageAreas ?? [],
+  types: report?.damageTypes ?? [],
+  note: report?.note ?? "",
+})
+
+// Same damage regardless of tap order or extra spaces (the server trims notes).
+const detailsKey = (details: DamageDetails) =>
+  [[...details.areas].sort().join(), [...details.types].sort().join(), details.note.trim()].join("|")
+
+const toggle = (list: string[], value: string) =>
+  list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
 
 /**
  * Phone photos are often several MB. Shrink to at most 1600 px on the long
@@ -77,10 +94,18 @@ export function VehicleConditionDialog({
   const [stop, setStop] = React.useState<ConditionStop>("pickup")
   const [vehicleIndex, setVehicleIndex] = React.useState(0)
 
+  // The sign-in token is renewed every few minutes (often right after the
+  // camera closes). That must not reload the open report and reset what the
+  // driver is doing, so the report loads only when the window opens.
+  const getTokenRef = React.useRef(getToken)
+  React.useEffect(() => {
+    getTokenRef.current = getToken
+  }, [getToken])
+
   const fetchReport = React.useCallback(async () => {
     setLoadError(null)
     try {
-      const token = await getToken()
+      const token = await getTokenRef.current()
       const next = await getMyConditionReport(loadId, token)
       setData(next)
       return next
@@ -88,7 +113,7 @@ export function VehicleConditionDialog({
       setLoadError(userErrorMessage(err, "open the condition report"))
       return null
     }
-  }, [getToken, loadId])
+  }, [loadId])
 
   React.useEffect(() => {
     if (!open) return
@@ -212,6 +237,7 @@ export function VehicleConditionDialog({
                 stop={stop}
                 vehicleIndex={vehicleIndex}
                 report={report}
+                limit={data.photosPerVehicle}
                 editable={editable}
                 onSaved={(next) => replaceReport(next, stop, vehicleIndex)}
               />
@@ -328,6 +354,11 @@ function ConditionPhotos({
               ) : (
                 <ImageIcon className="m-auto size-6 text-muted-foreground" />
               )}
+              {photo.area && (
+                <span className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {CONDITION_AREA_LABELS[photo.area] ?? photo.area}
+                </span>
+              )}
               {editable && (
                 <button
                   type="button"
@@ -376,6 +407,7 @@ function ConditionDamage({
   stop,
   vehicleIndex,
   report,
+  limit,
   editable,
   onSaved,
 }: {
@@ -383,46 +415,143 @@ function ConditionDamage({
   stop: ConditionStop
   vehicleIndex: number
   report: ConditionReport | null
+  limit: number
   editable: boolean
   onSaved: (report: ConditionReport) => void
 }) {
   const { getToken } = useAuth()
-  const [areas, setAreas] = React.useState<string[]>(report?.damageAreas ?? [])
-  const [types, setTypes] = React.useState<string[]>(report?.damageTypes ?? [])
-  const [note, setNote] = React.useState(report?.note ?? "")
-  const [saving, setSaving] = React.useState(false)
+  const [details, setDetails] = React.useState<DamageDetails>(() => detailsOf(report))
+  // Optional close-up photos of the parts marked as damaged.
+  const partPhotoInput = React.useRef<HTMLInputElement>(null)
+  const [photoFor, setPhotoFor] = React.useState<string | null>(null)
+  const [uploadingFor, setUploadingFor] = React.useState<string | null>(null)
+  const photos = report?.photos ?? []
+  const photoRoom = Math.max(0, limit - photos.length)
+  const [status, setStatus] = React.useState<"idle" | "pending" | "saving" | "saved" | "no_signal" | "failed">("idle")
 
-  const toggle = (list: string[], value: string) =>
-    list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
-  const changed =
-    areas.join() !== (report?.damageAreas ?? []).join() ||
-    types.join() !== (report?.damageTypes ?? []).join() ||
-    note.trim() !== (report?.note ?? "")
+  // Taps and notes save on their own shortly after the driver stops, the way
+  // photos do, so nothing is lost when they take a photo, switch vehicle or
+  // close the window. Refs hold the newest values for delayed saves.
+  const latest = React.useRef(details)
+  const saved = React.useRef(details)
+  const timer = React.useRef<number | null>(null)
+  const sending = React.useRef(false)
+  const sendAgain = React.useRef(false)
+  const mounted = React.useRef(true)
+  const callbacks = React.useRef({ getToken, onSaved })
+  React.useEffect(() => {
+    callbacks.current = { getToken, onSaved }
+  }, [getToken, onSaved])
 
-  const save = async () => {
-    setSaving(true)
+  const save = React.useCallback(async () => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current)
+      timer.current = null
+    }
+    if (sending.current) {
+      sendAgain.current = true
+      return
+    }
+    const next = latest.current
+    if (detailsKey(next) === detailsKey(saved.current)) {
+      setStatus((current) => (current === "pending" ? "saved" : current))
+      return
+    }
+    sending.current = true
+    setStatus("saving")
     try {
-      const token = await getToken()
-      onSaved(await saveConditionDetails(loadId, stop, vehicleIndex, { damageAreas: areas, damageTypes: types, note }, token))
-      toast.success("Damage notes saved")
+      const token = await callbacks.current.getToken()
+      const report = await saveConditionDetails(
+        loadId,
+        stop,
+        vehicleIndex,
+        { damageAreas: next.areas, damageTypes: next.types, note: next.note },
+        token,
+      )
+      saved.current = detailsOf(report)
+      callbacks.current.onSaved(report)
+      setStatus("saved")
     } catch (err) {
-      toast.error(userErrorMessage(err, "save the damage notes"))
+      if (isNoConnectionError(err)) {
+        setStatus("no_signal")
+        if (!mounted.current) {
+          toast.error("No signal, so your damage notes weren't saved. Open the condition report again when you have signal.")
+        }
+      } else {
+        setStatus("failed")
+        toast.error(userErrorMessage(err, "save the damage notes"))
+      }
     } finally {
-      setSaving(false)
+      sending.current = false
+      if (sendAgain.current) {
+        sendAgain.current = false
+        void save()
+      }
+    }
+  }, [loadId, stop, vehicleIndex])
+
+  // Closing the window or switching vehicle or stop sends anything not saved yet.
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (detailsKey(latest.current) !== detailsKey(saved.current)) void save()
+    }
+  }, [save])
+
+  // No signal: keep the marks and send them as soon as signal is back.
+  useSendWhenBackOnline(status === "no_signal", () => void save(), status === "saving")
+
+  const change = (next: DamageDetails, delayMs: number) => {
+    latest.current = next
+    setDetails(next)
+    setStatus("pending")
+    if (timer.current !== null) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => void save(), delayMs)
+  }
+
+  const addPartPhoto = (area: string) => {
+    setPhotoFor(area)
+    partPhotoInput.current?.click()
+  }
+
+  const onPartPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    const area = photoFor
+    setPhotoFor(null)
+    if (!file || !area) return
+    if (!PHOTO_TYPES.includes(file.type)) {
+      toast.error("Use a JPG or PNG photo.")
+      return
+    }
+    if (photoRoom === 0) {
+      toast.error(`You can add up to ${limit} photos for each vehicle. Remove one to add another.`)
+      return
+    }
+    setUploadingFor(area)
+    try {
+      const token = await callbacks.current.getToken()
+      callbacks.current.onSaved(await addConditionPhoto(loadId, stop, vehicleIndex, await shrinkPhoto(file), token, area))
+    } catch (err) {
+      toast.error(userErrorMessage(err, "add this photo"))
+    } finally {
+      setUploadingFor(null)
     }
   }
 
   if (!editable) {
+    const shown = detailsOf(report)
     return (
       <section className="space-y-2">
         <h3 className="text-sm font-bold">Damage</h3>
-        {areas.length || types.length || note ? (
+        {shown.areas.length || shown.types.length || shown.note ? (
           <>
-            <VehicleDamageOutline selected={areas} />
-            {types.length > 0 && (
-              <p className="text-xs text-muted-foreground">{types.map((type) => CONDITION_DAMAGE_LABELS[type] ?? type).join(" · ")}</p>
+            <VehicleDamageOutline selected={shown.areas} />
+            {shown.types.length > 0 && (
+              <p className="text-xs text-muted-foreground">{shown.types.map((type) => CONDITION_DAMAGE_LABELS[type] ?? type).join(" · ")}</p>
             )}
-            {note && <p className="text-sm">{note}</p>}
+            {shown.note && <p className="text-sm">{shown.note}</p>}
           </>
         ) : (
           <p className="text-xs text-muted-foreground">No damage noted.</p>
@@ -433,11 +562,69 @@ function ConditionDamage({
 
   return (
     <section className="space-y-3">
-      <div>
-        <h3 className="text-sm font-bold">Damage</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Optional. Tap where you see damage. No damage? Leave this blank.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold">Damage</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Optional. Tap where you see damage. It saves on its own. No damage? Leave this blank.
+          </p>
+        </div>
+        <span role="status" aria-live="polite" className="shrink-0 pt-0.5 text-xs">
+          {status === "pending" || status === "saving" ? (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Saving…
+            </span>
+          ) : status === "saved" ? (
+            <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="size-3" /> Saved
+            </span>
+          ) : null}
+        </span>
       </div>
-      <VehicleDamageOutline selected={areas} onToggle={(area) => setAreas((current) => toggle(current, area))} />
+      <VehicleDamageOutline
+        selected={details.areas}
+        onToggle={(area) => change({ ...latest.current, areas: toggle(latest.current.areas, area) }, 600)}
+      />
+
+      {details.areas.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold">
+            Photos of the damage <span className="font-normal text-muted-foreground">(optional)</span>
+          </p>
+          <input
+            ref={partPhotoInput}
+            type="file"
+            accept={PHOTO_TYPES.join(",")}
+            className="hidden"
+            onChange={(event) => void onPartPhoto(event)}
+          />
+          {details.areas.map((area) => {
+            const label = CONDITION_AREA_LABELS[area] ?? area
+            const partPhotos = photos.filter((photo) => photo.area === area)
+            return (
+              <div key={area} className="flex min-w-0 items-center gap-2 rounded-lg border border-border/60 px-2.5 py-1.5">
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">{label}</span>
+                {partPhotos.map((photo) =>
+                  photo.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={photo.id} src={photo.url} alt={`Photo of the ${label.toLowerCase()}`} className="size-9 shrink-0 rounded object-cover" />
+                  ) : null,
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 shrink-0 gap-1.5 px-3 text-xs"
+                  disabled={photoRoom === 0 || uploadingFor !== null}
+                  onClick={() => addPartPhoto(area)}
+                >
+                  {uploadingFor === area ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
+                  Add Photo
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div>
         <p className="mb-1.5 text-xs font-semibold">What kind of damage?</p>
@@ -446,11 +633,11 @@ function ConditionDamage({
             <button
               key={value}
               type="button"
-              aria-pressed={types.includes(value)}
-              onClick={() => setTypes((current) => toggle(current, value))}
+              aria-pressed={details.types.includes(value)}
+              onClick={() => change({ ...latest.current, types: toggle(latest.current.types, value) }, 600)}
               className={cn(
                 "min-h-11 rounded-full border px-3 text-xs font-semibold transition-colors",
-                types.includes(value)
+                details.types.includes(value)
                   ? "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300"
                   : "border-border bg-background text-muted-foreground hover:bg-muted",
               )}
@@ -469,17 +656,28 @@ function ConditionDamage({
           id={`condition-note-${stop}-${vehicleIndex}`}
           rows={2}
           maxLength={1000}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
+          value={details.note}
+          onChange={(event) => change({ ...latest.current, note: event.target.value }, 1500)}
+          onBlur={() => void save()}
           placeholder="Example: 3-inch scratch on the driver's door."
           className="mt-1 resize-none"
         />
       </div>
 
-      <Button type="button" className="h-11 w-full gap-2" disabled={saving || !changed} onClick={() => void save()}>
-        {saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-        {changed ? "Save Damage Notes" : "Saved"}
-      </Button>
+      {status === "no_signal" && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-200"
+        >
+          <WifiOff className="mt-0.5 size-3.5 shrink-0" />
+          No signal right now. Your damage notes are kept and will save on their own when signal returns.
+        </p>
+      )}
+      {status === "failed" && (
+        <Button type="button" variant="outline" className="h-11 w-full gap-2" onClick={() => void save()}>
+          <RotateCcw className="size-4" /> Try Saving Again
+        </Button>
+      )}
     </section>
   )
 }
