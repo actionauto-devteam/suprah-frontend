@@ -9003,7 +9003,9 @@ interface ConvRowProps {
   convLongPressTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   openConversation: (conversationId: string | null) => void;
   setConvMobileSheet: (id: string | null) => void;
-  markRead: (conversationId: string) => void;
+  markAsRead: (conversationId: string) => void;
+  markConversationActivity: (conversationId: string) => void;
+  setManualUnreadState: (conversationId: string, unread: boolean) => void;
   setManualUnread: React.Dispatch<React.SetStateAction<Set<string>>>;
   setConvos: React.Dispatch<React.SetStateAction<SSConversation[]>>;
   togglePinConv: (c: SSConversation) => void;
@@ -9037,7 +9039,7 @@ const ConvRow = React.memo(function ConvRow({
   conv, compact, draggable: isDraggable,
   activeId, activeConvId, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
-  openConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
+  openConversation, setConvMobileSheet, markAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
   isStandaloneApp, selectionMode = false, isSelected = false, selectedConversationIds, selectionEligible = true, toggleSelection,
 }: ConvRowProps) {
@@ -9235,11 +9237,12 @@ const ConvRow = React.memo(function ConvRow({
               <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
                 onClick={() => {
                   if (isUnread) {
-                    markRead(conv._id);
+                    markAsRead(conv._id);
+                    markConversationActivity(conv._id);
                     setManualUnread(p => { const n = new Set(p); n.delete(conv._id); return n; });
                     setConvos(prev => prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
                   } else {
-                    setManualUnread(p => new Set([...p, conv._id]));
+                    setManualUnreadState(conv._id, true);
                   }
                 }}>
                 <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
@@ -10420,6 +10423,7 @@ export default function SupraSpacePage() {
         if (options.scrollToBottom) forceScrollToBottomRef.current = conversationId;
         if (options.markReadAfterSnapshot && activeIdRef.current === conversationId) {
           markRead(conversationId);
+          markConversationActivity(conversationId);
           ctxMarkAsRead(conversationId);
           setConvos(previous => previous.map(conversation => {
             if (conversation._id !== conversationId || !conversation.lastMessage) return conversation;
@@ -10958,6 +10962,7 @@ export default function SupraSpacePage() {
         : prev
       );
       if (conversationId === activeIdRef.current) {
+        markConversationActivity(conversationId);
         ctxMarkAsRead(conversationId);
         setConvos(prev => prev.map(c => {
           if (c._id !== conversationId || !c.lastMessage) return c;
@@ -11020,6 +11025,7 @@ export default function SupraSpacePage() {
       }));
     };
     const onManualUnread = ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
+      markConversationActivity(conversationId);
       setConvos(previous => previous.map(conversation => conversation._id === conversationId ? {
         ...conversation,
         manualUnread: unread,
@@ -11105,6 +11111,7 @@ export default function SupraSpacePage() {
     socket.on('message:event', onEvent);
     const onMsgsRead = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (userId === uid) {
+        markConversationActivity(conversationId);
         setConvos(prev => prev.map(c => c._id === conversationId ? { ...c, unreadCount: 0, unreadMentionCount: 0 } : c));
       }
       setMsgs((prev) => {
@@ -11131,6 +11138,7 @@ export default function SupraSpacePage() {
     socket.on('user:profile:updated', onProfileUpdated);
     const onAllRead = ({ conversationIds }: { conversationIds: string[] }) => {
       const idSet = new Set(conversationIds);
+      conversationIds.forEach(markConversationActivity);
       setConvos(prev => prev.map(c => {
         if (!idSet.has(c._id)) return c;
         if (!c.lastMessage) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
@@ -11345,6 +11353,7 @@ export default function SupraSpacePage() {
       return;
     }
     markRead(activeId);
+    markConversationActivity(activeId);
     ctxMarkAsRead(activeId);
     setConvos(prev => prev.map(c => {
       if (c._id !== activeId || !c.lastMessage) return c;
@@ -13944,6 +13953,23 @@ export default function SupraSpacePage() {
     setShowArchived(false);
     openConversation(conversationId);
   }, [openConversation]);
+  const setManualUnreadState = React.useCallback((conversationId: string, unread: boolean) => {
+    markConversationActivity(conversationId);
+    setManualUnread(previous => {
+      const next = new Set(previous);
+      if (unread) next.add(conversationId);
+      else next.delete(conversationId);
+      return next;
+    });
+    setConvos(previous => previous.map(conversation => conversation._id !== conversationId ? conversation : {
+      ...conversation,
+      manualUnread: unread,
+      unreadCount: unread ? Math.max(1, conversation.unreadCount || 0) : 0,
+    }));
+    void ctxMarkConversationUnread(conversationId, unread).then((persisted) => {
+      if (!persisted) refreshConvos();
+    });
+  }, [ctxMarkConversationUnread, markConversationActivity, refreshConvos]);
   const runBulkConversationAction = React.useCallback(async (
     action: 'read' | 'unread' | 'archive' | 'unarchive',
     conversationIds = [...selectedConversationIds],
@@ -13962,6 +13988,7 @@ export default function SupraSpacePage() {
     const result = await runSupraSpaceBulkOperation(selectedConversations, async conversation => {
       if (action === 'read') {
         if (!(await ctxMarkConversationRead(conversation._id))) throw new Error('Could not mark conversation read');
+        markConversationActivity(conversation._id);
         setConvos(previous => previous.map(item => item._id !== conversation._id ? item : {
           ...item,
           unreadCount: 0,
@@ -13974,6 +14001,7 @@ export default function SupraSpacePage() {
       }
       if (action === 'unread') {
         if (!(await ctxMarkConversationUnread(conversation._id, true))) throw new Error('Could not mark conversation unread');
+        markConversationActivity(conversation._id);
         setConvos(previous => previous.map(item => item._id === conversation._id ? { ...item, manualUnread: true, unreadCount: Math.max(1, item.unreadCount || 0) } : item));
         setManualUnread(previous => new Set([...previous, conversation._id]));
         return;
@@ -14145,7 +14173,7 @@ export default function SupraSpacePage() {
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
-    openConversation, openArchivedConversation, setConvMobileSheet, markRead, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
+    openConversation, openArchivedConversation, setConvMobileSheet, markAsRead: ctxMarkAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
     selectionMode: conversationSelectionMode,
     selectedConversationIds,
@@ -14337,6 +14365,7 @@ export default function SupraSpacePage() {
                     <button
                       onClick={() => {
                         markAllRead();
+                        convos.forEach(conversation => markConversationActivity(conversation._id));
                         setConvos(prev => prev.map(c => {
                           if (!c.lastMessage) return { ...c, unreadCount: 0, unreadMentionCount: 0 };
                           const rb = c.lastMessage.readBy || [];
@@ -16626,6 +16655,7 @@ export default function SupraSpacePage() {
           const toggleSheetReadState = () => {
             if (sheetIsUnread) {
               markRead(sheetConv._id);
+              markConversationActivity(sheetConv._id);
               ctxMarkAsRead(sheetConv._id);
               setManualUnread(p => { const n = new Set(p); n.delete(sheetConv._id); return n; });
               setConvos(prev => prev.map(c => {
@@ -16635,7 +16665,7 @@ export default function SupraSpacePage() {
                 return { ...c, unreadCount: 0, unreadMentionCount: 0 };
               }));
             } else {
-              setManualUnread(p => new Set([...p, sheetConv._id]));
+              setManualUnreadState(sheetConv._id, true);
             }
             setConvMobileSheet(null);
           };

@@ -312,9 +312,18 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const [conversationError, setConversationError] = React.useState(false);
   const conversationsRef                  = React.useRef<SSConv[]>([]);
   const conversationsFetchInFlightRef     = React.useRef(false);
+  // Conversation-list requests are snapshots.  Keep a small per-row revision
+  // ledger so a response that started before a local/socket change cannot put
+  // that row back into its former unread state when it arrives.
+  const conversationActivityRevisionRef   = React.useRef(0);
+  const conversationActivityRevisionByIdRef = React.useRef(new Map<string, number>());
+  const markConversationActivity = React.useCallback((conversationId: string) => {
+    const revision = ++conversationActivityRevisionRef.current;
+    conversationActivityRevisionByIdRef.current.set(conversationId, revision);
+  }, []);
   const tokenRecoveryAttemptedRef         = React.useRef(false);
   const realtime = useSupraSpaceSocket(crmToken);
-  const { socket, isConnected } = realtime;
+  const { socket, isConnected, markRead: queueReadReceipt, markAllRead: queueAllReadReceipts } = realtime;
   const [openChats, setOpenChats]         = React.useState<string[]>([]);
   const [minimizedChats, setMinimizedChats] = React.useState<Set<string>>(new Set());
   const openChatPopupRef = React.useRef<(conversationId: string) => void>(() => undefined);
@@ -448,6 +457,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   const fetchConversations = React.useCallback(() => {
     if (!crmToken || conversationsFetchInFlightRef.current) return;
     conversationsFetchInFlightRef.current = true;
+    const activityRevisionAtRequestStart = conversationActivityRevisionRef.current;
     setIsLoadingConversations(true);
     setConversationError(false);
     apiClient
@@ -457,7 +467,33 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       })
       .then((r) => {
         const next = sortByLastMessage(readConversationPayload(r.data?.data), crmUserId);
-        setConversations(next);
+        setConversations((current) => {
+          const currentById = new Map(current.map((conversation) => [conversation._id, conversation]));
+          const merged = next.map((snapshot) => {
+            const local = currentById.get(snapshot._id);
+            const localRevision = conversationActivityRevisionByIdRef.current.get(snapshot._id) || 0;
+            if (!local || localRevision <= activityRevisionAtRequestStart) return snapshot;
+
+            // Preserve activity that happened after this request began.  The
+            // remaining fields still come from the server's fresh snapshot.
+            return {
+              ...snapshot,
+              lastMessage: local.lastMessage,
+              lastMessageAt: local.lastMessageAt,
+              lastReaction: local.lastReaction,
+              unreadCount: local.unreadCount,
+              mentionCount: local.mentionCount,
+              unreadMentionCount: local.unreadMentionCount,
+              manualUnread: local.manualUnread,
+            };
+          });
+          const snapshotIds = new Set(next.map((conversation) => conversation._id));
+          const localOnly = current.filter((conversation) =>
+            !snapshotIds.has(conversation._id) &&
+            (conversationActivityRevisionByIdRef.current.get(conversation._id) || 0) > activityRevisionAtRequestStart,
+          );
+          return sortByLastMessage([...merged, ...localOnly], crmUserId);
+        });
         const serverPrefs = next.reduce<Record<string, NotifPref>>((acc, conv) => {
           if (conv.notificationPreference) acc[conv._id] = conv.notificationPreference;
           return acc;
@@ -536,6 +572,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       if ((archivedConversation?.archivedBy || []).map(String).includes(crmUserId)) return;
       seenMessages.add(message._id);
       if (seenMessages.size > 1000) seenMessages.delete(seenMessages.values().next().value!);
+      markConversationActivity(conversationId);
       setConversations((prev) => {
         const updated = prev.map((conv) => {
           if (conv._id !== conversationId) return conv;
@@ -609,6 +646,10 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       reactionActorId?: string;
       reactionTargetUserId?: string;
     }) => {
+      const affectsViewer = payload.reactionActivity
+        ? reactionAppliesToViewer(payload.reactionActivity, crmUserId)
+        : payload.reactionActorId === crmUserId || payload.reactionTargetUserId === crmUserId;
+      if (affectsViewer) markConversationActivity(payload.conversationId);
       setConversations(prev => applyReactionActivityToConversations(prev, payload, crmUserId));
     });
 
@@ -619,6 +660,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       attachments?: unknown[];
       type?: string;
     }) => {
+      markConversationActivity(conversationId);
       setConversations(prev => prev.map(conv => {
         if (conv._id !== conversationId || conv.lastMessage?._id !== messageId) return conv;
         return {
@@ -635,12 +677,14 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
     listen('message:deleted', ({ conversationId, unreadUserIds = [] }: { conversationId: string; unreadUserIds?: string[] }) => {
       if (!unreadUserIds.includes(crmUserId)) return;
+      markConversationActivity(conversationId);
       setConversations(prev => prev.map(conv =>
         conv._id === conversationId ? { ...conv, unreadCount: Math.max(0, (conv.unreadCount || 0) - 1) } : conv
       ));
     });
 
     listen('conversation:updated', (update: Partial<SSConv> & { _id: string }) => {
+      markConversationActivity(update._id);
       setConversations(prev => sortByLastMessage(prev.map(conv =>
         conv._id === update._id ? { ...conv, ...update } : conv
       ), crmUserId));
@@ -678,6 +722,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
 
     // New conversation was created → prepend if not already in list
     listen('conversation:new', (conv: SSConv) => {
+      markConversationActivity(conv._id);
       if (conv.notificationPreference) {
         setNotifPrefs(prev => ({ ...prev, [conv._id]: conv.notificationPreference! }));
       }
@@ -687,6 +732,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
 
     listen('conversation:manual-unread', ({ conversationId, unread }: { conversationId: string; unread: boolean }) => {
+      markConversationActivity(conversationId);
       setConversations(prev => prev.map(conv =>
         conv._id === conversationId ? { ...conv, manualUnread: unread, unreadCount: unread ? Math.max(conv.unreadCount || 0, 1) : conv.unreadCount } : conv
       ));
@@ -739,6 +785,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     listen('conversations:all-read', ({ conversationIds }: { conversationIds: string[] }) => {
       if (!crmUserId) return;
       const idSet = new Set(conversationIds);
+      conversationIds.forEach(markConversationActivity);
       setConversations((prev) =>
         prev.map((conv) => {
           if (!idSet.has(conv._id)) return conv;
@@ -769,7 +816,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     });
 
     return () => { subscriptions.forEach(([event, handler]) => socket.off(event, handler)); };
-  }, [socket, crmUserId, resolveNotifPref]);
+  }, [socket, crmUserId, resolveNotifPref, markConversationActivity]);
 
   // ── Derived unread count ──────────────────────────────────────────────────────
   const totalUnread = React.useMemo(() => {
@@ -912,7 +959,8 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
   // opened would keep showing as unread until the next full refetch.
   const markAsRead = React.useCallback(
     (convId: string) => {
-      socket?.emit('mark:read', { conversationId: convId });
+      markConversationActivity(convId);
+      queueReadReceipt(convId);
       if (!crmUserId) return;
       setConversations((prev) =>
         prev.map((conv) => {
@@ -928,7 +976,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         })
       );
     },
-    [socket, crmUserId]
+    [crmUserId, markConversationActivity, queueReadReceipt]
   );
 
   const markConversationRead = React.useCallback((convId: string) => {
@@ -940,6 +988,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         settled = true;
         clearTimeout(timeout);
         if (ok) {
+          markConversationActivity(convId);
           setConversations(prev => prev.map(conv => conv._id !== convId ? conv : {
             ...conv,
             unreadCount: 0,
@@ -954,12 +1003,13 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
       const timeout = setTimeout(() => finish(false), 5000);
       socket.emit('mark:read', { conversationId: convId }, (result: { ok?: boolean }) => finish(result?.ok === true));
     });
-  }, [socket, crmUserId]);
+  }, [socket, crmUserId, markConversationActivity]);
 
   // Emit mark:all:read and optimistically clear every conversation's unread state
   const markAllAsRead = React.useCallback(() => {
-    socket?.emit('mark:all:read');
+    queueAllReadReceipts();
     if (!crmUserId) return;
+    conversationsRef.current.forEach((conversation) => markConversationActivity(conversation._id));
     setConversations((prev) =>
       prev.map((conv) => ({
         ...conv,
@@ -970,10 +1020,11 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
           : conv.lastMessage,
       }))
     );
-  }, [socket, crmUserId]);
+  }, [crmUserId, markConversationActivity, queueAllReadReceipts]);
 
   // Toggle a conversation's manual unread flag (Messenger-style "Mark as unread")
   const markConversationUnread = React.useCallback((convId: string, unread: boolean) => {
+    markConversationActivity(convId);
     setConversations((prev) =>
       prev.map((conv) =>
         conv._id === convId
@@ -990,7 +1041,7 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
         fetchConversations();
         return false;
       });
-  }, [crmToken, fetchConversations]);
+  }, [crmToken, fetchConversations, markConversationActivity]);
 
   // Toggle a conversation's archived state for the current user
   const archiveConversation = React.useCallback(async (convId: string, archived: boolean) => {
