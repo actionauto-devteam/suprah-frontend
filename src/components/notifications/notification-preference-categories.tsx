@@ -40,6 +40,12 @@ export const ADMIN_STAFF_ACTIVITY_TYPE_GROUPS: CrmTypeGroup[] = [
   { key: 'staff_screen_recording', label: 'Screen Recording Alerts', description: 'Mac screen-recording permission revoked', icon: ShieldAlert, color: 'text-red-600 dark:text-red-400', types: ['agent_screen_recording_missing'] },
 ];
 
+// Drivers only: new loads on the board can be muted without missing updates
+// about their own loads (assignments, requests, changes).
+export const DRIVER_TRANSPORTATION_TYPE_GROUPS: CrmTypeGroup[] = [
+  { key: 'driver_new_loads', label: 'New Loads You Can Request', description: 'A new load on the board that you could request', icon: Truck, color: 'text-emerald-600 dark:text-emerald-400', types: ['new_load_available', 'new_load_check_first'] },
+];
+
 export interface NotificationPreferenceCategory {
   key: keyof NotificationCategoryPreferences;
   label: string;
