@@ -1200,7 +1200,7 @@ if (typeof document !== 'undefined') {
       --surface-1:#1e2126; --surface-2:#252a31; --surface-3:#2d3340;
       --border-1:rgba(255,255,255,0.06); --border-2:rgba(255,255,255,0.10); --border-3:rgba(255,255,255,0.14);
       --accent:#16a34a; --accent-muted:rgba(22,163,74,0.15); --accent-hover:#22c55e; --accent-text:#5fe0a0;
-      --positive:#34c97d; --positive-muted:rgba(52,201,125,0.12); --warning:#f0a855; --danger:#f05c5c; --danger-muted:rgba(240,92,92,0.12);
+      --positive:#34c97d; --positive-muted:rgba(52,201,125,0.12); --warning:#f0a855; --warning-text:#f0a855; --danger:#f05c5c; --danger-muted:rgba(240,92,92,0.12);
       --text-primary:rgba(255,255,255,0.92); --text-secondary:rgba(255,255,255,0.52); --text-tertiary:rgba(255,255,255,0.28); --text-disabled:rgba(255,255,255,0.16);
       --bubble-own-bg:linear-gradient(145deg,#15803d,#16a34a); --bubble-own-shadow:0 4px 20px rgba(22,163,74,0.25);
       --bubble-other-bg:var(--surface-2); --bubble-other-border:var(--border-2);
@@ -1219,8 +1219,8 @@ if (typeof document !== 'undefined') {
       --surface-1:#ffffff; --surface-2:#f4f5f7; --surface-3:#eaecf0;
       --border-1:rgba(0,0,0,0.06); --border-2:rgba(0,0,0,0.09); --border-3:rgba(0,0,0,0.14);
       --accent:#15803d; --accent-muted:rgba(21,128,61,0.1); --accent-hover:#166534; --accent-text:#15803d;
-      --positive:#22b060; --positive-muted:rgba(34,176,96,0.1); --warning:#e0922a; --danger:#dc3545; --danger-muted:rgba(220,53,69,0.08);
-      --text-primary:rgba(0,0,0,0.87); --text-secondary:rgba(0,0,0,0.50); --text-tertiary:rgba(0,0,0,0.32); --text-disabled:rgba(0,0,0,0.20);
+      --positive:#22b060; --positive-muted:rgba(34,176,96,0.1); --warning:#e0922a; --warning-text:#a16207; --danger:#dc3545; --danger-muted:rgba(220,53,69,0.08);
+      --text-primary:#111827; --text-secondary:#4b5563; --text-tertiary:#64748b; --text-disabled:#6b7280;
       --bubble-own-bg:linear-gradient(145deg,#15803d,#16a34a); --bubble-own-shadow:0 3px 14px rgba(21,128,61,0.22);
       --bubble-other-bg:#ffffff; --bubble-other-border:rgba(0,0,0,0.09);
       --sidebar-bg:#ffffff; --sidebar-border:rgba(0,0,0,0.08);
@@ -1242,6 +1242,8 @@ if (typeof document !== 'undefined') {
     .ss4-conv-active { background:rgba(22,163,74,0.18)!important; }
     .ss4-conv-name { color:var(--text-primary); }
     .ss4-conv-preview { color:var(--text-secondary); }
+    .ss4-context-menu [data-slot="dropdown-menu-item"]:is(:focus,[data-highlighted]) { background:var(--bg-hover); }
+    .ss4-context-menu [data-slot="dropdown-menu-item"][data-disabled] { opacity:1; color:var(--text-tertiary); }
     .ss4-conv-active::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); height:60%; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
     /* Standalone-app mobile card look for conversation rows — only applied
        via ss4-conv--card (set when isStandaloneApp), so desktop's plain list
@@ -8925,6 +8927,7 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
 
 interface ConvRowProps {
   conv: SSConversation;
+  theme: string | undefined;
   compact?: boolean;
   draggable?: boolean;
   activeId: string | null;
@@ -8980,7 +8983,7 @@ interface ConvRowProps {
 // immediately get wiped by the next remount. Keeping this at module scope means the
 // component reference never changes, so re-renders just update props in place.
 const ConvRow = React.memo(function ConvRow({
-  conv, compact, draggable: isDraggable,
+  conv, theme, compact, draggable: isDraggable,
   activeId, activeConvId, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
   openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
   openConversation, setConvMobileSheet, markAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
@@ -9121,7 +9124,7 @@ const ConvRow = React.memo(function ConvRow({
             )
           )}
         </div>
-        <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--foreground)' : undefined }}>
+        <p className="ss4-conv-preview truncate mt-0.5" style={{ fontSize: 15, fontWeight: isUnread ? 600 : 400, color: isUnread ? 'var(--text-primary)' : undefined }}>
           {hasDraftPreview ? (
             <>
               <span style={{ color: '#ef4444', fontWeight: 800 }}>Draft:</span>
@@ -9169,7 +9172,8 @@ const ConvRow = React.memo(function ConvRow({
             <DropdownMenuContent
               side="bottom"
               align="end"
-              className="min-w-52 rounded-xl p-1"
+              className="ss4 ss4-context-menu min-w-52 rounded-xl p-1"
+              data-theme={theme}
               onClick={e => e.stopPropagation()}
               onPointerDown={e => e.stopPropagation()}
               onMouseDown={e => e.stopPropagation()}
@@ -9177,8 +9181,8 @@ const ConvRow = React.memo(function ConvRow({
               onPointerDownOutside={e => {
                 if (ddTriggerRef.current?.contains(e.target as Node)) e.preventDefault();
               }}
-              style={{ background: '#18181c', border: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
-              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-2)', boxShadow: 'var(--shadow-md)' }}>
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }}
                 onClick={() => {
                   if (isUnread) {
                     markAsRead(conv._id);
@@ -9189,57 +9193,57 @@ const ConvRow = React.memo(function ConvRow({
                     setManualUnreadState(conv._id, true);
                   }
                 }}>
-                <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                <MailOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                 {isUnread ? 'Mark as read' : 'Mark as unread'}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => togglePinConv(conv)}>
-                {pinned ? <PinOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => togglePinConv(conv)}>
+                {pinned ? <PinOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <Pin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
                 {pinned ? 'Unpin' : 'Pin'}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }}
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }}
                 onClick={() => saveNotificationPref(conv._id, { type: notifPrefs[conv._id]?.type ?? 'all', muted: !isMuted })}>
-                <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+                <VolumeX className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                 {isMuted ? 'Unmute' : 'Mute'}
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => setNotifModalConv(conv)}>
-                <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />
+              <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => setNotifModalConv(conv)}>
+                <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
                 <span className="flex flex-col">
                   <span style={{ fontSize: 13, lineHeight: 1.3 }}>Notifications</span>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.3 }}>{(() => { const t = notifPrefs[conv._id]?.type; return t === 'foryou' ? 'For you' : t === 'none' ? 'None' : t === 'main' ? 'Main conversations' : 'All'; })()}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.3 }}>{(() => { const t = notifPrefs[conv._id]?.type; return t === 'foryou' ? 'For you' : t === 'none' ? 'None' : t === 'main' ? 'Main conversations' : 'All'; })()}</span>
                 </span>
               </DropdownMenuItem>
               {conv.type === 'group' && ctxSpaces.length > 0 && (
                 <>
                   {(conv as any).spaceId && (
-                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, null)}>
-                      <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Remove from Space
+                    <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => handleMoveToSpace(conv._id, null)}>
+                      <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Remove from Space
                     </DropdownMenuItem>
                   )}
                   {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
-                    <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
-                      <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
+                    <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
+                      <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
                     </DropdownMenuItem>
                   ))}
                 </>
               )}
-              <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 4px' }} />
+              <div style={{ height: 1, background: 'var(--border-1)', margin: '3px 4px' }} />
               {conv.type === 'direct' && (
                 <>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
-                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => toast.info('Block feature coming soon')}>
+                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Block
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toggleArchiveConv(conv)}>
-                    {archived ? <ArchiveRestore className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> : <EyeOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => toggleArchiveConv(conv)}>
+                    {archived ? <ArchiveRestore className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> : <EyeOff className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />}
                     {archived ? 'Unhide conversation' : 'Hide conversation'}
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#f87171' }} onClick={() => setDeleteConfirmConv(conv)}>
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--danger)' }} onClick={() => setDeleteConfirmConv(conv)}>
                     <Trash2 className="h-3.5 w-3.5 shrink-0" /> Delete conversation
                   </DropdownMenuItem>
                 </>
               )}
               {conv.type === 'group' && (
                 <>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#fb923c' }}
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--warning-text)' }}
                     onClick={async () => {
                       try {
                         await apiClient.patch(`/api/supraspace/conversations/${conv._id}`, { removeMembers: [uid] }, { headers: { Authorization: `Bearer ${token}` } });
@@ -9250,8 +9254,8 @@ const ConvRow = React.memo(function ConvRow({
                     }}>
                     <LogOut className="h-3.5 w-3.5 shrink-0" /> Leave
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: '#e8e8ea' }} onClick={() => toast.info('Block feature coming soon')}>
-                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} /> Block
+                  <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => toast.info('Block feature coming soon')}>
+                    <UserMinus className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Block
                   </DropdownMenuItem>
                 </>
               )}
@@ -14175,7 +14179,7 @@ export default function SupraSpacePage() {
   };
 
   const sharedConvRowProps = {
-    activeId, activeConvId: activeConv?._id ?? null, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
+    activeId, activeConvId: activeConv?._id ?? null, relativeTimeNow, uid, token, theme, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
     openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
     openConversation, openArchivedConversation, setConvMobileSheet, markAsRead: ctxMarkAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
