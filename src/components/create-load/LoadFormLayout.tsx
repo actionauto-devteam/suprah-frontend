@@ -363,8 +363,12 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
     [postType, pickup, delivery, vehicles, trailerType, dates, contract, pricing, selectedDriverId, makeAvailable, isEdit],
   )
 
+  // A load converted from a quote starts as a Draft: drivers can't see it and
+  // it can't be assigned until Dispatch posts it from this form.
+  const isDraft = isEdit && initialLoad!.status === "Draft"
+
   // ── Submit ──
-  const handleSubmit = async () => {
+  const handleSubmit = async (options?: { post?: boolean }) => {
     if (!validation.valid) {
       setShowValidationErrors(true)
       const first = validation.issues[0]
@@ -405,9 +409,16 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
           additionalInfo: additionalInfo as any,
           contract: contract as any,
           pricing: pricing as any,
+          ...(isDraft && options?.post ? { status: "Posted" as const } : {}),
           expectedUpdatedAt: initialLoad!.updatedAt,
         })
-        toast.success(`Load ${initialLoad!.loadNumber} updated.`)
+        toast.success(
+          isDraft && options?.post
+            ? additionalInfo.visibility === "private"
+              ? `Load ${initialLoad!.loadNumber} is posted as private. Assign a driver from Driver Tracker.`
+              : `Load ${initialLoad!.loadNumber} is posted on the load board.`
+            : `Load ${initialLoad!.loadNumber} updated.`,
+        )
         router.push(`/transportation/load/${initialLoad!._id}`)
         return
       }
@@ -738,11 +749,33 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
           <ArrowLeft className="size-3.5" /> Back
         </Button>
 
-        {isLastStep ? (
+        {isLastStep && isDraft ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 px-4 text-[10px] font-black uppercase tracking-widest"
+              onClick={() => void handleSubmit()}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Save Draft
+            </Button>
+            <Button
+              type="button"
+              className="h-10 gap-2 px-5 text-[10px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+              onClick={() => void handleSubmit({ post: true })}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <Megaphone className="size-4" />}
+              Post Load
+            </Button>
+          </div>
+        ) : isLastStep ? (
           <Button
             type="button"
             className="h-10 gap-2 px-5 text-[10px] font-black uppercase tracking-widest bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
