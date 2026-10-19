@@ -23,6 +23,7 @@ import {
   Search, Plus, Users, MessageSquare, Send, Paperclip, Home, User, Menu, ChevronRight,
   X, ChevronLeft, ChevronDown, Download, FileText,
   Loader2, CheckCheck, Hash, Reply, Trash2,
+  AlertCircle,
   ArrowLeft, Radio, Bot, Video, Phone, Camera,
   Sun, Moon, Sparkles, SmilePlus,
   Smile, Pin, PinOff, Info, ImageIcon,
@@ -5011,7 +5012,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind, messageTextSize,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind, messageTextSize, failedSend, onRetryFailed,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5033,6 +5034,8 @@ const Bubble = React.memo(function Bubble({
   defaultReactionEmoji?: string;
   operationalKind?: OperationalMessageKind | null;
   messageTextSize: SupraSpaceMessageTextSize;
+  failedSend?: FailedSend;
+  onRetryFailed?: (failedSend: FailedSend) => void;
 }) {
   const renderedContent = React.useMemo(
     () => renderMessageContent(message.content, isOwn),
@@ -6600,6 +6603,21 @@ const Bubble = React.memo(function Bubble({
               {message.isEdited && <span style={{ fontSize: 9, opacity: 0.45, marginLeft: 4 }}>(edited)</span>}
             </div>
           ) : null}
+          {isOwn && failedSend && (
+            <button
+              type="button"
+              onClick={() => onRetryFailed?.(failedSend)}
+              className="absolute -right-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+              style={{ color: 'var(--danger, #ef4444)', border: '1.5px solid currentColor' }}
+              title={failedSend.deliveryStatus === 'checking' ? 'Checking whether this message was sent' : failedSend.failureMessage || 'Message not sent. Tap to retry.'}
+              aria-label={failedSend.deliveryStatus === 'checking' ? 'Checking delivery' : 'Message not sent. Retry message'}
+              disabled={failedSend.deliveryStatus === 'checking'}
+            >
+              {failedSend.deliveryStatus === 'checking'
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <AlertCircle className="h-4 w-4" />}
+            </button>
+          )}
           {hov && !disableActions && !editMode && actionBarPos && createPortal(
             <div
               ref={menuRef}
@@ -6978,7 +6996,7 @@ const Bubble = React.memo(function Bubble({
             ? (members as Array<{ _id: string; fullName: string; avatar?: string }>).filter(m => m._id !== uid && (message.readBy || []).includes(m._id))
             : [];
           const hasSeen = seenByOthers.length > 0;
-          if (hideTime && !hasSeen) return null;
+          if (hideTime && !hasSeen && !failedSend) return null;
           return (
             <div className={cn('flex items-center gap-1.5 px-1', isOwn && 'flex-row-reverse')}>
               {!hideTime && <span className="ss4-mono tabular-nums" style={{ fontSize: 10, color: 'var(--text-tertiary)', userSelect: 'none', WebkitUserSelect: 'none' }}>{fmtTime(message.createdAt)}</span>}
@@ -6996,6 +7014,21 @@ const Bubble = React.memo(function Bubble({
               ) : !hideTime ? (
                 <CheckIcon className="h-3 w-3" style={{ color: 'var(--text-tertiary)' }} />
               ) : null)}
+              {isOwn && failedSend && failedSend.deliveryStatus !== 'checking' && (
+                <button
+                  type="button"
+                  onClick={() => onRetryFailed?.(failedSend)}
+                  className="inline-flex h-6 items-center rounded-full px-1 font-medium transition-colors hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  style={{ color: 'var(--danger, #ef4444)' }}
+                  title={failedSend.failureMessage || 'Message not sent. Tap to retry.'}
+                  aria-label="Message not sent. Retry message"
+                >
+                  <span style={{ fontSize: 10 }}>Not delivered</span>
+                </button>
+              )}
+              {isOwn && failedSend?.deliveryStatus === 'checking' && (
+                <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--text-tertiary)' }} aria-label="Checking delivery" />
+              )}
             </div>
           );
         })()}
@@ -10918,6 +10951,12 @@ export default function SupraSpacePage() {
       const conversation = convosRef.current.find(item => item._id === conversationId);
       if ((conversation?.archivedBy || []).map(String).includes(uid)) return;
       appendMessageLocal(conversationId, message);
+      // A realtime confirmation can arrive after the HTTP request timed out. It
+      // is authoritative, so remove the local retry affordance for that message.
+      setFailedSends(prev => prev.some(item => item.optimisticMessageId === message._id)
+        ? prev.filter(item => item.optimisticMessageId !== message._id)
+        : prev
+      );
       if (conversationId === activeIdRef.current) {
         ctxMarkAsRead(conversationId);
         setConvos(prev => prev.map(c => {
@@ -11487,7 +11526,7 @@ export default function SupraSpacePage() {
           return;
         }
         const filesToUpload = draftFiles;
-        const tempId = `optimistic-${deliveryId}`;
+        const tempId = deliveryId;
         optimisticAttachmentId = tempId;
         const optimisticAttachments: SSAttachment[] = filesToUpload.map(f => {
           const url = URL.createObjectURL(f);
@@ -11541,13 +11580,41 @@ export default function SupraSpacePage() {
         replaceMessageLocal(conversationId, tempId, mergeLocalAttachmentPreviews(r.data.data, optimisticAttachmentUrls));
         showUploadNotice('success', filesToUpload.length === 1 ? 'Attachment sent.' : `${filesToUpload.length} attachments sent.`);
       } else if (hasPendingGif) {
+        const tempId = scheduledAt ? null : deliveryId;
+        if (tempId) {
+          optimisticTextId = tempId;
+          const member = activeConv?.members.find(m => m._id === uid);
+          appendMessageLocal(conversationId, {
+            _id: tempId,
+            conversationId,
+            sender: {
+              _id: uid,
+              fullName: me?.fullName || member?.fullName || 'You',
+              username: me?.username || member?.username || 'you',
+              avatar: me?.avatar || member?.avatar,
+            },
+            content,
+            type: 'gif',
+            gif: draftGif,
+            attachments: [],
+            reactions: [],
+            readBy: [uid],
+            replyTo: draftReply || null,
+            isEdited: false,
+            isDeleted: false,
+            createdAt: new Date().toISOString(),
+          });
+        }
         const r = await apiClient.post(
           `/api/supraspace/conversations/${conversationId}/messages`,
           { content, gif: draftGif, replyTo: replyMessageId, scheduledAt, clientMessageId: deliveryId },
           { headers: { Authorization: `Bearer ${token}` }, timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS }
         );
         if (r.status === 202) toast.success('Message scheduled');
-        else if (r.data?.data) appendMessageLocal(conversationId, r.data.data);
+        else if (r.data?.data) {
+          if (tempId) replaceMessageLocal(conversationId, tempId, r.data.data);
+          else appendMessageLocal(conversationId, r.data.data);
+        }
         else throw new Error('GIF delivery was not confirmed.');
       } else {
         const tempId = scheduledAt ? null : deliveryId;
@@ -11614,19 +11681,19 @@ export default function SupraSpacePage() {
       const deliveryStatus = reconciliation.status === 'missing' ? 'failed' : 'unknown';
       const deliveryItem = hasPendingFiles ? 'attachment' : hasPendingGif ? 'GIF' : 'message';
       const failureMessage = getSupraSpaceDeliveryFailureMessage(error, deliveryItem);
-      setFailedSends(previous => previous.map(item => item.id === deliveryId ? { ...item, deliveryStatus, failureMessage } : item));
+      const optimisticMessageId = optimisticAttachmentId || optimisticTextId || undefined;
+      setFailedSends(previous => previous.map(item => item.id === deliveryId
+        ? { ...item, optimisticMessageId, localPreviewUrls: optimisticAttachmentUrls, deliveryStatus, failureMessage }
+        : item));
       if (hasPendingFiles) {
-        if (optimisticAttachmentId) removeMessageLocal(conversationId, optimisticAttachmentId);
-        optimisticAttachmentUrls.forEach(u => {
-          URL.revokeObjectURL(u);
-          localAttachmentPreviewUrlsRef.current.delete(u);
-        });
-        showUploadNotice('error', failureMessage);
+        // Keep the local attachment previews in the failed bubble. Retrying
+        // uses the same idempotency key and refreshes those object URLs.
       }
-      else if (hasPendingGif) showUploadNotice('error', failureMessage);
+      else if (hasPendingGif && isScheduledSend) showUploadNotice('error', failureMessage);
       else {
-        if (optimisticTextId) removeMessageLocal(conversationId, optimisticTextId);
-        showUploadNotice('error', failureMessage);
+        // Keep the optimistic text in the timeline. Its red Retry control is
+        // easier to recognize than a separate technical error panel, and the
+        // same clientMessageId makes a retry idempotent.
       }
     } finally { setSending(false); setUploading(false); sendInFlightRef.current = false; }
   };
@@ -13672,6 +13739,20 @@ export default function SupraSpacePage() {
     void fetchConversationMessages(activeId, { force: true, silent: true });
   }, [activeId, fetchConversationMessages]);
 
+  const retryFailedSend = (item: FailedSend) => {
+    if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
+      showUploadNotice('info', 'Send or save your current draft before retrying this message.');
+      return;
+    }
+    item.localPreviewUrls?.forEach(url => {
+      URL.revokeObjectURL(url);
+      localAttachmentPreviewUrlsRef.current.delete(url);
+    });
+    restoredFailedSendRef.current = item;
+    setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
+    void handleSend(item.scheduledAt, item);
+  };
+
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
   const renderUnreadMessagesDivider = React.useCallback(() => <UnreadMessagesDivider />, []);
   const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
@@ -13701,8 +13782,10 @@ export default function SupraSpacePage() {
       defaultReactionEmoji={activeConv?.theme?.emoji || SS4_REACTIONS[0]}
       operationalKind={getOperationalMessageKind(message, activeConv?.name)}
       messageTextSize={messageTextSize}
+      failedSend={failedSends.find(item => item.optimisticMessageId === message._id)}
+      onRetryFailed={retryFailedSend}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pinnedMsgIds, refreshActiveMedia, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, failedSends, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;
@@ -15075,11 +15158,12 @@ export default function SupraSpacePage() {
                       ? { paddingBottom: 'calc(var(--ss4-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.25rem)' }
                       : undefined}
                   >
-                    {failedSends.filter(item => item.conversationId === activeId).map(item => (
+                    {failedSends.filter(item => item.conversationId === activeId && !item.optimisticMessageId).map(item => (
                       <div key={item.id} role="status" className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-2)', background: 'var(--bg-hover)', color: 'var(--text-primary)' }}>
                         <div className="flex min-w-0 items-center gap-2">
-                          <span className="shrink-0 font-medium" style={{ color: item.deliveryStatus === 'failed' ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                            {item.deliveryStatus === 'checking' ? 'Checking delivery…' : item.deliveryStatus === 'unknown' ? 'Delivery still unconfirmed' : 'Send failed'}
+                          <AlertCircle className="h-4 w-4 shrink-0" style={{ color: item.deliveryStatus === 'failed' ? 'var(--danger)' : 'var(--text-secondary)' }} />
+                          <span className="shrink-0 font-medium">
+                            {item.deliveryStatus === 'checking' ? 'Checking…' : 'Couldn’t send'}
                           </span>
                           <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--text-tertiary)' }}>{messagePreviewText(item.content) || item.files.map(file => file.name).join(', ') || 'Message'}</span>
                         </div>
@@ -15087,27 +15171,7 @@ export default function SupraSpacePage() {
                           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>{item.failureMessage}</p>
                         )}
                         {item.deliveryStatus !== 'checking' && <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
-                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
-                              showUploadNotice('info', 'Send or save your current draft before retrying this message.');
-                              return;
-                            }
-                            restoredFailedSendRef.current = item;
-                            setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
-                            void handleSend(item.scheduledAt, item);
-                          }}>Retry safely</button>
-                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
-                            if (inputTextRef.current.trim() || pendingFiles.length || pendingGif) {
-                              showUploadNotice('info', 'Send or save your current draft before restoring this message.');
-                              return;
-                            }
-                            syncComposerText(item.content, true);
-                            if (textareaRef.current) textareaRef.current.innerHTML = markdownTextToEditorHtml(item.content);
-                            setPendingFiles(item.files); setReplyTo(item.reply); setPendingGif(item.gif);
-                            restoredFailedSendRef.current = item;
-                            setFailedSends(previous => previous.filter(entry => entry.id !== item.id));
-                            showUploadNotice('info', 'Draft restored. It can safely retry its original delivery.');
-                          }}>Restore draft</button>
+                          <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => retryFailedSend(item)}>Retry</button>
                           <button type="button" className="min-h-9 px-2.5 ss4-pill-btn" onClick={() => {
                             if (window.confirm('Discard this unsent message and its files?')) {
                               if (restoredFailedSendRef.current?.id === item.id) restoredFailedSendRef.current = null;

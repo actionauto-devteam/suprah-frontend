@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
 import { useTheme } from '@/context/ThemeContext';
-import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2 } from 'lucide-react';
+import { X, Minus, Send, Loader2, MessageCircle, Check, Reply, Pin, Trash2, Smile, Pencil, Copy, MoreHorizontal, Link2, Share2, MailOpen, Search, Plus, ImageIcon, ThumbsUp, ChevronDown, ChevronLeft, ExternalLink, Users, UserPlus, BellOff, Archive, Palette, ZoomIn, ZoomOut, Bold, Italic, Underline, Strikethrough, List, ListOrdered, TextQuote, Code2, Paperclip, Play, Pause, Mic, Square, BarChart3, CalendarPlus, Clock, MapPin, Download, FileText, Settings2, AlertCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, resolveImageUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -3989,6 +3989,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [sending, setSending] = React.useState(false);
   const sendInFlightRef = React.useRef(false);
   const failedDeliveryRef = React.useRef<{ id: string; key: string } | null>(null);
+  const [failedPopupSends, setFailedPopupSends] = React.useState<Record<string, string>>({});
   const [draggingAttachment, setDraggingAttachment] = React.useState(false);
   const [pendingAttachments, setPendingAttachments] = React.useState<PendingPopupAttachment[]>([]);
   const pendingMediaFiles = React.useMemo(() => pendingAttachments.map(attachment => attachment.file), [pendingAttachments]);
@@ -4505,6 +4506,36 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     setSending(true);
     const deliveryKey = `files:${caption.trim()}:${replyTo?._id || ''}:${pendingAttachments.map(item => attachmentFileKey(item.file)).join('|')}`;
     const clientMessageId = deliveryIdFor(deliveryKey);
+    const currentReplyTo = replyTo;
+    const member = conv.members.find(m => m._id === crmUserId);
+    const localAttachments = pendingAttachments.map(item => ({
+      url: item.previewUrl,
+      localPreviewUrl: item.previewUrl,
+      originalName: item.file.name,
+      mimeType: item.file.type || 'application/octet-stream',
+      size: item.file.size,
+      thumbnailUrl: item.file.type.startsWith('image/') ? item.previewUrl : undefined,
+    }));
+    const allImages = localAttachments.every(attachment => attachment.mimeType.startsWith('image/'));
+    setMessages(prev => prev.some(message => message._id === clientMessageId) ? prev : [...prev, {
+      _id: clientMessageId,
+      conversationId: conv._id,
+      sender: {
+        _id: crmUserId || 'me',
+        fullName: member?.fullName || 'You',
+        username: member?.username || 'you',
+        avatar: member?.avatar,
+      },
+      content: caption.trim(),
+      type: allImages ? 'image' : 'file',
+      attachments: localAttachments,
+      reactions: [],
+      readBy: crmUserId ? [crmUserId] : [],
+      replyTo: currentReplyTo || null,
+      isEdited: false,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+    }]);
     try {
       const fd = new FormData();
       pendingAttachments.forEach(item => fd.append('files', item.file));
@@ -4518,7 +4549,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('Attachment delivery was not confirmed.');
       failedDeliveryRef.current = null;
-      setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setFailedPopupSends(previous => {
+        if (!(clientMessageId in previous)) return previous;
+        const remaining = { ...previous };
+        delete remaining[clientMessageId];
+        return remaining;
+      });
+      setMessages(prev => prev.some(message => message._id === clientMessageId)
+        ? prev.map(message => message._id === clientMessageId ? sent : message)
+        : prev.some(message => message._id === sent._id) ? prev : [...prev, sent]);
       setReplyTo(null);
       setPendingAttachments(prev => {
         prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -4533,7 +4572,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
-        setMessages(prev => prev.find(m => m._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
+        setFailedPopupSends(previous => {
+          if (!(clientMessageId in previous)) return previous;
+          const remaining = { ...previous };
+          delete remaining[clientMessageId];
+          return remaining;
+        });
+        setMessages(prev => prev.some(message => message._id === clientMessageId)
+          ? prev.map(message => message._id === clientMessageId ? reconciliation.message : message)
+          : prev.some(message => message._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
         setReplyTo(null);
         setPendingAttachments(prev => {
           prev.forEach(item => URL.revokeObjectURL(item.previewUrl));
@@ -4546,7 +4593,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         toast.success('Delivery confirmed.');
         return true;
       }
-      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'attachment'));
+      setFailedPopupSends(previous => ({
+        ...previous,
+        [clientMessageId]: getSupraSpaceDeliveryFailureMessage(error, 'attachment'),
+      }));
       return false;
     } finally {
       setSending(false);
@@ -4554,7 +4604,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       setDraggingAttachment(false);
       dragDepthRef.current = 0;
     }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingAttachments, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, conv.members, crmToken, crmUserId, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingAttachments, replyTo, sending, syncComposerText]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -4611,6 +4661,28 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     const gif = pendingGif;
     const deliveryKey = `gif:${caption.trim()}:${replyTo?._id || ''}:${gif.url}`;
     const clientMessageId = deliveryIdFor(deliveryKey);
+    const currentReplyTo = replyTo;
+    const member = conv.members.find(m => m._id === crmUserId);
+    setMessages(prev => prev.some(message => message._id === clientMessageId) ? prev : [...prev, {
+      _id: clientMessageId,
+      conversationId: conv._id,
+      sender: {
+        _id: crmUserId || 'me',
+        fullName: member?.fullName || 'You',
+        username: member?.username || 'you',
+        avatar: member?.avatar,
+      },
+      content: caption.trim(),
+      type: 'gif',
+      gif,
+      attachments: [],
+      reactions: [],
+      readBy: crmUserId ? [crmUserId] : [],
+      replyTo: currentReplyTo || null,
+      isEdited: false,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+    }]);
     try {
       const body: { content: string; gif: SSGif; replyTo?: string; clientMessageId: string } = { content: caption.trim(), gif, clientMessageId };
       if (replyTo?._id) body.replyTo = replyTo._id;
@@ -4623,7 +4695,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('GIF delivery was not confirmed.');
       failedDeliveryRef.current = null;
-      setMessages(prev => prev.find(m => m._id === sent._id) ? prev : [...prev, sent]);
+      setFailedPopupSends(previous => {
+        if (!(clientMessageId in previous)) return previous;
+        const remaining = { ...previous };
+        delete remaining[clientMessageId];
+        return remaining;
+      });
+      setMessages(prev => prev.some(message => message._id === clientMessageId)
+        ? prev.map(message => message._id === clientMessageId ? sent : message)
+        : prev.some(message => message._id === sent._id) ? prev : [...prev, sent]);
       setReplyTo(null);
       setPendingGif(null);
       syncComposerText('', true);
@@ -4635,7 +4715,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
-        setMessages(prev => prev.find(m => m._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
+        setFailedPopupSends(previous => {
+          if (!(clientMessageId in previous)) return previous;
+          const remaining = { ...previous };
+          delete remaining[clientMessageId];
+          return remaining;
+        });
+        setMessages(prev => prev.some(message => message._id === clientMessageId)
+          ? prev.map(message => message._id === clientMessageId ? reconciliation.message : message)
+          : prev.some(message => message._id === reconciliation.message._id) ? prev : [...prev, reconciliation.message]);
         setReplyTo(null);
         setPendingGif(null);
         syncComposerText('', true);
@@ -4645,10 +4733,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         toast.success('Delivery confirmed.');
         return true;
       }
-      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'GIF'));
+      setFailedPopupSends(previous => ({
+        ...previous,
+        [clientMessageId]: getSupraSpaceDeliveryFailureMessage(error, 'GIF'),
+      }));
       return false;
     } finally { setSending(false); sendInFlightRef.current = false; }
-  }, [conv._id, crmToken, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingGif, replyTo?._id, sending, syncComposerText]);
+  }, [conv._id, conv.members, crmToken, crmUserId, deliveryIdFor, draftStorageKey, isReadOnlyConversation, pendingGif, replyTo, sending, syncComposerText]);
 
   // ── Voice recording ──
   const startRecording = React.useCallback(async () => {
@@ -5685,6 +5776,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         ));
         return [...withoutMatchingOptimistic, message];
       });
+      // HTTP timeouts can race a successful socket delivery. Once the server
+      // announces the message, it is no longer a failed local send.
+      setFailedPopupSends(prev => {
+        if (!(message._id in prev)) return prev;
+        const next = { ...prev };
+        delete next[message._id];
+        return next;
+      });
       if (!isMinimized) markAsRead(conv._id);
     };
     socket.on('message:new', handler);
@@ -5795,10 +5894,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     if (!isMinimized && !isReadOnlyConversation) setTimeout(() => inputRef.current?.focus(), 60);
   }, [isMinimized, isReadOnlyConversation]);
 
-  const handleSend = async () => {
+  const handleSend = async (retry?: { content: string; reply: SSMessage | null }) => {
     if (isReadOnlyConversation) return;
-    const visibleComposerText = inputRef.current?.innerText || inputTextRef.current || input;
-    const serializedComposerText = inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim();
+    const visibleComposerText = retry?.content ?? inputRef.current?.innerText ?? inputTextRef.current ?? input;
+    const serializedComposerText = retry?.content ?? (inputRef.current ? htmlToMarkdown(inputRef.current) : (inputTextRef.current || input).trim());
     const serializedText = normalizeMessageMarkdownText(canonicalizeColorMarkup(serializedComposerText));
     const text = serializedText || normalizeMessageMarkdownText(visibleComposerText);
     if (pendingAttachments.length > 0) {
@@ -5810,14 +5909,14 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       return;
     }
     if (!text || sending || sendInFlightRef.current || !crmToken) return;
-    const currentReplyTo = replyTo;
+    const currentReplyTo = retry?.reply ?? replyTo;
     const deliveryKey = `text:${text}:${currentReplyTo?._id || ''}`;
     const clientMessageId = deliveryIdFor(deliveryKey);
     const tempId = clientMessageId;
     const member = conv.members.find(m => m._id === crmUserId);
     sendInFlightRef.current = true;
     setSending(true);
-    setMessages(prev => [...prev, {
+    setMessages(prev => prev.some(message => message._id === tempId) ? prev : [...prev, {
       _id: tempId,
       conversationId: conv._id,
       sender: {
@@ -5853,6 +5952,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const sent: SSMessage = r.data?.data;
       if (!sent) throw new Error('Message delivery was not confirmed.');
       failedDeliveryRef.current = null;
+      setFailedPopupSends(previous => {
+        if (!(tempId in previous)) return previous;
+        const remaining = { ...previous };
+        delete remaining[tempId];
+        return remaining;
+      });
       setMessages(prev => {
         if (tempId === sent._id) return prev.map(m => m._id === tempId ? sent : m);
         if (prev.find(m => m._id === sent._id)) return prev.filter(m => m._id !== tempId);
@@ -5862,6 +5967,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const reconciliation = await reconcileSupraSpaceDelivery(crmToken, conv._id, clientMessageId);
       if (reconciliation.status === 'found') {
         failedDeliveryRef.current = null;
+        setFailedPopupSends(previous => {
+          if (!(tempId in previous)) return previous;
+          const remaining = { ...previous };
+          delete remaining[tempId];
+          return remaining;
+        });
         setMessages(prev => {
           if (tempId === reconciliation.message._id) return prev.map(m => m._id === tempId ? reconciliation.message : m);
           if (prev.find(m => m._id === reconciliation.message._id)) return prev.filter(m => m._id !== tempId);
@@ -5870,16 +5981,38 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         toast.success('Delivery confirmed.');
         return;
       }
-      setMessages(prev => prev.filter(m => m._id !== tempId));
-      const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
-      if (!currentDraft.trim()) {
-        syncComposerText(text, true);
-        try { localStorage.setItem(draftStorageKey, text); } catch { }
-        if (inputRef.current) inputRef.current.textContent = text;
-        setReplyTo(currentReplyTo);
-      }
-      toast.error(getSupraSpaceDeliveryFailureMessage(error, 'message'));
+      // Keep the bubble in place so the retry affordance is attached to the
+      // message that needs attention instead of being lost in a toast.
+      setFailedPopupSends(previous => ({
+        ...previous,
+        [tempId]: getSupraSpaceDeliveryFailureMessage(error, 'message'),
+      }));
     } finally { setSending(false); sendInFlightRef.current = false; }
+  };
+
+  const retryFailedPopupSend = (message: SSMessage) => {
+    if (message.type === 'image' || message.type === 'file') {
+      if (!pendingAttachments.length) {
+        toast.info('The attachment is no longer available. Add it again to retry.');
+        return;
+      }
+      void sendPendingAttachments(message.content);
+      return;
+    }
+    if (message.type === 'gif') {
+      if (!pendingGif) {
+        toast.info('The GIF is no longer available. Pick it again to retry.');
+        return;
+      }
+      void sendPendingGif(message.content);
+      return;
+    }
+    const currentDraft = inputRef.current?.innerText.replace(/\n$/, '') || inputTextRef.current || '';
+    if (currentDraft.trim() || pendingAttachments.length || pendingGif) {
+      toast.info('Send or clear your current draft before retrying this message.');
+      return;
+    }
+    void handleSend({ content: message.content, reply: message.replyTo || null });
   };
 
   const rememberComposerSelection = React.useCallback(() => {
@@ -6644,6 +6777,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   const isRichCard = !!voiceAtt || (msg.type === 'poll' && !!msg.poll) || (msg.type === 'event' && !!msg.event);
                   const operationalKind = getOperationalMessageKind(msg, conv.name);
                   const bareMessage = imageOnly || emojiOnly || gifOnly || isRichCard || !!operationalKind;
+                  const failedPopupSendMessage = failedPopupSends[msg._id];
                   const editableAttachmentCount = (msg.attachments || []).filter((a: SSAttachment) => !a.mimeType?.startsWith('audio/')).length;
                   const canSaveThisEdit = !editSaving
                     && (Boolean(editDraft.trim()) || editableAttachmentCount > 0 || editReplacementFiles.length > 0)
@@ -7219,10 +7353,21 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               </div>
                             )}
                             {msg.isEdited && <span style={{ fontSize: 8, opacity: 0.45, marginLeft: 3 }}>(edited)</span>}
-                            {!hideTime && !operationalKind && (
+                            {(!hideTime || failedPopupSendMessage) && !operationalKind && (
                               <div className={cn('flex items-center gap-1 mt-0.5', isOwn ? 'justify-end' : 'justify-start')}>
-                                <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>
-                                {isOwn && seenMembers.length === 0 && <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} />}
+                                {!hideTime && <span className={cn('text-[11px]', isOwn && !bareMessage ? 'text-white/60' : 'text-muted-foreground')}>{msgTime(msg.createdAt)}</span>}
+                                {isOwn && failedPopupSendMessage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => retryFailedPopupSend(msg)}
+                                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[10px] font-medium text-red-500 transition-colors hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                                    title={failedPopupSendMessage}
+                                    aria-label="Message not sent. Retry message"
+                                  >
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                    Retry
+                                  </button>
+                                ) : isOwn && seenMembers.length === 0 ? <Check className={cn('h-2.5 w-2.5', bareMessage ? 'text-muted-foreground' : 'text-white/50')} /> : null}
                               </div>
                             )}
                           </div>
@@ -7763,7 +7908,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
 
                 {composerHasText || pendingAttachments.length > 0 || pendingGif ? (
-                  <button title="Send (Enter)" onClick={handleSend} disabled={sending}
+                  <button title="Send (Enter)" onClick={() => handleSend()} disabled={sending}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>

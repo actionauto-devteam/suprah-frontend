@@ -22,7 +22,7 @@ function responseMessage(error: DeliveryError): string | null {
 
 export function getSupraSpaceDeliveryFailureMessage(error: unknown, item: 'message' | 'GIF' | 'attachment'): string {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return "You're offline. Reconnect to the internet, then retry safely.";
+    return "You're offline. Reconnect, then tap Retry.";
   }
 
   const deliveryError = (error && typeof error === 'object' ? error : {}) as DeliveryError;
@@ -32,20 +32,20 @@ export function getSupraSpaceDeliveryFailureMessage(error: unknown, item: 'messa
   const timedOut = code === 'ECONNABORTED' || code === 'ETIMEDOUT' || /timeout|timed out/i.test(message);
 
   if (timedOut || status === 408 || status === 504) {
-    return 'Sending took longer than expected. Your connection may be slow or SupraSpace may be busy. Retry safely; your draft is kept.';
+    return "Didn't send yet. Check your connection, then tap Retry.";
   }
   if (status === 429) {
-    return 'SupraSpace is busy right now. Please wait a moment, then retry safely.';
+    return 'SupraSpace is busy. Tap Retry in a moment.';
   }
   if (status >= 500) {
-    return 'SupraSpace is temporarily unavailable. Please retry in a moment; your draft is kept.';
+    return 'SupraSpace is unavailable. Tap Retry in a moment.';
   }
   if (/delivery was not confirmed/i.test(message)) {
-    return `SupraSpace did not confirm this ${item}. Retry safely; your draft is kept.`;
+    return `Couldn't confirm this ${item} was sent. Tap Retry.`;
   }
   if (!deliveryError.response) {
-    return "We couldn't reach SupraSpace. Check your connection, then retry safely.";
+    return "Couldn't reach SupraSpace. Check your connection, then tap Retry.";
   }
 
-  return responseMessage(deliveryError) || `We couldn't send this ${item}. Please retry safely.`;
+  return responseMessage(deliveryError) || `Couldn't send this ${item}. Tap Retry.`;
 }

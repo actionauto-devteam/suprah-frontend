@@ -107,7 +107,10 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
   const pushPlain = (value: string) => {
     if (!value) return;
     const plain = stripTypographyControlTags(value.replace(/\{\s*\/?\s*(?:color|highlight)(?:\s*:\s*#[0-9a-f]{3,8})?\s*\}/gi, ''));
-    const tokenPattern = /(https?:\/\/[^\s]+|\bMEET-\d{4}\b|[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+    // An @ inside an email address is not a mention.  Treating the "@gmail"
+    // part as one gave it the mention chip background in an outgoing bubble,
+    // which looked like a white highlight pasted from Gmail.
+    const tokenPattern = /(https?:\/\/[^\s]+|\bMEET-\d{4}\b|(?<![\w.+-])[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
     let last = 0;
     let match: RegExpExecArray | null;
     while ((match = tokenPattern.exec(plain)) !== null) {

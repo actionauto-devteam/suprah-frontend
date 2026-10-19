@@ -11,6 +11,10 @@ export type FailedSend = ComposerDraft & {
   id: string;
   conversationId: string;
   scheduledAt?: string;
+  /** Local message that stays visible while its delivery can be retried. */
+  optimisticMessageId?: string;
+  /** Object URLs held by a failed attachment bubble until it is retried or dismissed. */
+  localPreviewUrls?: string[];
   deliveryStatus?: 'checking' | 'failed' | 'unknown';
   failureMessage?: string;
 };
