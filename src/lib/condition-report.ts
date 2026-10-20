@@ -34,6 +34,8 @@ export interface ConditionPhoto {
   id: string
   url: string | null
   uploadedAt: string | null
+  /** The damaged part this photo shows, when the driver picked one. */
+  area?: string | null
 }
 
 export interface ConditionReport {
@@ -82,8 +84,12 @@ export async function addConditionPhoto(
   vehicleIndex: number,
   file: File,
   token: string | null,
+  /** Optional: the damaged part the photo shows (an outline area key). */
+  area?: string,
 ): Promise<ConditionReport> {
   const form = new FormData()
+  // The part goes before the file, so the server reads it with the upload.
+  if (area) form.append("area", area)
   form.append("proof", file)
   const res = await apiClient.post(`${conditionPath(loadId)}/${stop}/${vehicleIndex}/photos`, form, auth(token))
   return res.data?.data
