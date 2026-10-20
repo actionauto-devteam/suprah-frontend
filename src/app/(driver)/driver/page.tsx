@@ -1758,8 +1758,8 @@ export default function DriverDashboardPage() {
       );
 
       toast.success("Logistics saved");
-    } catch {
-      toast.error("We couldn't save your logistics details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "save your logistics details"));
     } finally {
       setSavingLogistics(false);
     }

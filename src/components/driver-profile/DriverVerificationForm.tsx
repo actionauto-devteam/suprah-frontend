@@ -157,8 +157,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       if (res.data?.data) setDocuments(res.data.data.documents || []);
       toast.success('Document uploaded');
       setShowUploadDialog(false);
-    } catch {
-      toast.error("We couldn't upload this document. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "upload this document"));
     } finally {
       setUploading(false);
     }
@@ -172,8 +172,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
       if (res.data?.data) setDocuments(res.data.data.documents || []);
       toast.success('Document removed');
       setShowDeleteConfirm(null);
-    } catch {
-      toast.error("We couldn't delete this document. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "delete this document"));
     } finally {
       setDeletingId(null);
     }

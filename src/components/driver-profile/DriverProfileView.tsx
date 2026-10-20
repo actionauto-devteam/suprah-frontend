@@ -405,8 +405,8 @@ export const DriverProfileView: React.FC = () => {
       toast.success("Status updated");
       setShowStatusDialog(false);
       fetchProfile();
-    } catch {
-      toast.error("We couldn't update your status. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "update your status"));
     } finally {
       setIsSaving(false);
     }

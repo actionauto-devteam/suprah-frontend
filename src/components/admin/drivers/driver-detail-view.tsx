@@ -29,6 +29,7 @@ import { PageLoadingState } from '@/components/shared/EmptyLoadingState';
 import { DocumentReviewWorkspace } from './DocumentReviewWorkspace';
 import { ADMIN_HEADER_PANEL_CLASS } from '@/components/admin/theme';
 import { StatCard } from '@/components/admin/StatCard';
+import { userErrorMessage } from '@/lib/user-error';
 
 const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Denver' }) : '—';
 const fmtDateTime = (d?: string) => d ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver', timeZoneName: 'short' }).format(new Date(d)) : '—';
@@ -109,7 +110,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             });
             setProfile(res.data?.data || null);
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to load driver profile');
+            toast.error(userErrorMessage(error, 'load this driver profile'));
         } finally {
             setLoading(false);
         }
@@ -200,7 +201,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             toast.success('Driver application approved — they can now log in');
             await Promise.all([fetchProfile(), fetchDriverRequest()]);
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to approve the application');
+            toast.error(userErrorMessage(error, 'approve the application'));
         } finally {
             setDecidingRequest(null);
         }
@@ -218,7 +219,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             setShowRejectAppDialog(false);
             await fetchDriverRequest();
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to reject the application');
+            toast.error(userErrorMessage(error, 'reject the application'));
         } finally {
             setDecidingRequest(null);
         }
@@ -239,7 +240,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             await fetchProfile();
             toast.success('Document verified');
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to verify document');
+            toast.error(userErrorMessage(error, 'verify this document'));
         } finally {
             setActionLoading(null);
         }
@@ -267,7 +268,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             setRejectDocId(null);
             setRejectReason('');
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to reject document');
+            toast.error(userErrorMessage(error, 'reject this document'));
         } finally {
             setActionLoading(null);
         }
@@ -320,7 +321,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             await fetchProfile();
             toast.success('Note added');
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to add note');
+            toast.error(userErrorMessage(error, 'add this note'));
         } finally {
             setSavingNote(false);
         }
@@ -339,7 +340,7 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
             toast.success('Driver profile approved successfully');
             setShowApproveDialog(false);
         } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to approve driver profile');
+            toast.error(userErrorMessage(error, 'approve this driver profile'));
         } finally {
             setApproving(false);
         }

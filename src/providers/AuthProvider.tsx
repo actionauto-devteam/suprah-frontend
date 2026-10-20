@@ -15,6 +15,7 @@ import { setSocketTokenProvider } from "@/lib/socket.client";
 import { toast } from "sonner";
 import { UpdateProfileRequest } from "@/types/user";
 import { sanitizeRedirectUrl } from "@/lib/navigation";
+import { userErrorMessage } from "@/lib/user-error";
 
 // --- TYPES & INTERFACES (Action Auto Security) ---
 export interface AuthUser {
@@ -763,7 +764,7 @@ export function useSignUp() {
       } catch (e: any) {
         throw {
           errors: [
-            { longMessage: e.response?.data?.message || "Registration failed" },
+            { longMessage: userErrorMessage(e, "create your account") },
           ],
         };
       }
@@ -777,9 +778,7 @@ export function useSignUp() {
         throw {
           errors: [
             {
-              longMessage:
-                e.response?.data?.message ||
-                "Failed to resend verification code",
+              longMessage: userErrorMessage(e, "send a new verification code"),
             },
           ],
         };
@@ -808,7 +807,7 @@ export function useSignUp() {
       } catch (e: any) {
         throw {
           errors: [
-            { longMessage: e.response?.data?.message || "Verification failed" },
+            { longMessage: userErrorMessage(e, "verify your email") },
           ],
         };
       }
@@ -872,7 +871,7 @@ export function useSignIn() {
         }
         throw {
           errors: [
-            { longMessage: e.response?.data?.message || "Login failed" },
+            { longMessage: userErrorMessage(e, "sign you in") },
           ],
         };
       }
