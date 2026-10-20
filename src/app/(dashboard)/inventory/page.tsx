@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import type { Vehicle, ShippingQuoteFormData } from "@/types/inventory";
 import { apiClient } from "@/lib/api-client";
 import { AxiosError } from "axios";
+import { userErrorMessage } from "@/lib/user-error";
 import { ShopInventoryFilters } from "@/components/shop-inventory-filters";
 import { InventoryPagination } from "@/components/inventory-pagination";
 import { useAuth } from "@/providers/AuthProvider";
@@ -605,11 +606,9 @@ function InventoryContent() {
         }
 
         console.error("[Inventory] Error fetching vehicles:", err);
-        setError(
-          (axiosError.response?.data as any)?.message ||
-            axiosError.message ||
-            "Failed to load vehicles",
-        );
+        // The server's own message when there is one; otherwise plain words
+        // instead of technical text such as "Network Error".
+        setError(userErrorMessage(err, "load your inventory"));
       } finally {
         if (requestSequence === requestSequenceRef.current) {
           setIsInitialLoading(false);
