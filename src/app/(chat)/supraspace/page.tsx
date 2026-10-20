@@ -14006,18 +14006,22 @@ export default function SupraSpacePage() {
     if (conversationFilter === 'mentions') return hasUnreadMentionForUser(conv, uid, me?.fullName, me?.username, msgs[conv._id]);
     return true;
   }, [conversationFilter, uid, manualUnread, me?.fullName, me?.username, msgs]);
+  const allKnownConversations = React.useMemo(
+    () => mergeSupraSpaceConversations(convos, ctxConversations, uid),
+    [convos, ctxConversations, uid],
+  );
   const { visibleConvos, pinnedList, archivedList, normalList, dmList } = React.useMemo(() => {
-    const matching = filterSupraSpaceConversations(convos, c => getConvName(c, uid), q);
+    const matching = filterSupraSpaceConversations(allKnownConversations, c => getConvName(c, uid), q);
     const visible = matching.filter(matchesConversationFilter);
     const pinned = visible.filter(c => isPinnedConv(c) && !isArchivedConv(c));
     const archived = matching.filter(c => isArchivedConv(c));
     const normal = visible.filter(c => !isPinnedConv(c) && !isArchivedConv(c));
     const dms = normal.filter(c => c.type === 'direct');
     return { visibleConvos: visible, pinnedList: pinned, archivedList: archived, normalList: normal, dmList: dms };
-  }, [convos, uid, q, matchesConversationFilter, isPinnedConv, isArchivedConv]);
+  }, [allKnownConversations, uid, q, matchesConversationFilter, isPinnedConv, isArchivedConv]);
   const archivedConversationList = React.useMemo(
-    () => convos.filter(isArchivedConv),
-    [convos, isArchivedConv],
+    () => allKnownConversations.filter(isArchivedConv),
+    [allKnownConversations, isArchivedConv],
   );
   const archivedConversationCount = archivedConversationList.length;
   const isBulkEligibleConversation = React.useCallback((conversation: SSConversation, allowArchived = false) => {

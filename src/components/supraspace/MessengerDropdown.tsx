@@ -31,7 +31,7 @@ const CONVERSATION_FILTERS: Array<{ key: ConversationFilter; label: string }> = 
 function getDisplayName(conv: SSConv, myId: string | null): string {
   if (conv.type === 'group') return conv.name || 'Group';
   const other = conv.members.find((m) => m._id !== myId);
-  return other?.fullName || 'Unknown';
+  return other?.fullName || other?.username || 'Unknown';
 }
 
 function getAvatarSrc(conv: SSConv, myId: string | null): string | undefined {

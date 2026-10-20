@@ -460,13 +460,25 @@ export function SupraSpaceMessengerProvider({ children }: { children: React.Reac
     const activityRevisionAtRequestStart = conversationActivityRevisionRef.current;
     setIsLoadingConversations(true);
     setConversationError(false);
-    apiClient
-      .get('/api/supraspace/conversations', {
+    Promise.all([
+      apiClient.get('/api/supraspace/conversations', {
         ...authConfig(crmToken, true),
         params: { limit: SUPRASPACE_CONTEXT_CONVERSATION_LIMIT, offset: 0 },
-      })
-      .then((r) => {
-        const next = sortByLastMessage(readConversationPayload(r.data?.data), crmUserId);
+      }),
+      apiClient.get('/api/supraspace/conversations', {
+        ...authConfig(crmToken, true),
+        params: { archived: true },
+      }),
+    ])
+      .then(([activeResponse, archivedResponse]) => {
+        const byId = new Map<string, SSConv>();
+        for (const conversation of [
+          ...readConversationPayload(activeResponse.data?.data),
+          ...readConversationPayload(archivedResponse.data?.data),
+        ]) {
+          byId.set(conversation._id, conversation);
+        }
+        const next = sortByLastMessage([...byId.values()], crmUserId);
         setConversations((current) => {
           const currentById = new Map(current.map((conversation) => [conversation._id, conversation]));
           const merged = next.map((snapshot) => {
