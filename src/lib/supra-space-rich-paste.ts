@@ -39,6 +39,17 @@ export function supraSpaceClipboardTextLosesPlainText(
   );
 }
 
+export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
+  if (ordered) {
+    return value.replace(/^\s*\d+[.)](?:\s+|(?=\S))/u, '');
+  }
+
+  return value.replace(
+    /^\s*(?:[-*+\u2022\u00b7\u2023\u2043\u25e6\u25aa\u25ab\u25cf\u25cb\u2013\u2014\u2713\u2714\u2611\u2192\u27a4\u00bb\u203a])\s+/u,
+    '',
+  );
+}
+
 type SupraSpaceSelectionClipboardData = {
   html: string;
   plainText: string;

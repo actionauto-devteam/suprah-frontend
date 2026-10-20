@@ -68,7 +68,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -1034,7 +1034,7 @@ function clipboardElementIsMetadata(element: HTMLElement): boolean {
   return !text || CLIPBOARD_METADATA_TEXT_RE.test(text);
 }
 
-function stripLeadingSemanticListMarker(root: HTMLElement): void {
+function stripLeadingSemanticListMarker(root: HTMLElement, ordered: boolean): void {
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_TEXT,
@@ -1053,7 +1053,7 @@ function stripLeadingSemanticListMarker(root: HTMLElement): void {
 
   const firstText = walker.nextNode() as Text | null;
   if (!firstText) return;
-  firstText.data = firstText.data.replace(
+  firstText.data = stripSupraSpaceSemanticListMarker(firstText.data, ordered).replace(
     /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
     '',
   );
@@ -3031,7 +3031,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
         || clipboardElementIsMetadata(child)
       ) child.remove();
     });
-    stripLeadingSemanticListMarker(clone);
+    stripLeadingSemanticListMarker(clone, element.parentElement?.tagName.toLowerCase() === 'ol');
     return clone;
   };
 

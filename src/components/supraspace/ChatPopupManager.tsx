@@ -14,7 +14,7 @@ import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } 
 import { createMessageId } from './composer/send-state';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
@@ -820,7 +820,7 @@ function clipboardElementIsDecorativeMarker(element: HTMLElement): boolean {
   );
 }
 
-function stripLeadingSemanticListMarker(root: HTMLElement): void {
+function stripLeadingSemanticListMarker(root: HTMLElement, ordered: boolean): void {
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_TEXT,
@@ -839,7 +839,7 @@ function stripLeadingSemanticListMarker(root: HTMLElement): void {
 
   const firstText = walker.nextNode() as Text | null;
   if (!firstText) return;
-  firstText.data = firstText.data.replace(
+  firstText.data = stripSupraSpaceSemanticListMarker(firstText.data, ordered).replace(
     /^\s*(?:[-*+•·‣⁃◦▪▫●○■□◆◇–—✓✔☑→➤»›]|\d+[.)])\s+/u,
     '',
   );
@@ -2495,7 +2495,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
         || clipboardElementIsDecorativeMarker(child)
       ) child.remove();
     });
-    stripLeadingSemanticListMarker(clone);
+    stripLeadingSemanticListMarker(clone, element.parentElement?.tagName.toLowerCase() === 'ol');
     return clone;
   };
 
