@@ -196,6 +196,7 @@ assert.equal(
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('1. Open the widget.', true), 'Open the widget.');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('2.Select a message.', true), 'Select a message.');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('7)Confirm the action.', true), 'Confirm the action.');
+assert.equal(richPaste.stripSupraSpaceSemanticListMarker('3.', true), '');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('Release 2.0 is ready.', true), 'Release 2.0 is ready.');
 assert.equal(richPaste.stripSupraSpaceSemanticListMarker('\u2022 Keep this bullet text.', false), 'Keep this bullet text.');
 

@@ -41,7 +41,7 @@ export function supraSpaceClipboardTextLosesPlainText(
 
 export function stripSupraSpaceSemanticListMarker(value: string, ordered: boolean): string {
   if (ordered) {
-    return value.replace(/^\s*\d+[.)](?:\s+|(?=\S))/u, '');
+    return value.replace(/^\s*\d+[.)](?:\s+|(?=\S)|\s*$)/u, '');
   }
 
   return value.replace(

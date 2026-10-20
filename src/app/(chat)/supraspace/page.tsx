@@ -2880,7 +2880,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const items = Array.from(list.children).filter((child): child is HTMLElement => child.tagName.toLowerCase() === 'li');
 
     items.forEach((item, index) => {
-      const content = directListItemText(item);
+      const content = stripSupraSpaceSemanticListMarker(directListItemText(item), ordered);
       const indent = SS4_LIST_INDENT_STEP.repeat(depth);
       const marker = ordered ? `${startAt + index}.` : ss4BulletGlyphForDepth(depth);
       if (content) lines.push(`${indent}${marker} ${content}`);

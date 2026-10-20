@@ -2363,7 +2363,7 @@ function clipboardHtmlToListAwareText(html: string): string {
     const startAt = ordered ? Number.parseInt(list.getAttribute('start') || '1', 10) || 1 : 1;
     const items = Array.from(list.children).filter((child): child is HTMLElement => child.tagName.toLowerCase() === 'li');
     items.forEach((item, index) => {
-      const text = itemText(item);
+      const text = stripSupraSpaceSemanticListMarker(itemText(item), ordered);
       const indent = POPUP_LIST_INDENT_STEP.repeat(depth);
       const marker = ordered ? `${startAt + index}.` : popupBulletGlyphForDepth(depth);
       if (text) lines.push(`${indent}${marker} ${text}`);
