@@ -3025,6 +3025,7 @@ function PinnedMessagesModal({
   pinnedMsgIds,
   loading,
   onUnpin,
+  onView,
   canUnpin = true,
   onClose,
 }: {
@@ -3032,6 +3033,7 @@ function PinnedMessagesModal({
   pinnedMsgIds: Set<string>;
   loading: boolean;
   onUnpin: (id: string) => void;
+  onView: (message: SSMessage) => void;
   canUnpin?: boolean;
   onClose: () => void;
 }) {
@@ -3045,12 +3047,18 @@ function PinnedMessagesModal({
       onClick={onClose}
     >
       <div
-        style={{ background: 'var(--popover)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', border: '1px solid var(--border)' }}
+        style={{ background: 'var(--popover)', borderRadius: 18, width: '100%', maxWidth: 480, maxHeight: 'min(74dvh, 620px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,0.45)', border: '1px solid var(--border)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--popover-foreground)' }}>Pinned messages</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span style={{ width: 32, height: 32, borderRadius: 10, display: 'grid', placeItems: 'center', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 13%, transparent)' }}><Pin style={{ width: 15, height: 15 }} /></span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--popover-foreground)' }}>Pinned messages</div>
+              <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{pinned.length} {pinned.length === 1 ? 'message' : 'messages'} saved for this chat</div>
+            </div>
+          </div>
           <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', border: 'none' }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -3061,16 +3069,19 @@ function PinnedMessagesModal({
           {loading ? (
             <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Loading pinned messages…</div>
           ) : pinned.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>No pinned messages</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', padding: '48px 24px', fontSize: 13, color: 'var(--muted-foreground)' }}>
+              <Pin style={{ width: 22, height: 22, opacity: 0.45 }} />
+              <strong style={{ color: 'var(--popover-foreground)' }}>No pinned messages</strong>
+              <span>Important messages you pin will be collected here.</span>
+            </div>
           ) : (
-            pinned.map((m, idx) => {
+            <div style={{ display: 'grid', gap: 8, padding: 10 }}>
+            {pinned.slice().reverse().map((m) => {
               const dateStr = new Date(m.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Denver' });
               const avatarLetter = (m.sender?.fullName || 'U')[0].toUpperCase();
               const contentText = MEDIA_LABELS[m.type] || messagePreviewText(m.content) || '';
               return (
-                <React.Fragment key={m._id}>
-                  {idx > 0 && <div style={{ height: 1, background: 'var(--border)' }} />}
-                  <div style={{ padding: '14px 20px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div key={m._id} style={{ padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                     {/* Avatar */}
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#16a34a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: 2 }}>
                       {m.sender?.avatar
@@ -3079,7 +3090,7 @@ function PinnedMessagesModal({
                       }
                     </div>
                     {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <button type="button" onClick={() => onView(m)} style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer', border: 'none', padding: 0, background: 'transparent', color: 'inherit' }} title="View message in chat">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--popover-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.sender?.fullName || 'Unknown'}</span>
                         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{dateStr}</span>
@@ -3087,7 +3098,7 @@ function PinnedMessagesModal({
                       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                         {contentText}
                       </p>
-                    </div>
+                    </button>
                     {canUnpin && (
                       <button
                         onClick={() => onUnpin(m._id)}
@@ -3098,9 +3109,9 @@ function PinnedMessagesModal({
                       </button>
                     )}
                   </div>
-                </React.Fragment>
               );
-            })
+            })}
+            </div>
           )}
         </div>
       </div>
@@ -6833,6 +6844,27 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               ) : (
                 messages.map((msg, idx) => {
                   if (msg.isDeleted) return null;
+                  if (msg.type === 'system') {
+                    const isPinActivity = msg.metadata?.activityType === 'message_pinned' || msg.metadata?.activityType === 'message_unpinned';
+                    return (
+                      <React.Fragment key={msg._id}>
+                        {msg._id === unreadBoundaryMessageId && <UnreadMessagesDivider compact />}
+                        <div className="flex items-center gap-1.5 px-2 py-1.5" role="status">
+                          <span className="h-px flex-1 bg-border/60" />
+                          <span
+                            className={cn(
+                              'inline-flex max-w-[82%] items-center gap-1 rounded-full px-2.5 py-1 text-center text-[10px] leading-snug',
+                              isPinActivity ? 'border border-primary/20 bg-primary/10 text-primary' : 'bg-muted/70 text-muted-foreground',
+                            )}
+                          >
+                            {isPinActivity && <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                            <span>{msg.content}</span>
+                          </span>
+                          <span className="h-px flex-1 bg-border/60" />
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
                   const isOwn = msg.sender?._id === crmUserId;
                   const prevVisible = messages.slice(0, idx).findLast(m => !m.isDeleted);
                   const nextVisible = messages.slice(idx + 1).find(m => !m.isDeleted) || null;
@@ -8328,6 +8360,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
           pinnedMsgIds={pinnedMsgIds}
           loading={pinnedMessagesLoading}
           canUnpin={!isReadOnlyConversation}
+          onView={(message) => {
+            setPinnedOpen(false);
+            jumpToPopupRepliedMessage(message);
+          }}
           onUnpin={async (id) => {
             if (isReadOnlyConversation) return;
             if (pinRequestIdsRef.current.has(id)) return;

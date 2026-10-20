@@ -3,11 +3,8 @@
 import * as React from 'react';
 import type { SSMessage } from '@/hooks/useSupraSpaceSocket';
 
-type PinEvent = { id: string; pinnerName: string; msgId: string };
-
 type MessageTimelineProps = {
   messages: SSMessage[];
-  pinEvents: PinEvent[];
   unreadBoundaryMessageId?: string | null;
   dateLabel: (date: string) => string;
   renderDateSeparator: (date: string) => React.ReactNode;
@@ -15,9 +12,8 @@ type MessageTimelineProps = {
   renderMessage: (message: SSMessage, options: { showAvatar: boolean; hideTime: boolean }) => React.ReactNode;
 };
 
-export const MessageTimeline = React.memo(function MessageTimeline({ messages, pinEvents, unreadBoundaryMessageId, dateLabel, renderDateSeparator, renderUnreadSeparator, renderMessage }: MessageTimelineProps) {
+export const MessageTimeline = React.memo(function MessageTimeline({ messages, unreadBoundaryMessageId, dateLabel, renderDateSeparator, renderUnreadSeparator, renderMessage }: MessageTimelineProps) {
   const entries = React.useMemo(() => {
-    const pinEventsByMessageId = new Map(pinEvents.map(event => [event.msgId, event]));
     return messages.map((message, index) => {
       const previous = messages[index - 1] || null;
       const next = messages[index + 1] || null;
@@ -32,11 +28,11 @@ export const MessageTimeline = React.memo(function MessageTimeline({ messages, p
         && nextDate === date
         && new Date(next.createdAt).getTime() - new Date(message.createdAt).getTime() < 5 * 60 * 1000,
       );
-      return { message, showDate, showAvatar, hideTime, pinEvent: pinEventsByMessageId.get(message._id) };
+      return { message, showDate, showAvatar, hideTime };
     });
-  }, [dateLabel, messages, pinEvents]);
+  }, [dateLabel, messages]);
 
-  return <>{entries.map(({ message, showDate, showAvatar, hideTime, pinEvent }) => {
+  return <>{entries.map(({ message, showDate, showAvatar, hideTime }) => {
     return (
       <React.Fragment key={message._id}>
         {showDate && renderDateSeparator(message.createdAt)}
@@ -44,16 +40,6 @@ export const MessageTimeline = React.memo(function MessageTimeline({ messages, p
         <div id={`ss4-msg-${message._id}`}>
           {renderMessage(message, { showAvatar, hideTime })}
         </div>
-        {pinEvent && (
-          <div className="flex items-center justify-center px-3 py-1 my-0.5 sm:px-4 sm:py-1.5">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:px-4" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-1)' }}>
-              <span style={{ fontSize: 14 }}>{'\u{1f4cc}'}</span>
-              <p style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{pinEvent.pinnerName}</span>{' pinned a message to the board'}
-              </p>
-            </div>
-          </div>
-        )}
       </React.Fragment>
     );
   })}</>;

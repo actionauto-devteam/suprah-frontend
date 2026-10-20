@@ -6109,11 +6109,23 @@ const Bubble = React.memo(function Bubble({
   }
 
   if (message.type === 'system') {
+    const isPinActivity = message.metadata?.activityType === 'message_pinned' || message.metadata?.activityType === 'message_unpinned';
     return (
-      <div className="px-4 py-1.5 text-center sm:px-5">
-        <span className="inline-block rounded-full px-3 py-1" style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--surface-2)' }}>
-          {message.content}
+      <div className="flex items-center gap-2 px-4 py-2 sm:px-5" role="status">
+        <span className="h-px flex-1" style={{ background: 'var(--border-1)' }} />
+        <span
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-center"
+          style={{
+            fontSize: 11,
+            color: isPinActivity ? 'var(--accent-text)' : 'var(--text-tertiary)',
+            background: isPinActivity ? 'var(--accent-muted)' : 'var(--surface-2)',
+            border: `1px solid ${isPinActivity ? 'var(--border-2)' : 'transparent'}`,
+          }}
+        >
+          {isPinActivity && <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />}
+          <span className="min-w-0">{message.content}</span>
         </span>
+        <span className="h-px flex-1" style={{ background: 'var(--border-1)' }} />
       </div>
     );
   }
@@ -9811,7 +9823,6 @@ export default function SupraSpacePage() {
   const [pinnedMessagesLoading, setPinnedMessagesLoading] = React.useState(false);
   const pinRequestIdsRef = React.useRef(new Set<string>());
   const [pinnedModalOpen, setPinnedModalOpen] = React.useState(false);
-  const [pinEvents, setPinEvents] = React.useState<Array<{ id: string; pinnerName: string; msgId: string }>>([]);
   const syncPinnedMessageIds = React.useCallback((messages: SSMessage[]) => {
     setPinnedMsgIds(prev => {
       const next = new Set(prev);
@@ -12618,11 +12629,8 @@ export default function SupraSpacePage() {
       await apiClient.post(`/api/supraspace/messages/${msgId}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } });
       if (alreadyPinned) {
         toast('Message unpinned');
-        setPinEvents(pe => pe.filter(e => e.msgId !== msgId));
       } else {
         toast.success('Message pinned');
-        const pinnerName = activeConv?.members.find(m => m._id === uid)?.fullName || 'You';
-        setPinEvents(pe => [...pe, { id: 'pin-' + msgId, pinnerName, msgId }]);
       }
       void fetchPinnedMessages(activeId);
     } catch {
@@ -12638,7 +12646,7 @@ export default function SupraSpacePage() {
     } finally {
       pinRequestIdsRef.current.delete(msgId);
     }
-  }, [activeId, pinnedMsgIds, activeConv, uid, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
+  }, [activeId, pinnedMsgIds, uid, token, patchMsg, fetchPinnedMessages, pinnedMessages]);
 
   const jumpToMessage = React.useCallback(async (msgId: string, createdAt?: string) => {
     setPinnedModalOpen(false);
@@ -15239,7 +15247,6 @@ export default function SupraSpacePage() {
                       )}
                       <MessageTimeline
                         messages={activeMsgs}
-                        pinEvents={pinEvents}
                         unreadBoundaryMessageId={activeId ? unreadBoundaryMessageIds[activeId] : null}
                         dateLabel={fmtDate}
                         renderDateSeparator={renderTimelineDateSeparator}
