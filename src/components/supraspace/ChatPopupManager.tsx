@@ -1152,7 +1152,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
   };
 
   return (
-    <span className="block" style={{ lineHeight: 1.66 }}>
+    <span className="block" style={{ lineHeight: 1.66, whiteSpace: 'pre-wrap' }}>
       {lines.map((line, index) => {
         const table = tables.get(index);
         if (table) {
@@ -1165,7 +1165,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         }
         if (tableCoveredLines.has(index)) return null;
         if (/^\s*(?:\*\*|__|~~)\s*$/.test(line)) return null;
-        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: 10 }} aria-hidden="true" />;
+        if (!line.trim()) return <span key={`blank-${index}`} className="block" style={{ height: '1.66em' }} aria-hidden="true" />;
 
         const bullet = line.match(bulletRe);
         if (bullet) {
@@ -2102,7 +2102,10 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
       || /^h[1-6]$/.test(tag)
-    ) inner = `\n${inner}`;
+    ) {
+      const separator = element.hasAttribute('data-ss4-paste-paragraph') ? '\n\n' : '\n';
+      inner = `${separator}${inner}`;
+    }
     return inner;
   };
 
@@ -2112,7 +2115,6 @@ function htmlToMarkdown(el: HTMLElement): string {
       .join('')
       .replace(/\u00A0/g, ' ')
       .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
   const serialized = normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
@@ -2605,7 +2607,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
     }
     if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
-      return `<div>${wrapStyles(element, formatted || '<br>')}</div>`;
+      return `<div data-ss4-paste-paragraph="true">${wrapStyles(element, formatted || '<br>')}</div>`;
     }
     return wrapStyles(element, formatted);
   };

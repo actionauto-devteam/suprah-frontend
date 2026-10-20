@@ -17,6 +17,7 @@ const INLINE_STYLE_TAGS = new Set([
 ]);
 const BLOCK_STYLE_DESCENDANTS = 'address,article,aside,blockquote,div,dl,fieldset,footer,form,h1,h2,h3,h4,h5,h6,header,li,main,ol,p,pre,section,table,ul';
 const DISALLOWED_TAGS = 'embed,frame,iframe,link,meta,object,script,style';
+const PASTE_PARAGRAPH_ATTRIBUTE = 'data-ss4-paste-paragraph';
 
 export function supraSpaceClipboardTextLosesPlainText(
   plainText: string,
@@ -155,7 +156,8 @@ export function sanitizeSupraSpacePastedEditorHtml(
         && safeHref
         && ['href', 'target', 'rel'].includes(name);
       const keepListAttribute = tag === 'ol' && name === 'start';
-      if (!keepAnchorAttribute && !keepListAttribute) element.removeAttribute(attribute.name);
+      const keepPasteParagraphAttribute = name === PASTE_PARAGRAPH_ATTRIBUTE;
+      if (!keepAnchorAttribute && !keepListAttribute && !keepPasteParagraphAttribute) element.removeAttribute(attribute.name);
     });
 
     const styles = [

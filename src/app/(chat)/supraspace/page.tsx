@@ -2176,7 +2176,10 @@ function htmlToMarkdown(el: HTMLElement): string {
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
       || /^h[1-6]$/.test(tag)
-    ) inner = `\n${inner}`;
+    ) {
+      const separator = element.hasAttribute('data-ss4-paste-paragraph') ? '\n\n' : '\n';
+      inner = `${separator}${inner}`;
+    }
     return inner;
   };
 
@@ -2186,7 +2189,6 @@ function htmlToMarkdown(el: HTMLElement): string {
       .join('')
       .replace(/\u00A0/g, ' ')
       .replace(/[\u200B\u2060\uFEFF\uFFFC\uFFFD]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
       .trim(),
   );
   const serialized = normalizeSupraSpaceLegacyMarkup(canonicalizeColorMarkup(markdown));
@@ -3144,7 +3146,7 @@ function clipboardHtmlToEditorHtml(html: string): string {
       return `<div>${wrapStyles(element, `<strong>${formatted}</strong>`)}</div>`;
     }
     if (['div', 'p', 'section', 'article', 'header', 'footer', 'main', 'aside'].includes(tag)) {
-      return `<div>${wrapStyles(element, formatted || '<br>')}</div>`;
+      return `<div data-ss4-paste-paragraph="true">${wrapStyles(element, formatted || '<br>')}</div>`;
     }
     return wrapStyles(element, formatted);
   };
@@ -3682,20 +3684,20 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
   let blockIdx = 0;
   let lineIndex = 0;
   let hasRenderedContent = false;
-  let hasPendingBlankLine = false;
+  let pendingBlankLineCount = 0;
 
   const addSeparation = (kind: 'line' | 'block') => {
     if (!hasRenderedContent) {
-      hasPendingBlankLine = false;
+      pendingBlankLineCount = 0;
       return;
     }
 
-    if (hasPendingBlankLine) {
+    if (pendingBlankLineCount > 0) {
       result.push(
         <span
           key={`gap-${blockIdx++}`}
           aria-hidden="true"
-          style={{ display: 'block', height: '0.62em' }}
+          style={{ display: 'block', height: `${pendingBlankLineCount * 1.66}em` }}
         />
       );
     } else if (kind === 'line') {
@@ -3710,14 +3712,14 @@ function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[
       );
     }
 
-    hasPendingBlankLine = false;
+    pendingBlankLineCount = 0;
   };
 
   while (lineIndex < rawLines.length) {
     const raw = rawLines[lineIndex];
 
     if (!raw.trim()) {
-      hasPendingBlankLine = hasRenderedContent;
+      if (hasRenderedContent) pendingBlankLineCount += 1;
       lineIndex++;
       continue;
     }
