@@ -1,3 +1,5 @@
+import { MAX_TRAILER_VEHICLES } from '@/components/driver-profile/driver-profile-constants';
+
 export const TRAILER_CAPACITY: Record<string, number> = {
   open_3car_wedge: 3,
   open_2car: 2,
@@ -15,7 +17,7 @@ export const TRAILER_CAPACITY: Record<string, number> = {
   rgn: 2,
   double_drop: 2,
   power_only: 0,
-  other: 1,
+  other: MAX_TRAILER_VEHICLES,
 };
 
 export interface TrailerOption {
@@ -41,7 +43,7 @@ export const TRAILER_OPTIONS: TrailerOption[] = [
   { value: 'rgn', label: 'RGN', capacity: 2 },
   { value: 'double_drop', label: 'Double Drop', capacity: 2 },
   { value: 'power_only', label: 'Power Only', capacity: 0 },
-  { value: 'other', label: 'Other', capacity: 1 },
+  { value: 'other', label: 'Other', capacity: MAX_TRAILER_VEHICLES },
 ];
 
 export function getTrailerCapacity(trailerType: string): number {

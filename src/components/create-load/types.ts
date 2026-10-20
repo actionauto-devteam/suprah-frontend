@@ -1,3 +1,5 @@
+import { MAX_TRAILER_VEHICLES } from "@/components/driver-profile/driver-profile-constants";
+
 export const MAX_VEHICLES = 20;
 
 export type PostType = "load-board" | "assign-carrier";
@@ -161,7 +163,7 @@ export const TRAILER_TYPE_OPTIONS: Array<{
   { value: "rgn", label: "RGN", capacity: 2 },
   { value: "double_drop", label: "Double Drop", capacity: 2 },
   { value: "power_only", label: "Power Only", capacity: 0 },
-  { value: "other", label: "Other", capacity: MAX_VEHICLES },
+  { value: "other", label: "Other", capacity: MAX_TRAILER_VEHICLES },
 ];
 
 export function trailerCapacity(trailerType: string): number | undefined {
