@@ -1122,12 +1122,12 @@ function messagePreviewText(content?: string | null): string {
   return getSupraSpaceMessagePreviewText(content);
 }
 
-function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string): React.ReactNode[] {
-  return renderSupraSpaceRichTextInline(text, isOwn, keyPrefix);
+function renderInlineMd(text: string, isOwn: boolean, keyPrefix: string, mentionAliases: readonly string[] = []): React.ReactNode[] {
+  return renderSupraSpaceRichTextInline(text, isOwn, keyPrefix, false, mentionAliases);
 
 }
 
-function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
+function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly string[] = []): React.ReactNode {
   const label = MEDIA_LABELS[msg.type];
   if (label) return label;
 
@@ -1159,7 +1159,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           const renderCells = (cells: string[], tag: 'th' | 'td', rowIndex: number) => cells.map((cell, cellIndex) => React.createElement(
             tag,
             { key: `${tag}-${rowIndex}-${cellIndex}`, style: { border: '1px solid rgba(255,255,255,.22)', padding: '5px 7px', textAlign: 'left', verticalAlign: 'top' } },
-            renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${index}-${rowIndex}-${cellIndex}`),
+            renderInlineMd(cell.replace(/<br>/g, '\n'), isOwn, `table-${index}-${rowIndex}-${cellIndex}`, mentionAliases),
           ));
           return <span key={`table-${index}`} className="block max-w-full overflow-x-auto my-1.5"><table className="border-collapse text-[11px]" style={{ minWidth: '100%' }}><thead><tr style={{ background: 'rgba(255,255,255,.12)' }}>{renderCells(table.header, 'th', 0)}</tr></thead>{table.rows.length > 0 && <tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{renderCells(row, 'td', rowIndex + 1)}</tr>)}</tbody>}</table></span>;
         }
@@ -1173,7 +1173,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           return (
             <span key={`bullet-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ width: 12, flex: '0 0 12px', textAlign: 'center' }}>{bullet[2]}</span>
-              <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`)}</span>
+              <span>{renderInlineMd(bullet[3], isOwn, `bullet-${index}`, mentionAliases)}</span>
             </span>
           );
         }
@@ -1184,7 +1184,7 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
           return (
             <span key={`numbered-${index}`} className="flex items-start" style={{ marginLeft: depth * 14, gap: 7 }}>
               <span aria-hidden="true" style={{ minWidth: 16, flexShrink: 0, textAlign: 'right' }}>{numbered[2]}.</span>
-              <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`)}</span>
+              <span>{renderInlineMd(numbered[3], isOwn, `numbered-${index}`, mentionAliases)}</span>
             </span>
           );
         }
@@ -1192,14 +1192,14 @@ function renderContent(msg: SSMessage, isOwn: boolean): React.ReactNode {
         if (/^\s*>\s?/.test(line)) {
           return (
             <span key={`quote-${index}`} className="block" style={{ borderLeft: '2px solid', borderColor: isOwn ? 'rgba(255,255,255,0.4)' : '#60a5fa', paddingLeft: 8, marginTop: index > 0 ? 5 : 0, opacity: 0.88 }}>
-              {renderInlineMd(line.replace(/^\s*>\s?/, ''), isOwn, `quote-${index}`)}
+              {renderInlineMd(line.replace(/^\s*>\s?/, ''), isOwn, `quote-${index}`, mentionAliases)}
             </span>
           );
         }
 
         return (
           <span key={`line-${index}`} className="block" style={{ marginTop: index > 0 ? 4 : 0 }}>
-            {renderInlineMd(line, isOwn, `line-${index}`)}
+            {renderInlineMd(line, isOwn, `line-${index}`, mentionAliases)}
           </span>
         );
       })}
@@ -5657,6 +5657,16 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const avatarSrc = getAvatarSrc(conv, crmUserId);
   const rightPx = baseOffsetPx + stackIndex * (POPUP_W + POPUP_GAP);
   const accentColor = conv.theme?.accent || '#16a34a';
+  const mentionAliases = React.useMemo(() => [
+    ...(conv.type === 'group' ? ['all'] : []),
+    ...conv.members
+      .filter(member => member._id !== crmUserId)
+      .flatMap(member => {
+        const parts = member.fullName.trim().split(/\s+/).filter(Boolean);
+        const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+        return [display, member.fullName, member.username].filter(Boolean) as string[];
+      }),
+  ], [conv.members, conv.type, crmUserId]);
 
   const mentionOptions = React.useMemo(() => {
     if (mentionQuery === null) return [];
@@ -7467,7 +7477,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             ) : msg.type !== 'image'
                               ? emojiOnly
                                 ? <span className="block text-[32px] leading-none">{msg.content}</span>
-                                : renderContent(msg, isOwn)
+                                : renderContent(msg, isOwn, mentionAliases)
                               : msg.content ? <span>{msg.content}</span> : null}
                             {videoAttachments.length > 0 && (
                               <div className="flex flex-col gap-1.5 mt-1">

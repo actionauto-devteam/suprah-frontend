@@ -3669,9 +3669,9 @@ function messagePreviewText(content?: string | null): string {
   return getSupraSpaceMessagePreviewText(content);
 }
 
-function renderMessageContent(content: string, isOwn: boolean): React.ReactNode[] {
+function renderMessageContent(content: string, isOwn: boolean, mentionAliases: readonly string[] = []): React.ReactNode[] {
   const result: React.ReactNode[] = [];
-  const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false) => renderSupraSpaceRichTextInline(text, isOwn, keyPrefix, insideLink);
+  const renderInline = (text: string, keyPrefix: string, insideLink: boolean = false) => renderSupraSpaceRichTextInline(text, isOwn, keyPrefix, insideLink, mentionAliases);
 
   const normalized = normalizeMessageMarkdownForDisplay(content);
   const rawLines = normalized.split('\n');
@@ -5087,7 +5087,7 @@ async function appendSS4VideoThumbnails(formData: FormData, files: File[]) {
 
 const Bubble = React.memo(function Bubble({
   message, isOwn, showAvatar, uid, onReply, onDelete, onPin, isPinned, onOpenMedia,
-  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind, messageTextSize, failedSend, onRetryFailed,
+  onReact, onVotePoll, onRsvp, nameFor, mediaGallery, onRefreshMedia, onJumpToMessage, disableActions, suppressActionsDuringScroll, members = [], mentionAliases = [], hideTime = false, onEditSave, onForward, defaultReactionEmoji, operationalKind, messageTextSize, failedSend, onRetryFailed,
 }: {
   message: SSMessage; isOwn: boolean; showAvatar: boolean; uid: string;
   onReply: (m: SSMessage) => void; onDelete: (id: string) => void;
@@ -5103,6 +5103,7 @@ const Bubble = React.memo(function Bubble({
   disableActions?: boolean;
   suppressActionsDuringScroll?: boolean;
   members?: Array<{ _id: string; fullName: string; avatar?: string; displayNickname?: string }>;
+  mentionAliases?: string[];
   hideTime?: boolean;
   onEditSave?: (id: string, content: string, replacementFiles?: File[], replaceIndex?: number | null) => Promise<void>;
   onForward?: (m: SSMessage) => void;
@@ -5113,8 +5114,8 @@ const Bubble = React.memo(function Bubble({
   onRetryFailed?: (failedSend: FailedSend) => void;
 }) {
   const renderedContent = React.useMemo(
-    () => renderMessageContent(message.content, isOwn),
-    [message.content, isOwn]
+    () => renderMessageContent(message.content, isOwn, mentionAliases),
+    [message.content, isOwn, mentionAliases]
   );
   const [hov, setHov] = React.useState(false);
   const [openReactPop, setOpenReactPop] = React.useState<string | null>(null);
@@ -13846,6 +13847,19 @@ export default function SupraSpacePage() {
 
   const renderTimelineDateSeparator = React.useCallback((date: string) => <DateSep date={date} />, []);
   const renderUnreadMessagesDivider = React.useCallback(() => <UnreadMessagesDivider />, []);
+  const activeMentionAliases = React.useMemo(() => {
+    if (!activeConv) return [];
+    return [
+      ...(activeConv.type === 'group' ? ['all'] : []),
+      ...activeConv.members
+        .filter(member => member._id !== uid)
+        .flatMap(member => {
+          const parts = member.fullName.trim().split(/\s+/).filter(Boolean);
+          const display = parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+          return [display, member.fullName, member.username].filter(Boolean) as string[];
+        }),
+    ];
+  }, [activeConv, uid]);
   const renderTimelineMessage = React.useCallback((message: SSMessage, { showAvatar, hideTime }: { showAvatar: boolean; hideTime: boolean }) => (
     <Bubble
       message={message}
@@ -13865,6 +13879,7 @@ export default function SupraSpacePage() {
       onRsvp={handleRsvp}
       nameFor={nameFor}
       members={msgSeenByMembers[message._id] || EMPTY_MEMBERS_ARRAY}
+      mentionAliases={activeMentionAliases}
       hideTime={hideTime}
       disableActions={isArchivedActiveConv || hasLeftChannel}
       onEditSave={handleEdit}
@@ -13876,7 +13891,7 @@ export default function SupraSpacePage() {
       failedSend={failedSends.find(item => item.optimisticMessageId === message._id)}
       onRetryFailed={retryFailedSend}
     />
-  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, failedSends, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
+  ), [activeConv?.name, activeConv?.theme?.emoji, activeMediaGallery, activeMentionAliases, failedSends, handleDelete, handleEdit, handlePinToggle, handleReact, handleRsvp, handleVotePoll, hasLeftChannel, isArchivedActiveConv, jumpToMessage, messageScrollActive, messageTextSize, msgSeenByMembers, nameFor, pendingFiles.length, pendingGif, pinnedMsgIds, refreshActiveMedia, retryFailedSend, setForwardMsg, setLightbox, setReplyTo, uid]);
 
   const handleMessageScroll = React.useCallback(() => {
     const el = messageScrollRef.current;

@@ -51,6 +51,28 @@ function stripTypographyControlTags(value: string): string {
     .replace(/\{\s*\/\s*size\s*\}/gi, '');
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionTokenPattern(mentionAliases: readonly string[]): RegExp {
+  const aliases = Array.from(new Set(mentionAliases
+    .map(alias => alias.trim().replace(/^@/, ''))
+    .filter(Boolean)))
+    .sort((a, b) => b.length - a.length)
+    .map(alias => escapeRegExp(alias).replace(/\s+/g, '\\s+'));
+  // When the conversation is available, match only aliases that its mention
+  // picker can insert. This gives multi-word names an exact end boundary, so
+  // ordinary prose after a mention cannot become part of its visual chip.
+  const mention = aliases.length
+    ? `@\\s*(?:${aliases.join('|')})(?![\\p{L}\\p{N}_])`
+    : '@\\s*[\\p{L}\\p{N}_]+';
+  return new RegExp(
+    `(https?:\\/\\/[^\\s]+|\\bMEET-\\d{4}\\b|(?<![\\p{L}\\p{N}_.+-])(?:${mention}|#[\\p{L}\\p{N}_]+))`,
+    'giu',
+  );
+}
+
 function findNextToken(text: string, from: number): FormatToken | null {
   const candidates: FormatToken[] = [];
   const linkMatch = findSupraSpaceMarkdownLink(text, from);
@@ -99,7 +121,7 @@ function findNextToken(text: string, from: number): FormatToken | null {
   return candidates.sort((a, b) => a.start - b.start || a.end - b.end)[0] || null;
 }
 
-export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, keyPrefix: string, insideLink = false): React.ReactNode[] {
+export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, keyPrefix: string, insideLink = false, mentionAliases: readonly string[] = []): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let cursor = 0;
   let index = 0;
@@ -110,7 +132,7 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     // An @ inside an email address is not a mention.  Treating the "@gmail"
     // part as one gave it the mention chip background in an outgoing bubble,
     // which looked like a white highlight pasted from Gmail.
-    const tokenPattern = /(https?:\/\/[^\s]+|\bMEET-\d{4}\b|(?<![\w.+-])[@#]\w+(?:\s[A-Z][a-zA-Z]*)?)/gi;
+    const tokenPattern = mentionTokenPattern(mentionAliases);
     let last = 0;
     let match: RegExpExecArray | null;
     while ((match = tokenPattern.exec(plain)) !== null) {
@@ -144,15 +166,15 @@ export function renderSupraSpaceRichTextInline(text: string, isOwn: boolean, key
     if (token.start > cursor) pushPlain(text.slice(cursor, token.start));
     const key = `${keyPrefix}-fmt-${index++}`;
     const inner = text.slice(token.contentStart, token.contentEnd);
-    if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={{ color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'highlight') nodes.push(<span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'font') nodes.push(<span key={key} style={{ fontFamily: FONT_FAMILIES[token.fontFamily || 'default'] }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink)}</span>);
-    else if (token.type === 'bold') nodes.push(<strong key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</strong>);
-    else if (token.type === 'strike') nodes.push(<s key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</s>);
-    else if (token.type === 'underline') nodes.push(<u key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink)}</u>);
-    else if (token.type === 'italic') nodes.push(<em key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 1, token.end - 1), isOwn, key, insideLink)}</em>);
-    else if (token.type === 'link') nodes.push(<a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{renderSupraSpaceRichTextInline(token.linkText || '', isOwn, key, true)}</a>);
+    if (token.type === 'color') nodes.push(<span key={key} className={readableColorClass(token.color, isOwn)} style={{ color: token.color }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
+    else if (token.type === 'highlight') nodes.push(<span key={key} style={{ backgroundColor: token.color, borderRadius: 3, padding: '0 2px' }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
+    else if (token.type === 'font') nodes.push(<span key={key} style={{ fontFamily: FONT_FAMILIES[token.fontFamily || 'default'] }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
+    else if (token.type === 'size') nodes.push(<span key={key} style={{ fontSize: `calc(${token.fontSize || 16}px * var(--ss4-message-font-scale, 1))` }}>{renderSupraSpaceRichTextInline(inner, isOwn, key, insideLink, mentionAliases)}</span>);
+    else if (token.type === 'bold') nodes.push(<strong key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</strong>);
+    else if (token.type === 'strike') nodes.push(<s key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</s>);
+    else if (token.type === 'underline') nodes.push(<u key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 2, token.end - 2), isOwn, key, insideLink, mentionAliases)}</u>);
+    else if (token.type === 'italic') nodes.push(<em key={key}>{renderSupraSpaceRichTextInline(text.slice(token.start + 1, token.end - 1), isOwn, key, insideLink, mentionAliases)}</em>);
+    else if (token.type === 'link') nodes.push(<a key={key} href={token.linkHref} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2" style={{ color: isOwn ? '#fff' : 'var(--accent-text)', wordBreak: 'break-all' }}>{renderSupraSpaceRichTextInline(token.linkText || '', isOwn, key, true, mentionAliases)}</a>);
     else nodes.push(<code key={key} style={{ fontFamily: 'monospace', fontSize: '0.85em', background: 'rgba(128,128,128,0.15)', padding: '1px 4px', borderRadius: 3 }}>{text.slice(token.start + 1, token.end - 1)}</code>);
     cursor = token.end;
   }

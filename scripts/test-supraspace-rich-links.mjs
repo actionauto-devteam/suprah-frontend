@@ -9,6 +9,7 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
     compilerOptions: {
       module: typescript.ModuleKind.CommonJS,
       target: typescript.ScriptTarget.ES2022,
+      jsx: typescript.JsxEmit.React,
     },
   }).outputText;
   const loadedModule = { exports: {} };
@@ -51,6 +52,17 @@ const richPaste = loadTypeScriptModule('../src/lib/supra-space-rich-paste.ts', {
 });
 const formatting = loadTypeScriptModule('../src/lib/supra-space-message-formatting.ts', {
   './supra-space-links': links,
+});
+const react = {
+  Fragment: Symbol.for('react.fragment'),
+  createElement(type, props, ...children) {
+    return { type, props: { ...props, children: children.length === 1 ? children[0] : children } };
+  },
+};
+const richInline = loadTypeScriptModule('../src/components/supraspace/SupraSpaceRichTextInline.tsx', {
+  react,
+  '@/lib/supra-space-message-formatting': formatting,
+  '@/lib/supra-space-links': links,
 });
 const pastedMedia = loadSupraSpacePastedMediaHelpers();
 
@@ -163,6 +175,24 @@ assert.equal(
 
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****Applicant****'), '**Applicant**');
 assert.equal(formatting.normalizeSupraSpaceBoldMarkerRuns('****'), '****');
+
+const allMentionNodes = richInline.renderSupraSpaceRichTextInline('@all Hello, good morning!', true, 'all', false, ['all']);
+assert.equal(allMentionNodes[0]?.props?.children, '@all');
+assert.equal(allMentionNodes[1], ' Hello, good morning!');
+
+const namedMentionNodes = richInline.renderSupraSpaceRichTextInline('@Ana Reyes Hello, good morning!', true, 'named', false, ['Ana Reyes', 'Ana']);
+assert.equal(namedMentionNodes[0]?.props?.children, '@Ana Reyes');
+assert.equal(namedMentionNodes[1], ' Hello, good morning!');
+
+const firstNameMentionNodes = richInline.renderSupraSpaceRichTextInline('@Ana Hello, good morning!', true, 'first-name', false, ['Ana Reyes', 'Ana']);
+assert.equal(firstNameMentionNodes[0]?.props?.children, '@Ana');
+assert.equal(firstNameMentionNodes[1], ' Hello, good morning!');
+
+const nonMemberMentionNodes = richInline.renderSupraSpaceRichTextInline('@alliance Hello', true, 'non-member', false, ['all']);
+assert.equal(nonMemberMentionNodes.join(''), '@alliance Hello');
+
+const emailNodes = richInline.renderSupraSpaceRichTextInline('Send to hr@gmail.com please.', true, 'email');
+assert.equal(emailNodes.join(''), 'Send to hr@gmail.com please.');
 
 assert.equal(
   richPaste.supraSpaceClipboardTextLosesPlainText(
