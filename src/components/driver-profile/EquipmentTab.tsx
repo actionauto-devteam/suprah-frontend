@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Truck, Save, Wrench, Hash, Ruler, Calendar, Star, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DriverProfile } from '@/types/driver-profile';
-import { trailerTypeOptions, specialFeatureOptions } from './driver-profile-constants';
+import { trailerTypeOptions, specialFeatureOptions, MAX_TRAILER_VEHICLES } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { userErrorMessage } from '@/lib/user-error';
 
@@ -22,7 +22,7 @@ interface EquipmentTabProps {
 export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) => {
   const [saving, setSaving] = useState(false);
   const [trailerType, setTrailerType] = useState(profile?.trailerType || '');
-  const [maxVehicleCapacity, setMaxVehicleCapacity] = useState(profile?.maxVehicleCapacity || 1);
+  const [maxVehicleCapacity, setMaxVehicleCapacity] = useState(Math.min(profile?.maxVehicleCapacity || 1, MAX_TRAILER_VEHICLES));
   const [truckMake, setTruckMake] = useState(profile?.truckMake || '');
   const [truckModel, setTruckModel] = useState(profile?.truckModel || '');
   const [truckYear, setTruckYear] = useState<number | undefined>(profile?.truckYear);
@@ -109,9 +109,9 @@ export const EquipmentTab: React.FC<EquipmentTabProps> = ({ profile, onSave }) =
                 <Input
                   type="number"
                   min={1}
-                  max={12}
+                  max={MAX_TRAILER_VEHICLES}
                   value={maxVehicleCapacity}
-                  onChange={(e) => setMaxVehicleCapacity(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
+                  onChange={(e) => setMaxVehicleCapacity(Math.min(MAX_TRAILER_VEHICLES, Math.max(1, parseInt(e.target.value) || 1)))}
                   disabled={!trailerType}
                   className="w-24"
                 />

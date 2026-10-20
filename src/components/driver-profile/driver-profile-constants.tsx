@@ -16,6 +16,10 @@ export const hitchTypeOptions: { value: string; label: string; description: stri
     { value: 'pintle', label: 'Pintle Hook', description: 'Heavy-duty hook and lunette ring' },
 ];
 
+// The most vehicles one trailer can carry. Must match MAX_TRAILER_VEHICLES on
+// the server (validations/load.validation.ts).
+export const MAX_TRAILER_VEHICLES = 10;
+
 export const trailerTypeOptions: { value: TrailerType; label: string; description: string; capacity: string; maxCapacity: number; category: string }[] = [
     { value: 'open_3car_wedge', label: 'Open 3-Car Wedge', description: 'Standard open auto hauler with wedge design', capacity: '3 vehicles', maxCapacity: 3, category: 'open' },
     { value: 'open_2car', label: 'Open 2-Car', description: 'Compact open trailer for 2 vehicles', capacity: '2 vehicles', maxCapacity: 2, category: 'open' },
@@ -32,8 +36,8 @@ export const trailerTypeOptions: { value: TrailerType; label: string; descriptio
     { value: 'double_drop', label: 'Double Drop', description: 'Extended low-deck for tall, heavy cargo', capacity: '1-2 vehicles', maxCapacity: 2, category: 'heavy' },
     { value: '9car_stinger', label: '9-Car Stinger', description: 'Full-size commercial 9-car auto hauler', capacity: '9 vehicles', maxCapacity: 9, category: 'multi' },
     { value: '7car_stinger', label: '7-Car Stinger', description: 'Commercial 7-car hauler', capacity: '7 vehicles', maxCapacity: 7, category: 'multi' },
-    { value: 'power_only', label: 'Power Only', description: 'Cab only — pull customer-provided trailer', capacity: 'Varies', maxCapacity: 12, category: 'specialty' },
-    { value: 'other', label: 'Other', description: 'Custom or unlisted trailer configuration', capacity: 'Varies', maxCapacity: 12, category: 'specialty' },
+    { value: 'power_only', label: 'Power Only', description: 'Cab only — pull customer-provided trailer', capacity: 'Varies', maxCapacity: MAX_TRAILER_VEHICLES, category: 'specialty' },
+    { value: 'other', label: 'Other', description: 'Custom or unlisted trailer configuration', capacity: 'Varies', maxCapacity: MAX_TRAILER_VEHICLES, category: 'specialty' },
 ];
 
 export const TRAILER_CATEGORIES = [

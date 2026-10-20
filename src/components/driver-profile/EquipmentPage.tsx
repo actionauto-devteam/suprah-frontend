@@ -18,7 +18,7 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  trailerTypeOptions, specialFeatureOptions, TRAILER_CATEGORIES, hitchTypeOptions,
+  trailerTypeOptions, specialFeatureOptions, TRAILER_CATEGORIES, hitchTypeOptions, MAX_TRAILER_VEHICLES,
 } from './driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { getEquipmentReadiness } from '@/lib/driver-readiness';
@@ -171,7 +171,7 @@ export const EquipmentPage: React.FC = () => {
   const patch = useCallback((u: Partial<EquipmentForm>) => setForm(f => {
     const next = { ...f, ...u };
     if (u.trailerType) {
-      const cap = trailerTypeOptions.find(t => t.value === u.trailerType)?.maxCapacity ?? 12;
+      const cap = trailerTypeOptions.find(t => t.value === u.trailerType)?.maxCapacity ?? MAX_TRAILER_VEHICLES;
       next.maxVehicleCapacity = cap;
     }
     return next;
@@ -193,7 +193,8 @@ export const EquipmentPage: React.FC = () => {
           dotNumber: d.dotNumber || '', mcNumber: d.mcNumber || '', trailerType: d.trailerType || '',
           customTrailerName: (d as any).customTrailerName || '',
           trailerMake: d.trailerMake || '', trailerModel: d.trailerModel || '', trailerYear: d.trailerYear,
-          hitchType: d.hitchType || '', maxVehicleCapacity: d.maxVehicleCapacity || 1, trailerLength: d.trailerLength,
+          // A number saved before the 10-vehicle limit shows (and saves) as 10.
+          hitchType: d.hitchType || '', maxVehicleCapacity: Math.min(d.maxVehicleCapacity || 1, MAX_TRAILER_VEHICLES), trailerLength: d.trailerLength,
           trailerAxles: d.trailerAxles || 2, trailerGvwr: d.trailerGvwr, specialFeatures: d.specialFeatures || [],
         });
         const match = trailerTypeOptions.find(t => t.value === d.trailerType);
