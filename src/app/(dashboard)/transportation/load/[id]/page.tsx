@@ -713,10 +713,21 @@ export default function LoadDetailsPage() {
             className="bg-primary hover:bg-primary/90 text-primary-foreground flex-1 sm:flex-initial"
             onClick={() => router.push(`/transportation/load/${load._id}/edit`)}
           >
-            Edit Load
+            {load.status === "Draft" ? "Review & Post" : "Edit Load"}
           </Button>
         </div>
       </div>
+
+      {load.status === "Draft" && (
+        <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+          <FileText className="mt-0.5 size-4 shrink-0" />
+          <p className="min-w-0 break-words">
+            <span className="font-semibold">This load is a draft.</span> Drivers can&apos;t see it and it
+            can&apos;t be assigned yet. Choose <span className="font-semibold">Review &amp; Post</span>, check
+            the details, then post it to the load board, or post it as private to assign a driver from Driver Tracker.
+          </p>
+        </div>
+      )}
 
       {load.deliveryOverride && (
         <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">

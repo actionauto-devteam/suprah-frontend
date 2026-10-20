@@ -15,6 +15,7 @@ import {
   notificationPreferenceCategories,
   adminNotificationPreferenceCategories,
   crmNotificationPreferenceCategories,
+  DRIVER_TRANSPORTATION_TYPE_GROUPS,
   isAdminRole,
 } from './notification-preference-categories';
 import { NotificationCategoryPreferences } from '@/types/notification';
@@ -47,9 +48,15 @@ export function NotificationPreferencesPage() {
   const crmIsAdmin = hasCrmAccess && isAdminRole(crm.role);
   const mergeAdmin = generalIsAdmin && crmIsAdmin;
 
-  const generalCategories = hasCrmAccess
+  const generalCategories = (hasCrmAccess
     ? notificationPreferenceCategories.filter((c) => c.key !== 'crm')
-    : notificationPreferenceCategories;
+    : notificationPreferenceCategories
+  ).map((c) =>
+    // Drivers can mute new-load alerts on their own under Transportation.
+    general.role === 'driver' && c.key === 'transportation'
+      ? { ...c, typeGroups: DRIVER_TRANSPORTATION_TYPE_GROUPS }
+      : c,
+  );
 
   const mergedAdminPreferences = useMemo(() => {
     if (!mergeAdmin || !general.preferences || !crm.preferences) return null;

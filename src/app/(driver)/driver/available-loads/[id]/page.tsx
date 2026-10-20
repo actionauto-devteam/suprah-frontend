@@ -222,13 +222,23 @@ export default function AvailableLoadDetailPage() {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
   const fetchDetail = React.useCallback(async () => {
+    let movedToMyLoads = false;
     try {
       const token = await getToken();
       const response = await apiClient.get(
         `/api/driver-tracking/loads/${encodeURIComponent(loadId)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      setData(normalizeLoad(response.data?.data));
+      const loadData = response.data?.data;
+      // Off the board but still readable means it's now this driver's load
+      // (Dispatch approved their request or assigned it to them, for example
+      // before they opened a new-load notification): show it in My Loads.
+      if (loadData?.status && loadData.status !== "Posted") {
+        movedToMyLoads = true;
+        router.replace(`/driver/loads/${encodeURIComponent(loadId)}`);
+        return;
+      }
+      setData(normalizeLoad(loadData));
     } catch (error: any) {
       // A load can leave the board while this detail page is open. Treat the
       // expected authorization/not-found response as state reconciliation, not
@@ -238,9 +248,11 @@ export default function AvailableLoadDetailPage() {
       }
       setData(null);
     } finally {
-      setLoading(false);
+      // Keep the loading view while moving to My Loads, so the "no longer
+      // available" screen never flashes first.
+      if (!movedToMyLoads) setLoading(false);
     }
-  }, [getToken, loadId]);
+  }, [getToken, loadId, router]);
 
   React.useEffect(() => {
     void fetchDetail();
@@ -551,8 +563,11 @@ export default function AvailableLoadDetailPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
         <Package className="mx-auto mb-4 size-10 text-muted-foreground/30" />
-        <h2 className="text-xl font-black">Load Not Found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This load may have been removed or already assigned.</p>
+        <h2 className="text-xl font-black">This Load Is No Longer Available</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          It was assigned to another driver or taken off the load board, so it can&apos;t be requested.
+          You don&apos;t need to do anything. Other loads you can request are on the load board.
+        </p>
         <Button asChild className="mt-4 h-11 gap-2 rounded-xl">
           <Link href="/driver/available-loads"><ArrowLeft className="size-4" />Back to Load Board</Link>
         </Button>
