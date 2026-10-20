@@ -908,6 +908,11 @@ function insertSoftLineBreakWithCaretFormatting(
 
   range.deleteContents();
   const br = document.createElement('br');
+  // Keep an intentional Shift+Enter distinguishable from a terminal <br>
+  // WebKit inserts for an otherwise non-empty block. Edit drafts are rebuilt
+  // as blocks, so without this marker the edit serializer can discard the
+  // user's soft break when it sits at the end of a line.
+  br.setAttribute('data-ss4-soft-break', 'true');
   range.insertNode(br);
   const boldAncestor = br.parentElement?.closest<HTMLElement>('strong, b');
   if (boldAncestor && root.contains(boldAncestor)) {
@@ -2158,10 +2163,14 @@ function htmlToMarkdown(el: HTMLElement): string {
     // boundary below, so serializing both turns one visible line break into a
     // stored blank line. Keep an otherwise empty block intact: that is an
     // intentional blank line.
+    const breaks = element.querySelectorAll('br');
+    const terminalBreak = breaks.item(breaks.length - 1);
+    const hasIntentionalTerminalSoftBreak = terminalBreak?.hasAttribute('data-ss4-soft-break');
     if (
       ['div', 'p', 'section', 'article'].includes(tag)
       && inner.endsWith('\n')
       && inner.slice(0, -1).trim()
+      && !hasIntentionalTerminalSoftBreak
     ) inner = inner.slice(0, -1);
 
     if (
