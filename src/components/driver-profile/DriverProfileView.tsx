@@ -135,10 +135,10 @@ export const DriverProfileView: React.FC = () => {
           ? `${resolvedAvatar}${resolvedAvatar.includes("?") ? "&" : "?"}v=${Date.now()}`
           : "",
       );
-    } catch {
+    } catch (error) {
       if (!toastShownRef.current) {
         toastShownRef.current = true;
-        toast.error("We couldn't load your profile. Please try again.");
+        toast.error(userErrorMessage(error, "load your profile"));
       }
     } finally {
       setIsLoading(false);
@@ -337,7 +337,7 @@ export const DriverProfileView: React.FC = () => {
     for (const link of socialLinks) {
       if (link.url && !/^https?:\/\/.+/.test(link.url)) {
         toast.error(
-          `Invalid URL for "${link.label || "link"}". Must start with https://`,
+          `The web address for "${link.label || "your link"}" must start with https:// (for example https://example.com). Fix it, then save again.`,
         );
         return;
       }

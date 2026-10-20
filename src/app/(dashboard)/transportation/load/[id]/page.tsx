@@ -602,7 +602,7 @@ export default function LoadDetailsPage() {
   const handleBolPreviewPrint = React.useCallback(() => {
     const previewWindow = mobileBolPreviewRef.current?.contentWindow
     if (!previewWindow) {
-      toast.error("The BOL preview is not ready yet.")
+      toast.error("The BOL preview is still loading. Wait a moment, then press Print again.")
       return
     }
 

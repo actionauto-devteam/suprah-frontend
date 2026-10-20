@@ -28,6 +28,7 @@ import {
   type LngLatTuple,
   type MapCamera,
 } from "@/lib/google-maps";
+import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { DriverPhoneTrackingReminder } from "@/components/driver/DriverPhoneTrackingReminder";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@/providers/AuthProvider";
@@ -949,18 +950,21 @@ export default function DriverDashboardPage() {
         const mapboxgl = (await import("mapbox-gl")).default;
         if (cancelled || !mapContainerRef.current) return;
 
+        // Problems show as a still message (mapError), never under the
+        // loading spinner (mapNotice), which would look like endless loading.
         if (!mapboxToken.startsWith("pk.")) {
-          setMapNotice("Invalid Mapbox token");
+          logMapProblem("Driver Page", "The Mapbox token isn't a public pk. token");
+          setMapError(MAP_MESSAGES.unavailable);
           return;
         }
 
         if (!mapboxgl.supported()) {
-          setMapNotice("WebGL required — enable hardware acceleration");
+          setMapError(MAP_MESSAGES.unsupported);
           return;
         }
 
         mapboxgl.accessToken = mapboxToken;
-        setMapNotice("Loading map tiles...");
+        setMapNotice(MAP_MESSAGES.loading);
 
         mapThemeRef.current = theme;
         const map = new mapboxgl.Map({
@@ -978,35 +982,45 @@ export default function DriverDashboardPage() {
 
         const loadTimeout = window.setTimeout(() => {
           if (!map.isStyleLoaded()) {
-            setMapNotice("Map style not loaded. Check network.");
+            setMapNotice(MAP_MESSAGES.slow);
           }
         }, 8000);
 
         const resizeTimeout = window.setTimeout(() => map.resize(), 500);
 
+        let loaded = false;
         map.on("load", () => {
+          loaded = true;
           window.clearTimeout(loadTimeout);
           map.resize();
           setMapReady(true);
           setMapNotice(null);
         });
 
-        map.on("idle", () => setMapNotice(null));
+        // A map that settles after a passing problem is working, so any
+        // error cover is removed.
+        map.on("idle", () => {
+          setMapNotice(null);
+          setMapError(null);
+        });
 
         map.on("error", (e: any) => {
-          const status = e?.error?.status;
-          const message = e?.error?.message || "Map failed to load";
-          setMapNotice(status ? `${message} (HTTP ${status})` : message);
-          setMapError(message);
+          logMapProblem("Driver Page", e?.error ?? e);
+          // After the map has loaded, a passing problem (one tile failing)
+          // leaves it working, so it isn't covered.
+          if (loaded) return;
+          setMapNotice(null);
+          setMapError(MAP_MESSAGES.failed);
         });
 
         map.once("remove", () => {
           window.clearTimeout(loadTimeout);
           window.clearTimeout(resizeTimeout);
         });
-      } catch {
-        setMapNotice("Failed to initialize map");
-        setMapError("Failed to initialize map");
+      } catch (error) {
+        logMapProblem("Driver Page", error);
+        setMapNotice(null);
+        setMapError(MAP_MESSAGES.failed);
       }
     };
 
@@ -1041,16 +1055,17 @@ export default function DriverDashboardPage() {
       let libraries: GoogleMapsLibraries;
       try {
         libraries = await loadGoogleMaps(config);
-      } catch {
+      } catch (error) {
         if (cancelled) return;
+        logMapProblem("Driver Page", error);
         setMapNotice(null);
-        setMapError("Google Maps couldn't load. Check the connection, then reopen the page.");
+        setMapError(MAP_MESSAGES.failed);
         return;
       }
       if (cancelled || !mapContainerRef.current) return;
 
       const view = googleViewRef.current;
-      setMapNotice(view ? "Applying theme..." : "Loading map tiles...");
+      setMapNotice(view ? MAP_MESSAGES.updating : MAP_MESSAGES.loading);
       const created = createGoogleMap(libraries, mapContainerRef.current, {
         config,
         theme: theme === "dark" ? "dark" : "light",
@@ -1066,7 +1081,7 @@ export default function DriverDashboardPage() {
       setGoogleMapGeneration((generation) => generation + 1);
 
       loadTimeout = window.setTimeout(() => {
-        if (!cancelled) setMapNotice("Map tiles are slow to load. Check the connection.");
+        if (!cancelled) setMapNotice(MAP_MESSAGES.slow);
       }, 8000);
       created.map.addListener("tilesloaded", () => {
         window.clearTimeout(loadTimeout);
@@ -1146,7 +1161,7 @@ export default function DriverDashboardPage() {
     const map = mapRef.current;
     if (GOOGLE_MAPS || !map || mapThemeRef.current === theme) return;
     mapThemeRef.current = theme;
-    setMapNotice("Applying theme...");
+    setMapNotice(MAP_MESSAGES.updating);
     map.setStyle(MAP_STYLE_BY_THEME[theme]);
     const handleIdle = () => setMapNotice(null);
     map.once("idle", handleIdle);

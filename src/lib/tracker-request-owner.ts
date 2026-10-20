@@ -18,6 +18,6 @@ export function createTrackerRequestOwner() {
 
 /** Missing/malformed data is a failed refresh, never evidence that a collection is empty. */
 export function requireTrackerArray<T = unknown>(value: unknown, collection: string): T[] {
-  if (!Array.isArray(value)) throw new Error(`Could not read ${collection}. Please retry.`);
+  if (!Array.isArray(value)) throw new Error(`We couldn't read ${collection} from the server. Refresh the page and try again.`);
   return value as T[];
 }

@@ -455,8 +455,8 @@ const [isApplyingCompatibilityOverride, setIsApplyingCompatibilityOverride] =
             if (!file) return
             try {
               await uploadVehicleInspectionPhoto(load._id, index, file)
-            } catch {
-              toast.error(`Load ${load.loadNumber} was created, but a vehicle photo couldn't be uploaded. Edit the load to add the photo again.`)
+            } catch (photoErr) {
+              toast.error(`Load ${load.loadNumber} was created. ${userErrorMessage(photoErr, "upload a vehicle photo")} Edit the load to add the photo.`)
             }
           }),
         )
