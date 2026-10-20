@@ -6,12 +6,16 @@ export type SupraSpaceMarkdownTable = {
 
 function splitTableCells(line: string): string[] | null {
   const trimmed = line.trim();
-  if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return null;
+  if (!trimmed.includes('|')) return null;
+
+  const content = trimmed
+    .replace(/^\|/, '')
+    .replace(/\|$/, '');
 
   const cells: string[] = [];
   let cell = '';
   let escaped = false;
-  for (const character of trimmed.slice(1, -1)) {
+  for (const character of content) {
     if (escaped) {
       cell += character;
       escaped = false;
@@ -29,6 +33,51 @@ function splitTableCells(line: string): string[] | null {
   return cells;
 }
 
+type TableStyleEnvelope = {
+  opening: string;
+  closing: string;
+};
+
+const TABLE_STYLE_OPENING_RE = /^(?:(?:\{(?:color|highlight):#[0-9a-f]{3,8}\}|\{font:[a-z-]+\}|\{size:\d{1,3}\}))/i;
+const TABLE_STYLE_CLOSING_RE = /(?:(?:\{\/(?:color|highlight|font|size)\}))$/i;
+
+function unwrapTableStyleOpening(line: string): { line: string; envelope: TableStyleEnvelope | null } {
+  let remainder = line.trim();
+  let opening = '';
+  const closings: string[] = [];
+  let match: RegExpMatchArray | null;
+
+  while ((match = remainder.match(TABLE_STYLE_OPENING_RE))) {
+    const token = match[0];
+    const kind = token.match(/^\{(?:color|highlight|font|size):/i)?.[0]
+      .replace(/^\{/, '')
+      .replace(/:$/, '');
+    if (!kind) break;
+    opening += token;
+    closings.unshift(`{/${kind}}`);
+    remainder = remainder.slice(token.length).trimStart();
+  }
+
+  return { line: remainder, envelope: opening ? { opening, closing: closings.join('') } : null };
+}
+
+function unwrapTableStyleClosing(line: string, envelope: TableStyleEnvelope | null): string {
+  if (!envelope) return line;
+  let remainder = line.trimEnd();
+  let closing = '';
+  let match: RegExpMatchArray | null;
+  while ((match = remainder.match(TABLE_STYLE_CLOSING_RE))) {
+    closing = `${match[0]}${closing}`;
+    remainder = remainder.slice(0, -match[0].length).trimEnd();
+  }
+  return closing === envelope.closing ? remainder : line;
+}
+
+function applyTableStyleEnvelope(cells: string[], envelope: TableStyleEnvelope | null): string[] {
+  if (!envelope) return cells;
+  return cells.map(cell => cell ? `${envelope.opening}${cell}${envelope.closing}` : cell);
+}
+
 function isDelimiterRow(cells: string[], columnCount: number): boolean {
   return cells.length === columnCount
     && cells.every(cell => /^:?-{3,}:?$/.test(cell.trim()));
@@ -38,19 +87,20 @@ export function parseSupraSpaceMarkdownTable(
   lines: string[],
   startIndex: number,
 ): SupraSpaceMarkdownTable | null {
-  const header = splitTableCells(lines[startIndex] || '');
+  const opening = unwrapTableStyleOpening(lines[startIndex] || '');
+  const header = splitTableCells(opening.line);
   const delimiter = splitTableCells(lines[startIndex + 1] || '');
   if (!header?.length || !delimiter || !isDelimiterRow(delimiter, header.length)) return null;
 
   const rows: string[][] = [];
   let endIndex = startIndex + 2;
   while (endIndex < lines.length) {
-    const cells = splitTableCells(lines[endIndex]);
+    const cells = splitTableCells(unwrapTableStyleClosing(lines[endIndex], opening.envelope));
     if (!cells || cells.length !== header.length) break;
-    rows.push(cells);
+    rows.push(applyTableStyleEnvelope(cells, opening.envelope));
     endIndex += 1;
   }
-  return { header, rows, endIndex };
+  return { header: applyTableStyleEnvelope(header, opening.envelope), rows, endIndex };
 }
 
 function escapeTableCell(value: string): string {
