@@ -19,7 +19,14 @@ export type PreferredRouteCompatibilityStatus =
   | "preferred"
   | "not_preferred"
   | "unknown";
-export type ProximityCompatibilitySource = "live_gps" | "home_base" | null;
+export type ProximityCompatibilitySource =
+  | "live_gps"
+  // Dispatch, before assigning: a location the driver chose to share, or
+  // their delivery in the last 12 hours. Those distances are rounded.
+  | "shared_location"
+  | "last_delivery"
+  | "home_base"
+  | null;
 
 export interface DriverLoadCompatibility {
   availability: {
@@ -59,7 +66,10 @@ export interface DriverLoadCompatibility {
   proximity?: {
     distanceToPickupMiles: number | null;
     source: ProximityCompatibilitySource;
+    // When the position was measured, or when the last delivery was made.
     lastSeenAt: string | null;
+    // The distance is rounded to 5 miles.
+    approximate?: boolean;
   };
   requiresAvailabilityOverride: boolean;
   requiresCapacityOverride: boolean;

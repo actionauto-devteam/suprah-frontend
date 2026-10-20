@@ -38,6 +38,7 @@ import { resolveImageUrl } from "@/lib/utils";
 import { MountainTimeClock } from "@/components/layout/MountainTimeClock";
 import { DriverLocationSharingProvider } from "@/context/DriverLocationSharingContext";
 import { DriverLocationRequiredGate } from "@/components/driver/DriverLocationRequiredGate";
+import { KeepSharingAfterDelivery } from "@/components/driver/KeepSharingAfterDelivery";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -167,6 +168,7 @@ function DriverLayoutContent({
   return (
     <DriverLocationSharingProvider>
       <DriverLocationRequiredGate />
+      <KeepSharingAfterDelivery />
       <SidebarProvider className="h-dvh overflow-hidden">
         <DriverSidebar />
       <SidebarInset className="min-w-0 w-full min-h-0 overflow-hidden">
