@@ -2908,6 +2908,26 @@ function ForwardModal({ message, token, myId, onClose }: {
 
   const handleForward = async () => {
     if (!selected.length || sending) return;
+    const attachments = (message.attachments || [])
+      .filter(attachment => !attachment.mimeType?.startsWith('audio/'))
+      .map(attachment => ({
+        url: attachment.fileKey || attachment.url,
+        fileKey: attachment.fileKey || attachment.url,
+        originalName: attachment.originalName,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        thumbnailUrl: attachment.thumbnailUrl,
+        duration: attachment.duration,
+      }));
+    const payload: { content: string; attachments?: SSAttachment[]; gif?: SSMessage['gif'] } = {
+      content: message.content || '',
+    };
+    if (attachments.length > 0) payload.attachments = attachments;
+    if (message.type === 'gif' && message.gif?.url) payload.gif = message.gif;
+    if (!payload.content.trim() && !payload.attachments?.length && !payload.gif?.url) {
+      toast.error('This message cannot be forwarded.');
+      return;
+    }
     setSending(true);
     let ok = 0;
     for (const user of selected) {
@@ -2916,11 +2936,10 @@ function ForwardModal({ message, token, myId, onClose }: {
           { targetUserId: user._id },
           { headers: { Authorization: `Bearer ${token}` } });
         const convId = r.data?.data?._id;
-        if (convId && message.content) {
-          await apiClient.post(`/api/supraspace/conversations/${convId}/messages`,
-            { content: message.content },
-            { headers: { Authorization: `Bearer ${token}` } });
-        }
+        if (!convId) continue;
+        await apiClient.post(`/api/supraspace/conversations/${convId}/messages`,
+          payload,
+          { headers: { Authorization: `Bearer ${token}` } });
         ok++;
       } catch { /* best-effort */ }
     }
