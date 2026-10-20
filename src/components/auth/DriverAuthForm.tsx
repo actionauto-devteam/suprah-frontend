@@ -100,10 +100,8 @@ export function DriverAuthForm() {
         return;
       }
 
-      await signUp.prepareEmailAddressVerification({
-        email: regEmail,
-        strategy: "email_code",
-      });
+      // Creating the account already emails the code. Asking for one again
+      // here sent a second email, and the code in the first one stopped working.
       setPendingVerification(true);
     } catch (err: any) {
       const msg =
