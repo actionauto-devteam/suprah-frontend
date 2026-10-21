@@ -1,4 +1,5 @@
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
+import { MAP_MESSAGES, logMapProblem } from "./map-messages";
 
 /*
  * Google Maps for the Driver Tracker, the Driver Page, the driver's
@@ -89,6 +90,10 @@ export function onGoogleMapsAuthFailure(listener: () => void): () => void {
   if (!target.gm_authFailure) {
     target.gm_authFailure = () => {
       authFailed = true;
+      logMapProblem(
+        "Google Maps rejected the key",
+        "Check the key's website restrictions, the Maps JavaScript API and billing in Google Cloud.",
+      );
       for (const notify of authFailureListeners) notify();
     };
   }
@@ -99,8 +104,8 @@ export function onGoogleMapsAuthFailure(listener: () => void): () => void {
   };
 }
 
-export const GOOGLE_MAPS_KEY_REJECTED =
-  "Google Maps didn't accept this site's key. Check the key's website restrictions, the Maps JavaScript API and billing in Google Cloud.";
+// Shown to people; the technical reason is logged by gm_authFailure above.
+export const GOOGLE_MAPS_KEY_REJECTED = MAP_MESSAGES.unavailable;
 
 export const toLatLng = ([lng, lat]: LngLatTuple): google.maps.LatLngLiteral => ({ lat, lng });
 

@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { userErrorMessage } from "@/lib/user-error";
+import { passwordRulesMessage } from "@/lib/password-rules";
+import { PasswordRulesChecklist } from "@/components/auth/PasswordRulesChecklist";
 
 type Step = "loading" | "invalid" | "form" | "submitting" | "success";
 type InvalidReason = "not_found" | "used" | "expired";
@@ -79,7 +81,8 @@ export default function JoinPage() {
 
     if (!name.trim()) { setError("Please enter your name."); return; }
     if (!email.trim()) { setError("Please enter your email."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    const passwordProblem = passwordRulesMessage(password);
+    if (passwordProblem) { setError(passwordProblem); return; }
 
     setStep("submitting");
     try {
@@ -190,7 +193,7 @@ export default function JoinPage() {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="At least 8 characters"
+                      placeholder="Create a password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="bg-white/5 border-white/10 text-white placeholder:text-white/25 pr-10"
@@ -206,6 +209,7 @@ export default function JoinPage() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <PasswordRulesChecklist password={password} unmetClassName="text-white/50" />
                 </div>
 
                 {error && (

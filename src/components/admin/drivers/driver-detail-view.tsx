@@ -20,7 +20,7 @@ import {
     Mail, Globe, Wrench, Building2, History, UserRoundCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { REQUIRED_DOCUMENTS, trailerTypeOptions, specialFeatureOptions, hitchTypeOptions } from '@/components/driver-profile/driver-profile-constants';
+import { REQUIRED_DOCUMENTS, trailerTypeOptions, specialFeatureOptions, hitchTypeOptions, documentTypeOptions } from '@/components/driver-profile/driver-profile-constants';
 import { cn } from '@/lib/utils';
 import { formatExpirationDay, mountainDaysUntil } from '@/lib/mountain-time';
 import Link from 'next/link';
@@ -293,12 +293,23 @@ export function DriverDetailView({ driverId, autoOpenReview }: { driverId: strin
                     ),
                 ),
             );
-            const failed = results.filter((r) => r.status === 'rejected').length;
+            const failures = results.flatMap((result, index) =>
+                result.status === 'rejected' ? [{ doc: pending[index], reason: result.reason }] : [],
+            );
             await fetchProfile();
-            if (failed === 0) {
+            if (failures.length === 0) {
                 toast.success(`${pending.length} document${pending.length === 1 ? '' : 's'} approved`);
             } else {
-                toast.warning(`${pending.length - failed} approved, ${failed} failed`);
+                // Name what wasn't approved and why, so the reviewer knows what to open.
+                const approved = pending.length - failures.length;
+                const label = (doc: ComplianceDocument) =>
+                    documentTypeOptions.find((option) => option.value === doc.type)?.label ?? 'A document';
+                const approvedText = approved > 0 ? `${approved} document${approved === 1 ? '' : 's'} approved. ` : '';
+                const reason = userErrorMessage(failures[0].reason, 'approve it');
+                toast.warning(
+                    `${approvedText}Not approved: ${failures.map(({ doc }) => label(doc)).join(', ')}. ${reason} Open ${failures.length === 1 ? 'it' : 'each one'} below to review it again.`,
+                    { duration: 10000 },
+                );
             }
             setBulkApproveOpen(false);
         } finally {

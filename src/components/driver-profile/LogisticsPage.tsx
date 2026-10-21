@@ -57,8 +57,8 @@ export const LogisticsPage: React.FC = () => {
         setRoutes(data.preferredRoutes || []);
         setDays(data.availableDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
       }
-    } catch {
-      toast.error("We couldn't load your logistics details. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "load your logistics details"));
     } finally {
       setLoading(false);
     }

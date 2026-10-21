@@ -102,8 +102,8 @@ export function DriverVerificationForm({ onComplete }: { onComplete: () => void 
         setBgCheckConsent(!!d.backgroundCheckConsent);
         setVerificationAgreement(!!d.verificationAgreement);
       }
-    } catch {
-      toast.error("We couldn't load your application data. Please try again.");
+    } catch (error) {
+      toast.error(userErrorMessage(error, "load your application"));
     } finally {
       setLoading(false);
     }

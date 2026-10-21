@@ -122,8 +122,8 @@ function BulkInviteTab() {
       .map((e) => e.trim())
       .filter(Boolean);
 
-    if (emails.length === 0) { setError("Please enter at least one email."); return; }
-    if (emails.length > 50) { setError("Maximum 50 emails at once."); return; }
+    if (emails.length === 0) { setError("Enter at least one email address."); return; }
+    if (emails.length > 50) { setError(`You can invite up to 50 email addresses at once, and this list has ${emails.length}. Remove some, then send again.`); return; }
 
     setLoading(true);
     setError("");

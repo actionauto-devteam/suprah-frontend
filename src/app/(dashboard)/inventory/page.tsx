@@ -949,9 +949,9 @@ function InventoryContent() {
           setIsInitialLoading(false);
           setInventoryView(view);
         })
-        .catch(() => {
+        .catch((err) => {
           if (sequence !== viewSwitchSequenceRef.current) return;
-          setError("We couldn't switch the inventory view. Please try again.");
+          setError(userErrorMessage(err, "switch the inventory view"));
         })
         .finally(() => {
           if (sequence === viewSwitchSequenceRef.current) setPendingInventoryView(null);
@@ -1069,11 +1069,12 @@ function InventoryContent() {
         }));
       }
 
-      toast.success(`Quote created successfully! Rate: $${data.rate}`);
+      toast.success(`Draft created. Rate: $${data.rate}`);
       setShippingOpen(false);
     } catch (error) {
       console.error("[Quote] Error creating quote:", error);
-      toast.error("We couldn't create this draft. Please try again.");
+      // The server says what to fix, for example a ZIP code it can't find.
+      toast.error(userErrorMessage(error, "create this draft"));
     }
   };
 

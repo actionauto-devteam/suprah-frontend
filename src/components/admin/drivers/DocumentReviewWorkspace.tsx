@@ -15,6 +15,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Kbd, FieldRow } from '@/components/admin/primitives';
 import { cn } from '@/lib/utils';
 import { formatExpirationDay, mountainDaysUntil } from '@/lib/mountain-time';
+import { userErrorMessage } from '@/lib/user-error';
 
 const REJECTION_PRESETS = [
   'Image is blurry or unreadable',
@@ -89,8 +90,8 @@ export function DocumentReviewWorkspace({
         objectUrl = result.url;
         setFileUrl(result.url);
         setMimeType(result.mimeType);
-      } catch {
-        if (!cancelled) setFileError('This document could not be opened.');
+      } catch (error) {
+        if (!cancelled) setFileError(userErrorMessage(error, 'open this document'));
       } finally {
         if (!cancelled) setFileLoading(false);
       }

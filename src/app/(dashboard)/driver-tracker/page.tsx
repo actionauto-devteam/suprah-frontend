@@ -28,6 +28,7 @@ import {
   type LngLatTuple,
   type MapCamera,
 } from "@/lib/google-maps";
+import { MAP_MESSAGES, logMapProblem } from "@/lib/map-messages";
 import { trackingState, validCoordinates, mergeDirectorySnapshot, mergeLocationEvent } from "@/lib/driver-tracking-view";
 import { isActiveLoadStatus } from "@/lib/load-status";
 import Link from "next/link";
@@ -179,6 +180,17 @@ const ASSIGNABLE_REFRESH_MS = 120000;
 const MAP_CENTER = { lat: 39.8283, lng: -98.5795 };
 // Google Maps once its browser settings are present; Mapbox until then.
 const GOOGLE_MAPS = googleMapsConfig();
+
+// Shown when a request starts before the sign-in token is ready.
+const SIGN_IN_STILL_LOADING = "Your sign-in is still loading. Wait a moment, then try again.";
+
+// A list that failed to refresh keeps what it already showed, so the message
+// says so, except when the list was cleared because the session ended.
+function refreshErrorMessage(err: unknown, action: string, staleNote: string) {
+  const message = userErrorMessage(err, action);
+  const status = (err as { response?: { status?: number } } | null)?.response?.status;
+  return status === 401 || status === 403 ? message : `${message} ${staleNote}`;
+}
 
 interface DispatcherLoadActionOptions {
   endpoint: string;
@@ -728,7 +740,7 @@ export default function DriverTrackerPage() {
     try {
       const token = await getToken();
       if (!request.isCurrent()) return;
-      if (!token) throw new Error("Authentication is not ready. Please retry.");
+      if (!token) throw new Error(SIGN_IN_STILL_LOADING);
       // Only drivers with activity in this organization; the rest of the
       // shared pool is paged separately (fetchDirectoryPage).
       const response = await apiClient.get("/api/driver-tracking/org-drivers", {
@@ -945,7 +957,7 @@ export default function DriverTrackerPage() {
     try {
       const token = await getToken();
       if (!request.isCurrent()) return;
-      if (!token) throw new Error("Authentication is not ready. Please retry.");
+      if (!token) throw new Error(SIGN_IN_STILL_LOADING);
       const loadsRes = await apiClient.get("/api/loads", {
         signal: request.signal,
         timeout: 15000,
@@ -968,7 +980,7 @@ export default function DriverTrackerPage() {
     } catch (err: any) {
       if (!request.isCurrent()) return;
       if ([401, 403].includes(err.response?.status)) { setAvailableLoads([]); setAvailableLoadsTotal(0); setAvailableLoadsHasMore(false); }
-      setAvailableLoadsError(err.response?.data?.message || err.message || "Could not refresh available loads. Previously loaded results may be out of date.");
+      setAvailableLoadsError(refreshErrorMessage(err, "refresh available loads", "The loads shown may be out of date."));
     } finally {
       if (request.isCurrent()) { setLoadsLoading(false); request.finish(); }
     }
@@ -982,7 +994,7 @@ export default function DriverTrackerPage() {
     try {
       const token = await getToken();
       if (!request.isCurrent()) return;
-      if (!token) throw new Error("Authentication is not ready. Please retry.");
+      if (!token) throw new Error(SIGN_IN_STILL_LOADING);
       const res = await apiClient.get("/api/driver-tracking/load-requests", {
         signal: request.signal,
         timeout: 15000,
@@ -993,7 +1005,7 @@ export default function DriverTrackerPage() {
     } catch (err: any) {
       if (!request.isCurrent()) return;
       if ([401, 403].includes(err.response?.status)) setLoadRequests([]);
-      setLoadRequestsError(err.response?.data?.message || err.message || "Could not refresh requests. Previously loaded requests may be out of date.");
+      setLoadRequestsError(refreshErrorMessage(err, "refresh load requests", "The requests shown may be out of date."));
     } finally {
       if (request.isCurrent()) { setLoadRequestsLoading(false); request.finish(); }
     }
@@ -1473,7 +1485,7 @@ export default function DriverTrackerPage() {
 
       const token = await getToken();
       if (!token) {
-        throw new Error("Authentication is not ready. Please retry.");
+        throw new Error(SIGN_IN_STILL_LOADING);
       }
 
       // The exact Load document is authoritative. Do not infer the destination
@@ -2165,17 +2177,14 @@ export default function DriverTrackerPage() {
 
       if (!normalizedToken.startsWith("pk.")) {
         setIsMapReady(true);
-        setMapNotice(
-          "Invalid Mapbox token. Use a public token starting with pk.",
-        );
+        logMapProblem("Driver Tracker", "The Mapbox token isn't a public pk. token");
+        setMapNotice(MAP_MESSAGES.unavailable);
         return;
       }
 
       if (!mapboxgl.supported()) {
         setIsMapReady(true);
-        setMapNotice(
-          "Mapbox requires WebGL. Please enable hardware acceleration.",
-        );
+        setMapNotice(MAP_MESSAGES.unsupported);
         return;
       }
 
@@ -2194,8 +2203,9 @@ export default function DriverTrackerPage() {
       });
 
       mapInstanceRef.current = map;
-      setMapNotice("Loading map tiles...");
+      setMapNotice(MAP_MESSAGES.loading);
 
+      let loaded = false;
       const handleIdle = () => {
         setIsMapReady(true);
         setIsMapTransitioning(false);
@@ -2203,25 +2213,27 @@ export default function DriverTrackerPage() {
       };
 
       const handleError = (event: any) => {
-        const status = event?.error?.status;
-        const message = event?.error?.message || "Map failed to load";
-
+        logMapProblem("Driver Tracker", event?.error ?? event);
+        // After the map has loaded, a passing problem (one tile failing)
+        // leaves it working, so no notice is shown.
+        if (loaded) return;
         setIsMapReady(true);
         setIsMapTransitioning(false);
-        setMapNotice(status ? `${message} (HTTP ${status})` : message);
+        setMapNotice(MAP_MESSAGES.failed);
       };
 
       const loadTimeout = window.setTimeout(() => {
         if (!map.isStyleLoaded()) {
           setIsMapReady(true);
           setIsMapTransitioning(false);
-          setMapNotice("Map style not loaded. Check token or network.");
+          setMapNotice(MAP_MESSAGES.slow);
         }
       }, 8000);
 
       const resizeTimeout = window.setTimeout(() => map.resize(), 500);
 
       map.on("load", () => {
+        loaded = true;
         window.clearTimeout(loadTimeout);
         map.resize();
         setIsMapReady(true);
@@ -2270,10 +2282,11 @@ export default function DriverTrackerPage() {
       let libraries: GoogleMapsLibraries;
       try {
         libraries = await loadGoogleMaps(config);
-      } catch {
+      } catch (error) {
         if (cancelled) return;
+        logMapProblem("Driver Tracker", error);
         setIsMapReady(true);
-        setMapNotice("Google Maps couldn't load. Check the connection, then reopen the page.");
+        setMapNotice(MAP_MESSAGES.failed);
         return;
       }
       if (cancelled || !mapRef.current) return;
@@ -2283,7 +2296,7 @@ export default function DriverTrackerPage() {
         setIsMapTransitioning(true);
         setMapNotice(theme === "dark" ? "Switching to dark map…" : "Switching to light map…");
       } else {
-        setMapNotice("Loading map tiles...");
+        setMapNotice(MAP_MESSAGES.loading);
       }
       const created = createGoogleMap(libraries, mapRef.current, {
         config,
@@ -2302,7 +2315,7 @@ export default function DriverTrackerPage() {
         if (cancelled) return;
         setIsMapReady(true);
         setIsMapTransitioning(false);
-        setMapNotice("Map tiles are slow to load. Check the connection.");
+        setMapNotice(MAP_MESSAGES.slow);
       }, 8000);
       created.map.addListener("tilesloaded", () => {
         window.clearTimeout(loadTimeout);
@@ -2399,7 +2412,10 @@ export default function DriverTrackerPage() {
       layer = createDriverFleetLayer(map, mapboxgl, driver => selectDriverRef.current(driver), pauseFollowOnManualMove, normalizedToken);
       fleetLayerRef.current = layer;
       layer.update(fleetStateRef.current);
-    }).catch(() => { if (!cancelled) setMapNotice("Driver markers could not load. Retry by reopening the page."); });
+    }).catch((error) => {
+      logMapProblem("Driver Tracker markers", error);
+      if (!cancelled) setMapNotice(MAP_MESSAGES.markersFailed);
+    });
     return () => {
       cancelled = true;
       layer?.dispose();

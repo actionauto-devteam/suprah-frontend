@@ -10,8 +10,6 @@ import { Label } from "@/components/ui/label";
 import {
   Loader2,
   ArrowLeft,
-  Check,
-  X,
   Mail,
   Lock,
   User,
@@ -19,8 +17,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import Link from "next/link";
+import { passwordRulesMessage } from "@/lib/password-rules";
+import { PasswordRulesChecklist } from "./PasswordRulesChecklist";
 import {
   AUTH_INPUT_CLASS,
   AUTH_KICKER_CLASS,
@@ -29,24 +29,8 @@ import {
   AUTH_PRIMARY_BUTTON_CLASS,
 } from "./theme";
 
-const passwordRules = [
-  {
-    key: "length",
-    label: "At least 8 characters",
-    test: (p: string) => p.length >= 8,
-  },
-  {
-    key: "uppercase",
-    label: "One uppercase letter",
-    test: (p: string) => /[A-Z]/.test(p),
-  },
-  { key: "number", label: "One number", test: (p: string) => /[0-9]/.test(p) },
-  {
-    key: "special",
-    label: "One special character",
-    test: (p: string) => /[^A-Za-z0-9]/.test(p),
-  },
-];
+// Seconds before Resend Code can be pressed (again).
+const RESEND_WAIT_SECONDS = 30;
 
 export function DriverAuthForm() {
   const {
@@ -64,17 +48,40 @@ export function DriverAuthForm() {
   const [pendingVerification, setPendingVerification] = React.useState(false);
   const [verificationCode, setVerificationCode] = React.useState("");
   const [showApplication, setShowApplication] = React.useState(false);
+  const [resendWait, setResendWait] = React.useState(0);
+  const [isResending, setIsResending] = React.useState(false);
+
+  React.useEffect(() => {
+    if (resendWait <= 0) return;
+    const timer = window.setTimeout(() => setResendWait((seconds) => seconds - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendWait]);
+
+  // Sends the code again. While the current code is still valid the server
+  // emails the same one, so the code in an earlier email keeps working.
+  const handleResendCode = async () => {
+    if (!signUp || resendWait > 0 || isResending) return;
+    setError(null);
+    setIsResending(true);
+    try {
+      await signUp.prepareEmailAddressVerification({ email: regEmail, strategy: "email_code" });
+      toast.success(`We sent your code to ${regEmail} again. It can take a minute to arrive.`);
+      setResendWait(RESEND_WAIT_SECONDS * 2);
+    } catch (err) {
+      const reason = (err as { errors?: Array<{ longMessage?: string }> } | null)?.errors?.[0]?.longMessage;
+      setError(reason || "We couldn't send a new code. Check your connection and try again.");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignUpLoaded || !signUp) return;
     setError(null);
-    const failedRules = passwordRules.filter((r) => !r.test(regPassword));
-    if (failedRules.length > 0) {
-      setError(
-        "Password must have: " +
-          failedRules.map((r) => r.label.toLowerCase()).join(", "),
-      );
+    const passwordProblem = passwordRulesMessage(regPassword);
+    if (passwordProblem) {
+      setError(passwordProblem);
       return;
     }
     if (regPassword !== regConfirmPassword) {
@@ -103,6 +110,7 @@ export function DriverAuthForm() {
       // Creating the account already emails the code. Asking for one again
       // here sent a second email, and the code in the first one stopped working.
       setPendingVerification(true);
+      setResendWait(RESEND_WAIT_SECONDS);
     } catch (err: any) {
       const msg =
         err.errors?.[0]?.longMessage ||
@@ -219,6 +227,21 @@ export function DriverAuthForm() {
                   "Verify & Start Working"
                 )}
               </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Didn&apos;t get the code? Check your spam folder, or{" "}
+                <button
+                  type="button"
+                  className={`${AUTH_LINK_CLASS} disabled:cursor-not-allowed disabled:opacity-60`}
+                  onClick={() => void handleResendCode()}
+                  disabled={resendWait > 0 || isResending}
+                >
+                  {isResending
+                    ? "sending…"
+                    : resendWait > 0
+                      ? `resend in ${resendWait}s`
+                      : "Resend Code"}
+                </button>
+              </p>
               <button
                 type="button"
                 className={`text-xs ${AUTH_LINK_CLASS} w-full text-center`}
@@ -289,31 +312,7 @@ export function DriverAuthForm() {
                   required
                 />
               </div>
-              {regPassword.length > 0 && (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {passwordRules.map((rule) => {
-                    const passed = rule.test(regPassword);
-                    return (
-                      <div
-                        key={rule.key}
-                        className={cn(
-                          "flex items-center gap-1.5 text-[10px] font-medium transition-colors",
-                          passed
-                            ? "text-emerald-500"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {passed ? (
-                          <Check className="size-3.5" />
-                        ) : (
-                          <X className="size-3.5 opacity-50" />
-                        )}
-                        {rule.label}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <PasswordRulesChecklist password={regPassword} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="reg-confirm" className={AUTH_LABEL_CLASS}>

@@ -277,7 +277,7 @@ export function DriverDispatchAlertDialog({
     if (!open) return;
     const driverId = driver?.driver?.id;
     if (!driverId) {
-      setContextError('Driver information is unavailable.');
+      setContextError("This driver's details didn't load, so an alert can't be sent yet. Close this window and open the driver again.");
       return;
     }
 
