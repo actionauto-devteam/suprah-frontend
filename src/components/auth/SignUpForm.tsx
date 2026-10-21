@@ -22,6 +22,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { passwordRulesMessage } from "@/lib/password-rules";
+import { PasswordRulesChecklist } from "./PasswordRulesChecklist";
 import {
   AUTH_INPUT_CLASS,
   AUTH_LABEL_CLASS,
@@ -55,6 +57,11 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
     e.preventDefault();
     if (!name || !email || !password || !inviteToken) return;
     setError(null);
+    const passwordProblem = passwordRulesMessage(password);
+    if (passwordProblem) {
+      setError(passwordProblem);
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -213,13 +220,14 @@ export function SignUpForm({ onToggleMode }: { onToggleMode?: () => void }) {
                 <div className="space-y-2">
                   <Label className={AUTH_LABEL_CLASS}>Password</Label>
                   <PasswordInput
-                    placeholder="Minimum 8 characters"
+                    placeholder="Create a password"
                     className={`${AUTH_INPUT_CLASS} h-13`}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
                   />
+                  <PasswordRulesChecklist password={password} />
                 </div>
               </div>
 

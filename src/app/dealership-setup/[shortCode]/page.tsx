@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { AuthSplitLayout } from "@/components/auth/AuthSplitLayout";
+import { PasswordRulesChecklist } from "@/components/auth/PasswordRulesChecklist";
+import { passwordRulesMessage } from "@/lib/password-rules";
 import {
   AUTH_INPUT_CLASS,
   AUTH_KICKER_CLASS,
@@ -84,7 +86,8 @@ export default function DealershipSetupPage() {
     setError("");
 
     if (!name.trim()) { setError("Please enter your name."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    const passwordProblem = passwordRulesMessage(password);
+    if (passwordProblem) { setError(passwordProblem); return; }
     if (!dealershipName.trim()) { setError("Please enter your dealership name."); return; }
     if (!dealershipSlug.trim()) { setError("Please enter a dealership URL slug."); return; }
 
@@ -164,7 +167,7 @@ export default function DealershipSetupPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="At least 8 characters"
+                    placeholder="Create a password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`h-12 pr-10 ${AUTH_INPUT_CLASS}`}
@@ -180,6 +183,7 @@ export default function DealershipSetupPage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <PasswordRulesChecklist password={password} />
               </div>
 
               <div className="space-y-2">
