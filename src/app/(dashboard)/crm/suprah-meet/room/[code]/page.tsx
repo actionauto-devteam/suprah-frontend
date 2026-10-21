@@ -19,6 +19,7 @@ import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPane
 import { RecordingDistributionPanel } from "@/components/suprah-meet/RecordingDistributionPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
+import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
 
@@ -523,7 +524,9 @@ export default function SuprahMeetRoomPage() {
           </div>
 
           {/* Control dock */}
+          <MeetCaptionsPanel meet={meet} />
           <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur md:gap-2">
+            <MeetCaptionsButton meet={meet} />
             <Ctl on={meet.micOn} onClick={() => void meet.toggleMic()} label={meet.micOn ? "Mute" : "Unmute"}
               iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
             <Ctl on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
@@ -635,11 +638,11 @@ export default function SuprahMeetRoomPage() {
             )}
 
             <Button variant="destructive" className="ml-1 h-11 rounded-xl px-4 md:px-5" onClick={() => void meet.leave()}>
-              <PhoneOff className="mr-1.5 size-4" /> Leave
+              <PhoneOff className="mr-1.5 size-4" /> End call
             </Button>
-            {meet.canControl && (
+            {meet.canEndForAll && (
               <Button variant="outline"
-                title="Ends the meeting for everyone. Host-only while the host is in the room."
+                title="End the meeting for everyone"
                 className="h-11 rounded-xl border-rose-400/40 px-3 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:px-4"
                 onClick={() => void meet.endMeeting()}>
                 <span className="sm:hidden">End all</span>

@@ -2,7 +2,7 @@ import {
   Bell, Package, Truck, ShieldCheck, Mail, User, UserPlus,
   CheckCircle2, XCircle, DollarSign, Calendar, Car, MapPin,
   CreditCard, Users, Megaphone, MessageSquare, Clock, Tag,
-  TrendingUp, AlertTriangle, Shield, Award, Send, LogIn,
+  TrendingUp, AlertTriangle, Shield, Award, Send, LogIn, Video,
   BarChart3, Boxes, Fingerprint, Timer, Bot, StickyNote, type LucideIcon,
 } from 'lucide-react';
 import { Notification, NotificationCategory } from '@/types/notification';
@@ -47,11 +47,14 @@ const TYPE_MAP: Record<string, IconColorMap> = {
   sms_opt_out: { icon: MessageSquare, gradient: 'from-red-500 to-rose-500', bg: 'bg-red-500' },
   vehicle_reengagement_blocked: { icon: AlertTriangle, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   ai_agent_handoff_needed: { icon: Bot, gradient: 'from-fuchsia-500 to-purple-500', bg: 'bg-fuchsia-500' },
+  ai_technical_failures_alert: { icon: Bot, gradient: 'from-zinc-500 to-slate-600', bg: 'bg-zinc-500' },
   lead_note_mention: { icon: StickyNote, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   new_lead: { icon: UserPlus, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-500' },
   lead_assigned: { icon: User, gradient: 'from-indigo-500 to-purple-500', bg: 'bg-indigo-500' },
   lead_status_changed: { icon: TrendingUp, gradient: 'from-teal-500 to-green-500', bg: 'bg-teal-500' },
   crm_message: { icon: MessageSquare, gradient: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500' },
+  suprah_meet_invited: { icon: Video, gradient: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500' },
+  suprah_meet_reminder: { icon: Video, gradient: 'from-amber-500 to-orange-500', bg: 'bg-amber-500' },
   crm_task_assigned: { icon: Clock, gradient: 'from-orange-500 to-amber-500', bg: 'bg-orange-500' },
   crm_task_due: { icon: AlertTriangle, gradient: 'from-red-500 to-orange-500', bg: 'bg-red-500' },
   crm_biometric: { icon: Fingerprint, gradient: 'from-violet-500 to-indigo-500', bg: 'bg-violet-500' },
@@ -177,6 +180,7 @@ const TYPE_LABELS: Record<string, string> = {
   sms_opt_out: 'Text Opt-Out',
   vehicle_reengagement_blocked: 'Re-engagement Needs Review',
   ai_agent_handoff_needed: 'AI Agent Needs Help',
+  ai_technical_failures_alert: 'AI Safety Check Failures',
   lead_note_mention: 'Mentioned in a Note',
   new_lead: 'New Lead',
   lead_assigned: 'Lead Assigned',
@@ -249,6 +253,8 @@ const TYPE_LABELS: Record<string, string> = {
   pm_task_deadline: 'Project Task Deadline',
   calendar_event_reminder: 'Event Reminder',
   calendar_event_today: "Today's Event",
+  suprah_meet_invited: 'Meeting Invitation',
+  suprah_meet_reminder: 'Meeting Starts Soon',
   driver_tracker_geofence_alert: 'Geofence Alert',
   driver_tracker_offline_alert: 'Driver Offline',
   driver_tracker_place_visit: 'Place Visit',
@@ -294,7 +300,7 @@ function inferLegacyCategory(type: string): NotificationCategory {
   if (type.startsWith('appointment_') || type === 'guest_response') return 'appointments';
   if (type.startsWith('new_lead') || type.startsWith('lead_') || type.startsWith('crm_')
     || type === 'reminder' || type === 'location_share_requested' || type === 'sms_opt_out'
-    || type.startsWith('aftermarket_')) return 'crm';
+    || type.startsWith('aftermarket_') || type.startsWith('suprah_meet_')) return 'crm';
   if (type.startsWith('feed_')) return 'feeds';
   if (type.startsWith('pm_')) return 'projectManagement';
   if (type.startsWith('calendar_')) return 'calendar';
@@ -367,10 +373,12 @@ const ROUTE_MAP: Record<string, string> = {
   sms_opt_out: '/crm/leads',
   vehicle_reengagement_blocked: '/crm/vehicle-reengagement',
   ai_agent_handoff_needed: '/crm/leads',
+  ai_technical_failures_alert: '/crm/ai-tasks',
   lead_note_mention: '/crm/leads',
   new_lead: '/crm', lead_assigned: '/crm', lead_status_changed: '/crm',
   reminder: '/crm',
   crm_message: '/crm/supra-space', crm_task_assigned: '/crm', crm_task_due: '/crm',
+  suprah_meet_invited: '/crm/suprah-meet', suprah_meet_reminder: '/crm/suprah-meet',
   crm_biometric: '/crm/biometrics', crm_timeproof: '/crm/biometrics',
   driver_request: '/driver-tracker', driver_request_approved: '/driver/loads', driver_request_rejected: '/driver/loads',
   driver_assigned: '/driver/loads', load_accepted: '/driver-tracker', load_amendment_acknowledged: '/transportation',

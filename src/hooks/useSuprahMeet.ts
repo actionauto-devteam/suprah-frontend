@@ -7,10 +7,11 @@ import {
   DefaultEventController, DefaultMeetingSession, DefaultVideoTransformDevice,
   LogLevel, MeetingSessionConfiguration, MeetingSessionStatusCode,
   NoOpEventReporter,
-  type DataMessage, type MeetingSessionStatus, type VideoTileState,
+  type DataMessage, type MeetingSessionStatus, type VideoTileState, type TranscriptEvent,
 } from "amazon-chime-sdk-js";
 import { apiClient } from "@/lib/api-client";
 import { meetSounds } from "@/lib/meet-sounds";
+import { updateCaptionLines, type CaptionLine, type CaptionStatus } from '@/lib/meet-captions';
 
 export interface MeetParticipantInfo {
   crmUserId: string;               // "guest:<id>" for external guests
@@ -37,6 +38,8 @@ export interface MeetingInfo {
   startedAt?: string | null;       // set by the backend when the meeting goes live
   participants: MeetParticipantInfo[];
   recording: { status: string };
+  captionsEnabled?: boolean;
+  captionLanguage?: string;
 }
 
 type Phase = "idle" | "joining" | "in" | "ended" | "error";
@@ -114,6 +117,7 @@ export function useSuprahMeet() {
   const [endedReason, setEndedReason] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<MeetingInfo | null>(null);
   const [canControl, setCanControl] = useState(false);
+  const [canEndForAll, setCanEndForAll] = useState(false);
   const [selfAttendeeId, setSelfAttendeeId] = useState("");
 
   const [roster, setRoster] = useState<Record<string, RosterEntry>>({});
@@ -139,6 +143,24 @@ export function useSuprahMeet() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatUnread, setChatUnread] = useState(0);
   const [videoDeviceCount, setVideoDeviceCount] = useState(0);
+  const [captionsVisible, setCaptionsVisible] = useState(false);
+  const [captionStatus, setCaptionStatus] = useState<CaptionStatus>('off');
+  const [captionLanguage, setCaptionLanguage] = useState('en-US');
+  const [captionBusy, setCaptionBusy] = useState(false);
+  const [captionLines, setCaptionLines] = useState<CaptionLine[]>([]);
+  const captionCleanupRef = useRef<(() => void) | null>(null);
+  const captionEventTimeRef = useRef(0);
+  const captionOperationRef = useRef(false);
+
+  useEffect(() => {
+    if (phase !== 'in') return;
+    const timer = setInterval(() => {
+      const cutoff = Date.now() - 12_000;
+      setCaptionLines((lines) => lines.some((line) => line.updatedAt < cutoff)
+        ? lines.filter((line) => line.updatedAt >= cutoff) : lines);
+    }, 1_000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
   const namesRef = useRef<Map<string, MeetParticipantInfo>>(new Map());
@@ -207,6 +229,13 @@ export function useSuprahMeet() {
 
   const join = useCallback(async (code: string, guest?: { token: string }) => {
     setPhase("joining");
+    setCanEndForAll(false);
+    captionCleanupRef.current?.();
+    captionCleanupRef.current = null;
+    captionEventTimeRef.current = 0;
+    setCaptionLines([]);
+    setCaptionsVisible(false);
+    setCaptionStatus('off');
     setError(null);
     setEndedReason(null);
     codeRef.current = code.trim().toUpperCase();
@@ -220,6 +249,9 @@ export function useSuprahMeet() {
       const meetingInfo: MeetingInfo = data.meeting;
       setMeeting(meetingInfo);
       setCanControl(Boolean(data.self?.canControl));
+      setCanEndForAll(!guestTokenRef.current && data.self?.canEndForAll === true);
+      setCaptionLanguage(meetingInfo.captionLanguage || 'en-US');
+      setCaptionStatus(meetingInfo.captionsEnabled ? 'starting' : 'off');
       selfNameRef.current = data.self?.fullName || "You";
       selfCrmIdRef.current = data.self?.crmUserId || "";
       meetingInfo.participants.forEach((p) => namesRef.current.set(p.crmUserId, p));
@@ -236,6 +268,25 @@ export function useSuprahMeet() {
       setSelfAttendeeId(data.chime.Attendee.AttendeeId);
 
       const audioVideo = session.audioVideo;
+      const onTranscript = (event: TranscriptEvent) => {
+        if (sessionRef.current !== session) return;
+        if ('results' in event) {
+          setCaptionStatus('on');
+          setCaptionLines((lines) => updateCaptionLines(lines, event, Date.now()));
+          return;
+        }
+        if (event.eventTimeMs < captionEventTimeRef.current) return;
+        captionEventTimeRef.current = event.eventTimeMs;
+        if (event.type === 'started' || event.type === 'resumed') setCaptionStatus('on');
+        else if (event.type === 'stopped') { setCaptionStatus('off'); setCaptionLines([]); }
+        else if (event.type === 'interrupted') setCaptionStatus('interrupted');
+        else if (event.type === 'failed') {
+          setCaptionStatus('failed');
+          setNotice('Live captions are unavailable. The host can retry or contact an administrator.');
+        }
+      };
+      audioVideo.transcriptionController?.subscribeToTranscriptEvent(onTranscript);
+      captionCleanupRef.current = () => audioVideo.transcriptionController?.unsubscribeFromTranscriptEvent(onTranscript);
 
       // Smoothness: cap outgoing video so uplinks never choke the call.
       audioVideo.chooseVideoInputQuality(960, 540, 15);
@@ -729,6 +780,11 @@ export function useSuprahMeet() {
   }, [sendData]);
 
   const teardown = useCallback(async () => {
+    captionCleanupRef.current?.();
+    captionCleanupRef.current = null;
+    setCaptionLines([]);
+    setCaptionStatus('off');
+    setCaptionsVisible(false);
     const audioVideo = av();
     if (audioVideo) {
       try {
@@ -757,6 +813,10 @@ export function useSuprahMeet() {
   }, [teardown]);
 
   const endMeeting = useCallback(async () => {
+    if (!canEndForAll) {
+      setNotice('Only the meeting host can end the meeting for everyone.');
+      return;
+    }
     leftIntentionallyRef.current = true;
     try {
       await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/end`);
@@ -768,12 +828,34 @@ export function useSuprahMeet() {
     await teardown();
     setEndedReason(null);
     setPhase("ended");
-  }, [teardown]);
+  }, [canEndForAll, teardown]);
+
+  const changeLiveCaptions = useCallback(async (enabled: boolean, languageCode = captionLanguage) => {
+    if (!canEndForAll || phase !== 'in' || captionOperationRef.current) return;
+    const session = sessionRef.current;
+    captionOperationRef.current = true;
+    setCaptionBusy(true);
+    try {
+      await apiClient.post(`/api/crm/meet/meetings/${codeRef.current}/captions`, { enabled, languageCode });
+      if (sessionRef.current !== session) return;
+      setCaptionLanguage(languageCode);
+      if (enabled) setCaptionsVisible(true);
+      setCaptionStatus((current) => enabled ? current === 'on' ? 'on' : 'starting' : 'off');
+      if (!enabled) setCaptionLines([]);
+    } catch (err: any) {
+      setNotice(err?.response?.data?.message || 'Live captions could not be updated. Please try again.');
+    } finally {
+      captionOperationRef.current = false;
+      setCaptionBusy(false);
+    }
+  }, [canEndForAll, phase, captionLanguage]);
+
+  const toggleCaptions = useCallback(() => setCaptionsVisible((visible) => !visible), []);
 
   useEffect(() => () => { leftIntentionallyRef.current = true; void teardown(); }, [teardown]);
 
   return {
-    phase, error, endedReason, meeting, canControl, selfAttendeeId, shareSupported,
+    phase, error, endedReason, meeting, canControl, canEndForAll, selfAttendeeId, shareSupported,
     roster, tiles: Object.values(tiles), activeSpeakerId,
     micOn, camOn, sharing, handRaised, recording, reactions,
     chatMessages, chatUnread, videoDeviceCount,
@@ -785,5 +867,6 @@ export function useSuprahMeet() {
     toggleMic, toggleCam, switchCamera, toggleShare, toggleHand,
     sendReaction, sendChat, markChatRead,
     startRecording, stopRecording, leave, endMeeting,
+    captionsVisible, toggleCaptions, captionStatus, captionLanguage, captionBusy, captionLines, changeLiveCaptions,
   };
 }

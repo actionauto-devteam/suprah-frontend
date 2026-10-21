@@ -16,6 +16,7 @@ import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPane
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
 import type { ShareableMeeting } from "@/lib/meet-share";
+import { useOptionalCrmNotificationContext } from "@/context/CrmNotificationContext";
 
 interface MeetingRow {
   _id: string; code: string; title: string;
@@ -119,6 +120,10 @@ const PAST_TIME_MSG = "That time has already passed in Mountain time (MDT) — p
 
 export default function SuprahMeetLobbyPage() {
   const router = useRouter();
+  const crmNotifications = useOptionalCrmNotificationContext();
+  const meetingNoticeKey = (crmNotifications?.notifications ?? [])
+    .filter((notice) => notice.type === 'suprah_meet_invited' || notice.type === 'suprah_meet_reminder')
+    .map((notice) => notice._id).join(',');
   const [meetings, setMeetings] = React.useState<MeetingRow[]>([]);
   const [selfId, setSelfId] = React.useState("");
   const [canManageAll, setCanManageAll] = React.useState(false);
@@ -157,12 +162,20 @@ export default function SuprahMeetLobbyPage() {
       setError(err?.response?.data?.message || "Could not load meetings.");
     }
   }, []);
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => { void load(); }, [load, meetingNoticeKey]);
   // Background refresh so status changes (live↔ended, auto-end sweep) appear
   // without a manual reload.
   React.useEffect(() => {
     const t = setInterval(() => { void load(); }, 60_000);
-    return () => clearInterval(t);
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    const onOnline = () => { void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
   }, [load]);
 
   const joinByCode = () => {
@@ -369,7 +382,7 @@ export default function SuprahMeetLobbyPage() {
                         </>
                       )}
                       <Button size="sm" variant="outline"
-                        onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>Start</Button>
+                        onClick={() => router.push(`/crm/suprah-meet/room/${m.code}`)}>{m.hostCrmUserId === selfId ? 'Start' : 'Join'}</Button>
                     </div>
                   } />
               ))}
@@ -964,7 +977,7 @@ function NewMeetingModal({ initialMode, onClose, onCreated, onScheduled }: {
         </div>
 
         <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
-          Tagged attendees see every session in Suprah Meet and get an alert 10 minutes before each one starts.
+          Tagged attendees receive an invitation, see every session in Upcoming, and get a reminder 10 minutes before each one starts.
           {visibility === "public"
             ? " Anyone in your org can also join with a session's code."
             : " Others can request to join with the code — the host admits them from the room."}{" "}

@@ -10,7 +10,6 @@ interface AlertMeeting { _id: string; code: string; title: string; scheduledAt: 
 
 /**
  * Polls /api/crm/meet/alerts every 60s and toasts:
- *  - invited meetings starting within 10 minutes
  *  - invited meetings that are live now
  * Mount once in the CRM layout so alerts appear anywhere in the app.
  */
