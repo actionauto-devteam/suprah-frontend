@@ -6967,6 +6967,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                             ? 'w-[94%] max-w-[94%]'
                             : operationalKind
                               ? 'w-full max-w-full'
+                              : fileAttachments.length > 0
+                                ? 'w-full max-w-full'
                               : imageOnly || gifOnly || isRichCard
                               ? 'max-w-[78%]'
                               : 'max-w-[62%]',
@@ -7496,7 +7498,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                               <div className="flex flex-col gap-1 mt-1">
                                 {fileAttachments.map((a: SSAttachment, i: number) => (
                                   <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" download={a.originalName}
-                                    className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isOwn ? 'bg-white/15' : 'bg-black/5')}>
+                                    className={cn('flex w-full max-w-[280px] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isOwn ? 'bg-white/15' : 'bg-black/5')}
+                                    title={a.originalName || 'Attachment'}>
                                     <FileText className="h-3.5 w-3.5 shrink-0" />
                                     <span className="truncate flex-1">{a.originalName || 'Attachment'}</span>
                                     <Download className="h-3 w-3 shrink-0 opacity-60" />
