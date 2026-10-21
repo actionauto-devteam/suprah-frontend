@@ -182,7 +182,7 @@ function MiniMeetWindow() {
           className="h-9 flex-1 cursor-pointer rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
           Return
         </button>
-        <button onClick={() => void meet.leave()} title="Leave the meeting" data-mini-control
+        <button onClick={() => void meet.leave()} title="End call" aria-label="End call" data-mini-control
           className="grid h-9 w-10 cursor-pointer place-items-center rounded-lg border border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25">
           <PhoneOff className="size-4" />
         </button>

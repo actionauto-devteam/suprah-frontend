@@ -2,7 +2,7 @@ import {
   Truck, Boxes, Calendar, Users, Rss, ClipboardList, CalendarDays,
   Radar, Wallet, UserPlus, Shield, Award, Megaphone,
   Radio, AlertTriangle, Activity, ShieldAlert, MessageSquare, Fingerprint,
-  Tag, Bell, type LucideIcon,
+  Tag, Bell, Video, type LucideIcon,
 } from 'lucide-react';
 import { NotificationCategoryPreferences } from '@/types/notification';
 
@@ -23,6 +23,7 @@ export interface CrmTypeGroup {
 // group here silences just SupraSpace messages while the `crm` category
 // toggle (and every other group within it) stays on.
 export const CRM_TYPE_GROUPS: CrmTypeGroup[] = [
+  { key: 'crm_meetings', label: 'Suprah Meet', description: 'Meeting invitations and ten-minute reminders', icon: Video, color: 'text-emerald-600 dark:text-emerald-400', types: ['suprah_meet_invited', 'suprah_meet_reminder'] },
   { key: 'crm_leads', label: 'Leads', description: 'New leads and lead status changes', icon: UserPlus, color: 'text-amber-600 dark:text-amber-400', types: ['new_lead', 'lead_assigned', 'lead_status_changed'] },
   { key: 'crm_tasks', label: 'Tasks', description: 'Task assignments and due dates', icon: ClipboardList, color: 'text-orange-600 dark:text-orange-400', types: ['crm_task_assigned', 'crm_task_due'] },
   { key: 'crm_messages', label: 'Messages', description: 'New SupraSpace messages', icon: MessageSquare, color: 'text-blue-600 dark:text-blue-400', types: ['crm_message'] },

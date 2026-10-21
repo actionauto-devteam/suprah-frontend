@@ -1,4 +1,5 @@
 "use client";
+import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
 
 /**
  * Suprah Meet — external GUEST room (public page, no Suprah account).
@@ -252,7 +253,9 @@ export default function SuprahMeetGuestPage() {
           </div>
         )}
 
+        <MeetCaptionsPanel meet={meet} />
         <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur">
+          <MeetCaptionsButton meet={meet} />
           <GuestCtl on={meet.micOn} onClick={() => void meet.toggleMic()}
             label={meet.micOn ? "Mute" : "Unmute"}
             iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
@@ -276,7 +279,7 @@ export default function SuprahMeetGuestPage() {
             iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />
           <Button variant="destructive" className="ml-1 h-11 rounded-xl px-4"
             onClick={() => void meet.leave()}>
-            <PhoneOff className="mr-1.5 size-4" /> Leave
+            <PhoneOff className="mr-1.5 size-4" /> End call
           </Button>
         </footer>
       </main>

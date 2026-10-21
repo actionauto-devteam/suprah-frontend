@@ -16,6 +16,25 @@ export interface AiModeChange {
   createdAt: string
 }
 
+export interface ShadowDraftToggleChange {
+  id: string
+  fromMode: string
+  toMode: string
+  reason: string
+  changedByName: string
+  createdAt: string
+}
+
+export interface ShadowDraftsInfo {
+  globalEnabled: boolean
+  orgEnabled: boolean
+  activeChannels: AiChannel[]
+  usedToday: number
+  dailyLimit: number
+  timezone: string
+  recentChanges: ShadowDraftToggleChange[]
+}
+
 export interface AiModesPayload {
   modes: Record<AiChannel, AiMode>
   effective: Record<AiChannel, AiMode>
@@ -25,6 +44,7 @@ export interface AiModesPayload {
   usageToday: Record<string, number>
   canEdit: boolean
   recentChanges: AiModeChange[]
+  shadowDrafts?: ShadowDraftsInfo
 }
 
 export const AI_LIVE_CONFIRMATION_PHRASE = "ENABLE LIVE"
