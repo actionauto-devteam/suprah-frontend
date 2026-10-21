@@ -380,6 +380,13 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         return hrefs.has("/") && hrefs.has("/inventory") && hrefs.has("/crm");
     }, [items]);
 
+    // The Driver Portal uses the same active-circle look as the dealership
+    // shell: the open page's tab is the circle, in its own place in the bar.
+    const isDriverShell = React.useMemo(
+        () => items.some((item) => item.href === "/driver"),
+        [items],
+    );
+
     const inventoryWorkspaceItems = React.useMemo<BottomNavItem[]>(() => {
         // Reuse the app shell's real CRM icon/route when available so this stays
         // aligned with the existing CRM navigation configuration.
@@ -530,7 +537,7 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
 
     // The dealership shell always uses the moving active-circle treatment,
     // including Pulse. Non-dealership shells keep the legacy behavior.
-    const useMovingActiveTreatment = isDealershipShell
+    const useMovingActiveTreatment = isDealershipShell || isDriverShell
         ? true
         : inventoryWorkspace || isDashboardOrCrmRoute(pathname);
 
@@ -743,6 +750,8 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         if (isDealershipShell) {
             return currentDealershipItem?.href === item.href;
         }
+        // Driver tabs match their own /driver pages ("Dashboard" is /driver here, not /).
+        if (isDriverShell) return isActive(item.href);
 
         const label = item.label.trim().toLowerCase();
         if (label === "dashboard") return pathname === "/";
@@ -752,7 +761,7 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
         if (label === "driver tracker") return pathname === "/driver-tracker" || pathname.startsWith("/driver-tracker/");
 
         return isActive(item.href);
-    }, [currentDealershipItem, isDealershipShell, pathname, isActive]);
+    }, [currentDealershipItem, isDealershipShell, isDriverShell, pathname, isActive]);
 
     const beginClientNavigation = React.useCallback((href: string) => {
         setPendingHref(href);
@@ -1518,6 +1527,14 @@ export function MobileBottomNav({ items, allItems }: MobileBottomNavProps) {
                                                         transition={{ type: "spring", stiffness: 380, damping: 34 }}
                                                     />
                                                 )}
+                                                {item.badgeCount ? (
+                                                    <span
+                                                        aria-label={`${item.badgeCount} unread`}
+                                                        className="absolute -right-0.5 -top-1 z-20 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black leading-none text-white"
+                                                    >
+                                                        {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                                                    </span>
+                                                ) : null}
 
                                                 <motion.div
                                                     className="relative z-10"
