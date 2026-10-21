@@ -28,14 +28,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "sonner";
 import { useAlert } from "@/components/AlertDialog";
-import { useCrmLeadGroups } from "@/hooks/useCrmLeadGroups";
-import { AiOperatingModesPanel, summarizeAiModes } from "@/components/crm/AiOperatingModesPanel";
-import type { AiModesPayload } from "@/lib/aiOperatingModes";
+import { summarizeAiModes } from "@/components/crm/AiOperatingModesPanel";
+import { useAiOperatingModes } from "@/hooks/useAiOperatingModes";
+import { canViewAiHub } from "@/lib/aiShadowDrafts";
 
 interface CrmUserData {
   _id: string;
@@ -89,18 +88,10 @@ export default function IntegrationsSettingsPage() {
   const [webchatGreeting, setWebchatGreeting] = React.useState("");
   const [savedWebchatGreeting, setSavedWebchatGreeting] = React.useState("");
   const [isSavingWebchat, setIsSavingWebchat] = React.useState(false);
-  const [aiModesData, setAiModesData] = React.useState<AiModesPayload | null>(null);
-  const [aiAgentName, setAiAgentName] = React.useState("Alex");
-  const [savedAiAgentName, setSavedAiAgentName] = React.useState("Alex");
-  const [aiHandoffFallbackGroupId, setAiHandoffFallbackGroupId] = React.useState("");
-  const [savedAiHandoffFallbackGroupId, setSavedAiHandoffFallbackGroupId] = React.useState("");
-  const [aiFollowUpIntervalHours, setAiFollowUpIntervalHours] = React.useState(24);
-  const [savedAiFollowUpIntervalHours, setSavedAiFollowUpIntervalHours] = React.useState(24);
-  const [isSavingAiAgent, setIsSavingAiAgent] = React.useState(false);
   const [physicalMailingAddress, setPhysicalMailingAddress] = React.useState("");
   const [savedPhysicalMailingAddress, setSavedPhysicalMailingAddress] = React.useState("");
   const [isSavingMailingAddress, setIsSavingMailingAddress] = React.useState(false);
-  const { groups: leadGroups } = useCrmLeadGroups();
+  const aiModes = useAiOperatingModes(getToken);
   const { confirm, AlertComponent } = useAlert();
 
   React.useEffect(() => {
@@ -146,15 +137,6 @@ export default function IntegrationsSettingsPage() {
           setSavedWebchatEnabled(enabled);
           setWebchatGreeting(greeting);
           setSavedWebchatGreeting(greeting);
-          const agentName = settingsData?.aiAgentName || "Alex";
-          setAiAgentName(agentName);
-          setSavedAiAgentName(agentName);
-          const fallbackGroupId = settingsData?.aiHandoffFallbackGroupId || "";
-          setAiHandoffFallbackGroupId(fallbackGroupId);
-          setSavedAiHandoffFallbackGroupId(fallbackGroupId);
-          const followUpIntervalHours = [24, 48, 72].includes(settingsData?.aiFollowUpIntervalHours) ? settingsData.aiFollowUpIntervalHours : 24;
-          setAiFollowUpIntervalHours(followUpIntervalHours);
-          setSavedAiFollowUpIntervalHours(followUpIntervalHours);
           const mailingAddress = settingsData?.physicalMailingAddress || "";
           setPhysicalMailingAddress(mailingAddress);
           setSavedPhysicalMailingAddress(mailingAddress);
@@ -373,40 +355,6 @@ export default function IntegrationsSettingsPage() {
             })
         } finally {
             setIsSavingWebchat(false)
-        }
-    }
-
-    const aiAgentSettingsDirty =
-        aiAgentName.trim() !== savedAiAgentName ||
-        aiHandoffFallbackGroupId !== savedAiHandoffFallbackGroupId ||
-        aiFollowUpIntervalHours !== savedAiFollowUpIntervalHours
-
-    const handleSaveAiAgentSettings = async () => {
-        if (!isAdmin) return
-        setIsSavingAiAgent(true)
-        try {
-            const t = await getToken()
-            const name = aiAgentName.trim() || "Alex"
-            const intervalHours = [24, 48, 72].includes(aiFollowUpIntervalHours) ? aiFollowUpIntervalHours : 24
-            await apiClient.patch(
-                "/api/crm/org-settings",
-                { aiAgentName: name, aiHandoffFallbackGroupId, aiFollowUpIntervalHours: intervalHours },
-                { headers: { Authorization: `Bearer ${t}` } },
-            )
-            setAiAgentName(name)
-            setSavedAiAgentName(name)
-            setSavedAiHandoffFallbackGroupId(aiHandoffFallbackGroupId)
-            setAiFollowUpIntervalHours(intervalHours)
-            setSavedAiFollowUpIntervalHours(intervalHours)
-            toast.success("AI agent settings saved")
-        } catch (error) {
-            console.error("Failed to save AI agent settings:", error)
-            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-            toast.error("Save failed", {
-                description: message || "Could not save the AI agent settings. Please try again."
-            })
-        } finally {
-            setIsSavingAiAgent(false)
         }
     }
 
@@ -913,95 +861,33 @@ export default function IntegrationsSettingsPage() {
 
                         { }
                         <div className="rounded-2xl border border-border/40 bg-card overflow-hidden mt-6">
-                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border/30 bg-muted/10">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="h-10 w-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center shrink-0">
                                         <Bot className="h-5 w-5 text-fuchsia-500" />
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-base font-bold truncate">AI Agent</p>
-                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Choose, per channel, whether the AI agent is off, in training, or replying live.</p>
+                                        <p className="text-xs text-muted-foreground/60 mt-0.5">Operating modes, agent name, handoff group and follow-up frequency are managed in AI Agent &amp; Automation.</p>
                                     </div>
                                 </div>
-                                <Badge className={summarizeAiModes(aiModesData).tone === "live" ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : summarizeAiModes(aiModesData).tone === "training" ? "bg-amber-500/10 text-amber-600 shadow-none border-none pointer-events-none shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
-                                    {summarizeAiModes(aiModesData).label}
-                                </Badge>
-                            </div>
-
-                            <div className="p-4 sm:p-6 space-y-4">
-                                {!isAdmin && (
-                                    <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
-                                        <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
-                                        <p className="text-sm text-amber-500/90 leading-relaxed">Only workspace admins can modify AI agent settings.</p>
-                                    </div>
-                                )}
-
-                                <AiOperatingModesPanel
-                                    getToken={getToken}
-                                    isAdmin={isAdmin}
-                                    agentName={aiAgentName.trim() || "Alex"}
-                                    onSummaryChange={setAiModesData}
-                                />
-
-                                <div className="space-y-1.5 max-w-xl">
-                                    <label className="text-sm font-semibold text-foreground">Agent name</label>
-                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">The name customers see on every reply it sends.</p>
-                                    <Input
-                                        disabled={!isAdmin || isSavingAiAgent}
-                                        value={aiAgentName}
-                                        onChange={e => setAiAgentName(e.target.value)}
-                                        maxLength={40}
-                                        placeholder="AI Agent Name"
-                                        className="max-w-xs"
-                                    />
-                                </div>
-
-                                <div className="space-y-1.5 max-w-xl">
-                                    <label className="text-sm font-semibold text-foreground">Fallback group for unassigned handoffs</label>
-                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">When {aiAgentName || "the agent"} needs a human on a lead with no assigned rep, it mentions this group in its note. Leave unset to skip the mention.</p>
-                                    <select
-                                        disabled={!isAdmin || isSavingAiAgent}
-                                        value={aiHandoffFallbackGroupId}
-                                        onChange={e => setAiHandoffFallbackGroupId(e.target.value)}
-                                        className="max-w-xs h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                                    >
-                                        <option value="">No fallback group</option>
-                                        {leadGroups.filter(g => g.isActive).map(g => (
-                                            <option key={g._id} value={g._id}>{g.name}</option>
-                                        ))}
-                                    </select>
-                                    <Link href="/crm/settings/lead-groups" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-                                        Manage Lead Groups
-                                        <ChevronRight className="h-3 w-3" />
-                                    </Link>
-                                </div>
-
-                                <div className="space-y-1.5 max-w-xl">
-                                    <label className="text-sm font-semibold text-foreground">Follow-up frequency</label>
-                                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed max-w-md">How often {aiAgentName || "the agent"} checks in on a silent lead. It keeps going at this pace automatically, and stops on its own the moment the customer replies or opts out — no fixed limit on how many times.</p>
-                                    <select
-                                        disabled={!isAdmin || isSavingAiAgent}
-                                        value={aiFollowUpIntervalHours}
-                                        onChange={e => setAiFollowUpIntervalHours(parseInt(e.target.value, 10))}
-                                        className="max-w-xs h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                                    >
-                                        <option value={24}>Daily</option>
-                                        <option value={48}>Every other day</option>
-                                        <option value={72}>Every 3 days</option>
-                                    </select>
-                                </div>
-
-                                {isAdmin && (
-                                    <div className="pt-2">
-                                        <Button
-                                            onClick={handleSaveAiAgentSettings}
-                                            disabled={isSavingAiAgent || !aiAgentSettingsDirty}
-                                            className="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
-                                        >
-                                            {isSavingAiAgent ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save AI agent settings"}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {aiModes.data && (
+                                        <Badge className={summarizeAiModes(aiModes.data).tone === "live" ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-none border-none pointer-events-none gap-1.5 shrink-0" : summarizeAiModes(aiModes.data).tone === "training" ? "bg-amber-500/10 text-amber-600 shadow-none border-none pointer-events-none shrink-0" : "bg-muted text-muted-foreground shadow-none border-none pointer-events-none shrink-0"}>
+                                            {summarizeAiModes(aiModes.data).label}
+                                        </Badge>
+                                    )}
+                                    {canViewAiHub(user?.role) ? (
+                                        <Button asChild variant="outline" className="h-9 rounded-xl text-xs font-bold">
+                                            <Link href="/crm/settings/ai-agent?tab=modes">
+                                                Open AI Agent &amp; Automation
+                                                <ChevronRight className="h-3.5 w-3.5" />
+                                            </Link>
                                         </Button>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <p className="text-[11px] text-muted-foreground/70">Admins and managers change these settings.</p>
+                                    )}
+                                </div>
                             </div>
                         </div>
 

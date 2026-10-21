@@ -32,7 +32,7 @@ const MODE_PILL: Record<AiMode, string> = {
 const FOLLOW_UP_LABELS: Record<number, string> = { 24: "Daily", 48: "Every other day", 72: "Every 3 days" }
 
 export const RELATED_TOOLS = [
-  { href: "/crm/settings/integrations", label: "Lead Integrations", description: "Agent name, handoff group, follow-up pace, website chat, and review requests." },
+  { href: "/crm/settings/integrations", label: "Lead Integrations", description: "Lead sources, Gmail, website chat, and review requests." },
   { href: "/crm/vehicle-reengagement", label: "Vehicle Re-engagement", description: "Texts to past leads when a matching vehicle arrives." },
   { href: "/crm/ai-tasks", label: "AI Tasks", description: "Handoffs where Alex asked a person to step in." },
   { href: "/crm/campaigns", label: "Campaigns", description: "SMS and email campaigns to selected leads." },
@@ -86,8 +86,8 @@ export function AiHubOverview({ data, settings, isAdmin, getToken, onModesChange
               <dd className="mt-0.5">{settings.followUpIntervalHours ? FOLLOW_UP_LABELS[settings.followUpIntervalHours] || `Every ${settings.followUpIntervalHours} hours` : "—"}</dd>
             </div>
           </dl>
-          <Link href="/crm/settings/integrations" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            Edit these in Lead Integrations <ChevronRight className="h-3 w-3" />
+          <Link href="/crm/settings/ai-agent?tab=modes" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            Change these in Modes &amp; Settings <ChevronRight className="h-3 w-3" />
           </Link>
         </div>
       </HubCard>
