@@ -38,7 +38,7 @@ function proximitySourceLabel(source: string | null | undefined, lastSeenAt: str
 }
 
 export function DriverLoadRecommendationBadges({
-  compatibility, 
+  compatibility,
   className,
   showUnknown = false,
 }: Props) {
