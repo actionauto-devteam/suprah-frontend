@@ -77,6 +77,7 @@ import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview
 import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
 import { filterSupraSpaceConversations, recentSupraSpaceConversations } from '@/lib/supraspace-conversation-search';
+import { createSupraSpaceVoiceRecordingIntent, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -9902,6 +9903,7 @@ export default function SupraSpacePage() {
   const recChunksRef = React.useRef<Blob[]>([]);
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const recStreamRef = React.useRef<MediaStream | null>(null);
+  const recSendIntentRef = React.useRef<SupraSpaceVoiceRecordingIntent | null>(null);
 
   const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
@@ -12482,14 +12484,17 @@ export default function SupraSpacePage() {
       recStreamRef.current = stream;
       const voiceMimeType = supportedVoiceMimeType();
       const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
-      recChunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      const chunks: Blob[] = [];
+      const sendIntent = createSupraSpaceVoiceRecordingIntent();
+      recChunksRef.current = chunks;
+      recSendIntentRef.current = sendIntent;
+      mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       mr.onstop = async () => {
         const mimeType = mr.mimeType || supportedVoiceMimeType() || 'audio/webm';
-        const blob = new Blob(recChunksRef.current, { type: mimeType });
+        const blob = new Blob(chunks, { type: mimeType });
         const seconds = recSecondsRef.current;
         recStreamRef.current?.getTracks().forEach(t => t.stop());
-        if (blob.size > 0 && activeId) {
+        if (sendIntent.sendRequested && blob.size > 0 && activeId) {
           const extension = mimeType.includes('mp4') ? 'm4a' : 'webm';
           const file = new File([blob], `voice-note-${Date.now()}.${extension}`, { type: mimeType });
           const fd = new FormData(); fd.append('files', file); fd.append('duration', String(seconds));
@@ -12505,10 +12510,11 @@ export default function SupraSpacePage() {
       recTimerRef.current = setInterval(() => { recSecondsRef.current += 1; setRecSeconds(recSecondsRef.current); }, 1000);
     } catch { showUploadNotice('error', 'Microphone permission denied.'); }
   };
-  const stopRecording = (cancel = false) => {
+  const stopRecording = (send = false) => {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
-    if (cancel) { recChunksRef.current = []; recStreamRef.current?.getTracks().forEach(t => t.stop()); mediaRecorderRef.current?.stop(); }
-    else mediaRecorderRef.current?.stop();
+    setSupraSpaceVoiceRecordingSendIntent(recSendIntentRef.current, send);
+    if (!send) recChunksRef.current = [];
+    mediaRecorderRef.current?.stop();
     setRecording(false);
   };
 
@@ -15380,8 +15386,8 @@ export default function SupraSpacePage() {
                       <div className="ss4-input-wrap flex items-center gap-3 px-4 py-3">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)', boxShadow: '0 0 8px var(--danger)' }} />
                         <span className="ss4-mono flex-1" style={{ fontSize: 13, color: 'var(--text-primary)' }}>Recording… {fmtDuration(recSeconds)}</span>
-                        <button onClick={() => stopRecording(true)} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
-                        <button onClick={() => stopRecording(false)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
+                        <button onClick={() => stopRecording()} className="ss4-icon-btn h-8 w-8" title="Cancel"><Trash2 className="h-4 w-4" style={{ color: 'var(--danger)' }} /></button>
+                        <button onClick={() => stopRecording(true)} className="ss4-send-btn h-8 w-8 flex items-center justify-center" title="Send"><Send className="h-3.5 w-3.5" style={{ color: '#fff' }} /></button>
                       </div>
                     ) : (
                       <div className="ss4-input-wrap flex flex-col">

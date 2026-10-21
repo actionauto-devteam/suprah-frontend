@@ -20,6 +20,7 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpa
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
 import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
+import { createSupraSpaceVoiceRecordingIntent, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
 import { UnreadMessagesDivider } from './messages/UnreadMessagesDivider';
 import {
   useSupraSpaceMessenger,
@@ -4123,7 +4124,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const recChunksRef = React.useRef<Blob[]>([]);
   const recSecondsRef = React.useRef(0);
   const recTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const recCancelRef = React.useRef(false);
+  const recSendIntentRef = React.useRef<SupraSpaceVoiceRecordingIntent | null>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLDivElement>(null);
   const inputSelectionRangeRef = React.useRef<Range | null>(null);
@@ -4857,13 +4858,15 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
       const mr = new MediaRecorder(stream);
-      recChunksRef.current = [];
-      recCancelRef.current = false;
-      mr.ondataavailable = (e) => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      const chunks: Blob[] = [];
+      const sendIntent = createSupraSpaceVoiceRecordingIntent();
+      recChunksRef.current = chunks;
+      recSendIntentRef.current = sendIntent;
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       mr.onstop = async () => {
         recStreamRef.current?.getTracks().forEach(t => t.stop());
-        if (recCancelRef.current) return;
-        const blob = new Blob(recChunksRef.current, { type: 'audio/webm' });
+        if (!sendIntent.sendRequested) return;
+        const blob = new Blob(chunks, { type: 'audio/webm' });
         const seconds = recSecondsRef.current;
         if (blob.size > 0 && crmToken) {
           const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
@@ -4906,10 +4909,10 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     }
   }, []);
 
-  const stopRecording = React.useCallback((cancel = false) => {
+  const stopRecording = React.useCallback((send = false) => {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
-    recCancelRef.current = cancel;
-    if (cancel) recChunksRef.current = [];
+    setSupraSpaceVoiceRecordingSendIntent(recSendIntentRef.current, send);
+    if (!send) recChunksRef.current = [];
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     } else {
@@ -7722,7 +7725,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   <span className="flex-1 text-[13px] font-medium text-foreground">{fmtDuration(recSeconds)}{recPaused ? ' · paused' : ''}</span>
                   <button
                     type="button"
-                    onClick={() => stopRecording(true)}
+                    onClick={() => stopRecording()}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60"
                     title="Cancel recording"
                   >
@@ -7738,7 +7741,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                   <button
                     type="button"
-                    onClick={() => stopRecording(false)}
+                    onClick={() => stopRecording(true)}
                     className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-white"
                     style={{ background: accentColor }}
                     title="Send voice message"
@@ -7982,7 +7985,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
                 <button
                   type="button"
-                  title={recording ? 'Stop recording' : 'Record a voice message'}
+                  title={recording ? 'Stop and discard recording' : 'Record a voice message'}
                   onClick={() => (recording ? stopRecording() : startRecording())}
                   className={cn('shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-colors', !recording && 'hover:bg-muted/60')}
                   style={recording ? { background: '#ef4444', color: '#fff' } : { color: accentColor }}
