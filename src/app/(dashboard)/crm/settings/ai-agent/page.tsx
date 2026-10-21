@@ -20,6 +20,7 @@ import { AiHistoryPanel } from "@/components/crm/aiHub/AiHistoryPanel"
 import { HubCard } from "@/components/crm/aiHub/ShadowStatusBadge"
 import { TrainingRulesPanel } from "@/components/crm/aiHub/TrainingRulesPanel"
 import { TestingLabPanel } from "@/components/crm/aiHub/TestingLabPanel"
+import { AgentSettingsPanel, normalizeFollowUpHours } from "@/components/crm/aiHub/AgentSettingsPanel"
 import { useTrainingStatus } from "@/hooks/useAiTraining"
 import { canViewAiHub, SHADOW_DRAFT_STATUSES } from "@/lib/aiShadowDrafts"
 import { AI_CHANNELS } from "@/lib/aiOperatingModes"
@@ -27,7 +28,7 @@ import type { ShadowDraftFilters } from "@/hooks/useAiShadowDrafts"
 
 const HUB_TABS = [
   { value: "overview", label: "Overview" },
-  { value: "modes", label: "Operating Modes" },
+  { value: "modes", label: "Modes & Settings" },
   { value: "drafts", label: "Shadow Drafts" },
   { value: "training", label: "Training Rules" },
   { value: "lab", label: "Testing Lab" },
@@ -67,6 +68,7 @@ function AiAgentHubContent() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [settings, setSettings] = React.useState<AiAgentSettingsSummary>({ agentName: "Alex" })
   const [fallbackGroupId, setFallbackGroupId] = React.useState("")
+  const [settingsReady, setSettingsReady] = React.useState(false)
   const { groups } = useCrmLeadGroups()
 
   const getHubToken = React.useCallback(async () => {
@@ -94,6 +96,7 @@ function AiAgentHubContent() {
               followUpIntervalHours: typeof data.aiFollowUpIntervalHours === "number" ? data.aiFollowUpIntervalHours : undefined,
             })
             setFallbackGroupId(data.aiHandoffFallbackGroupId || "")
+            setSettingsReady(true)
           }
         }
       } catch {
@@ -211,11 +214,26 @@ function AiAgentHubContent() {
                   )}
                 </TabsContent>
 
-                <TabsContent value="modes">
+                <TabsContent value="modes" className="space-y-4">
                   <HubCard title="Operating modes" description="Choose, per channel, whether the AI agent is off, in training, or replying live." icon={<Bot className="h-4 w-4 text-primary" />}>
                     {!isAdmin && <p className="mb-3 text-[11px] text-muted-foreground/70">You can view the modes. Only admins can change them.</p>}
                     <AiOperatingModesPanel getToken={getHubToken} isAdmin={isAdmin} agentName={settings.agentName} />
                   </HubCard>
+                  <AgentSettingsPanel
+                    getToken={getHubToken}
+                    isAdmin={isAdmin}
+                    ready={settingsReady}
+                    groups={groups}
+                    initial={{
+                      agentName: settings.agentName,
+                      fallbackGroupId,
+                      followUpIntervalHours: normalizeFollowUpHours(settings.followUpIntervalHours),
+                    }}
+                    onSaved={(next) => {
+                      setSettings((current) => ({ ...current, agentName: next.agentName, followUpIntervalHours: next.followUpIntervalHours }))
+                      setFallbackGroupId(next.fallbackGroupId)
+                    }}
+                  />
                 </TabsContent>
 
                 <TabsContent value="drafts">
