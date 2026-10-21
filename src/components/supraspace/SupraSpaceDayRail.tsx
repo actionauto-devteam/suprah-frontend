@@ -224,13 +224,12 @@ function DayComposer({ onClose, onPosted }: { onClose: () => void; onPosted: () 
 
   const chooseFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.files?.[0] || null;
-    setError('');
-    setProgress(0);
-
     if (!next) {
-      setFile(null);
       return;
     }
+
+    setError('');
+    setProgress(0);
 
     if (!ACCEPTED_MEDIA_TYPES.has(next.type)) {
       setFile(null);
@@ -240,6 +239,7 @@ function DayComposer({ onClose, onPosted }: { onClose: () => void; onPosted: () 
     }
 
     setFile(next);
+    event.target.value = '';
   };
 
   const postDay = async () => {
@@ -339,7 +339,7 @@ function DayComposer({ onClose, onPosted }: { onClose: () => void; onPosted: () 
             type="button"
             disabled={!file || posting}
             onClick={postDay}
-            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none disabled:hover:bg-white/10"
           >
             {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             {posting ? 'Posting...' : 'Post Day'}
