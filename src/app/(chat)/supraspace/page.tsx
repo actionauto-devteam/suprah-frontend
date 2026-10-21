@@ -77,7 +77,7 @@ import { PreSendMediaPreview } from '@/components/supraspace/PreSendMediaPreview
 import { getSupraSpaceMessageTextSizeOptions, getSupraSpaceMessageTextStyle, type SupraSpaceMessageTextSize } from '@/lib/supraspace-message-text-size';
 import { runSupraSpaceBulkOperation } from '@/lib/supraspace-bulk-operations';
 import { filterSupraSpaceConversations, recentSupraSpaceConversations } from '@/lib/supraspace-conversation-search';
-import { createSupraSpaceVoiceRecordingIntent, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
+import { createSupraSpaceVoiceRecordingIntent, getSupportedSupraSpaceVoiceMimeType, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
 
 const SS4_MAX_UPLOAD_FILES = 10;
 const SS4_MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
@@ -4448,42 +4448,26 @@ const DateSep = React.memo(function DateSep({ date }: { date: string }) {
   );
 });
 
-function supportedVoiceMimeType(): string | undefined {
-  if (typeof MediaRecorder === 'undefined') return undefined;
-  return ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
-}
-
 function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: string; duration?: number; own: boolean }) {
-  const { getToken } = useAuth();
+  const { crmToken } = useSupraSpaceMessenger();
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = React.useState(false);
   const [cur, setCur] = React.useState(0);
   const [audioErr, setAudioErr] = React.useState(false);
   const [pending, setPending] = React.useState(false);
-  const [voiceToken, setVoiceToken] = React.useState<string | null>(null);
   const total = duration || 0;
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
   const proxySrc = `${API_BASE}/api/supraspace/conversations/${convId}/messages/${msgId}/voice`;
 
-  React.useEffect(() => {
-    let cancelled = false;
-    getToken().then((freshToken) => {
-      if (!cancelled) setVoiceToken(freshToken);
-    }).catch(() => {
-      if (!cancelled) setVoiceToken(null);
-    });
-    return () => { cancelled = true; };
-  }, [getToken]);
-
   const handlePlay = React.useCallback(() => {
     const a = audioRef.current;
-    if (!a || pending) return;
+    if (!a || pending || !crmToken) return;
     if (playing) { a.pause(); return; }
     setPending(true);
     a.play()
       .then(() => setPending(false))
       .catch(() => { setPending(false); setAudioErr(true); });
-  }, [playing, pending]);
+  }, [playing, pending, crmToken]);
 
   return (
     <div className={cn('ss4-voice-bar', own ? 'ss4-file-own' : 'ss4-file-other')} style={{ minWidth: 200, maxWidth: 280 }}>
@@ -4512,7 +4496,7 @@ function VoicePlayer({ convId, msgId, duration, own }: { convId: string; msgId: 
       </div>
       <audio
         ref={audioRef}
-        src={voiceToken ? `${proxySrc}?t=${encodeURIComponent(voiceToken)}` : ''}
+        src={crmToken ? `${proxySrc}?t=${encodeURIComponent(crmToken)}` : ''}
         preload="metadata"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -12482,7 +12466,7 @@ export default function SupraSpacePage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
-      const voiceMimeType = supportedVoiceMimeType();
+      const voiceMimeType = getSupportedSupraSpaceVoiceMimeType();
       const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
       const chunks: Blob[] = [];
       const sendIntent = createSupraSpaceVoiceRecordingIntent();
@@ -12490,7 +12474,7 @@ export default function SupraSpacePage() {
       recSendIntentRef.current = sendIntent;
       mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       mr.onstop = async () => {
-        const mimeType = mr.mimeType || supportedVoiceMimeType() || 'audio/webm';
+        const mimeType = mr.mimeType || getSupportedSupraSpaceVoiceMimeType() || 'audio/webm';
         const blob = new Blob(chunks, { type: mimeType });
         const seconds = recSecondsRef.current;
         recStreamRef.current?.getTracks().forEach(t => t.stop());
@@ -16236,7 +16220,7 @@ export default function SupraSpacePage() {
                     <div className="px-4">
                       <div className="ss4-tab-bar flex gap-1">
                         {(['members', 'media', 'files', 'pinned', 'search'] as const).map(t => (
-                          <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t}</button>
+                          <button key={t} onClick={() => setInfoTab(t)} className={cn('flex-1 h-7 ss4-tab capitalize', t === infoTab && 'ss4-tab-active')}>{t === 'files' ? 'Attachments' : t}</button>
                         ))}
                       </div>
                     </div>
@@ -16302,9 +16286,14 @@ export default function SupraSpacePage() {
                         ssAttachmentsLoading && ssFileItems.length === 0
                           ? <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--text-tertiary)' }} /></div>
                           : ssFileItems.length === 0
-                          ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No files yet</p>
+                          ? <p className="text-center py-8" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No attachments yet</p>
                           : <div className="space-y-1.5">
-                            {ssFileItems.map(({ messageId, attachment: a }, i) => (
+                            {ssFileItems.map(({ messageId, attachment: a }, i) => a.mimeType?.startsWith('audio/') ? (
+                              <div key={`${messageId}-${i}`} className="rounded-xl px-3 py-2.5 ss4-file-other">
+                                <p className="mb-1.5 text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p>
+                                <VoicePlayer convId={activeId} msgId={messageId} duration={a.duration} own={false} />
+                              </div>
+                            ) : (
                               <a key={`${messageId}-${i}`} href={a.url} download={a.originalName} className="flex items-center gap-3 rounded-xl px-3 py-2.5 no-underline ss4-file-other">
                                 <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--accent-muted)' }}><FileText className="h-4 w-4" style={{ color: 'var(--accent)' }} /></div>
                                 <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.originalName}</p><p className="ss4-mono mt-0.5" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{fmtSize(a.size)}</p></div>

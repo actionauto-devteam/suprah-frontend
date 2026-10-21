@@ -20,7 +20,7 @@ import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpa
 import { renderSupraSpaceRichTextInline } from './SupraSpaceRichTextInline';
 import { getSupraSpaceMessageTextStyle } from '@/lib/supraspace-message-text-size';
 import { findSupraSpaceUnreadBoundary } from '@/lib/supraspace-unread-boundary';
-import { createSupraSpaceVoiceRecordingIntent, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
+import { createSupraSpaceVoiceRecordingIntent, getSupportedSupraSpaceVoiceMimeType, setSupraSpaceVoiceRecordingSendIntent, type SupraSpaceVoiceRecordingIntent } from '@/lib/supraspace-voice-recording';
 import { UnreadMessagesDivider } from './messages/UnreadMessagesDivider';
 import {
   useSupraSpaceMessenger,
@@ -4857,7 +4857,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recStreamRef.current = stream;
-      const mr = new MediaRecorder(stream);
+      const voiceMimeType = getSupportedSupraSpaceVoiceMimeType();
+      const mr = voiceMimeType ? new MediaRecorder(stream, { mimeType: voiceMimeType }) : new MediaRecorder(stream);
       const chunks: Blob[] = [];
       const sendIntent = createSupraSpaceVoiceRecordingIntent();
       recChunksRef.current = chunks;
@@ -4866,10 +4867,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
       mr.onstop = async () => {
         recStreamRef.current?.getTracks().forEach(t => t.stop());
         if (!sendIntent.sendRequested) return;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const mimeType = mr.mimeType || getSupportedSupraSpaceVoiceMimeType() || 'audio/webm';
+        const blob = new Blob(chunks, { type: mimeType });
         const seconds = recSecondsRef.current;
         if (blob.size > 0 && crmToken) {
-          const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+          const extension = mimeType.includes('mp4') ? 'm4a' : 'webm';
+          const file = new File([blob], `voice-note-${Date.now()}.${extension}`, { type: mimeType });
           const fd = new FormData();
           fd.append('files', file);
           fd.append('duration', String(seconds));
