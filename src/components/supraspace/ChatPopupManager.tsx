@@ -4134,6 +4134,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [composerFontSize, setComposerFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [composerFontSizeChosen, setComposerFontSizeChosen] = React.useState(false);
   const [composerSizeMenuOpen, setComposerSizeMenuOpen] = React.useState(false);
+  const [composerFormatOpen, setComposerFormatOpen] = React.useState(false);
   const composerSizeBtnRef = React.useRef<HTMLButtonElement>(null);
   const [composerTextColor, setComposerTextColor] = React.useState('#ffffff');
   const [composerTextColorChosen, setComposerTextColorChosen] = React.useState(false);
@@ -7747,7 +7748,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
               ) : (
               <>
-              <div className="flex items-center gap-1 overflow-x-auto px-2 pt-1.5 no-scrollbar">
+              {composerFormatOpen && (
+              <div id="popup-rich-format-toolbar" className="flex items-center gap-1 overflow-x-auto border-b border-border/40 px-2 py-1.5 no-scrollbar">
                 <select
                   value={composerFontFamily}
                   onPointerDown={() => rememberComposerSelection()}
@@ -7909,12 +7911,13 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   </button>
                 ))}
               </div>
+              )}
               <div className="flex min-w-0 flex-col gap-1 px-2 py-1.5">
-                <div className="flex min-w-0 items-center gap-1">
+                <div className="flex min-w-0 items-center gap-1 overflow-x-auto no-scrollbar">
                 <input ref={fileRef} type="file" multiple hidden onChange={e => { stageFiles(e.target.files); e.target.value = ''; }} />
                 <div className="relative shrink-0" ref={attachMenuRef}>
                   <button title="Add" onClick={() => setAttachMenuOpen(v => !v)}
-                    className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
+                    className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
                     <Plus className="h-5 w-5" />
                   </button>
                   {attachMenuOpen && (
@@ -7941,7 +7944,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   )}
                 </div>
                 <button title="Photo or video" onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*,video/*'; fileRef.current.click(); } }}
-                  className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
+                  className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors" style={{ color: accentColor }}>
                   <ImageIcon className="h-4.5 w-4.5" />
                 </button>
                 <div ref={composerEmojiAnchorRef} className="relative shrink-0">
@@ -7954,7 +7957,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       setGifOpen(false);
                       setComposerEmojiOpen(open => !open);
                     }}
-                    className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors"
+                    className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors"
                     style={{ color: accentColor }}
                     aria-expanded={composerEmojiOpen}
                   >
@@ -7972,7 +7975,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                 </div>
                 <div className="relative shrink-0" ref={gifRef}>
                   <button title="GIF" onClick={() => { setComposerEmojiOpen(false); setGifOpen(v => !v); }}
-                    className="h-8 px-1.5 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[11px] tracking-tight" style={{ color: accentColor }}>
+                    className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors font-extrabold text-[10px] tracking-tight" style={{ color: accentColor }}>
                     GIF
                   </button>
                   {gifOpen && <PopupGifPicker onPick={selectGif} onClose={() => setGifOpen(false)} anchorRef={gifRef} boundaryRef={popupShellRef} />}
@@ -7981,15 +7984,28 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                   type="button"
                   title={recording ? 'Stop recording' : 'Record a voice message'}
                   onClick={() => (recording ? stopRecording() : startRecording())}
-                  className={cn('shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-colors', !recording && 'hover:bg-muted/60')}
+                  className={cn('shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-colors', !recording && 'hover:bg-muted/60')}
                   style={recording ? { background: '#ef4444', color: '#fff' } : { color: accentColor }}
                 >
                   {recording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4.5 w-4.5" />}
                 </button>
+                <button
+                  type="button"
+                  title="Formatting options"
+                  aria-label="Formatting options"
+                  aria-controls={composerFormatOpen ? 'popup-rich-format-toolbar' : undefined}
+                  aria-expanded={composerFormatOpen}
+                  onPointerDown={event => { event.preventDefault(); rememberComposerSelection(); }}
+                  onClick={() => setComposerFormatOpen(open => !open)}
+                  className={cn('shrink-0 h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-semibold transition-colors hover:bg-muted/60', composerFormatOpen && 'bg-primary/15 text-primary')}
+                  style={!composerFormatOpen ? { color: accentColor } : undefined}
+                >
+                  Aa
+                </button>
                 </div>
 
                 <div className="flex min-w-0 items-end gap-1">
-                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-2xl px-3" style={{ minHeight: 34 }}>
+                <div className="relative flex min-w-0 max-w-full flex-1 items-center bg-muted/60 rounded-2xl px-3.5" style={{ minHeight: 40 }}>
                   {!composerHasText && (
                     <span className="absolute left-3 text-[15px] text-muted-foreground/55 pointer-events-none select-none">Aa</span>
                   )}
@@ -8075,12 +8091,12 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
                 {composerHasText || pendingAttachments.length > 0 || pendingGif ? (
                   <button title="Send (Enter)" onClick={() => handleSend()} disabled={sending}
-                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
+                    className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 ) : (
                   <button title="Like" onClick={handleSendThumbsUp} disabled={sending}
-                    className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
+                    className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center hover:bg-muted/60 transition-colors disabled:opacity-40" style={{ color: accentColor }}>
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : conv.theme?.emoji ? (
                       <span className="text-[18px] leading-none">{conv.theme.emoji}</span>
                     ) : <ThumbsUp className="h-4 w-4" />}
