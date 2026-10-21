@@ -9914,6 +9914,10 @@ export default function SupraSpacePage() {
 
   const [msgResults, setMsgResults] = React.useState<SSMessageSearchResult[]>([]);
   const [searching, setSearching] = React.useState(false);
+  // A search result can already be mounted in the current timeline. Keep a
+  // render signal alongside the target ref so selecting it still runs the
+  // reveal effect instead of only updating the ref.
+  const [messageTargetRequest, setMessageTargetRequest] = React.useState(0);
 
   const endRef = React.useRef<HTMLDivElement>(null);
   const messageScrollRef = React.useRef<HTMLDivElement>(null);
@@ -10975,7 +10979,7 @@ export default function SupraSpacePage() {
     highlightSupraSpaceMessageTarget(el);
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     pendingNotificationTargetRef.current = null;
-  }, [activeId, msgs, scrollToLatest]);
+  }, [activeId, messageTargetRequest, msgs, scrollToLatest]);
 
   const targetUserId = searchParams.get('userId');
   React.useEffect(() => {
@@ -13925,11 +13929,13 @@ export default function SupraSpacePage() {
   const openSearchResult = React.useCallback(async (convId: string, messageId: string, createdAt?: string) => {
     setQ('');
     setMobileSearchOpen(false);
+    cancelOpenBottomLock();
     pendingScrollRestoreRef.current = null;
-    if (forceScrollToBottomRef.current === convId) forceScrollToBottomRef.current = null;
     suppressAutoScrollOnceRef.current = true;
     setShowJumpToLatest(false);
     setShowInfo(false);
+    activeIdRef.current = convId;
+    setStoredSupraSpaceConversationId(convId, uid);
     setActiveId(convId);
     setManualUnread(p => { if (!p.has(convId)) return p; const n = new Set(p); n.delete(convId); return n; });
     pendingNotificationTargetRef.current = { conversationId: convId, messageId };
@@ -13955,6 +13961,10 @@ export default function SupraSpacePage() {
       };
     }));
 
+    // Re-run the target reveal even when this message was already part of the
+    // rendered timeline (which otherwise leaves the viewport unchanged).
+    setMessageTargetRequest(previous => previous + 1);
+
     if ((msgsRef.current[convId] || []).some(m => m._id === messageId)) return;
 
     const t = tokenRef.current;
@@ -13967,14 +13977,16 @@ export default function SupraSpacePage() {
         headers: { Authorization: `Bearer ${t}` }, params,
       });
       const d: SSMessage[] = r.data?.data || [];
-      setMsgs(p => ({ ...p, [convId]: d }));
+      // Preserve already-loaded newer messages so a jump into older history
+      // remains a normal, two-direction scrollable conversation.
+      setMsgs(p => ({ ...p, [convId]: mergeMessages(p[convId] || [], d) }));
       setHasMore(p => ({ ...p, [convId]: d.length === SS4_MESSAGE_PAGE_SIZE }));
       setMsgFetchState(p => ({ ...p, [convId]: 'loaded' }));
     } catch {
     } finally {
       setLoadingMsgs(false);
     }
-  }, [ctxMarkAsRead, markConversationActivity, markRead, uid]);
+  }, [cancelOpenBottomLock, ctxMarkAsRead, markConversationActivity, markRead, uid]);
 
   const typers = activeId ? (typing[activeId] || []).filter(t => t.userId !== uid) : [];
   const themeStyle = themeVars(activeConv?.theme);
