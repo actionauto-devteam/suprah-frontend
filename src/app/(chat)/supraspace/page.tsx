@@ -1577,19 +1577,6 @@ const fmtDuration = (s: number) => {
   return `${m}:${ss.toString().padStart(2, '0')}`;
 };
 
-function getJwtType(token: string | null): string | null {
-  if (!token || typeof atob === 'undefined') return null;
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    const padded = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
-    const decoded = JSON.parse(atob(padded)) as { type?: string };
-    return decoded.type || null;
-  } catch {
-    return null;
-  }
-}
-
 function cssColorToHex(color: string | null | undefined): string | null {
   if (!color) return null;
 
@@ -9371,7 +9358,11 @@ export default function SupraSpacePage() {
   const { isDismissed: mobileInstallPromptDismissed, dismiss: dismissMobileInstallPromptPermanently } = usePersistentPromptDismissal(SUPRASPACE_MOBILE_INSTALL_GATE_DISMISSED_KEY);
   const [mobileInstallPromptClosed, setMobileInstallPromptClosed] = React.useState(false);
   const { theme, setTheme } = useTheme();
-  const { getToken: getMainToken } = useAuth();
+  const {
+    isLoaded: authLoaded,
+    isSignedIn: authSignedIn,
+    authIndeterminate,
+  } = useAuth();
   const uploadNoticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const localAttachmentPreviewUrlsRef = React.useRef<Set<string>>(new Set());
   const [token, setToken] = React.useState('');
@@ -10137,7 +10128,7 @@ export default function SupraSpacePage() {
   const [mentionIdx, setMentionIdx] = React.useState(0);
 
   const { socket, isConnected, presence, typing, joinConversation, leaveConversation, sendTypingStart, sendTypingStop, markRead, markAllRead } = useSupraSpaceRealtime();
-  const { markAsRead: ctxMarkAsRead, markConversationRead: ctxMarkConversationRead, markConversationUnread: ctxMarkConversationUnread, archiveConversation: ctxArchiveConversation, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, patchConversation: ctxPatchConversation, notifPrefs, setNotifPrefs, myFullName, myAvatar, messageTextSize } = useSupraSpaceMessenger();
+  const { markAsRead: ctxMarkAsRead, markConversationRead: ctxMarkConversationRead, markConversationUnread: ctxMarkConversationUnread, archiveConversation: ctxArchiveConversation, spaces: ctxSpaces, refreshSpaces, conversations: ctxConversations, refreshConversations: ctxRefreshConvos, patchConversation: ctxPatchConversation, crmToken: sharedCrmToken, notifPrefs, setNotifPrefs, myFullName, myAvatar, messageTextSize } = useSupraSpaceMessenger();
   const saveNotificationPref = React.useCallback((conversationId: string, pref: { type: 'all' | 'main' | 'foryou' | 'none'; muted: boolean; muteUntil?: string | null }) => {
     const previousPref =
       notifPrefs[conversationId] ||
@@ -10358,9 +10349,6 @@ export default function SupraSpacePage() {
   }, []);
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-
-  const getMainTokenRef = React.useRef(getMainToken);
-  getMainTokenRef.current = getMainToken;
 
   const tokenRef = React.useRef(token);
   React.useEffect(() => { tokenRef.current = token; }, [token]);
@@ -10590,23 +10578,40 @@ export default function SupraSpacePage() {
   React.useEffect(() => {
     if (!ctxConversations.length) return;
     setConvos(prev => {
-      const prevIds = new Set(prev.map(c => c._id));
-      const missing = ctxConversations.filter(c => !prevIds.has(c._id));
-      const archiveStateByConversationId = new Map(
-        ctxConversations.map(c => [c._id, (c.archivedBy || []).map(String)]),
-      );
-      let archiveStateChanged = false;
-      const synced = prev.map(c => {
-        const archivedBy = archiveStateByConversationId.get(c._id);
-        const hasSameArchiveState = archivedBy?.length === (c.archivedBy || []).length
-          && archivedBy.every((id, index) => id === String(c.archivedBy?.[index]));
-        if (!archivedBy || hasSameArchiveState) {
-          return c;
-        }
-        archiveStateChanged = true;
-        return { ...c, archivedBy };
+      const sharedById = new Map(ctxConversations.map(conversation => [conversation._id, conversation]));
+      const synced = prev.map(conversation => {
+        const shared = sharedById.get(conversation._id);
+        if (!shared) return conversation;
+
+        // Keep page-only detail (wallpaper, loaded history, local ordering),
+        // but take list/realtime state from the one Messenger store used by
+        // Mini Space. This stops the two chat lists from independently
+        // deciding unread, archive, preview, membership, and ordering state.
+        return {
+          ...conversation,
+          members: shared.members || conversation.members,
+          archivedBy: shared.archivedBy || [],
+          leftBy: shared.leftBy || [],
+          pinnedBy: shared.pinnedBy || [],
+          spaceId: shared.spaceId ?? null,
+          manualUnread: shared.manualUnread,
+          unreadCount: shared.unreadCount,
+          unreadMentionCount: shared.unreadMentionCount,
+          mentionCount: shared.mentionCount,
+          // A null value from the shared store is meaningful (for example,
+          // after a message is deleted), so only retain page-local data when
+          // the shared field was actually omitted.
+          lastMessage: shared.lastMessage === undefined ? conversation.lastMessage : shared.lastMessage,
+          lastMessageAt: shared.lastMessageAt === undefined ? conversation.lastMessageAt : shared.lastMessageAt,
+          lastReaction: shared.lastReaction === undefined ? conversation.lastReaction : shared.lastReaction,
+            notificationPreference: shared.notificationPreference === undefined
+              ? conversation.notificationPreference
+              : shared.notificationPreference,
+        } as SSConversation;
       });
-      if (!missing.length) return archiveStateChanged ? synced : prev;
+      const knownIds = new Set(prev.map(conversation => conversation._id));
+      const missing = ctxConversations.filter(conversation => !knownIds.has(conversation._id));
+      if (!missing.length) return sortSupraSpaceConversations(synced, uid);
       return [
         ...synced,
         ...missing.map(c => ({
@@ -10614,9 +10619,9 @@ export default function SupraSpacePage() {
           admins: (c as any).admins || [],
           theme: { accent: c.theme?.accent ?? null, bubble: null, wallpaper: null, emoji: null },
         } as unknown as SSConversation)),
-      ];
+      ].sort((a, b) => supraSpaceConversationActivityAt(b, uid) - supraSpaceConversationActivityAt(a, uid));
     });
-  }, [ctxConversations]);
+  }, [ctxConversations, uid]);
 
   const hydrateSupraSpaceCache = React.useCallback(async (cachedUserId: string, restoreActiveConversation = true) => {
     if (!cachedUserId || cacheHydratedRef.current) return false;
@@ -10662,41 +10667,21 @@ export default function SupraSpacePage() {
 
   React.useEffect(() => {
     (async () => {
-      let t = localStorage.getItem('crm_token');
-      if (t && getJwtType(t) !== 'crm') {
-        localStorage.removeItem('crm_token');
-        t = null;
-      }
-
-      if (!t) {
-        try {
-          const mainToken = await getMainTokenRef.current();
-          if (mainToken) {
-            t = await Promise.any([
-              apiClient.post('/api/supraspace/session-token', {}, { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 })
-                .then(sso => {
-                  const nextToken = sso.data?.data?.token;
-                  if (!nextToken) throw new Error('No CRM token');
-                  return nextToken;
-                }),
-              apiClient.get('/api/auth/crm-sso', { headers: { Authorization: `Bearer ${mainToken}` }, timeout: 8000 })
-                .then(sso => {
-                  const nextToken = sso.data?.data?.token;
-                  if (!nextToken) throw new Error('No CRM token');
-                  return nextToken;
-                }),
-            ]);
-            if (t) localStorage.setItem('crm_token', t);
-          }
-        } catch { }
-      }
-
-      if (!t) {
+      // The page and Mini Space must begin with the same provider-owned CRM
+      // token. Booting a second token flow here could race AuthProvider on an
+      // iPhone PWA cold start, then treat that transient race as a logout.
+      if (!authLoaded) return;
+      // AuthProvider deliberately keeps a session indeterminate during an
+      // offline, rate-limited, or 5xx refresh retry. Mirror that guarantee in
+      // the standalone PWA instead of redirecting during the retry window.
+      if (!authSignedIn && !authIndeterminate) {
         const isSupraSpaceSubdomain = typeof window !== 'undefined' && window.location.hostname === SUPRASPACE_SUBDOMAIN;
         const returnTo = isSupraSpaceSubdomain ? `${window.location.origin}/` : '/crm/supra-space';
         router.replace(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`);
         return;
       }
+      if (!sharedCrmToken) return;
+      const t = sharedCrmToken;
       tokenRef.current = t;
       setToken(t);
       setInitialConversationsReady(false);
@@ -10814,8 +10799,9 @@ export default function SupraSpacePage() {
         }
       } catch (err: any) {
         if (err?.response?.status === 401) {
-          localStorage.removeItem('crm_token');
-          router.replace('/crm');
+          // This is a Space-token problem, not proof that the main login is
+          // gone. Ask the shared owner to renew it and stay in the PWA.
+          window.dispatchEvent(new Event('supraspace:refresh-crm-token'));
         }
       }
       finally {
@@ -10825,7 +10811,7 @@ export default function SupraSpacePage() {
         releaseInitialShell();
       }
     })();
-  }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authIndeterminate, authLoaded, authSignedIn, router, sharedCrmToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (loading) return;

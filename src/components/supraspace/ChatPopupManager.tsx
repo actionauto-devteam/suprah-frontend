@@ -1131,7 +1131,11 @@ function renderContent(msg: SSMessage, isOwn: boolean, mentionAliases: readonly 
   const label = MEDIA_LABELS[msg.type];
   if (label) return label;
 
-  const text = normalizeMessageMarkdownForDisplay(msg.content ?? '');
+  // Keep Mini Space on the same malformed-marker recovery path as the full
+  // timeline. This helper was present but never reached the popup renderer,
+  // leaving historical report rows with visible trailing ** markers only in
+  // the compact surface.
+  const text = normalizeMessageMarkdownForDisplay(normalizeFinalMessageMarkup(msg.content ?? ''));
   const lines = text.split('\n');
   const bulletRe = POPUP_SOURCE_BULLET_RE;
   const numberedRe = /^(\s*)(\d+)\.\s+(.+)$/;

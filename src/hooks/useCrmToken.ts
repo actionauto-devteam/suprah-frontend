@@ -15,6 +15,24 @@ function getJwtType(token: string | null): string | null {
   }
 }
 
+function isCurrentCrmToken(token: string | null): boolean {
+  if (!token || typeof atob === 'undefined') return false;
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return false;
+    const padded = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
+    const decoded = JSON.parse(atob(padded)) as { type?: string; exp?: number };
+    // Do not hand a token that is about to expire to a new PWA boot.  A stale
+    // CRM bearer used to turn an otherwise valid main refresh-cookie session
+    // into a 401 during the first Space request.
+    return decoded.type === 'crm'
+      && typeof decoded.exp === 'number'
+      && decoded.exp * 1000 > Date.now() + 60_000;
+  } catch {
+    return false;
+  }
+}
+
 // Mirrors the CRM token into the same IndexedDB store AuthProvider.tsx uses
 // for the main accessToken — the service worker's `pushsubscriptionchange`
 // handler (sw.ts) needs to re-register a renewed push subscription with the
@@ -118,7 +136,7 @@ export function useCrmToken() {
       let t: string | null = null;
       if (typeof window !== 'undefined') {
         t = localStorage.getItem('crm_token');
-        if (t && getJwtType(t) !== 'crm') {
+        if (t && (!isCurrentCrmToken(t) || getJwtType(t) !== 'crm')) {
           localStorage.removeItem('crm_token');
           t = null;
         }
