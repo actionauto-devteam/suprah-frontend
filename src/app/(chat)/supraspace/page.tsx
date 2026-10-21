@@ -10065,16 +10065,16 @@ export default function SupraSpacePage() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (conversationId && activeIdRef.current !== conversationId) return;
-        pinMessageViewportToBottom(conversationId);
-        if (behavior !== 'auto') {
-          endRef.current?.scrollIntoView({ behavior, block: 'end' });
-        }
+        const el = messageScrollRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior });
+        setShowJumpToLatest(false);
         if (Date.now() > openBottomLockUntilRef.current) {
           forceScrollToBottomRef.current = null;
         }
       });
     });
-  }, [pinMessageViewportToBottom]);
+  }, []);
 
   const lockConversationOpenToBottom = React.useCallback((conversationId: string) => {
     openScrollTimersRef.current.forEach(clearTimeout);
@@ -11214,7 +11214,7 @@ export default function SupraSpacePage() {
     pendingScrollRestoreRef.current = null;
   }, [activeId, activeMsgs.length]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const el = messageScrollRef.current;
     if (!el || pendingScrollRestoreRef.current) return;
 
@@ -11224,23 +11224,18 @@ export default function SupraSpacePage() {
     }
 
     if (forceScrollToBottomRef.current === activeId) {
-      requestAnimationFrame(() => {
-        const scrollEl = messageScrollRef.current;
-        if (!scrollEl || forceScrollToBottomRef.current !== activeId) return;
-        scrollEl.scrollTop = scrollEl.scrollHeight;
-        endRef.current?.scrollIntoView({ behavior: 'auto' });
-        if (Date.now() > openBottomLockUntilRef.current) {
-          forceScrollToBottomRef.current = null;
-        }
-        setShowJumpToLatest(false);
-      });
+      el.scrollTop = el.scrollHeight;
+      if (Date.now() > openBottomLockUntilRef.current) {
+        forceScrollToBottomRef.current = null;
+      }
+      setShowJumpToLatest(false);
       return;
     }
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const shouldStickToBottom = distanceFromBottom < 220;
     if (shouldStickToBottom) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       setShowJumpToLatest(false);
     }
   }, [activeId, activeMsgs.length]);
@@ -11591,6 +11586,7 @@ export default function SupraSpacePage() {
         });
         const allImages = filesToUpload.every(isImageFileLike);
         const member = activeConv?.members.find(m => m._id === uid);
+        scrollToLatest('auto', conversationId);
         appendMessageLocal(conversationId, {
           _id: tempId,
           conversationId,
@@ -11631,6 +11627,7 @@ export default function SupraSpacePage() {
         if (tempId) {
           optimisticTextId = tempId;
           const member = activeConv?.members.find(m => m._id === uid);
+          scrollToLatest('auto', conversationId);
           appendMessageLocal(conversationId, {
             _id: tempId,
             conversationId,
@@ -11668,6 +11665,7 @@ export default function SupraSpacePage() {
         if (tempId) {
           optimisticTextId = tempId;
           const member = activeConv?.members.find(m => m._id === uid);
+          scrollToLatest('auto', conversationId);
           appendMessageLocal(conversationId, {
             _id: tempId,
             conversationId,
