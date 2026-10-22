@@ -181,14 +181,40 @@ export function sanitizeSupraSpacePastedEditorHtml(
   return doc.body.innerHTML;
 }
 
-/** Remove a browser's block placeholder before applying inline formatting.
- * The surrounding block already supplies its own newline. Marked soft breaks
- * are authored content and must survive, including repeated Shift+Enter.
+const EDITOR_LINE_BLOCKS = new Set(['div', 'p', 'section', 'article', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+
+/** A terminal browser placeholder is already represented by its block boundary.
+ * Inspect the DOM before serialization, while formatting wrappers are intact.
+ * Marked Shift+Enter breaks and breaks followed by content remain authored text.
  */
-export function normalizeSupraSpaceEditorBlockText(
-  text: string,
-  hasIntentionalTerminalSoftBreak: boolean,
-): string {
-  if (hasIntentionalTerminalSoftBreak || !text.endsWith('\n')) return text;
-  return text.slice(0, -1);
+export function isSupraSpaceEditorPlaceholderBreak(element: HTMLElement, root: HTMLElement): boolean {
+  if (element.tagName.toLowerCase() !== 'br' || element.hasAttribute('data-ss4-soft-break')) return false;
+  let block = element.parentElement;
+  while (block && block !== root && !EDITOR_LINE_BLOCKS.has(block.tagName.toLowerCase())) {
+    // Code blocks preserve every authored newline.
+    if (block.tagName.toLowerCase() === 'pre') return false;
+    block = block.parentElement;
+  }
+  if (!block || block === root) return false;
+
+  const hasContent = (node: Node): boolean => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return Boolean((node.textContent || '').replace(/[\u200B\u2060\uFEFF]/g, ''));
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return false;
+    const child = node as HTMLElement;
+    if (child.hasAttribute('data-rich-editor-selection-marker')) return false;
+    const tag = child.tagName.toLowerCase();
+    if (EDITOR_LINE_BLOCKS.has(tag) || ['br', 'img', 'hr', 'table', 'ul', 'ol', 'pre'].includes(tag)) return true;
+    return Array.from(child.childNodes).some(hasContent);
+  };
+
+  let current: Node | null = element;
+  while (current && current !== block) {
+    for (let sibling = current.nextSibling; sibling; sibling = sibling.nextSibling) {
+      if (hasContent(sibling)) return false;
+    }
+    current = current.parentElement;
+  }
+  return current === block;
 }

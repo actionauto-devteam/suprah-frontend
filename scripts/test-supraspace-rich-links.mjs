@@ -15,6 +15,7 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
   const loadedModule = { exports: {} };
   vm.runInNewContext(compiled, {
     URL,
+    Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 },
     module: loadedModule,
     exports: loadedModule.exports,
     require: specifier => dependencies[specifier],
@@ -252,7 +253,10 @@ function editorNode(tag, children = [], attributes = {}) {
         return found;
       },
     };
-  if (Array.isArray(children)) children.forEach(child => { child.parentElement = node; });
+  if (Array.isArray(children)) children.forEach((child, index) => {
+    child.parentElement = node;
+    child.nextSibling = children[index + 1] || null;
+  });
   return node;
 }
 const textNode = value => editorNode('#text', value);
@@ -274,9 +278,9 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     ss4FontSizeFromLegacyAttribute: () => null,
     getSupraSpaceClipboardTextColor: () => null,
     cssColorToHex: () => null,
-    normalizeSupraSpaceEditorBlockText: richPaste.normalizeSupraSpaceEditorBlockText,
+    isSupraSpaceEditorPlaceholderBreak: richPaste.isSupraSpaceEditorPlaceholderBreak,
     normalizeListExitLineSpacing: value => value,
-    normalizeSupraSpaceLegacyMarkup: value => value,
+    normalizeSupraSpaceLegacyMarkup: formatting.normalizeSupraSpaceLegacyMarkup,
     canonicalizeColorMarkup: value => value,
     richTextSerializationDropsVisibleText: () => false,
   };
@@ -288,6 +292,28 @@ for (const path of ['../src/app/(chat)/supraspace/page.tsx', '../src/components/
     editorNode('div', [editorNode('br'), editorNode('br')]),
     editorNode('div', [textNode('second')]),
   ]), 'first\n\n\nsecond', path);
+  for (const [tag, marker] of [['strong', '**'], ['em', '_'], ['u', '__'], ['s', '~~']]) {
+    assert.equal(serialize([
+      editorNode('div', [editorNode(tag, [textNode('first'), editorNode('br')])]),
+      editorNode('div', [textNode('second')]),
+    ]), marker + 'first' + marker + '\nsecond', path + ': styled placeholder ' + tag);
+    assert.equal(serialize([
+      editorNode('div', [editorNode(tag, [textNode('first'), editorNode('br', [], { 'data-ss4-soft-break': 'true' })])]),
+      editorNode('div', [textNode('second')]),
+    ]), marker + 'first' + marker + '\n\nsecond', path + ': authored styled soft break ' + tag);
+  }
+  assert.equal(serialize([
+    editorNode('blockquote', [textNode('first')]),
+    editorNode('blockquote', [editorNode('br')]),
+    editorNode('blockquote', [textNode('second')]),
+  ]), '> first\n>\n> second', path + ': empty quote stays one line');
+  assert.equal(serialize([
+    editorNode('div', [editorNode('strong', [textNode('first'), editorNode('br')]), textNode('second')]),
+  ]), '**first**\nsecond', path + ': break before following text stays authored');
+  assert.equal(serialize([
+    editorNode('div', [textNode('first'), editorNode('br'), editorNode('span', [textNode('\u200B')])]),
+    editorNode('div', [textNode('second')]),
+  ]), 'first\nsecond', path + ': caret marker does not turn a placeholder into content');
   assert.equal(serialize([textNode('first'), editorNode('br'), textNode('second')]), 'first\nsecond', path);
   assert.equal(serialize([textNode('first'), editorNode('br'), editorNode('br'), textNode('second')]), 'first\n\nsecond', path);
   assert.equal(serialize([

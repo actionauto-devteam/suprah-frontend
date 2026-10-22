@@ -69,7 +69,7 @@ import { AutrixHeaderButton } from '@/components/supra-leo-ai/AutrixHeaderButton
 import { SupraLeoAI } from '@/components/supra-leo-ai/SupraLeoAI';
 import { containsSupraSpaceControlMarkup, normalizeSupraSpaceBoldMarkerRuns, normalizeSupraSpaceExternalQuoteArtifacts, normalizeSupraSpaceLegacyMarkup, prepareSupraSpaceMarkupForDisplay, stripResidualSupraSpaceInlineControlMarkers, stripSupraSpaceControlMarkup } from '@/lib/supra-space-message-formatting';
 import { getSupraSpaceConversationPreview, getSupraSpaceMessagePreviewText } from '@/lib/supra-space-conversation-preview';
-import { normalizeSupraSpaceEditorBlockText, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
+import { isSupraSpaceEditorPlaceholderBreak, getSupraSpaceClipboardTextColor, getSupraSpaceSelectionClipboardData, hasSupraSpaceTextSelection, sanitizeSupraSpacePastedEditorHtml, stripSupraSpaceSemanticListMarker, supraSpaceClipboardTextLosesPlainText } from '@/lib/supra-space-rich-paste';
 import { createSupraSpaceEditorTableHtml, isSupraSpaceSpreadsheetFile, parseSupraSpaceMarkdownTable, serializeSupraSpaceEditorTable, spreadsheetFileToSupraSpaceEditorHtml } from '@/lib/supra-space-tables';
 import { findSupraSpaceMarkdownLink, isSafeSupraSpaceLinkHref, normalizeSupraSpaceSplitUrlFormatting, stripSupraSpaceMarkdownLinksToLabels, supraSpaceMarkdownToEditorInlineHtml } from '@/lib/supra-space-links';
 import { renderSupraSpaceRichTextInline } from '@/components/supraspace/SupraSpaceRichTextInline';
@@ -2001,7 +2001,7 @@ function htmlToMarkdown(el: HTMLElement): string {
     ) return '';
 
     const tag = element.tagName.toLowerCase();
-    if (tag === 'br') return '\n';
+    if (tag === 'br') return isSupraSpaceEditorPlaceholderBreak(element, el) ? '' : '\n';
     if (tag === 'img') {
       return stripCopiedTextArtifacts(
         element.getAttribute('alt')
@@ -2117,21 +2117,15 @@ function htmlToMarkdown(el: HTMLElement): string {
     const isMonospace = !fontFamily
       && /(monospace|courier|consolas|menlo|monaco)/i.test(rawFontFamily);
 
-    if (['div', 'p', 'section', 'article'].includes(tag)) {
-      const breaks = element.querySelectorAll('br');
-      const terminalBreak = breaks.item(breaks.length - 1);
-      // A nested block handles its own placeholder; do not strip it twice.
-      let breakBlock = terminalBreak?.parentElement;
-      while (breakBlock && breakBlock !== element
-        && !['div', 'p', 'section', 'article'].includes(breakBlock.tagName.toLowerCase())) {
-        breakBlock = breakBlock.parentElement;
-      }
-      if (breakBlock === element) {
-        inner = normalizeSupraSpaceEditorBlockText(
-          inner,
-          Boolean(terminalBreak?.hasAttribute('data-ss4-soft-break')),
-        );
-      }
+    // Keep line breaks outside style markers so saving a styled soft break
+    // cannot produce orphaned markdown controls or lose the surrounding style.
+    let leadingBreaks = '';
+    let trailingBreaks = '';
+    if (tag !== 'blockquote' && tag !== 'pre') {
+      leadingBreaks = inner.match(/^\n+/)?.[0] || '';
+      inner = inner.slice(leadingBreaks.length);
+      trailingBreaks = inner.match(/\n+$/)?.[0] || '';
+      if (trailingBreaks) inner = inner.slice(0, -trailingBreaks.length);
     }
 
     const hasInlineContent = Boolean(inner.trim());
@@ -2162,6 +2156,8 @@ function htmlToMarkdown(el: HTMLElement): string {
 
     const color = getSupraSpaceClipboardTextColor(element, cssColorToHex);
     if (color && inner.trim()) inner = `{color:${color}}${inner}{/color}`;
+
+    inner = `${leadingBreaks}${inner}${trailingBreaks}`;
 
     if (
       ['div', 'p', 'section', 'article', 'blockquote', 'pre'].includes(tag)
