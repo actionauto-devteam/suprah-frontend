@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { trainingErrorMessage, trainingRequest, useTrainingProposal } from "@/hooks/useAiTraining"
 import {
   TRAINING_RULE_CHANNELS,
+  ruleFieldLabel,
   ruleFromVersion,
   TRAINING_AUDIT_LABELS,
   TRAINING_SOURCE_LABELS,
@@ -22,6 +23,7 @@ import {
 import { HubState, formatHubDate } from "./ShadowStatusBadge"
 import type { TrainingRuleEditorTarget } from "./TrainingRuleEditor"
 import { ProposalTestsSection } from "./LabResultView"
+import { ImportOriginSection } from "./ImportHistoryPanel"
 
 export function TrainingStatusBadge({ status }: { status: TrainingStatus }) {
   return (
@@ -92,7 +94,9 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
   const canReview = status.canReview && isOpen
   const editedCurrent = Boolean(current?.createdByMe && !data?.isMine)
   const integrityProblem = data?.integrity?.ok === false
-  const canApprove = canReview && !data?.isMine && !current?.createdByMe && !integrityProblem
+  const blockers = data?.reviewBlockers || []
+  const canApprove = canReview && !data?.isMine && !current?.createdByMe && !integrityProblem && !blockers.length
+  const approvalBlockedByContent = canReview && !data?.isMine && !current?.createdByMe && !integrityProblem && blockers.length > 0
   const canReject = status.canReview && (data?.status === "in_review" || data?.status === "changes_requested")
   const canWithdraw = Boolean(data && ["draft", "in_review", "changes_requested"].includes(data.status) && (data.isMine || status.canReview))
   const authorCanChange = Boolean(data?.isMine && (data.status === "changes_requested" || data.status === "draft"))
@@ -139,6 +143,7 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
                 <p className="text-[11px] text-muted-foreground">
                   By {data.createdBy?.name || "Team member"}{data.isMine ? " (you)" : ""} · {formatHubDate(data.submittedAt || data.createdAt)}
                 </p>
+                {data.importOrigin && status.canReview && <ImportOriginSection getToken={getToken} origin={data.importOrigin} />}
 
                 {structured && data.evaluation ? (
                   <section aria-labelledby="proposal-rule" className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -223,6 +228,16 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
                   </div>
                 )}
 
+                {canReview && blockers.length > 0 && (
+                  <div role="alert" aria-label="Approval blocked" className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-700 dark:text-red-300">
+                    <p className="font-semibold">This version can&apos;t be approved yet</p>
+                    <ul className="ml-4 mt-1 list-disc">
+                      {blockers.map((issue, index) => <li key={`${issue.field}-${issue.code}-${index}`}><span className="font-semibold">{ruleFieldLabel(issue.field)}:</span> {issue.message}</li>)}
+                    </ul>
+                    <p className="mt-1">Request changes so the author can fix it, or edit it during review.</p>
+                  </div>
+                )}
+
                 {(canReview || canReject || canWithdraw || canRevise) && (
                   <section aria-labelledby="proposal-actions" className="space-y-2">
                     <h3 id="proposal-actions" className="text-xs font-bold">{canRevise ? "What changed (optional)" : "Note"}</h3>
@@ -230,6 +245,7 @@ export function TrainingProposalDrawer({ proposalId, status, getToken, onClose, 
                     <div className="flex flex-wrap gap-2">
                       {canRevise && <ActionButton action="revise" busy={busy} onClick={run} disabled={!revision.trim()} />}
                       {canApprove && <ActionButton action="approve" busy={busy} onClick={run} />}
+                      {approvalBlockedByContent && <ActionButton action="approve" busy={busy} onClick={run} disabled />}
                       {canReview && <ActionButton action="request-changes" busy={busy} onClick={run} variant="outline" disabled={!note.trim()} />}
                       {canReject && <ActionButton action="reject" busy={busy} onClick={run} variant="outline" disabled={!note.trim()} />}
                       {canWithdraw && <ActionButton action="withdraw" busy={busy} onClick={run} variant="ghost" />}

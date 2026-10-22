@@ -40,6 +40,7 @@ export const TRAINING_SOURCE_LABELS: Record<string, string> = {
   manual: "Written in Settings",
   draft_evaluation: "From a draft rating",
   train_alex: "From Train Alex",
+  podium_import: "Imported from Podium",
 }
 
 export const TRAINING_AUDIT_LABELS: Record<string, string> = {
@@ -178,6 +179,7 @@ export interface TrainingProposalSummary {
   lastReview?: { action: string; note?: string; byName?: string; at: string }
   approvedByName?: string
   approvedAt?: string
+  importOrigin?: { sourceSystem: string; batchId: string; itemId?: string; previousPolicyId?: string }
   createdAt: string
   updatedAt: string
   instruction?: string
@@ -216,7 +218,30 @@ export interface TrainingProposalDetail extends TrainingProposalSummary {
   versions: TrainingProposalVersion[]
   audit: TrainingAuditEntry[]
   evaluation?: TrainingRuleEvaluation
+  reviewBlockers?: TrainingRuleIssue[]
   integrity?: { ok: boolean; issues: Array<{ code: string; severity: "critical" | "warning"; message: string }> }
+}
+
+const RULE_FIELD_LABELS: Record<string, string> = {
+  title: "Title",
+  intent: "Customer intent",
+  triggers: "Scenario triggers",
+  instruction: "Response guidance",
+  handling: "Handling",
+  channels: "Channels",
+  requiredQuestions: "Follow-up questions",
+  mustInclude: "Always include",
+  mustAvoid: "Never include",
+  "escalation.when": "Hand off when",
+  "escalation.handoffReason": "Handoff reason",
+}
+
+export function ruleFieldLabel(field: string): string {
+  const example = field.match(/^examples\.(\d+)\.(customerMessage|idealReply)$/)
+  if (example) return `Example ${Number(example[1]) + 1} ${example[2] === "idealReply" ? "ideal reply" : "customer message"}`
+  const list = field.match(/^(triggers|requiredQuestions|mustInclude|mustAvoid)\.(\d+)$/)
+  if (list) return `${RULE_FIELD_LABELS[list[1]]} item ${Number(list[2]) + 1}`
+  return RULE_FIELD_LABELS[field] || "Rule"
 }
 
 export function emptyTrainingRule(): TrainingRuleInput {

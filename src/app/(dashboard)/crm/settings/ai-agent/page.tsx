@@ -20,6 +20,7 @@ import { AiHistoryPanel } from "@/components/crm/aiHub/AiHistoryPanel"
 import { HubCard } from "@/components/crm/aiHub/ShadowStatusBadge"
 import { TrainingRulesPanel } from "@/components/crm/aiHub/TrainingRulesPanel"
 import { TestingLabPanel } from "@/components/crm/aiHub/TestingLabPanel"
+import { KnowledgeBasePanel } from "@/components/crm/knowledgeBase/KnowledgeBasePanel"
 import { AgentSettingsPanel, normalizeFollowUpHours } from "@/components/crm/aiHub/AgentSettingsPanel"
 import { useTrainingStatus } from "@/hooks/useAiTraining"
 import { canViewAiHub, SHADOW_DRAFT_STATUSES } from "@/lib/aiShadowDrafts"
@@ -31,6 +32,7 @@ const HUB_TABS = [
   { value: "modes", label: "Modes & Settings" },
   { value: "drafts", label: "Shadow Drafts" },
   { value: "training", label: "Training Rules" },
+  { value: "knowledge", label: "Knowledge Base" },
   { value: "lab", label: "Testing Lab" },
   { value: "usage", label: "Usage" },
   { value: "history", label: "History" },
@@ -114,8 +116,9 @@ function AiAgentHubContent() {
   const isAdmin = user?.role === "admin"
   const modes = useAiOperatingModes(getHubToken)
   const requestedTab = readTab(searchParams.get("tab"))
-  const tab: HubTab = allowed || requestedTab === "lab" ? requestedTab : "training"
-  const visibleTabs = allowed ? HUB_TABS : HUB_TABS.filter((item) => item.value === "training" || item.value === "lab")
+  const repTab = requestedTab === "lab" || requestedTab === "knowledge"
+  const tab: HubTab = allowed || repTab ? requestedTab : "training"
+  const visibleTabs = allowed ? HUB_TABS : HUB_TABS.filter((item) => item.value === "training" || item.value === "knowledge" || item.value === "lab")
   const training = useTrainingStatus(getHubToken, Boolean(user))
   const draftId = searchParams.get("draft")
   const filters = React.useMemo(() => readFilters(new URLSearchParams(searchParams.toString())), [searchParams])
@@ -186,6 +189,10 @@ function AiAgentHubContent() {
 
               <TabsContent value="training">
                 <TrainingRulesPanel getToken={getHubToken} />
+              </TabsContent>
+
+              <TabsContent value="knowledge">
+                <KnowledgeBasePanel getToken={getHubToken} />
               </TabsContent>
 
               <TabsContent value="lab">

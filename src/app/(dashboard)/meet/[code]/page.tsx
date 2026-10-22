@@ -255,7 +255,6 @@ export default function SuprahMeetGuestPage() {
 
         <MeetCaptionsPanel meet={meet} />
         <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur">
-          <MeetCaptionsButton meet={meet} />
           <GuestCtl on={meet.micOn} onClick={() => void meet.toggleMic()}
             label={meet.micOn ? "Mute" : "Unmute"}
             iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
@@ -274,6 +273,7 @@ export default function SuprahMeetGuestPage() {
           <GuestCtl on={panel !== "chat"} accent onClick={() => setPanel(panel === "chat" ? "none" : "chat")}
             label="Chat" badge={panel !== "chat" && meet.chatUnread > 0 ? meet.chatUnread : undefined}
             iconOn={<MessageSquare className="size-5" />} iconOff={<MessageSquare className="size-5" />} />
+          <MeetCaptionsButton meet={meet} />
           <GuestCtl on={panel !== "people"} accent onClick={() => setPanel(panel === "people" ? "none" : "people")}
             label="People" badge={people.length}
             iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />

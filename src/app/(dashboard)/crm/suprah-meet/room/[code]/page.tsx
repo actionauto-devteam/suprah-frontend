@@ -526,7 +526,6 @@ export default function SuprahMeetRoomPage() {
           {/* Control dock */}
           <MeetCaptionsPanel meet={meet} />
           <footer className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-emerald-400/15 bg-[#0a1410]/80 p-2 backdrop-blur md:gap-2">
-            <MeetCaptionsButton meet={meet} />
             <Ctl on={meet.micOn} onClick={() => void meet.toggleMic()} label={meet.micOn ? "Mute" : "Unmute"}
               iconOn={<Mic className="size-5" />} iconOff={<MicOff className="size-5" />} />
             <Ctl on={meet.camOn} onClick={() => void meet.toggleCam()} label="Camera"
@@ -626,6 +625,7 @@ export default function SuprahMeetRoomPage() {
             <Ctl on={panel !== "chat"} accent onClick={() => setPanel(panel === "chat" ? "none" : "chat")}
               label="Chat" badge={panel !== "chat" && meet.chatUnread > 0 ? meet.chatUnread : undefined}
               iconOn={<MessageSquare className="size-5" />} iconOff={<MessageSquare className="size-5" />} />
+            <MeetCaptionsButton meet={meet} />
             <Ctl on={panel !== "people"} accent onClick={() => setPanel(panel === "people" ? "none" : "people")}
               label="People" badge={people.length}
               iconOn={<Users className="size-5" />} iconOff={<Users className="size-5" />} />
