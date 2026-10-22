@@ -6,6 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { DriverStatus, DriverTrackingItem } from "@/types/driver-tracking";
 import { formatTrackingTime, trackingState, validCoordinates } from "@/lib/driver-tracking-view";
+import type { LoadRouteState } from "@/hooks/useLoadRoute";
+import { LoadRouteSummary } from "./LoadRoutePanel";
 
 /**
  * Follow keeps the map on the driver. Moving the map yourself pauses it
@@ -28,9 +30,11 @@ interface Props {
   onClear?: () => void;
   onDetails?: () => void;
   onChat?: () => void;
+  /** The best route and arrival time for the driver's current load (Amazon Location). */
+  route?: LoadRouteState | null;
 }
 
-export function DriverTrackerSelectedDriver({ driver, now, following, followMode, mapReady, activityLabels, onFollow, onStopFollowing, onClear, onDetails, onChat }: Props) {
+export function DriverTrackerSelectedDriver({ driver, now, following, followMode, mapReady, activityLabels, onFollow, onStopFollowing, onClear, onDetails, onChat, route = null }: Props) {
   const tracking = trackingState(driver, now);
   const fresh = tracking.kind === "live";
   const name = driver.driver?.name || "Driver";
@@ -57,6 +61,7 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
       <div className="flex items-start gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-base font-bold">{name}</h3><p className="mt-1 text-xs text-muted-foreground">{activityLabels?.[driver.status] ?? driver.status} · {tracking.label}</p></div><Button type="button" variant="ghost" size="icon" className="size-11 shrink-0" onClick={onClear} aria-label="Clear selected driver"><X className="size-4" /></Button></div>
       <p className="mt-1 text-xs text-muted-foreground">Location: {relativeLocationTime(driver.locationRecordedAt, now)}</p>
       <p className="mt-2 break-words text-sm font-semibold">{load?.trackingNumber || load?.id || (driver.activeLoadCount ? "Load details unavailable" : "No active load")}{driver.shipments.length > 1 ? ` · +${driver.shipments.length - 1} more` : ""}</p>
+      <LoadRouteSummary state={route} audience="staff" variant="line" className="mt-1" />
       <div className="mt-3 grid grid-cols-2 gap-2"><Button type="button" variant="outline" className={"min-h-11 text-xs " + followClass} aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}>{followLabel}</Button><Button type="button" variant="outline" className="min-h-11 text-xs" onClick={onChat}><MessageCircle className="size-4" />Chat</Button><Button type="button" className="col-span-2 min-h-11 text-sm" onClick={onDetails}>Open driver workspace</Button></div>
       {followStatus && <p role="status" className="mt-2 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">{followStatus}{stopWhilePaused}</p>}
       <details className="mt-2 text-xs text-muted-foreground"><summary className="flex min-h-11 cursor-pointer items-center font-semibold">Location details</summary><p>Measured: {formatTrackingTime(driver.locationRecordedAt)}</p><p className="mt-1">Confirmed: {formatTrackingTime(driver.lastSeenAt)}</p>{accuracy != null && Number.isFinite(accuracy) && <p className="mt-1">Accuracy ±{Math.round(accuracy)} m</p>}{!fresh && <p className="mt-1">This may be a last known position.</p>}</details>
@@ -97,6 +102,8 @@ export function DriverTrackerSelectedDriver({ driver, now, following, followMode
           {accuracy != null && Number.isFinite(accuracy) && <p className="mt-1 text-xs text-muted-foreground">Accuracy ±{Math.round(accuracy)} m</p>}
         </div>
       </div>
+
+      <LoadRouteSummary state={route} audience="staff" className="mt-2" />
 
       <div className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
         <Button type="button" className={"min-h-11 gap-2 rounded-lg text-xs font-semibold " + followClass} variant="outline" aria-pressed={mode === "following"} disabled={followDisabled} onClick={onFollow}><Crosshair className="size-4 shrink-0" />{followLabel}</Button>

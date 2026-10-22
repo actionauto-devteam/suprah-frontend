@@ -2,12 +2,15 @@ import type mapboxgl from "mapbox-gl";
 import type { Map as MapboxMap } from "mapbox-gl";
 import type { GoogleMapsLibraries } from "@/lib/google-maps";
 import { withinTripRange } from "@/lib/driver-next-stop";
+import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/load-route-lines";
 
 /*
  * The selected driver on the Driver Tracker map, drawn under the driver
  * markers: their loads' stops (P and D squares, the next one ringed), a dashed
  * line to the next stop, the recent route from trip history, and a circle for
- * GPS accuracy. One version for Mapbox and one for Google Maps.
+ * GPS accuracy. When the best route is known (Amazon Location), the Mapbox
+ * map draws the road route instead of the dashed line. One version for Mapbox
+ * and one for Google Maps.
  */
 
 type Point = { lat: number; lng: number };
@@ -28,6 +31,8 @@ export type DriverFocusState = {
   /** Oldest first. */
   trail: Point[];
   stops: FocusStop[];
+  /** The best route, when routes are switched on; replaces the dashed line. */
+  route?: MapRoute | null;
 };
 
 export type DriverFocusLayer = { update: (state: DriverFocusState) => void; dispose: () => void };
@@ -85,6 +90,7 @@ export function createMapboxDriverFocusLayer(map: MapboxMap, mapbox: typeof mapb
   let state: DriverFocusState = EMPTY_DRIVER_FOCUS;
   let disposed = false;
   let retryWhenIdle = false;
+  let routeLayers: string[] = [];
   const markers = new Map<string, { marker: InstanceType<typeof mapboxgl.Marker>; kind: string }>();
 
   const features = () => {
@@ -97,13 +103,15 @@ export function createMapboxDriverFocusLayer(map: MapboxMap, mapbox: typeof mapb
       list.push({ type: "Feature", properties: { kind: "trail" }, geometry: { type: "LineString", coordinates: state.trail.map((point) => [point.lng, point.lat]) } });
     }
     const next = nextLineTo(state);
-    if (state.position && next) {
+    if (state.position && next && !state.route) {
       list.push({
         type: "Feature",
         properties: { kind: "next" },
         geometry: { type: "LineString", coordinates: [[state.position.lng, state.position.lat], [next.position.lng, next.position.lat]] },
       });
     }
+    // The route starts where the driver is, so it's only drawn with their position.
+    if (state.position) list.push(...routeLineFeatures(state.route ?? null, state.position));
     return { type: "FeatureCollection", features: list };
   };
 
@@ -134,6 +142,7 @@ export function createMapboxDriverFocusLayer(map: MapboxMap, mapbox: typeof mapb
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": ROUTE_COLOR, "line-opacity": 0.55, "line-width": 4 },
     }, before);
+    routeLayers = addMapboxRouteLayers(map, SOURCE, "suprah-driver-focus", before);
     map.addLayer({
       id: LAYERS.next, type: "line", source: SOURCE, filter: kind("next"),
       layout: { "line-cap": "round" },
@@ -178,7 +187,7 @@ export function createMapboxDriverFocusLayer(map: MapboxMap, mapbox: typeof mapb
       markers.clear();
       map.off("style.load", drawShapes);
       if (map.getStyle()) {
-        for (const id of Object.values(LAYERS)) if (map.getLayer(id)) map.removeLayer(id);
+        for (const id of [...Object.values(LAYERS), ...routeLayers]) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);
       }
     },

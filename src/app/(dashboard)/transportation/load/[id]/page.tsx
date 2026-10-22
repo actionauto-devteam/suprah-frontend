@@ -10,6 +10,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { ArrowLeft, MapPin, Calendar, Car, DollarSign, FileText, ScrollText, Truck, AlertCircle, Phone, Building2, User2, CheckCircle2, Package, Shield, Clock, FileCheck, Eye, Printer, X, Camera, History, Route, Copy } from "lucide-react"
 import { LoadAssignmentHistoryDialog } from "@/components/driver-tracker/LoadAssignmentHistoryDialog"
 import { LoadTripHistoryDialog } from "@/components/driver-tracker/LoadTripHistoryDialog"
+import { LoadRouteOverview } from "@/components/driver-tracker/LoadRouteOverview"
 import { MarkDeliveredDialog } from "@/components/transportation/MarkDeliveredDialog"
 import { useAuth, useUser } from "@/providers/AuthProvider"
 import { initializeSocket } from "@/lib/socket.client"
@@ -665,6 +666,12 @@ export default function LoadDetailsPage() {
     ["Assigned", "Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
     Boolean(load.assignedDriverId) &&
     (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
+  // The live route reveals where the driver is: the same people who can see
+  // their location (the server checks too), while the load is on the road.
+  const canSeeLiveRoute =
+    ["Accepted", "Picked Up", "In-Transit"].includes(load.status) &&
+    Boolean(load.assignedDriverId) &&
+    (isOrgAdmin || (Boolean(userId) && dispatchOwnerId === userId))
 
   return (
     <div
@@ -741,6 +748,9 @@ export default function LoadDetailsPage() {
           </p>
         </div>
       )}
+
+      {/* Live route and arrival time (Amazon Location); nothing until routes are switched on. */}
+      <LoadRouteOverview loadId={String(load._id)} enabled={canSeeLiveRoute} refreshKey={load.status} />
 
       {/* ── Route Card ── */}
       <Card className="border-border shadow-sm overflow-hidden bg-card relative p-0">

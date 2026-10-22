@@ -2,12 +2,14 @@ import type mapboxgl from "mapbox-gl";
 import type { Map as MapboxMap } from "mapbox-gl";
 import type { GoogleMapsLibraries } from "@/lib/google-maps";
 import { withinTripRange } from "@/lib/driver-next-stop";
+import { addMapboxRouteLayers, routeLineFeatures, type MapRoute } from "@/lib/load-route-lines";
 
 /*
  * The driver's next stop on the Driver Page map: a lettered pin (P for the
  * pickup, D for the delivery) and a dashed straight line from the driver to
- * it. One version for the current Mapbox map and one for Google Maps; the page
- * talks to both the same way.
+ * it. When the best route is known (Amazon Location), the Mapbox map draws
+ * the road route instead of the straight line. One version for the current
+ * Mapbox map and one for Google Maps; the page talks to both the same way.
  */
 
 type Point = { lat: number; lng: number };
@@ -16,6 +18,8 @@ export type NextStopMapState = {
   /** `key` changes when the load, the stop or its position changes. */
   stop: { key: string; kind: "pickup" | "delivery"; position: Point; title: string } | null;
   driver: Point | null;
+  /** The best route, when routes are switched on; replaces the straight line. */
+  route?: MapRoute | null;
 };
 
 export type FitOptions = {
@@ -82,6 +86,7 @@ function framing(framedStops: Set<string>, fit: (options?: FitOptions) => boolea
 export function createMapboxNextStopLayer(map: MapboxMap, mapbox: typeof mapboxgl, framedStops: Set<string>): NextStopLayer {
   const SOURCE = "suprah-driver-next-stop";
   const LINE = "suprah-driver-next-stop-line";
+  let routeLayers: string[] = [];
   let state: NextStopMapState = { stop: null, driver: null };
   let marker: InstanceType<typeof mapboxgl.Marker> | null = null;
   let markerKind: string | null = null;
@@ -89,17 +94,19 @@ export function createMapboxNextStopLayer(map: MapboxMap, mapbox: typeof mapboxg
 
   const lineData = () => ({
     type: "FeatureCollection" as const,
-    features:
-      state.stop && state.driver && showLine(state)
+    features: [
+      ...(state.stop && state.driver && showLine(state) && !state.route
         ? [{
             type: "Feature" as const,
-            properties: {},
+            properties: { kind: "next" },
             geometry: {
               type: "LineString" as const,
               coordinates: [[state.driver.lng, state.driver.lat], [state.stop.position.lng, state.stop.position.lat]],
             },
           }]
-        : [],
+        : []),
+      ...routeLineFeatures(state.route ?? null, state.driver),
+    ],
   });
 
   let retryWhenIdle = false;
@@ -122,11 +129,13 @@ export function createMapboxNextStopLayer(map: MapboxMap, mapbox: typeof mapboxg
       source.setData(lineData());
       return;
     }
-    map.addSource(SOURCE, { type: "geojson", data: lineData() });
+    map.addSource(SOURCE, { type: "geojson", data: lineData() as never });
+    routeLayers = addMapboxRouteLayers(map, SOURCE, "suprah-driver-next-stop");
     map.addLayer({
       id: LINE,
       type: "line",
       source: SOURCE,
+      filter: ["==", ["get", "kind"], "next"],
       layout: { "line-cap": "round" },
       paint: { "line-color": LINE_COLOR, "line-width": 3, "line-opacity": 0.85, "line-dasharray": [1.5, 1.5] },
     });
@@ -184,6 +193,7 @@ export function createMapboxNextStopLayer(map: MapboxMap, mapbox: typeof mapboxg
       map.off("style.load", drawLine);
       if (map.getStyle()) {
         if (map.getLayer(LINE)) map.removeLayer(LINE);
+        for (const id of routeLayers) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);
       }
     },

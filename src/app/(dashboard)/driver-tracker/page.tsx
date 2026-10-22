@@ -16,6 +16,8 @@ import {
   type DriverFocusState,
 } from "@/components/driver-tracker/driver-focus-layer";
 import { useStopPositions } from "@/hooks/useStopPositions";
+import { useLoadRoute } from "@/hooks/useLoadRoute";
+import { mapRouteOf } from "@/lib/load-route-lines";
 import { placeAddressText, placePin, type LoadPlace } from "@/lib/load-navigation";
 import type { FollowMode } from "@/components/driver-tracker/DriverTrackerSelectedDriver";
 import {
@@ -2487,6 +2489,18 @@ export default function DriverTrackerPage() {
     };
   }, [selectedDriverId, selectedDriverGpsVisible, getToken]);
 
+  // The best route for the selected driver's current load (the one whose next
+  // stop the map rings), only for people who can see their exact location.
+  const routeShipment = selectedDriver?.shipments[0];
+  const routeShipmentStatus = String(routeShipment?.status ?? "");
+  const selectedRoute = useLoadRoute(
+    routeShipment && ["Accepted", "Picked Up", "In-Transit"].includes(routeShipmentStatus) ? routeShipment.id : null,
+    "staff",
+    selectedDriverGpsVisible,
+    routeShipmentStatus,
+  );
+  const selectedMapRoute = React.useMemo(() => mapRouteOf(selectedRoute), [selectedRoute]);
+
   const driverFocus = React.useMemo<DriverFocusState>(() => {
     if (!selectedDriver) return EMPTY_DRIVER_FOCUS;
     const position = selectedDriverGpsVisible && selectedDriver.coords
@@ -2504,8 +2518,9 @@ export default function DriverTrackerPage() {
         const stopPosition = selectedStopPositions[stop.key];
         return stopPosition ? [{ key: stop.key, kind: stop.kind, position: stopPosition, title: stop.title, next: stop.next }] : [];
       }),
+      route: position ? selectedMapRoute : null,
     };
-  }, [selectedDriver, selectedDriverGpsVisible, recentTrail, selectedStops, selectedStopPositions]);
+  }, [selectedDriver, selectedDriverGpsVisible, recentTrail, selectedStops, selectedStopPositions, selectedMapRoute]);
   const focusLayerRef = React.useRef<DriverFocusLayer | null>(null);
   const driverFocusRef = React.useRef(driverFocus);
   React.useEffect(() => {
@@ -2825,6 +2840,7 @@ export default function DriverTrackerPage() {
             onCenter={() => { setFollowMode("off"); centerOnMe(); }}
             onShowAll={showAllDrivers}
             selectedDriver={selectedDriver}
+            selectedRoute={selectedRoute}
             trackingNow={trackingNow}
             following={followingDriver}
             followMode={followMode}
