@@ -333,14 +333,14 @@ function ConditionPhotos({
   return (
     <section className="space-y-2">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-bold">Photos</h3>
-        <span className="text-xs text-muted-foreground">
-          {photos.length} of {limit}
+        <h3 className="text-sm font-bold">Vehicle photos</h3>
+        <span className="text-right text-xs text-muted-foreground">
+          {photos.length} of {limit} (includes damage photos)
         </span>
       </div>
       {editable && (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Optional. If you add photos, take the front, back, both sides, and any damage up close.
+          Optional. Take the front, back and both sides so there&apos;s a record of how the vehicle looked. For damage, tap the part below and use Add Photo there.
         </p>
       )}
 
