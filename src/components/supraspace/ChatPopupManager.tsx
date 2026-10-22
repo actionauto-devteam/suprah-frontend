@@ -4303,6 +4303,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [pendingMediaPreviewIndex, setPendingMediaPreviewIndex] = React.useState<number | null>(null);
   const [attachmentsCollapsed, setAttachmentsCollapsed] = React.useState(false);
   const [mediaPreviewZoom, setMediaPreviewZoom] = React.useState(1);
+  const [mediaPreviewOffset, setMediaPreviewOffset] = React.useState({ x: 0, y: 0 });
+  const previewDragRef = React.useRef<{ pointerId: number; x: number; y: number; ox: number; oy: number } | null>(null);
   const [retryingPopupImages, setRetryingPopupImages] = React.useState<Set<string>>(() => new Set());
   const [failedPopupImages, setFailedPopupImages] = React.useState<Set<string>>(() => new Set());
 
@@ -4311,6 +4313,8 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
 
   React.useEffect(() => {
     setMediaPreviewZoom(1);
+    setMediaPreviewOffset({ x: 0, y: 0 });
+    previewDragRef.current = null;
   }, [mediaPreview?.src]);
 
   React.useEffect(() => {
@@ -4323,7 +4327,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   }, [mediaPreview]);
 
   const applyMediaPreviewZoom = React.useCallback((nextZoom: number) => {
-    setMediaPreviewZoom(clampPreviewZoom(nextZoom));
+    const next = clampPreviewZoom(nextZoom);
+    setMediaPreviewZoom(next);
+    if (next === 1) setMediaPreviewOffset({ x: 0, y: 0 });
   }, []);
 
   // ── Hover handlers ──
@@ -8492,7 +8498,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
         >
           {mediaPreview.type !== 'video' && (
             <div
-              className="absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-white shadow-2xl backdrop-blur"
+              className="absolute z-10 left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-white shadow-2xl backdrop-blur"
               onClick={e => e.stopPropagation()}
             >
               <button
@@ -8519,7 +8525,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
             </div>
           )}
           <button
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+            className="absolute z-10 right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
             onClick={() => setMediaPreview(null)}
             title="Close preview"
           >
@@ -8538,10 +8544,28 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
               src={mediaPreview.src}
               alt={mediaPreview.name}
               draggable={false}
-              className="max-h-[86vh] max-w-[92vw] rounded-xl object-contain shadow-2xl transition-transform duration-150"
+              className="max-h-[86vh] max-w-[92vw] touch-none select-none rounded-xl object-contain shadow-2xl active:cursor-grabbing"
+              onPointerDown={e => {
+                if (mediaPreviewZoom <= 1 || !e.isPrimary || e.button !== 0) return;
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                previewDragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, ox: mediaPreviewOffset.x, oy: mediaPreviewOffset.y };
+              }}
+              onPointerMove={e => {
+                const drag = previewDragRef.current;
+                if (!drag || drag.pointerId !== e.pointerId) return;
+                setMediaPreviewOffset({ x: drag.ox + e.clientX - drag.x, y: drag.oy + e.clientY - drag.y });
+              }}
+              onPointerUp={e => {
+                if (previewDragRef.current?.pointerId !== e.pointerId) return;
+                previewDragRef.current = null;
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+              }}
+              onPointerCancel={() => { previewDragRef.current = null; }}
+              onLostPointerCapture={() => { previewDragRef.current = null; }}
               style={{
-                transform: `scale(${mediaPreviewZoom})`,
-                cursor: mediaPreviewZoom > 1 ? 'zoom-out' : 'zoom-in',
+                transform: `translate(${mediaPreviewOffset.x}px, ${mediaPreviewOffset.y}px) scale(${mediaPreviewZoom})`,
+                cursor: mediaPreviewZoom > 1 ? 'grab' : 'default',
               }}
               onClick={e => e.stopPropagation()}
             />
