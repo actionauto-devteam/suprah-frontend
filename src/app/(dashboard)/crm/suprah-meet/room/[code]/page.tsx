@@ -3,12 +3,13 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Armchair, Check, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
-  Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, PhoneOff,
-  Pin, PinOff, ScreenShareOff, Send, Share2, SmilePlus, SwitchCamera, Users, Video,
+  Armchair, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, Copy, Hand, Hourglass,
+  Info, LayoutGrid, MessageSquare, Mic, MicOff, Minimize2, MonitorUp, MoreVertical, PhoneOff,
+  Pin, PinOff, ScreenShareOff, Search, Send, Share2, SmilePlus, SwitchCamera, UserPlus, Users, Video,
   VideoOff, Wand2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn, resolveImageUrl } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -19,6 +20,7 @@ import { MeetingSummaryPanel } from "@/components/suprah-meet/MeetingSummaryPane
 import { RecordingDistributionPanel } from "@/components/suprah-meet/RecordingDistributionPanel";
 import { SuprahMeetLogo } from "@/components/suprah-meet/SuprahMeetLogo";
 import { ShareMeetingDialog } from "@/components/suprah-meet/ShareMeetingDialog";
+import { pickMeetStage, splitMeetPeople } from "@/lib/meet-layout";
 import { MeetCaptionsButton, MeetCaptionsPanel } from '@/components/suprah-meet/MeetCaptions';
 
 const REACTION_EMOJIS = ["👍", "🎉", "❤️", "😂", "👏", "🤔"];
@@ -36,10 +38,10 @@ interface ViewSettings { layout: ViewLayout; maxTiles: number; hideNoVideo: bool
 const VIEW_LS_KEY = "suprah-meet-view";
 const TILE_STEPS = [6, 9, 12, 16, 25, 49];
 const VIEW_OPTIONS: { value: ViewLayout; label: string; desc: string }[] = [
-  { value: "auto",      label: "Auto (dynamic)", desc: "Pages the grid to fit your screen" },
-  { value: "tiled",     label: "Tiled",          desc: "Fixed grid — pick the tile count below" },
-  { value: "spotlight", label: "Spotlight",      desc: "Only the pinned person or active speaker" },
-  { value: "sidebar",   label: "Sidebar",        desc: "One big tile plus a strip of the others" },
+  { value: "auto",      label: "Auto (dynamic)", desc: "Picks the best layout for how many people are here" },
+  { value: "tiled",     label: "Tiled",          desc: "Everyone in an equal grid" },
+  { value: "spotlight", label: "Spotlight",      desc: "Only the pinned person or whoever is talking" },
+  { value: "sidebar",   label: "Sidebar",        desc: "One big video with everyone else on the side" },
 ];
 const defaultView = (): ViewSettings => ({ layout: "auto", maxTiles: 16, hideNoVideo: false });
 const loadView = (): ViewSettings => {
@@ -54,6 +56,12 @@ const loadView = (): ViewSettings => {
     };
   } catch { return defaultView(); }
 };
+
+interface MeetDirectoryPerson {
+  crmUserId: string; fullName: string; avatar: string | null; department: string | null;
+  isHost: boolean; isGuest: boolean; joinedBefore: boolean; leftAt: string | null;
+}
+interface MeetDirectory { hostCrmUserId: string; people: MeetDirectoryPerson[]; }
 
 export default function SuprahMeetRoomPage() {
   const params = useParams<{ code: string }>();
@@ -190,23 +198,21 @@ export default function SuprahMeetRoomPage() {
   const togglePin = (attendeeId: string) =>
     setPinnedId((prev) => (prev === attendeeId ? null : attendeeId));
 
-  // Hero for spotlight/sidebar: the pin wins, then the active speaker, then anyone.
-  const heroPerson =
-    stagePeople.find((p) => p.attendeeId === pinnedId) ??
-    stagePeople.find((p) => p.attendeeId === meet.activeSpeakerId) ??
-    stagePeople[0] ?? null;
-
-  // Which layout renders. Screen share always outranks everything; a pin
-  // promotes Auto/Tiled to the sidebar layout (and comes back off when unpinned).
-  const stageMode: "content" | "spotlight" | "sidebar" | "grid" =
-    contentTile ? "content"
-    : view.layout === "spotlight" && heroPerson ? "spotlight"
-    : (view.layout === "sidebar" || pinnedId) && heroPerson ? "sidebar"
-    : "grid";
+  const selfId = meet.selfAttendeeId;
+  const [lastSpeakerId, setLastSpeakerId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (meet.activeSpeakerId && meet.activeSpeakerId !== selfId) setLastSpeakerId(meet.activeSpeakerId);
+  }, [meet.activeSpeakerId, selfId]);
+  const stage = pickMeetStage({
+    people: stagePeople, selfId, pinnedId, activeSpeakerId: meet.activeSpeakerId,
+    lastSpeakerId, layout: view.layout, hasContent: Boolean(contentTile),
+  });
+  const heroPerson = stage.hero;
+  const selfPerson = stage.self;
+  const stageMode = stage.mode;
   const spotPerson = stageMode === "sidebar" ? heroPerson : null;
 
-  // Grid pagination: Tiled uses the slider; Auto sizes pages to the screen.
-  const pageSize = view.layout === "tiled" ? view.maxTiles : autoMax;
+  const pageSize = view.layout === "tiled" ? view.maxTiles : Math.min(autoMax, view.maxTiles);
   const pageCount = Math.max(1, Math.ceil(stagePeople.length / pageSize));
   const page = Math.min(gridPage, pageCount - 1);
   const pagePeople = stagePeople.slice(page * pageSize, page * pageSize + pageSize);
@@ -220,6 +226,18 @@ export default function SuprahMeetRoomPage() {
     : n <= 9 ? "grid-cols-2 md:grid-cols-3"
     : n <= 12 ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
     : "grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
+
+  const [directory, setDirectory] = React.useState<MeetDirectory | null>(null);
+  const loadDirectory = React.useCallback(async () => {
+    const res = await apiClient.get(`/api/crm/meet/meetings/${code}/people`).catch(() => null);
+    if (res?.data?.data) setDirectory(res.data.data as MeetDirectory);
+  }, [code]);
+  React.useEffect(() => {
+    if (panel !== "people" || meet.phase !== "in") return;
+    void loadDirectory();
+    const t = setInterval(() => { void loadDirectory(); }, 15_000);
+    return () => clearInterval(t);
+  }, [panel, meet.phase, loadDirectory, people.length]);
 
   const sendChat = () => { meet.sendChat(chatDraft); setChatDraft(""); };
   const copyCode = () => { void navigator.clipboard?.writeText(code).catch(() => {}); setToast("Meeting code copied"); };
@@ -451,10 +469,24 @@ export default function SuprahMeetRoomPage() {
                 pinned={heroPerson.attendeeId === pinnedId}
                 onPin={() => togglePin(heroPerson.attendeeId)} className="h-full" />
               {stagePeople.length > 1 && (
-                <span className="absolute right-3 top-3 rounded-full border border-emerald-400/25 bg-[#071410]/85 px-2.5 py-1 text-[10px] text-emerald-200/80 backdrop-blur">
-                  +{stagePeople.length - 1} more — open People
-                </span>
+                <button onClick={() => setPanel("people")}
+                  className="absolute right-3 top-3 z-10 rounded-full border border-emerald-400/25 bg-[#071410]/85 px-2.5 py-1 text-[10px] text-emerald-200/80 backdrop-blur hover:border-emerald-400/50 hover:text-emerald-100">
+                  +{stagePeople.length - 1} more · See everyone
+                </button>
               )}
+            </div>
+          ) : stageMode === "pip" && heroPerson && selfPerson ? (
+            <div className="relative min-h-0 flex-1">
+              <PersonTile person={heroPerson} tile={tilesByAttendee.get(heroPerson.attendeeId)}
+                bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === heroPerson.attendeeId}
+                isSelf={heroPerson.attendeeId === selfId} mirror={!meet.isBackCamera}
+                pinned={heroPerson.attendeeId === pinnedId}
+                onPin={() => togglePin(heroPerson.attendeeId)} className="h-full" />
+              <PersonTile person={selfPerson} tile={tilesByAttendee.get(selfPerson.attendeeId)}
+                bind={meet.bindVideoTile} speaking={meet.activeSpeakerId === selfPerson.attendeeId}
+                isSelf mirror={!meet.isBackCamera} compact
+                onPin={() => togglePin(selfPerson.attendeeId)}
+                className="absolute bottom-3 right-3 z-10 h-24 w-36 shadow-2xl shadow-black/50 sm:h-32 sm:w-52" />
             </div>
           ) : spotPerson ? (
             <div className="grid min-h-0 flex-1 grid-rows-[1fr_auto] gap-2 md:grid-cols-[1fr_220px] md:grid-rows-1 md:gap-3">
@@ -736,19 +768,8 @@ export default function SuprahMeetRoomPage() {
                   </p>
                 </div>
               ) : (
-                people.map((p) => (
-                  <div key={p.attendeeId} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-emerald-400/5">
-                    <ProfileBubble name={p.name} avatar={p.avatar} />
-                    <span className="min-w-0 flex-1 truncate">
-                      {p.name}{p.attendeeId === meet.selfAttendeeId ? " (you)" : ""}
-                    </span>
-                    {p.isGuest && (
-                      <span className="rounded bg-sky-400/15 px-1.5 py-px text-[9px] font-medium text-sky-300">Guest</span>
-                    )}
-                    {p.handRaised && <Hand className="size-3.5 text-amber-400" />}
-                    {p.muted ? <MicOff className="size-3.5 text-rose-400" /> : <Mic className="size-3.5 text-emerald-400" />}
-                  </div>
-                ))
+                <PeoplePanel people={people} selfId={selfId} directory={directory}
+                  pinnedId={pinnedId} onTogglePin={togglePin} onAddPeople={() => setShowShare(true)} />
               )}
             </div>
 
@@ -804,7 +825,7 @@ export default function SuprahMeetRoomPage() {
 
             <div className="mt-4">
               <p className="text-xs font-medium text-emerald-200/80">Tiles per page</p>
-              {view.layout === "tiled" ? (
+              {view.layout === "tiled" || view.layout === "auto" ? (
                 <div className="mt-1.5 flex items-center gap-3">
                   <input type="range" min={0} max={TILE_STEPS.length - 1} step={1}
                     value={TILE_STEPS.indexOf(view.maxTiles)}
@@ -814,7 +835,7 @@ export default function SuprahMeetRoomPage() {
                 </div>
               ) : (
                 <p className="mt-1 text-[11px] text-emerald-200/50">
-                  Can&apos;t change the tile count in this layout — it&apos;s automatic.
+                  Not used in this layout.
                 </p>
               )}
             </div>
@@ -893,11 +914,11 @@ function TileVideo({ tile, bind, className, contain }: {
   );
 }
 
-function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, pinned, onPin }: {
+function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, pinned, onPin, compact }: {
   person: RosterEntry; tile?: TileInfo;
   bind: (tileId: number, el: HTMLVideoElement | null) => void;
   speaking: boolean; isSelf: boolean; mirror: boolean; className?: string;
-  pinned?: boolean; onPin?: () => void;
+  pinned?: boolean; onPin?: () => void; compact?: boolean;
 }) {
   return (
     <div className={cn("group relative min-h-24 overflow-hidden rounded-2xl border bg-[#0f1f19] transition-shadow duration-300 md:min-h-28",
@@ -910,16 +931,19 @@ function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, p
           className={cn("absolute inset-0 h-full w-full object-cover", isSelf && mirror && "-scale-x-100")} />
       ) : (
         <div className="absolute inset-0 grid place-items-center">
-          <ProfileBubble name={person.name} avatar={person.avatar} size="lg" />
+          <ProfileBubble name={person.name} avatar={person.avatar} size={compact ? "sm" : "lg"} />
         </div>
       )}
       {onPin && (
-        <button onClick={onPin} title={pinned ? "Unpin" : "Pin — keep this video as the main focus"}
-          className={cn("absolute left-2 top-2 z-10 grid size-7 place-items-center rounded-full border backdrop-blur transition-opacity",
+        <button onClick={onPin} aria-label={pinned ? `Unpin ${person.name}` : `Pin ${person.name}`}
+          title={pinned ? "Unpin" : "Pin to your screen (only you see this)"}
+          className={cn("absolute left-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full border backdrop-blur transition-opacity focus-visible:opacity-100",
+            compact ? "w-7 justify-center" : "px-2.5 text-[11px] font-medium",
             pinned
-              ? "border-emerald-400/60 bg-emerald-500/25 text-emerald-200 opacity-100"
-              : "border-emerald-400/20 bg-[#071410]/70 text-emerald-200/70 opacity-70 hover:opacity-100")}>
+              ? "border-emerald-400/60 bg-emerald-500/30 text-emerald-50 opacity-100"
+              : "border-emerald-400/25 bg-[#071410]/80 text-emerald-100 opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0")}>
           {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+          {!compact && <span>{pinned ? "Unpin" : "Pin"}</span>}
         </button>
       )}
       {person.handRaised && (
@@ -928,7 +952,9 @@ function PersonTile({ person, tile, bind, speaking, isSelf, mirror, className, p
           <Hand className="size-3.5 text-amber-300" />
         </span>
       )}
-      <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-full border border-emerald-400/15 bg-[#071410]/85 px-2.5 py-1 text-xs backdrop-blur">
+      <div className={cn("absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-full border border-emerald-400/15 bg-[#071410]/85 backdrop-blur",
+        compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs")}>
+        {pinned && <Pin className="size-3 shrink-0 text-emerald-300" aria-label="Pinned" />}
         {person.muted ? <MicOff className="size-3 shrink-0 text-rose-400" /> : <Mic className="size-3 shrink-0 text-emerald-400" />}
         <span className="truncate">{person.name}{isSelf ? " (you)" : ""}</span>
         {person.isGuest && (
@@ -962,5 +988,125 @@ function Ctl({ on, onClick, label, iconOn, iconOff, accent, rec, badge }: {
       )}
       <span className="sr-only">{label}</span>
     </button>
+  );
+}
+
+function PeopleGroup({ label, title, count, open, onToggle, children }: {
+  label: string; title: string; count: number; open: boolean; onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200/50">{label}</p>
+      <div className="overflow-hidden rounded-xl border border-emerald-400/15">
+        <button onClick={onToggle} aria-expanded={open}
+          className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium hover:bg-emerald-400/5">
+          <span className="flex-1 text-left">{title}</span>
+          <span className="text-emerald-200/70">{count}</span>
+          <ChevronDown className={cn("size-4 text-emerald-200/60 transition-transform", open && "rotate-180")} />
+        </button>
+        {open && <div className="space-y-0.5 border-t border-emerald-400/10 p-1">{children}</div>}
+      </div>
+    </section>
+  );
+}
+
+function PeopleNote({ text }: { text: string }) {
+  return <p className="px-2 py-3 text-center text-xs text-emerald-200/50">{text}</p>;
+}
+
+function PeoplePanel({ people, selfId, directory, pinnedId, onTogglePin, onAddPeople }: {
+  people: RosterEntry[]; selfId: string | null; directory: MeetDirectory | null;
+  pinnedId: string | null; onTogglePin: (attendeeId: string) => void; onAddPeople: () => void;
+}) {
+  const [search, setSearch] = React.useState("");
+  const [openIn, setOpenIn] = React.useState(true);
+  const [openOut, setOpenOut] = React.useState(true);
+
+  const hostId = directory?.hostCrmUserId ?? null;
+  const { inMeeting, notInMeeting, notInTotal, byCrmId } = splitMeetPeople({
+    roster: people, directory: directory?.people ?? null, hostCrmUserId: hostId, selfId, query: search,
+  });
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onAddPeople}
+        className="flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-100 hover:bg-emerald-500/25">
+        <UserPlus className="size-4" /> Add people
+      </button>
+
+      <label className="flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-[#0a1410] px-3 focus-within:border-emerald-400/50">
+        <Search className="size-4 shrink-0 text-emerald-200/50" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search for people" aria-label="Search for people"
+          className="h-10 min-w-0 flex-1 bg-transparent text-sm text-emerald-50 placeholder:text-emerald-200/40 focus:outline-none" />
+        {search && (
+          <button onClick={() => setSearch("")} aria-label="Clear search"
+            className="grid size-6 place-items-center rounded-full text-emerald-200/60 hover:text-emerald-100">
+            <X className="size-3.5" />
+          </button>
+        )}
+      </label>
+
+      <PeopleGroup label="In the meeting" title="Participants" count={people.length}
+        open={openIn} onToggle={() => setOpenIn((v) => !v)}>
+        {inMeeting.length === 0 && <PeopleNote text="No one here matches your search." />}
+        {inMeeting.map((p) => {
+          const isSelf = p.attendeeId === selfId;
+          const isPinned = p.attendeeId === pinnedId;
+          const info = byCrmId.get(p.crmUserId);
+          const sub = p.crmUserId === hostId ? "Meeting host" : p.isGuest ? "Guest" : info?.department ?? "";
+          return (
+            <div key={p.attendeeId} className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-emerald-400/5">
+              <ProfileBubble name={p.name} avatar={p.avatar ?? info?.avatar} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{p.name}{isSelf ? " (You)" : ""}</p>
+                {sub && <p className="truncate text-[11px] text-emerald-200/50">{sub}</p>}
+              </div>
+              {p.handRaised && <Hand className="size-4 shrink-0 text-amber-400" aria-label="Hand raised" />}
+              {isPinned && <Pin className="size-4 shrink-0 text-emerald-300" aria-label="Pinned" />}
+              {p.muted
+                ? <MicOff className="size-4 shrink-0 text-rose-400" aria-label="Muted" />
+                : <Mic className="size-4 shrink-0 text-emerald-400" aria-label="Unmuted" />}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button aria-label={`More options for ${p.name}`}
+                    className="grid size-8 shrink-0 place-items-center rounded-full text-emerald-200/70 hover:bg-emerald-400/10 hover:text-emerald-100">
+                    <MoreVertical className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="border-emerald-400/25 bg-[#142a21] text-emerald-50">
+                  <DropdownMenuItem onSelect={() => onTogglePin(p.attendeeId)}
+                    className="gap-2 text-emerald-50 focus:bg-emerald-400/15 focus:text-emerald-50">
+                    {isPinned ? <PinOff className="size-4 text-emerald-300" /> : <Pin className="size-4 text-emerald-300" />}
+                    {isPinned ? "Unpin" : "Pin to your screen"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        })}
+      </PeopleGroup>
+
+      <PeopleGroup label="Not in the meeting" title="Invited" count={notInTotal}
+        open={openOut} onToggle={() => setOpenOut((v) => !v)}>
+        {!directory && <PeopleNote text="Loading…" />}
+        {directory && notInTotal === 0 && <PeopleNote text="Everyone who was invited is here." />}
+        {directory && notInTotal > 0 && notInMeeting.length === 0 && <PeopleNote text="No one here matches your search." />}
+        {notInMeeting.map((d) => {
+          const status = d.joinedBefore ? "Left the meeting" : "Hasn't joined yet";
+          const sub = d.isHost ? `Meeting host · ${status}` : d.isGuest ? `Guest · ${status}` : status;
+          return (
+            <div key={d.crmUserId} className="flex items-center gap-2.5 rounded-lg px-2 py-2 opacity-80 hover:bg-emerald-400/5">
+              <ProfileBubble name={d.fullName} avatar={d.avatar} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{d.fullName}</p>
+                <p className="truncate text-[11px] text-emerald-200/50">{sub}</p>
+              </div>
+            </div>
+          );
+        })}
+      </PeopleGroup>
+    </div>
   );
 }

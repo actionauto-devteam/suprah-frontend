@@ -296,6 +296,11 @@ const cleanAggregatorText = (raw: string): string => {
   return text; // nothing better found — show the original rather than nothing
 };
 
+const duplicateTextKey = (text: string) => {
+  const lower = (text || "").toLowerCase();
+  return lower.replace(/[^a-z0-9]+/g, "") || lower.replace(/\s+/g, " ").trim();
+};
+
 const extractCustomerComments = (
   lead: any,
   message: any,
@@ -588,12 +593,13 @@ export function ConversationView({
     const groups: { message: any; index: number; count: number }[] = [];
     let previousKey = "";
     threads.forEach((message: any, index: number) => {
-      const direction = isOutboundMessage(message, sourceEmail) ? "out" : "in";
-      const textKey = cleanAggregatorText(getMessageText(message))
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .trim();
-      const groupKey = `${direction}|${textKey}`;
+      const outbound = isOutboundMessage(message, sourceEmail);
+      const shownText =
+        !outbound && isLeadInquiryMessage(message, index)
+          ? extractCustomerComments(lead, message)
+          : cleanAggregatorText(getMessageText(message));
+      const textKey = duplicateTextKey(shownText);
+      const groupKey = `${outbound ? "out" : "in"}|${textKey}`;
       if (textKey && groupKey === previousKey && groups.length > 0) {
         groups[groups.length - 1].count += 1;
       } else {
@@ -602,7 +608,7 @@ export function ConversationView({
       }
     });
     return groups;
-  }, [threads, sourceEmail]);
+  }, [threads, sourceEmail, lead]);
 
   const leadNotes = lead?.notes;
   const leadCreatedAt = lead?.createdAt;
