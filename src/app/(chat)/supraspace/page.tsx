@@ -3202,60 +3202,33 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
     return nodes;
   };
 
-  const pairMarkers: { marker: string; tag: string; pattern: RegExp }[] = [
-    { marker: '**', tag: 'strong', pattern: /\*\*([^*\n]+?)\*\*/g },
-    { marker: '*', tag: 'em', pattern: /(?<![\w*])\*([^*\n]+?)\*(?!\w)/g },
-    { marker: '__', tag: 'u', pattern: /__([^_\n]+?)__/g },
-    { marker: '_', tag: 'em', pattern: /(?<![\w_])_([^_\n]+?)_(?!\w)/g },
-    { marker: '~~', tag: 's', pattern: /~~([^~\n]+?)~~/g },
-    { marker: '`', tag: 'code', pattern: /`([^`\n]+?)`/g },
-  ];
+  collectTextNodes().forEach(textNode => {
+    const value = textNode.data;
+    if (!value.includes('**')) return;
 
-  pairMarkers.forEach(({ marker, tag, pattern }) => {
-    collectTextNodes().forEach(textNode => {
-      const value = textNode.data;
-      if (!value.includes(marker)) return;
+    const pairPattern = /\*\*([^*\n]+?)\*\*/g;
+    let cursor = 0;
+    let matched = false;
+    const fragment = doc.createDocumentFragment();
+    let match: RegExpExecArray | null;
 
-      pattern.lastIndex = 0;
-      let cursor = 0;
-      let matched = false;
-      const fragment = doc.createDocumentFragment();
-      let match: RegExpExecArray | null;
-
-      while ((match = pattern.exec(value)) !== null) {
-        matched = true;
-        if (match.index > cursor) {
-          fragment.appendChild(doc.createTextNode(value.slice(cursor, match.index)));
-        }
-        const el = doc.createElement(tag);
-        el.textContent = match[1];
-        fragment.appendChild(el);
-        cursor = match.index + match[0].length;
+    while ((match = pairPattern.exec(value)) !== null) {
+      matched = true;
+      if (match.index > cursor) {
+        fragment.appendChild(doc.createTextNode(value.slice(cursor, match.index)));
       }
+      const strong = doc.createElement('strong');
+      strong.textContent = match[1];
+      fragment.appendChild(strong);
+      cursor = match.index + match[0].length;
+    }
 
-      if (matched) {
-        if (cursor < value.length) {
-          fragment.appendChild(doc.createTextNode(value.slice(cursor)));
-        }
-        textNode.replaceWith(fragment);
+    if (matched) {
+      if (cursor < value.length) {
+        fragment.appendChild(doc.createTextNode(value.slice(cursor)));
       }
-    });
-
-    collectTextNodes().forEach(textNode => {
-      const value = textNode.data;
-      if (!value.includes(marker)) return;
-
-      const markerRe = new RegExp(escapeRegExp(marker), 'g');
-      // Marker-only clipboard artifacts are never user-visible formatting.
-      if (new RegExp(`^\\s*${escapeRegExp(marker)}\\s*$`).test(value)) {
-        textNode.data = value.replace(markerRe, '');
-        return;
-      }
-      const escaped = escapeRegExp(marker);
-      textNode.data = value
-        .replace(new RegExp(`^(\\s*)${escaped}(?=\\s*\\S)`), '$1')
-        .replace(new RegExp(`${escaped}(\\s*)$`), '$1');
-    });
+      textNode.replaceWith(fragment);
+    }
   });
 
   return root.innerHTML;
@@ -3288,7 +3261,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 
     const editorHtml = clipboardHtmlToEditorHtml(html);
     if (editorHtml.trim()) {
-      return sanitizePastedEditorHtmlForTheme(editorHtml);
+      return sanitizePastedEditorHtmlForTheme(normalizeRichClipboardBoldArtifacts(editorHtml));
     }
   }
 
@@ -3296,7 +3269,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
   const editorHtml = hasMarkdownSyntax(normalizedMessageText)
     ? markdownTextToEditorHtml(normalizedMessageText)
     : escapeHtmlText(normalizedMessageText).replace(/\n/g, '<br>');
-  return sanitizePastedEditorHtmlForTheme(editorHtml);
+  return sanitizePastedEditorHtmlForTheme(normalizeRichClipboardBoldArtifacts(editorHtml));
 }
 
 function hasMarkdownSyntax(text: string): boolean {
@@ -5125,7 +5098,7 @@ const Bubble = React.memo(function Bubble({
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
   const [editTextPalette, setEditTextPalette] = React.useState(SS4_TEXT_COLORS);
   const [editColorPickerOpen, setEditColorPickerOpen] = React.useState(false);
-  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('plain');
   const editPastePlainTextShortcutRef = React.useRef(false);
   const [editActiveFormats, setEditActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -6517,7 +6490,9 @@ const Bubble = React.memo(function Bubble({
                   if (!plainText && !html) return;
 
                   e.preventDefault();
-                  const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                  const richEditorHtml = editPasteMode === 'formatted' && !shortcutPlainText
+                    ? clipboardPayloadToRichEditorHtml(text, html)
+                    : '';
                   const usePlainText = editPasteMode === 'plain'
                     || shortcutPlainText
                     || richPasteDropsVisibleText(text, html)
@@ -9732,7 +9707,7 @@ export default function SupraSpacePage() {
   const [autrixOpen, setAutrixOpen] = React.useState(false);
   const [autrixLoading, setAutrixLoading] = React.useState(false);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
-  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('plain');
   const pastePlainTextShortcutRef = React.useRef(false);
   const [activeFormats, setActiveFormats] = React.useState<Record<RichTextFormat, boolean>>({
     bold: false,
@@ -15818,7 +15793,9 @@ export default function SupraSpacePage() {
                                   e.preventDefault();
                                   setMentionQuery(null);
                                   setMentionAnchor(-1);
-                                  const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                                  const richEditorHtml = pasteMode === 'formatted' && !shortcutPlainText
+                                    ? clipboardPayloadToRichEditorHtml(text, html)
+                                    : '';
                                   const currentText = textareaRef.current?.innerText.replace(/\n$/, '') || '';
                                   const selectedLength = textareaRef.current ? getContentEditableSelectionLength(textareaRef.current) : 0;
                                   const remaining = SS4_MAX_MESSAGE_CHARS - Math.max(0, currentText.length - selectedLength);

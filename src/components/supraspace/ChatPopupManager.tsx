@@ -2692,21 +2692,6 @@ function normalizeRichClipboardBoldArtifacts(editorHtml: string): string {
     }
   });
 
-  collectTextNodes().forEach(textNode => {
-    const value = textNode.data;
-    if (!value.includes('**')) return;
-
-    // Marker-only clipboard artifacts are never user-visible formatting.
-    if (/^\s*\*\*\s*$/.test(value)) {
-      textNode.data = value.replace(/\*\*/g, '');
-      return;
-    }
-
-    textNode.data = value
-      .replace(/^(\s*)\*\*(?=\s*\S)/, '$1')
-      .replace(/\*\*(\s*)$/, '$1');
-  });
-
   return root.innerHTML;
 }
 
@@ -2737,7 +2722,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
 
     const editorHtml = clipboardHtmlToEditorHtml(html);
     if (editorHtml.trim()) {
-      return sanitizePastedEditorHtmlForTheme(editorHtml);
+      return sanitizePastedEditorHtmlForTheme(normalizeRichClipboardBoldArtifacts(editorHtml));
     }
   }
 
@@ -2745,7 +2730,7 @@ function clipboardPayloadToRichEditorHtml(text: string, html: string): string {
   const editorHtml = hasMarkdownSyntax(normalizedMessageText)
     ? markdownTextToEditorHtml(normalizedMessageText)
     : escapeHtmlText(normalizedMessageText).replace(/\n/g, '<br>');
-  return sanitizePastedEditorHtmlForTheme(editorHtml);
+  return sanitizePastedEditorHtmlForTheme(normalizeRichClipboardBoldArtifacts(editorHtml));
 }
 
 function markdownTextToEditorHtml(text: string): string {
@@ -4077,7 +4062,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const inputTextRef = React.useRef('');
   const pastedPlainTextRef = React.useRef('');
   const [composerHasText, setComposerHasText] = React.useState(false);
-  const [pasteMode, setPasteMode] = React.useState<PasteMode>('formatted');
+  const [pasteMode, setPasteMode] = React.useState<PasteMode>('plain');
   const pastePlainTextShortcutRef = React.useRef(false);
   const [sending, setSending] = React.useState(false);
   const sendInFlightRef = React.useRef(false);
@@ -5023,7 +5008,7 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
   const [editFontFamilyChosen, setEditFontFamilyChosen] = React.useState(false);
   const [editFontSize, setEditFontSize] = React.useState<SS4FontSize>(SS4_DEFAULT_FONT_SIZE);
   const [editFontSizeChosen, setEditFontSizeChosen] = React.useState(false);
-  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('formatted');
+  const [editPasteMode, setEditPasteMode] = React.useState<PasteMode>('plain');
   const editPastePlainTextShortcutRef = React.useRef(false);
   const [editPalette, setEditPalette] = React.useState(TEXT_COLORS);
   const [editActiveFormats, setEditActiveFormats] = React.useState<PopupEditFormatState>({
@@ -7254,7 +7239,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                                 if (!plainText && !html) return;
 
                                 e.preventDefault();
-                                const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                                const richEditorHtml = editPasteMode === 'formatted' && !shortcutPlainText
+                                  ? clipboardPayloadToRichEditorHtml(text, html)
+                                  : '';
                                 const usePlainText = editPasteMode === 'plain'
                                   || shortcutPlainText
                                   || richPasteDropsVisibleText(text, html)
@@ -8066,7 +8053,9 @@ function ChatPopup({ conv, stackIndex, baseOffsetPx, isMinimized, onClose, onTog
                       e.preventDefault();
                       setMentionQuery(null);
                       setMentionAnchor(-1);
-                      const richEditorHtml = clipboardPayloadToRichEditorHtml(text, html);
+                      const richEditorHtml = pasteMode === 'formatted' && !shortcutPlainText
+                        ? clipboardPayloadToRichEditorHtml(text, html)
+                        : '';
                       const usePlainText = pasteMode === 'plain'
                         || shortcutPlainText
                         || richPasteDropsVisibleText(text, html)
