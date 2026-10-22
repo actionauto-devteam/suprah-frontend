@@ -10,6 +10,7 @@ import {
 import { Load } from "@/types/load";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
+import { subscribeToLoadChanges } from "@/lib/live-load-updates";
 import { PER_PAGE_OPTIONS, PerPageOption } from "./useTransportationData";
 import { userErrorMessage } from "@/lib/user-error";
 
@@ -274,28 +275,40 @@ export function useLoadsData(
       setError(null);
 
       try {
-        const result = await getLoads(
-          {
-            status:
-              status && status !== "all"
-                ? status
-                : undefined,
-            q: query?.trim() || undefined,
-            origin: originFilter || undefined,
-            destination: destinationFilter || undefined,
-            visibility:
-              visibilityFilter !== "all" ? visibilityFilter : undefined,
-            page: requestedPage,
-            limit: requestedLimit,
-          },
-          { timeout: 15_000 },
-        );
+        const loadPage = (pageNumber: number) =>
+          getLoads(
+            {
+              status:
+                status && status !== "all"
+                  ? status
+                  : undefined,
+              q: query?.trim() || undefined,
+              origin: originFilter || undefined,
+              destination: destinationFilter || undefined,
+              visibility:
+                visibilityFilter !== "all" ? visibilityFilter : undefined,
+              page: pageNumber,
+              limit: requestedLimit,
+            },
+            { timeout: 15_000 },
+          );
 
+        let shownPage = requestedPage;
+        let result = await loadPage(shownPage);
         if (requestId !== requestIdRef.current) return false;
+
+        // The page on screen no longer exists (for example its last load was
+        // deleted): show the new last page instead of an empty one.
+        const lastPage = Math.max(1, Number(result?.pagination?.totalPages) || 1);
+        if ((result?.loads ?? []).length === 0 && shownPage > lastPage) {
+          shownPage = lastPage;
+          result = await loadPage(shownPage);
+          if (requestId !== requestIdRef.current) return false;
+        }
 
         const nextLoads = result?.loads ?? [];
         const nextPagination = result?.pagination ?? {
-          page: requestedPage,
+          page: shownPage,
           limit: requestedLimit,
           total: 0,
           totalPages: 1,
@@ -304,8 +317,8 @@ export function useLoadsData(
 
         setLoads(nextLoads);
         setPagination(nextPagination);
-        setPage(requestedPage);
-        pageRef.current = requestedPage;
+        setPage(shownPage);
+        pageRef.current = shownPage;
         return true;
       } catch (err: any) {
         if (requestId !== requestIdRef.current) return false;
@@ -395,7 +408,8 @@ export function useLoadsData(
     refreshSnapshot,
   ]);
 
-  // Realtime keeps the warm snapshot current without interrupting the UI.
+  // Realtime keeps the Board current without interrupting the UI: status
+  // changes by drivers and dispatch, new loads and deletions by other users.
   React.useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
 
@@ -406,31 +420,42 @@ export function useLoadsData(
       if (cancelled || !token) return;
       const socket = initializeSocket(token);
 
-      const handleLoadChange = () => {
+      const refresh = () => {
         if (cancelled) return;
 
         void Promise.all([refreshSnapshot(), refreshStats()]).then(
           ([complete]) => {
+            if (cancelled || !enabled) return;
             if (
-              !cancelled &&
-              enabled &&
-              complete
-            ) {
+              complete &&
               applySnapshot(
                 selectedStatus,
                 searchQuery,
                 pageRef.current,
                 limitRef.current,
-              );
+              )
+            ) {
+              return;
             }
+            // Over 100 loads the snapshot can't be filtered here, so ask the
+            // server for the page on screen. Cards stay up until it answers.
+            void fetchServer(
+              pageRef.current,
+              limitRef.current,
+              selectedStatus,
+              searchQuery,
+            );
           },
         );
       };
 
-      socket.on("load:change", handleLoadChange);
-      cleanup = () => {
-        socket.off("load:change", handleLoadChange);
-      };
+      cleanup = subscribeToLoadChanges(socket, {
+        refresh,
+        onDeleted: (loadId) => {
+          if (cancelled) return;
+          setLoads((current) => current.filter((load) => String(load._id) !== loadId));
+        },
+      });
     });
 
     return () => {
@@ -448,6 +473,7 @@ export function useLoadsData(
     destinationFilter,
     visibilityFilter,
     applySnapshot,
+    fetchServer,
     refreshSnapshot,
     refreshStats,
   ]);

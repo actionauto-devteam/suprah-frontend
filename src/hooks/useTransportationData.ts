@@ -8,6 +8,7 @@ import type { Quote, QuoteLoadRouteDetails } from "@/types/transportation";
 import { LoadStats } from "@/lib/api/loads";
 import { useAuth } from "@/providers/AuthProvider";
 import { initializeSocket } from "@/lib/socket.client";
+import { subscribeToLoadChanges, type LoadRefreshReason } from "@/lib/live-load-updates";
 import { userErrorMessage } from "@/lib/user-error";
 
 export interface TransportationPagination {
@@ -683,6 +684,12 @@ export function useTransportationData(filters: TransportationFilters = {}) {
     ],
   );
 
+  // The live-update handler always uses the current filters.
+  const fetchLoadsRef = React.useRef(fetchLoads);
+  React.useEffect(() => {
+    fetchLoadsRef.current = fetchLoads;
+  }, [fetchLoads]);
+
   // ── Fetch quotes (specific page+limit, no loading state) ──────────────────
 
   const fetchQuotes = React.useCallback(
@@ -1059,7 +1066,9 @@ export function useTransportationData(filters: TransportationFilters = {}) {
         if (cancelled || !token) return;
         const sock = initializeSocket(token);
 
-        const handleLoadChange = () => {
+        // Status changes by drivers and dispatch, new loads and deletions by
+        // other users show without a refresh (see subscribeToLoadChanges).
+        const handleLoadChange = (reason: LoadRefreshReason) => {
           if (cancelled) return;
 
           void Promise.all([
@@ -1067,23 +1076,30 @@ export function useTransportationData(filters: TransportationFilters = {}) {
             refreshStats(),
           ])
             .then(([snapshotComplete]) => {
+              if (cancelled || activeViewRef.current !== "shipments") return;
               if (
-                !cancelled &&
                 snapshotComplete &&
-                activeViewRef.current === "shipments"
-              ) {
                 applyLoadSnapshot(
                   shipmentStatusRef.current,
                   loadsPageRef.current,
                   loadsLimitRef.current,
-                );
+                )
+              ) {
+                return;
               }
+              // Over 100 loads the snapshot can't be filtered here, so ask
+              // the server for the page on screen. Cards stay up meanwhile.
+              return fetchLoadsRef.current(
+                loadsPageRef.current,
+                loadsLimitRef.current,
+                shipmentStatusRef.current,
+              );
             })
             .catch(() => { })
             .finally(() => {
               if (!cancelled) {
                 setLastUpdated(new Date());
-                setHasNewEntries(true);
+                if (reason === "change") setHasNewEntries(true);
               }
             });
         };
@@ -1114,11 +1130,17 @@ export function useTransportationData(filters: TransportationFilters = {}) {
             });
         };
 
-        sock.on("load:change", handleLoadChange);
+        const stopLoadChanges = subscribeToLoadChanges(sock, {
+          refresh: handleLoadChange,
+          onDeleted: (loadId) => {
+            if (cancelled) return;
+            setLoads((current) => current.filter((load) => String(load._id) !== loadId));
+          },
+        });
         sock.on("quote:change", handleQuoteChange);
 
         cleanup = () => {
-          sock.off("load:change", handleLoadChange);
+          stopLoadChanges();
           sock.off("quote:change", handleQuoteChange);
         };
       } catch { }
