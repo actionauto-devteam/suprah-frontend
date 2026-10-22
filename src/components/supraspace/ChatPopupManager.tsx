@@ -3181,7 +3181,9 @@ function PopupGifPicker({ onPick, onClose, anchorRef, boundaryRef }: { onPick: (
           : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_FALLBACK_KEY}&limit=24&rating=pg-13`;
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error('GIF search is unavailable');
-        const payload = await response.json() as { data?: any[] };
+        const payload = await response.json() as {
+          data?: Array<{ title?: unknown; images?: Record<string, { url?: unknown; width?: unknown; height?: unknown }> }>;
+        };
         setGifs((Array.isArray(payload.data) ? payload.data : []).flatMap(item => {
           const preview = item?.images?.fixed_height_small || item?.images?.fixed_width_small || item?.images?.fixed_height || item?.images?.fixed_width;
           const url = item?.images?.original?.url || preview?.url;
@@ -3377,7 +3379,7 @@ function PopupVoicePlayer({ convId, msgId, duration, own, crmToken }: { convId: 
       </button>
       <div className="flex-1 min-w-0">
         {audioErr ? (
-          <p className="text-[10px]" style={{ color: '#f87171' }}>Couldn't play — tap to retry</p>
+          <p className="text-[10px]" style={{ color: '#f87171' }}>Couldn&apos;t play — tap to retry</p>
         ) : (
           <>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: own ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)' }}>
@@ -3477,7 +3479,7 @@ function PopupEventCard({ event, uid, isOwn, accentColor, onRsvp }: { event: SSE
                 color: mine === r ? (isOwn ? accentColor : '#fff') : isOwn ? '#fff' : 'var(--foreground)',
               }}
             >
-              {r}{(event as any)[r]?.length ? ` · ${(event as any)[r].length}` : ''}
+              {r}{event[r]?.length ? ` · ${event[r].length}` : ''}
             </button>
           ))}
         </div>
@@ -4007,7 +4009,7 @@ function PopupChannelSettingsModal({ conv, crmToken, crmUserId, initialTab, onCl
                   </button>
                 )}
               </div>
-              <p className="text-[12px] text-muted-foreground mt-4 mb-2">Default Like — sent when you tap the composer's Like button with nothing typed. Applies to everyone in this channel.</p>
+              <p className="text-[12px] text-muted-foreground mt-4 mb-2">Default Like — sent when you tap the composer&apos;s Like button with nothing typed. Applies to everyone in this channel.</p>
               <div className="flex flex-wrap gap-1.5">
                 {QUICK_REACTION_CHOICES.map(emoji => (
                   <button

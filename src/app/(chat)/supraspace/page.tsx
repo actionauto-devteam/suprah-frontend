@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { isAxiosError, type AxiosRequestConfig } from 'axios';
 import { createMessageId, type ComposerDraft, type FailedSend } from '@/components/supraspace/composer/send-state';
 import { reconcileSupraSpaceDelivery } from '@/components/supraspace/composer/delivery-reconciliation';
 import { getSupraSpaceDeliveryFailureMessage, SUPRA_SPACE_DELIVERY_TIMEOUT_MS } from '@/components/supraspace/composer/delivery-feedback';
@@ -4400,14 +4401,14 @@ function hasUnreadMentionForUser(
   );
 }
 
-function themeVars(theme?: SSConversation['theme']): React.CSSProperties {
+function themeVars(theme?: SSConversation['theme']): React.CSSProperties & Record<`--${string}`, string> {
   if (!theme?.accent) return {};
   const a = theme.accent;
   return {
-    ['--accent' as any]: a,
-    ['--accent-text' as any]: a,
-    ['--accent-muted' as any]: `${a}26`,
-    ['--bubble-own-bg' as any]: `linear-gradient(145deg, ${a}, ${a})`,
+    '--accent': a,
+    '--accent-text': a,
+    '--accent-muted': `${a}26`,
+    '--bubble-own-bg': `linear-gradient(145deg, ${a}, ${a})`,
   };
 }
 
@@ -4548,7 +4549,7 @@ function EventCard({ event, uid, onRsvp }: { event: NonNullable<SSMessage['event
                 color: mine === r ? '#fff' : 'var(--text-secondary)',
                 border: '1px solid var(--border-2)'
               }}>
-              {r} {(event as any)[r]?.length ? `· ${(event as any)[r].length}` : ''}
+              {r} {event[r]?.length ? `· ${event[r].length}` : ''}
             </button>
           ))}
         </div>
@@ -5893,11 +5894,11 @@ const Bubble = React.memo(function Bubble({
     });
   }, []);
 
-  const jumpToRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo']) => {
+  const jumpToRepliedMessage = React.useCallback((replyTo: SSMessage['replyTo'] | string | { _id?: string; id?: string; createdAt?: string }) => {
     const targetId =
       typeof replyTo === 'string'
         ? replyTo
-        : (replyTo as any)?._id || (replyTo as any)?.id;
+        : replyTo?._id || (replyTo && 'id' in replyTo ? replyTo.id : undefined);
 
     if (!targetId) return;
     onJumpToMessage?.(targetId, typeof replyTo === 'string' ? undefined : replyTo?.createdAt);
@@ -6683,7 +6684,7 @@ const Bubble = React.memo(function Bubble({
               {SS4_REACTIONS.slice(0, 6).map(emoji => (
                 <button key={emoji} onClick={() => onReact(message._id, emoji)}
                   className="ss4-action-emoji h-7 w-7 flex items-center justify-center text-base rounded-lg transition-all hover:scale-125 active:scale-95"
-                  style={{ ['--ss4-action-hover' as any]: actionSurfaceHover }}
+                  style={{ '--ss4-action-hover': actionSurfaceHover } as React.CSSProperties}
                   onMouseEnter={(event) => { event.currentTarget.style.background = actionSurfaceHover; }}
                   onMouseLeave={(event) => { event.currentTarget.style.background = 'transparent'; }}
                 >
@@ -7635,7 +7636,9 @@ function GifPicker({ onPick, onClose, mobile = false, inline = false }: { onPick
           : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_FALLBACK_KEY}&limit=${limit}&rating=pg-13`;
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error('GIF search is unavailable');
-        const payload = await response.json() as { data?: any[] };
+        const payload = await response.json() as {
+          data?: Array<{ title?: unknown; images?: Record<string, { url?: unknown; width?: unknown; height?: unknown }> }>;
+        };
         setGifs((Array.isArray(payload.data) ? payload.data : []).flatMap(item => {
           const preview = item?.images?.fixed_width_small || item?.images?.fixed_height_small || item?.images?.fixed_width || item?.images?.fixed_height;
           const url = item?.images?.original?.url || preview?.url;
@@ -8460,14 +8463,19 @@ function ArchiveConversationRow({ conv, uid, onOpen, onUnarchive, selectionMode 
   );
 }
 
+type ArchiveConversationActions = Pick<ConvRowProps, 'uid' | 'openConversation' | 'toggleArchiveConv'> & {
+  openArchivedConversation?: (conversationId: string) => void;
+  runBulkConversationAction?: (action: 'unarchive', conversationIds: string[]) => Promise<{ succeeded: SSConversation[]; failed: SSConversation[] } | null>;
+};
+
 function MenuArchivePanel({ archivedList, sharedConvRowProps }: {
-  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>;
+  archivedList: SSConversation[]; sharedConvRowProps: ArchiveConversationActions;
 }) {
   const [query, setQuery] = React.useState('');
   const [selectionMode, setSelectionMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [working, setWorking] = React.useState(false);
-  const uid = sharedConvRowProps.uid as string;
+  const uid = sharedConvRowProps.uid;
   const filtered = React.useMemo(() => {
     if (!query.trim()) return archivedList;
     const q = query.toLowerCase();
@@ -8590,7 +8598,7 @@ function MenuSubView({ title, onBack, children }: { title: string; onBack: () =>
 
 function MenuTab({ me, allUsers, presence, uid, token, archivedList, sharedConvRowProps, archiveRequest, onArchiveRequestHandled }: {
   me?: CrmUser; allUsers: CrmUser[]; presence: PresenceMap; uid: string; token: string;
-  archivedList: SSConversation[]; sharedConvRowProps: Record<string, any>; archiveRequest: number; onArchiveRequestHandled: () => void;
+  archivedList: SSConversation[]; sharedConvRowProps: ArchiveConversationActions; archiveRequest: number; onArchiveRequestHandled: () => void;
 }) {
   const [view, setView] = React.useState<'root' | 'profile' | 'settings' | 'archive'>('root');
 
@@ -8679,7 +8687,7 @@ function SupraSpaceSettingsPanel({ me, allUsers, presence, uid, isStandaloneApp 
 
   React.useEffect(() => {
     setSoundOnState(isSoundEnabled());
-    const onChange = (e: any) => setSoundOnState(e.detail);
+    const onChange = (e: Event) => { if (e instanceof CustomEvent && typeof e.detail === 'boolean') setSoundOnState(e.detail); };
     window.addEventListener('ss_sound_changed', onChange);
     return () => window.removeEventListener('ss_sound_changed', onChange);
   }, []);
@@ -8909,7 +8917,7 @@ function SummarizeModal({ token, conversationId, onClose }: { token: string; con
   const run = async () => {
     setLoading(true); setSummary(null);
     try {
-      const body: any = { conversationId };
+      const body: { conversationId: string; from?: string; to?: string } = { conversationId };
       if (from) body.from = new Date(from).toISOString();
       if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); body.to = d.toISOString(); }
       const r = await apiClient.post('/api/supraleo/summarize', body, { headers: { Authorization: `Bearer ${token}` } });
@@ -8971,7 +8979,7 @@ interface ConvRowProps {
   isPinnedConv: (c: SSConversation) => boolean;
   isArchivedConv: (c: SSConversation) => boolean;
   ptrStartRef: React.MutableRefObject<{ x: number; y: number; type: 'conv' | 'space'; id: string; label: string; spaceId?: string | null } | null>;
-  convLongPressTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  convLongPressTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   openConversation: (conversationId: string | null) => void;
   setConvMobileSheet: (id: string | null) => void;
   markAsRead: (conversationId: string) => void;
@@ -9009,7 +9017,7 @@ interface ConvRowProps {
 const ConvRow = React.memo(function ConvRow({
   conv, theme, compact, draggable: isDraggable,
   activeId, activeConvId, relativeTimeNow, uid, token, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
-  openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
+  openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimerRef,
   openConversation, setConvMobileSheet, markAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
   setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
   isStandaloneApp, selectionMode = false, isSelected = false, selectedConversationIds, selectionEligible = true, toggleSelection,
@@ -9017,7 +9025,7 @@ const ConvRow = React.memo(function ConvRow({
   const [unreadDotColor, setUnreadDotColorState] = React.useState(SS4_UNREAD_DOT_COLOR);
   React.useEffect(() => {
     setUnreadDotColorState(getUnreadDotColor());
-    const onChange = (e: any) => setUnreadDotColorState(e.detail);
+    const onChange = (e: Event) => { if (e instanceof CustomEvent && typeof e.detail === 'string') setUnreadDotColorState(e.detail); };
     window.addEventListener(SS4_UNREAD_COLOR_CHANGED_EVENT, onChange);
     return () => window.removeEventListener(SS4_UNREAD_COLOR_CHANGED_EVENT, onChange);
   }, []);
@@ -9056,9 +9064,9 @@ const ConvRow = React.memo(function ConvRow({
   const ddTriggerRef = React.useRef<HTMLButtonElement>(null);
   const startLongPress = () => {
     if (selectionMode) return;
-    convLongPressTimer.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500);
+    convLongPressTimerRef.current = setTimeout(() => { if (navigator.vibrate) navigator.vibrate(40); setConvMobileSheet(conv._id); }, 500);
   };
-  const cancelLongPress = () => { if (convLongPressTimer.current) { clearTimeout(convLongPressTimer.current); convLongPressTimer.current = null; } };
+  const cancelLongPress = () => { if (convLongPressTimerRef.current) { clearTimeout(convLongPressTimerRef.current); convLongPressTimerRef.current = null; } };
   return (
     <div className={cn('ss4-conv flex items-center gap-2.5 px-3 py-2 group', isStandaloneApp && 'ss4-conv--card', isStandaloneApp && isUnread && 'ss4-conv--unread', isAct && 'ss4-conv-active', isUnread && 'bg-blue-500/5', dragConvId === conv._id && 'opacity-40')}
       style={{ cursor: 'pointer', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
@@ -9066,7 +9074,7 @@ const ConvRow = React.memo(function ConvRow({
       tabIndex={selectionMode && canSelect ? 0 : undefined}
       aria-checked={selectionMode && canSelect ? selected : undefined}
       data-conv-before={isDraggable ? conv._id : undefined}
-      data-conv-section={isDraggable ? ((conv as any).spaceId ?? '__channels__') : undefined}
+      data-conv-section={isDraggable ? (conv.spaceId ?? '__channels__') : undefined}
       onClick={() => selectionMode ? (canSelect ? toggleSelection?.(conv._id) : undefined) : openConversation(conv._id)}
       onKeyDown={event => {
         if (!selectionMode || !canSelect || (event.key !== 'Enter' && event.key !== ' ')) return;
@@ -9095,7 +9103,7 @@ const ConvRow = React.memo(function ConvRow({
           onPointerDown={(e) => {
             if (e.button !== 0) return;
             e.preventDefault();
-            ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: (conv as any).spaceId ?? null };
+            ptrStartRef.current = { x: e.clientX, y: e.clientY, type: 'conv', id: conv._id, label: cName, spaceId: conv.spaceId ?? null };
           }}
           className="cursor-grab shrink-0 flex items-center opacity-0 group-hover:opacity-40 hover:opacity-80! transition-opacity"
           style={{ marginLeft: -6, padding: '0 1px' }}>
@@ -9238,12 +9246,12 @@ const ConvRow = React.memo(function ConvRow({
               </DropdownMenuItem>
               {conv.type === 'group' && ctxSpaces.length > 0 && (
                 <>
-                  {(conv as any).spaceId && (
+                  {conv.spaceId && (
                     <DropdownMenuItem className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => handleMoveToSpace(conv._id, null)}>
                       <ArrowLeft className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Remove from Space
                     </DropdownMenuItem>
                   )}
-                  {ctxSpaces.map(sp => (sp._id !== (conv as any).spaceId) && (
+                  {ctxSpaces.map(sp => (sp._id !== conv.spaceId) && (
                     <DropdownMenuItem key={sp._id} className="gap-2.5 rounded-lg cursor-pointer" style={{ fontSize: 13, color: 'var(--text-primary)' }} onClick={() => handleMoveToSpace(conv._id, sp._id)}>
                       <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} /> Move to {sp.emoji ? `${sp.emoji} ` : ''}{sp.name}
                     </DropdownMenuItem>
@@ -9751,7 +9759,7 @@ export default function SupraSpacePage() {
   const [showInfo, setShowInfo] = React.useState(false);
   const [infoTab, setInfoTab] = React.useState<'members' | 'media' | 'files' | 'pinned' | 'search'>('members');
   const [convSearchQuery, setConvSearchQuery] = React.useState('');
-  const [convSearchResults, setConvSearchResults] = React.useState<any[]>([]);
+  const [convSearchResults, setConvSearchResults] = React.useState<SSMessageSearchResult[]>([]);
   const [convSearching, setConvSearching] = React.useState(false);
   React.useEffect(() => {
     if (infoTab !== 'search' || !token || !activeId || convSearchQuery.trim().length < 2) {
@@ -9860,7 +9868,7 @@ export default function SupraSpacePage() {
   const [convMobileSheet, setConvMobileSheet] = React.useState<string | null>(null);
   const [moveSpaceSheetConv, setMoveSpaceSheetConv] = React.useState<string | null>(null);
   const [deleteConfirmConv, setDeleteConfirmConv] = React.useState<SSConversation | null>(null);
-  const convLongPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const convLongPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [recording, setRecording] = React.useState(false);
   const [recSeconds, setRecSeconds] = React.useState(0);
@@ -10108,7 +10116,7 @@ export default function SupraSpacePage() {
     apiClient.patch(`/api/supraspace/conversations/${conversationId}/notifications`, pref, {
       headers: { Authorization: `Bearer ${token}` },
       _skipAuthRefresh: true,
-    } as any).then((res) => {
+    } as AxiosRequestConfig & { _skipAuthRefresh?: boolean }).then((res) => {
       const saved = res.data?.data || pref;
       setNotifPrefs(prev => ({ ...prev, [conversationId]: saved }));
       setConvos(prev => prev.map(conv => conv._id === conversationId ? { ...conv, notificationPreference: saved } : conv));
@@ -10169,7 +10177,7 @@ export default function SupraSpacePage() {
   const isAdmin = !!(activeConv && (
     activeConv.members.some(member => member._id === uid && member.role === 'admin') ||
     (activeConv.admins || []).map(String).includes(uid) ||
-    String((activeConv as any).createdBy) === uid
+    String(activeConv.createdBy) === uid
   ));
   const hasLeftChannel = !!(activeConv?.type === 'group' && (activeConv.leftBy || []).map(String).includes(uid));
   const isArchivedActiveConv = !!activeConv && (activeConv.archivedBy || []).map(String).includes(uid);
@@ -10584,7 +10592,7 @@ export default function SupraSpacePage() {
         ...synced,
         ...missing.map(c => ({
           ...c,
-          admins: (c as any).admins || [],
+          admins: c.admins || [],
           theme: { accent: c.theme?.accent ?? null, bubble: null, wallpaper: null, emoji: null },
         } as unknown as SSConversation)),
       ].sort((a, b) => supraSpaceConversationActivityAt(b, uid) - supraSpaceConversationActivityAt(a, uid));
@@ -10748,9 +10756,9 @@ export default function SupraSpacePage() {
               openedInitialConversation = true;
               router.replace('/crm/supra-space', { scroll: false });
             }
-          } catch (dmErr: any) {
+          } catch (dmErr: unknown) {
             console.error('[SupraSpace] Auto-open DM failed during init:', dmErr);
-            toast.error(dmErr?.response?.data?.message || 'Could not open conversation');
+            toast.error(getErrorMessage(dmErr, 'Could not open conversation'));
           }
         }
 
@@ -10765,8 +10773,8 @@ export default function SupraSpacePage() {
             if (!restored) clearStoredSupraSpaceConversationId(rememberedConversationId, myData._id);
           }
         }
-      } catch (err: any) {
-        if (err?.response?.status === 401) {
+      } catch (err: unknown) {
+        if (isAxiosError(err) && err.response?.status === 401) {
           // This is a Space-token problem, not proof that the main login is
           // gone. Ask the shared owner to renew it and stay in the PWA.
           window.dispatchEvent(new Event('supraspace:refresh-crm-token'));
@@ -10980,7 +10988,7 @@ export default function SupraSpacePage() {
     };
     const onDel = ({ conversationId, messageId, unreadUserIds = [] }: { conversationId: string; messageId: string; unreadUserIds?: string[] }) => {
       markConversationActivity(conversationId);
-      patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] } as any);
+      patchMsg(conversationId, messageId, { isDeleted: true, content: '', attachments: [] });
       if (conversationId === activeIdRef.current) {
         setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(messageId); return next; });
         setPinnedMessages(prev => prev.filter(message => message._id !== messageId));
@@ -10991,7 +10999,7 @@ export default function SupraSpacePage() {
         const prev = [...cached].filter(m => m._id !== messageId && !m.isDeleted).slice(-1)[0];
         return {
           ...c,
-          ...(c.lastMessage?._id === messageId ? { lastMessage: (prev || null) as any, lastMessageAt: prev?.createdAt } : {}),
+          ...(c.lastMessage?._id === messageId ? { lastMessage: prev, lastMessageAt: prev?.createdAt } : {}),
           ...(unreadUserIds.includes(uid) ? { unreadCount: Math.max(0, (c.unreadCount || 0) - 1) } : {}),
         };
       }), uid));
@@ -11000,7 +11008,7 @@ export default function SupraSpacePage() {
       setConvos(p => [c, ...p.filter(x => x._id !== c._id)]);
       setMsgs(p => { const n = { ...p }; delete n[c._id]; return n; });
     };
-    const onConvUpdated = (c: any) => {
+    const onConvUpdated = (c: Partial<SSConversation> & Pick<SSConversation, '_id'>) => {
       if (!c?._id) return;
       if (c.lastMessageAt || c.lastMessage || c.lastReaction !== undefined) markConversationActivity(c._id);
       setConvos(p => sortSupraSpaceConversations(
@@ -11043,12 +11051,15 @@ export default function SupraSpacePage() {
         return next;
       });
     };
-    const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: any }) => patchConv(conversationId, { theme: th });
+    const onConvTheme = ({ conversationId, theme: th }: { conversationId: string; theme: SSConversation['theme'] }) => patchConv(conversationId, { theme: th });
     const onConvMoved = ({ conversationId, spaceId }: { conversationId: string; spaceId: string | null }) =>
-      setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } as any : c));
+      setConvos(p => p.map(c => c._id === conversationId ? { ...c, spaceId: spaceId || null } : c));
     const onSpaceDeleted = ({ spaceId }: { spaceId: string }) =>
-      setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
-    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, reactionActorId, reactionTargetUserId }: any) => {
+      setConvos(p => p.map(c => c.spaceId === spaceId ? { ...c, spaceId: null } : c));
+    const onReaction = ({ conversationId, messageId, reactions, reactionActivity, reactionActorId, reactionTargetUserId }: {
+      conversationId: string; messageId: string; reactions: SSMessage['reactions'];
+      reactionActivity?: SSLastReaction | null; reactionActorId?: string; reactionTargetUserId?: string;
+    }) => {
       patchMsg(conversationId, messageId, { reactions });
       if (reactionActivity === undefined) return;
       const affectsViewer = reactionActivity
@@ -11070,9 +11081,11 @@ export default function SupraSpacePage() {
         return sortSupraSpaceConversations(updated, uid);
       });
     };
-    const onPoll = ({ conversationId, messageId, poll }: any) => patchMsg(conversationId, messageId, { poll });
-    const onEvent = ({ conversationId, messageId, event }: any) => patchMsg(conversationId, messageId, { event });
-    const onEdited = ({ conversationId, messageId, content, attachments, type }: any) => {
+    const onPoll = ({ conversationId, messageId, poll }: { conversationId: string; messageId: string; poll: SSMessage['poll'] }) => patchMsg(conversationId, messageId, { poll });
+    const onEvent = ({ conversationId, messageId, event }: { conversationId: string; messageId: string; event: SSMessage['event'] }) => patchMsg(conversationId, messageId, { event });
+    const onEdited = ({ conversationId, messageId, content, attachments, type }: {
+      conversationId: string; messageId: string; content: string; attachments?: SSAttachment[]; type?: SSMessage['type'];
+    }) => {
       const patch: Partial<SSMessage> = { content, isEdited: true };
       if (Array.isArray(attachments)) patch.attachments = attachments;
       if (type) patch.type = type;
@@ -11528,7 +11541,7 @@ export default function SupraSpacePage() {
     sendTypingStop(conversationId);
     let optimisticTextId: string | null = null;
     let optimisticAttachmentId: string | null = null;
-    let optimisticAttachmentUrls: string[] = [];
+    const optimisticAttachmentUrls: string[] = [];
     try {
       if (hasPendingFiles) {
         if (hasPendingGif) {
@@ -11662,7 +11675,7 @@ export default function SupraSpacePage() {
             headers: { Authorization: `Bearer ${token}` },
             timeout: SUPRA_SPACE_DELIVERY_TIMEOUT_MS,
             _skipAuthRefresh: true,
-          } as any
+          } as AxiosRequestConfig & { _skipAuthRefresh?: boolean }
         );
         if (r.status === 202) toast.success('Message scheduled');
         else if (r.data?.data) {
@@ -12570,12 +12583,12 @@ export default function SupraSpacePage() {
   const handleDelete = React.useCallback(async (msgId: string) => {
     if (!activeId) return;
     const previousPinnedMessage = pinnedMessages.find(message => message._id === msgId);
-    patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] } as any);
+    patchMsg(activeId, msgId, { isDeleted: true, content: '', attachments: [] });
     setPinnedMsgIds(prev => { const next = new Set(prev); next.delete(msgId); return next; });
     setPinnedMessages(prev => prev.filter(message => message._id !== msgId));
     try { await apiClient.delete(`/api/supraspace/messages/${msgId}`, { headers: { Authorization: `Bearer ${token}` } }); }
     catch {
-      patchMsg(activeId, msgId, { isDeleted: false } as any);
+      patchMsg(activeId, msgId, { isDeleted: false });
       if (previousPinnedMessage) setPinnedMessages(prev => prev.some(message => message._id === msgId) ? prev : [previousPinnedMessage, ...prev]);
       void fetchPinnedMessages(activeId);
     }
@@ -12683,7 +12696,7 @@ export default function SupraSpacePage() {
     const pinned = !isPinnedConv(c);
     try {
       await apiClient.post(`/api/supraspace/conversations/${c._id}/pin`, { pinned }, { headers: { Authorization: `Bearer ${token}` } });
-      patchConv(c._id, { pinnedBy: pinned ? Array.from(new Set([...(c.pinnedBy || []), uid])) : (c.pinnedBy || []).filter(x => String(x) !== uid) } as any);
+      patchConv(c._id, { pinnedBy: pinned ? Array.from(new Set([...(c.pinnedBy || []), uid])) : (c.pinnedBy || []).filter(x => String(x) !== uid) });
     } catch {
       toast.error(`Could not ${pinned ? 'pin' : 'unpin'} this conversation`);
     }
@@ -12695,11 +12708,11 @@ export default function SupraSpacePage() {
       return;
     }
     const archived = !isArchivedConv(c);
-    patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) } as any);
+    patchConv(c._id, { archivedBy: archived ? [...(c.archivedBy || []), uid] : (c.archivedBy || []).filter(x => String(x) !== uid) });
     try {
       await ctxArchiveConversation(c._id, archived);
     } catch {
-      patchConv(c._id, { archivedBy: c.archivedBy || [] } as any);
+      patchConv(c._id, { archivedBy: c.archivedBy || [] });
       toast.error('Could not update archive state.');
     }
   }, [ctxArchiveConversation, isArchivedConv, patchConv, uid]);
@@ -12766,7 +12779,7 @@ export default function SupraSpacePage() {
   };
   const applyTheme = async (t: { accent: string | null; wallpaper: string | null; emoji: string | null }) => {
     if (!activeConv) return; setThemeOpen(false);
-    patchConv(activeConv._id, { theme: { ...(activeConv.theme || {}), ...t } } as any);
+    patchConv(activeConv._id, { theme: { ...(activeConv.theme || {}), ...t } });
     try { await apiClient.patch(`/api/supraspace/conversations/${activeConv._id}/theme`, { theme: { ...(activeConv.theme || {}), ...t } }, { headers: { Authorization: `Bearer ${token}` } }); } catch { }
   };
   const uploadAvatar = (file: File) => {
@@ -12829,7 +12842,7 @@ export default function SupraSpacePage() {
       const nextReply = clampSupraSpaceMessageText(reply.trim());
       if (nextReply.length < reply.trim().length) showMessageLimitNotice();
       if (nextReply) { syncComposerText(nextReply, true); if (textareaRef.current) textareaRef.current.innerText = nextReply; }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = getErrorMessage(err, 'AI service is unavailable');
       toast.error(msg);
     } finally { setAutrixLoading(false); }
@@ -13715,14 +13728,14 @@ export default function SupraSpacePage() {
   const handleMoveToSpace = React.useCallback(async (convId: string, spaceId: string | null) => {
     try {
       await apiClient.patch(`/api/supraspace/conversations/${convId}/space`, { spaceId }, { headers: { Authorization: `Bearer ${token}` } });
-      setConvos(p => p.map(c => c._id === convId ? { ...c, spaceId: spaceId || null } as any : c));
+      setConvos(p => p.map(c => c._id === convId ? { ...c, spaceId: spaceId || null } : c));
     } catch { }
   }, [token]);
   const handleDeleteSpace = async (spaceId: string) => {
     setDeleteSpaceConfirm(null);
     try {
       await apiClient.delete(`/api/supraspace/spaces/${spaceId}`, { headers: { Authorization: `Bearer ${token}` } });
-      setConvos(p => p.map(c => (c as any).spaceId === spaceId ? { ...c, spaceId: null } as any : c));
+      setConvos(p => p.map(c => c.spaceId === spaceId ? { ...c, spaceId: null } : c));
       setLocalSpaceOrder(p => p.filter(id => id !== spaceId));
       refreshSpaces();
     } catch { }
@@ -14121,7 +14134,7 @@ export default function SupraSpacePage() {
     const activeSpaceIds = new Set(ctxSpaces.map(s => s._id));
     const list = normalList.filter(c => {
       if (c.type !== 'group') return false;
-      const sid = (c as any).spaceId;
+      const sid = c.spaceId;
       return !sid || !activeSpaceIds.has(sid);
     });
     if (!localConvOrder.length) return list;
@@ -14148,7 +14161,7 @@ export default function SupraSpacePage() {
   const spaceUnreadCounts = React.useMemo(() => {
     const out: Record<string, number> = {};
     for (const c of convos) {
-      const spaceId = (c as any).spaceId;
+      const spaceId = c.spaceId;
       if (!spaceId || !isConvUnreadForUser(c, uid, manualUnread)) continue;
       out[spaceId] = (out[spaceId] || 0) + Math.max(1, c.unreadCount || 0);
     }
@@ -14269,7 +14282,7 @@ export default function SupraSpacePage() {
 
   const sharedConvRowProps = {
     activeId, activeConvId: activeConv?._id ?? null, relativeTimeNow, uid, token, theme, presence, notifPrefs, manualUnread, msgs, composerDraftPreviews, ctxSpaces, dragConvId,
-    openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimer,
+    openConvMenuId, setOpenConvMenuId, isPinnedConv, isArchivedConv, ptrStartRef, convLongPressTimerRef,
     openConversation, openArchivedConversation, setConvMobileSheet, markAsRead: ctxMarkAsRead, markConversationActivity, setManualUnreadState, setManualUnread, setConvos, togglePinConv, saveNotificationPref,
     setNotifModalConv, handleMoveToSpace, toggleArchiveConv, setDeleteConfirmConv, setActiveId, setShowInfo,
     selectionMode: conversationSelectionMode,
@@ -14667,7 +14680,7 @@ export default function SupraSpacePage() {
                     <ChevronLeft className="h-3 w-3 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsedSections.has('spaces') ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                   </button>
                   {!collapsedSections.has('spaces') && orderedSpaces.map((space, idx) => {
-                    const spaceConvsRaw = normalList.filter(c => c.type === 'group' && (c as any).spaceId === space._id);
+                    const spaceConvsRaw = normalList.filter(c => c.type === 'group' && c.spaceId === space._id);
                     const spaceConvs = localConvOrder.length
                       ? [...spaceConvsRaw].sort((a, b) => { const ai = localConvOrder.indexOf(a._id); const bi = localConvOrder.indexOf(b._id); return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi); })
                       : spaceConvsRaw;
@@ -16319,7 +16332,7 @@ export default function SupraSpacePage() {
                               <p className="text-center py-6" style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No matching messages</p>
                             ) : (
                               <div className="space-y-2">
-                                {convSearchResults.map((m: any) => (
+                                {convSearchResults.map(m => (
                                   <button
                                     key={m._id}
                                     onClick={() => { setShowInfo(false); openSearchResult(activeId, m._id, m.createdAt); }}
@@ -16823,7 +16836,7 @@ export default function SupraSpacePage() {
         {moveSpaceSheetConv && (() => {
           const conv = convos.find(c => c._id === moveSpaceSheetConv);
           if (!conv) return null;
-          const currentSpaceId = (conv as any).spaceId as string | null | undefined;
+          const currentSpaceId = conv.spaceId;
           return (
             <div className="ss4-overlay fixed inset-0 z-200 flex items-end" onClick={() => setMoveSpaceSheetConv(null)}>
               <div role="dialog" aria-modal="true" aria-label="Move conversation to Space" className="w-full max-h-[calc(var(--ss4-vvh,100dvh)-1rem)] flex flex-col rounded-t-2xl" onClick={e => e.stopPropagation()}
@@ -16874,7 +16887,7 @@ export default function SupraSpacePage() {
               </div>
               <p className="text-center font-bold mb-1" style={{ fontSize: 15, color: 'var(--text-primary)' }}>Delete Space?</p>
               <p className="text-center mb-1" style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
-                "{orderedSpaces.find(sp => sp._id === deleteSpaceConfirm)?.name}"
+                &quot;{orderedSpaces.find(sp => sp._id === deleteSpaceConfirm)?.name}&quot;
               </p>
               <p className="text-center mb-5" style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
                 Are you sure you want to delete this space? Channels inside it will be moved back to Channels. This cannot be undone.
