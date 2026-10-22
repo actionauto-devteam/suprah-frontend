@@ -74,7 +74,8 @@ import {
 // External Components
 import { InboundCallsTab } from "@/components/inbound-calls/InboundCallsTab";
 import { WorkspaceEmptyState } from "@/components/conversation-workspace/WorkspaceEmptyState";
-import { resolveCustomerEmail } from "@/components/conversation-workspace/customer-email";
+import { resolveCustomerEmail, resolveReplyRecipientEmail } from "@/components/conversation-workspace/customer-email";
+import { smsPhoneProblem } from "@/lib/smsPhone";
 
 
 // Constants
@@ -105,17 +106,27 @@ const isSmsLead = (lead: Lead | null | undefined): boolean => {
 const isWebchatLead = (lead: Lead | null | undefined): boolean =>
   String(lead?.channel || "").toLowerCase() === "webchat";
 
-const hasTextablePhone = (phone: string | null | undefined): boolean => {
-  const digits = String(phone || "").replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 15;
-};
-
 const NO_VALID_PHONE_MESSAGE =
   "This lead has no valid phone number, so a text can't be sent. Add a phone number in the contact details.";
 const SMS_OPTED_OUT_MESSAGE =
   "This customer replied STOP, so texting is turned off. Texting turns back on only after they reply START.";
+const PHONE_EXTENSION_MESSAGE =
+  "This lead's phone number includes an extension or other characters, so a text can't be sent. Edit the phone number in the contact details so it only has the phone digits.";
+const UNCONFIRMED_EMAIL_MESSAGE =
+  "This lead only has the original sender address, which isn't confirmed as the customer's email. Add the customer's email in the contact details before replying.";
 const NO_CUSTOMER_EMAIL_MESSAGE =
   "This lead has no customer email on file. Add the customer's email in the contact details before replying by email.";
+const NO_REPLY_CHANNEL_MESSAGE =
+  "This lead has no valid phone number or confirmed customer email, so a reply can't be sent. Add one in the contact details.";
+
+type ReplyRoute = "webchat" | "sms" | "email";
+
+interface ReplyState {
+  route: ReplyRoute;
+  reason: string | null;
+  smsReason: string | null;
+  recipientEmail: string;
+}
 
 const isEmailLead = (lead: Lead | null | undefined): boolean => {
   if (!lead) return false;
@@ -444,6 +455,7 @@ export function LeadsTab({
 
   const [replyDrafts, setReplyDrafts] = React.useState<Record<string, string>>({});
   const [smsOptOutByLead, setSmsOptOutByLead] = React.useState<Record<string, boolean>>({});
+  const [emailReplyByLead, setEmailReplyByLead] = React.useState<Record<string, boolean>>({});
   const selectedLeadId = selectedLead?._id;
   const replyMessage = selectedLeadId ? replyDrafts[selectedLeadId] ?? "" : "";
 
@@ -464,15 +476,48 @@ export function LeadsTab({
     [selectedLeadId, setLeadDraft],
   );
 
-  const replyUnavailableReason = React.useMemo(() => {
-    if (!selectedLead || isWebchatLead(selectedLead)) return null;
-    if (isSmsLead(selectedLead)) {
-      if (!hasTextablePhone(selectedLead.phone)) return NO_VALID_PHONE_MESSAGE;
-      if (smsOptOutByLead[selectedLead._id]) return SMS_OPTED_OUT_MESSAGE;
-      return null;
+  const emailReplyChosen = selectedLeadId ? Boolean(emailReplyByLead[selectedLeadId]) : false;
+
+  const replyState = React.useMemo<ReplyState>(() => {
+    if (!selectedLead || isWebchatLead(selectedLead)) {
+      return { route: "webchat", reason: null, smsReason: null, recipientEmail: "" };
     }
-    return resolveCustomerEmail(selectedLead) ? null : NO_CUSTOMER_EMAIL_MESSAGE;
-  }, [selectedLead, smsOptOutByLead]);
+    const recipientEmail = resolveReplyRecipientEmail(selectedLead);
+    const emailReason = recipientEmail
+      ? null
+      : resolveCustomerEmail(selectedLead)
+        ? UNCONFIRMED_EMAIL_MESSAGE
+        : NO_CUSTOMER_EMAIL_MESSAGE;
+    if (!isSmsLead(selectedLead)) {
+      return { route: "email", reason: emailReason, smsReason: null, recipientEmail };
+    }
+    const phoneProblem = smsPhoneProblem(selectedLead.phone);
+    const smsReason =
+      phoneProblem === "extension"
+        ? PHONE_EXTENSION_MESSAGE
+        : phoneProblem
+          ? recipientEmail
+            ? NO_VALID_PHONE_MESSAGE
+            : NO_REPLY_CHANNEL_MESSAGE
+          : smsOptOutByLead[selectedLead._id]
+            ? SMS_OPTED_OUT_MESSAGE
+            : null;
+    if (emailReplyChosen) {
+      return { route: "email", reason: emailReason, smsReason, recipientEmail };
+    }
+    return { route: "sms", reason: smsReason, smsReason, recipientEmail };
+  }, [selectedLead, smsOptOutByLead, emailReplyChosen]);
+  const replyUnavailableReason = replyState.reason;
+
+  const chooseReplyChannel = React.useCallback((leadId: string, channel: "sms" | "email") => {
+    setEmailReplyByLead((previous) => {
+      if (channel === "email") return previous[leadId] ? previous : { ...previous, [leadId]: true };
+      if (!previous[leadId]) return previous;
+      const next = { ...previous };
+      delete next[leadId];
+      return next;
+    });
+  }, []);
   const lastTypingPingRef = React.useRef(0);
 
   const pingWebchatTyping = React.useCallback((lead: Lead | null) => {
@@ -1383,7 +1428,7 @@ export function LeadsTab({
        * number. The reply is saved on the org-wide conversation with the
        * sending user, and every teammate's workspace updates via socket.
        */
-      if (isSmsLead(selectedLead)) {
+      if (replyState.route === "sms") {
         if (!selectedLead.phone) {
           addToast("error", "This lead has no phone number on file");
           throw new Error("Missing phone number");
@@ -2339,11 +2384,29 @@ export function LeadsTab({
                     selectedLeadStatus={selectedLead.status}
                     leadId={selectedLead._id}
                     replyUnavailableReason={replyUnavailableReason}
-                    replyChannel={
-                      isSmsLead(selectedLead) || isWebchatLead(selectedLead)
-                        ? "sms"
-                        : "email"
+                    replyNoticeAction={
+                      replyState.route === "sms" && replyState.reason && replyState.recipientEmail
+                        ? {
+                            label: "Reply by email instead",
+                            onClick: () => chooseReplyChannel(selectedLead._id, "email"),
+                          }
+                        : emailReplyChosen && replyState.reason && !replyState.smsReason
+                          ? {
+                              label: "Use text instead",
+                              onClick: () => chooseReplyChannel(selectedLead._id, "sms"),
+                            }
+                          : null
                     }
+                    replyRecipientNote={
+                      emailReplyChosen && replyState.route === "email" && !replyState.reason
+                        ? {
+                            text: `Replying by email to ${replyState.recipientEmail}`,
+                            actionLabel: replyState.smsReason ? undefined : "Use text instead",
+                            onAction: () => chooseReplyChannel(selectedLead._id, "sms"),
+                          }
+                        : null
+                    }
+                    replyChannel={replyState.route === "email" ? "email" : "sms"}
                     threadContext={buildDraftThreadContext(
                       threads[selectedLead._id] || [],
                     )}

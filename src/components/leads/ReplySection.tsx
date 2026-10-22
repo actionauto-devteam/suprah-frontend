@@ -19,6 +19,7 @@ import {
   Loader2,
   StickyNote,
   AlertTriangle,
+  Mail,
 } from "lucide-react";
 import { LeadStatusSelect } from "./atomic/LeadStatusSelect";
 import { REASON_REQUIRED_STATUSES } from "@/lib/leadStatus";
@@ -42,6 +43,8 @@ interface ReplySectionProps {
   leadContext?: { firstName?: string; lastName?: string; vehicle?: string };
   leadId?: string;
   replyUnavailableReason?: string | null;
+  replyNoticeAction?: { label: string; onClick: () => void } | null;
+  replyRecipientNote?: { text: string; actionLabel?: string; onAction?: () => void } | null;
   replyChannel?: "email" | "sms";
   threadContext?: Array<{ direction: "inbound" | "outbound"; text: string }>;
   onAddNote?: (payload: { text: string; mentionedUserIds: string[]; mentionedGroupIds: string[] }) => Promise<void>;
@@ -137,6 +140,8 @@ export const ReplySection = React.memo(
     leadContext,
     leadId,
     replyUnavailableReason = null,
+    replyNoticeAction = null,
+    replyRecipientNote = null,
     replyChannel = "email",
     threadContext,
     onAddNote,
@@ -493,10 +498,38 @@ export const ReplySection = React.memo(
           {composerMode === "reply" && replyUnavailableReason && (
             <div
               role="status"
-              className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200 sm:px-4"
+              className="flex flex-wrap items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200 sm:px-4"
             >
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{replyUnavailableReason}</span>
+              <span className="min-w-0 flex-1">{replyUnavailableReason}</span>
+              {replyNoticeAction && (
+                <button
+                  type="button"
+                  onClick={replyNoticeAction.onClick}
+                  className="shrink-0 rounded-md border border-amber-400/60 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100 dark:border-amber-400/30 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-400/10"
+                >
+                  {replyNoticeAction.label}
+                </button>
+              )}
+            </div>
+          )}
+
+          {composerMode === "reply" && !replyUnavailableReason && replyRecipientNote && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2 text-[12px] leading-snug text-slate-600 dark:border-emerald-400/10 dark:text-slate-300 sm:px-4"
+            >
+              <Mail className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{replyRecipientNote.text}</span>
+              {replyRecipientNote.actionLabel && replyRecipientNote.onAction && (
+                <button
+                  type="button"
+                  onClick={replyRecipientNote.onAction}
+                  className="shrink-0 text-[11px] font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+                >
+                  {replyRecipientNote.actionLabel}
+                </button>
+              )}
             </div>
           )}
 

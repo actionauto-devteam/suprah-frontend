@@ -48,3 +48,12 @@ export function resolveCustomerEmail(
   // Legacy non-central email leads may only have senderEmail populated.
   return rawSenderEmail;
 }
+
+export function resolveReplyRecipientEmail(
+  lead: CustomerEmailSource | null | undefined,
+): string {
+  const savedCustomerEmail = normalizeEmail(lead?.email);
+  return isValidEmail(savedCustomerEmail) && !isInternalSourceEmail(savedCustomerEmail)
+    ? savedCustomerEmail
+    : "";
+}

@@ -20,6 +20,7 @@ import { useOrg } from "@/hooks/useOrg";
 import { Avatar } from "./atomic/Avatar";
 import { aiModeIndicatorLabel, type AiMode } from "@/lib/aiOperatingModes";
 import { CoachAiPopover } from "./CoachAiPopover";
+import { visibleThreadEntries } from "@/lib/messageIdentity";
 
 interface ConversationViewProps {
   lead: any;
@@ -294,11 +295,6 @@ const cleanAggregatorText = (raw: string): string => {
     return candidate;
   }
   return text; // nothing better found — show the original rather than nothing
-};
-
-const duplicateTextKey = (text: string) => {
-  const lower = (text || "").toLowerCase();
-  return lower.replace(/[^a-z0-9]+/g, "") || lower.replace(/\s+/g, " ").trim();
 };
 
 const extractCustomerComments = (
@@ -583,32 +579,7 @@ export function ConversationView({
     };
   }, []);
 
-  /*
-   * Marketplace aggregators re-submit the same inquiry several times a day,
-   * which used to render as a wall of identical bubbles. Consecutive
-   * messages with the same direction + cleaned text collapse into ONE
-   * bubble carrying a "×N" count (first occurrence's timestamp is shown).
-   */
-  const groupedThreads = React.useMemo(() => {
-    const groups: { message: any; index: number; count: number }[] = [];
-    let previousKey = "";
-    threads.forEach((message: any, index: number) => {
-      const outbound = isOutboundMessage(message, sourceEmail);
-      const shownText =
-        !outbound && isLeadInquiryMessage(message, index)
-          ? extractCustomerComments(lead, message)
-          : cleanAggregatorText(getMessageText(message));
-      const textKey = duplicateTextKey(shownText);
-      const groupKey = `${outbound ? "out" : "in"}|${textKey}`;
-      if (textKey && groupKey === previousKey && groups.length > 0) {
-        groups[groups.length - 1].count += 1;
-      } else {
-        groups.push({ message, index, count: 1 });
-        previousKey = groupKey;
-      }
-    });
-    return groups;
-  }, [threads, sourceEmail, lead]);
+  const groupedThreads = React.useMemo(() => visibleThreadEntries(threads, lead), [threads, lead]);
 
   const leadNotes = lead?.notes;
   const leadCreatedAt = lead?.createdAt;
@@ -833,9 +804,8 @@ export function ConversationView({
                   );
                 }
 
-                const { message, index, count, stamp, showDayChip } = item;
+                const { message, index, stamp, showDayChip } = item;
                 const outbound = isOutboundMessage(message, sourceEmail);
-                const countBadge = count > 1 ? ` · ×${count}` : "";
                 const key =
                   message?._id ||
                   message?.id ||
@@ -865,7 +835,6 @@ export function ConversationView({
                             </div>
                             <span className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                               {getLeadName(lead)} · {formatTimestamp(stamp)}
-                              {countBadge}
                             </span>
                           </div>
                         </div>
@@ -939,7 +908,6 @@ export function ConversationView({
                             </>
                           )}
                           {senderLabel} · {formatTimestamp(stamp)}
-                          {countBadge}
                           {isAiAgentMessage && (
                             <span className="inline-flex items-center gap-0.5 rounded-full bg-fuchsia-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-300">
                               <Bot className="h-2.5 w-2.5" />
